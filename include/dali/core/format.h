@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,21 @@
 #define DALI_CORE_FORMAT_H_
 
 #include <string>
+#include <vector>
 #include <sstream>
 
 namespace dali {
+
+template<typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
+  for (size_t i = 0; i < vec.size() - 1; ++i) {
+    os << vec[i] << ", ";
+  }
+  if (vec.size())
+    os << vec.back();
+  return os;
+}
+
 
 struct no_delimiter {};
 

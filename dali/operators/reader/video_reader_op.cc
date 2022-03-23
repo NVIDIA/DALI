@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,7 +48,8 @@ void VideoReader::Prefetch() {
     // TODO(klecki): Rework this with proper sample-based tensor batch data structure
     auto sample_shared_ptr = unsafe_sample_owner(curr_tensor_list, data_idx);
     sample->sequence.ShareData(sample_shared_ptr, curr_tensor_list.capacity(),
-                     curr_tensor_list.shape()[data_idx], curr_tensor_list.type());
+                               curr_tensor_list.is_pinned(), curr_tensor_list.shape()[data_idx],
+                               curr_tensor_list.type(), curr_tensor_list.order());
     sample->sequence.set_device_id(curr_tensor_list.device_id());
     sample->sequence.SetMeta(curr_tensor_list.GetMeta(data_idx));
     sample->read_sample_f();

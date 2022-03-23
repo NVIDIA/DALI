@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,22 +18,48 @@
 
 namespace dali {
 
-// this is to make debug builds happy about kMaxGrowthFactor
-template class Buffer<CPUBackend>;
-template class Buffer<GPUBackend>;
-
-
-DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool /* pinned */, GPUBackend *) {
-  const size_t kDevAlignment = 256;  // warp alignment for 32x64-bit
-  return mm::alloc_raw_shared<uint8_t, mm::memory_kind::device>(bytes, kDevAlignment);
+DLL_PUBLIC AccessOrder get_deletion_order(const std::shared_ptr<void> &ptr) {
+  if (auto *del = std::get_deleter<mm::AsyncDeleter>(ptr))
+    return AccessOrder(del->release_on_stream);
+  else
+    return {};
 }
 
-DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend *) {
+DLL_PUBLIC bool set_deletion_order(const std::shared_ptr<void> &ptr, AccessOrder order) {
+  if (ptr.use_count() == 1 && order.has_value()) {
+    if (auto *del = std::get_deleter<mm::AsyncDeleter>(ptr)) {
+      del->release_on_stream = order.get();
+      if (ptr.use_count() != 1)
+        throw std::logic_error("Race condition detected - the pointer is no longer unique.");
+      return true;
+    }
+  }
+  return false;
+}
+
+
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool /* device_ordinal */,
+                                           int device_id,
+                                           AccessOrder order,
+                                           GPUBackend *) {
+  const size_t kDevAlignment = 256;  // warp alignment for 32x64-bit
+  cudaStream_t s = order.has_value() ? order.get() : AccessOrder::host_sync_stream();
+  auto *rsrc = mm::GetDefaultDeviceResource(device_id);
+  return mm::alloc_raw_async_shared<uint8_t>(rsrc, bytes, s, s, kDevAlignment);
+}
+
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned,
+                                           int /* device_ordinal */,
+                                           AccessOrder order,
+                                           CPUBackend *) {
   const size_t kHostAlignment = 64;  // cache alignment
-  if (pinned)
-    return mm::alloc_raw_shared<uint8_t, mm::memory_kind::pinned>(bytes, kHostAlignment);
-  else
+  if (pinned) {
+    cudaStream_t s = order.has_value() ? order.get() : AccessOrder::host_sync_stream();
+    return mm::alloc_raw_async_shared<uint8_t, mm::memory_kind::pinned>(
+      bytes, s, s, kHostAlignment);
+  } else {
     return mm::alloc_raw_shared<uint8_t, mm::memory_kind::host>(bytes, kHostAlignment);
+  }
 }
 
 DLL_PUBLIC bool RestrictPinnedMemUsage() {
@@ -43,5 +69,9 @@ DLL_PUBLIC bool RestrictPinnedMemUsage() {
   }();
   return val;
 }
+
+// this is to make debug builds happy about kMaxGrowthFactor
+template class Buffer<CPUBackend>;
+template class Buffer<GPUBackend>;
 
 }  // namespace dali

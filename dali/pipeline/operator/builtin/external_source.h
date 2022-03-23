@@ -240,11 +240,11 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
   template <typename SrcBackend>
-  inline void SetDataSource(const TensorList<SrcBackend> &tl, cudaStream_t stream = 0,
+  inline void SetDataSource(const TensorList<SrcBackend> &tl, AccessOrder order = {},
                             ExtSrcSettingMode ext_src_setting_mode = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
-    SetDataSourceHelper(tl, stream, ext_src_setting_mode);
+    SetDataSourceHelper(tl, order, ext_src_setting_mode);
   }
 
   /**
@@ -252,25 +252,25 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    */
   template <typename SrcBackend>
   inline void SetDataSource(const vector<Tensor<SrcBackend>> &vect_of_tensors,
-                            cudaStream_t stream = 0, ExtSrcSettingMode ext_src_setting_mode = {}) {
+                            AccessOrder order = {}, ExtSrcSettingMode ext_src_setting_mode = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     for (size_t i = 0; i < tv.num_samples(); ++i) {
       tv[i].ShareData(const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }
-    SetDataSourceHelper(tv, stream, ext_src_setting_mode);
+    SetDataSourceHelper(tv, order, ext_src_setting_mode);
   }
 
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
   template <typename SrcBackend>
-  inline void SetDataSource(const TensorVector<SrcBackend> &tv, cudaStream_t stream = 0,
+  inline void SetDataSource(const TensorVector<SrcBackend> &tv, AccessOrder order = {},
                             ExtSrcSettingMode ext_src_setting_mode = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
-    SetDataSourceHelper(tv, stream, ext_src_setting_mode);
+    SetDataSourceHelper(tv, order, ext_src_setting_mode);
   }
 
   int NextBatchSize() override {
@@ -347,7 +347,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   template<typename SrcBackend, template<typename> class SourceDataType>
   inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &t, cudaStream_t /*stream = 0*/,
+  ShareUserData(const SourceDataType<SrcBackend> &t, AccessOrder /* order = {}*/,
                 bool /* use_copy_kernel */) {
     DALI_FAIL(make_string("no_copy is supported only for the same data source device type "
                           "as operator. Received: ",
@@ -360,7 +360,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   template <typename SrcBackend, template <typename> class SourceDataType>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, CPUBackend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &batch, cudaStream_t /*stream = 0*/,
+  ShareUserData(const SourceDataType<SrcBackend> &batch, AccessOrder /* order = {}*/,
                 bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
@@ -382,14 +382,15 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    * @remarks Mixing contiguous and non-contiguous inputs in subsequents calls
    *        is not supported and could lead to data corruption.
    * @param batch source data
-   * @param stream CUDA stream use to schedule the copy
+   * @param order CUDA stream use to schedule the copy (or host order to make the copy
+   *              host-syncrhonous)
    * @param use_copy_kernel If true, a copy kernel will be used to make a
    *        contiguous buffer instead of cudaMemcpyAsync.
    */
   template <typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorVector<SrcBackend> &batch, cudaStream_t stream = 0,
+  ShareUserData(const TensorVector<SrcBackend> &batch, AccessOrder order = {},
                 bool use_copy_kernel = false) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
@@ -400,11 +401,11 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       zero_copy_noncontiguous_gpu_input_ = true;
     } else {
       // it is not contiguous so we need to copy
-      tl_elm.front()->Copy(batch, stream, use_copy_kernel);
+      tl_elm.front()->Copy(batch, order, use_copy_kernel);
 
       std::list<uptr_cuda_event_type> copy_to_storage_event;
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
-      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), stream));
+      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
       copy_to_storage_events_.PushBack(copy_to_storage_event);
 
       if (zero_copy_noncontiguous_gpu_input_) {
@@ -421,7 +422,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   template <typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorList<SrcBackend> &batch, cudaStream_t /*stream = 0*/,
+  ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder /* order = {}*/,
                 bool /* use_copy_kernel */) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
@@ -434,22 +435,19 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
   CopyUserData(const SourceDataType<SrcBackend> &batch,
-               cudaStream_t stream, bool /* sync */, bool /* use_copy_kernel */) {
+               AccessOrder order, bool /* sync */, bool /* use_copy_kernel */) {
     std::list<uptr_tv_type> tv_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_elm = tv_data_.GetEmpty();
     }
     // set pinned if needed
+    tv_elm.front()->set_order(AccessOrder::host());
     if (batch.is_pinned() !=  tv_elm.front()->is_pinned()) {
       tv_elm.front()->Reset();
       tv_elm.front()->set_pinned(batch.is_pinned());
     }
-    tv_elm.front()->Copy(batch, stream);
-    // if copying from GPU to CPU always synchronize
-    if (std::is_same<SrcBackend, GPUBackend>::value) {
-      CUDA_CALL(cudaStreamSynchronize(stream));
-    }
+    tv_elm.front()->Copy(batch, order);
 
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -461,7 +459,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, GPUBackend>::value>
   CopyUserData(const SourceDataType<SrcBackend> &batch,
-               cudaStream_t stream, bool sync, bool use_copy_kernel) {
+               AccessOrder order, bool sync, bool use_copy_kernel) {
     std::list<uptr_cuda_event_type> copy_to_storage_event;
     std::list<uptr_tl_type> tl_elm;
     {
@@ -469,17 +467,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tl_elm = tl_data_.GetEmpty();
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
-    tl_elm.front()->Copy(batch, stream, use_copy_kernel);
-    // record event for:
-    // - GPU -> GPU
-    // - pinned CPU -> GPU
-    if (std::is_same<SrcBackend, GPUBackend>::value || batch.is_pinned()) {
-      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), stream));
-    }
-    // if copying from non pinned CPU it happens on the stream 0
-    if (std::is_same<SrcBackend, CPUBackend>::value && !batch.is_pinned()) {
-      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), 0));
-    }
+    tl_elm.front()->Copy(batch, order, use_copy_kernel);
+    CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
     if (sync) {
       CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
     }
@@ -532,7 +521,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
-  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, cudaStream_t stream = 0,
+  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, AccessOrder order = {},
                                   ExtSrcSettingMode ext_src_setting_mode = {}) {
     ValidateInputData(batch);
 
@@ -554,9 +543,9 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
 
     if (actual_no_copy) {
-      ShareUserData(batch, stream, ext_src_setting_mode.use_copy_kernel);
+      ShareUserData(batch, order, ext_src_setting_mode.use_copy_kernel);
     } else {
-      CopyUserData(batch, stream, ext_src_setting_mode.sync, ext_src_setting_mode.use_copy_kernel);
+      CopyUserData(batch, order, ext_src_setting_mode.sync, ext_src_setting_mode.use_copy_kernel);
     }
     cv_.notify_one();
   }

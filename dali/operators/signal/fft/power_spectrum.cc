@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,15 +63,13 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
-  auto nthreads = ws.GetThreadPool().NumThreads();
 
   // Other types not supported for now
   using InputType = float;
   using OutputType = float;
   VALUE_SWITCH(in_shape.sample_dim(), Dims, FFT_SUPPORTED_NDIMS, (
     using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, Dims>;
-    kmgr_.Initialize<FftKernel>();
-    kmgr_.Resize<FftKernel>(nthreads, nsamples);
+    kmgr_.Resize<FftKernel>(nsamples);
     output_desc[0].type = type2id<OutputType>::value;
     output_desc[0].shape.resize(nsamples, Dims);
     for (int i = 0; i < nsamples; i++) {
@@ -102,7 +100,7 @@ void PowerSpectrum<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
           kernels::KernelContext ctx;
           auto in_view = view<const InputType, Dims>(input[i]);
           auto out_view = view<OutputType, Dims>(output[i]);
-          kmgr_.Run<FftKernel>(thread_id, i, ctx, out_view, in_view, fft_args_);
+          kmgr_.Run<FftKernel>(i, ctx, out_view, in_view, fft_args_);
         }, in_shape.tensor_size(i));
     }
   ), DALI_FAIL(make_string("Not supported number of dimensions: ", in_shape.size())));  // NOLINT

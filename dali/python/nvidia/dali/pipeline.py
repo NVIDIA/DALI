@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,12 +15,10 @@
 # pylint: disable=no-member
 from collections import deque
 from nvidia.dali import backend as b
-from nvidia.dali import tensors as Tensors
 from nvidia.dali import types
 from nvidia.dali import internal
 from nvidia.dali._multiproc.pool import WorkerPool
 from nvidia.dali import pickling as dali_pickle
-from nvidia.dali.backend import CheckDLPackCapsule
 from threading import local as tls
 from . import data_node as _data_node
 import functools
@@ -44,16 +42,6 @@ def _show_deprecation_warning(deprecated, in_favor_of):
         warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
                       Warning, stacklevel=2)
 
-
-def _get_default_stream_for_array(array):
-    if types._is_torch_tensor(array):
-        import torch
-        return torch.cuda.current_stream().cuda_stream
-    elif types._is_cupy_array(array):
-        import cupy
-        return cupy.cuda.get_current_stream().ptr
-    else:
-        return None
 
 class Pipeline(object):
     """Pipeline class is the base of all DALI data pipelines. The pipeline
@@ -605,9 +593,12 @@ Parameters
         self._py_pool_started = True
 
     def _init_pipeline_backend(self):
+        device_id = self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID
+        if device_id != types.CPU_ONLY_DEVICE_ID:
+            b.check_cuda_runtime()
         self._pipe = b.Pipeline(self._max_batch_size,
                                 self._num_threads,
-                                self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID,
+                                device_id,
                                 self._seed if self._seed is not None else -1,
                                 self._exec_pipelined,
                                 self._cpu_queue_size,
@@ -711,67 +702,22 @@ Parameters
         self._pipe.Build(self._names_and_devices)
         self._built = True
 
-    def _feed_input(self, name, data, layout = None, cuda_stream = None, use_copy_kernel = False):
-        from nvidia.dali.external_source import _check_data_batch
-
-        infer_stream = False
+    def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
+        from nvidia.dali.external_source import _prep_data_for_feed_input
         if cuda_stream is None:
-            infer_stream = True
+            cuda_stream = types._get_default_stream_for_array(data)
         if cuda_stream == -1:
             cuda_stream = None
         else:
             cuda_stream = types._raw_cuda_stream(cuda_stream)
 
-        def to_numpy(x):
-            if types._is_mxnet_array(x):
-                return x.asnumpy()
-            elif types._is_torch_tensor(x):
-                return x.numpy()
-            else:
-                return x
+        data = _prep_data_for_feed_input(data, self._max_batch_size, layout, self._device_id)
 
-        # __cuda_array_interface__ doesn't provide any way to pass the information about the device
-        # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
-        # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
-        if isinstance(data, (Tensors.TensorListCPU, Tensors.TensorListGPU)):
-            if layout is not None:
-                _check_data_batch(data, self._max_batch_size, layout)
-                data = type(data)(data, layout)
-
-            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
-        elif isinstance(data, list):
-            inputs = []
-            checked = False
-            for datum in data:
-                info = CheckDLPackCapsule(datum)
-                if not info[0] and not checked:
-                    _check_data_batch(data, self._max_batch_size, layout)
-                    checked = True
-                if isinstance(datum, (Tensors.TensorCPU, Tensors.TensorGPU)):
-                    inp = type(datum)(datum, layout=layout) if layout is not None else datum
-                elif hasattr(datum, "__cuda_array_interface__") or (info[0] and info[1]):
-                    if infer_stream:
-                        cuda_stream = _get_default_stream_for_array(datum)
-                    inp = Tensors.TensorGPU(datum, layout or "")
-                else:
-                    datum = to_numpy(datum)
-                    inp = Tensors.TensorCPU(datum, layout or "")
-                inputs.append(inp)
-            assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
-                   "Mixed input types are not support, all need to reside on the CPU or GPU"
-            self._pipe.SetExternalTensorInput(name, inputs, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+        if isinstance(data, list):
+            self._pipe.SetExternalTensorInput(
+                name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
         else:
-            info = CheckDLPackCapsule(data)
-            if not info[0]:
-                _check_data_batch(data, self._max_batch_size, layout)
-            if hasattr(data, "__cuda_array_interface__") or (info[0] and info[1]):
-                if infer_stream:
-                    cuda_stream = _get_default_stream_for_array(data)
-                inp = Tensors.TensorListGPU(data, layout or "")
-            else:
-                data = to_numpy(data)
-                inp = Tensors.TensorListCPU(data, layout or "")
-            self._pipe.SetExternalTLInput(name, inp, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
     def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
@@ -837,7 +783,7 @@ Parameters
         if next((op._callback is not None for op in self._ops if op.name == name), False):
             raise RuntimeError(f"Cannot use `feed_input` on the external source '{name}' with a `source`"
                                 " argument specified.")
-        
+
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
     def _run_cpu(self):
@@ -1146,6 +1092,8 @@ Parameters
             kw.get("max_streams", -1),
             kw.get("default_cuda_stream_priority", 0)
         )
+        if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
+            b.check_cuda_runtime()
         pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
                                          pipeline._exec_async)
         pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
-#define DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#ifndef DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_IMPL_H_
+#define DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_IMPL_H_
 
 #include <cuda_runtime.h>
 #include <memory>
 #include <string>
 #include <functional>
+#include <vector>
 #include "dali/core/dynlink_cuda.h"
 #include "nvOpticalFlowCuda.h"
 #include "nvOpticalFlowCommon.h"
 #include "dali/core/common.h"
 #include "dali/operators/sequence/optical_flow/optical_flow_adapter/optical_flow_adapter.h"
-#include "dali/operators/sequence/optical_flow/turing_of/optical_flow_buffer.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/optical_flow_buffer.h"
 
 namespace dali {
 namespace optical_flow {
@@ -107,19 +108,23 @@ inline __host__ __device__ int16_t encode_flow_component(float value) {
 
 }  // namespace kernel
 
-class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
+class DLL_PUBLIC OpticalFlowImpl : public OpticalFlowAdapter<ComputeGPU> {
  public:
-  OpticalFlowTuring(OpticalFlowParams params, size_t width, size_t height, size_t channels,
-                    DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
+  OpticalFlowImpl(const OpticalFlowParams &params, size_t width, size_t height, size_t channels,
+                  DALIImageType image_type, int device_id_, cudaStream_t stream = 0);
+
+  void Init(OpticalFlowParams &params) override;
+
+  void Prepare(size_t width, size_t height) override;
+
+  virtual ~OpticalFlowImpl();
 
 
-  virtual ~OpticalFlowTuring();
-
-
-  TensorShape<DynamicDimensions> GetOutputShape() override {
+  TensorShape<DynamicDimensions> CalcOutputShape(int height, int width) override {
     auto sz = init_params_.outGridSize;
     // There are 2 flow vector components: (x, y)
-    return {static_cast<int>(height_ + sz - 1) / sz, static_cast<int>(width_ + sz - 1) / sz, 2};
+    return {static_cast<int>(div_ceil(height, sz)),
+            static_cast<int>(div_ceil(width, sz)), 2};
   }
 
 
@@ -133,6 +138,11 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
  private:
   void SetInitParams(OpticalFlowParams api_params);
 
+  void CreateBuffers();
+  void DestroyBuffers();
+
+  void CreateOf();
+  void DestroyOf();
 
   NV_OF_EXECUTE_INPUT_PARAMS
   GenerateExecuteInParams(NvOFGPUBufferHandle in_handle, NvOFGPUBufferHandle ref_handle,
@@ -145,25 +155,33 @@ class DLL_PUBLIC OpticalFlowTuring : public OpticalFlowAdapter<ComputeGPU> {
   using ofDriverHandle = std::unique_ptr<std::remove_pointer<DLLDRIVER>::type,
                                          std::function< void(DLLDRIVER) >>;
 
-  DLLDRIVER LoadTuringOpticalFlow(const std::string &library_path);
+  DLLDRIVER LoadOpticalFlow(const std::string &library_path);
 
   const std::string kInitSymbol = "NvOFAPICreateInstanceCuda";
 
   size_t width_                 = 0;
   size_t height_                = 0;
   size_t channels_              = 3;
+  int out_grid_size_            = 0;
+  int hint_grid_size_           = 0;
   int device_id_                = -1;
   CUcontext context_            = nullptr;
   cudaStream_t stream_          = 0;
   NvOFHandle of_handle_         = nullptr;
-  NV_OF_CUDA_API_FUNCTION_LIST turing_of_ = {};
+  NV_OF_CUDA_API_FUNCTION_LIST of_inst_ = {};
   NV_OF_INIT_PARAMS init_params_ = {};
+  NV_OF_INIT_PARAMS default_init_params_ = {};
   std::unique_ptr<OpticalFlowBuffer> inbuf_, refbuf_, outbuf_, hintsbuf_;
   DALIImageType image_type_     = DALI_RGB;
   ofDriverHandle lib_handle_    = nullptr;
+  std::vector<uint32_t> width_min_;
+  std::vector<uint32_t> width_max_;
+  std::vector<uint32_t> height_min_;
+  std::vector<uint32_t> height_max_;
+  bool is_initialized_ = false;
 };
 
 }  // namespace optical_flow
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_TURING_H_
+#endif  // DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_IMPL_H_

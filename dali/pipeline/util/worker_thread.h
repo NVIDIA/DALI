@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -198,14 +198,14 @@ class WorkerThread {
       try {
         work();
       } catch (std::exception &e) {
-        cout << std::this_thread::get_id() << " Exception in thread: " << e.what() << endl;
+        std::cerr << std::this_thread::get_id() << " Exception in thread: " << e.what() << endl;
         lock.lock();
         errors_.push(e.what());
         running_ = false;
         lock.unlock();
         break;
       } catch (...) {
-        cout << std::this_thread::get_id() << " Exception in thread" << endl;
+        std::cerr << std::this_thread::get_id() << " Exception in thread" << endl;
         lock.lock();
         errors_.push("Caught unknown exception in thread.");
         running_ = false;

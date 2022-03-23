@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -325,7 +325,8 @@ class ArithmeticGenericOp : public Operator<Backend> {
       result_layout_ = GetCommonLayout<Backend>(*expr_, ws);
       std::vector<ExprConstant *> constant_nodes;
       GetConstantNodes(*expr_, constant_nodes);
-      constant_storage_.Initialize(spec_, ws.has_stream() ? ws.stream() : 0, constant_nodes);
+      AccessOrder order = ws.has_stream() ? ws.stream() : AccessOrder::host();
+      constant_storage_.Initialize(spec_, order, constant_nodes);
       CheckAllowedOperations(*expr_);
       types_layout_inferred_ = true;
     }

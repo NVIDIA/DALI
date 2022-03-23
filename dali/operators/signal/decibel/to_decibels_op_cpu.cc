@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,12 +56,10 @@ bool ToDecibels<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   kernels::KernelContext ctx;
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
-  auto nthreads = ws.GetThreadPool().NumThreads();
 
   TYPE_SWITCH(input.type(), type2id, T, (float), (
     using ToDbKernel = kernels::signal::ToDecibelsCpu<T>;
-    kmgr_.Initialize<ToDbKernel>();
-    kmgr_.Resize<ToDbKernel>(nthreads, nsamples);
+    kmgr_.Resize<ToDbKernel>(nsamples);
     output_desc[0].shape = in_shape;
     output_desc[0].type = type2id<T>::value;
     for (int i = 0; i < nsamples; i++) {
@@ -87,7 +85,7 @@ void ToDecibels<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
           kernels::KernelContext ctx;
           auto in_view = view<const T>(input[i]);
           auto out_view = view<T>(output[i]);
-          kmgr_.Run<ToDbKernel>(thread_id, i, ctx, out_view, in_view, args_);
+          kmgr_.Run<ToDbKernel>(i, ctx, out_view, in_view, args_);
         }, in_shape.tensor_size(i));
     }
   ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT

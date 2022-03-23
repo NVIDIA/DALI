@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,8 +23,7 @@ namespace dali {
 class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend> {
  public:
   explicit JpegCompressionDistortionGPU(const OpSpec &spec) : JpegCompressionDistortion(spec) {
-    kmgr_.Initialize<JpegDistortionKernel>();
-    kmgr_.Resize<JpegDistortionKernel>(1, 1);
+    kmgr_.Resize<JpegDistortionKernel>(1);
   }
 
   using Operator<GPUBackend>::RunImpl;
@@ -86,7 +85,7 @@ void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
   auto req = kmgr_.Setup<JpegDistortionKernel>(0, ctx, in_view.shape, true, true);
-  kmgr_.Run<JpegDistortionKernel>(0, 0, ctx, out_view, in_view, make_cspan(quality_));
+  kmgr_.Run<JpegDistortionKernel>(0, ctx, out_view, in_view, make_cspan(quality_));
 }
 
 DALI_REGISTER_OPERATOR(JpegCompressionDistortion, JpegCompressionDistortionGPU, GPU);

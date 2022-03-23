@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy librosa torch psutil"
+pip_packages="nose numpy librosa==0.8.1 torch psutil"
 target_dir=./dali/test/python
 
 test_body() {
@@ -12,6 +12,7 @@ test_body() {
     nosetests --verbose test_external_source_pytorch_dlpack.py
     nosetests --verbose test_external_source_parallel_pytorch.py
     nosetests --verbose test_backend_impl_torch_dlpack.py
+    nosetests --verbose test_dali_fork_torch.py
     nosetests --verbose --attr 'pytorch' test_external_source_impl_utils.py
     nosetests --verbose --attr 'pytorch' test_pipeline_debug.py
 }

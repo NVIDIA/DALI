@@ -68,7 +68,7 @@ void Flip<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
   auto _vertical = GetVertical(ws, ws.data_idx());
   auto _depthwise = GetDepthwise(ws, ws.data_idx());
   if (!_horizontal && !_vertical && !_depthwise) {
-    output.Copy(input, nullptr);
+    output.Copy(input);
   } else {
     RunFlip(output, input, layout, _horizontal, _vertical, _depthwise);
   }

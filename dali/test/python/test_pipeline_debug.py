@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ def test_injection_dali_types():
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
-def es_pipeline():
+def es_pipeline_debug():
     images = fn.external_source(name='input')
     labels = fn.external_source(name='labels')
     rng = fn.random.coin_flip(probability=0.5, seed=47)
@@ -185,18 +185,70 @@ def es_pipeline_standard():
     return rng, images, output, labels
 
 
-def test_external_source_debug():
+def test_external_source_debug_sample_pipeline():
     n_iters = 10
+    prefetch_queue_depth = 2
     pipe_load = load_images_pipeline()
-    pipe_standard = es_pipeline_standard()
-    pipe_debug = es_pipeline()
+    pipe_standard = es_pipeline_standard(prefetch_queue_depth=prefetch_queue_depth)
+    pipe_debug = es_pipeline_debug(prefetch_queue_depth=prefetch_queue_depth)
     pipe_load.build()
     pipe_debug.build()
-    for _ in range(n_iters):
+    # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
+    # missing batches near the end of the epoch caused by prefetching
+    for _ in range(n_iters + prefetch_queue_depth):
         images, labels = pipe_load.run()
         pipe_debug.feed_input('input', [np.array(t) for t in images])
         pipe_debug.feed_input('labels', np.array(labels.as_tensor()))
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def es_pipeline(source, batch):
+    if source is not None:
+        return fn.external_source(source, batch=batch, cycle=(not batch))
+    else:
+        return fn.external_source(name='input')
+
+
+def _test_external_source_debug(source, batch):
+    n_iters = 8
+    prefetch_queue_depth = 2
+    pipe_debug = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth, debug=True)
+    pipe_standard = es_pipeline(source, batch, prefetch_queue_depth=prefetch_queue_depth)
+    pipe_debug.build()
+    pipe_standard.build()
+    if source is None:
+        # Call feed_input `prefetch_queue_depth` extra times to avoid issues with
+        # missing batches near the end of the epoch caused by prefetching
+        for _ in range(n_iters + prefetch_queue_depth):
+            x = np.random.rand(8, 5, 1)
+            pipe_debug.feed_input('input', x)
+            pipe_standard.feed_input('input', x)
+
+    compare_pipelines(pipe_standard, pipe_debug, 8, n_iters)
+
+
+def test_external_source_debug():
+    for source in [np.random.rand(8, 8, 1), None]:
+        for batch in [True, False]:
+            yield _test_external_source_debug, source, batch
+
+
+@pipeline_def(num_threads=3, device_id=0)
+def es_pipeline_multiple_outputs(source, num_outputs):
+    out1, out2, out3 = fn.external_source(source, num_outputs=num_outputs)
+    return out1, out2, out3
+
+
+def test_external_source_debug_multiple_outputs():
+    n_iters = 13
+    batch_size = 8
+    num_outputs = 3
+    data = [[np.random.rand(batch_size, 120, 120, 3)]*num_outputs]*n_iters
+    pipe_debug = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size, debug=True)
+    pipe_standard = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size)
+
+    compare_pipelines(pipe_standard, pipe_debug, 8, n_iters)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)

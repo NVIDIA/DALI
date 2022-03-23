@@ -28,15 +28,15 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.6.0
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.6.0
+.. |benchmarkver| replace:: 1.6.1
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.6.1
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
 .. |preprocessor| replace:: Boost Preprocessor
 .. _preprocessor: https://github.com/boostorg/preprocessor
-.. |preprocessorver| replace:: 1.77.0
-.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.77.0
+.. |preprocessorver| replace:: 1.78.0
+.. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.78.0
 .. |preprocessorlic| replace:: Boost Software License 1.0
 .. _preprocessorlic: https://github.com/boostorg/boost/blob/master/LICENSE_1_0.txt
 
@@ -84,14 +84,14 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
-.. |pybind11ver| replace:: 2.8.1
-.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.8.1
+.. |pybind11ver| replace:: 2.9.1
+.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.9.1
 .. |pybind11lic| replace:: BSD 3-Clause License
 .. _pybind11lic: https://github.com/pybind/pybind11/blob/master/LICENSE
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (Oct 29, 2021)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/4d6cb08189cf7336821f04090b612baa2ca6a90d
+.. |rapidjsonver| replace:: Top-of-tree (March 9, 2022)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/e4bde977440d4a00f820b6586899e48a972d2493
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt

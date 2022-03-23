@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import numpy as np
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from nvidia.dali.pipeline import Pipeline
-from PIL import Image
 from test_utils import get_dali_extra_path
 from test_utils import to_array
 
@@ -98,6 +97,7 @@ def normalize_ref(image):
 
 
 def resize_ref(image, size):
+    from PIL import Image
     return np.array(Image.fromarray(image).resize(size, Image.BILINEAR))
 
 
@@ -351,8 +351,6 @@ def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
             test = test and diff_against_eps(reference, val_1, eps)
             test = test and diff_against_eps(reference, val_2, eps)
     return test
-
-from PIL import Image
 
 def run_for_dataset(args, dataset):
     print("Build pipeline")

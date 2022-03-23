@@ -183,7 +183,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;
     outputs.push_back(std::make_shared<TensorList<CPUBackend>>());
-    outputs[0]->Copy(out, nullptr);
+    outputs[0]->Copy(out);
     return outputs;
   }
 

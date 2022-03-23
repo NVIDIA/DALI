@@ -39,7 +39,7 @@ void DumpImage<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       h, w, c, std::to_string(ws.data_idx()) + "-" + suffix_ + "-" + std::to_string(0));
 
   // Forward the input
-  output.Copy(input, 0);
+  output.Copy(input);
 }
 
 DALI_REGISTER_OPERATOR(DumpImage, DumpImage<CPUBackend>, CPU);

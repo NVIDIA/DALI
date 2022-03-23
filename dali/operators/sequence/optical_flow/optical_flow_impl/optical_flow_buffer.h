@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
-#define DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#ifndef DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_BUFFER_H_
+#define DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_BUFFER_H_
 
 #include <sstream>
 #include "dali/core/error_handling.h"
-#include "dali/operators/sequence/optical_flow/turing_of/utils.h"
-#include "dali/operators/sequence/optical_flow/turing_of/nvOpticalFlowCuda.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/utils.h"
+#include "dali/operators/sequence/optical_flow/optical_flow_impl/nvOpticalFlowCuda.h"
 
 namespace dali {
 namespace optical_flow {
@@ -32,18 +32,18 @@ class OpticalFlowBuffer {
   OpticalFlowBuffer(NvOFHandle &of_handle, size_t width, size_t height,
                     NV_OF_CUDA_API_FUNCTION_LIST function_list,
                     NV_OF_BUFFER_USAGE usage, NV_OF_BUFFER_FORMAT format) :
-          turing_of_(function_list),
+          of_inst_(function_list),
           descriptor_(GenerateBufferDescriptor(width, height, format, usage)) {
     // Buffer alloc
-    CUDA_CALL(turing_of_.nvOFCreateGPUBufferCuda(of_handle, &descriptor_,
+    CUDA_CALL(of_inst_.nvOFCreateGPUBufferCuda(of_handle, &descriptor_,
                                                  NV_OF_CUDA_BUFFER_TYPE_CUDEVICEPTR,
                                                  &handle_));
-    ptr_ = turing_of_.nvOFGPUBufferGetCUdeviceptr(handle_);
+    ptr_ = of_inst_.nvOFGPUBufferGetCUdeviceptr(handle_);
     DALI_ENFORCE(ptr_ != 0, "Invalid pointer");
 
     // Assigning stride
     NV_OF_CUDA_BUFFER_STRIDE_INFO stride_info;
-    CUDA_CALL(turing_of_.nvOFGPUBufferGetStrideInfo(handle_, &stride_info));
+    CUDA_CALL(of_inst_.nvOFGPUBufferGetStrideInfo(handle_, &stride_info));
     stride_ = {stride_info.strideInfo[0].strideXInBytes, stride_info.strideInfo[0].strideYInBytes};
   }
 
@@ -54,7 +54,7 @@ class OpticalFlowBuffer {
 
 
   ~OpticalFlowBuffer() {
-    auto err = turing_of_.nvOFDestroyGPUBufferCuda(handle_);
+    auto err = of_inst_.nvOFDestroyGPUBufferCuda(handle_);
     if (err != NV_OF_SUCCESS) {
       // Failing to destroy GPU CUDA buffer leads to significant memory leak,
       // thus we'll rather terminate, than live with that memleak.
@@ -102,7 +102,7 @@ class OpticalFlowBuffer {
   }
 
 
-  NV_OF_CUDA_API_FUNCTION_LIST turing_of_;
+  NV_OF_CUDA_API_FUNCTION_LIST of_inst_;
   NV_OF_BUFFER_DESCRIPTOR descriptor_;
   NvOFGPUBufferHandle handle_;
   CUdeviceptr ptr_;
@@ -111,4 +111,4 @@ class OpticalFlowBuffer {
 
 }  // namespace optical_flow
 }  // namespace dali
-#endif  // DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_TURING_OF_OPTICAL_FLOW_BUFFER_H_
+#endif  // DALI_OPERATORS_SEQUENCE_OPTICAL_FLOW_OPTICAL_FLOW_IMPL_OPTICAL_FLOW_BUFFER_H_

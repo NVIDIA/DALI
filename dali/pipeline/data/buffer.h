@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,14 +30,22 @@
 #include "dali/core/util.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/core/format.h"
+#include "dali/core/access_order.h"
 
 namespace dali {
 
 class GPUBackend;
 class CPUBackend;
 
-DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, GPUBackend *);
-DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend *);
+
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes,
+                                           bool pinned, int device_id,
+                                           AccessOrder order, GPUBackend *);
+
+DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes,
+                                           bool pinned, int device_id,
+                                           AccessOrder order, CPUBackend *);
+
 
 /**
  * @brief Indicates, based on environment cues, whether pinned memory allocations should be avoided.
@@ -45,24 +53,24 @@ DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned, CPUBackend
 DLL_PUBLIC bool RestrictPinnedMemUsage();
 
 template <typename Backend>
-inline shared_ptr<uint8_t> AllocBuffer(size_t bytes, bool pinned) {
-  return AllocBuffer(bytes, pinned, static_cast<Backend*>(nullptr));
+inline shared_ptr<uint8_t> AllocBuffer(size_t bytes,
+                                       bool pinned, int device_id = -1,
+                                       AccessOrder order = {}) {
+  return AllocBuffer(bytes, pinned, device_id, order, static_cast<Backend*>(nullptr));
 }
 
-// Helper function to get a string of the data shape
-inline string ShapeString(vector<Index> shape) {
-  string tmp;
-  for (auto& val : shape) {
-    tmp += std::to_string(val) + " ";
-  }
-  return tmp;
+DLL_PUBLIC AccessOrder get_deletion_order(const std::shared_ptr<void> &ptr);
+DLL_PUBLIC bool set_deletion_order(const std::shared_ptr<void> &ptr, AccessOrder order);
+
+template <typename T>
+inline AccessOrder get_deletion_order(const std::shared_ptr<T> &ptr) {
+  return get_deletion_order(std::static_pointer_cast<void>(ptr));
 }
 
-// NOTE: Data storage types in DALI use delayed allocation, and have a
-// small custom type system that allows us to circumvent template
-// paramters. This is turn allows the Pipeline to manage all intermediate
-// memory, opening the door for optimizations and reducing the work that
-// must be done by the user when defining operations.
+template <typename T>
+inline bool set_deletion_order(const std::shared_ptr<T> &ptr, AccessOrder order) {
+  return set_deletion_order(std::static_pointer_cast<void>(ptr), order);
+}
 
 /**
  * @brief Base class to provide common functionality needed by Pipeline data
@@ -71,10 +79,10 @@ inline string ShapeString(vector<Index> shape) {
  * underlying storage is located (CPU or GPU).
  *
  * Buffers are untyped on construction, and don't receive a valid type until
- * 'set_type' or 'data<T>()' is called on a non-const buffer. Upon receiving
+ * 'set_type' is called on a non-const buffer. Upon receiving
  * a valid type, the underlying storage for the buffer is allocated. The type
  * of the underlying data can change over the lifetime of an object if
- * 'set_type' or 'data<T>()' is called again where the calling type does not
+ * 'set_type' is called again where the calling type does not
  * match the underlying type on the buffer. In this case, the Buffer swaps its
  * current type, but only re-allocates memory if it does not have enough bytes
  * of allocated storage to store the number of elements in the buffer with the
@@ -90,7 +98,24 @@ class DLL_PUBLIC Buffer {
    * @brief Initializes a buffer of size 0.
    */
   inline Buffer() = default;
-  virtual ~Buffer() = default;
+  inline Buffer(const Buffer &) = delete;
+  inline Buffer(Buffer &&other) {
+    *this = std::move(other);
+  }
+
+  virtual ~Buffer() {
+    try {
+      free_storage();
+    } catch (CUDAError &e) {
+      if (!e.is_unloading())
+        std::terminate();
+    }
+  }
+
+  Buffer &operator=(Buffer &&other) {
+    move_buffer(std::move(other));
+    return *this;
+  }
 
   /**
    * @brief Returns a typed pointer to the underlying storage.
@@ -148,7 +173,7 @@ class DLL_PUBLIC Buffer {
    */
   inline size_t nbytes() const {
     // Note: This returns the number of bytes occupied by the current
-    // number of elements stored in the buffer. This is not neccessarily
+    // number of elements stored in the buffer. This is not necessarily
     // the number of bytes of the underlying allocation (num_bytes_)
     return size_ * type_.size();
   }
@@ -207,6 +232,10 @@ class DLL_PUBLIC Buffer {
     return !!data_;
   }
 
+  std::shared_ptr<void> get_data_ptr() const {
+    return data_;
+  }
+
   /**
    * @brief Sets the type of allocation (pinned/non-pinned) for CPU buffers
    */
@@ -234,6 +263,50 @@ class DLL_PUBLIC Buffer {
    */
   void set_device_id(int device) {
     device_ = device;
+  }
+
+  /**
+   * @brief Returns the order in which the data is accessed - it can be either host order
+   *        or a stream order (or unspecified).
+   */
+  AccessOrder order() const {
+    return order_;
+  }
+
+  /**
+   * @brief Returns the order in which the underlying storage will be freed. This may
+   *        differ from the order returned by `order()` if `set_order()` was called
+   *        after the storage has been allocated.
+   */
+  AccessOrder deletion_order() const {
+    return get_deletion_order(data_);
+  }
+
+  /**
+   * @brief Sets the associated access order.
+   *
+   * @note The caller must ensure that if `order` represents a CUDA stream, that stream
+   *       is alive when this buffer is destroyed. This extends to buffers with which this
+   *       one shares data. Use CUDAStreamPool::instance to get streams with indefinite lifetime.
+   *
+   * @param order       The new access order (stream or host). If the new order doesn't have
+   *                    a value, the function has no effect.
+   * @param synchronize If true, an appropriate synchronization is inserted between the old
+   *                    and the new order. The caller may specify `false` if appropriate
+   *                    synchronization is guaranteed by other means.
+   */
+  void set_order(AccessOrder order, bool synchronize = true) {
+    if (!order.has_value())
+      return;
+    if (!synchronize || !order_.has_value()) {
+      order_ = order;
+      return;
+    }
+    if (order == order_)
+      return;
+    if (has_data())  // if there's no data, we don't need to synchronize
+      order.wait(order_);
+    order_ = order;
   }
 
   /**
@@ -270,34 +343,95 @@ class DLL_PUBLIC Buffer {
     set_type(TypeTable::GetTypeId<T>());
   }
 
-  inline void reserve(size_t new_num_bytes) {
-    if (new_num_bytes <= num_bytes_) return;
-
-    // re-allocating: get the device
-    if (std::is_same<Backend, GPUBackend>::value) {
-      CUDA_CALL(cudaGetDevice(&device_));
-    } else {
-      device_ = CPU_ONLY_DEVICE_ID;
-    }
-
+  /**
+   * @brief Reserves at least new_num_bytes of storage.
+   *
+   * @param new_num_bytes The minimum size, in bytes of the buffer. Note that alignment or
+   *                      other conditions may cause actual allocation to be larger.
+   *                      If the buffer is already as large as `new_num_bytes`, no allocation
+   *                      will occur.
+   * @param order         The order (stream or host) in which the deallocation is to occur.
+   *                      If possible, the new storage will be allocated asyncrhonously in the
+   *                      order specified by this argument.
+   *                      After this operation completes, the buffer is associated with this order.
+   *                      If order is empty, current order is used.
+   *
+   * @note For speed, use `buf.reserve(size, order)`
+   *       For better memory reusing, use `buf.set_order(order); buf.reserve(size);`
+   */
+  inline void reserve(size_t new_num_bytes, AccessOrder order = {}) {
     DALI_ENFORCE(!shares_data_,
                  "Cannot reallocate Buffer if it is sharing data. "
                  "Clear the status by `Reset()` first.");
-    data_.reset();
+
+    if (data_ && device_ >= 0 && order.is_device() && order.device_id() != device_)
+      DALI_FAIL("Cannot reallocate a buffer on a different device!");
+
+    if (new_num_bytes <= num_bytes_) {
+      set_order(order);
+      return;
+    }
+
+    free_storage();
+    if (order) {
+      set_order(order);
+    } else if (!order_ && pinned_) {
+      set_order(AccessOrder::host());
+    }
+
+    if (device_ < 0) {
+      if (order.is_device() && order.device_id() >= 0) {
+        device_ = order.device_id();
+      } else {
+        // re-allocating: get the device
+        if (std::is_same<Backend, GPUBackend>::value || pinned_) {
+          device_ = order_.device_id();
+          if (device_ < 0)
+            CUDA_CALL(cudaGetDevice(&device_));
+        } else {
+          device_ = CPU_ONLY_DEVICE_ID;
+        }
+      }
+    }
+
     data_ = allocate_ ? allocate_(new_num_bytes)
-                      : AllocBuffer<Backend>(new_num_bytes, pinned_);
+                      : AllocBuffer<Backend>(new_num_bytes, pinned_, device_, order_);
 
     num_bytes_ = new_num_bytes;
   }
 
-  void reset() {
+  /**
+   * @brief Deallocates the data and clears the type.
+   *
+   * The data, if any, is deallocated.
+   *
+   * @param order  The order (stream or host) in which the deallocation is to occur.
+   *               The order is changed to the provided one after the operation completes.
+   *               If order is empty, current order is used.
+   *
+   * @note Use reset(order) only when it is important that the memory is immediately available
+   *       in the context specified by order. Otherwise, call reset() first and then
+   *       set_order(order) separately for less synchronization.
+   */
+  void reset(AccessOrder order = {}) {
+    set_order(order);
+    free_storage();
     type_ = {};
-    data_.reset();
     allocate_ = {};
     size_ = 0;
     shares_data_ = false;
-    num_bytes_ = 0;
-    device_ =  CPU_ONLY_DEVICE_ID;
+  }
+
+  void swap(Buffer &buffer) {
+    std::swap(type_, buffer.type_);
+    std::swap(data_, buffer.data_);
+    std::swap(allocate_, buffer.allocate_);
+    std::swap(size_, buffer.size_);
+    std::swap(num_bytes_, buffer.num_bytes_);
+    std::swap(device_, buffer.device_);
+    std::swap(shares_data_, buffer.shares_data_);
+    std::swap(pinned_, buffer.pinned_);
+    std::swap(order_, buffer.order_);
   }
 
   /**
@@ -307,7 +441,42 @@ class DLL_PUBLIC Buffer {
     return shares_data_;
   }
 
-  DISABLE_COPY_MOVE_ASSIGN(Buffer);
+  inline void ShareData(const Buffer<Backend> &other) {
+    free_storage();
+    order_ = other.order_;
+    data_ = other.data_;
+    size_ = other.size_;
+    type_ = other.type_;
+    num_bytes_ = other.num_bytes_;
+    shares_data_ = num_bytes_ > 0 ? true : false;
+    device_ = other.device_id();
+  }
+
+  /**
+   * @brief Set external memory as the backing memory for this Buffer.
+   *
+   * Current Buffer will be marked as sharing data, and reallocation of memory will be
+   * prohibited until reset() is called.
+   *
+   * For GPU memory, it is assumed to be associated with current device.
+   */
+  inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                                     DALIDataType type = DALI_NO_TYPE, size_t size = 0) {
+    free_storage();
+    type_ = TypeTable::GetTypeInfo(type);
+    data_ = ptr;
+    allocate_ = {};
+    size_ = size;
+    shares_data_ = data_ != nullptr;
+    num_bytes_ = bytes;
+    pinned_ = pinned;
+    // setting the allocation, get the device
+    if ((std::is_same<Backend, GPUBackend>::value || pinned_) && device_ == CPU_ONLY_DEVICE_ID) {
+      CUDA_CALL(cudaGetDevice(&device_));
+    } else {
+      device_ = CPU_ONLY_DEVICE_ID;
+    }
+  }
 
   static void SetGrowthFactor(double factor) {
     assert(factor >= 1.0);
@@ -326,24 +495,28 @@ class DLL_PUBLIC Buffer {
 
   DLL_PUBLIC static constexpr double kMaxGrowthFactor = 4;
 
- protected:
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size) {
-    ResizeHelper(new_size, type_);
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of current type.
+   */
+  inline void resize(Index new_size) {
+    resize(new_size, type_);
   }
 
-
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size, DALIDataType new_type_id) {
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of type `new_type_id`.
+   */
+  inline void resize(Index new_size, DALIDataType new_type_id) {
     // don't look up the type unless it's different than current one
     const auto &new_type = new_type_id == type_.id() ? type_ : TypeTable::GetTypeInfo(new_type_id);
-    ResizeHelper(new_size, new_type);
+    resize(new_size, new_type);
   }
 
-  // Helper to resize the underlying allocation
-  inline void ResizeHelper(Index new_size, const TypeInfo &new_type) {
+  /**
+   * @brief Resize the Buffer to hold `new_size` elements of type `new_type_id`.
+   */
+  inline void resize(Index new_size, const TypeInfo &new_type) {
     DALI_ENFORCE(new_size >= 0, "Input size less than zero not supported.");
-
+    DALI_ENFORCE(IsValidType(new_type), "Buffer can only be resized with a valid type.");
     // If we use NoType the result will always be 0
     size_t new_num_bytes = new_size * new_type.size();
 
@@ -371,24 +544,30 @@ class DLL_PUBLIC Buffer {
       if (grow > new_num_bytes) new_num_bytes = grow;
       reserve(new_num_bytes);
     } else if (!is_pinned() && new_num_bytes < num_bytes_ * shrink_threshold_) {
-      data_.reset();
-      num_bytes_ = 0;
+      free_storage();
       reserve(new_num_bytes);
     }
   }
 
+ protected:
   void move_buffer(Buffer &&buffer) {
-    type_         = std::move(buffer.type_);
-    data_         = std::move(buffer.data_);
-    allocate_     = std::move(buffer.allocate_);
-    size_         = buffer.size_;
-    num_bytes_    = buffer.num_bytes_;
-    device_       = buffer.device_;
-    shares_data_  = buffer.shares_data_;
-    pinned_       = buffer.pinned_;
-
+    swap(buffer);
     buffer.reset();
   }
+
+  void free_storage(AccessOrder order = {}) {
+    if (data_) {
+      if (!order)
+        order = order_;
+      if (!set_deletion_order(data_, order))
+        get_deletion_order(data_).wait(order);
+      data_.reset();
+    }
+    num_bytes_ = 0;
+  }
+
+  template <typename>
+  friend class TensorList;
 
   static double growth_factor_;
   static double shrink_threshold_;
@@ -401,6 +580,7 @@ class DLL_PUBLIC Buffer {
   Index size_ = 0;                   // The number of elements in the buffer
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
   int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
+  AccessOrder order_;                // The order of memory access (host or device)
   bool shares_data_ = false;         // Whether we aren't using our own allocation
   bool pinned_ = !RestrictPinnedMemUsage();  // Whether the allocation uses pinned memory
 };
@@ -419,7 +599,7 @@ constexpr double Buffer<Backend>::kMaxGrowthFactor;
 // Macro so we don't have to list these in all
 // classes that derive from Buffer
 #define USE_BUFFER_MEMBERS()           \
-  using Buffer<Backend>::ResizeHelper; \
+  using Buffer<Backend>::resize;       \
   using Buffer<Backend>::reset;        \
   using Buffer<Backend>::type_;        \
   using Buffer<Backend>::data_;        \
@@ -428,7 +608,9 @@ constexpr double Buffer<Backend>::kMaxGrowthFactor;
   using Buffer<Backend>::num_bytes_;   \
   using Buffer<Backend>::device_;      \
   using Buffer<Backend>::pinned_;      \
-  using Buffer<Backend>::move_buffer
+  using Buffer<Backend>::move_buffer;  \
+  using Buffer<Backend>::free_storage; \
+  using Buffer<Backend>::order_;       \
 
 
 }  // namespace dali

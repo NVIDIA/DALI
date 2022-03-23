@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
   explicit EraseImplGpu(const OpSpec *spec) : spec_(*spec) {
-    kmgr_.Resize<EraseKernel>(1, 1);
+    kmgr_.Resize<EraseKernel>(1);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override {
@@ -75,7 +75,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     auto input = view<const T, Dims>(input_ref);
     auto output = view<T, Dims>(output_ref);
     auto regions_view = view<kernels::ibox<Dims>, 1>(regions_gpu_);
-    kmgr_.Run<EraseKernel>(0, 0, ctx_, output, input, regions_view, make_cspan(fill_values_));
+    kmgr_.Run<EraseKernel>(0, ctx_, output, input, regions_view, make_cspan(fill_values_));
   }
 
   void AcquireArgs(const DeviceWorkspace &ws, TensorListShape<> in_shape,

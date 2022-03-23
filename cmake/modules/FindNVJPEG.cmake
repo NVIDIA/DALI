@@ -20,11 +20,8 @@ find_library(NVJPEG_LIBRARY libnvjpeg_static.a nvjpeg
     PATHS ${NVJPEG_ROOT_DIR} ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}
     PATH_SUFFIXES lib lib64)
 
-
-# nvJPEG 9.0 calls itself 0.1.x via API calls, and the header file doesn't tell you which
-# version it is. There's not a super clean way to determine which CUDA's nvJPEG we have.
-execute_process(COMMAND strings ${NVJPEG_LIBRARY} COMMAND grep /toolkit/
-                COMMAND sed "s;^.*toolkit/r\\(\[^/\]\\+\\\).*$;\\1;" COMMAND sort -u
+execute_process(COMMAND grep NVJPEG_VER_MAJOR ${NVJPEG_INCLUDE_DIR}/nvjpeg.h
+                COMMAND sed "s;.*NVJPEG_VER_MAJOR \\(.*\\);\\1;"
                 OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE NVJPEG_VERSION)
 
 include(FindPackageHandleStandardArgs)

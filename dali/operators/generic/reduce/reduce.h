@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
     int num_threads = thread_pool.NumThreads();
 
     using Kernel = ReductionType<OutputType, InputType>;
-    kmgr_.template Resize<Kernel>(num_threads, num_threads);
+    kmgr_.template Resize<Kernel>(num_threads);
 
     for (int sample = 0; sample < in_view.num_samples(); sample++) {
       int64_t priority = volume(in_view.shape.tensor_shape_span(sample));
@@ -131,7 +131,7 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
 
           kmgr_.Setup<Kernel>(
             thread_id, ctx, out_sample_view, in_sample_view, make_cspan(axes_));
-          kmgr_.Run<Kernel>(thread_id, thread_id, ctx);
+          kmgr_.Run<Kernel>(thread_id, ctx);
         },
         priority);
     }
@@ -147,7 +147,7 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
     auto out_view = view<OutputType>(out);
 
     using Kernel = ReductionType<OutputType, InputType>;
-    kmgr_.template Resize<Kernel>(1, 1);
+    kmgr_.template Resize<Kernel>(1);
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
@@ -159,7 +159,7 @@ class Reduce : public Operator<Backend>, detail::AxesHelper {
       make_cspan(axes_),
       keep_dims_,
       false);
-    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view);
+    kmgr_.Run<Kernel>(0, ctx, out_view, in_view);
   }
 
   DALIDataType OutputType(DALIDataType input_type) const {

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,6 +106,26 @@ TensorListShape<> TensorVector<Backend>::shape() const {
   return result;
 }
 
+template <typename Backend>
+void TensorVector<Backend>::set_order(AccessOrder order, bool synchronize) {
+  // Optimization: synchronize only once, if needed.
+  if (this->order().is_device() && order && synchronize) {
+    bool need_sync = tl_->has_data();
+    if (!need_sync) {
+      for (auto &t : tensors_) {
+        if (t->has_data()) {
+          need_sync = true;
+          break;
+        }
+      }
+    }
+    if (need_sync)
+      this->order().wait(order);
+  }
+  tl_->set_order(order, false);
+  for (auto &t : tensors_)
+    t->set_order(order, false);
+}
 
 template <typename Backend>
 void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataType new_type) {
@@ -297,10 +317,10 @@ void TensorVector<Backend>::Reset() {
 
 template <typename Backend>
 template <typename SrcBackend>
-void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, cudaStream_t stream) {
+void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order) {
   SetContiguous(true);
   type_ = in_tl.type_info();
-  tl_->Copy(in_tl, stream);
+  tl_->Copy(in_tl, order);
 
   resize_tensors(tl_->num_samples());
   UpdateViews();
@@ -309,10 +329,10 @@ void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, cudaStream
 
 template <typename Backend>
 template <typename SrcBackend>
-void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, cudaStream_t stream) {
+void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order) {
   SetContiguous(true);
   type_ = in_tv.type_;
-  tl_->Copy(in_tv, stream);
+  tl_->Copy(in_tv, order);
 
   resize_tensors(tl_->num_samples());
   UpdateViews();
@@ -439,8 +459,10 @@ void TensorVector<Backend>::update_view(int idx) {
   // tensors_[i]->ShareData(tl_.get(), static_cast<int>(idx));
   if (tensors_[idx]->raw_data() != ptr || tensors_[idx]->shape() != shape) {
     tensors_[idx]->ShareData(std::shared_ptr<void>(ptr, ViewRefDeleter{&views_count_}),
-                             volume(tl_->tensor_shape(idx)) * tl_->type_info().size(), shape,
-                             tl_->type());
+                             volume(tl_->tensor_shape(idx)) * tl_->type_info().size(),
+                             tl_->is_pinned(),
+                             shape, tl_->type(),
+                             order());
   } else if (IsValidType(tl_->type())) {
     tensors_[idx]->set_type(tl_->type());
   }
@@ -450,13 +472,13 @@ void TensorVector<Backend>::update_view(int idx) {
 
 template class DLL_PUBLIC TensorVector<CPUBackend>;
 template class DLL_PUBLIC TensorVector<GPUBackend>;
-template void TensorVector<CPUBackend>::Copy<CPUBackend>(const TensorVector<CPUBackend>&, cudaStream_t);  // NOLINT
-template void TensorVector<CPUBackend>::Copy<GPUBackend>(const TensorVector<GPUBackend>&, cudaStream_t);  // NOLINT
-template void TensorVector<GPUBackend>::Copy<CPUBackend>(const TensorVector<CPUBackend>&, cudaStream_t);  // NOLINT
-template void TensorVector<GPUBackend>::Copy<GPUBackend>(const TensorVector<GPUBackend>&, cudaStream_t);  // NOLINT
-template void TensorVector<CPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend>&, cudaStream_t);  // NOLINT
-template void TensorVector<CPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend>&, cudaStream_t);  // NOLINT
-template void TensorVector<GPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend>&, cudaStream_t);  // NOLINT
-template void TensorVector<GPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend>&, cudaStream_t);  // NOLINT
+template void TensorVector<CPUBackend>::Copy<CPUBackend>(const TensorVector<CPUBackend>&, AccessOrder);  // NOLINT
+template void TensorVector<CPUBackend>::Copy<GPUBackend>(const TensorVector<GPUBackend>&, AccessOrder);  // NOLINT
+template void TensorVector<GPUBackend>::Copy<CPUBackend>(const TensorVector<CPUBackend>&, AccessOrder);  // NOLINT
+template void TensorVector<GPUBackend>::Copy<GPUBackend>(const TensorVector<GPUBackend>&, AccessOrder);  // NOLINT
+template void TensorVector<CPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend>&, AccessOrder);  // NOLINT
+template void TensorVector<CPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend>&, AccessOrder);  // NOLINT
+template void TensorVector<GPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend>&, AccessOrder);  // NOLINT
+template void TensorVector<GPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend>&, AccessOrder);  // NOLINT
 
 }  // namespace dali

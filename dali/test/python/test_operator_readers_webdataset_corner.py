@@ -248,12 +248,9 @@ def general_index_error(
 
 def test_index_errors():
     assert_raises(RuntimeError, general_index_error, b"", glob="no version signature found")
-    assert_raises(
-        RuntimeError,
-        general_index_error,
-        b"v0.1",
-        glob="the version of the index file does not match the expected version (expected: ",
-    )
+    assert_raises(RuntimeError, general_index_error, b"v0.1",
+                  glob="Unsupported version of the index file (v0.1).",
+                  )
     assert_raises(RuntimeError, general_index_error, b"v1.1", glob="no sample count found")
     assert_raises(
         RuntimeError, general_index_error, b"v1.1 -1", glob="sample count must be positive"
@@ -265,7 +262,7 @@ def test_index_errors():
         RuntimeError,
         general_index_error,
         b"v1.1 1\njpg",
-        glob="size or offset corresponding to the extension not found",
+        glob="Could not find all necessary component parameters",
     )
     assert_raises(
         RuntimeError,

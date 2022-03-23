@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
+#include <dlfcn.h>
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
 #if SHM_WRAPPER_ENABLED
@@ -183,14 +184,14 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
   // shared ptr is destroyed
   auto typed_shape = ConvertShape(shape, batch);
+  bool is_pinned = dl_tensor.device.device_type == kDLCUDAHost;
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
-                                    bytes, typed_shape, dali_type.id());
+                                    bytes, is_pinned, typed_shape, dali_type.id());
 
   // according to the docs kDLCUDAHost = kDLCPU | kDLCUDA so test it as a the first option
   if (dl_tensor.device.device_type == kDLCUDAHost) {
     batch->set_device_id(-1);
-    batch->set_pinned(true);
   } else if (dl_tensor.device.device_type == kDLCPU) {
     batch->set_device_id(-1);
   } else if (dl_tensor.device.device_type == kDLCUDA) {
@@ -244,7 +245,7 @@ void FillTensorFromCudaArray(const py::object object, TensorType *batch, int dev
   // while this shared_ptr is alive (and the data should be kept alive)
   // We set the type and shape even before the set_device_id as we only wrap the allocation
   batch->ShareData(shared_ptr<void>(ptr, [obj_ref = object](void *) {}),
-                   bytes, typed_shape, type.id());
+                   bytes, false, typed_shape, type.id());
   batch->SetLayout(layout);
   // it is for __cuda_array_interface__ so device_id < 0 is not a valid value
   if (device_id < 0) {
@@ -276,6 +277,9 @@ void ExposeTensorLayout(py::module &m) {
   DEFINE_LAYOUT_CMP(ge, other  && self >= *other);
 #undef DEFINE_LAYOUT_CMP
 }
+
+// Placeholder enum for defining __call__ on dtype member of Tensor (to be deprecated).
+enum DALIDataTypePlaceholder {};
 
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",
@@ -357,12 +361,11 @@ void ExposeTensor(py::module &m) {
 
           // Create the Tensor and wrap the data
           auto t = std::make_unique<Tensor<CPUBackend>>();
-          t->set_pinned(is_pinned);
           const TypeInfo &type = TypeFromFormatStr(info.format);
           // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
           // while this shared_ptr is alive (and the data should be kept alive)
           t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *) {}),
-                       bytes, i_shape, type.id());
+                       bytes, is_pinned, i_shape, type.id());
           t->SetLayout(layout);
           return t.release();
         }),
@@ -419,7 +422,7 @@ void ExposeTensor(py::module &m) {
       py::return_value_policy::take_ownership)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
-          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, 0, false);
+          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, AccessOrder::host(), false);
         },
       "ptr"_a,
       R"code(
@@ -427,13 +430,6 @@ void ExposeTensor(py::module &m) {
 
       ptr : ctypes.c_void_p
             Destination of the copy.
-      )code")
-    .def("dtype",
-        [](Tensor<CPUBackend> &t) {
-          return FormatStrFromType(t.type());
-        },
-      R"code(
-      String representing NumPy type of the Tensor.
       )code")
     .def("data_ptr", [](Tensor<CPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
@@ -444,6 +440,14 @@ void ExposeTensor(py::module &m) {
     .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
       R"code(
       Returns Array Interface representation of TensorCPU.
+      )code")
+    .def_property_readonly("dtype", [](Tensor<CPUBackend> &t) {
+          return static_cast<DALIDataTypePlaceholder>(t.type());
+        },
+      R"code(
+      Data type of the TensorCPU's elements.
+
+      :type: DALIDataType
       )code");
   tensor_cpu_binding.doc() = R"code(
       Class representing a Tensor residing in host memory. It can be used to access individual
@@ -550,13 +554,6 @@ void ExposeTensor(py::module &m) {
       non_blocking : bool
             Asynchronous copy.
       )code")
-    .def("dtype",
-        [](Tensor<GPUBackend> &t) {
-          return FormatStrFromType(t.type());
-        },
-      R"code(
-      String representing NumPy type of the Tensor.
-      )code")
     .def("data_ptr",
         [](Tensor<GPUBackend> &t) {
           return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
@@ -567,6 +564,14 @@ void ExposeTensor(py::module &m) {
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
       Returns CUDA Array Interface (Version 2) representation of TensorGPU.
+      )code")
+    .def_property_readonly("dtype", [](Tensor<GPUBackend> &t) {
+          return static_cast<DALIDataTypePlaceholder>(t.type());
+        },
+      R"code(
+      Data type of the TensorGPU's elements.
+
+      :type: DALIDataType
       )code");
   tensor_gpu_binding.doc() = R"code(
       Class representing a Tensor residing in GPU memory. It can be used to access individual
@@ -588,10 +593,56 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   auto ptr = std::make_unique<Tensor<Backend>>();
   // TODO(klecki): Rework this with proper sample-based tensor batch data structure
   auto sample_shared_ptr = unsafe_sample_owner(t, id);
-  ptr->ShareData(sample_shared_ptr, t.capacity(), t.shape()[id], t.type());
+  ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type());
   ptr->set_device_id(t.device_id());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
+}
+
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_of_tensors,
+                                                                 string &layout) {
+  if (list_of_tensors.empty()) {
+    throw std::runtime_error("Cannot create TensorList from an empty list.");
+  }
+
+  auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
+  TensorVector<Backend> tv(list_of_tensors.size());
+  int expected_type = -2;
+
+  for (size_t i = 0; i < list_of_tensors.size(); ++i) {
+    try {
+      auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
+      DALIDataType cur_type = t.type();
+
+      if (expected_type == -2) {
+        expected_type = t.type();
+      } else if (expected_type != cur_type) {
+        throw py::type_error(make_string(
+            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
+            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+      }
+
+      tv[i].ShareData(t);
+    } catch (const py::type_error &) {
+      throw;
+    } catch (const std::runtime_error &) {
+      throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
+                                       std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
+    }
+  }
+
+  cudaStream_t stream = 0;
+  if (!list_of_tensors.empty() && std::is_same<Backend, GPUBackend>::value) {
+    auto &t = list_of_tensors[0].cast<Tensor<GPUBackend>&>();
+    stream = UserStream::Get()->GetStream(t);
+  }
+
+  tl->Copy(tv, stream);
+  tl->SetLayout(layout);
+  CUDA_CALL(cudaStreamSynchronize(stream));
+
+  return tl;
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -662,12 +713,11 @@ void ExposeTensorList(py::module &m) {
 
         // Create the Tensor and wrap the data
         auto t = std::make_shared<TensorList<CPUBackend>>();
-        t->set_pinned(false);
         const TypeInfo &type = TypeFromFormatStr(info.format);
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
         t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
-                     bytes, i_shape, type.id());
+                     bytes, false, i_shape, type.id());
         t->SetLayout(layout);
         return t;
       }),
@@ -683,6 +733,19 @@ void ExposeTensorList(py::module &m) {
             Layout of the data
       is_pinned : bool
             If provided memory is page-locked (pinned)
+      )code")
+    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        return TensorListFromListOfTensors<CPUBackend>(list_of_tensors, layout);
+      }),
+      "list_of_tensors"_a,
+      "layout"_a = "",
+      R"code(
+      List of tensors residing in the CPU memory.
+
+      list_of_tensors : [TensorCPU]
+            Python list of TensorCPU objects
+      layout : str
+            Layout of the data
       )code")
     .def("_as_gpu", [](TensorList<CPUBackend> &t) {
           auto ret = std::make_shared<TensorList<GPUBackend>>();
@@ -815,7 +878,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("copy_to_external",
         [](TensorList<CPUBackend> &tl, py::object p) {
-          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), tl, 0, false);
+          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), tl, AccessOrder::host(), false);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer
@@ -850,6 +913,14 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns the address of the first element of TensorList.
+      )code")
+    .def_property_readonly("dtype", [](TensorList<CPUBackend> &tl) {
+          return tl.type();
+        },
+      R"code(
+      Data type of the TensorListCPU's elements.
+
+      :type: DALIDataType
       )code");
 
   py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
@@ -883,6 +954,19 @@ void ExposeTensorList(py::module &m) {
         }),
       "tl"_a,
       "layout"_a = py::none())
+    .def(py::init([](py::list &list_of_tensors, string layout = "") {
+        return TensorListFromListOfTensors<GPUBackend>(list_of_tensors, layout);
+      }),
+      "list_of_tensors"_a,
+      "layout"_a = "",
+      R"code(
+      List of tensors residing in the GPU memory.
+
+      list_of_tensors : [TensorGPU]
+            Python list of TensorGPU objects
+      layout : str
+            Layout of the data
+      )code")
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
@@ -1027,6 +1111,14 @@ void ExposeTensorList(py::module &m) {
         },
       R"code(
       Returns the address of the first element of TensorList.
+      )code")
+    .def_property_readonly("dtype", [](TensorList<GPUBackend> &tl) {
+          return tl.type();
+        },
+      R"code(
+      Data type of the TensorListGPU's elements.
+
+      :type: DALIDataType
       )code");
 }
 
@@ -1172,14 +1264,14 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
 }
 
 template <typename Backend>
-void FeedPipeline(Pipeline *p, const string &name, py::list list, cudaStream_t stream,
+void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder order,
                   bool sync = false, bool use_copy_kernel = false) {
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
     tv[i] = std::move(t);
   }
-  p->SetExternalInput(name, tv, stream, sync, use_copy_kernel);
+  p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }
 
 PYBIND11_MODULE(backend_impl, m) {
@@ -1197,13 +1289,16 @@ PYBIND11_MODULE(backend_impl, m) {
 
   m.def("GetCxx11AbiFlag", &GetCxx11AbiFlag);
 
-  m.def("HasCudaContext", []{
-    if (!cuInitChecked()) {
-      return false;
+  m.def("IsDriverInitialized", [] {
+    // we just want to check if cuda has been loaded already
+    if (dlopen("libcuda.so", RTLD_NOLOAD | RTLD_NOW) ||
+        dlopen("libcuda.so.1", RTLD_NOLOAD | RTLD_NOW)) {
+      int place_holder = -1;
+      // call cuDeviceGetCount only if cuda is loaded, if not there is not point in calling
+      // a check that would load it
+      return CUDA_SUCCESS == cuDeviceGetCount(&place_holder);
     }
-    CUcontext context;
-    CUDA_CALL(cuCtxGetCurrent(&context));
-    return context != nullptr;
+    return false;
   });
 
   m.def("GetCudaVersion", [] {
@@ -1272,7 +1367,9 @@ PYBIND11_MODULE(backend_impl, m) {
   types_m.add_object("CPU_ONLY_DEVICE_ID", PyLong_FromLong(CPU_ONLY_DEVICE_ID));
 
   // DALIDataType
-  py::enum_<DALIDataType>(types_m, "DALIDataType", "Data type of image.\n<SPHINX_IGNORE>")
+  py::enum_<DALIDataType> dali_data_type(
+      types_m, "DALIDataType", "Object representing the data type of a Tensor.\n<SPHINX_IGNORE>");
+  dali_data_type
     .value("NO_TYPE",       DALI_NO_TYPE)
     .value("UINT8",         DALI_UINT8)
     .value("UINT16",        DALI_UINT16)
@@ -1304,6 +1401,26 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("_TENSOR_LAYOUT_VEC", DALI_TENSOR_LAYOUT_VEC)
     .value("_DATA_TYPE_VEC", DALI_DATA_TYPE_VEC)
     .export_values();
+
+  // Placeholder data type allowing to use legacy __call__ method on dtype (to be deprecated).
+  py::class_<DALIDataTypePlaceholder>(types_m, "_DALIDataType", dali_data_type)
+      .def("__call__",
+           [](DALIDataTypePlaceholder self) {
+             auto deprecation_func =
+                 py::module::import("nvidia.dali.backend").attr("deprecation_warning");
+             deprecation_func("Calling '.dtype()' is deprecated, please use '.dtype' instead");
+             return FormatStrFromType(static_cast<DALIDataType>(self));
+           })
+      .def("__repr__", [](DALIDataTypePlaceholder self) {
+             return py::module::import("nvidia.dali.types")
+                 .attr("DALIDataType")
+                 .attr("__repr__")(static_cast<DALIDataType>(self));
+           })
+      .def("__str__", [](DALIDataTypePlaceholder self) {
+        return py::module::import("nvidia.dali.types")
+            .attr("DALIDataType")
+            .attr("__str__")(static_cast<DALIDataType>(self));
+      });
 
   // DALIImageType
   py::enum_<DALIImageType>(types_m, "DALIImageType", "Image type\n<SPHINX_IGNORE>")
@@ -1468,7 +1585,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
            py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {
-          p->SetExternalInput(name, tl, 0, true);
+          p->SetExternalInput(name, tl, {}, true);
         },
         "name"_a,
         "list"_a,
@@ -1502,14 +1619,23 @@ PYBIND11_MODULE(backend_impl, m) {
 
           // not the most beautiful but at least it doesn't throw as plain cast<T>()
           py::detail::make_caster<Tensor<CPUBackend>&> conv;
-          bool is_cpu_data = conv.load(static_cast<py::object>(list[0]), true);
+          bool is_cpu_data = list.empty() || conv.load(static_cast<py::object>(list[0]), true);
           if (is_cpu_data) {
-            FeedPipeline<CPUBackend>(p, name, list, 0, true);
+            FeedPipeline<CPUBackend>(p, name, list, AccessOrder::host(), true);
           } else {
-            cudaStream_t stream = cuda_stream.is_none()
-                                ? UserStream::Get()->GetStream(list[0].cast<Tensor<GPUBackend>&>())
-                                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-            FeedPipeline<GPUBackend>(p, name, list, stream, cuda_stream.is_none(), use_copy_kernel);
+            int device_id = p->device_id();
+            cudaStream_t stream = 0;
+            if (!cuda_stream.is_none())
+              stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+
+            if (!list.empty()) {
+              auto &sample0 = list[0].cast<Tensor<GPUBackend>&>();
+              if (cuda_stream.is_none())
+                stream = UserStream::Get()->GetStream(sample0);
+              device_id = sample0.device_id();
+            }
+            AccessOrder order(stream, device_id);
+            FeedPipeline<GPUBackend>(p, name, list, order, cuda_stream.is_none(), use_copy_kernel);
           }
         },
         "name"_a,

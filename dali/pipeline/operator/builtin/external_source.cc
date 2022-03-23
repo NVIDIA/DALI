@@ -37,9 +37,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
       thread_pool.AddWork(
           [&ws, sample_id, &tensor_vector_elm](int tid) {
             Tensor<CPUBackend> &output_tensor = ws.Output<CPUBackend>(0)[sample_id];
-            // HostWorkspace doesn't have any stream
-            cudaStream_t stream = 0;
-            output_tensor.Copy((*tensor_vector_elm.front())[sample_id], stream);
+            output_tensor.Copy((*tensor_vector_elm.front())[sample_id], AccessOrder::host());
           },
           shapes.tensor_size(sample_id));
     }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,7 +75,9 @@ class monotonic_buffer_resource : public memory_resource<Kind> {
   char *curr_ = nullptr, *limit_ = nullptr;
 };
 
-template <typename Kind, bool host_impl = detail::is_host_accessible<Kind>>
+template <typename Kind,
+          typename Upstream = mm::memory_resource<Kind>,
+          bool host_impl = detail::is_host_accessible<Kind>>
 class monotonic_memory_resource;
 
 /**
@@ -86,12 +88,13 @@ class monotonic_memory_resource;
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <typename Kind>
-class monotonic_memory_resource<Kind, true> : public memory_resource<Kind> {
+template <typename Kind, typename Upstream>
+class monotonic_memory_resource<Kind, Upstream, true>
+  : public memory_resource<Kind> {
  public:
-  explicit monotonic_memory_resource(memory_resource<Kind> *upstream,
-                                     size_t next_block_size = 1024)
-  : upstream_(upstream), next_block_size_(next_block_size) {}
+  explicit monotonic_memory_resource(Upstream *upstream,
+                                     size_t first_block_size = 1024)
+  : upstream_(upstream), first_block_size_(first_block_size), next_block_size_(first_block_size) {}
 
   monotonic_memory_resource() = default;
 
@@ -109,9 +112,12 @@ class monotonic_memory_resource<Kind, true> : public memory_resource<Kind> {
     std::swap(curr_, other.curr_);
     std::swap(limit_, other.limit_);
     std::swap(upstream_, other.upstream_);
+    std::swap(first_block_size_, other.first_block_size_);
     std::swap(next_block_size_, other.next_block_size_);
     std::swap(curr_block_, other.curr_block_);
   }
+
+  Upstream *get_upstream() const noexcept { return upstream_; }
 
   ~monotonic_memory_resource() {
     free_all();
@@ -129,12 +135,15 @@ class monotonic_memory_resource<Kind, true> : public memory_resource<Kind> {
       upstream_->deallocate(base, alloc_size, curr_block_->alignment);
       curr_block_ = prev;
     }
+    next_block_size_ = first_block_size_;
   }
 
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
     char *ret = detail::align_ptr(curr_, alignment);
     if (ret + bytes > limit_) {
+      if (next_block_size_ == 0)
+        next_block_size_ = alignment;  // must be a power of 2
       while (next_block_size_ < bytes + sizeof(block_info))
         next_block_size_ += next_block_size_;
       alignment = std::max(alignment, alignof(block_info));
@@ -166,8 +175,8 @@ class monotonic_memory_resource<Kind, true> : public memory_resource<Kind> {
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<Kind> *upstream_;
-  size_t next_block_size_;
+  Upstream *upstream_;
+  size_t first_block_size_, next_block_size_;
   struct block_info {
     size_t sentinel;
     block_info *prev;
@@ -187,12 +196,13 @@ class monotonic_memory_resource<Kind, true> : public memory_resource<Kind> {
  * The lifetime of a monotonic resource is limited and all memory will be deallocated in bulk
  * when the resource is destroyed.
  */
-template <typename Kind>
-class monotonic_memory_resource<Kind, false> : public memory_resource<Kind> {
+template <typename Kind, typename Upstream>
+class monotonic_memory_resource<Kind, Upstream, false>
+: public memory_resource<Kind> {
  public:
-  explicit monotonic_memory_resource(memory_resource<Kind> *upstream,
-                                     size_t next_block_size = 1024)
-  : upstream_(upstream), next_block_size_(next_block_size) {}
+  explicit monotonic_memory_resource(Upstream *upstream,
+                                     size_t first_block_size = 1024)
+  : upstream_(upstream), first_block_size_(first_block_size), next_block_size_(first_block_size) {}
 
   monotonic_memory_resource() = default;
 
@@ -210,6 +220,7 @@ class monotonic_memory_resource<Kind, false> : public memory_resource<Kind> {
     std::swap(curr_, other.curr_);
     std::swap(limit_, other.limit_);
     std::swap(upstream_, other.upstream_);
+    std::swap(first_block_size_, other.first_block_size_);
     std::swap(next_block_size_, other.next_block_size_);
     std::swap(blocks_, other.blocks_);
   }
@@ -227,13 +238,18 @@ class monotonic_memory_resource<Kind, false> : public memory_resource<Kind> {
       upstream_->deallocate(blk.base, blk.size, blk.alignment);
     }
     blocks_.clear();
+    next_block_size_ = first_block_size_;
   }
+
+  Upstream *get_upstream() const { return upstream_; }
 
 
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
     char *ret = detail::align_ptr(curr_, alignment);
     if (ret + bytes > limit_) {
+      if (next_block_size_ == 0)
+        next_block_size_ = alignment;  // must be a power of 2
       while (next_block_size_ < bytes)
         next_block_size_ += next_block_size_;
 
@@ -255,8 +271,8 @@ class monotonic_memory_resource<Kind, false> : public memory_resource<Kind> {
 
   char *curr_ = nullptr, *limit_ = nullptr;
 
-  memory_resource<Kind> *upstream_;
-  size_t next_block_size_;
+  Upstream *upstream_;
+  size_t first_block_size_, next_block_size_;
   struct upstream_block {
     void *base;
     size_t size;

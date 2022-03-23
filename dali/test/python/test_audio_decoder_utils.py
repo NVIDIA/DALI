@@ -14,13 +14,15 @@ def generate_waveforms(length, frequencies):
 
   return np.sin(X[:,np.newaxis] * (np.array(frequencies) * (2 * math.pi))) * window(X)[:,np.newaxis]
 
+
 def rosa_resample(input, in_rate, out_rate):
   if input.shape[1] == 1:
-    return librosa.resample(input[:,0], in_rate, out_rate)[:,np.newaxis]
+    return librosa.resample(input[:, 0], orig_sr=in_rate, target_sr=out_rate)[:, np.newaxis]
 
-  channels = [librosa.resample(np.array(input[:,c]), in_rate, out_rate) for c in range(input.shape[1])]
-  ret = np.zeros(shape = [channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
+  channels = [librosa.resample(np.array(input[:, c]), orig_sr=in_rate, target_sr=out_rate) for c in
+              range(input.shape[1])]
+  ret = np.zeros(shape=[channels[0].shape[0], len(channels)], dtype=channels[0].dtype)
   for c, a in enumerate(channels):
-    ret[:,c] = a
+    ret[:, c] = a
 
   return ret

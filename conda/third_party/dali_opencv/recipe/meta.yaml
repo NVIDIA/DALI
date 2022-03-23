@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "4.5.4" %}
+{% set build_version = "4.5.5" %}
 
   package:
     name: dali-opencv
     version: {{ build_version }}
 
   source:
-    fn: opencv-4.5.4.tar.gz
-    url: https://github.com/opencv/opencv/archive/refs/tags/4.5.4.tar.gz
-    sha256: c20bb83dd790fc69df9f105477e24267706715a9d3c705ca1e7f613c7b3bad3d
+    fn: opencv-4.5.5.tar.gz
+    url: https://github.com/opencv/opencv/archive/refs/tags/4.5.5.tar.gz
+    sha256: a1cfdcf6619387ca9e232687504da996aaa9f7b5689986b8331ec02cb61d28ad
 
   build:
     number: 0

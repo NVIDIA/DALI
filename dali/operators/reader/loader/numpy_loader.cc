@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -267,7 +267,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     auto p = current_file->Get(nbytes);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
     // Wrap the raw data in the Tensor object.
-    target.data.ShareData(p, nbytes, {nbytes});
+    target.data.ShareData(p, nbytes, false, {nbytes}, parse_target.type());
     target.data.Resize(parse_target.shape, parse_target.type());
   }
 

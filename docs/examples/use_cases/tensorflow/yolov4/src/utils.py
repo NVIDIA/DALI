@@ -13,7 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 
-import numpy as np
 import tensorflow as tf
 import numpy as np
 from inference import decode_prediction

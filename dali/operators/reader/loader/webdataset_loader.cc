@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,8 +53,8 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
 
 inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                             std::vector<ComponentDesc>& components_container,
-                            std::ifstream& index_file, const std::string& index_path,
-                            int64_t line) {
+                            std::ifstream& index_file, const std::string& index_path, int64_t line,
+                            const std::string& index_version) {
   // Preparing the SampleDesc
   samples_container.emplace_back();
   samples_container.back().components =
@@ -64,14 +64,25 @@ inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
   // Getting the components data
   std::string components_metadata;
   std::getline(index_file, components_metadata);
-  std::stringstream extensions_stream(components_metadata);
+  std::stringstream components_stream(components_metadata);
 
   // Reading consecutive components
   ComponentDesc component;
-  while (extensions_stream >> component.ext) {
-    DALI_ENFORCE(extensions_stream >> component.offset >> component.size,
-                 IndexFileErrMsg(index_path, line,
-                                 "size or offset corresponding to the extension not found"));
+  while (components_stream >> component.ext) {
+    if (index_version == "v1.2") {
+      DALI_ENFORCE(
+          components_stream >> component.offset >> component.size >> component.filename,
+          IndexFileErrMsg(
+              index_path, line,
+              "Could not find all necessary component parameters (offset, size or filename). Every "
+              "record in the index file should look like: `<ext> <offset> <size> <filename>`."));
+    } else {
+      DALI_ENFORCE(components_stream >> component.offset >> component.size,
+                   IndexFileErrMsg(
+                       index_path, line,
+                       "Could not find all necessary component parameters (offset or size). Every "
+                       "record in the index file should look like: `<ext> <offset> <size>`."));
+    }
     DALI_ENFORCE(
         component.offset % kBlockSize == 0,
         IndexFileErrMsg(index_path, line, "tar offset is not a multiple of tar block size (",
@@ -97,11 +108,10 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   std::string index_version;
   DALI_ENFORCE(global_meta_stream >> index_version,
                IndexFileErrMsg(index_path, 0, "no version signature found"));
-  DALI_ENFORCE(kCurrentIndexVersion == index_version,
-               IndexFileErrMsg(
-                   index_path, 0,
-                   "the version of the index file does not match the expected version (expected: ",
-                   kCurrentIndexVersion, " actual: ", index_version, ")"));
+  DALI_ENFORCE(
+      kSupportedIndexVersions.count(index_version) > 0,
+      IndexFileErrMsg(index_path, 0,
+                      make_string("Unsupported version of the index file (", index_version, ").")));
 
   // Getting the number of samples in the index file
   int64_t sample_desc_num_signed;
@@ -114,7 +124,7 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   samples_container.reserve(samples_container.size() + sample_desc_num);
   for (size_t sample_index = 0; sample_index < sample_desc_num; sample_index++) {
     ParseSampleDesc(samples_container, components_container, index_file, index_path,
-                    sample_index + 1);
+                    sample_index + 1, index_version);
   }
 }
 
@@ -130,26 +140,32 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
   TarArchive tar_archive(std::move(tar_file));
 
   std::string last_filename;
-  std::tie(last_filename, std::ignore) = split_name(tar_archive.GetFileName());
+  // rewind to the first valid entry
+  for (; !tar_archive.EndOfArchive(); tar_archive.NextFile()) {
+    if (tar_archive.GetFileType() == TarArchive::ENTRY_FILE) {
+      std::tie(last_filename, std::ignore) = split_name(tar_archive.GetFileName());
+      break;
+    }
+  }
   size_t last_components_size = components_container.size();
   for (; !tar_archive.EndOfArchive(); tar_archive.NextFile()) {
     if (tar_archive.GetFileType() != TarArchive::ENTRY_FILE) {
       continue;
     }
 
-    std::string filename, ext;
-    std::tie(filename, ext) = split_name(tar_archive.GetFileName());
+    std::string basename, ext;
+    std::tie(basename, ext) = split_name(tar_archive.GetFileName());
 
-    if (filename.empty()) {
+    if (basename.empty()) {
       continue;
     }
 
-    if (filename != last_filename) {
+    if (basename != last_filename) {
       samples_container.emplace_back();
       samples_container.back().components =
           VectorRange<ComponentDesc>(components_container, last_components_size,
                                      components_container.size() - last_components_size);
-      last_filename = filename;
+      last_filename = basename;
       last_components_size = components_container.size();
     }
 
@@ -157,6 +173,7 @@ inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
     components_container.back().size = tar_archive.GetFileSize();
     components_container.back().offset = tar_archive.TellArchive() + tar_archive.HeaderSize();
     components_container.back().ext = std::move(ext);
+    components_container.back().filename = tar_archive.GetFileName();
   }
   samples_container.emplace_back();
   samples_container.back().components =
@@ -240,6 +257,7 @@ std::string WebdatasetLoader::GetSampleSource(const detail::wds::SampleDesc& sam
   }
 }
 
+
 void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   MoveToNextShard(sample_index_);
   detail::wds::SampleDesc& current_sample = samples_[sample_index_];
@@ -255,12 +273,12 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     current_wds_shard->Seek(component.offset);
 
     // Skipping cached samples
-    const std::string source_info =
-        make_string_delim(" ", "Archive:", paths_[current_sample.wds_shard_index],
-                    GetSampleSource(current_sample), "; Component offset:", component.offset);
+    const std::string sample_key = make_string_delim(':', paths_[current_sample.wds_shard_index],
+                                                     component.offset, component.filename);
+
     DALIMeta meta;
-    meta.SetSourceInfo(source_info);
-    if (ShouldSkipImage(source_info)) {
+    meta.SetSourceInfo(sample_key);
+    if (ShouldSkipImage(sample_key)) {
       meta.SetSkipSample(true);
       for (auto& output : component.outputs) {
         sample[output].Reset();
@@ -272,6 +290,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     // Reading Data
     if (copy_read_data_) {
       uint8_t* shared_tensor_data = nullptr;
+      bool shared_tensor_is_pinned = false;
       for (auto& output : component.outputs) {
         if (!shared_tensor_data) {
           if (sample[output].shares_data()) {
@@ -281,9 +300,10 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
               {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               dtypes_[output]);
           shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
+          shared_tensor_is_pinned = sample[output].is_pinned();
         } else {
           sample[output].ShareData(
-              shared_tensor_data, component.size,
+              shared_tensor_data, component.size, shared_tensor_is_pinned,
               {static_cast<int64_t>(component.size / sample[output].type_info().size())},
               sample[output].type());
         }
@@ -295,7 +315,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
       for (auto& output : component.outputs) {
         sample[output].SetMeta(meta);
         sample[output].ShareData(
-            data, component.size,
+            data, component.size, false,
             {static_cast<int64_t>(component.size / sample[output].type_info().size())},
             sample[output].type());
       }

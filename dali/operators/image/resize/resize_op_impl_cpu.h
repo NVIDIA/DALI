@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,9 +30,7 @@ namespace dali {
 template <typename Out, typename In, int spatial_ndim>
 class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
  public:
-  explicit ResizeOpImplCPU(kernels::KernelManager &kmgr, int num_threads) : kmgr_(kmgr) {
-    kmgr_.Resize(num_threads, 0);
-  }
+  explicit ResizeOpImplCPU(kernels::KernelManager &kmgr) : kmgr_(kmgr) {}
 
   static_assert(spatial_ndim == 2 || spatial_ndim == 3, "Only 2D and 3D resizing is supported");
 
@@ -89,7 +87,7 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
         kernels::KernelContext ctx;
         auto out_frame = out_frames_view[i];
         auto in_frame = in_frames_view[i];
-        kmgr_.Run<Kernel>(tid, i, ctx, out_frame, in_frame, params_[i]);
+        kmgr_.Run<Kernel>(i, ctx, out_frame, in_frame, params_[i]);
       };
 
       double out_size = volume(out_frames_view.shape.tensor_shape_span(i));
@@ -113,7 +111,7 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
   void OnNumFramesUpdated() {
     int N = GetNumFrames();
     if (static_cast<int>(kmgr_.NumInstances()) < N)
-      kmgr_.Resize<Kernel>(kmgr_.NumThreads(), N);
+      kmgr_.Resize<Kernel>(N);
   }
 
   int GetNumFrames() const {

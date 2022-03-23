@@ -238,7 +238,7 @@ class DataReader : public Operator<Backend> {
         "Unexpected number of outputs");
       for (std::size_t i = 0; i < cached_outputs.size(); i++) {
         auto& output = ws->Output<CPUBackend>(i);
-        output.Copy(cached_outputs[i], 0);
+        output.Copy(cached_outputs[i]);
       }
       return;
     }
@@ -264,7 +264,7 @@ class DataReader : public Operator<Backend> {
       for (std::size_t i = 1; i < cached_outputs.size(); i++) {
         auto& output = ws->Output<CPUBackend>(i);
         cached_outputs[i].set_pinned(false);
-        cached_outputs[i].Copy(output, 0);
+        cached_outputs[i].Copy(output);
       }
     }
   }

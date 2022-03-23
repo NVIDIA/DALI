@@ -50,7 +50,7 @@ void ColorTwistGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   auto tmatrices = make_cspan(tmatrices_);
   auto toffsets = make_cspan(toffsets_);
   kernel_manager_.Setup<Kernel>(0, ctx, tvin, tmatrices, toffsets);
-  kernel_manager_.Run<Kernel>(0, 0, ctx, tvout, tvin, tmatrices, toffsets);
+  kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, tmatrices, toffsets);
 }
 
 void ColorTwistGpu::RunImpl(workspace_t<GPUBackend> &ws) {

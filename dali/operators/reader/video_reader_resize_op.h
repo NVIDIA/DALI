@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,7 +58,8 @@ class VideoReaderResize : public VideoReader,
     TensorShape<> seq_shape = batch_output.shape()[data_idx];
     TensorListShape<> shape = uniform_list_shape(1, seq_shape);
     const auto &type = batch_output.type_info();
-    single_output.ShareData(raw_output, shape.num_elements() * type.size(), shape, type.id());
+    single_output.ShareData(raw_output, shape.num_elements() * type.size(),
+                            batch_output.is_pinned(), shape, type.id());
   }
 
   void ProcessVideo(
@@ -71,6 +72,7 @@ class VideoReaderResize : public VideoReader,
       input_shape.set_tensor_shape(0, video_batch.tensor_shape(data_idx));
       input.ShareData(video_batch.raw_mutable_tensor(data_idx),
                       volume(video_batch.tensor_shape(data_idx)) * video_batch.type_info().size(),
+                      video_batch.is_pinned(),
                       input_shape, video_batch.type());
 
       TensorList<GPUBackend> output;

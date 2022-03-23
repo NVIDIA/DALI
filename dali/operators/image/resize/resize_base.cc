@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ void ResizeBase<CPUBackend>::SetupResizeStatic(
   auto *impl = dynamic_cast<ImplType*>(impl_.get());
   if (!impl) {
     impl_.reset();
-    auto unq_impl = std::make_unique<ImplType>(kmgr_, num_threads_);
+    auto unq_impl = std::make_unique<ImplType>(kmgr_);
     impl = unq_impl.get();
     impl_ = std::move(unq_impl);
   }
@@ -120,9 +120,7 @@ void ResizeBase<GPUBackend>::InitializeGPU(int minibatch_size, size_t temp_buffe
     impl_.reset();
     minibatch_size_ = minibatch_size;
   }
-  kmgr_.Resize(1, 0);
-  kmgr_.SetMemoryHint<mm::memory_kind::device>(temp_buffer_hint);
-  kmgr_.GetScratchpadAllocator(0).Reserve<mm::memory_kind::device>(temp_buffer_hint);
+  kmgr_.Reset();
 }
 
 template <typename Backend>

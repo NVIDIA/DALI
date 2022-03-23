@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/reader/loader/video/video_loader_decoder.h"
+#include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
 
 namespace dali {
-void VideoLoaderDecoder::PrepareEmpty(VideoSample &sample) {
+void VideoLoaderDecoderCpu::PrepareEmpty(VideoSample<CPUBackend> &sample) {
   sample = {};
+  sample.data_.set_pinned(false);
 }
 
-void VideoLoaderDecoder::ReadSample(VideoSample &sample) {
+void VideoLoaderDecoderCpu::ReadSample(VideoSample<CPUBackend> &sample) {
   auto &sample_span = sample_spans_[current_index_];
   auto &video_file = video_files_[sample_span.video_idx_];
 
@@ -44,11 +45,11 @@ void VideoLoaderDecoder::ReadSample(VideoSample &sample) {
   }
 }
 
-Index VideoLoaderDecoder::SizeImpl() {
+Index VideoLoaderDecoderCpu::SizeImpl() {
   return sample_spans_.size();
 }
 
-void VideoLoaderDecoder::PrepareMetadataImpl() {
+void VideoLoaderDecoderCpu::PrepareMetadataImpl() {
   video_files_.reserve(filenames_.size());
   for (auto &filename : filenames_) {
     video_files_.emplace_back(filename);
@@ -73,7 +74,7 @@ void VideoLoaderDecoder::PrepareMetadataImpl() {
     Reset(true);
 }
 
-void VideoLoaderDecoder::Reset(bool wrap_to_shard) {
+void VideoLoaderDecoderCpu::Reset(bool wrap_to_shard) {
   current_index_ = wrap_to_shard ? start_index(shard_id_, num_shards_, SizeImpl()) : 0;
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -178,7 +178,8 @@ void TensorJoin<Backend, new_axis>::RunImpl(workspace_t<Backend> &ws) {
     TensorListShape<> shape;
     if (new_axis)
       shape = out.shape();
-    out.Copy(ws.template Input<Backend>(copy_idx_), ws.has_stream() ? ws.stream() : 0);
+    out.Copy(ws.template Input<Backend>(copy_idx_), ws.has_stream() ? ws.stream()
+                                                                    : AccessOrder::host());
     if (new_axis)
       out.Resize(shape);
     out.SetLayout(output_layout_);
@@ -200,7 +201,7 @@ void TensorJoin<Backend, new_axis>::RunTyped(
   using Kernel = kernels::TensorJoinCPU<T, new_axis>;
   ThreadPool &tp = ws.GetThreadPool();
   int num_threads = tp.NumThreads();
-  kmgr_.Resize<Kernel>(num_threads, num_threads);
+  kmgr_.Resize<Kernel>(num_threads);
   auto &inputs = this->template inputs<T>();
   SmallVector<kernels::InTensorCPU<T>, 128> in_tensors;
   SmallVector<TensorShape<>, 128> in_shapes;
@@ -221,7 +222,7 @@ void TensorJoin<Backend, new_axis>::RunTyped(
         sample_in_shapes[t] = sample_in_tensors[t].shape;
       }
       kmgr_.Setup<Kernel>(tid, ctx, sample_in_shapes, axis_);
-      kmgr_.Run<Kernel>(tid, tid, ctx, out[i], sample_in_tensors);
+      kmgr_.Run<Kernel>(tid, ctx, out[i], sample_in_tensors);
     }, volume(out.tensor_shape_span(i)));
   }
   tp.RunAll(true);
@@ -237,9 +238,9 @@ void TensorJoin<Backend, new_axis>::RunTyped(
 
   auto &inputs = this->template inputs<T>();
 
-  kmgr_.Resize<Kernel>(1, 1);
+  kmgr_.Resize<Kernel>(1);
   kmgr_.Setup<Kernel>(0, ctx, make_cspan(inputs), axis_);
-  kmgr_.Run<Kernel>(0, 0, ctx, out, make_cspan(inputs));
+  kmgr_.Run<Kernel>(0, ctx, out, make_cspan(inputs));
 }
 
 template <typename Backend>

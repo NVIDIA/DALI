@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,9 +79,9 @@ NvDecoder::NvDecoder(int device_id,
 #endif
   if (use_default_stream) {
     DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
-    stream_.reset(0);
+    stream_ = {};
   } else {
-    stream_ = CUDAStream::Create(true, device_id);
+    stream_ = CUDAStreamPool::instance().Get(device_id);
   }
 
   CUDA_CALL(cuDeviceGet(&device_, device_id_));

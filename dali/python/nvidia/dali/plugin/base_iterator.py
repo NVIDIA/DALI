@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ class LastBatchPolicy(Enum):
     """
     Describes the last batch policy behavior when there are not enough samples in the epoch
     to fill a whole batch.
+
         * FILL - The last batch is filled by either repeating the last sample or by wrapping
           up the data set. The precise behavior depends on the reader's ``pad_last_batch`` argument
         * DROP - The last batch is dropped if it cannot be fully filled with data from the current epoch

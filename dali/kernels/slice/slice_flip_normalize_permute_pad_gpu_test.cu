@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ class SliceFlipNormalizePermutePadGpuTest : public SliceFlipNormalizePermutePadT
 
   void Run() override {
     KernelContext ctx;
+    ctx.gpu.stream = 0;
 
     TestTensorList<InputType, Dims> test_data;
     this->PrepareData(test_data);

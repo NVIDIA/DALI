@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
  public:
   explicit ResizeOpImplGPU(kernels::KernelManager &kmgr, int minibatch_size)
   : kmgr_(kmgr), minibatch_size_(minibatch_size) {
-    kmgr_.Resize(kmgr_.NumThreads(), 0);
+    kmgr_.Reset();
   }
 
   static_assert(spatial_ndim == 2 || spatial_ndim == 3, "Only 2D and 3D resizing is supported");
@@ -98,7 +98,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
     for (size_t b = 0; b < minibatches_.size(); b++) {
       MiniBatch &mb = minibatches_[b];
 
-      kmgr_.Run<Kernel>(0, b, context,
+      kmgr_.Run<Kernel>(b, context,
           mb.output, mb.input, make_span(params_.data() + mb.start, mb.count));
     }
   }
@@ -106,7 +106,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
   void SetNumFrames(int n) {
     int num_minibatches = CalculateMinibatchPartition(n, minibatch_size_);
     if (static_cast<int>(kmgr_.NumInstances()) < num_minibatches)
-      kmgr_.Resize<Kernel>(1, num_minibatches);
+      kmgr_.Resize<Kernel>(num_minibatches);
   }
 
   int CalculateMinibatchPartition(int total_frames, int minibatch_size) {

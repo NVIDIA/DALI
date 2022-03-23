@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,49 +79,67 @@ class Tensor : public Buffer<Backend> {
    * Loads the Tensor with data from the input vector.
    */
   template <typename T>
-  inline void Copy(const vector<T> &data, cudaStream_t stream) {
+  inline void Copy(const vector<T> &data, AccessOrder order = {}) {
     this->Resize({(Index)data.size()}, TypeTable::GetTypeId<T>());
+    if (!order)
+      order = order_;
+    else
+      order.wait(order_);
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
-        data.data(), this->size(), stream);
+        data.data(), this->size(), order.stream());
+    order_.wait(order);
   }
 
   /**
    * Loads the Tensor with data from a span.
    */
   template <typename T>
-  inline void Copy(span<T> data, cudaStream_t stream) {
+  inline void Copy(span<T> data, AccessOrder order = {}) {
     using U = remove_const_t<T>;
     this->Resize({(Index)data.size()}, TypeTable::GetTypeId<U>());
+    if (!order)
+      order = order_;
+    else
+      order.wait(order_);
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
-        data.data(), this->size(), stream);
+        data.data(), this->size(), order.stream());
+    order_.wait(order);
   }
 
   /**
    * Loads the Tensor with data from the input Tensor.
    */
   template <typename InBackend>
-  inline void Copy(const Tensor<InBackend> &other, cudaStream_t stream) {
+  inline void Copy(const Tensor<InBackend> &other, AccessOrder order = {}) {
+    if (!order)
+      order = other.order() ? other.order() : order_;
     this->Resize(other.shape(), other.type());
+    order.wait(order_);
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo());
     this->SetSkipSample(other.ShouldSkipSample());
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-        other.raw_data(), this->size(), stream);
+        other.raw_data(), this->size(), order.stream());
+    order_.wait(order);
   }
 
   /**
    * @brief Loads the Tensor at index idx from the input TensorList.
    */
   template <typename InBackend>
-  inline void Copy(const TensorList<InBackend> &other, int idx, cudaStream_t stream) {
+  inline void Copy(const TensorList<InBackend> &other, int idx, AccessOrder order = {}) {
+    if (!order)
+      order = other.order() ? other.order() : order_;
     this->Resize(shape_, other.type());
     shape_ = other.tensor_shape(idx);
     device_ = other.device_id();
     this->SetLayout(other.GetLayout());
     this->SetSourceInfo(other.GetSourceInfo(idx));
     this->SetSkipSample(other.ShouldSkipSample(idx));
+    order.wait(order_);
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-        other.raw_tensor(idx), this->size(), stream);
+        other.raw_tensor(idx), this->size(), order.stream());
+    order_.wait(order);
   }
 
   /**
@@ -135,7 +153,7 @@ class Tensor : public Buffer<Backend> {
                  "Tensor has no type, 'set_type<T>()' or Resize(shape, type) must be called "
                  "on the Tensor to set a valid type before it can be resized.");
     Index new_size = volume(shape);
-    ResizeHelper(new_size);
+    resize(new_size);
     shape_ = shape;
   }
 
@@ -150,7 +168,7 @@ class Tensor : public Buffer<Backend> {
                  "Tensor cannot be resized with invalid type. To zero out the Tensor "
                  "Reset() can be used.");
     Index new_size = volume(shape);
-    ResizeHelper(new_size, new_type);
+    resize(new_size, new_type);
     shape_ = shape;
   }
 
@@ -181,6 +199,7 @@ class Tensor : public Buffer<Backend> {
    * tensor must have a valid type. If successful, the tensor
    * object will wrap the target data and assume the datatype
    * and shape of the data stored in the Tensor.
+   * Additionally, the tensor will assume target's order (stream or host).
    *
    * If the input does not store any data, shares_data_ is left
    * as false.
@@ -188,54 +207,49 @@ class Tensor : public Buffer<Backend> {
    * After calling this function any following call to `set_type` and `Resize`
    * must match the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
-   * Size can be set to 0 and type to NoType as intermediate step.
    */
-  inline void ShareData(Tensor<Backend> &t) {
+  inline void ShareData(const Tensor<Backend> &t) {
     DALI_ENFORCE(IsValidType(t.type()), "To share data, "
         "the input Tensor must have a valid data type.");
 
-    // Save a copy of our new data pointer. We create a copy of the
-    // shared_ptr to ensure the data persists while we are still
-    // using it.
-    data_ = t.data_;
+    Buffer<Backend>::ShareData(t);
 
-    // Save the tensor meta-data
+    // Copy the tensor's meta-data
     shape_ = t.shape_;
-    size_ = t.size_;
-    type_ = t.type_;
-    num_bytes_ = t.num_bytes_;
-    shares_data_ = num_bytes_ > 0 ? true : false;
-    device_ = t.device_id();
     meta_ = t.meta_;
   }
 
   /**
-   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
-   * if the size of the allocation is zero, the Tensor is reset to a default
-   * state and is NOT marked as sharing data. Also sets shape of new Tensor.
+   * @brief Interprets a raw allocation as a tensor with given shape.
    *
-   * After wrapping the allocation, the Tensors size is set to dot product
-   * of shape vector, and its type is reset to NoType.
+   * If the size of the allocation is zero, the Tensor is reset to a default
+   * state and is NOT marked as sharing data.
+   *
    * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
+   * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
-   *
-   * The Tensor object assumes no ownership of the input allocation, and will
-   * not de-allocate it when it is done using it. It is up to the user to
-   * manage the lifetime of the allocation such that it persist while it is
-   * in use by the Tensor.
    */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes,
+  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                         const TensorShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE) {
-    // don't check ptr as we want to share empty data as well
+                        DALIDataType type = DALI_NO_TYPE,
+                        AccessOrder order = {}) {
+    Index new_size = volume(shape);
+    DALI_ENFORCE(new_size == 0 || type != DALI_NO_TYPE,
+      "Only empty tensors can be shared without specifying a type.");
+
+    // Free the underlying storage.
+    free_storage();
+
+    // Set the new order, if provided.
+    if (order)
+      this->set_order(order);
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     data_ = ptr;
     num_bytes_ = bytes;
+    pinned_ = pinned;
     type_ = TypeTable::GetTypeInfo(type);
-    Index new_size = volume(shape);
     shape_ = shape;
     size_ = new_size;
 
@@ -245,14 +259,13 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
-   * @brief Wraps the raw allocation. The input pointer must not be nullptr.
-   * if the size of the allocation is zero, the Tensor is reset to a default
-   * state and is NOT marked as sharing data. Also sets shape of new Tensor.
+   * @brief Interprets a raw allocation as a tensor with given shape.
    *
-   * After wrapping the allocation, the Tensors size is set to dot product
-   * of shape vector, and its type is reset to NoType.
+   * If the size of the allocation is zero, the Tensor is reset to a default
+   * state and is NOT marked as sharing data.
+   *
    * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
+   * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
    *
@@ -261,9 +274,9 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, const TensorShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, shape, type);
+  inline void ShareData(void *ptr, size_t bytes, bool pinned, const TensorShape<> &shape,
+                        DALIDataType type = DALI_NO_TYPE, AccessOrder order = {}) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, order);
   }
 
   /**
@@ -283,13 +296,14 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes,
-                        DALIDataType type = DALI_NO_TYPE) {
-    ShareData(ptr, bytes, { 0 }, type);
+  inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
+                        DALIDataType type = DALI_NO_TYPE,
+                        AccessOrder order = {}) {
+    ShareData(ptr, bytes, pinned, { 0 }, type, order);
   }
 
-  inline void Reset() {
-    reset();  // free the underlying buffer
+  inline void Reset(AccessOrder order = {}) {
+    reset(order);  // free the underlying buffer
     shape_ = { 0 };
     meta_ = {};
   }

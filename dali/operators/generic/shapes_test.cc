@@ -98,7 +98,7 @@ class ShapesOpTest<ShapesTestArgs<OutputBackend, InputBackend, OutputType>>
       const TensorList<CPUBackend> &in,
       const TensorList<GPUBackend> &out) {
     TensorList<CPUBackend> tmp;
-    tmp.Copy(out, 0);
+    tmp.Copy(out);
     CUDA_CALL(cudaDeviceSynchronize());
     VerifyShapeImpl(in, tmp);
   }

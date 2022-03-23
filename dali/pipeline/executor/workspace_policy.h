@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -366,6 +366,21 @@ inline int SequentialIndex(QueueIdxs idxs, StageQueues depth, OpType last_stage)
 template <typename QueuePolicy>
 struct AOT_WS_Policy;
 
+template <typename Workspace>
+void SetOrder(Workspace &ws, AccessOrder order) {
+  for (int i = 0; i < ws.NumInput(); i++) {
+    if (ws.template InputIsType<CPUBackend>(i))
+      ws.template UnsafeMutableInput<CPUBackend>(i).set_order(order);
+    else if (ws.template InputIsType<GPUBackend>(i))
+      ws.template UnsafeMutableInput<GPUBackend>(i).set_order(order);
+  }
+  for (int i = 0; i < ws.NumOutput(); i++) {
+    if (ws.template OutputIsType<CPUBackend>(i))
+      ws.template Output<CPUBackend>(i).set_order(order);
+    else if (ws.template OutputIsType<GPUBackend>(i))
+      ws.template Output<GPUBackend>(i).set_order(order);
+  }
+}
 
 /**
  * @brief Ahead Of Time Workspace Policy for Separated Executor
@@ -375,6 +390,18 @@ struct AOT_WS_Policy;
 template <>
 struct AOT_WS_Policy<SeparateQueuePolicy> {
   AOT_WS_Policy() : depths_(0) {}
+
+  ~AOT_WS_Policy() {
+    for (auto &q : cpu_workspaces_)
+      for (auto &ws : q)
+        SetOrder(ws, AccessOrder::host());
+    for (auto &q : mixed_workspaces_)
+      for (auto &ws : q)
+      SetOrder(ws, AccessOrder::host());
+    for (auto &q : gpu_workspaces_)
+      for (auto &ws : q)
+      SetOrder(ws, AccessOrder::host());
+  }
 
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type> &;
@@ -502,6 +529,17 @@ template <>
 struct AOT_WS_Policy<UniformQueuePolicy> {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type> &;
+
+  ~AOT_WS_Policy() {
+    for (auto &wss : wss_) {
+      for (auto ws : std::get<static_cast<int>(OpType::CPU)>(wss.op_data))
+        SetOrder(ws, AccessOrder::host());
+      for (auto ws : std::get<static_cast<int>(OpType::MIXED)>(wss.op_data))
+        SetOrder(ws, AccessOrder::host());
+      for (auto ws : std::get<static_cast<int>(OpType::GPU)>(wss.op_data))
+        SetOrder(ws, AccessOrder::host());
+    }
+  }
 
   void InitializeWorkspaceStore(
       const OpGraph &graph,

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,13 +22,10 @@ namespace dali {
 
 CUDAStreamPool::~CUDAStreamPool() {
   Purge();
-  assert(lease_count_ == 0);
 }
 
 CUDAStreamPool::CUDAStreamPool() {
-  int num_devices = 0;
-  CUDA_CALL(cudaGetDeviceCount(&num_devices));
-  dev_streams_.resize(num_devices);
+  dev_streams_.reserve(128);  // to avoid allocation in 1st call
 }
 
 CUDAStreamLease CUDAStreamPool::Get(int device_id) {
@@ -56,9 +53,20 @@ void CUDAStreamPool::DeleteList(StreamEntry *&head) {
   }
 }
 
+void CUDAStreamPool::Init() {
+  int num_devices = 0;
+  auto e = cudaGetDeviceCount(&num_devices);
+  (void)cudaGetLastError();  // clear the error
+  if (e != cudaSuccess && e != cudaErrorNoDevice && e != cudaErrorInsufficientDriver)
+    throw CUDAError(e);
+  dev_streams_.resize(num_devices);
+}
+
 CUDAStream CUDAStreamPool::GetFromPool(int device_id) {
-  assert(device_id >= 0 && device_id < static_cast<int>(dev_streams_.size()));
   std::lock_guard<spinlock> guard(lock_);
+  if (dev_streams_.empty())
+    Init();
+  assert(device_id >= 0 && device_id < static_cast<int>(dev_streams_.size()));
   StreamEntry *e = Pop(dev_streams_[device_id]);
   if (!e)
     return {};
@@ -83,9 +91,11 @@ void CUDAStreamPool::Put(CUDAStream &&stream, int device_id) {
     }
   }
 
+  std::unique_lock<spinlock> lock(lock_);
+  if (dev_streams_.empty())
+    Init();
   assert(device_id >= 0 && device_id < static_cast<int>(dev_streams_.size()));
 
-  std::unique_lock<spinlock> lock(lock_);
   StreamEntry *e = Pop(unused_);
   if (!e) {
     lock.unlock();

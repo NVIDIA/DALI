@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -203,7 +203,7 @@ bool Pad<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       using Kernel = kernels::SliceCPU<T, T, Dims>;
       using Args = kernels::SliceArgs<T, Dims>;
 
-      kmgr_.Resize<Kernel>(nthreads, nsamples);
+      kmgr_.Resize<Kernel>(nsamples);
       output_desc[0].type = type2id<T>::value;
       output_desc[0].shape.resize(nsamples, Dims);
 
@@ -241,7 +241,7 @@ void Pad<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
             auto in_view = view<const T, Dims>(input[i]);
             auto out_view = view<T, Dims>(output[i]);
             auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
-            kmgr_.Run<Kernel>(thread_id, i, ctx, out_view, in_view, kernel_sample_args[i]);
+            kmgr_.Run<Kernel>(i, ctx, out_view, in_view, kernel_sample_args[i]);
           }, out_shape.tensor_size(i));
       }
       thread_pool.RunAll();

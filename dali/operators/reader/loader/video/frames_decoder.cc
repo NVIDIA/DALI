@@ -14,6 +14,7 @@
 
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include <memory>
+#include <iomanip>
 #include "dali/core/error_handling.h"
 
 
@@ -26,6 +27,8 @@ std::string av_error_string(int ret) {
     return std::string(av_make_error_string(msg, AV_ERROR_MAX_STRING_SIZE, ret));
 }
 }
+
+using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 void FramesDecoder::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
@@ -149,11 +152,14 @@ void FramesDecoder::LazyInitSwContext() {
 bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
   int ret = -1;
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-    if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+    // We want to make sure that we call av_packet_unref in every iteration
+    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+
+    if (packet->stream_index != av_state_->stream_id_) {
       continue;
     }
 
-    ret = avcodec_send_packet(av_state_->codec_ctx_, av_state_->packet_);
+    ret = avcodec_send_packet(av_state_->codec_ctx_, packet.get());
     DALI_ENFORCE(
       ret >= 0,
       make_string("Failed to send packet to decoder: ", detail::av_error_string(ret)));
@@ -168,12 +174,15 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
       break;
     }
 
+    LOG_LINE << "Read frame (ReadRegularFrame), index " << next_frame_idx_ << ", timestamp " <<
+      std::setw(5)  << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
     if (!copy_to_output) {
+      ++next_frame_idx_;
       return true;
     }
 
     CopyToOutput(data);
-    LOG_LINE << "Read frame (ReadRegularFrame), timestamp " << av_state_->frame_->pts << std::endl;
+    ++next_frame_idx_;
     return true;
   }
 
@@ -187,6 +196,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
 }
 
 void FramesDecoder::Reset() {
+  next_frame_idx_ = 0;
   int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
     ret >= 0,
@@ -234,6 +244,7 @@ void FramesDecoder::SeekFrame(int frame_id) {
       detail::av_error_string(ret)));
 
   avcodec_flush_buffers(av_state_->codec_ctx_);
+  next_frame_idx_ = keyframe_id;
 
   for (int i = 0; i < (frame_id - keyframe_id); ++i) {
     ReadNextFrame(nullptr, false);
@@ -248,7 +259,15 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
 
   if (copy_to_output) {
     CopyToOutput(data);
-    LOG_LINE << "Read frame (ReadFlushFrame), timestamp " << av_state_->frame_->pts << std::endl;
+  }
+
+  LOG_LINE << "Read frame (ReadFlushFrame), index " << next_frame_idx_ << " timestamp " <<
+    std::setw(5) << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
+  ++next_frame_idx_;
+
+  // TODO(awolant): Figure out how to handle this during index building
+  if (next_frame_idx_ >= NumFrames()) {
+    next_frame_idx_ = -1;
   }
 
   return true;

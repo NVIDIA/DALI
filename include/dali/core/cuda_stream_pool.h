@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,6 +75,8 @@ class DLL_PUBLIC CUDAStreamPool {
   friend class CUDAStreamLease;
   friend class CUDAStreamPoolTest;
 
+  void Init();
+
   CUDAStream GetFromPool(int device_id);
 
   struct StreamEntry {
@@ -86,7 +88,7 @@ class DLL_PUBLIC CUDAStreamPool {
   };
 
   StreamEntry *unused_ = nullptr;
-  std::atomic_int lease_count_ = 0;
+  std::atomic_int lease_count_{0};
 
   vector<StreamEntry *> dev_streams_;
   spinlock lock_;

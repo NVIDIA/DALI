@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,13 @@
 #define  DALI_PIPELINE_DATA_VIEWS_H_
 
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include "dali/core/backend_tags.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_view.h"
+#include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/tensor_vector.h"
@@ -83,7 +86,7 @@ view(Tensor<Backend> &data) {
     return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return { data.template mutable_data<U>(),  convert_dim<ndim>(data.shape()) };
+  return { data.template mutable_data<U>(), convert_dim<ndim>(data.shape()) };
 }
 
 
@@ -99,6 +102,30 @@ view(const Tensor<Backend> &data) {
   detail::enforce_dim_in_view<ndim>(data.shape());
   return { data.template data<U>(), convert_dim<ndim>(data.shape()) };
 }
+
+
+/**
+ * @name Convert from SampleView carrying runtime type information to statically typed TensorView.
+ */
+// @{
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(SampleView<Backend> &data) {
+  using U = std::remove_const_t<T>;
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return {data.template mutable_data<U>(), data.shape()};
+}
+
+
+template <typename T, int ndim = DynamicDimensions, typename Backend>
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(const SampleView<Backend> &data) {
+  static_assert(std::is_const<T>::value,
+                "Cannot create a non-const view of a `const Tensor<>`. "
+                "Missing `const` in T?");
+  using U = std::remove_const_t<T>;
+  detail::enforce_dim_in_view<ndim>(data.shape());
+  return {data.template data<U>(), data.shape()};
+}
+// @}
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
@@ -228,7 +255,6 @@ reinterpret_view(const TensorVector<Backend> &data) {
   }
   return ret;
 }
-
 
 }  // namespace dali
 

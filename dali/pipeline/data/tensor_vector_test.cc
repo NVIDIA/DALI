@@ -292,25 +292,25 @@ TEST_F(TensorVectorVariableBatchSizeTest, TlShareWithResizeDown) {
 
 TEST_F(TensorVectorVariableBatchSizeTest, TvCopyWithResizeUp) {
   TensorVector<CPUBackend> tv(2);
-  tv.Copy(this->test_tv_, nullptr);
+  tv.Copy(this->test_tv_);
   EXPECT_PRED_FORMAT2(Compare, test_tv_, tv);
 }
 
 TEST_F(TensorVectorVariableBatchSizeTest, TvCopyWithResizeDown) {
   TensorVector<CPUBackend> tv(32);
-  tv.Copy(this->test_tv_, nullptr);
+  tv.Copy(this->test_tv_);
   EXPECT_PRED_FORMAT2(Compare, test_tv_, tv);
 }
 
 TEST_F(TensorVectorVariableBatchSizeTest, TlCopyWithResizeUp) {
   TensorVector<CPUBackend> tv(2);
-  tv.Copy(this->test_tl_, nullptr);
+  tv.Copy(this->test_tl_);
   EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
 }
 
 TEST_F(TensorVectorVariableBatchSizeTest, TlCopyWithResizeDown) {
   TensorVector<CPUBackend> tv(32);
-  tv.Copy(this->test_tl_, nullptr);
+  tv.Copy(this->test_tl_);
   EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
 }
 

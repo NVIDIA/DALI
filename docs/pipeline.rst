@@ -145,7 +145,7 @@ DataNode
    :members:
 
 Pipeline Debug Mode (experimental)
-------------------
+----------------------------------
 
 Pipeline can be run in debug mode by replacing ``@nvidia.dali.pipeline_def`` decorator with its
 experimental variant ``@nvidia.dali.experimental.pipeline_def`` and setting parameter ``debug`` to
@@ -173,6 +173,16 @@ Use non-DALI data types (e.g. NumPy ndarray, PyTorch Tensor) directly with DALI 
         img = [np.random.rand(640, 480, 3) for _ in range(8)]
         output = fn.flip(img)
         ...
+
+Notice
+^^^^^^
+
+* Seed generation in debug mode works differently than in standard mode (it is deterministic but
+  different). If you want to achieve the same results in debug mode as in standard mode initialize
+  operators with the ``seed`` parameter.
+* Direct calls to operators work only in a scope of the ``pipeline_def`` function, you cannot use
+  them this way outside of ``pipeline_def``.
+* You cannot change the order of operators inside the pipeline between the iterations.
 
 .. warning::
     Using debug mode will drastically worsen performance of your pipeline. Use it only for

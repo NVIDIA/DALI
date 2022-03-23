@@ -18,6 +18,7 @@ import numpy as np
 from nvidia.dali import fn
 from test_utils import get_dali_extra_path
 from nose_utils import raises
+import tempfile
 
 test_data_root = get_dali_extra_path()
 
@@ -52,29 +53,45 @@ def test_file_properties():
 
 
 @pipeline_def
-def wds_properties(root_path, device):
-    read = fn.readers.webdataset(paths=[root_path], ext=['jpg'])
+def wds_properties(root_path, device, idx_paths):
+    read = fn.readers.webdataset(paths=[root_path], index_paths=idx_paths, ext=['jpg'])
     if device == 'gpu':
         read = read.gpu()
     return fn.get_property(read, key="source_info")
 
 
-def _test_wds_properties(device):
+def generate_wds_index(root_path, index_path):
+    from wds2idx import IndexCreator
+    with IndexCreator(root_path, index_path) as ic:
+        ic.create_index()
+
+
+def _test_wds_properties(device, generate_index):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
-    ref_offset = [1536, 4096, 6144, 8704, 11264, 13824, 16384, 18432]
-    p = wds_properties(root_path, device, batch_size=8, num_threads=4, device_id=0)
-    p.build()
-    output = p.run()
+    ref_filenames = ["2000.jpg", "2001.jpg", "2002.jpg", "2003.jpg", "2004.jpg", "2005.jpg",
+                     "2006.jpg", "2007.jpg"]
+    ref_indices = [1536, 4096, 6144, 8704, 11264, 13824, 16384, 18432]
+    if generate_index:
+        with tempfile.TemporaryDirectory() as idx_dir:
+            index_paths = [os.path.join(idx_dir, os.path.basename(root_path) + ".idx")]
+            generate_wds_index(root_path, index_paths[0])
+            p = wds_properties(root_path, device, index_paths, batch_size=8, num_threads=4, device_id=0)
+            p.build()
+            output = p.run()
+    else:
+        p = wds_properties(root_path, device, None, batch_size=8, num_threads=4, device_id=0)
+        p.build()
+        output = p.run()
     for out in output:
         out = out if device == 'cpu' else out.as_cpu()
-        for source_info, offset in zip(out, ref_offset):
-            assert _uint8_tensor_to_string(
-                source_info) == f"Archive: {root_path} tar file at \"{root_path}\" ; Component offset: {offset}"
+        for source_info, ref_fname, ref_idx in zip(out, ref_filenames, ref_indices):
+            assert _uint8_tensor_to_string(source_info) == f"{root_path}:{ref_idx}:{ref_fname}"
 
 
 def test_wds_properties():
     for dev in ['cpu', 'gpu']:
-        yield _test_wds_properties, dev
+        for gen_idx in [True, False]:
+            yield _test_wds_properties, dev, gen_idx
 
 
 @pipeline_def

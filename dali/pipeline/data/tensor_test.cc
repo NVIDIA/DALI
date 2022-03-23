@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -361,7 +361,7 @@ TYPED_TEST(TensorTest, TestShareData) {
   for (int i = 0; i < num_tensor; ++i) {
     // TODO(klecki): Rework this with proper sample-based tensor batch data structure
     auto sample_shared_ptr = unsafe_sample_owner(tl, i);
-    tensor.ShareData(sample_shared_ptr, tl.capacity(), tl.shape()[i], tl.type());
+    tensor.ShareData(sample_shared_ptr, tl.capacity(), tl.is_pinned(), tl.shape()[i], tl.type());
     tensor.set_device_id(tl.device_id());
     tensor.SetMeta(tl.GetMeta(i));
 
@@ -386,7 +386,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
   }
 
   TensorList<TypeParam> tl;
-  tl.Copy(tensors, 0);
+  tl.Copy(tensors);
 
   int num_tensor = tl.num_samples();
   ASSERT_EQ(num_tensor, tensors.num_samples());
@@ -404,7 +404,7 @@ TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
   // Empty tensors
   TensorList<TypeParam> tl;
   tensors.template set_type<float>();
-  tl.Copy(tensors, 0);
+  tl.Copy(tensors);
 
   Tensor<TypeParam> tensor;
   int num_tensor = tl.num_samples();
@@ -500,7 +500,7 @@ TYPED_TEST(TensorTest, TestCopyFromBuf) {
   }
 
   Tensor<TypeParam> tensor1;
-  tensor1.Copy(vec, 0);
+  tensor1.Copy(vec);
   ASSERT_NE(tensor1.template mutable_data<float>(), nullptr);
   ASSERT_EQ(vec.size(), tensor1.size());
   ASSERT_EQ(vec.size() * sizeof(float), tensor1.nbytes());
@@ -510,7 +510,7 @@ TYPED_TEST(TensorTest, TestCopyFromBuf) {
   EXPECT_EQ(0, std::memcmp(vec.data(), tensor1_data.data(), vec.size() * sizeof(float)));
 
   Tensor<TypeParam> tensor2;
-  tensor2.Copy(make_span(vec), 0);
+  tensor2.Copy(make_span(vec));
   ASSERT_NE(tensor2.template mutable_data<float>(), nullptr);
   ASSERT_EQ(vec.size(), tensor2.size());
   ASSERT_EQ(1, tensor2.ndim());

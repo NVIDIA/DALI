@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,14 +24,14 @@ typedef ::testing::Types<RGB, BGR, Gray> Types;
 TYPED_TEST_SUITE(DisplacementTest, Types);
 
 TYPED_TEST(DisplacementTest, Sphere) {
-  this->RunTest("Sphere");
+  this->RunTest("Sphere", nullptr, 0, false, 0.005);
 }
 
 TYPED_TEST(DisplacementTest, Water) {
   const OpArg params[] = {{"ampl_x", "2.", DALI_FLOAT},
                           {"ampl_y", "3.", DALI_FLOAT},
                           {"phase_x", "0.2", DALI_FLOAT}};
-  this->RunTest("Water", params, sizeof(params)/sizeof(params[0]));
+  this->RunTest("Water", params, sizeof(params)/sizeof(params[0]), false, 0.005);
 }
 
 /*

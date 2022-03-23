@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,11 +34,9 @@ class ToDecibelsImpl : public OpImplBase<GPUBackend> {
   explicit ToDecibelsImpl(ToDecibelsArgs args)
       : args_(std::move(args)) {
     if (args_.ref_max) {
-      kmgr_max_.Initialize<MaxKernel>();
-      kmgr_max_.Resize<MaxKernel>(1, 1);
+      kmgr_max_.Resize<MaxKernel>(1);
     }
-    kmgr_todb_.Initialize<ToDecibelsKernel>();
-    kmgr_todb_.Resize<ToDecibelsKernel>(1, 1);
+    kmgr_todb_.Resize<ToDecibelsKernel>(1);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
@@ -63,6 +61,7 @@ bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto type = type2id<T>::value;
 
   kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
   if (args_.ref_max) {
     auto& req_max = kmgr_max_.Setup<MaxKernel>(0, ctx, in_view);
     max_out_desc_.resize(1);
@@ -92,10 +91,10 @@ void ToDecibelsImpl<T>::RunImpl(workspace_t<GPUBackend> &ws) {
   if (args_.ref_max) {
     max_out_.Resize(max_out_desc_[0].shape, max_out_desc_[0].type);
     auto max_values_view = view<T, 0>(max_out_);
-    kmgr_max_.Run<MaxKernel>(0, 0, ctx, max_values_view, in_view);
-    kmgr_todb_.Run<ToDecibelsKernel>(0, 0, ctx, out_view, in_view, args_, max_values_view);
+    kmgr_max_.Run<MaxKernel>(0, ctx, max_values_view, in_view);
+    kmgr_todb_.Run<ToDecibelsKernel>(0, ctx, out_view, in_view, args_, max_values_view);
   } else {
-    kmgr_todb_.Run<ToDecibelsKernel>(0, 0, ctx, out_view, in_view, args_);
+    kmgr_todb_.Run<ToDecibelsKernel>(0, ctx, out_view, in_view, args_);
   }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,19 +91,9 @@ TEST(AnyKernelInstance, Get) {
   EXPECT_THROW(aki.get<TestStruct2>(), std::logic_error);
 }
 
-TEST(KernelManager, GetScratchpadAllocator) {
-  KernelManager mgr;
-  mgr.Resize(2, 2);
-  ScratchpadAllocator &a0 = mgr.GetScratchpadAllocator(0);
-  ScratchpadAllocator &a1 = mgr.GetScratchpadAllocator(1);
-  ScratchpadAllocator &a2 = mgr.GetScratchpadAllocator(0);
-  EXPECT_NE(&a0, &a1);
-  EXPECT_EQ(&a0, &a2);
-}
-
 TEST(KernelManager, CreateOrGet_Get) {
   KernelManager mgr;
-  mgr.Resize(1, 1);
+  mgr.Resize(1);
   auto &k1 = mgr.CreateOrGet<TestKernel>(0);
   auto &k2 = mgr.Get<TestKernel>(0);
   EXPECT_EQ(&k1, &k2);
@@ -113,20 +103,22 @@ TEST(KernelManager, CreateOrGet_Get) {
   in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   out.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   mgr.Setup<TestKernel>(0, ctx, in, 100, 1.25f);
-  mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
+  mgr.Run<TestKernel>(0, ctx, out, in, 100, 1.25f);
 }
 
 TEST(KernelManager, TemplateResize) {
   KernelManager mgr;
-  mgr.Resize<TestKernel>(1, 1);
+  mgr.Resize<TestKernel>(1);
   OutListGPU<float, 3> in, out;
   in.resize(2);
   in.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   out.shape = {{ { 10, 10, 1 }, { 20, 20, 3 } }};
   KernelContext ctx;
+  ctx.gpu.stream = 0;
   mgr.Setup<TestKernel>(0, ctx, in, 100, 1.25f);
-  mgr.Run<TestKernel>(0, 0, ctx, out, in, 100, 1.25f);
+  mgr.Run<TestKernel>(0, ctx, out, in, 100, 1.25f);
 }
 
 }  // namespace kernels

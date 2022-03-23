@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_
-#define DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_
-
-#include "dali/operators/reader/reader_op.h"
-#include "dali/operators/reader/loader/video/video_loader_decoder.h"
+#include "dali/operators/image/convolution/laplacian_gpu.h"
 
 namespace dali {
-class VideoReaderDecoder : public DataReader<CPUBackend, VideoSample> {
- public:
-  explicit VideoReaderDecoder(const OpSpec &spec);
+namespace laplacian {
 
- protected:
-  void RunImpl(SampleWorkspace &ws) override;
+template op_impl_uptr GetLaplacianGpuImpl<uint32_t, uint32_t>(const OpSpec* spec,
+                                                              const DimDesc& dim_desc);
+template op_impl_uptr GetLaplacianGpuImpl<float, uint32_t>(const OpSpec* spec,
+                                                           const DimDesc& dim_desc);
 
- private:
-  bool has_labels_ = false;
-};
-
+}  // namespace laplacian
 }  // namespace dali
-
-#endif  // DALI_OPERATORS_READER_VIDEO_READER_DECODER_OP_H_

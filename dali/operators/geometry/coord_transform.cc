@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ void CoordTransform<CPUBackend>::RunTyped(HostWorkspace &ws) {
   int nthreads = tp.NumThreads();
 
   using Kernel = kernels::TransformPointsCPU<OutputType, InputType, out_dim, in_dim>;
-  kmgr_.template Resize<Kernel>(nthreads, nthreads);
+  kmgr_.template Resize<Kernel>(nthreads);
 
   auto M = GetMatrices<out_dim, in_dim>();
   auto T = GetTranslations<out_dim>();
@@ -68,7 +68,7 @@ void CoordTransform<CPUBackend>::RunTyped(HostWorkspace &ws) {
         auto in_tensor = in_view[idx];
         auto out_tensor = out_view[idx];
         kmgr_.Setup<Kernel>(tid, ctx, in_tensor.shape);
-        kmgr_.Run<Kernel>(tid, tid, ctx, out_tensor, in_tensor, M[idx], T[idx]);
+        kmgr_.Run<Kernel>(tid, ctx, out_tensor, in_tensor, M[idx], T[idx]);
       }, volume(in_view.shape.tensor_shape_span(idx)));
   }
   tp.RunAll();

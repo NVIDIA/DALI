@@ -1159,7 +1159,7 @@ namespace detail {
  * @param shape      Shape to be collapsed
  * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
  *                   The groups must be sorted by start index.
- *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   Unlisted dimensions are implicitly preserved (as if they were in a group
  *                   of size 1)
  */
 template <typename DimGroups>
@@ -1199,7 +1199,7 @@ void collapse_dims(span<int64_t> result, span<const int64_t> shape, const DimGro
  * @param shape      Shape to be collapsed
  * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
  *                   The groups must be sorted by start index.
- *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   Unlisted dimensions are implicitly preserved (as if they were in a group
  *                   of size 1)
  * @return Collapsed shape
  */
@@ -1302,7 +1302,7 @@ auto collapse_dim(const TensorListShape<ndim> &shape, int dim) {
  * @param shape      Shape to be collapsed
  * @param dim_groups Description of dimension groups in `shape` {starting_dimension_idx, size}.
  *                   The groups must be sorted by start index.
- *                   Unlisted dimensions are implictly preserved (as if they were in a group
+ *                   Unlisted dimensions are implicitly preserved (as if they were in a group
  *                   of size 1)
  */
 template <int out_ndim, int ndim, typename DimGroups>
@@ -1397,7 +1397,7 @@ void permute_samples(TensorListShape<out_ndim> &out,
 }
 
 /**
- * @brief Permtues the extents of shapes in the tensor list shape `in` according to
+ * @brief Permutes the extents of shapes in the tensor list shape `in` according to
  *        `axis_order` and stores the result in `out`.
  */
 template <int out_ndim, int in_ndim, typename Permutation>
@@ -1474,7 +1474,7 @@ TensorListShape<output_ndim> sample_range(const TensorListShape<ndim> &in,
 }
 
 /**
- * @brief Unfolds outer dimension of TensorShape in TensorShapeList, effectively converting elements
+ * @brief Unfolds outer dimension of TensorShape in TensorListShape, effectively converting elements
  * of the outer dimension to separate sample shapes.
  *
  * @param shapes list of shapes with at least single dimension
@@ -1499,7 +1499,7 @@ auto unfold_outer_dim(const TensorListShape<ndim> &shapes) -> TensorListShape<re
                     ndim == DynamicDimensions,
                 "The input must have exactly one more dimension than the output.");
 
-  assert(shapes.sample_dim() >= 1 && "Can not unfold TensorShapeList of scalars");
+  assert(shapes.sample_dim() >= 1 && "Can not unfold TensorListShape of scalars");
 
   const int dyn_out_ndim = shapes.sample_dim() - 1;
 

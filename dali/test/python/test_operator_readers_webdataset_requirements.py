@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -236,6 +236,41 @@ def test_sharding():
             file_reader_pipeline(
                 equivalent_files,
                 ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            test_batch_size,
+            math.ceil(num_samples / num_shards / test_batch_size) * 2,
+        )
+
+
+def test_pax_format():
+    global test_batch_size
+    num_samples = 1000
+    tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
+    pax_tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/pax/devel-0.tar")
+    index_file = generate_temp_index_file(tar_file_path)
+
+    num_shards = 100
+    for shard_id in range(num_shards):
+        compare_pipelines(
+            webdataset_raw_pipeline(
+                tar_file_path,
+                index_file.name,
+                ["jpg", "cls"],
+                num_shards=num_shards,
+                shard_id=shard_id,
+                batch_size=test_batch_size,
+                device_id=0,
+                num_threads=1,
+            ),
+            webdataset_raw_pipeline(
+                pax_tar_file_path,
+                None,
+                ext=["jpg", "cls"],
                 num_shards=num_shards,
                 shard_id=shard_id,
                 batch_size=test_batch_size,

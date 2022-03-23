@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -406,8 +406,8 @@ struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
     ScratchpadEstimator se;
     se.add<mm::memory_kind::device, SampleDesc>(N);
     se.add<mm::memory_kind::device, BlockDesc>(xgrid);
-    se.add<mm::memory_kind::host, SampleDesc>(N);
-    se.add<mm::memory_kind::host, BlockDesc>(xgrid);
+    se.add<mm::memory_kind::pinned, SampleDesc>(N);
+    se.add<mm::memory_kind::pinned, BlockDesc>(xgrid);
 
     KernelRequirements req;
     req.scratch_sizes = se.sizes;
@@ -425,8 +425,8 @@ struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
 
     int N = in.num_samples();
 
-    auto *cpu_samples = ctx.scratchpad->AllocateHost<SampleDesc>(N);
-    auto *cpu_blocks = ctx.scratchpad->AllocateHost<BlockDesc>(nblocks);
+    auto *cpu_samples = ctx.scratchpad->AllocatePinned<SampleDesc>(N);
+    auto *cpu_blocks = ctx.scratchpad->AllocatePinned<BlockDesc>(nblocks);
 
     assert(!window.data || window.shape[0] == args.window_length);
 
@@ -588,9 +588,9 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
     se.add<mm::memory_kind::device, SampleDesc>(N);
     se.add<mm::memory_kind::device, BlockDesc>(grid_dim);
     se.add<mm::memory_kind::device, PadBlock>(pad_grid.z);
-    se.add<mm::memory_kind::host, SampleDesc>(N);
-    se.add<mm::memory_kind::host, BlockDesc>(grid_dim);
-    se.add<mm::memory_kind::host, PadBlock>(pad_grid.z);
+    se.add<mm::memory_kind::pinned, SampleDesc>(N);
+    se.add<mm::memory_kind::pinned, BlockDesc>(grid_dim);
+    se.add<mm::memory_kind::pinned, PadBlock>(pad_grid.z);
 
     KernelRequirements req;
     req.scratch_sizes = se.sizes;
@@ -607,9 +607,9 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
 
     int N = in.num_samples();
 
-    auto *cpu_samples = ctx.scratchpad->AllocateHost<SampleDesc>(N);
-    auto *cpu_blocks = ctx.scratchpad->AllocateHost<BlockDesc>(grid_dim);
-    auto *cpu_pad_blocks = ctx.scratchpad->AllocateHost<PadBlock>(pad_grid.z);
+    auto *cpu_samples = ctx.scratchpad->AllocatePinned<SampleDesc>(N);
+    auto *cpu_blocks = ctx.scratchpad->AllocatePinned<BlockDesc>(grid_dim);
+    auto *cpu_pad_blocks = ctx.scratchpad->AllocatePinned<PadBlock>(pad_grid.z);
 
     assert(!window.data || window.shape[0] == args.window_length);
 

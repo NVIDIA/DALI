@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ struct IndexEntry {
 
 struct AvState {
   AVFormatContext *ctx_ = nullptr;
-  AVCodec *codec_ = nullptr;
+  const AVCodec *codec_ = nullptr;
   AVCodecParameters *codec_params_ = nullptr;
   AVCodecContext *codec_ctx_ = nullptr;
   AVFrame *frame_ = nullptr;
@@ -48,8 +48,14 @@ struct AvState {
 
   ~AvState() {
     sws_freeContext(sws_ctx_);
-    av_packet_free(&packet_);
-    av_frame_free(&frame_);
+    if (packet_ != nullptr) {
+      av_packet_unref(packet_);
+      av_packet_free(&packet_);
+    }
+    if (frame_ != nullptr) {
+      av_frame_unref(frame_);
+      av_frame_free(&frame_);
+    }
     avcodec_free_context(&codec_ctx_);
     avformat_close_input(&ctx_);
     avformat_free_context(ctx_);
@@ -124,20 +130,38 @@ class DLL_PUBLIC FramesDecoder {
    * @param copy_to_output Whether copy the data to the output. 
    * @return Boolean indicating whether the frame was read or not. False means no more frames in the decoder.
    */
-  bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
+  virtual bool ReadNextFrame(uint8_t *data, bool copy_to_output = true);
 
   /**
    * @brief Seeks to the frame given by id. Next call to ReadNextFrame will return this frame
    * 
    * @param frame_id Id of the frame to seek to
    */
-  void SeekFrame(int frame_id);
+  virtual void SeekFrame(int frame_id);
 
   /**
    * @brief Seeks to the first frame
    * 
    */
-  void Reset();
+  virtual void Reset();
+
+  /**
+   * @brief Returns index of the frame that will be returned by the next call of ReadNextFrame
+   * 
+   * @return int Index of the next frame to be read
+   */
+  int NextFrameIdx() { return next_frame_idx_; }
+
+  FramesDecoder(FramesDecoder&&) = default;
+
+  virtual ~FramesDecoder() = default;
+
+ protected:
+  std::unique_ptr<AvState> av_state_;
+
+  std::vector<IndexEntry> index_;
+
+  int next_frame_idx_ = 0;
 
  private:
    /**
@@ -175,12 +199,9 @@ class DLL_PUBLIC FramesDecoder {
 
   void LazyInitSwContext();
 
-  std::unique_ptr<AvState> av_state_;
-
   int channels_ = 3;
   bool flush_state_ = false;
   std::string filename_;
-  std::vector<IndexEntry> index_;
 };
 }  // namespace dali
 

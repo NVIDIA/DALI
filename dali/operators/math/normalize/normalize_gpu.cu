@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -217,9 +217,8 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   int nsamples = input.num_samples();
 
   cudaStream_t stream = ws.stream();
-  PreallocatedScratchpad scratch = alloc_.GetScratchpad();
+  DynamicScratchpad buffer_scratchpad({}, stream);;
   KernelContext ctx;
-  ctx.scratchpad = &scratch;
   ctx.gpu.stream = stream;
 
   // Prepare mean and stddev
@@ -230,37 +229,41 @@ void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
   OutListGPU<float> mean_gpu, stddev_gpu;
 
   if (!has_scalar_mean_) {
-    mean_gpu = scratch.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
+    mean_gpu = buffer_scratchpad.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   } else if (ShouldCalcStdDev()) {
+    ctx.scratchpad = &buffer_scratchpad;
     mean_gpu = BroadcastMean(ctx, scalar_mean);
+    ctx.scratchpad = nullptr;
   }
 
   if (!has_scalar_stddev_) {
-    stddev_gpu = scratch.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
+    stddev_gpu = buffer_scratchpad.AllocTensorList<mm::memory_kind::device, float>(param_shape_);
   }
 
   if (ShouldCalcMean()) {
-    // We can't just Clear() the scratchpad to reuse it, because temporary buffers are also
-    // stored there - so let's make a snapshot of current allocation state and restore it
-    // after the kernel Run is done.
-    ScratchpadSnapshot snap(scratch);
+    DynamicScratchpad scratchpad({}, stream);
+    ctx.scratchpad = &scratchpad;
     auto &mean_kernel = GetMeanKernel<float, InputType>();
     mean_kernel.Run(ctx, mean_gpu, in_view);
+    ctx.scratchpad = nullptr;
   } else if (has_tensor_mean_) {
     kernels::copy(mean_gpu, mean_input_, stream);
   }
 
   if (ShouldCalcStdDev()) {
-    ScratchpadSnapshot snap(scratch);
+    DynamicScratchpad scratchpad({}, stream);
+    ctx.scratchpad = &scratchpad;
     auto &stddev_kernel = GetInvStdDevKernel<float, InputType>();
     stddev_kernel.Run(ctx, stddev_gpu, in_view, mean_gpu, degrees_of_freedom_, epsilon_);
+    ctx.scratchpad = nullptr;
   } else if (has_tensor_stddev_) {
     kernels::copy(stddev_gpu, stddev_input_, stream);
   }
 
   // finally, run the normalize kernel
   {
-    ScratchpadSnapshot snap(scratch);
+    DynamicScratchpad scratchpad({}, stream);
+    ctx.scratchpad = &scratchpad;
     auto &norm_kernel = GetNormalizeKernel<OutputType, InputType>();
 
     // if stddev is calculated internally, epsilon has already been included

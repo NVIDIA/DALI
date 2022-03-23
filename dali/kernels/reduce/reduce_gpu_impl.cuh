@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,17 +145,21 @@ struct ReductionStage {
 struct TempBufferSizes {
   int64_t io_buffers = 0;
   int64_t param_buffers = 0;
+  int64_t host_param_buffers = 0;
+  static constexpr int kStageParamAlignment = 64;
 
-  void GrowToFit(TempBufferSizes sz) {
+  void AddStage(TempBufferSizes sz) {
     if (sz.io_buffers > io_buffers)
       io_buffers = sz.io_buffers;
     if (sz.param_buffers > param_buffers)
       param_buffers = sz.param_buffers;
+    host_param_buffers = align_up(host_param_buffers, kStageParamAlignment) + sz.param_buffers;
   }
 
   template <typename T>
   void AddParam(int nsamples, size_t alignment = alignof(T)) {
     param_buffers = align_up(param_buffers, alignment) + nsamples * sizeof(T);
+    host_param_buffers = align_up(host_param_buffers, alignment) + nsamples * sizeof(T);
   }
 
   template <typename T>
@@ -169,19 +173,27 @@ struct TempBufferSizes {
  * @brief Manages working memory for multi-stage operations
  *
  * The layout is:
- * Host:  parameters
- * GPU:   parameters  I/O ......... O/I
+ * Host:  parameters0 parameters1, ...., parametersN
+ * GPU:   max_parameters I/O ......... O/I
  *
  * Every other stage the roles of inputs and outputs are switched, so the outputs of the
  * previous stage become the inputs of current one.
+ *
+ * The host parameter buffers are not reused across stages, because they can be still in use
+ * by H2D copies
  */
 struct WorkArea {
   char *host_memory = nullptr, *gpu_memory = nullptr;
 
+  // Next parameter offset within this stage
   int64_t next_param_offset = 0;
+  // Used for pinned (host) buffers, which cannot be imnmediately overwritten
+  int64_t stage_param_offset = 0;
   int stage_index = 0;
 
   void BeginStage(int stage_idx) {
+    stage_param_offset = align_up(stage_param_offset + next_param_offset,
+                                  TempBufferSizes::kStageParamAlignment);
     next_param_offset = 0;
     stage_index = stage_idx;
   }
@@ -189,9 +201,9 @@ struct WorkArea {
   template <typename T>
   T *ParamBuffer(int64_t n, size_t alignment = alignof(T)) {
     next_param_offset = align_up(next_param_offset, alignment);
-    T *out = reinterpret_cast<T *>(host_memory + next_param_offset);
+    T *out = reinterpret_cast<T *>(host_memory + stage_param_offset + next_param_offset);
     next_param_offset += n * sizeof(T);
-    assert(next_param_offset <= buffer_sizes.param_buffers);
+    assert(next_param_offset + stage_param_offset <= buffer_sizes.host_param_buffers);
     return out;
   }
 
@@ -207,6 +219,7 @@ struct WorkArea {
 
   template <typename T>
   T *IOBuffer(int64_t elements, bool alloc_at_end) {
+    assert(elements * sizeof(T) <= buffer_sizes.io_buffers);
     int64_t offset;
     if (alloc_at_end) {
       offset = buffer_sizes.io_buffers + buffer_sizes.param_buffers - elements * sizeof(T);
@@ -215,12 +228,15 @@ struct WorkArea {
       offset = buffer_sizes.param_buffers;
       offset = align_up(offset, alignof(T));
     }
+    assert(offset >= buffer_sizes.param_buffers &&
+           offset + elements*sizeof(T) <= buffer_sizes.io_buffers + buffer_sizes.param_buffers);
     return reinterpret_cast<T *>(gpu_memory + offset);
   }
 
   void CopyParamsToDevice(cudaStream_t stream) {
     if (next_param_offset) {
-      CUDA_CALL(cudaMemcpyAsync(gpu_memory, host_memory, next_param_offset,
+      char *host_param_start = host_memory + stage_param_offset;
+      CUDA_CALL(cudaMemcpyAsync(gpu_memory, host_param_start, next_param_offset,
                                 cudaMemcpyHostToDevice, stream));
     }
   }
@@ -231,9 +247,10 @@ struct WorkArea {
       return nullptr;
 
     auto raw_ptr = reinterpret_cast<const char*>(host_param);
-    assert(raw_ptr >= host_memory &&
-           raw_ptr < host_memory + next_param_offset);
-    return reinterpret_cast<T*>(gpu_memory + (raw_ptr - host_memory));
+    char *host_param_start = host_memory + stage_param_offset;
+    assert(raw_ptr >= host_param_start &&
+           raw_ptr < host_param_start + next_param_offset);
+    return reinterpret_cast<T*>(gpu_memory + (raw_ptr - host_param_start));
   }
 
   TempBufferSizes buffer_sizes;
@@ -415,12 +432,12 @@ class ReduceImplGPU {
   void Run(KernelContext &kctx, const OutListGPU<Out> &out, const InListGPU<In> &in) {
     assert(!stages_.empty());
     Context ctx;
-    auto host_mem_size = buffer_sizes_.param_buffers;
+    auto host_mem_size = buffer_sizes_.host_param_buffers;
     auto gpu_mem_size = buffer_sizes_.param_buffers + buffer_sizes_.io_buffers;
 
     ctx.stream = kctx.gpu.stream;
     ctx.work_area.buffer_sizes = buffer_sizes_;
-    ctx.work_area.host_memory = kctx.scratchpad->AllocateHost<char>(host_mem_size, 64);
+    ctx.work_area.host_memory = kctx.scratchpad->AllocatePinned<char>(host_mem_size, 64);
     ctx.work_area.gpu_memory = kctx.scratchpad->AllocateGPU<char>(gpu_mem_size, 64);
 
     ctx.input = reshape(in, in_shape_, true);
@@ -516,13 +533,14 @@ class ReduceImplGPU {
     for (auto &stage : stages_) {
       TempBufferSizes stage_buffers;
       CalculateTempBuffers(stage_buffers, stage);
-      buffer_sizes_.GrowToFit(stage_buffers);
+      buffer_sizes_.AddStage(stage_buffers);
     }
     buffer_sizes_.param_buffers = align_up(buffer_sizes_.param_buffers, 64);
+    buffer_sizes_.host_param_buffers = align_up(buffer_sizes_.host_param_buffers, 64);
 
     // Now reserve the scratchpad - it's overaligned, because the buffer is opaque
     // and may contain any type - possibly with alignment requirements.
-    se.add<mm::memory_kind::host, uint8_t>(buffer_sizes_.param_buffers, 64);
+    se.add<mm::memory_kind::pinned, uint8_t>(buffer_sizes_.host_param_buffers, 64);
     se.add<mm::memory_kind::device, uint8_t>(
       buffer_sizes_.param_buffers + buffer_sizes_.io_buffers, 64);
   }
@@ -610,6 +628,7 @@ class ReduceImplGPU {
           case ReductionKind::Inner:
           case ReductionKind::None:
           case ReductionKind::Sample:
+          case ReductionKind::Block:
             buf_sizes.AddParam<postprocessor_t<ReduceImplGPU>>(N);
             break;
           default:

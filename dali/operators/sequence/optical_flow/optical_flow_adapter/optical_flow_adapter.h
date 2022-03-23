@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,15 +24,10 @@
 namespace dali {
 namespace optical_flow {
 
-enum struct VectorGridSize {
-  UNDEF,
-  SIZE_4 = 4,  /// 4x4 grid
-  MAX,
-};
-
 struct OpticalFlowParams {
   float perf_quality_factor;  /// 0..1, where 0 is best quality, lowest performance
-  VectorGridSize grid_size;
+  int out_grid_size;
+  int hint_grid_size;
   bool enable_temporal_hints;
   bool enable_external_hints;
 };
@@ -45,13 +40,22 @@ class DLL_PUBLIC OpticalFlowAdapter {
   using StorageBackend = typename compute_to_storage<ComputeBackend>::type;
 
  public:
-  explicit OpticalFlowAdapter(OpticalFlowParams params) : of_params_(params) {}
-
+  explicit OpticalFlowAdapter(const OpticalFlowParams &params) : of_params_(params) {}
 
   /**
-   * Return shape of output tensor for given OpticalFlow class
+   *  Runs the initialization code that may throw
    */
-  virtual TensorShape<DynamicDimensions> GetOutputShape() = 0;
+  virtual void Init(OpticalFlowParams &params) = 0;
+
+  /**
+   * Reconfigures Optical Flow HW for new frame dimensions if necessary
+   */
+  virtual void Prepare(size_t width, size_t height) = 0;
+
+  /**
+   * Return shape of output tensor for given OpticalFlow class given height and width
+   */
+  virtual TensorShape<DynamicDimensions> CalcOutputShape(int height, int width) = 0;
 
 
   /**

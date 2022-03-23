@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,9 +46,10 @@ bool SliceBaseGpu<OutputType, InputType, Dims>::SetupImpl(std::vector<OutputDesc
   output_desc[0].type = type2id<OutputType>::value;
   output_desc[0].shape.resize(nsamples, Dims);
 
-  kmgr_.Resize<Kernel>(1, 1);
+  kmgr_.Resize<Kernel>(1);
   auto in_view = view<const InputType, Dims>(input);
   kernels::KernelContext ctx;
+  ctx.gpu.stream = ws.stream();
   auto req = kmgr_.Setup<Kernel>(0, ctx, in_view, args_);
   output_desc[0].shape = req.output_shapes[0];
   return true;
@@ -63,7 +64,7 @@ void SliceBaseGpu<OutputType, InputType, Dims>::RunImpl(workspace_t<GPUBackend> 
   auto out_view = view<OutputType, Dims>(output);
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
-  kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, args_);
+  kmgr_.Run<Kernel>(0, ctx, out_view, in_view, args_);
   output.SetLayout(input.GetLayout());
 }
 

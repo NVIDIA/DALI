@@ -7,12 +7,14 @@ mkdir -p idx-files/
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
 DATA_SET_DIR=/data/imagenet/train-val-tfrecord
-for file in $(ls $DATA_SET_DIR --ignore *\.txt);
+for file in $(ls $DATA_SET_DIR/*-of-*);
 do
+    file=$(basename ${file})
     echo ${file}
     python /opt/dali/tools/tfrecord2idx $DATA_SET_DIR/${file} \
-        idx-files/${file}.idx;
+        idx-files/${file}.idx &
 done
+wait
 
 function CLEAN_AND_EXIT {
     exit $1
@@ -25,7 +27,7 @@ mkdir -p $OUT
 SECONDS=0
 export TF_XLA_FLAGS="--tf_xla_enable_lazy_compilation=false"
 
-mpiexec --allow-run-as-root --bind-to socket -np ${NUM_GPUS} \
+mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \
     python -u resnet.py \
     --data_dir=$DATA_SET_DIR --data_idx_dir=idx-files/ \
     --precision=fp16 --num_iter=90 --iter_unit=epoch --display_every=50 \

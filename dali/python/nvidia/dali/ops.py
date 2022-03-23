@@ -832,9 +832,9 @@ class _TFRecordReaderImpl():
         op_instance.spec.AddArg("features", features)
         return outputs
 
-_TFRecordReaderImpl.__call__.__doc__ = _docstring_generator_call("readers__TFRecord")
-
 def _load_readers_tfrecord():
+    _TFRecordReaderImpl.__call__.__doc__ = _docstring_generator_call("readers__TFRecord")
+
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'readers__TFRecord', 'TFRecordReader'})
 
@@ -1305,4 +1305,9 @@ _cpu_ops = _cpu_ops.union({"Compose"})
 _gpu_ops = _gpu_ops.union({"Compose"})
 
 _load_ops()
-_load_readers_tfrecord()
+
+try:
+    _load_readers_tfrecord()
+except RuntimeError as e:
+    # TFRecord can be disabled (custom build). No need to fail
+    pass

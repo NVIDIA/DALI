@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ namespace dali {
 namespace mm {
 
 template <typename Kind,
-    typename GlobalPool = deferred_dealloc_pool<Kind, coalescing_free_tree, spinlock>,
+    typename GlobalPool = pool_resource_base<Kind, coalescing_free_tree, spinlock>,
     typename LockType = std::mutex,
     typename Upstream = memory_resource<Kind>>
 class async_pool_resource : public async_memory_resource<Kind> {
@@ -68,7 +68,6 @@ class async_pool_resource : public async_memory_resource<Kind> {
   ~async_pool_resource() {
     try {
       synchronize();
-      global_pool_.flush_deferred();
     } catch (const CUDAError &e) {
       if (!e.is_unloading())
         std::terminate();
@@ -82,7 +81,7 @@ class async_pool_resource : public async_memory_resource<Kind> {
 
       for (auto *f = free_blocks.free_list.head; f; ) {
         try {
-          global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
+          global_pool_.deallocate(f->addr, f->bytes, f->alignment);
         } catch (const CUDAError &e) {
           if (!e.is_unloading())
             std::terminate();
@@ -134,20 +133,10 @@ class async_pool_resource : public async_memory_resource<Kind> {
     if (!mem || !bytes)
       return;
     adjust_size_and_alignment(bytes, alignment, false);
-    bool deferred = global_pool_.deferred_dealloc_enabled();
-    // If not deferred, we need to synchronize here (outside of the lock, to avoid blocking
-    // concurrent allocations).
-    if (!deferred) {
-      sync_scope sync = default_sync_scope<Kind>();
-      mm::detail::synchronize(sync);
-    }
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char *>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    if (deferred)  // deferred - just use deallocate, it will schedule synchronization
-      global_pool_.deallocate(ptr, bytes, alignment);
-    else  // not deferred - don't synchronize, we've done it already
-      global_pool_.deallocate_no_sync(ptr, bytes, alignment);
+    global_pool_.deallocate(ptr, bytes, alignment);
   }
 
   /**
@@ -213,10 +202,18 @@ class async_pool_resource : public async_memory_resource<Kind> {
     if (!mem || !bytes)
       return;
     adjust_size_and_alignment(bytes, alignment, false);
+
+    // Record an event outside of the mutex - it may take considerable time
+    CUcontext ctx;
+    CUDA_CALL(cuStreamGetCtx(stream.get(), &ctx));
+    ContextScope scope(ctx);
+    CUDAEvent event = CUDAEventPool::instance().Get();
+    CUDA_CALL(cudaEventRecord(event, stream.get()));
+
     std::lock_guard<LockType> guard(lock_);
     char *ptr = static_cast<char*>(mem);
     pop_block_padding(ptr, bytes, alignment);
-    deallocate_async_impl(stream_free_[stream.get()], ptr, bytes, alignment, stream.get());
+    deallocate_async_impl(stream_free_[stream.get()], ptr, bytes, alignment, ctx, std::move(event));
   }
 
   /**
@@ -422,14 +419,14 @@ class async_pool_resource : public async_memory_resource<Kind> {
   void free_ready(PerStreamFreeBlocks &free) {
     auto *f = find_first_ready(free);
     while (f) {
-      global_pool_.deallocate_no_sync(f->addr, f->bytes, f->alignment);
+      global_pool_.deallocate(f->addr, f->bytes, f->alignment);
       f = remove_pending_free(free, f);
     }
   }
 
   void deallocate_async_impl(PerStreamFreeBlocks &free, char *ptr, size_t bytes, size_t alignment,
-                             cudaStream_t stream) {
-    auto *pending = add_pending_free(free.free_list, ptr, bytes, alignment, stream);
+                             CUcontext ctx, CUDAEvent &&event) {
+    auto *pending = add_pending_free(free.free_list, ptr, bytes, alignment, ctx, std::move(event));
     try {
       free.by_size.insert({bytes, pending});
     } catch (...) {
@@ -459,11 +456,13 @@ class async_pool_resource : public async_memory_resource<Kind> {
   }
 
   auto *add_pending_free(PendingFreeList &free, char *base, size_t bytes, size_t alignment,
-                         cudaStream_t stream) {
+                         CUcontext ctx, CUDAEvent &&event) {
     if (!cuInitChecked())
       throw std::runtime_error("Cannot load CUDA driver API library");
     pending_free *f = FreeDescAlloc::allocate(1);
     f = new (f)pending_free();
+    f->ctx = ctx;
+    f->event = std::move(event);
     f->addr = base;
     f->bytes = bytes;
     f->alignment = alignment;
@@ -473,10 +472,6 @@ class async_pool_resource : public async_memory_resource<Kind> {
       f->next->prev = f;
     free.head = f;
     if (!free.tail) free.tail = f;
-    CUDA_CALL(cuStreamGetCtx(stream, &f->ctx));
-    ContextScope scope(f->ctx);
-    f->event = CUDAEventPool::instance().Get();
-    CUDA_CALL(cudaEventRecord(f->event, stream));
     num_pending_frees_++;
     return f;
   }

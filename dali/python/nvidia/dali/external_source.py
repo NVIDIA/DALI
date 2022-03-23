@@ -14,6 +14,8 @@
 
 # custom wrappers around ops
 from nvidia.dali import backend as _b
+from nvidia.dali import tensors as _tensors
+from nvidia.dali import types as _types
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
@@ -51,6 +53,69 @@ def _check_data_batch(data, batch_size, layout):
                     raise RuntimeError("All tensors in a batch must have the same number of dimensions")
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+
+def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
+    def to_numpy(x):
+        if _types._is_mxnet_array(x):
+            return x.asnumpy()
+        elif _types._is_torch_tensor(x):
+            return x.numpy()
+        else:
+            return x
+
+    # __cuda_array_interface__ doesn't provide any way to pass the information about the device
+    # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
+    # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
+    if isinstance(data, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
+        if layout is not None:
+            _check_data_batch(data, batch_size, layout)
+            data = type(data)(data, layout)
+    elif isinstance(data, list):
+        inputs = []
+        checked = False
+        for datum in data:
+            (is_dlpack, is_gpu_data) = _b.CheckDLPackCapsule(datum)
+            if not is_dlpack and not checked:
+                _check_data_batch(data, batch_size, layout)
+                checked = True
+            if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
+                inp = type(datum)(datum, layout=layout) if layout is not None else datum
+            elif is_dlpack:
+                if is_gpu_data:
+                    inp = _tensors.TensorGPU(datum, layout or "")
+                else:
+                    inp = _tensors.TensorCPU(datum, layout or "")
+            elif hasattr(datum, "__cuda_array_interface__"):
+                array_device_id = _types._get_device_id_for_array(datum)
+                if array_device_id is None:
+                    array_device_id = device_id
+                inp = _tensors.TensorGPU(datum, layout or "", array_device_id)
+            else:
+                datum = to_numpy(datum)
+                inp = _tensors.TensorCPU(datum, layout or "")
+            inputs.append(inp)
+        assert all(isinstance(inp, type(inputs[0])) for inp in inputs), \
+            "Mixed input types are not support, all need to reside on the CPU or GPU"
+        data = inputs
+    else:
+        (is_dlpack, is_gpu_data) = _b.CheckDLPackCapsule(data)
+        if not is_dlpack:
+            _check_data_batch(data, batch_size, layout)
+        if hasattr(data, "__cuda_array_interface__"):
+            array_device_id = _types._get_device_id_for_array(data)
+            if array_device_id is None:
+                array_device_id = device_id
+            data = _tensors.TensorListGPU(data, layout or "", array_device_id)
+        elif is_dlpack:
+            if is_gpu_data:
+                data = _tensors.TensorListGPU(data, layout or "")
+            else:
+                data = _tensors.TensorListCPU(data, layout or "")
+        else:
+            data = to_numpy(data)
+            data = _tensors.TensorListCPU(data, layout or "")
+    return data
+
 
 class _ExternalDataBatch:
     def __init__(self, group, pipeline, data, batch_size):
@@ -364,7 +429,7 @@ Keyword Args
 
 `batch_info` : bool, optional, default = False
     Controls if a callable ``source`` that accepts an argument and returns batches should receive
-    :meth:`~nvidia.dali.types.BatchInfo` instance or just an integer representing the iteration number.
+    :class:`~nvidia.dali.types.BatchInfo` instance or just an integer representing the iteration number.
     If set to False (the default), only the integer is passed. If ``source`` is not callable, does not
     accept arguments or ``batch`` is set to False, setting this flag has no effect.
 
@@ -376,25 +441,46 @@ Keyword Args
     When ``parallel`` is set to True, samples returned by ``source`` must be
     NumPy/MXNet/PyTorch CPU arrays or TensorCPU instances.
 
+    |
     Acceptable sources depend on the value specified for ``batch`` parameter.
 
-    If batch is set to False, source must be a callable (a function or an object with __call__ method)
-    that accepts exactly one argument (:meth:`~nvidia.dali.types.SampleInfo` instance that
-    represents the index of the requested sample).
-    If batch is set to True, the ``source`` can be either a callable, an iterable or a generator function.
-    Callable in batch mode must accept exactly one argument - either :meth:`~nvidia.dali.types.BatchInfo`
-    instance or an integer (see `batch_info`).
+    If ``batch`` is set to ``False``, the ``source`` must be:
 
-    Irrespective of ``batch`` value, callables should produce requested sample or batch solely based on
-    the SampleInfo/BatchInfo instance or index in batch, so that they can be run in parallel in a number of workers.
-    When batch is set to True, callables performance might especially benefit from increasing
-    ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
+      * a callable (a function or an object with ``__call__`` method) that accepts exactly one argument
+        (:class:`~nvidia.dali.types.SampleInfo` instance that represents the index of the requested sample).
 
-    Iterator or generator will be assigned to a single worker that will iterate over it.
+    If ``batch`` is set to ``True``, the ``source`` can be either:
 
-    The ``source`` callback must raise StopIteration when the end of data is reached. Note, that due to
-    prefetching, the callback may be invoked with a few iterations past the end of dataset - make sure
-    it consistently raises StopIteration in that case.
+      * a callable that accepts exactly one argument (either :class:`~nvidia.dali.types.BatchInfo`
+        instance or an integer - see ``batch_info`` for details)
+      * an iterable,
+      * a generator function.
+
+    |
+    .. warning::
+        Irrespective of ``batch`` value, callables should be stateless - they should produce
+        requested sample or batch solely based on the
+        :class:`~nvidia.dali.types.SampleInfo`/:class:`~nvidia.dali.types.BatchInfo`
+        instance or index in batch, so that they can be run in parallel in a number of workers.
+
+        The ``source`` callback must raise a ``StopIteration`` when the end of the data is reached.
+        Note, that due to prefetching, the callback may be invoked with a few iterations past
+        the end of dataset - make sure it consistently raises a ``StopIteration`` in that case.
+
+    |
+    .. note::
+        Callable ``source`` can be run in parallel by multiple workers.
+        For ``batch=True`` multiple batches can be prepared in parallel, with ``batch=False``
+        it is possible to parallelize computation within the batch.
+
+        When ``batch=True``, callables performance might especially benefit from increasing
+        ``prefetch_queue_depth`` so that a few next batches can be computed in parallel.
+
+    |
+    .. note::
+        Iterator or generator function will be assigned to a single worker that will iterate over them.
+        The main advantage is execution in parallel to the main Python process, but due to their state
+        it is not possible to calculate more than one batch at a time.
 
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in advance and stored
@@ -721,9 +807,8 @@ provided memory is copied to the internal buffer.
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, '_debug_on', False):
-        return current_pipeline._external_source(_external_source, source, num_outputs, cycle=cycle, name=name,
-                                                 device=device, layout=layout, dtype=dtype, ndim=ndim, cuda_stream=cuda_stream,
-                                                 use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+        return current_pipeline._external_source(source=source, num_outputs=num_outputs, cycle=cycle, name=name,
+                                                 layout=layout, dtype=dtype, ndim=ndim, batch=batch, **kwargs)
     else:
         return _external_source(source, num_outputs, cycle=cycle, name=name, device=device, layout=layout, dtype=dtype,
                                 ndim=ndim, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)

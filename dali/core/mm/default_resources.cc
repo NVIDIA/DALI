@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/core/mm/async_pool.h"
 #include "dali/core/mm/composite_resource.h"
 #include "dali/core/mm/cuda_vm_resource.h"
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 namespace mm {
@@ -138,21 +139,6 @@ struct CUDARTLoader {
   }
 };
 
-
-template <typename Callable>
-struct CallAtExit {
-  explicit CallAtExit(Callable &&c) : callable(std::move(c)) {}
-  ~CallAtExit() {
-    callable();
-  }
-  Callable callable;
-};
-
-template <typename Callable>
-CallAtExit<Callable> AtExit(Callable &&c) {
-  return CallAtExit<Callable>(std::forward<Callable>(c));
-}
-
 bool UseDeviceMemoryPool() {
   static bool value = []() {
     const char *env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
@@ -177,45 +163,27 @@ bool UseVMM() {
   return value;
 }
 
-bool UseDeferredDealloc() {
-  static bool value = []() {
-    const char *env = std::getenv("DALI_USE_DEFERRED_DEALLOC");
-    return !env || atoi(env);
-  }();
-  return value;
-}
-
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   static CUDARTLoader CUDAInit;
+  CUDAEventPool::instance();
   if (!UseDeviceMemoryPool()) {
     static auto rsrc = std::make_shared<mm::cuda_malloc_memory_resource>();
     return rsrc;
   }
   #if DALI_USE_CUDA_VM_MAP
   if (cuvm::IsSupported() && UseVMM()) {
-    if (UseDeferredDealloc()) {
-      using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
-                                                    std::mutex, void>;
-      return std::make_shared<resource_type>();
-    } else {
-      using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource_base,
-                                                    std::mutex, void>;
-      return std::make_shared<resource_type>();
-    }
+    using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
+                                                  std::mutex, void>;
+    return std::make_shared<resource_type>();
   }
   #endif  // DALI_USE_CUDA_VM_MAP
   {
     static auto upstream = std::make_shared<mm::cuda_malloc_memory_resource>();
-    if (UseDeferredDealloc()) {
-      using resource_type = mm::async_pool_resource<mm::memory_kind::device>;
-      auto rsrc = std::make_shared<resource_type>(upstream.get());
-      return make_shared_composite_resource(std::move(rsrc), upstream);
-    } else {
-      using resource_type = mm::async_pool_resource<mm::memory_kind::device,
-              pool_resource_base<memory_kind::device, coalescing_free_tree, spinlock>>;
-      auto rsrc = std::make_shared<resource_type>(upstream.get());
-      return make_shared_composite_resource(std::move(rsrc), upstream);
-    }
+
+    using resource_type = mm::async_pool_resource<mm::memory_kind::device,
+            pool_resource_base<memory_kind::device, coalescing_free_tree, spinlock>>;
+    auto rsrc = std::make_shared<resource_type>(upstream.get());
+    return make_shared_composite_resource(std::move(rsrc), upstream);
   }
 }
 
@@ -225,16 +193,10 @@ inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
     return upstream;
   }
   static auto upstream = std::make_shared<pinned_malloc_memory_resource>();
-  if (UseDeferredDealloc()) {
-    using resource_type = mm::async_pool_resource<mm::memory_kind::pinned>;
-    auto rsrc = std::make_shared<resource_type>(upstream.get());
-    return make_shared_composite_resource(std::move(rsrc), upstream);
-  } else {
-    using resource_type = mm::async_pool_resource<mm::memory_kind::pinned,
-        pool_resource_base<memory_kind::pinned, coalescing_free_tree, spinlock>>;
-    auto rsrc = std::make_shared<resource_type>(upstream.get());
-    return make_shared_composite_resource(std::move(rsrc), upstream);
-  }
+  using resource_type = mm::async_pool_resource<mm::memory_kind::pinned,
+      pool_resource_base<memory_kind::pinned, coalescing_free_tree, spinlock>>;
+  auto rsrc = std::make_shared<resource_type>(upstream.get());
+  return make_shared_composite_resource(std::move(rsrc), upstream);
 }
 
 inline std::shared_ptr<managed_async_resource> CreateDefaultManagedResource() {
@@ -262,10 +224,10 @@ const std::shared_ptr<pinned_async_resource> &ShareDefaultResourceImpl<memory_ki
     std::lock_guard<std::mutex> lock(g_resources.mtx);
     if (!g_resources.pinned_async) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
-      static auto cleanup = AtExit([] {
+      g_resources.pinned_async = CreateDefaultPinnedResource();
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleasePinned();
       });
-      g_resources.pinned_async = CreateDefaultPinnedResource();
     }
   }
   return g_resources.pinned_async;
@@ -277,10 +239,10 @@ const std::shared_ptr<managed_async_resource> &ShareDefaultResourceImpl<memory_k
     std::lock_guard<std::mutex> lock(g_resources.mtx);
     if (!g_resources.managed) {
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
-      static auto cleanup = AtExit([] {
+      g_resources.managed = CreateDefaultManagedResource();
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleaseManaged();
       });
-      g_resources.managed = CreateDefaultManagedResource();
     }
   }
   return g_resources.managed;
@@ -297,10 +259,10 @@ const std::shared_ptr<device_async_resource> &ShareDefaultDeviceResourceImpl(int
     if (!g_resources.device[device_id]) {
       DeviceGuard devg(device_id);
       static CUDARTLoader init_cuda;  // force initialization of CUDA before creating the resource
-      static auto cleanup = AtExit([] {
+      g_resources.device[device_id] = CreateDefaultDeviceResource();
+      static auto cleanup = AtScopeExit([] {
         g_resources.ReleaseDevice();
       });
-      g_resources.device[device_id] = CreateDefaultDeviceResource();
     }
   }
   return g_resources.device[device_id];

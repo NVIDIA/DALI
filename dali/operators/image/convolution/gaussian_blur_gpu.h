@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
       windows.shape.resize(nsamples);
     }
 
-    kmgr_.template Resize<Kernel>(nthreads, nsamples);
+    kmgr_.template Resize<Kernel>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
       params_[i] = ObtainSampleParams<axes>(i, spec_, ws);
@@ -118,7 +118,7 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     auto in_view = reshape<ndim>(in_view_dyn, static_shape);
     auto out_view = reshape<ndim>(out_view_dyn, static_shape);
 
-    kmgr_.Run<Kernel>(0, 0, ctx_, out_view, in_view, windows_tl_);
+    kmgr_.Run<Kernel>(0, ctx_, out_view, in_view, windows_tl_);
   }
 
  private:

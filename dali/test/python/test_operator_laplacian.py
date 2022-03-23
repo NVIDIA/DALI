@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import cv2
 from scipy.ndimage import convolve1d, filters as sp_filters
 import os
 from nose_utils import assert_raises
+from nose.plugins.attrib import attr
 
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator
 
@@ -30,7 +31,7 @@ images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
 
 test_iters = 4
 min_window_size = 3
-max_window_size = 23
+max_window_size = 31  # it is maximal window size supported by opencv
 
 shape_layout_axes_cases = [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                            ((20, 30, 3), "HWC", 2), ((20, 30), "HW", 2),
@@ -47,7 +48,7 @@ def to_batch(tl, batch_size):
 # Simple check if laplacian of a square matrix that has zeros everywhere except
 # the middle cell, gives sum of separable convolution kernels used to compute
 # the partial derivatives, i.e. sum of the products of 1D convolution windows.
-def _test_kernels(num_dims, smoothing, normalize):
+def _test_kernels(device, num_dims, smoothing, normalize):
     batch_size = (max_window_size + 2 - min_window_size) // 2
 
     def get_inputs():
@@ -75,9 +76,11 @@ def _test_kernels(num_dims, smoothing, normalize):
     def pipeline():
         ones, window_sizes, smoothing_sizes, scales = fn.external_source(
             get_inputs, num_outputs=4)
+        if device == "gpu":
+            ones = ones.gpu()
         kernels = fn.laplacian(
             ones, window_size=window_sizes, smoothing_size=smoothing_sizes,
-            dtype=types.FLOAT, normalized_kernel=normalize)
+            dtype=types.FLOAT, normalized_kernel=normalize, device=device)
         return kernels, scales
 
     def outer(*vs):
@@ -95,30 +98,34 @@ def _test_kernels(num_dims, smoothing, normalize):
             num_dims)] for i in range(num_dims)]
         return sum(outer(*ws) for ws in windows)
 
-    pipe = pipeline(num_threads=4, batch_size=batch_size,
-                    device_id=types.CPU_ONLY_DEVICE_ID)
+    pipe = pipeline(num_threads=4, batch_size=batch_size, device_id=0)
     pipe.build()
     (kernels, scales) = pipe.run()
+    if device == "gpu":
+        kernels = kernels.as_cpu()
     kernels = [np.array(ker)[(slice(1, -1),) * num_dims] for ker in kernels]
     scales = [np.array(sf).item() for sf in scales]
     win_sizes = range(min_window_size, max_window_size + 2, 2)
     assert(len(kernels) == len(win_sizes) == len(scales))
-    for scale_factor, kernel, win_size in zip(scales, kernels, win_sizes):
-        baseline_kernel = get_cv2_kernel(win_size, smoothing)
-        if normalize:
-            baseline_kernel *= scale_factor
-        np.testing.assert_allclose(kernel, baseline_kernel, rtol=1e-5)
+    baseline_kernels = [
+        get_cv2_kernel(win_size, smoothing) * scale
+        for win_size, scale in zip(win_sizes, scales)]
+    if not normalize:  # output was not normalized by the op
+        kernels = [kernel * scale for kernel, scale in zip(kernels, scales)]
+    check_batch(kernels, baseline_kernels, batch_size,
+                max_allowed_error=1e-5, expected_layout="HWC")
 
 
 def test_kernels():
-    for num_dims in [1, 2, 3]:
-        for normalize in [True, False]:
-            for smoothing in [True, False]:
-                yield _test_kernels, num_dims, smoothing, normalize
+    for device in ["cpu", "gpu"]:
+        for num_dims in [1, 2, 3]:
+            for normalize in [True, False]:
+                for smoothing in [True, False]:
+                    yield _test_kernels, device, num_dims, smoothing, normalize
 
 
 @pipeline_def
-def laplacian_pipe(window_size, in_type, out_type, normalize, grayscale):
+def laplacian_pipe(device, window_size, in_type, out_type, normalize, grayscale):
     # use OpenCV convention - window size 1 implies deriv kernel of size 3 and no smoothing
     if window_size == 1:
         window_size, smoothing_size = 3, 1
@@ -129,8 +136,10 @@ def laplacian_pipe(window_size, in_type, out_type, normalize, grayscale):
     imgs = fn.decoders.image(imgs, device="cpu", output_type=output_type)
     if in_type != types.UINT8:
         imgs = fn.cast(imgs, dtype=in_type)
+    if device == "gpu":
+        imgs = imgs.gpu()
     edges = fn.laplacian(imgs, window_size=window_size, smoothing_size=smoothing_size,
-                         normalized_kernel=normalize, dtype=out_type)
+                         normalized_kernel=normalize, dtype=out_type, device=device)
     return edges, imgs
 
 
@@ -153,9 +162,9 @@ def normalization_factor(window_size):
     return 2.**(-exponent)
 
 
-def _test_vs_open_cv(batch_size, window_size, in_type, out_type, normalize, grayscale):
+def _test_vs_open_cv(device, batch_size, window_size, in_type, out_type, normalize, grayscale):
     pipe = laplacian_pipe(
-        device_id=types.CPU_ONLY_DEVICE_ID, num_threads=4, batch_size=batch_size,
+        device_id=0, device=device, num_threads=4, batch_size=batch_size,
         window_size=window_size, in_type=in_type, out_type=out_type,
         normalize=normalize, grayscale=grayscale)
     pipe.build()
@@ -163,6 +172,9 @@ def _test_vs_open_cv(batch_size, window_size, in_type, out_type, normalize, gray
     scale = 1 if not normalize else norm_factor
     for _ in range(test_iters):
         edges, imgs = pipe.run()
+        if device == "gpu":
+            edges = edges.as_cpu()
+            imgs = imgs.as_cpu()
         imgs = to_batch(imgs, batch_size)
         baseline_cv = laplacian_cv(
             imgs, window_size, in_type, out_type, scale, grayscale)
@@ -184,22 +196,26 @@ def _test_vs_open_cv(batch_size, window_size, in_type, out_type, normalize, gray
 
 def test_vs_open_cv():
     batch_size = 10
-    for normalize in [True, False]:
-        for grayscale in [True, False]:
-            for in_type in [types.UINT8, types.FLOAT]:
-                output_types = [None] if in_type == types.FLOAT else [
-                    None, types.FLOAT]
-                for out_type in output_types:
-                    # For bigger windows and uint8 mode, cv2 seems to use some integral type that
-                    # saturates too early (in any case the resulting picture is mostly black and
-                    # different from the result of running cv2.laplacian with floats and then
-                    # clamping the results)
-                    if out_type is None and in_type == types.UINT8:
-                        win_sizes = range(1, 13, 2)
-                    else:
-                        win_sizes = range(1, max_window_size + 2, 2)
-                    for window_size in win_sizes:
-                        yield _test_vs_open_cv, batch_size, window_size, in_type, out_type, normalize, grayscale
+    for device in ["cpu", "gpu"]:
+        # they are independent parameters, it's just not to go overboard with test cases
+        for normalize, grayscale in ((True, False), (False, True)):
+            # For bigger windows and uint8 mode, cv2 seems to use some integral type that
+            # saturates too early (in any case the resulting picture is mostly black and
+            # different from the result of running cv2.laplacian with floats and then
+            # clamping the results)
+            for window_size in range(1, 13, 2):
+                yield _test_vs_open_cv, device, batch_size, window_size, types.UINT8, None, normalize, grayscale
+
+
+@attr('slow')
+def test_vs_open_cv_slow():
+    batch_size = 10
+    for device in ["cpu", "gpu"]:
+        # they are independent parameters, it's just not to go overboard with test cases
+        for normalize, grayscale in ((True, False), (False, True)):
+            for in_type, out_type in ((types.UINT8, types.FLOAT), (types.FLOAT, None)):
+                for window_size in [1] + list(range(3, max_window_size + 2, 4)):
+                    yield _test_vs_open_cv, device, batch_size, window_size, in_type, out_type, normalize, grayscale
 
 
 def laplacian_sp(input, out_type):
@@ -208,7 +224,7 @@ def laplacian_sp(input, out_type):
     return output
 
 
-def _test_vs_scipy(batch_size, num_dims, in_type, out_type):
+def _test_vs_scipy(device, batch_size, num_dims, in_type, out_type):
     shape = (30,) * num_dims
     # scipy supports only windows of size 3 and does not use smoothing
     window_size, smoothing_size = 3, 1
@@ -222,16 +238,21 @@ def _test_vs_scipy(batch_size, num_dims, in_type, out_type):
         else:
             dtype_args = {}
         input = fn.external_source(data)
-        edges = fn.laplacian(input, window_size=window_size,
+        if device == "gpu":
+            input = input.gpu()
+        edges = fn.laplacian(input, window_size=window_size, device=device,
                              smoothing_size=smoothing_size, **dtype_args)
         return edges, input
 
     pipe = pipeline(
-        device_id=types.CPU_ONLY_DEVICE_ID, num_threads=4, batch_size=batch_size)
+        device_id=0, num_threads=4, batch_size=batch_size)
     pipe.build()
 
     for _ in range(test_iters):
         edges, input = pipe.run()
+        if device == "gpu":
+            edges = edges.as_cpu()
+            input = input.as_cpu()
         edges = to_batch(edges, batch_size)
         input = to_batch(input, batch_size)
         baseline = laplacian_sp(input, out_type)
@@ -241,13 +262,14 @@ def _test_vs_scipy(batch_size, num_dims, in_type, out_type):
 
 def test_vs_scipy():
     batch_size = 10
-    for num_dims in [1, 2, 3]:
-        # scipy simply wraps integers instead of saturating them, so uint8 inputs won't match
-        for in_type in [np.int16, np.int32, np.int64, np.float32]:
-            output_types = [None] if in_type == np.float32 else [
-                None, np.float32]
-            for out_type in output_types:
-                yield _test_vs_scipy, batch_size, num_dims, in_type, out_type
+    for device in ["cpu", "gpu"]:
+        for num_dims in [1, 2, 3]:
+            # scipy simply wraps integers instead of saturating them, so uint8 inputs won't match
+            for in_type in [np.int16, np.int32, np.int64, np.float32]:
+                output_types = [None] if in_type == np.float32 else [
+                    None, np.float32]
+                for out_type in output_types:
+                    yield _test_vs_scipy, device, batch_size, num_dims, in_type, out_type
 
 
 def convert_sat(img, out_type):
@@ -330,7 +352,7 @@ def count_skip_axes(layout):
 
 
 @pipeline_def
-def laplacian_per_sample_pipeline(iterator, layout, window_dim, smoothing_dim, axes, normalize, out_type):
+def laplacian_per_sample_pipeline(device, iterator, layout, window_dim, smoothing_dim, axes, normalize, out_type):
     data = fn.external_source(iterator, layout=layout)
     if window_dim is None:
         window_size = 3
@@ -365,7 +387,9 @@ def laplacian_per_sample_pipeline(iterator, layout, window_dim, smoothing_dim, a
     if out_type == np.float32:
         kwargs['dtype'] = types.FLOAT
 
-    edges = fn.laplacian(data, window_size=window_arg,
+    if device == "gpu":
+        data = data.gpu()
+    edges = fn.laplacian(data, window_size=window_arg, device=device,
                          smoothing_size=smoothing_size, **kwargs)
 
     if smoothing_size is None:
@@ -375,22 +399,25 @@ def laplacian_per_sample_pipeline(iterator, layout, window_dim, smoothing_dim, a
     return edges, data, window_arg, smoothing_size, scale
 
 
-def check_per_sample_laplacian(batch_size, window_dim, smoothing_dim, normalize,
+def check_per_sample_laplacian(device, batch_size, window_dim, smoothing_dim, normalize,
                                shape, layout, axes, in_type, out_type):
 
     iterator = RandomlyShapedDataIterator(
         batch_size, max_shape=shape, dtype=in_type)
 
     pipe = laplacian_per_sample_pipeline(
-        device_id=types.CPU_ONLY_DEVICE_ID, num_threads=4, batch_size=batch_size, seed=42,
+        device_id=0, device=device, num_threads=4, batch_size=batch_size, seed=42,
         iterator=iterator, layout=layout, window_dim=window_dim, smoothing_dim=smoothing_dim,
         axes=axes, normalize=normalize, out_type=out_type)
     pipe.build()
 
     for _ in range(test_iters):
-        outputs = pipe.run()
+        edges, data, window_size, smoothing_size, scale = pipe.run()
+        if device == "gpu":
+            edges = edges.as_cpu()
+            data = data.as_cpu()
         edges, data, window_size, smoothing_size, scale = [
-            to_batch(out, batch_size) for out in outputs]
+            to_batch(out, batch_size) for out in (edges, data, window_size, smoothing_size, scale)]
         baseline = []
         for i in range(batch_size):
             skip_axes = count_skip_axes(layout)
@@ -407,17 +434,33 @@ def check_per_sample_laplacian(batch_size, window_dim, smoothing_dim, normalize,
 
 def test_per_sample_laplacian():
     batch_size = 10
-    for in_type in [np.uint8, np.int16, np.int32, np.float32]:
-        for out_type in [None, np.float32]:
-            for shape, layout, axes in shape_layout_axes_cases:
-                for window_dim in [None, 0, 1]:
-                    for smoothing_dim in [None, 0, 1]:
-                        for normalize in [True, False]:
-                            yield check_per_sample_laplacian, batch_size, window_dim, smoothing_dim, normalize,\
-                                shape, layout, axes, in_type, out_type
+    for device in ["cpu", "gpu"]:
+        for in_type in [np.uint8]:
+            for out_type in [None, np.float32]:
+                for shape, layout, axes in shape_layout_axes_cases:
+                    for normalize in [True, False]:
+                        yield check_per_sample_laplacian, device, batch_size, 1, 1, \
+                            normalize, shape, layout, axes, in_type, out_type
 
 
-def check_fixed_param_laplacian(batch_size, in_type, out_type, shape, layout, axes, window_size, smoothing_size, scales, normalize):
+@attr('slow')
+def test_per_sample_laplacian_slow():
+    batch_size = 10
+    for device in ["cpu", "gpu"]:
+        for in_type in [np.int16, np.int32, np.float32]:
+            for out_type in [None, np.float32]:
+                if out_type == in_type:
+                    continue
+                for shape, layout, axes in shape_layout_axes_cases:
+                    full_test = [None, 0, 1]
+                    for window_dim in full_test if in_type == np.float32 else [1]:
+                        for smoothing_dim in full_test if in_type == np.float32 else [1]:
+                            for normalize in [True, False]:
+                                yield check_per_sample_laplacian, device, batch_size, window_dim, smoothing_dim, \
+                                    normalize, shape, layout, axes, in_type, out_type
+
+
+def check_fixed_param_laplacian(device, batch_size, in_type, out_type, shape, layout, axes, window_size, smoothing_size, scales, normalize):
 
     iterator = RandomlyShapedDataIterator(
         batch_size, max_shape=shape, dtype=in_type)
@@ -429,18 +472,23 @@ def check_fixed_param_laplacian(batch_size, in_type, out_type, shape, layout, ax
             dtype_arg = {}
         else:
             dtype_arg = {"dtype": types.FLOAT}
+        if device == "gpu":
+            data = data.gpu()
         edges = fn.laplacian(data, window_size=window_size, smoothing_size=smoothing_size,
                              scale=scales, normalized_kernel=normalize, **dtype_arg)
         return edges, data
 
     pipe = pipeline(
-        device_id=types.CPU_ONLY_DEVICE_ID, num_threads=4, batch_size=batch_size, seed=42)
+        device_id=0, num_threads=4, batch_size=batch_size, seed=42)
     pipe.build()
 
     for _ in range(test_iters):
-        outputs = pipe.run()
-        edges, data = [
-            to_batch(out, batch_size) for out in outputs]
+        edges, data = pipe.run()
+        if device == "gpu":
+            edges = edges.as_cpu()
+            data = data.as_cpu()
+        edges = to_batch(edges, batch_size)
+        data = to_batch(data, batch_size)
         baseline = []
         for i in range(batch_size):
             skip_axes = count_skip_axes(layout)
@@ -461,6 +509,7 @@ def check_fixed_param_laplacian(batch_size, in_type, out_type, shape, layout, ax
                     max_allowed_error=max_error, expected_layout=layout)
 
 
+@attr('slow')
 def test_fixed_params_laplacian():
     batch_size = 10
     window_size_cases = {
@@ -484,24 +533,31 @@ def test_fixed_params_laplacian():
             cases.append([scales[0]])
         return [[v * factor for v in case] for case in cases for factor in [1 / 16, 4.]]
 
-    for in_type in [np.uint8, np.int32, np.int64, np.float32]:
-        for out_type in [None, np.float32]:
-            for shape, layout, axes in shape_layout_axes_cases:
-                for window_sizes in window_size_cases[axes]:
-                    for smoothing_sizes in smoothing_size_cases[axes]:
-                        for normalize in [True, False]:
-                            for scales in [None] if normalize else window_scales(window_sizes, smoothing_sizes, axes):
-                                yield check_fixed_param_laplacian, batch_size, in_type, out_type, shape, layout,\
-                                    axes, window_sizes, smoothing_sizes, scales, normalize
+    for device in ["cpu", "gpu"]:
+        for in_type in [np.uint8, np.int32, np.int64, np.float32]:
+            for out_type in [None, np.float32]:
+                if in_type == out_type:
+                    continue
+                for shape, layout, axes in shape_layout_axes_cases:
+                    for window_sizes in window_size_cases[axes]:
+                        for smoothing_sizes in smoothing_size_cases[axes]:
+                            for normalize in [True, False]:
+                                if normalize:
+                                    scale_cases = [None]
+                                else:
+                                    scale_cases = window_scales(window_sizes, smoothing_sizes, axes)
+                                for scales in scale_cases:
+                                    yield check_fixed_param_laplacian, device, batch_size, in_type, out_type, shape,\
+                                        layout, axes, window_sizes, smoothing_sizes, scales, normalize
 
 
-def check_build_time_fail(batch_size, shape, layout, axes, window_size, smoothing_size, scale, normalize, err_regex):
+def check_build_time_fail(device, batch_size, shape, layout, axes, window_size, smoothing_size, scale, normalize, err_regex):
     with assert_raises(RuntimeError, regex=err_regex):
         check_fixed_param_laplacian(
-            batch_size, np.uint8, None, shape, layout, axes, window_size, smoothing_size, scale, normalize)
+            device, batch_size, np.uint8, None, shape, layout, axes, window_size, smoothing_size, scale, normalize)
 
 
-def check_tensor_input_fail(batch_size, shape, layout, window_size, smoothing_size, scale, normalize, dtype, err_regex):
+def check_tensor_input_fail(device, batch_size, shape, layout, window_size, smoothing_size, scale, normalize, dtype, err_regex):
     iterator = RandomlyShapedDataIterator(
         batch_size, max_shape=shape, dtype=np.uint8)
 
@@ -514,13 +570,14 @@ def check_tensor_input_fail(batch_size, shape, layout, window_size, smoothing_si
         data = fn.external_source(iterator, layout=layout)
         window_size, smoothing_size, scale = fn.external_source(
             gen_params, batch=False, num_outputs=3)
+        if device == "gpu":
+            data = data.gpu()
         edges = fn.laplacian(data, window_size=window_size, smoothing_size=smoothing_size,
-                             scale=scale, normalized_kernel=normalize, dtype=dtype)
+                             scale=scale, normalized_kernel=normalize, dtype=dtype, device=device)
         return edges, data
 
     with assert_raises(RuntimeError, regex=err_regex):
-        pipe = pipeline(device_id=types.CPU_ONLY_DEVICE_ID,
-                        num_threads=4, batch_size=batch_size)
+        pipe = pipeline(device_id=0, num_threads=4, batch_size=batch_size)
         pipe.build()
         pipe.run()
 
@@ -539,35 +596,36 @@ def test_fail_laplacian():
             "Found more the one occurrence of 'F' or 'C' axes in layout: .*\."),
         ((5, 3), "CF", 2, "No spatial axes found in the layout"),
     ]
-    for shape, layout, axes, err_regex in args:
-        yield check_build_time_fail, 10, shape, layout, axes, 11, 11, 1., False, err_regex
-    yield check_tensor_input_fail, 10, (10, 10, 3), "HWC", 11, 11, 1., False, types.UINT16, \
-        "Output data type must be same as input, FLOAT or skipped"
+    for device in "cpu", "gpu":
+        for shape, layout, axes, err_regex in args:
+            yield check_build_time_fail, device, 10, shape, layout, axes, 11, 11, 1., False, err_regex
+        yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 11, 11, 1., False, types.UINT16, \
+            "Output data type must be same as input, FLOAT or skipped"
 
-    yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, 11, 11, 1., True, \
-        "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True"
-    for window_size in [-3, 10, max_window_size + 1]:
-        yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, window_size, 5, 1., False, \
-            "Window size must be an odd integer between 3 and \d"
-        yield check_tensor_input_fail, 10, (10, 10, 3), "HWC", window_size, 5, 1., False, types.FLOAT, \
-            "Window size must be an odd integer between 3 and \d"
-    for window_size in [[3, 6], -1, max_window_size + 1]:
-        yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, 3, window_size, 1., False, \
-            "Smoothing window size must be an odd integer between 1 and \d"
-    for window_size in [6, -1, max_window_size + 1]:
-        yield check_tensor_input_fail, 10, (10, 10, 3), "HWC", 3, window_size, 1., False, types.FLOAT, \
-            "Smoothing window size must be an odd integer between 1 and \d"
-    for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
-        yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, window_size, 11, 1., False, \
-            "Argument \"window_size\" expects either a single value or a list of 2 elements. {} given".format(
-                len(window_size))
-        yield check_tensor_input_fail, 10, (10, 10, 3), "HWC", window_size, 11, 1., False, types.FLOAT, \
-            "Argument window_size for sample 0 is expected to have 1 or 2 elements, got: {}".format(
-                len(window_size))
-    for scale in [[3, 7, 3], [7, 7, 7, 7, 7]]:
-        yield check_build_time_fail, 10, (10, 10, 3), "HWC", 2, 3, 3, scale, False, \
-            "Argument \"scale\" expects either a single value or a list of 2 elements. {} given.".format(
-                len(scale))
-        yield check_tensor_input_fail, 10, (10, 10, 3), "HWC", 5, 5, scale, False, types.FLOAT, \
-            "Argument scale for sample 0 is expected to have 1 or 2 elements, got: {}".format(
-                len(scale))
+        yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 11, 11, 1., True, \
+            "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True"
+        for window_size in [-3, 10, max_window_size + 1]:
+            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, window_size, 5, 1., False, \
+                "Window size must be an odd integer between 3 and \d"
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", window_size, 5, 1., False, types.FLOAT, \
+                "Window size must be an odd integer between 3 and \d"
+        for window_size in [[3, 6], -1, max_window_size + 1]:
+            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 3, window_size, 1., False, \
+                "Smoothing window size must be an odd integer between 1 and \d"
+        for window_size in [6, -1, max_window_size + 1]:
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 3, window_size, 1., False, types.FLOAT, \
+                "Smoothing window size must be an odd integer between 1 and \d"
+        for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
+            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, window_size, 11, 1., False, \
+                "Argument \"window_size\" expects either a single value or a list of 2 elements. {} given".format(
+                    len(window_size))
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", window_size, 11, 1., False, types.FLOAT, \
+                "Argument window_size for sample 0 is expected to have 1 or 2 elements, got: {}".format(
+                    len(window_size))
+        for scale in [[3, 7, 3], [7, 7, 7, 7, 7]]:
+            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 3, 3, scale, False, \
+                "Argument \"scale\" expects either a single value or a list of 2 elements. {} given.".format(
+                    len(scale))
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 5, 5, scale, False, types.FLOAT, \
+                "Argument scale for sample 0 is expected to have 1 or 2 elements, got: {}".format(
+                    len(scale))

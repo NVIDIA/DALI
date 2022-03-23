@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,18 +108,17 @@ class JpegDistortionTestGPU : public ::testing::TestWithParam<std::tuple<bool, b
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
 
-    kmgr_.Initialize<Kernel>();
-    kmgr_.Resize<Kernel>(1, 1);
+    kmgr_.Resize<Kernel>(1);
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
     auto req = kmgr_.Setup<Kernel>(0, ctx, in_view.shape, horz_subsample, vert_subsample);
     if (perf_run)  // warm up
-      kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, args...);
+      kmgr_.Run<Kernel>(0, ctx, out_view, in_view, args...);
 
     CUDA_CALL(cudaEventRecord(start, stream));
 
-    kmgr_.Run<Kernel>(0, 0, ctx, out_view, in_view, args...);
+    kmgr_.Run<Kernel>(0, ctx, out_view, in_view, args...);
     CUDA_CALL(cudaGetLastError());
 
     CUDA_CALL(cudaEventRecord(end, stream));

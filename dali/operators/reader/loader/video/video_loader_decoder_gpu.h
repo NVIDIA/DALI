@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,50 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
-#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
+#ifndef DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_GPU_H_
+#define DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_GPU_H_
 
 #include <string>
 #include <vector>
 
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/operators/reader/loader/loader.h"
-#include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
+#include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
 namespace dali {
-class VideoSampleDesc {
+class VideoSampleGpu {
  public:
-  explicit VideoSampleDesc(int start, int end, int stride, int video_idx) :
-    start_(start), end_(end), stride_(stride), video_idx_(video_idx) {}
+  void Decode();
 
-  int start_ = -1;
-  int end_ = -1;
-  int stride_ = -1;
-  int video_idx_ = -1;
+  FramesDecoderGpu *video_file_ = nullptr;
+  VideoSampleDesc *span_ = nullptr;
+  int sequence_len_ = 0;
+  Tensor<GPUBackend> data_;
+  int label_ = -1;
 };
 
-class VideoSample {
- public:
-  Tensor<CPUBackend> data_;
-  int label_;
-};
 
-class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
+class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
  public:
-  explicit inline VideoLoaderDecoder(const OpSpec &spec) :
-    Loader<CPUBackend, VideoSample>(spec),
+  explicit inline VideoLoaderDecoderGpu(const OpSpec &spec) :
+    Loader<GPUBackend, VideoSampleGpu>(spec),
     filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
     sequence_len_(spec.GetArgument<int>("sequence_length")),
     stride_(spec.GetArgument<int>("stride")),
     step_(spec.GetArgument<int>("step")) {
+    InitCudaStream();
     if (step_ <= 0) {
       step_ = stride_ * sequence_len_;
     }
     has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
   }
 
-  void ReadSample(VideoSample &sample) override;
+  void ReadSample(VideoSampleGpu &sample) override;
 
-  void PrepareEmpty(VideoSample &sample) override;
+  void PrepareEmpty(VideoSampleGpu &sample) override;
 
  protected:
   Index SizeImpl() override;
@@ -65,10 +63,12 @@ class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
  private:
   void Reset(bool wrap_to_shard) override;
 
+  void InitCudaStream();
+
   std::vector<std::string> filenames_;
   std::vector<int> labels_;
   bool has_labels_ = false;
-  std::vector<FramesDecoder> video_files_;
+  std::vector<FramesDecoderGpu> video_files_;
   std::vector<VideoSampleDesc> sample_spans_;
 
   Index current_index_ = 0;
@@ -76,8 +76,10 @@ class VideoLoaderDecoder : public Loader<CPUBackend, VideoSample> {
   int sequence_len_;
   int stride_;
   int step_;
+
+  CUDAStreamLease cuda_stream_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_H_
+#endif  // DALI_OPERATORS_READER_LOADER_VIDEO_VIDEO_LOADER_DECODER_GPU_H_

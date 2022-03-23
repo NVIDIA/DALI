@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/core/api_helper.h"
 #include "dali/operators.h"
 #include "dali/operators/util/npp.h"
+#include "dali/core/cuda_stream_pool.h"
 
 #if DALI_USE_NVJPEG
   #include "dali/operators/decoder/nvjpeg/nvjpeg_helper.h"
@@ -30,7 +31,9 @@
 
 namespace dali {
 
-DLL_PUBLIC void InitOperatorsLib() {}
+DLL_PUBLIC void InitOperatorsLib() {
+  (void)CUDAStreamPool::instance();
+}
 
 DLL_PUBLIC int GetNppVersion() {
   return NPPGetVersion();

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -120,6 +120,15 @@ class DLL_PUBLIC OpGraph {
   DLL_PUBLIC inline OpGraph() {
     op_partitions_.resize(static_cast<int>(OpType::COUNT));
   }
+
+  // Disable copy
+  DLL_PUBLIC OpGraph(const OpGraph &) = delete;
+  DLL_PUBLIC OpGraph &operator=(const OpGraph &) = delete;
+
+  // Default move
+  DLL_PUBLIC OpGraph(OpGraph &&) = default;
+  DLL_PUBLIC OpGraph &operator=(OpGraph &&) = default;
+
   DLL_PUBLIC inline ~OpGraph() = default;
 
   /**
@@ -323,8 +332,6 @@ class DLL_PUBLIC OpGraph {
   DLL_PUBLIC std::vector<TensorNodeId> GetOutputs(const std::vector<string>& output_names,
                                                   bool follow_pass_through = false) const;
   DLL_PUBLIC std::vector<TensorNodeId> GetStageOutputs(OpType stage) const;
-
-  DISABLE_COPY_MOVE_ASSIGN(OpGraph);
 
  private:
   // Should be called only once for each tensor

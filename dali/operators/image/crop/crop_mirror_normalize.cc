@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,10 @@ Normalization takes the input images and produces the output by using the follow
 )code")
   .NumInput(1)
   .NumOutput(1)
+  .InputLayout(0, {"HWC", "CHW",
+                   "DHWC", "CDHW",
+                   "FHWC", "FCHW", "CFHW",
+                   "FDHWC", "FCDHW", "CFDHW"})
   .AllowSequences()
   .SupportVolumetric()
   .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
@@ -47,7 +51,9 @@ Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.
   .AddOptionalArg("output_layout",
     R"code(Tensor data layout for the output.)code", TensorLayout("CHW"))
   .AddOptionalArg("pad_output",
-    R"code(Determines whether to pad the output to the number of channels as a power of 2).)code", false)
+    R"code(Determines whether to pad the output so that the number of channels is a power of 2.
+
+The value used for padding is determined by the ``fill_values`` argument.)code", false)
   .AddOptionalArg("mirror",
     R"code(If nonzero, the image will be flipped (mirrored) horizontally.)code",
     0, true)

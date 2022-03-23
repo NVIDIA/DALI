@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -266,7 +266,7 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
   auto tmp_slices = GetSliceImages(tmp_view);
   assert(in_slices.num_samples() == tmp_slices.num_samples());
 
-  ScratchpadAllocator sa;
+  ScratchpadAllocator sa_xy, sa_z;
 
   {
     ResampleGPU<float, In, 2> res_xy;
@@ -274,8 +274,8 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
     ctx.gpu.stream = stream;
 
     auto req = res_xy.Setup(ctx, in_slices, make_span(params_xy));
-    sa.Reserve(req.scratch_sizes);
-    auto scratch = sa.GetScratchpad();
+    sa_xy.Reserve(req.scratch_sizes);
+    auto scratch = sa_xy.GetScratchpad();
     ctx.scratchpad = &scratch;
     assert(req.output_shapes[0] == tmp_slices.shape);
     res_xy.Run(ctx, tmp_slices, in_slices, make_span(params_xy));
@@ -291,8 +291,8 @@ void Resample3Dvia2D(TestTensorList<Out> &out,
     KernelContext ctx;
     ctx.gpu.stream = stream;
     auto req = res_z.Setup(ctx, tmp_z, make_span(params_z));
-    sa.Reserve(req.scratch_sizes);
-    auto scratch = sa.GetScratchpad();
+    sa_z.Reserve(req.scratch_sizes);
+    auto scratch = sa_z.GetScratchpad();
     ctx.scratchpad = &scratch;
     assert(req.output_shapes[0] == out_z.shape);
     res_z.Run(ctx, out_z, tmp_z, make_span(params_z));

@@ -51,6 +51,34 @@ if (BUILD_NVDEC)
   list(APPEND DALI_OPERATOR_OBJ $<TARGET_OBJECTS:NVCUVID_GEN>)
 endif(BUILD_NVDEC)
 
+if (NOT OPERATOR_SRCS_PATTERN STREQUAL "" OR
+    NOT OPERATOR_SRCS_PATTERN_EXCLUDE STREQUAL "")
+  # Needed for a usable build
+  set(EXTRA_FILES "")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/operators.cc")
+  # Those are needed for operators.cc to have all symbols
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/util/npp.cc")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/decoder/nvjpeg/nvjpeg_helper.cc")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/reader/nvdecoder/dynlink_nvcuvid.cc")
+
+  list(APPEND OPERATOR_SRCS_PATTERN_EXCLUDE "*test*")
+  custom_filter(CMAKE_CURRENT_SOURCE_DIR
+                DALI_OPERATOR_SRCS
+                EXTRA_FILES
+                OPERATOR_SRCS_PATTERN
+                OPERATOR_SRCS_PATTERN_EXCLUDE)
+endif()
+
+
+if (NOT OPERATOR_TEST_SRCS_PATTERN STREQUAL "" OR NOT OPERATOR_TEST_SRCS_PATTERN_EXCLUDE STREQUAL "")
+  set(EXTRA_FILES "")
+  list(APPEND EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/dali_operator_test.cc")
+  custom_filter(CMAKE_CURRENT_SOURCE_DIR
+                DALI_OPERATOR_TEST_SRCS
+                EXTRA_FILES
+                OPERATOR_TEST_SRCS_PATTERN
+                OPERATOR_TEST_SRCS_PATTERN_EXCLUDE)
+endif()
 
 adjust_source_file_language_property("${DALI_OPERATOR_SRCS}")
 add_library(dali_operators ${LIBTYPE} ${DALI_OPERATOR_SRCS} ${DALI_OPERATOR_OBJ})

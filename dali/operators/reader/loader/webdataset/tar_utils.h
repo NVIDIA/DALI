@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,7 +70,8 @@ class DLL_PUBLIC TarArchive {
     ENTRY_SYMLINK,
     ENTRY_CHARDEV,
     ENTRY_BLOCKDEV,
-    ENTRY_FIFO
+    ENTRY_FIFO,
+    ENTRY_UNKNOWN
   };
 
   /**

@@ -31,13 +31,16 @@ endif()
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/sequence_reader_op.cc")
 
 if (BUILD_FFMPEG)
-  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_op.cc")
-  list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_op_test.cc")
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_cpu_op.cc")
 endif()
 
 if (BUILD_NVDEC)
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_op.cc")
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_resize_op.cc")
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_gpu_op.cc")
+  if (BUILD_TEST)
+    list(APPEND DALI_OPERATOR_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_reader_decoder_op_test.cc")
+  endif()
 endif()
 
 if (BUILD_LIBTAR)
