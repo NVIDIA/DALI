@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,23 +31,23 @@ test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_tra
 
 #std::round has different behaviour than np.round so manually add 0.5 and truncate to int
 def roundint(num):
-    return int(np.float32(num) + (0.5 if np.float32(num) >= 0 else -0.5))
+    return int(num + (0.5 if num >= 0 else -0.5))
 
 def abs_slice_start_and_end(in_shape, slice_anchor, slice_shape, normalized_anchor, normalized_shape):
     ndim = len(in_shape)
     if normalized_anchor and normalized_shape:
-        start = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i])) for i in range(ndim)]
-        end = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i]+slice_shape[i])) for i in range(ndim)]
+        start = [roundint(in_shape[i] * np.float64(slice_anchor[i])) for i in range(ndim)]
+        end = [roundint(in_shape[i] * np.float64(slice_anchor[i]+slice_shape[i])) for i in range(ndim)]
     else:
         if normalized_anchor:
-            start = [roundint(np.float32(in_shape[i]) * np.float32(slice_anchor[i])) for i in range(ndim)]
+            start = [roundint(in_shape[i] * np.float64(slice_anchor[i])) for i in range(ndim)]
         else:
-            start = [roundint(np.float32(slice_anchor[i])) for i in range(ndim)]
+            start = [roundint(slice_anchor[i]) for i in range(ndim)]
 
         if normalized_shape:
-            end = [start[i] + roundint(np.float32(in_shape[i]) * np.float32(slice_shape[i])) for i in range(ndim)]
+            end = [start[i] + roundint(in_shape[i] * np.float64(slice_shape[i])) for i in range(ndim)]
         else:
-            end = [start[i] + roundint(np.float32(slice_shape[i])) for i in range(ndim)]
+            end = [start[i] + roundint(slice_shape[i]) for i in range(ndim)]
     out_shape = [end[i]-start[i] for i in range(ndim)]
     return start, end, out_shape
 
