@@ -256,9 +256,9 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._external_sources = {}
         self._feed_input_data = {}
         self._exec_func = exec_func
-        self._cur_op_id = -1
-        self._ops = {}
-        self._ops_built = False
+        self._cur_logical_id = -1
+        self._operators = {}
+        self._operators_built = False
         self._pipe = _b.PipelineDebug(
             self._max_batch_size, self._num_threads, self._device_id, self._set_affinity)
 
@@ -288,7 +288,7 @@ class _PipelineDebug(_pipeline.Pipeline):
             raise RuntimeError('Pipeline must be built first.')
 
         self._debug_on = True
-        self._cur_op_id = -1
+        self._cur_logical_id = -1
         _pipeline.Pipeline.push_current(self)
 
         res = self._exec_func()
@@ -298,8 +298,8 @@ class _PipelineDebug(_pipeline.Pipeline):
             res = (res,)
 
         self._debug_on = False
-        if not self._ops_built:
-            self._ops_built = True
+        if not self._operators_built:
+            self._operators_built = True
         _pipeline.Pipeline.pop_current()
 
         # Transforming all variables to TensorLists.
@@ -423,15 +423,15 @@ class _PipelineDebug(_pipeline.Pipeline):
             # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             op_helper._spec.AddArgumentInput(arg_name, '')
 
-        self._pipe.AddOperator(op_helper._spec, self._cur_op_id)
+        self._pipe.AddOperator(op_helper._spec, self._cur_logical_id)
 
         return op_helper, init_args, inputs_classification, kwargs_classification, len(inputs)
 
     def _external_source(self, name=None, **kwargs):
-        self._cur_op_id += 1
+        self._cur_logical_id += 1
         key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_op_id,)
-        if not self._ops_built:
+            inspect.currentframe().f_back.f_back)[:3] + (self._cur_logical_id,)
+        if not self._operators_built:
             es = _ExternalSourceDebug(batch_size=self._max_batch_size, name=name, **kwargs)
 
             # feed_input all data collected after build and before run
@@ -448,11 +448,11 @@ class _PipelineDebug(_pipeline.Pipeline):
 
     def _run_op_on_device(self, op_name, device, inputs, kwargs):
         if device == 'gpu':
-            return self._pipe.RunOperatorGPU(self._cur_op_id, inputs, kwargs)
+            return self._pipe.RunOperatorGPU(self._cur_logical_id, inputs, kwargs)
         if device == 'cpu':
-            return self._pipe.RunOperatorCPU(self._cur_op_id, inputs, kwargs)
+            return self._pipe.RunOperatorCPU(self._cur_logical_id, inputs, kwargs)
         if device == 'mixed':
-            return self._pipe.RunOperatorMixed(self._cur_op_id, inputs, kwargs)
+            return self._pipe.RunOperatorMixed(self._cur_logical_id, inputs, kwargs)
 
         raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 
@@ -552,16 +552,16 @@ class _PipelineDebug(_pipeline.Pipeline):
         return data_nodes
 
     def _wrap_op_call(self, op_name, inputs, kwargs):
-        self._cur_op_id += 1
+        self._cur_logical_id += 1
         key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_op_id,)
-        if not self._ops_built:
-            self._ops[key] = self._create_op(op_name, inputs, kwargs)
+            inspect.currentframe().f_back.f_back)[:3] + (self._cur_logical_id,)
+        if not self._operators_built:
+            self._operators[key] = self._create_op(op_name, inputs, kwargs)
 
-        if key in self._ops:
+        if key in self._operators:
             if op_name == 'ArithmeticGenericOp':
                 inputs = _PipelineDebug._extract_data_node_inputs(*inputs)
-            return self._run_op(self._ops[key], op_name, inputs, kwargs)
+            return self._run_op(self._operators[key], op_name, inputs, kwargs)
         else:
             raise RuntimeError(f"Unexpected operator '{op_name}'. Debug mode does not support"
                                " changing the order of operators executed within the pipeline.")
