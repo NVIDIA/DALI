@@ -100,8 +100,8 @@ namespace transpose_shared {
   extern __shared__ uint8_t shared_tmp[];
 }  // namespace transpose_shared
 
-template <int ndim, typename T, typename OldT>
-__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc, const unsigned pack_ratio)
+template <int ndim, unsigned pack_ratio, typename T, typename OldT>
+__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc)
 {
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
   unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
@@ -139,7 +139,7 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc, const
       in_ofs  += desc.in_strides[d] * pos[d];
       out_ofs += desc.out_strides[d] * pos[d];
     }
-    
+
     int64_t in_x  = pos[ndim-1] + threadIdx.x;
     int64_t in_y  = pos[ndim-2] + threadIdx.y;
     int64_t out_x = pos[ndim-1] + threadIdx.y;
@@ -192,17 +192,17 @@ template <int ndim, typename T>
 __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
   if (sizeof(T) == 1 && desc.lanes % 4 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 4 == 0 &&
       reinterpret_cast<uintptr_t>(desc.in) % 4 == 0) {
-    return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 2);
+    return TransposeTiledPacked<ndim, 2, type_of_size<4>>(desc);
   }
   if (sizeof(T) < 4 && desc.lanes % 2 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 2 == 0 &&
       reinterpret_cast<uintptr_t>(desc.in) % 2 == 0) {
     if (sizeof(T) == 2) {
-      return TransposeTiledPacked<ndim, type_of_size<4>>(desc, 1);
+      return TransposeTiledPacked<ndim, 1, type_of_size<4>>(desc);
     } else {
-      return TransposeTiledPacked<ndim, type_of_size<2>>(desc, 1);
+      return TransposeTiledPacked<ndim, 1, type_of_size<2>>(desc);
     }
   }
-  return TransposeTiledPacked<ndim, T>(desc, 0);
+  return TransposeTiledPacked<ndim, 0, T>(desc);
 }
 
 template <typename T>
