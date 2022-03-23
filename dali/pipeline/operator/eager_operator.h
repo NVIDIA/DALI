@@ -228,7 +228,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
 
 template <typename Backend>
 std::unique_ptr<ThreadPool> EagerOperator<Backend>::shared_thread_pool =
-    std::make_unique<ThreadPool>(1, 0, false);
+    std::make_unique<ThreadPool>(1, CPU_ONLY_DEVICE_ID, false);
 
 template <typename Backend>
 CUDAStreamLease EagerOperator<Backend>::shared_cuda_stream{};
