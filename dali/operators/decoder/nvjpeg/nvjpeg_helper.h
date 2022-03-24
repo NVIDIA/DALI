@@ -72,8 +72,7 @@ class NvjpegError : public std::runtime_error {
       case NVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED:
         return "Not supported.";
 #if NVJPEG_VER_MAJOR > 11 || \
-    (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 6 || \
-                               (NVJPEG_VER_MINOR == 6 && NVJPEG_VER_PATCH >= 0)))
+    (NVJPEG_VER_MAJOR == 11 && NVJPEG_VER_MINOR >= 6)
       case NVJPEG_STATUS_INCOMPLETE_BITSTREAM :
         return "Bitstream input data incomplete.";
 #endif
