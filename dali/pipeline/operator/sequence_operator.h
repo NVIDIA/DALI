@@ -31,8 +31,8 @@
 namespace dali {
 
 namespace detail {
-inline bool is_per_frame(const TensorVector<CPUBackend> &arg_tensor) {
-  const auto &layout = arg_tensor.GetLayout();
+inline bool is_per_frame(const TensorVector<CPUBackend> &arg_tv) {
+  const auto &layout = arg_tv.GetLayout();
   return layout.size() > 0 && layout[0] == 'F';
 }
 }  // namespace detail
@@ -187,9 +187,9 @@ class SequenceOperator : public Operator<Backend> {
    * arguments.
    */
   virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
-                              const TensorVector<CPUBackend> &arg_tensor) {
+                              const TensorVector<CPUBackend> &arg_tv) {
     auto input_idx = GetArgExpandDescInputIdx(arg_name);
-    auto expanded_arg = ExpandArgumentLikeInput(arg_tensor, arg_name, input_idx);
+    auto expanded_arg = ExpandArgumentLikeInput(arg_tv, arg_name, input_idx);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
     ExpandedAddArgument(arg_name, std::move(expanded_handle));
   }
@@ -219,7 +219,7 @@ class SequenceOperator : public Operator<Backend> {
         VerifyExpanionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
       ExpandedAddProcessedInput(ws, input_idx, [&](const auto &input) {
-        return UnfoldInput(ws, input, input_idx, num_expand_dims);
+        return UnfoldInput(ws, input, input_idx, input_desc);
       });
     }
   }
@@ -231,9 +231,8 @@ class SequenceOperator : public Operator<Backend> {
    */
   virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-    auto num_expand_dims = expand_desc.NumDimsToExpand();
     ExpandedAddProcessedOutput(ws, output_idx, [&](const auto &output) {
-      return UnfoldOutput(ws, output, output_idx, num_expand_dims);
+      return UnfoldOutput(ws, output, output_idx, expand_desc);
     });
   }
 
@@ -272,7 +271,8 @@ class SequenceOperator : public Operator<Backend> {
                    make_string("Unexpected number of frames inferred in the operator for output ",
                                output_idx, ". Expected ", expand_desc.NumExpanded(),
                                " but the operator returned ", shape.num_samples(), "."));
-      output_desc[output_idx].shape = fold_outermost_like(shape, expand_desc.DimsToExpand());
+      output_desc[output_idx].shape =
+          sequence_utils::fold_outermost_like(shape, expand_desc.DimsToExpand());
     }
   }
 
@@ -452,14 +452,15 @@ class SequenceOperator : public Operator<Backend> {
 
   template <typename InputType>
   auto UnfoldInput(const workspace_t<Backend> &ws, const InputType &input, int input_idx,
-                   int num_expand_dims) {
+                   const ExpandDesc &expand_desc) {
     auto sample_dim = input.shape().sample_dim();
+    auto num_expand_dims = expand_desc.NumDimsToExpand();
     DALI_ENFORCE(
         sample_dim > num_expand_dims,
         make_string("Cannot flatten the sequence-like input ", input_idx,
                     ". Samples must have more dimensions (got ", sample_dim,
                     ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    auto expanded_input = unfold_outer_dims(input, num_expand_dims);
+    auto expanded_input = UnfoldOuterDims(input, expand_desc);
     const auto &input_layout = input.GetLayout();
     expanded_input.SetLayout(input_layout.sub(num_expand_dims));
     return std::make_shared<InputType>(std::move(expanded_input));
@@ -467,60 +468,75 @@ class SequenceOperator : public Operator<Backend> {
 
   template <typename OutputType>
   auto UnfoldOutput(const workspace_t<Backend> &ws, const OutputType &output, int output_idx,
-                    int num_expand_dims) {
+                    const ExpandDesc &expand_desc) {
     auto sample_dim = output.shape().sample_dim();
+    auto num_expand_dims = expand_desc.NumDimsToExpand();
     DALI_ENFORCE(
         sample_dim > num_expand_dims,
         make_string("Cannot flatten the sequence-like output ", output_idx,
                     ". Samples must have more dimensions (got ", sample_dim,
                     ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    auto expanded_output = unfold_outer_dims(output, num_expand_dims);
+    auto expanded_output = UnfoldOuterDims(output, expand_desc);
     return std::make_shared<OutputType>(std::move(expanded_output));
   }
 
-  TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_tensor,
+  template <typename DataBackend>
+  TensorVector<DataBackend> UnfoldOuterDims(const TensorVector<DataBackend> &data,
+                                            const ExpandDesc &expand_desc) {
+    auto ndims_to_unfold = expand_desc.NumExpanded();
+    sequence_utils::TensorVectorBuilder<DataBackend> tv_builder(
+        expand_desc.NumExpanded(), data.type_info().id(), data.is_pinned(), data.order());
+    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+      for (auto &&slice : sequence_utils::unfolded_slice_range(data, sample_idx, ndims_to_unfold)) {
+        tv_builder.push(slice);
+      }
+    }
+    return tv_builder.take();
+  }
+
+  template <typename DataBackend>
+  TensorList<DataBackend> UnfoldOuterDims(const TensorList<DataBackend> &data,
+                                          const ExpandDesc &expand_desc) {
+    return sequence_utils::unfold_outer_dims(data, expand_desc.NumDimsToExpand());
+  }
+
+  TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_tv,
                                                    const std::string &arg_name, int input_idx) {
     const auto &expand_desc = GetInputExpandDesc(input_idx);
-    DALI_ENFORCE(static_cast<ptrdiff_t>(arg_tensor.num_samples()) == expand_desc.NumSamples(),
+    DALI_ENFORCE(static_cast<ptrdiff_t>(arg_tv.num_samples()) == expand_desc.NumSamples(),
                  make_string("Number of samples passed for argument ", arg_name, " (got ",
-                             arg_tensor.num_samples(),
+                             arg_tv.num_samples(),
                              ") does not match the number of samples in the input (got ",
                              expand_desc.NumSamples(), ")."));
     const auto &schema = Operator<Backend>::GetSpec().GetSchema();
     // Do not error out but simply ignore `F` layout of the argument input
     // if it is not marked as per-frame in schema to be consistent with operators
     // that do not support per-frame at all
-    if (schema.ArgSupportsPerFrameInput(arg_name) && detail::is_per_frame(arg_tensor)) {
-      return UnfoldBroadcastArgument(arg_tensor, arg_name, input_idx, expand_desc);
+    if (schema.ArgSupportsPerFrameInput(arg_name) && detail::is_per_frame(arg_tv)) {
+      return UnfoldBroadcastArgument(arg_tv, arg_name, input_idx, expand_desc);
     }
-    return BroadcastArgument(arg_tensor, expand_desc);
+    return BroadcastArgument(arg_tv, expand_desc);
   }
 
-  TensorVector<CPUBackend> UnfoldBroadcastArgument(const TensorVector<CPUBackend> &arg_tensor,
+  TensorVector<CPUBackend> UnfoldBroadcastArgument(const TensorVector<CPUBackend> &arg_tv,
                                                    const std::string &arg_name, int input_idx,
                                                    const ExpandDesc &expand_desc) {
     DALI_ENFORCE(
         expand_desc.ExpandFrames(),
         make_string(
             "Tensor input for argument ", arg_name, " is specified per frame (got ",
-            arg_tensor.GetLayout(),
+            arg_tv.GetLayout(),
             " layout), but samples in the input batch do not contain frames (expected input "
             "layout that starts with 'F'",
             ShouldExpandChannels(input_idx) ? " or 'CF'" : "", "). Got layout ",
             expand_desc.Layout(), " for operator intput ", input_idx, "."));
-    const auto &shape = arg_tensor.shape();
-    int arg_sample_dim = shape.sample_dim();
-    TensorVector<CPUBackend> flat_tensor(expand_desc.NumExpanded());
+    sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
+        expand_desc.NumExpanded(), arg_tv.type_info().id(), arg_tv.is_pinned(), arg_tv.order());
     int num_samples = expand_desc.NumSamples();
-    auto type_info = arg_tensor.type_info();
-    auto type = type_info.id();
-    auto is_pinned = arg_tensor.is_pinned();
-    auto order = arg_tensor.order();
-    int slice_idx = 0;
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto &sample_shape = shape[sample_idx];
+      auto frames_range = sequence_utils::unfolded_slice_range(arg_tv, sample_idx, 1);
       int num_input_frames = expand_desc.NumFrames(sample_idx);
-      int num_arg_frames = sample_shape[0];
+      int num_arg_frames = frames_range.NumSlices();
       DALI_ENFORCE(
           num_arg_frames == 1 || num_input_frames == num_arg_frames,
           make_string("The tensor argument ", arg_name, " for sample ", sample_idx,
@@ -528,68 +544,53 @@ class SequenceOperator : public Operator<Backend> {
                       "sample or should be specified per each frame. Got ",
                       num_arg_frames, " arguments for the sample but there are ", num_input_frames,
                       " frames in the sample."));
-      auto slice_shape = sample_shape.last(arg_sample_dim - 1);
-      auto slice_volume = volume(slice_shape);
-      uint8_t *base_ptr =
-          const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tensor.raw_tensor(sample_idx)));
-      auto num_bytes = type_info.size() * slice_volume;
       if (num_arg_frames == 1) {  // broadcast the sample
+        auto slice = frames_range[0];
         for (int j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
-          flat_tensor[slice_idx++].ShareData(base_ptr, num_bytes, is_pinned, slice_shape, type,
-                                             order);
+          tv_builder.push(slice);
         }
       } else if (!expand_desc.ExpandChannels()) {  // expand frames dimension
         assert(num_arg_frames == expand_desc.NumExpanded(sample_idx));
-        for (int i = 0; i < num_arg_frames; i++, base_ptr += num_bytes) {
-          flat_tensor[slice_idx++].ShareData(base_ptr, num_bytes, is_pinned, slice_shape, type,
-                                             order);
+        for (auto &&slice : frames_range) {
+          tv_builder.push(slice);
         }
       } else {
         int num_input_channels = expand_desc.NumChannels(sample_idx);
         assert(num_arg_frames * num_input_channels == expand_desc.NumExpanded(sample_idx));
-        int inner_stride, outer_stride;
         if (expand_desc.IsChannelFirst()) {
-          inner_stride = num_input_frames;
-          outer_stride = 1;
-        } else {
-          inner_stride = 1;
-          outer_stride = num_input_channels;
-        }
-        for (int i = 0; i < num_arg_frames; i++, base_ptr += num_bytes) {
           for (int j = 0; j < num_input_channels; j++) {
-            flat_tensor[slice_idx + i * outer_stride + j * inner_stride].ShareData(
-                base_ptr, num_bytes, is_pinned, slice_shape, type, order);
+            for (auto &&slice : frames_range) {
+              tv_builder.push(slice);
+            }
+          }
+        } else {
+          for (auto &&slice : frames_range) {
+            for (int j = 0; j < num_input_channels; j++) {
+              tv_builder.push(slice);
+            }
           }
         }
-        slice_idx += num_input_channels * num_input_frames;
       }
     }
-    assert(slice_idx == expand_desc.NumExpanded());
-    return flat_tensor;
+    return tv_builder.take();
   }
 
-  TensorVector<CPUBackend> BroadcastArgument(const TensorVector<CPUBackend> &arg_tensor,
+  TensorVector<CPUBackend> BroadcastArgument(const TensorVector<CPUBackend> &arg_tv,
                                              const ExpandDesc &expand_desc) {
-    const auto &shape = arg_tensor.shape();
-    TensorVector<CPUBackend> res(expand_desc.NumExpanded());
-    int num_samples = expand_desc.NumSamples();
-    auto type_info = arg_tensor.type_info();
-    auto type = type_info.id();
-    auto is_pinned = arg_tensor.is_pinned();
-    auto order = arg_tensor.order();
-    int slice_idx = 0;
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+    const auto &shape = arg_tv.shape();
+    const auto &type_info = arg_tv.type_info();
+    sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
+        expand_desc.NumExpanded(), type_info.id(), arg_tv.is_pinned(), arg_tv.order());
+    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       const auto &slice_shape = shape[sample_idx];
       int num_elements = expand_desc.NumExpanded(sample_idx);
-      auto num_bytes = type_info.size() * num_elements;
       uint8_t *ptr =
-          const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tensor.raw_tensor(sample_idx)));
+          const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_tv.raw_tensor(sample_idx)));
       for (int sample_slice_idx = 0; sample_slice_idx < num_elements; sample_slice_idx++) {
-        res[slice_idx++].ShareData(ptr, num_bytes, is_pinned, slice_shape, type, order);
+        tv_builder.push({ptr, slice_shape, type_info.size()});
       }
     }
-    assert(slice_idx == expand_desc.NumExpanded());
-    return res;
+    return tv_builder.take();
   }
 
   std::vector<ExpandDesc> input_expand_desc_;

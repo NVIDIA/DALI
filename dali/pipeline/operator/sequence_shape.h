@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_H_
 
 #include <string>
+#include <utility>
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
 
@@ -102,35 +103,128 @@ class ExpandDesc {
   ptrdiff_t num_expanded_;
 };
 
-template <typename Backend>
-TensorVector<Backend> unfold_outer_dims(const TensorVector<Backend> &data, int ndims_to_unfold) {
-  const auto &shape = data.shape();
-  auto group_shapes = shape.first(ndims_to_unfold);
-  const auto num_unfolded_samples = group_shapes.num_elements();
-  TensorVector<Backend> unfolded_tensor(num_unfolded_samples);
-  auto type_info = data.type_info();
-  auto type = type_info.id();
-  auto is_pinned = data.is_pinned();
-  auto order = data.order();
-  unfolded_tensor.set_type(type);
-  unfolded_tensor.set_pinned(is_pinned);
-  unfolded_tensor.set_order(order);
-  int elem_idx = 0;
-  for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-    const auto &sample_shape = shape[sample_idx];
-    int num_frames = volume(sample_shape.begin(), sample_shape.begin() + ndims_to_unfold);
-    TensorShape<> element_shape{sample_shape.begin() + ndims_to_unfold, sample_shape.end()};
-    int element_volume = volume(element_shape);
-    auto num_bytes = type_info.size() * element_volume;
-    uint8_t *base_ptr =
-        const_cast<uint8_t *>(static_cast<const uint8_t *>(data.raw_tensor(sample_idx)));
-    for (int frame_idx = 0; frame_idx < num_frames; ++frame_idx) {
-      uint8_t *ptr = base_ptr + frame_idx * num_bytes;
-      unfolded_tensor[elem_idx++].ShareData(ptr, num_bytes, is_pinned, element_shape, type, order);
-    }
+namespace sequence_utils {
+struct SliceView {
+  uint8_t *ptr;
+  TensorShape<> shape;
+  size_t type_size;
+};
+
+template <typename FrameRange>
+class SliceIterator {
+  using IndexType = typename FrameRange::IndexType;
+  using SliceViewType = typename FrameRange::SliceViewType;
+
+ public:
+  SliceIterator(const FrameRange &range, IndexType idx) : range_{range}, idx_{idx} {}
+
+  SliceViewType operator*() const {
+    return range_[idx_];
   }
-  assert(elem_idx == num_unfolded_samples);
-  return unfolded_tensor;
+
+  bool operator==(const SliceIterator &other) {
+    return idx_ == other.idx_;
+  }
+
+  bool operator!=(const SliceIterator &other) {
+    return !(*this == other);
+  }
+
+  void operator++() {
+    ++idx_;
+  }
+
+ private:
+  const FrameRange &range_;
+  IndexType idx_;
+};
+
+
+class UnfoldedSliceRange {
+ public:
+  using IndexType = ptrdiff_t;
+  using SliceViewType = SliceView;
+
+  inline UnfoldedSliceRange(SliceViewType view, int ndims_to_unfold)
+      : view_{view},
+        num_slices_{volume(view.shape.begin(), view.shape.begin() + ndims_to_unfold)},
+        slice_shape_{view.shape.begin() + ndims_to_unfold, view.shape.end()},
+        slice_stride_{view.type_size * volume(slice_shape_)} {}
+
+  inline SliceIterator<UnfoldedSliceRange> begin() const {
+    return {*this, 0};
+  }
+
+  inline SliceIterator<UnfoldedSliceRange> end() const {
+    return {*this, num_slices_};
+  }
+
+  inline SliceViewType operator[](IndexType idx) const {
+    return {view_.ptr + idx * slice_stride_, slice_shape_, view_.type_size};
+  }
+
+  inline ptrdiff_t NumSlices() const {
+    return num_slices_;
+  }
+
+  inline TensorShape<> SliceShape() const {
+    return slice_shape_;
+  }
+
+  inline size_t SliceSize() const {
+    return slice_stride_;
+  }
+
+ private:
+  SliceViewType view_;
+  ptrdiff_t num_slices_;
+  TensorShape<> slice_shape_;
+  size_t slice_stride_;
+};
+
+template <typename Backend>
+struct TensorVectorBuilder {
+  TensorVectorBuilder(int num_samples, DALIDataType type, bool is_pinned, AccessOrder order)
+      : tv_(num_samples) {
+    tv_.set_type(type);
+    tv_.set_pinned(is_pinned);
+    tv_.set_order(order);
+  }
+
+  void push(const SliceView &view) {
+    tv_[size++].ShareData(view.ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
+                          view.shape, tv_.type(), tv_.order());
+  }
+
+  TensorVector<Backend> take() {
+    assert(size == tv_.num_samples());
+    return std::move(tv_);
+  }
+
+  TensorVector<Backend> tv_;
+  int size = 0;
+};
+
+template <typename Backend>
+UnfoldedSliceRange unfolded_slice_range(const TensorVector<Backend> &data, int sample_idx,
+                                        int ndims_to_unfold) {
+  const auto &type_info = data.type_info();
+  auto type_size = type_info.size();
+  const auto &shape = data.shape();
+  uint8_t *base_ptr =
+      const_cast<uint8_t *>(static_cast<const uint8_t *>(data.raw_tensor(sample_idx)));
+  return {{base_ptr, shape[sample_idx], type_size}, ndims_to_unfold};
+}
+
+inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int ndims_to_unfold) {
+  if (ndims_to_unfold == 0) {
+    return shape;
+  } else if (ndims_to_unfold == 1) {
+    return unfold_outer_dim(shape);
+  } else {
+    auto data_shape = collapse_dims(shape, {{0, ndims_to_unfold}});
+    return unfold_outer_dim(data_shape);
+  }
 }
 
 template <typename Backend>
@@ -143,17 +237,6 @@ TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int ndims
   auto expanded_shape = unfold_outer_dims(shape, ndims_to_unfold);
   tl.Resize(expanded_shape, data.type());
   return tl;
-}
-
-inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int ndims_to_unfold) {
-  if (ndims_to_unfold == 0) {
-    return shape;
-  } else if (ndims_to_unfold == 1) {
-    return unfold_outer_dim(shape);
-  } else {
-    auto data_shape = collapse_dims(shape, {{0, ndims_to_unfold}});
-    return unfold_outer_dim(data_shape);
-  }
 }
 
 inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
@@ -179,6 +262,7 @@ inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
   }
   return res;
 }
+}  // namespace sequence_utils
 
 }  // namespace dali
 
