@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,6 +71,12 @@ class NvjpegError : public std::runtime_error {
         return "Error during the execution of the device tasks.";
       case NVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED:
         return "Not supported.";
+#if NVJPEG_VER_MAJOR > 11 || \
+    (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 6 || \
+                               (NVJPEG_VER_MINOR == 6 && NVJPEG_VER_PATCH >= 0)))
+      case NVJPEG_STATUS_INCOMPLETE_BITSTREAM :
+        return "Bitstream input data incomplete.";
+#endif
       default:
         return "< unknown error >";
     }
