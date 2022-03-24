@@ -100,7 +100,7 @@ namespace transpose_shared {
   extern __shared__ uint8_t shared_tmp[];
 }  // namespace transpose_shared
 
-template <int ndim, unsigned pack_ratio, typename T, typename OldT>
+template <int ndim, unsigned pack_ratio_log, typename T, typename OldT>
 __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc)
 {
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
@@ -111,7 +111,7 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc)
   T (*tmp)[kTileSize][kTileSize+1] =
       reinterpret_cast<T (*)[kTileSize][kTileSize+1]>(transpose_shared::shared_tmp);
 
-  int lanes = desc.lanes >> pack_ratio;
+  int lanes = desc.lanes >> pack_ratio_log;
 
   unsigned tile_in_slice = start_tile;
   uint64_t fused_slice = ndim > 2
@@ -148,12 +148,12 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc)
     in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
     out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
 
-    in_ofs >>= pack_ratio;
-    out_ofs >>= pack_ratio;
+    in_ofs >>= pack_ratio_log;
+    out_ofs >>= pack_ratio_log;
 
     unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
     unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
-    unsigned jump = blockDim.y >> pack_ratio;
+    unsigned jump = blockDim.y >> pack_ratio_log;
     
     if (threadIdx.x < tile_w) {
       for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += jump) {
