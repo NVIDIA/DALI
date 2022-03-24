@@ -204,12 +204,15 @@ def get_video_input_cases(seq_layout, rng):
     samples = [sample for batch in [smaller[0], lager[0], smaller[1]]
                for sample in batch]
     rng.shuffle(samples)
-    case2 = [samples[0:1], samples[1:1 + max_batch_size],
-             samples[1 + max_batch_size:2 * max_batch_size],
-             samples[2 * max_batch_size:3*max_batch_size]]
+    # test variable batch size
+    case2 = [
+        samples[0:1], samples[1:1 + max_batch_size],
+        samples[1 + max_batch_size:2 * max_batch_size],
+        samples[2 * max_batch_size:3 * max_batch_size]]
     cases.append(case2)
     frames_idx = seq_layout.find("F")
     if frames_idx == 0:
+        # test variadic number of frames in different sequences
         case3 = [[sample[:rng.randint(1, sample.shape[0])]
                   for sample in batch] for batch in case2]
         cases.append(case3)
@@ -239,6 +242,29 @@ def get_input_params_data(input_data, input_layout, input_params, rng):
 
 
 def video_suite_helper(ops_test_cases, expand_channels=False):
+    """
+    Generates suite of video test cases for a sequence processing operator.
+    The operator should meet the SequenceOperator assumptions, i.e.
+    1. process frames (and possibly channels) independently,
+    2. support per-frame tensor arguments.
+    Each test case consists of two pipelines, one fed with the batch of sequences
+    and one fed with the batch of frames, the test compares if the processing of
+    corresponding frames in both pipelines gives the same result. In other words, if
+    given batch = [sequence, ...], the following holds:
+    fn.op([frame for sequence in batch for frame in sequence])
+        == [frame for sequence in fn.op(batch) for frame in sequence]
+    ----------
+    `ops_test_cases` : List[Tuple[Operator, Dict[str, Any], List[Tuple[str, rng -> np.array, bool]]]]
+        List of operators and their parameters that should be tested.
+        Each element is expected to be a triple of the form:
+        [(fn.operator, {fixed_param_name: fixed_param_value}, [(tensor_arg_name, single_arg_cb, is_per_frame)])]
+        where the first element is ``fn.operator``, the second one is a dictionary of fixed arguments that should
+        be passed to the operator and the last one is a list of tuples describing tensor input arguments.
+        The `single_arg_cb` should be a function that takes numpy random number generator and returns an argument
+        for a single sample or frame, depending on the `is_per_frame` flag.
+    `expand_channels` : bool
+        If True, for the "FCHW" layout the first two (and not just one) dims are expanded, and "CFHW" layout is tested.
+    """
     rng = random.Random(42)
     layouts = ["FHWC", "FCHW"]
     if expand_channels:

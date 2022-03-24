@@ -219,7 +219,7 @@ class SequenceOperator : public Operator<Backend> {
         VerifyExpansionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
       ExpandedAddProcessedInput(ws, input_idx, [&](const auto &input) {
-        return UnfoldInput(ws, input, input_idx, input_desc);
+        return UnfoldInput(input, input_idx, input_desc);
       });
     }
   }
@@ -232,7 +232,7 @@ class SequenceOperator : public Operator<Backend> {
   virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
     ExpandedAddProcessedOutput(ws, output_idx, [&](const auto &output) {
-      return UnfoldOutput(ws, output, output_idx, expand_desc);
+      return UnfoldOutput(output, output_idx, expand_desc);
     });
   }
 
@@ -344,7 +344,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   void VerifyExpansionConsistency(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
-                                 const ExpandDesc &input_desc) {
+                                  const ExpandDesc &input_desc) {
     // TODO(ktokarski) consider mix of expansion and broadcasting similar to handling of
     // per-frame arguments for "FC" or "CF" layouts. Consider agreeing "FC" and "CF" inputs.
     DALI_ENFORCE(
@@ -451,8 +451,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   template <typename InputType>
-  auto UnfoldInput(const workspace_t<Backend> &ws, const InputType &input, int input_idx,
-                   const ExpandDesc &expand_desc) {
+  auto UnfoldInput(const InputType &input, int input_idx, const ExpandDesc &expand_desc) {
     auto sample_dim = input.shape().sample_dim();
     auto num_expand_dims = expand_desc.NumDimsToExpand();
     DALI_ENFORCE(
@@ -467,8 +466,7 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   template <typename OutputType>
-  auto UnfoldOutput(const workspace_t<Backend> &ws, const OutputType &output, int output_idx,
-                    const ExpandDesc &expand_desc) {
+  auto UnfoldOutput(const OutputType &output, int output_idx, const ExpandDesc &expand_desc) {
     auto sample_dim = output.shape().sample_dim();
     auto num_expand_dims = expand_desc.NumDimsToExpand();
     DALI_ENFORCE(

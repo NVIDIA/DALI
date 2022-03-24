@@ -651,7 +651,8 @@ def test_per_frame():
     video_test_cases = [
         (fn.laplacian, {}, [("window_size", window_size, True)]),
         (fn.laplacian, {}, [("window_size", per_axis_window_size, True)]),
-        (fn.laplacian, {}, [("scale", per_axis_scale, True)]),
+        (fn.laplacian, {'dtype': types.FLOAT},
+         [("scale", per_axis_scale, True)]),
         (fn.laplacian, {}, [
             ("window_size", per_axis_window_size, True),
             ("smoothing_size", per_axis_smoothing_size, True)]),

@@ -22,6 +22,9 @@
 
 namespace dali {
 
+/**
+ * @brief Describes expandable prefix of the layout and of the shape of a batch.
+ */
 class ExpandDesc {
  public:
   inline ExpandDesc(const TensorListShape<> &shape, TensorLayout layout,
@@ -156,7 +159,7 @@ class UnfoldedSliceRange {
   }
 
   inline SliceIterator<UnfoldedSliceRange> end() const {
-    return {*this, num_slices_};
+    return {*this, NumSlices()};
   }
 
   inline SliceViewType operator[](IndexType idx) const {

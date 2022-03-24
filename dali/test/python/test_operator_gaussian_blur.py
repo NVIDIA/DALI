@@ -359,7 +359,7 @@ def test_per_frame():
         (fn.gaussian_blur, {}, [
             ("window_size", per_axis_window_size, True),
             ("sigma", per_axis_sigma, True)]),
-        (fn.gaussian_blur, {}, [
+        (fn.gaussian_blur, {'dtype': types.FLOAT}, [
             ("window_size", per_axis_window_size, False),
             ("sigma", per_axis_sigma, True)]),
     ]
