@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -231,6 +231,18 @@ class WorkspaceBase : public ArgumentWorkspace {
       return Input<GPUBackend>(input_idx).shape();
     } else {
       return Input<CPUBackend>(input_idx).shape();
+    }
+  }
+
+  /**
+   * Returns the data type of the input at given index
+   * @return DALIDataType
+   */
+  DALIDataType GetInputDataType(int input_idx) const {
+    if (InputIsType<GPUBackend>(input_idx)) {
+      return Input<GPUBackend>(input_idx).type();
+    } else {
+      return Input<CPUBackend>(input_idx).type();
     }
   }
 
