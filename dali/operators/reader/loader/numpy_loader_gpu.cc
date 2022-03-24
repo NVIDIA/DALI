@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -92,12 +92,17 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
     // read the header
     NumpyParseTarget parse_target;
     auto ret = header_cache_.GetFromCache(filename, parse_target);
-    if (ret) {
-      target.file_stream->Seek(parse_target.data_offset);
-    } else {
-      detail::ParseHeader(target.file_stream.get(), parse_target);
-      header_cache_.UpdateCache(filename, parse_target);
+    try {
+      if (ret) {
+        target.file_stream->Seek(parse_target.data_offset);
+      } else {
+        detail::ParseHeader(target.file_stream.get(), parse_target);
+        header_cache_.UpdateCache(filename, parse_target);
+      }
+    } catch (const std::runtime_error &e) {
+      DALI_FAIL(e.what() + ". File: " + filename);
     }
+
 
     target.type = parse_target.type();
     target.shape = parse_target.shape;
