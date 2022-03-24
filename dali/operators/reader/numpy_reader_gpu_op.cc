@@ -17,28 +17,10 @@
 #include "dali/core/mm/memory.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
+#include "dali/operators/reader/gds_mem.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
-
-namespace {
-
-/**
- * @brief Allocates memory that's suitable for use with GDS / CUfile
- *
- * Currently (CUDA 11.4) GPUDirect Storage can work only with memory allocated with cudaMalloc and
- * cuMemAlloc. Since DALI is transitioning to CUDA Virtual Memory Management for memory
- * allocation, we need a special allocator that's compatible with GDS.
- */
-std::shared_ptr<uint8_t> gds_alloc(size_t bytes) {
-  uint8_t *ptr = nullptr;
-  CUDA_CALL(cudaMalloc(&ptr, bytes));
-  return std::shared_ptr<uint8_t>(ptr, [](void *mem) {
-    CUDA_DTOR_CALL(cudaFree(mem));
-  });
-}
-
-}  // namespace
 
 NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
     : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),

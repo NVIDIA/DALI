@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,19 @@ struct pool_options {
    */
   bool return_to_upstream_on_failure = true;
 
+  /**
+   * @brief Minimum alignment used when allocating from the upstream resource.
+   */
   size_t upstream_alignment = 256;
+
+  /**
+   * @brief Maximum supported alignment of the upstream resource.
+   *
+   * The upstream resource may not natively support alignments above certain value. If a larger
+   * alignment is required, the next allocation from the upstream resource may need additional
+   * padding to accommodate for the required (sub)allocation alignment.
+   */
+  size_t max_upstream_alignment = 256;
 };
 
 constexpr pool_options default_host_pool_opts() noexcept {
@@ -139,18 +151,24 @@ class pool_resource_base : public memory_resource<Kind> {
     alignment = std::max(alignment, options_.upstream_alignment);
     size_t blk_size = bytes;
 
-    void *new_block = get_upstream_block(blk_size, bytes, alignment);
-    assert(new_block);
-    if (blk_size == bytes) {
-      // we've allocated a block exactly of the required size - there's little
-      // chance that it will be merged with anything in the pool, so we'll return it as-is
-      return new_block;
-    } else {
-      // we've allocated an oversized block - put the remainder in the free list
+    char *block_start = static_cast<char*>(get_upstream_block(blk_size, bytes, alignment));
+    assert(block_start);
+
+    char *ret = detail::align_ptr(block_start, alignment);
+    char *tail = ret + bytes;
+    char *block_end = block_start + blk_size;
+    assert(tail <= block_end);
+
+    if (blk_size != bytes) {
+      // we've allocated an oversized block - put the front & back padding in the free list
       lock_guard guard(lock_);
-      free_list_.put(static_cast<char *>(new_block) + bytes, blk_size - bytes);
-      return new_block;
+      if (ret != block_start)
+        free_list_.put(block_start, ret - block_start);
+
+      if (tail != block_end)
+        free_list_.put(tail, block_end - tail);
     }
+    return ret;
   }
 
   void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
@@ -160,6 +178,15 @@ class pool_resource_base : public memory_resource<Kind> {
 
   void *get_upstream_block(size_t &blk_size, size_t min_bytes, size_t alignment) {
     blk_size = next_block_size(min_bytes);
+    if (alignment > options_.max_upstream_alignment) {
+      // The upstream resource cannot guarantee the requested alignment - we must accommodate
+      // for the extra padding, if necessary...
+      if (blk_size < min_bytes + alignment - options_.max_upstream_alignment)
+        blk_size = min_bytes + alignment - options_.max_upstream_alignment;
+      // ...and relax the alignment requirement on the upstream allocation
+      alignment = options_.max_upstream_alignment;
+    }
+
     bool tried_return_to_upstream = false;
     void *new_block = nullptr;
     for (;;) {

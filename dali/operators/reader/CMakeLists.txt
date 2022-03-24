@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/file_reader_op.cc")
 list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/numpy_reader_op.cc")
 
 if (BUILD_CUFILE)
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/gds_mem.cc")
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/numpy_reader_gpu_op.cc")
   list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/numpy_reader_gpu_op_impl.cu")
 endif()
