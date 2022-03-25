@@ -1,0 +1,276 @@
+Q&A
+***
+
+Q: How do I know if DALI can help me?
+#####################################
+A: You need to check our docs first and see if DALI operators cover your use case. Then try to run
+a couple of iterations of your training with a fixed data source - a random tensor that is generated
+once to see if you can train faster without any data processing. If so, then the data processing
+is a bottleneck in your case and DALI may help. This topic is covered in detail in
+`the GTC'22 talk <https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG>`_.
+
+Q: What data format does DALI support?
+######################################
+A: Regarding the data storage, DALI natively supports TFRecord, RecordIO, caffe/caffe2 LMDB,
+WebdataSet. Regarding the data types, it supports images, video, and audio. If the given type
+is not supported the external source operator can execute user-provided python code that would
+read and parse it.
+
+Q: How does DALI differ from TF, PyTorch, MXNet, XYZ FW
+#######################################################
+A: The main difference is that the data preprocessing and augmentations are GPU accelerated,
+and the processing is done for the whole batch at the time to improve GPU utilization. Also,
+it can be used in multiple different FW - TF, MXNet, PyTorch, PaddlePaddle - so you are sure
+that the data processing is bit-exact, which is important when you move models between FWs
+and see some discrepancies in the accuracy. Moreover, it provides a convenient way to switch
+data processing between GPU and CPU to utilize all available computational resources.
+
+Q: What to do if DALI doesn't cover my use case?
+################################################
+A: You can experiment first with writing a custom operator in Python to check if you can create
+a data pipeline you like (you can even use CuPy inside to utilize GPU). Then you can create
+a plugin with an operator running the native code or use Numba to convert python code to
+the native operator. You can also become a contributor and make your work a part of
+the DALI code base - we would be more than happy to review and accept any PR with new
+functionality.
+
+Q: How to use DALI for inference?
+#################################
+A: You can easily employ DALI for inference together with the TRITON server. We developed
+a dedicated DALI backend so all the user needs to do is provide a description of the processing
+pipeline to the TRITON server, and add DALI into the model ensemble.
+
+Q: How much is the speedup of using DALI compared to loading using OpenCV? Especially for JPEG images.
+######################################################################################################
+A: DALI utilizes nvJPEG to accelerate JPEG decoding. It leads up to 2.5x speedup with
+NVIDIA A100 Ampere GPU - `see for details <ttps://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100/>`_.
+In the case of other image formats, which decoding is not GPU accelerated, DALI uses either OpenCV
+(like for PNG) or dedicated library directly, like libtiff. In this case, the performance should
+be comparable.
+
+Q: Can you use DALI with DeepStream?
+####################################
+A: There is no reason why models trained with DALI can be used for inference with DeepStream.
+DeepStream mostly focuses on online video and audio inference pipelines, DALI can do this only
+for offline scenarios. There is no direct integration between these two solutions.
+
+Q: How to control the number of frames in a video reader in DALI?
+#################################################################
+A: It can be controlled by the `sequence_length` argument.
+
+Q: Does DALI volumetric 3D data processing can work for the ultrasound?
+#######################################################################
+A: DALI doesn't support any domain-specific data formats like NIfTI, but in most cases, the data
+is first processed offline and converted to a more data processing friendly format like NumPy
+arrays (including initial normalization and conversion). If the data is available in DALI-supported
+format there is no reason why it cannot be processed no matter if it is an ultrasound or CT scan.
+
+Q: How to debug the DALI pipeline?
+##################################
+A: Just recently DALI added `an eager debug mode <../examples/general/debug_mode.html>`_ so
+the output of each operator can be instantly evaluated and andy python code can be added inside
+the pipeline for the prototyping purpose.
+
+Q: Can I access the contents of intermediate data nodes in the pipeline?
+########################################################################
+A: In the pipeline mode it is not possible, however, thanks to the recently introduced
+`debug mode <../examples/general/debug_mode.html>`_` it can be done for prototyping
+and debugging purposes.
+
+Q: When will DALI support the XYZ operator?
+###########################################
+A: We cannot commit to any timeline to add any particular operator, still we are open to external
+contributions. On top of that every user can extend DALI on his own without modifying its code
+base, please check `this page <../examples/custom_operations/index.html>`_ for more details.
+
+Q: How should I know if I should use a CPU or GPU operator variant?
+###################################################################
+A: It depends on the particular use case. I would start by checking GPU  utilization to see if
+throwing more work on the GPU won't slow things down, or just place everything on the CPU first
+and then gradually move things to the GPU and see if that helps. You can check
+`our GTC22 talk <https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG>`_
+or `the blog post <https://developer.nvidia.com/blog/case-study-resnet50-dali/>`_ to see how
+to do it step by step.
+
+Q: How can I provide a custom data source/reading pattern to DALI?
+##################################################################
+A: You can define any custom data loading pattern using python and
+`external source operator <../examples/general/data_loading/external_input.html>`_. To make it
+faster please use `its parallel capability <../examples/general/data_loading/parallel_external_source.html>`_.
+
+Q: Does DALI provide any profiling capabilities?
+################################################
+A: DALI doesn't provide any built-in profiling capabilities, still it utilizes NVTX ranges
+and has a dedicated domain (so it is easy to find in the profile) to show its operations. So you can
+capture the profile using `NVIDIA Nsight Systems <https://developer.nvidia.com/nsight-systems>`_
+or any Deep Learning profile that also supports NVTX markers.
+
+Q: Does DALI support multi GPU/node training?
+#############################################
+A: Yes, DALI supports data-parallel and distributed data-parallel strategies. Its shards data into
+non-overlapping pieces using the number of shards (world size) and shard id (global rank), and
+uses device id to identify the GPU used in the particular node (local rank).
+
+Q: How to report an issue/RFE or get help with DALI usage?
+##########################################################
+A: DALI is an open-source project hosted on GitHub, you can ask questions and report issues
+using `this link <https://github.com/NVIDIA/DALI/pulls>`_ directly.
+
+Q: Does DALI accelerate only processing or also the data loading itself?
+########################################################################
+A: DALI mostly focuses on processing acceleration, as in most cases the input data is compressed
+(audio, video, or images) and the input data is relatively small compared to the raw decoded output.
+Still, there are cases, like NumPy array files, where data is not compressed and in such a case
+DALI can use `GPUDirect Storage <https://developer.nvidia.com/gpudirect-storage>`_ to bypass CPU
+and load the data directly to the GPU.
+
+Q: How can I obtain DALI?
+#######################################################
+A: DALI is available as a prebuild python wheel binary -
+`see to learn how to install it <https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html>`_
+or as `a source code <https://github.com/NVIDIA/DALI>`_ that can be built on your own.
+
+Q: What OS DALI supports?
+#########################
+A: DALI does support all major Linux distributions and indirectly Windows thanks to
+`WSL <https://docs.nvidia.com/cuda/wsl-user-guide/index.html>`_. Sorry to say but MacOS
+is not unsupported.
+
+Q: Where can I find the scope operators that DALI supports?
+###########################################################
+A: You can find a comprehensive list of operators available `here <../supported_ops.html>`_.
+
+Q: Can I send a request to the Triton server with a batch of samples of different shapes (like files with different lengths)?
+#############################################################################################################################
+A: Even though DALI supports such data, Triton doesn't accept non-uniform batches. You can approach
+it in two ways. The first is to pad the samples to make a uniform batch. The second is to split
+the request so you send together only samples with the same shape - in some cases, they can be
+later internally merged in the Triton server thanks to the dynamic batching feature.
+
+Q: I have heard about the new data processing framework XYZ, how is DALI better than it?
+########################################################################################
+A: DALI is a library that aims to GPU accelerate certain workloads we see that suffer the most
+due to being CPU bottleneck. There are many cases not covered by DALI, or where DALI
+can be suboptimal, and these are the places where other solutions could shine.
+
+What is worth remembering, there is a lot of advertised optimizations in other libraries that
+come with the cost of lower accuracy in the training or inference process - DALI has proved
+itself in MLPerf benchmarks and `NVIDIA Deep Learning Examples <https://github.com/NVIDIA/DeepLearningExamples>`_
+where not only speed but also accuracy matters. So the user is sure that DALI doesn't cut corners.
+
+Q: Is DALI compatible with other GPUs?
+######################################
+A: When it comes to the question if DALI supports non-NVIDIA GPUs, the answer is no.
+DALI GPU implementations are written in CUDA. However there are open source community efforts
+that are enabling running CUDA-based applications on other GPU architectures, but DALI
+doesn't officially support it.
+
+Q: When to use DALI and when RAPIDS?
+####################################
+A: RAPIDS is better suited for general-purpose machine learning and data analytics.
+DALI is a specialized tool for Deep Learning workflows, and it's aimed to accelerate dense data
+processing and overlap it with the network execution.
+
+Q: Is Triton + DALI still significantly better than preprocessing on CPU, when minimum latency i.e. batch-size = 1 is desired?
+##############################################################################################################################
+A: That can depend on the particular case and what other tool we are comparing to.
+One of DALI's advantages is the fact that it can optimize batch processing,
+but even for batch-size = 1, it might be worth using DALI because of the GPU implementation.
+
+Q: Are there any examples of using DALI for volumetric data?
+############################################################
+A: Yes, e.g DALI was used to achieve high performance in NVIDIA’s MLPerf submission for UNet3D.
+You can read an interesting article about it `here <https://developer.nvidia.com/blog/accelerating-medical-image-processing-with-dali>`_.
+You can see the DALI pipeline that was used `in this example <https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/Segmentation/nnUNet/data_loading/dali_loader.py>`_.
+
+Q: Where can I find more details on using the image decoder and doing image processing?
+#######################################################################################
+A: You can always refer to `the relevant section of the DALI documentation <../examples>`_
+where you can find multiple examples of DALI used in different use-cases. For the start,
+you can also watch `our introductory talk on this GTC <https://www.nvidia.com/gtc/session-catalog/#/session/1636566824182001pODM>`_.
+
+Q: Does DALI utilize any special NVIDIA GPU functionalities?
+############################################################
+A: Yes, DALI uses `NVJPEG <https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100/>`_ -
+special HW unit offloading JPEG image decoding, `NVDEC <https://developer.nvidia.com/nvidia-video-codec-sdk>`_ -
+HW video decoder, `GPUDirect Storage <https://developer.nvidia.com/gpudirect-storage>`_ -
+the ability to load data directly to the GPU to avoid a slow round trip through CPU.
+
+Q: Can DALI operate without GPU?
+################################
+A: Yes, DALI can operate without GPU but it is not optimized for the CPU itself.
+The main goal of this functionality is to enable the development of the DALI pipeline on
+machines where GPU is not available (like laptops), with an ability to later deploy the DALI
+pipeline on a GPU-capable cluster.
+
+Q: Can I use DALI in the Triton server through a Python model?
+##############################################################
+A: You could do that if the Python used by the server has DALI installed but for
+the best performance, we encourage you to use the dedicated DALI backend. It skips
+the Python layer and optimizes the interaction between the Triton server and the DALI pipeline.
+
+Q: Can the Triton model config be auto-generated for a DALI pipeline?
+#####################################################################
+A: Not yet but we are actively working on that feature and we expect to provide
+model config auto-generation for the DALI backend soon.
+
+Q: How can we decide whether to use RAPIDS(cuDF) or DALI? What are the strengths/weaknesses of either that are not present in the other?
+########################################################################################################################################
+A: DALI is best suited for dense data such as images, video, audio, etc,
+while RAPIDS is better suited for data analytics and ML where data is tabular.
+
+Q: How easy is it to integrate them with existing pipelines such as PyTorch-lightening?
+#######################################################################################
+A: It is very easy to integrate with PyTorch Lightning thanks to the PyTorch iterator.
+There is a dedicated example available `here <../examples/frameworks/pytorch/pytorch-lightning.html>`_.
+
+Q: Does DALI typically result in slower throughput using a single GPU versus using multiple PyTorch worker threads in a data loader?
+####################################################################################################################################
+A: In the case of CPU execution, DALI also uses multiple worker threads.
+Using DALI should produce a better performance in most cases, even for one GPU.
+Of course, the details can depend on the particular CPU and GPU and the pipeline itself,
+as well as the current GPU utilization before introducing DALI. You can check
+`our GTC22 talk <https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG>`_
+or `the blog post <https://developer.nvidia.com/blog/case-study-resnet50-dali>`_ to see this in practice.
+
+Q: Will labels, for example bounding boxes be adapted automatically when transforming the image data? For example when rotating/cropping, etc. If so how?
+#########################################################################################################################################################
+A: The meta-data, like bounding boxes or coordinates, will not be adapted automatically with
+the data but DALI has a set of operators, e.g.
+`bbox_paste <../supported_ops.html#nvidia.dali.fn.bbox_paste>`_,
+`random_bbox_crop <../supported_ops.html#nvidia.dali.fn.random_bbox_crop>`_ for bounding boxes or
+`coord_transform <../supported_ops.html#nvidia.dali.fn.coord_transform>`_ for sets of coordinates.
+You can find an example `here <../examples/use_cases/detection_pipeline.html>`_.
+
+Q: How easy is it, to implement custom processing steps? In the past, I had issues with calculating 3D Gaussian distributions on the CPU. Would this be possible using a custom DALI function?
+################################################################################################################################################################################################
+A: There are several ways to do it. You can write custom operators in C++/CUDA, or run arbitrary
+Python code via the Python function and Numba operators. You can learn more about this topic
+`here <../examples/custom_operations/index.html>`_.
+
+Q: Is DALI available in Jetson platforms such as the Xavier AGX or Orin?
+########################################################################
+A: At the moment we are not releasing binaries for Jetson, but it should be possible to build
+from source. You can learn more about the exact steps
+`here <../compilation.html#cross-compiling-for-aarch64-jetson-linux-docker>`_.
+
+Q: Does DALI also provide a significant improvement on inference tasks regarding latency?
+#########################################################################################
+A: It depends on what is the base implementation that we compare to but generally, DALI gives
+the most benefit to the throughput of the training/inference because of the batch processing
+that can utilize high parallelism of the GPUs. Still, the GPU implementations of DALI operators
+are optimized and fast so it might improve the inference latency.
+
+Q: Is it possible to directly get data from real-time camera streams to the DALI pipeline?
+##########################################################################################
+A: There is no dedicated way of dealing with camera streams in DALI but you can implement it using
+`the fn.external_source operator <../examples/general/data_loading/external_input.html>`_.
+It allows you to use a Python function or an iterator to provide the data so if your camera stream
+is accessible from Python - this is the way to go.
+
+Q: What is the advantage of using DALI for the distributed data-parallel batch fetching, instead of the framework-native functions?
+###################################################################################################################################
+A: By using DALI you accelerate not only data-loading but also the whole preprocessing pipeline -
+so you get the benefit of batch processing on the GPU and overlapping the preprocessing with
+the training. DALI also has the prefetching queue which means that it can preprocess a few batches
+ahead of time to maximize the throughput.
