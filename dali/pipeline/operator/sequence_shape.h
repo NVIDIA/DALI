@@ -107,11 +107,6 @@ class ExpandDesc {
 };
 
 namespace sequence_utils {
-struct SliceView {
-  uint8_t *ptr;
-  TensorShape<> shape;
-  size_t type_size;
-};
 
 template <typename FrameRange>
 class SliceIterator {
@@ -142,6 +137,11 @@ class SliceIterator {
   IndexType idx_;
 };
 
+struct SliceView {
+  uint8_t *ptr;
+  TensorShape<> shape;
+  size_t type_size;
+};
 
 class UnfoldedSliceRange {
  public:
@@ -163,7 +163,7 @@ class UnfoldedSliceRange {
   }
 
   inline SliceViewType operator[](IndexType idx) const {
-    return {view_.ptr + idx * slice_stride_, slice_shape_, view_.type_size};
+    return {view_.ptr + idx * SliceSize(), SliceShape(), view_.type_size};
   }
 
   inline ptrdiff_t NumSlices() const {
