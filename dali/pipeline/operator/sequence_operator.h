@@ -267,7 +267,7 @@ class SequenceOperator : public Operator<Backend> {
     for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       const auto &shape = output_desc[output_idx].shape;
-      DALI_ENFORCE(shape.num_samples() == expand_desc.NumExpanded(),
+      DALI_ENFORCE(static_cast<size_t>(shape.num_samples()) == expand_desc.NumExpanded(),
                    make_string("Unexpected number of frames inferred in the operator for output ",
                                output_idx, ". Expected ", expand_desc.NumExpanded(),
                                " but the operator returned ", shape.num_samples(), "."));
@@ -358,7 +358,7 @@ class SequenceOperator : public Operator<Backend> {
                     " is expected to either: have no outermost dimensions planned for expanding or "
                     "have exactly the same outermost dimensions to expand. However, got `",
                     input_desc.ExpandedLayout(), "` planned for expanding."));
-    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
+    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
       if (expand_desc.ExpandFrames()) {
         DALI_ENFORCE(expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
                      make_string("Inputs ", expand_idx, " and ", input_idx,
@@ -481,7 +481,7 @@ class SequenceOperator : public Operator<Backend> {
   TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_tv,
                                                    const std::string &arg_name, int input_idx) {
     const auto &expand_desc = GetInputExpandDesc(input_idx);
-    DALI_ENFORCE(static_cast<ptrdiff_t>(arg_tv.num_samples()) == expand_desc.NumSamples(),
+    DALI_ENFORCE(arg_tv.num_samples() == expand_desc.NumSamples(),
                  make_string("Number of samples passed for argument ", arg_name, " (got ",
                              arg_tv.num_samples(),
                              ") does not match the number of samples in the input (got ",
@@ -511,11 +511,10 @@ class SequenceOperator : public Operator<Backend> {
     assert((arg_tv.num_samples() == expand_desc.NumSamples()) && expand_desc.ExpandFrames());
     sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
         expand_desc.NumExpanded(), arg_tv.type_info().id(), arg_tv.is_pinned(), arg_tv.order());
-    int num_samples = expand_desc.NumSamples();
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       auto frames_range = sequence_utils::unfolded_slice_range(arg_tv, sample_idx, 1);
-      int num_input_frames = expand_desc.NumFrames(sample_idx);
-      int num_arg_frames = frames_range.NumSlices();
+      auto num_input_frames = expand_desc.NumFrames(sample_idx);
+      auto num_arg_frames = frames_range.NumSlices();
       DALI_ENFORCE(
           num_arg_frames == 1 || num_input_frames == num_arg_frames,
           make_string("The tensor argument ", arg_name, " for sample ", sample_idx,
@@ -525,7 +524,7 @@ class SequenceOperator : public Operator<Backend> {
                       " frames in the sample."));
       if (num_arg_frames == 1) {  // broadcast the sample
         auto slice = frames_range[0];
-        for (int j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
+        for (size_t j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
           tv_builder.push(slice);
         }
       } else if (!expand_desc.ExpandChannels()) {  // expand frames dimension
@@ -560,7 +559,7 @@ class SequenceOperator : public Operator<Backend> {
     const auto &type_info = arg_tv.type_info();
     sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
         expand_desc.NumExpanded(), type_info.id(), arg_tv.is_pinned(), arg_tv.order());
-    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       const auto &slice_shape = shape[sample_idx];
       int num_elements = expand_desc.NumExpanded(sample_idx);
       uint8_t *ptr =
@@ -578,7 +577,7 @@ class SequenceOperator : public Operator<Backend> {
     auto ndims_to_unfold = expand_desc.NumDimsToExpand();
     sequence_utils::TensorVectorBuilder<DataBackend> tv_builder(
         expand_desc.NumExpanded(), data.type_info().id(), data.is_pinned(), data.order());
-    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       for (auto &&slice : sequence_utils::unfolded_slice_range(data, sample_idx, ndims_to_unfold)) {
         tv_builder.push(slice);
       }
