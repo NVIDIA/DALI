@@ -12,7 +12,7 @@ in detail in
 
 Q: What data formats does DALI support?
 #######################################
-A: DALI can load most of the image file formats (JPEG, PNG ,TIFF, JPEG2000 and more) as well
+A: DALI can load most of the image file formats (JPEG, PNG, TIFF, JPEG2000 and more) as well
 as audio (WAV, OGG, FLAC) and video. The files can be stored individually or grouped in storage
 containers from common DL frameworks - TFRecord, RecordIO, caffe/caffe2 LMDB. WebDataset is
 also supported. In case there's no native support for a particular format, the data can be
@@ -44,7 +44,7 @@ pipeline to the TRITON server, and add DALI into the model ensemble.
 
 Q: How big is the speedup of using DALI compared to loading using OpenCV? Especially for JPEG images.
 ######################################################################################################
-A: DALI utilizes nvJPEG to accelerate JPEG decoding. It achieves  to 2.5x speedup with
+A: DALI utilizes nvJPEG to accelerate JPEG decoding. It achieves up to 2.5x speedup with
 NVIDIA A100 Ampere GPU - `see for details <ttps://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100/>`_.
 In case of other image formats, for which there's no GPU accelerated decoding, DALI uses either OpenCV
 (like for PNG) or dedicated library directly, like libtiff. In this case, the performance should
@@ -63,7 +63,7 @@ A: It can be controlled by the `sequence_length` argument.
 Q: Can DALI volumetric data processing work with ultrasound scans?
 ##################################################################
 A: DALI doesn't support any domain-specific data formats like NIfTI, but in most cases, the data
-is first processed offline and converted to a more data processing friendly format like NumPy
+is first processed offline and converted to a more data-processing-friendly format like NumPy
 arrays (including initial normalization and conversion). If the data is available in DALI-supported
 format there is no reason why it cannot be processed no matter if it is an ultrasound or CT scan.
 
@@ -73,7 +73,7 @@ ultrasound scans or CT sinograms.
 Q: How to debug a DALI pipeline?
 ################################
 A: Just recently DALI added `an eager debug mode <../examples/general/debug_mode.html>`_ so
-the output of each operator can be instantly evaluated and python code can be added inside
+the output of each operator can be instantly evaluated and Python code can be added inside
 the pipeline for the prototyping purpose.
 
 Q: Can I access the contents of intermediate data nodes in the pipeline?
@@ -84,7 +84,7 @@ reasons, this feature is intended only for debugging and prototyping.
 
 Q: When will DALI support the XYZ operator?
 ###########################################
-A: We cannot commit to any timeline to add any particular operator. Still we are open to external
+A: We cannot commit to any timeline to add any particular operator. Still, we are open to external
 contributions. On top of that, every user can extend DALI on his own without modifying its code
 base, please check `this page <../examples/custom_operations/index.html>`_ for more details.
 
@@ -103,9 +103,9 @@ A: You can define any custom data loading pattern using python and
 `external source operator <../examples/general/data_loading/external_input.html>`_. To make it
 faster please use `its parallel capability <../examples/general/data_loading/parallel_external_source.html>`_.
 
-Q: Does DALI provide any profiling capabilities?
-################################################
-A: DALI doesn't provide any built-in profiling capabilities, still it utilizes NVTX ranges
+Q: Does DALI have any profiling capabilities?
+#############################################
+A: DALI doesn't have any built-in profiling capabilities, still it utilizes NVTX ranges
 and has a dedicated domain (so it is easy to find in the profile) to show its operations. So you can
 capture the profile using `NVIDIA Nsight Systems <https://developer.nvidia.com/nsight-systems>`_
 or any Deep Learning profile that also supports NVTX markers.
@@ -229,7 +229,7 @@ Q: How can we decide whether to use RAPIDS(cuDF) or DALI? What are the strengths
 A: DALI is best suited for dense data such as images, video, audio, etc,
 while RAPIDS is better suited for data analytics and ML where data is tabular.
 
-Q: How easy is it to integrate DALI with existing pipelines such as PyTorch-lightening?
+Q: How easy is it to integrate DALI with existing pipelines such as PyTorch Lightning?
 #######################################################################################
 A: It is very easy to integrate with PyTorch Lightning thanks to the PyTorch iterator.
 There is a dedicated example available `here <../examples/frameworks/pytorch/pytorch-lightning.html>`_.
@@ -261,17 +261,17 @@ Python code via the Python function and Numba operators. You can learn more abou
 Q: Is DALI available in Jetson platforms such as the Xavier AGX or Orin?
 ########################################################################
 A: At the moment we are not releasing binaries for Jetson, but it should be possible to build
-from source. You can learn more about the exact steps
+DALI from source. You can learn more about the exact steps
 `here <../compilation.html#cross-compiling-for-aarch64-jetson-linux-docker>`_.
 
 Q: Does DALI also provide a significant improvement on inference tasks regarding latency?
 #########################################################################################
-A: It depends on what is the base implementation that we compare to but generally, DALI gives
+A: It depends on what base implementation we compare to, but generally, DALI gives
 the most benefit to the throughput of the training/inference because of the batch processing
-that can utilize high parallelism of the GPUs. Still, the GPU implementations of DALI operators
-are optimized and fast so it might improve the inference latency.
+that can utilize massive parallelism of the GPUs. Still, the GPU implementations of DALI operators
+are optimized and fast, so it might reduce the inference latency.
 
-Q: Is it possible to directly get data from real-time camera streams to the DALI pipeline?
+Q: Is it possible to get data directly from real-time camera streams to the DALI pipeline?
 ##########################################################################################
 A: There is no dedicated way of dealing with camera streams in DALI but you can implement it using
 `the fn.external_source operator <../examples/general/data_loading/external_input.html>`_.
