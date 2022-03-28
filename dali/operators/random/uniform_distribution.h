@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -141,7 +141,6 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
         range_("range", spec) {
     int size_dist = values_.HasExplicitValue() ? sizeof(typename ImplDiscrete<double>::type)
                                         : sizeof(typename ImplContinuous<double>::type);
-    backend_data_.ReserveDistsData(size_dist * max_batch_size_);
     per_sample_values_.reserve(max_batch_size_);
     per_sample_nvalues_.reserve(max_batch_size_);
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
   explicit CoinFlip(const OpSpec &spec)
       : RNGBase<Backend, CoinFlip<Backend>, false>(spec),
         probability_("probability", spec) {
-    backend_data_.ReserveDistsData(sizeof(Impl) * max_batch_size_);
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/core/static_switch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 
@@ -156,18 +157,17 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
   }
 
   auto &samples_cpu = backend_data_.sample_descs_cpu_;
-  auto &samples_gpu = backend_data_.sample_descs_gpu_;
+  samples_cpu.resize(nsamples);
   SetupSampleDescs(samples_cpu.data(), out_view, in_view, channel_dim);
-  samples_gpu.from_host(samples_cpu, ws.stream());
 
   auto &blocks_cpu = backend_data_.block_descs_cpu_;
-  auto &blocks_gpu = backend_data_.block_descs_gpu_;
+  blocks_cpu.resize(max_nblocks);
   blockdesc_count =
       SetupBlockDescs(blocks_cpu.data(), block_sz, max_nblocks, out_view.shape, channel_dim);
   if (blockdesc_count == 0) {
     return;
   }
-  blocks_gpu.from_host(blocks_cpu, ws.stream());
+  blocks_cpu.resize(blockdesc_count);
 
   int64_t blockdesc_max_sz = -1;
   for (int b = 0; b < blockdesc_count; b++) {
@@ -176,15 +176,20 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
       blockdesc_max_sz = block_sz;
   }
 
-  auto &dists_cpu = backend_data_.dists_cpu_;
-  auto &dists_gpu = backend_data_.dists_gpu_;
-  dists_cpu.resize(sizeof(Dist) * nsamples);  // memory was already reserved in the constructor
+  kernels::DynamicScratchpad scratch({}, ws.stream());
 
-  Dist* dists = reinterpret_cast<Dist*>(dists_cpu.data());
-  bool use_default_dist = !This().template SetupDists<T>(dists, nsamples);
+  auto dists_cpu = make_span(scratch.Allocate<mm::memory_kind::host, Dist>(nsamples), nsamples);
+  bool use_default_dist = !This().template SetupDists<T>(dists_cpu.data(), nsamples);
+
+  SampleDesc* samples_gpu = nullptr;
+  BlockDesc* blocks_gpu = nullptr;
+  Dist* dists_gpu = nullptr;
   if (!use_default_dist) {
-    dists_gpu.from_host(dists_cpu, ws.stream());
-    dists = reinterpret_cast<Dist*>(dists_gpu.data());
+    std::tie(samples_gpu, blocks_gpu, dists_gpu) =
+      scratch.ToContiguousGPU(ws.stream(), samples_cpu, blocks_cpu, dists_cpu);
+  } else {
+    std::tie(samples_gpu, blocks_gpu) =
+      scratch.ToContiguousGPU(ws.stream(), samples_cpu, blocks_cpu);
   }
 
   dim3 blockDim;
@@ -198,7 +203,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<GPUBackend> &w
     VALUE_SWITCH(independent_channels ? 1 : 0, IsPerChannel, (false, true), (
       RNGKernel<T, Dist, DefaultDist, IsNoiseGen, IsPerChannel>
         <<<gridDim, blockDim, 0, ws.stream()>>>(samples_gpu, blocks_gpu,
-                                                rngs, dists, blockdesc_count);
+                                                rngs, dists_gpu, blockdesc_count);
     ), ());  // NOLINT
   ), ());  // NOLINT
   CUDA_CALL(cudaGetLastError());
