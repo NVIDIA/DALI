@@ -30,8 +30,7 @@ def rn50_pipeline(data_path):
     uniform = fn.random.uniform(range=(0., 1.), shape=2)
     resize_uniform = fn.random.uniform(range=(256., 480.))
     mirror = fn.random.coin_flip(probability=0.5)
-    jpegs, _ = fn.readers.file(
-        file_root=data_path, shard_id=0, num_shards=2)
+    jpegs, _ = fn.readers.file(file_root=data_path)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     resized_images = fn.fast_resize_crop_mirror(images,
                                                 crop=(224, 224),
@@ -52,8 +51,7 @@ def rn50_pipeline_2(data_path):
     uniform = fn.random.uniform(range=(0., 1.), shape=2)
     resize_uniform = fn.random.uniform(range=(256., 480.))
     mirror = fn.random.coin_flip(probability=0.5)
-    jpegs, _ = fn.readers.file(
-        file_root=data_path, shard_id=0, num_shards=2)
+    jpegs, _ = fn.readers.file(file_root=data_path)
     images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
     resized_images = fn.resize(images,
                                device='gpu',
@@ -73,21 +71,21 @@ def rn50_pipeline_2(data_path):
 
 def run_benchmark(pipe_fun, batch_size, num_threads, num_samples, debug, data_path):
     num_iters = num_samples // batch_size
-    times = np.empty(num_iters + 2)
+    times = np.empty(num_iters + 1)
 
     times[0] = time()
     pipe = pipe_fun(data_path, batch_size=batch_size, num_threads=num_threads, debug=debug)
     pipe.build()
-    times[1] = time()
+    build_time = time()
 
     for i in range(num_iters):
         pipe.run()
-        times[i + 2] = time()
+        times[i + 1] = time()
 
-    full_time = times[-1] - times[1]
+    full_time = times[-1] - build_time
     times = np.diff(times)
 
-    return full_time, times[0 + debug], times[1:]
+    return full_time, times[0], times[1:]
 
 
 def test_rn50_benchmark(pipe_fun=rn50_pipeline, batch_size=8, num_threads=2, num_samples=256, data_path=None, save_df=None):
@@ -99,17 +97,17 @@ def test_rn50_benchmark(pipe_fun=rn50_pipeline, batch_size=8, num_threads=2, num
     full_stand, build_stand, times_stand = run_benchmark(
         pipe_fun, batch_size, num_threads, num_samples, False, data_path)
     iter_time_stand = np.mean(times_stand[1:])
-    avg_speed_stand = num_samples/full_stand
+    avg_speed_stand = num_samples / full_stand
 
-    print(f'Stand pipeline --- time: {full_stand:8.5f} [s] --- build time: {build_stand:.5f} [s] --- '
+    print(f'Stand pipeline --- time: {full_stand:8.5f} [s] --- build + 1st iter time: {build_stand:.5f} [s] --- '
           f'avg iter time: {iter_time_stand:7.5f} [s] --- avg speed: {avg_speed_stand:8.3f} [img/s]')
 
     full_debug, build_debug, times_debug = run_benchmark(
         pipe_fun, batch_size, num_threads, num_samples, True, data_path)
     iter_time_debug = np.mean(times_debug[1:])
-    avg_speed_debug = num_samples/full_debug
+    avg_speed_debug = num_samples / full_debug
 
-    print(f'Debug pipeline --- time: {full_debug:8.5f} [s] --- build time: {build_debug:.5f} [s] --- '
+    print(f'Debug pipeline --- time: {full_debug:8.5f} [s] --- build + 1st iter time: {build_debug:.5f} [s] --- '
           f'avg iter time: {iter_time_debug:7.5f} [s] --- avg speed: {avg_speed_debug:8.3f} [img/s]')
 
     if save_df is not None:
@@ -119,7 +117,7 @@ def test_rn50_benchmark(pipe_fun=rn50_pipeline, batch_size=8, num_threads=2, num
                            'iter_time': [iter_time_stand, iter_time_debug],
                            'avg_speed': [avg_speed_stand, avg_speed_debug]})
         return pd.concat([save_df, df])
-    
+
     return None
 
 
@@ -142,15 +140,17 @@ if __name__ == '__main__':
     args = parse_args()
     df = None
     for pipe_fun, num_threads in product([rn50_pipeline, rn50_pipeline_2], args.thread_counts):
-        if args.save_dir != '':
-            save_file = os.path.join(args.save_dir, f'bench_{pipe_fun.__name__}_threads_{num_threads}.csv')
+        if args.save_dir is not None:
+            save_file = os.path.join(
+                args.save_dir, f'bench_{pipe_fun.__name__}_threads_{num_threads}.csv')
             if os.path.isfile(save_file):
                 df = pd.read_csv(save_file)
             else:
                 df = pd.DataFrame(columns=['type', 'batch_size', 'time', 'iter_time', 'avg_speed'])
 
         for batch_size in args.batch_sizes:
-            df = test_rn50_benchmark(rn50_pipeline_2, batch_size, num_threads, args.num_samples, args.data_path, df)
+            df = test_rn50_benchmark(rn50_pipeline_2, batch_size, num_threads,
+                                     args.num_samples, args.data_path, df)
 
         if df is not None:
             df.to_csv(save_file, index=False)
