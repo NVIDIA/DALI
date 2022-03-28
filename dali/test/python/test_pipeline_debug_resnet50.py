@@ -15,7 +15,6 @@
 import argparse
 import numpy as np
 import os
-import pandas as pd
 from itertools import product
 from time import time
 
@@ -141,6 +140,8 @@ if __name__ == '__main__':
     df = None
     for pipe_fun, num_threads in product([rn50_pipeline, rn50_pipeline_2], args.thread_counts):
         if args.save_dir is not None:
+            import pandas as pd
+            
             save_file = os.path.join(
                 args.save_dir, f'bench_{pipe_fun.__name__}_threads_{num_threads}.csv')
             if os.path.isfile(save_file):
