@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,9 +62,6 @@ class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
       : BaseImpl(spec),
         mean_("mean", spec),
         stddev_("stddev", spec) {
-    if (mean_.HasExplicitValue() || stddev_.HasExplicitValue()) {
-      backend_data_.ReserveDistsData(sizeof(Impl<double>) * max_batch_size_);
-    }
   }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {

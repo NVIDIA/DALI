@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,14 +53,7 @@ struct RNGBaseFields<GPUBackend, IsNoiseGen> {
                             max_batch_size * div_ceil(static_sample_size, block_size_), 1024)),
         randomizer_(seed, block_size_ * max_blocks_) {
     sample_descs_cpu_.resize(max_batch_size);
-    sample_descs_gpu_.resize(max_batch_size);
     block_descs_cpu_.resize(max_blocks_);
-    block_descs_gpu_.resize(max_blocks_);
-  }
-
-  void ReserveDistsData(size_t nbytes) {
-    dists_cpu_.reserve(nbytes);
-    dists_gpu_.reserve(nbytes);
   }
 
   const int block_size_;
@@ -68,13 +61,7 @@ struct RNGBaseFields<GPUBackend, IsNoiseGen> {
   curand_states randomizer_;
 
   std::vector<SampleDesc> sample_descs_cpu_;
-  DeviceBuffer<SampleDesc> sample_descs_gpu_;
-
   std::vector<BlockDesc> block_descs_cpu_;
-  DeviceBuffer<BlockDesc> block_descs_gpu_;
-
-  std::vector<uint8_t> dists_cpu_;
-  DeviceBuffer<uint8_t> dists_gpu_;
 };
 
 template <typename Integer>
