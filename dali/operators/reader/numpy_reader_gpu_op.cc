@@ -97,10 +97,10 @@ void NumpyReaderGPU::Prefetch() {
 
   const size_t kGDSChunkGranularity = 1<<20;
 
-  size_t chunk_size = align_up(div_ceil(static_cast<uint64_t>(curr_tensor_list.chunks_nbytes()),
+  size_t chunk_size = align_up(div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
                                         static_cast<uint64_t>(thread_pool_.NumThreads())),
                                kGDSChunkGranularity);
-  chunk_size = std::min(chunk_size, curr_tensor_list.chunks_nbytes());
+  chunk_size = std::min(chunk_size, curr_tensor_list.nbytes());
 
   // read the data
   for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
