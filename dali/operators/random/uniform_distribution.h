@@ -16,9 +16,10 @@
 #define DALI_OPERATORS_RANDOM_UNIFORM_DISTRIBUTION_H_
 
 #include <vector>
+#include "dali/core/dev_buffer.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/operators/random/rng_base.h"
 #include "dali/pipeline/operator/arg_helper.h"
-#include "dali/core/dev_buffer.h"
 
 #define DALI_UNIFORM_DIST_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float, double
@@ -153,16 +154,20 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
         per_sample_values_.resize(values_.size());
         per_sample_nvalues_.resize(values_.size());
         if (std::is_same<Backend, GPUBackend>::value) {
-          values_cpu_.clear();
-          for (int s = 0; s < values_.size(); s++) {
-            values_cpu_.insert(values_cpu_.end(),
-                               values_[s].data,
-                               values_[s].data + values_[s].shape[0]);
-            per_sample_nvalues_[s] = values_[s].shape[0];
+          kernels::DynamicScratchpad scratch({}, ws.stream());
+          int64_t nvalues = values_.get().shape.num_elements();
+
+          auto values_cpu =
+              make_span(scratch.Allocate<mm::memory_kind::pinned, float>(nvalues), nvalues);
+          for (int64_t s = 0, k = 0; s < nsamples; s++) {
+            per_sample_nvalues_[s] = values_[s].shape.num_elements();
+            for (int64_t v = 0; v < per_sample_nvalues_[s]; v++, k++)
+              values_cpu[k] = values_[s].data[v];
           }
-          values_gpu_.from_host(values_cpu_, ws.stream());
+          values_gpu_.from_host(values_cpu, ws.stream());
+
           int64_t offset = 0;
-          for (int s = 0; s < values_.size(); s++) {
+          for (int s = 0; s < nsamples; s++) {
             per_sample_values_[s] = values_gpu_.data() + offset;
             offset += per_sample_nvalues_[s];
           }
@@ -234,7 +239,6 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   ArgValue<float, 1> values_;
   ArgValue<float, 1> range_;
 
-  std::vector<float> values_cpu_;
   DeviceBuffer<float> values_gpu_;
   std::vector<const float*> per_sample_values_;
   std::vector<int64_t> per_sample_nvalues_;
