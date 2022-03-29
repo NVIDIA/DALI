@@ -714,7 +714,7 @@ def python_op_factory(name, schema_name = None):
 
 
 def _prep_input_sets(op, inputs):
-    from nvidia.dali.debug_mode import _transform_data_to_tensorlist
+    from nvidia.dali._debug_mode import _transform_data_to_tensorlist
     import nvidia.dali.tensors as tensors
 
     inputs = list(inputs)

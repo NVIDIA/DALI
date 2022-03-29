@@ -1328,7 +1328,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 
 
 def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
-    from nvidia.dali.debug_mode import _PipelineDebug
+    from nvidia.dali._debug_mode import _PipelineDebug
     pipeline_debug =  pipeline_kwargs.pop('debug', False)
     def actual_decorator(func):
         @functools.wraps(func)

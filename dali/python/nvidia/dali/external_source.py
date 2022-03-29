@@ -745,7 +745,7 @@ provided memory is copied to the internal buffer.
     which is more performant.
     """
 
-    from nvidia.dali.debug_mode import _PipelineDebug
+    from nvidia.dali._debug_mode import _PipelineDebug
 
     def _external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu", layout=None,
                          dtype=None, cuda_stream=None, use_copy_kernel=None, batch=True, **kwargs):
