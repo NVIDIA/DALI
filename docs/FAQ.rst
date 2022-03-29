@@ -38,9 +38,11 @@ functionality.
 
 Q: How to use DALI for inference?
 #################################
-A: You can easily employ DALI for inference together with the TRITON server. We developed
-a dedicated DALI backend so all the user needs to do is provide a description of the processing
-pipeline to the TRITON server, and add DALI into the model ensemble.
+A: You can easily employ DALI for inference together with the `Triton Inference Server <https://developer.nvidia.com/nvidia-triton-inference-server>`_.
+We developed a dedicated `DALI Backend <https://github.com/triton-inference-server/dali_backend>`_
+so all you need to do is to provide a description of the processing pipeline to the Triton, and add
+DALI to the model ensemble. For more information about using DALI with Triton, please refer to the
+`DALI Backend documentation <https://github.com/triton-inference-server/dali_backend#how-to-use>`_
 
 Q: How big is the speedup of using DALI compared to loading using OpenCV? Especially for JPEG images.
 ######################################################################################################
@@ -150,10 +152,12 @@ A: You can find a comprehensive list of operators available `here <../supported_
 
 Q: Can I send a request to the Triton server with a batch of samples of different shapes (like files with different lengths)?
 #############################################################################################################################
-A: Even though DALI supports such data, Triton doesn't accept non-uniform batches. You can approach
-it in two ways. The first is to pad the samples to make a uniform batch. The second is to split
-the request so you send together only samples with the same shape - in some cases, they can be
-later internally merged in the Triton server thanks to the dynamic batching feature.
+A: Batch processing is one of main DALI paradigms. On the other hand, Triton Inference Server
+supports a uniform batch by default. However, by enabling
+a `ragged batching <https://github.com/triton-inference-server/server/blob/main/docs/ragged_batching.md>`_
+you can send non-uniform batches and process them successfully.
+`Here <https://github.com/triton-inference-server/dali_backend/blob/7d51c7299dd66964097f839501e18f3b579cc306/qa/L0_DALI_GPU_ensemble/client.py#L31>`_
+you can find an example of using ragged batching feature with DALI Backend.
 
 Q: I have heard about the new data processing framework XYZ, how is DALI better than it?
 ########################################################################################
@@ -179,11 +183,12 @@ A: RAPIDS is better suited for general-purpose machine learning and data analyti
 DALI is a specialized tool for Deep Learning workflows, and it's aimed to accelerate dense data
 processing and to overlap the preprocessing with the network forward/backward passes.
 
-Q: Is Triton + DALI still significantly better than preprocessing on CPU, when minimum latency i.e. batch-size = 1 is desired?
-##############################################################################################################################
-A: That can depend on the particular case and what other tool we are comparing to.
-One of DALI's advantages is the fact that it can optimize batch processing,
-but even for batch-size = 1, it might be worth using DALI because of the GPU implementation.
+Q: Is Triton + DALI still significantly better than preprocessing on CPU, when minimum latency i.e. batch_size=1 is desired?
+############################################################################################################################
+It depends on what base implementation we compare to, but generally, DALI gives
+the most benefit to the throughput of the training/inference because of the batch processing
+that can utilize massive parallelism of the GPUs. Still, the GPU implementations of DALI operators
+are optimized and fast, so it might reduce the inference latency.
 
 Q: Are there any examples of using DALI for volumetric data?
 ############################################################
@@ -222,7 +227,7 @@ the Python layer and optimizes the interaction between the Triton server and the
 Q: Can the Triton model config be auto-generated for a DALI pipeline?
 #####################################################################
 A: Not yet but we are actively working on that feature and we expect to provide
-model config auto-generation for the DALI backend soon.
+model config auto-generation for the DALI Backend soon.
 
 Q: How can we decide whether to use RAPIDS(cuDF) or DALI? What are the strengths/weaknesses of either that are not present in the other?
 ########################################################################################################################################
@@ -263,13 +268,6 @@ Q: Is DALI available in Jetson platforms such as the Xavier AGX or Orin?
 A: At the moment we are not releasing binaries for Jetson, but it should be possible to build
 DALI from source. You can learn more about the exact steps
 `here <../compilation.html#cross-compiling-for-aarch64-jetson-linux-docker>`_.
-
-Q: Does DALI also provide a significant improvement on inference tasks regarding latency?
-#########################################################################################
-A: It depends on what base implementation we compare to, but generally, DALI gives
-the most benefit to the throughput of the training/inference because of the batch processing
-that can utilize massive parallelism of the GPUs. Still, the GPU implementations of DALI operators
-are optimized and fast, so it might reduce the inference latency.
 
 Q: Is it possible to get data directly from real-time camera streams to the DALI pipeline?
 ##########################################################################################
