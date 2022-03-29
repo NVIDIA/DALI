@@ -120,6 +120,8 @@ depending on your version.
 Additional Resources
 --------------------
 
+- GPU Technology Conference 2022; **Effective NVIDIA DALI: Accelerating Real-life Deep-learning Applications**; Rafał Banaś: |talkAdvanced2022|_.
+- GPU Technology Conference 2022; **Introduction to NVIDIA DALI: GPU-accelerated Data Preprocessing**; Joaquin Anton Guirao: |talkIntro2022|_.
 - GPU Technology Conference 2021; **NVIDIA DALI: GPU-Powered Data Preprocessing** by Krzysztof Łęcki and Michał Szołucha: |event2021|_.
 - GPU Technology Conference 2020; **Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI)**; Albert Wolant, Joaquin Anton Guirao |recording4|_.
 - GPU Technology Conference 2019; **Fast AI data pre-preprocessing with DALI**; Janusz Lisiecki, Michał Zientkiewicz: |slides2|_, |recording2|_.
@@ -143,7 +145,11 @@ Additional Resources
 .. |recording4| replace:: recording
 .. _recording4: https://developer.nvidia.com/gtc/2020/video/s21139
 .. |event2021| replace:: event
-.. _event2021:  https://gtc21.event.nvidia.com/media/1_j4dk7w7q
+.. _event2021: https://www.nvidia.com/en-us/on-demand/session/gtcspring21-s31298/
+.. |talkIntro2022| replace:: event
+.. _talkIntro2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636566824182001pODM
+.. |talkAdvanced2022| replace:: event
+.. _talkAdvanced2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG
 
 ----
 
