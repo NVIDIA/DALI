@@ -23,16 +23,15 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
+#include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(
-    const std::shared_ptr<TensorList<Backend>> &in) {
+std::shared_ptr<TensorList<Backend>> AsTensorList(const std::shared_ptr<TensorList<Backend>> &in) {
   return in;
 }
 
@@ -57,9 +56,11 @@ class DLL_PUBLIC EagerOperator {
  public:
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec)
       : batch_size_(spec.GetArgument<int>("max_batch_size")),
-        num_outputs_(spec.GetSchema().NumOutput()),
         op_spec_(spec),
-        op_(InstantiateOperator(spec)) {}
+        op_(InstantiateOperator(spec)) {
+    num_outputs_ = op_spec_.GetSchema().CalculateOutputs(op_spec_) +
+                   op_spec_.GetSchema().CalculateAdditionalOutputs(op_spec_);
+  }
 
   // Runs operator using shared thread pool and shared CUDA stream.
   template <typename InBackend, typename OutBackend>

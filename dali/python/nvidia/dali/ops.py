@@ -531,7 +531,7 @@ def _check_arg_input(schema, op_name, name):
 
 def python_op_factory(name, schema_name = None):
     class Operator(metaclass=_DaliOperatorMeta):
-        def __init__(self, device="cpu", **kwargs):
+        def __init__(self, *, device="cpu", **kwargs):
             schema_name = _schema_name(type(self))
             self._spec = _b.OpSpec(schema_name)
             self._schema = _b.GetSchema(schema_name)
@@ -638,10 +638,10 @@ def python_op_factory(name, schema_name = None):
             return arg_list_len
 
         def _safe_len(self, input):
-            if isinstance(input, _DataNode):
-                return 1
-            else:
+            if isinstance(input, list):
                 return len(input)
+            else:
+                return 1
 
         # Pack single _DataNodes into lists, so they are treated as Multiple Input Sets
         # consistently with the ones already present
@@ -714,12 +714,14 @@ def python_op_factory(name, schema_name = None):
 
 
 def _prep_input_sets(op, inputs):
-    from nvidia.dali._debug_mode import _transform_data_to_tensorlist
+    from nvidia.dali.debug_mode import _transform_data_to_tensorlist
     import nvidia.dali.tensors as tensors
 
     inputs = list(inputs)
 
     for i, input in enumerate(inputs):
+        # Transforming any convertable datatype to TensorList (DataNodeDebugs are already unpacked).
+        # Additionally accepting input sets, but only as list of TensorList.
         if not isinstance(input, (tensors.TensorListCPU, tensors.TensorListGPU)) and \
                 not (isinstance(input, list) and
                      all([isinstance(elem, (tensors.TensorListCPU, tensors.TensorListGPU)) for elem in input])):
