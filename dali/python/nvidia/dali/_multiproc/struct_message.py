@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,7 +53,14 @@ class Structure:
         return tuple(getattr(self, field_name) for field_name, _ in self._fields)
 
     def pack_into(self, buf, offset):
-        return self._struct.pack_into(buf, offset, *self.get_values())
+        try:
+            values = self.get_values()
+            return self._struct.pack_into(buf, offset, *values)
+        except struct.error as e:
+            raise RuntimeError(
+                "Failed to serialize object as C-like structure. "
+                "Tried to populate following fields: `{}` with respective values: `{}` ".format(
+                    self._fields, self.get_values())) from e
 
     def unpack_from(self, buf, offset):
         values = self._struct.unpack_from(buf, offset)
