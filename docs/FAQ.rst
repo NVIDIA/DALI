@@ -6,7 +6,7 @@ Q: How do I know if DALI can help me?
 A: You need to check our docs first and see if DALI operators cover your use case. Then, try to run
 a couple of iterations of your training with a fixed data source - generating the batch once and
 reusing it over the test run to see if you can train faster without any data processing. If so,
-then the data processing is a bottleneck and, in that case, DALI may help. This topic is covered
+then the data processing is a bottleneck, and in that case, DALI may help. This topic is covered
 in detail in
 `the GTC'22 talk <https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG>`_.
 
@@ -20,7 +20,7 @@ loaded and parsed in user-provided python code and supplied via external source.
 
 Q: How does DALI differ from TF, PyTorch, MXNet, XYZ FW
 #######################################################
-A: The main difference is that the data preprocessing and augmentations are GPU accelerated,
+A: The main difference is that the data preprocessing, and augmentations are GPU accelerated,
 and the processing is done for the whole batch at the time to improve GPU utilization. Also,
 it can be used in multiple different FW - TF, MXNet, PyTorch, PaddlePaddle - so you are sure
 that the data processing is bit-exact, which is important when you move models between FWs
