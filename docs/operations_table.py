@@ -18,6 +18,11 @@ module_mapping = {
     'nvidia.dali.plugin.numba.experimental' : 'nvidia.dali.plugin.numba.fn.experimental'
 }
 
+# Remove ops not available in the fn API
+removed_ops = [
+    'compose'
+]
+
 cpu_ops = ops.cpu_ops()
 gpu_ops = ops.gpu_ops()
 mix_ops = ops.mixed_ops()
@@ -80,6 +85,8 @@ def fn_to_op_table(out_filename):
             if m is not None and hasattr(m, op_name):
                 op_string = link_formatter.format(op = op_full_name, module = module_name)
                 fn_string = link_formatter.format(op = to_fn_name(op_full_name), module = to_fn_module(module_name))
+        if op_name.lower() in removed_ops:
+            fn_string = "NA"
         op_doc = formater.format(fn_string, op_string, op_name_max_len = op_name_max_len, c=' ')
         doc_table += op_doc
     doc_table += formater.format('', '', op_name_max_len = op_name_max_len, c='=')
@@ -96,6 +103,8 @@ def operations_table(out_filename):
     doc_table += formater.format('', '', '', op_name_max_len = op_name_max_len, c='=')
     for op in sorted(all_ops, key=name_sort):
         op_full_name, submodule, op_name = ops._process_op_name(op)
+        if op_name.lower() in removed_ops:
+            continue
         schema = b.TryGetSchema(op)
         short_descr = ''
         devices = []
