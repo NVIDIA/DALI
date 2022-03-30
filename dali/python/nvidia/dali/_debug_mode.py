@@ -570,8 +570,7 @@ class _PipelineDebug(_pipeline.Pipeline):
             if isinstance(val, DataNodeDebug):
                 outputs.append(val.get())
             elif isinstance(val, (list, tuple)):
-                raise TypeError(f'Illegal pipeline output type. The output {i} contains a nested'
-                                ' `DataNodeDebug`')
+                raise TypeError(f'Illegal pipeline output type. The output {i} contains a nested `DataNodeDebug`')
             else:
                 outputs.append(_tensors.TensorListCPU(
                     np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))))
