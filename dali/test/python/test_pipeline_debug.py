@@ -467,3 +467,53 @@ def test_cpu_operator_after_gpu():
     pipe = cpu_after_gpu_pipeline()
     pipe.build()
     pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def variable_batch_size_pipeline():
+    jpegs, labels = fn.readers.file(file_root=file_root)
+    images = fn.decoders.image(jpegs)
+    images = [images.get()[i] for i in range(6)]
+    output = fn.random_resized_crop(images, size=(224, 224))
+    return labels, output
+
+
+@raises(RuntimeError, glob='Variable batch size is not supported in debug mode.*')
+def test_variable_batch_size():
+    pipe = variable_batch_size_pipeline()
+    pipe.build()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def input_sets_pipeline():
+    set_size = 5
+    jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
+             for _ in range(set_size)]
+    images = fn.decoders.image(jpegs, seed=42)
+    output = fn.random_resized_crop(images, size=(224, 224), seed=42)
+
+    assert len(output) == set_size
+    return tuple(output)
+
+
+def test_input_sets():
+    pipe_standard = input_sets_pipeline()
+    pipe_debug = input_sets_pipeline(debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def incorrect_input_Sets_pipeline():
+    jpegs, _ = fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)
+    images = fn.decoders.image(jpegs, seed=42)
+    output = fn.cat([images, images, images], [images, images])
+
+    return tuple(output)
+
+
+@raises(ValueError, glob="All argument lists for Multpile Input Sets used with operator 'Cat' must have the same length")
+def test_incorrect_input_sets():
+    pipe = incorrect_input_Sets_pipeline()
+    pipe.build()
+    pipe.run()

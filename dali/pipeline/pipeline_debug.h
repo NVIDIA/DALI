@@ -42,7 +42,20 @@ class DLL_PUBLIC PipelineDebug {
     }
   }
 
-  DLL_PUBLIC void AddOperator(OpSpec &spec, int logical_id);
+  DLL_PUBLIC void AddOperator(OpSpec &spec, int logical_id) {
+    FillOpSpec(spec);
+    AddOperatorImpl(spec, logical_id);
+  }
+
+  /**
+   * @brief Adds many identical operators (used for input sets).
+   */
+  DLL_PUBLIC void AddMultipleOperators(OpSpec &spec, std::vector<int> &logical_ids) {
+    FillOpSpec(spec);
+    for (int logical_id : logical_ids) {
+      AddOperatorImpl(spec, logical_id);
+    }
+  }
 
   template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> RunOperator(
@@ -52,6 +65,24 @@ class DLL_PUBLIC PipelineDebug {
   }
 
  private:
+  void FillOpSpec(OpSpec &spec) {
+    spec.AddArg("max_batch_size", max_batch_size_);
+    spec.AddArg("device_id", device_id_);
+    spec.AddArg("num_threads", num_threads_);
+  }
+
+  void AddOperatorImpl(OpSpec &spec, int logical_id) {
+    std::string device = spec.GetArgument<std::string>("device");
+
+    if (device == "gpu") {
+      gpu_operators_.insert({logical_id, EagerOperator<GPUBackend>(spec)});
+    } else if (device == "cpu") {
+      cpu_operators_.insert({logical_id, EagerOperator<CPUBackend>(spec)});
+    } else if (device == "mixed") {
+      mixed_operators_.insert({logical_id, EagerOperator<MixedBackend>(spec)});
+    }
+  }
+
   int max_batch_size_;
   int device_id_;
   int num_threads_;
@@ -61,22 +92,6 @@ class DLL_PUBLIC PipelineDebug {
   std::unordered_map<int, EagerOperator<GPUBackend>> gpu_operators_;
   std::unordered_map<int, EagerOperator<MixedBackend>> mixed_operators_;
 };
-
-void PipelineDebug::AddOperator(OpSpec &spec, int logical_id) {
-  spec.AddArg("max_batch_size", max_batch_size_);
-  spec.AddArg("device_id", device_id_);
-  spec.AddArg("num_threads", num_threads_);
-
-  std::string device = spec.GetArgument<std::string>("device");
-
-  if (device == "gpu") {
-    gpu_operators_.insert({logical_id, EagerOperator<GPUBackend>(spec)});
-  } else if (device == "cpu") {
-    cpu_operators_.insert({logical_id, EagerOperator<CPUBackend>(spec)});
-  } else if (device == "mixed") {
-    mixed_operators_.insert({logical_id, EagerOperator<MixedBackend>(spec)});
-  }
-}
 
 template <>
 std::vector<std::shared_ptr<TensorList<CPUBackend>>> PipelineDebug::RunOperator(

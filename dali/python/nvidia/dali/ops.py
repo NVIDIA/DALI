@@ -27,7 +27,7 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import \
         _type_name_convert_to_string, _type_convert_value, _default_converter, \
-        _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
+        _vector_element_type, _bool_types, _int_like_types, _float_types, \
         DALIDataType, \
         CUDAStream as _CUDAStream, \
         ScalarConstant as _ScalarConstant, \

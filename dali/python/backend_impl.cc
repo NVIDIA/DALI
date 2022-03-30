@@ -624,6 +624,7 @@ void ExposePipelineDebug(py::module &m) {
         return std::make_unique<PipelineDebug>(batch_size, num_threads, device_id, set_affinity);
       }))
       .def("AddOperator", &PipelineDebug::AddOperator)
+      .def("AddMultipleOperators", &PipelineDebug::AddMultipleOperators)
       .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend, CPUBackend>)
       .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend, GPUBackend>)
       .def("RunOperatorMixed", &PipelineDebug::RunOperator<CPUBackend, GPUBackend>);

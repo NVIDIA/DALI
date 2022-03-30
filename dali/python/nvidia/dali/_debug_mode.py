@@ -128,9 +128,6 @@ class DataNodeDebug(_DataNode):
 
 
 def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
-    if isinstance(data, DataNodeDebug):
-        return data.get()
-
     data = _prep_data_for_feed_input(data, batch_size, layout, device_id)
 
     if isinstance(data, list):
@@ -251,29 +248,50 @@ class _Classification:
     TensorLists.
     """
 
-    def __init__(self, data):
-        self.is_batch, self.device, self.data = self._classify_data(data)
+    def __init__(self, data, type_name):
+        self.is_batch, self.device, self.data = self._classify_data(data, type_name)
 
     @staticmethod
-    def _classify_data(data):
+    def _classify_data(data, type_name):
         """Returns tuple (is_batch, device, unpacked data). """
 
         def is_primitive_type(x):
             return isinstance(x, (int, float, bool, str))
 
         if isinstance(data, list):
-            if any([is_primitive_type(d) for d in data]):
+            if len(data) == 0 or any([is_primitive_type(d) for d in data]):
                 return False, 'cpu', data
 
-            device = None
+            is_batch_list = []
+            device_list = []
             data_list = []
+
             for d in data:
-                _, cur_device, val = _Classification._classify_data(d)
-                if device is None:
-                    device = cur_device
+                is_batch, device, val = _Classification._classify_data(d, type_name)
+                is_batch_list.append(is_batch)
+                device_list.append(device)
                 data_list.append(val)
-            return True, device, data_list
+            
+            if any([device != device_list[0] for device in device_list]):
+                raise RuntimeError(f'{type_name} has batches of data on CPU and on GPU. '
+                                   'Which is not supported.')
+
+            if all(is_batch_list):
+                # Input set.
+                return is_batch_list, device_list[0], data_list
+            if not any(is_batch_list):
+                # Converting to TensorList.
+                return True, device_list[0], _transform_data_to_tensorlist(data_list, len(data_list))
+            else:
+                raise RuntimeError(f'{type_name} has inconsistent batch classification.')
+
         else:
+            if isinstance(data, DataNodeDebug):
+                return True, data.device, data.get()
+            if isinstance(data, _tensors.TensorListCPU):
+                return True, 'cpu', data
+            if isinstance(data, _tensors.TensorListGPU):
+                return True, 'gpu', data
             if is_primitive_type(data) or _types._is_numpy_array(data) or \
                     isinstance(data, _tensors.TensorCPU):
                 return False, 'cpu', data
@@ -283,12 +301,6 @@ class _Classification:
                 return False, 'gpu' if 'gpu' in str(data.context) else 'cpu', data
             if hasattr(data, '__cuda_array_interface__') or isinstance(data, _tensors.TensorGPU):
                 return False, 'gpu', data
-            if isinstance(data, DataNodeDebug):
-                return True, data.device, data.get()
-            if isinstance(data, _tensors.TensorListCPU):
-                return True, 'cpu', data
-            if isinstance(data, _tensors.TensorListGPU):
-                return True, 'gpu', data
 
         return False, 'cpu', data
 
@@ -299,44 +311,61 @@ class _OperatorManager:
     Uses :class:`ops.Operator` to create OpSpec and handle input sets.
     """
 
-    def __init__(self, op_class, seed, inputs, kwargs):
+    def __init__(self, op_class, next_logical_id, batch_size, seed, inputs, kwargs):
         """Creates direct operator."""
 
         self._separate_kwargs(kwargs)
+
+        self._op_name = op_class.__name__
 
         if op_class.__name__ == 'ArithmeticGenericOp':
             inputs = self._init_arithm_op(kwargs['name'], inputs)
 
         # Save inputs classification for later verification.
-        self.inputs_classification = [_Classification(input) for input in inputs]
+        self._inputs_classification = []
+
+        # When using input sets we have to create separate operators for each input.
+        input_set_len = 1
+        for i, input in enumerate(inputs):
+            classification = _Classification(input, f'Input {i}')
+
+            if isinstance(classification.is_batch, list):
+                if input_set_len == 1:
+                    input_set_len = len(classification.is_batch)
+                else:
+                    raise ValueError("All argument lists for Multpile Input Sets used "
+                                     f"with operator '{self._op_name}' must have the same length")
+            self._inputs_classification.append(classification)
         self.expected_inputs_size = len(inputs)
 
-        if 'device' not in self.init_args and len(inputs) > 0:
-            self.init_args['device'] = self.inputs_classification[0].device
-        if 'seed' not in self.init_args:
-            self.init_args['seed'] = seed
+        if 'device' not in self._init_args and len(inputs) > 0:
+            self._init_args['device'] = self._inputs_classification[0].device
+        if 'seed' not in self._init_args:
+            self._init_args['seed'] = seed
 
-        self.device = self.init_args.get('device', 'cpu')
-        self.op_helper = op_class(**self.init_args)
-        self.op_name = op_class.__name__
+        self._batch_size = batch_size
+        self._device = self._init_args.get('device', 'cpu')
+        self.op_helper = op_class(**self._init_args)
+        self._expected_inputs_size = len(inputs)
         self.op_spec = self.op_helper._spec
+        self.logical_ids = [id for id in range(next_logical_id, next_logical_id + input_set_len)]
 
-        for arg_name in self.call_args.keys():
+        for arg_name in self._call_args.keys():
             # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             self.op_spec.AddArgumentInput(arg_name, '')
 
     def _separate_kwargs(self, kwargs):
-        self.init_args = {}
-        self.call_args = {}
-        self.kwargs_classification = {}
+        self._init_args = {}
+        self._call_args = {}
+        self._kwargs_classification = {}
 
         for key, value in kwargs.items():
-            classification = _Classification(value)
+            classification = _Classification(value, f'Argument {key}')
             if classification.is_batch:
-                self.call_args[key] = classification.data
+                self._call_args[key] = classification.data
             else:
-                self.init_args[key] = classification.data
-            self.kwargs_classification[key] = classification
+                self._init_args[key] = classification.data
+            self._kwargs_classification[key] = classification
 
     def _init_arithm_op(self, name, inputs):
         """Fills arithmetic operator init arguments and returns inputs that are DataNodes."""
@@ -344,88 +373,106 @@ class _OperatorManager:
         categories_idxs, data_nodes, integers, reals = _ops._group_inputs(inputs)
         input_desc = _ops._generate_input_desc(categories_idxs, integers, reals)
 
-        self.init_args['device'] = _ops._choose_device(data_nodes)
-        self.init_args['expression_desc'] = f'{name}({input_desc})'
-        self.init_args['integer_constants'] = integers
-        self.init_args['real_constants'] = reals
+        self._init_args['device'] = _ops._choose_device(data_nodes)
+        self._init_args['expression_desc'] = f'{name}({input_desc})'
+        self._init_args['integer_constants'] = integers
+        self._init_args['real_constants'] = reals
 
         return data_nodes
 
-    def _pack_to_data_node_debug(self, data, op_name):
+    def _pack_to_data_node_debug(self, data):
         if isinstance(data, (list, tuple)):
-            return [self._pack_to_data_node_debug(elem, op_name) for elem in data]
+            return [self._pack_to_data_node_debug(elem) for elem in data]
 
-        return DataNodeDebug(data, op_name, 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu', self)
+        return DataNodeDebug(data, self._op_name, 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu', self)
 
     def _check_arg_len(self, expected_len, actual_len, args_type):
         if expected_len != actual_len:
-            raise RuntimeError(f"Trying to use operator '{self.op_name}' with different number of {args_type} than"
+            raise RuntimeError(f"Trying to use operator '{self._op_name}' with different number of {args_type} than"
                                f" when it was built. Expected: {expected_len} {args_type}, got {actual_len}.")
 
     def _check_device_classification(self, expected, actual, arg_type, value):
         if expected != actual:
-            raise RuntimeError(f"{arg_type} {value} for operator '{self.op_name}' is on '{actual}' "
+            raise RuntimeError(f"{arg_type} {value} for operator '{self._op_name}' is on '{actual}' "
                                f"but was on '{expected}' when created.")
 
-    def _check_batch_classification(self, expected, actual, arg_type, value):
+    def _check_batch_classification(self, expected_is_batch, actual_is_batch, arg_type, value):
         def classification_to_str(is_batch):
             return 'batch' if is_batch else 'constant'
 
-        if expected != actual:
-            expected_str = classification_to_str(expected)
-            actual_str = classification_to_str(actual)
+        if expected_is_batch != actual_is_batch:
+            expected_str = classification_to_str(expected_is_batch)
+            actual_str = classification_to_str(actual_is_batch)
 
-            raise RuntimeError(f"{arg_type} {value} for operator '{self.op_name}' is a {actual_str} "
+            raise RuntimeError(f"{arg_type} {value} for operator '{self._op_name}' is a {actual_str} "
                                f"but was a {expected_str} when created.")
+
+    def _check_single_input_batch_size(self, input, input_idx):
+        if self._batch_size != len(input):
+            raise RuntimeError(f"Variable batch size is not supported in debug mode.\n"
+                               f"Input {input_idx} has batch_size = {len(input)}, expected "
+                               f"to have batch_size = {self._batch_size}.")
+
+    def _check_batch_size(self, classification, input_idx):
+        if isinstance(classification.is_batch, list):
+            # Checking for input set.
+            for input in classification.data:
+                self._check_single_input_batch_size(input, input_idx)
+        else:
+            self._check_single_input_batch_size(classification.data, input_idx)
 
     def run(self, run_backend_op, inputs, kwargs):
         """Checks correctness of inputs and kwargs and runs the backend operator."""
 
-        self._check_arg_len(self.expected_inputs_size, len(inputs), 'inputs')
-        self._check_arg_len(len(self.kwargs_classification), len(kwargs), 'keyward arguments')
+        self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
+        self._check_arg_len(len(self._kwargs_classification), len(kwargs), 'keyward arguments')
 
         call_args = {}
         inputs = list(inputs)
 
         # Check inputs classification as batches and extract data from DataNodeDebugs.
-        for i, input in enumerate(inputs):
-            classification = _Classification(input)
+        for i, (input, expected_classification) in enumerate(zip(inputs, self._inputs_classification)):
+            classification = _Classification(input, f'Input {i}')
 
             self._check_batch_classification(
-                self.inputs_classification[i].is_batch, classification.is_batch, 'Input', i)
+                expected_classification.is_batch, classification.is_batch, 'Input', i)
             self._check_device_classification(
-                self.inputs_classification[i].device, classification.device, 'Input', i)
+                expected_classification.device, classification.device, 'Input', i)
 
-            if classification.device != ('gpu' if self.device == 'gpu' else 'cpu'):
-                raise RuntimeError(f"Cannot call {self.device.upper()} operator '{self.op_name}' with "
+            if classification.is_batch:
+                self._check_batch_size(classification, i)
+
+            if classification.device != ('gpu' if self._device == 'gpu' else 'cpu'):
+                raise RuntimeError(f"Cannot call {self._device.upper()} operator '{self._op_name}' with "
                                    f"{classification.device.upper()} input {i}.")
 
             inputs[i] = classification.data
 
+        input_sets = _ops._prep_input_sets(self.op_helper, inputs)
+
         # Check kwargs classification as batches and setup call args.
         for key, value in kwargs.items():
-            classification = _Classification(value)
+            classification = _Classification(value, f'Argument {key}')
 
             self._check_batch_classification(
-                self.kwargs_classification[key].is_batch, classification.is_batch, 'Argument', key)
+                self._kwargs_classification[key].is_batch, classification.is_batch, 'Argument', key)
             self._check_device_classification(
-                self.kwargs_classification[key].device, classification.device, 'Argument', key)
+                self._kwargs_classification[key].device, classification.device, 'Argument', key)
 
-            if not classification.is_batch and classification.data != self.init_args[key]:
-                raise RuntimeError(f"Argument '{key}' for operator '{self.op_name}' unexpectedly changed"
-                                   f" value from '{self.init_args[key]}' to '{classification.data}'")
+            if not classification.is_batch and classification.data != self._init_args[key]:
+                raise RuntimeError(f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
+                                   f" value from '{self._init_args[key]}' to '{classification.data}'")
             if classification.is_batch:
                 call_args[key] = classification.data
 
-        input_sets = _ops._prep_input_sets(self.op_helper, inputs)
-        res = [run_backend_op(self.op_name, self.device, input, call_args)
-               for input in input_sets]
+        res = [run_backend_op(self._op_name, logical_id, self._device, input, call_args)
+               for input, logical_id in zip(input_sets, self.logical_ids)]
 
         if len(res) == 1:
-            res = self._pack_to_data_node_debug(res[0], self.op_name)
+            res = self._pack_to_data_node_debug(res[0])
         else:
             res = self.op_helper._repack_output_sets(res)
-            res = self._pack_to_data_node_debug(res, self.op_name)
+            res = self._pack_to_data_node_debug(res)
 
         if len(res) == 1:
             return res[0]
@@ -442,7 +489,8 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._external_sources = {}
         self._feed_input_data = {}
         self._exec_func = exec_func
-        self._cur_logical_id = -1
+        self._cur_operator_id = -1
+        self._next_logical_id = 0
         self._operators = {}
         self._operators_built = False
         self._pipe = _b.PipelineDebug(
@@ -474,7 +522,7 @@ class _PipelineDebug(_pipeline.Pipeline):
             raise RuntimeError('Pipeline must be built first.')
 
         self._debug_on = True
-        self._cur_logical_id = -1
+        self._cur_operator_id = -1
         _pipeline.Pipeline.push_current(self)
 
         res = self._exec_func()
@@ -489,8 +537,18 @@ class _PipelineDebug(_pipeline.Pipeline):
         _pipeline.Pipeline.pop_current()
 
         # Transforming all variables to TensorLists.
-        return tuple([val.get() if isinstance(val, DataNodeDebug) else _tensors.TensorListCPU(
-            np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))) for val in res])
+        outputs = []
+
+        for i, val in enumerate(res):
+            if isinstance(val, DataNodeDebug):
+                outputs.append(val.get())
+            elif isinstance(val, (list, tuple)):
+                raise TypeError(f'Illegal pipeline output type. The output {i} contains a nested'
+                                ' `DataNodeDebug`')
+            else:
+                outputs.append(_tensors.TensorListCPU(
+                    np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))))
+        return tuple(outputs)
 
     def feed_input(self, data_node, data, **kwargs):
         """Pass data to an ExternalSource operator inside the pipeline.
@@ -515,13 +573,15 @@ class _PipelineDebug(_pipeline.Pipeline):
     def _create_op(self, op_class, key, inputs, kwargs):
         """Creates direct operator."""
         self._operators[key] = _OperatorManager(
-            op_class, self._seed_generator.integers(0, 2**32), inputs, kwargs)
-        self._pipe.AddOperator(self._operators[key].op_spec, self._cur_logical_id)
+            op_class, self._next_logical_id, self._max_batch_size, self._seed_generator.integers(0, 2**32), inputs, kwargs)
+        
+        self._pipe.AddMultipleOperators(self._operators[key].op_spec, self._operators[key].logical_ids)
+        self._next_logical_id = self._operators[key].logical_ids[-1] + 1
 
     def _external_source(self, name=None, **kwargs):
-        self._cur_logical_id += 1
+        self._cur_operator_id += 1
         key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_logical_id,)
+            inspect.currentframe().f_back.f_back)[:3] + (self._cur_operator_id,)
         if not self._operators_built:
             es = _ExternalSourceDebug(batch_size=self._max_batch_size, name=name, **kwargs)
 
@@ -538,13 +598,13 @@ class _PipelineDebug(_pipeline.Pipeline):
                                " changing the order of operators executed within the pipeline.")
 
     def _run_op(self, op_helper, inputs, kwargs):
-        def run_backend_func(op_name, device, inputs, kwargs):
+        def run_backend_func(op_name, logical_id, device, inputs, kwargs):
             if device == 'gpu':
-                return self._pipe.RunOperatorGPU(self._cur_logical_id, inputs, kwargs)
+                return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs)
             if device == 'cpu':
-                return self._pipe.RunOperatorCPU(self._cur_logical_id, inputs, kwargs)
+                return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs)
             if device == 'mixed':
-                return self._pipe.RunOperatorMixed(self._cur_logical_id, inputs, kwargs)
+                return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs)
 
             raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 
@@ -566,9 +626,9 @@ class _PipelineDebug(_pipeline.Pipeline):
         return data_nodes
 
     def _wrap_op_call(self, op_class, *inputs, **kwargs):
-        self._cur_logical_id += 1
+        self._cur_operator_id += 1
         key = inspect.getframeinfo(
-            inspect.currentframe().f_back.f_back)[:3] + (self._cur_logical_id,)
+            inspect.currentframe().f_back.f_back)[:3] + (self._cur_operator_id,)
         if not self._operators_built:
             self._create_op(op_class, key, inputs, kwargs)
 
