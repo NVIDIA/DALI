@@ -212,6 +212,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   using uptr_tv_type = std::unique_ptr<TensorVector<Backend>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
+  using Operator<Backend>::spec_;
+
  public:
   inline explicit ExternalSource(const OpSpec &spec)
       : Operator<Backend>(spec),
@@ -220,9 +222,13 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         device_id_(spec.GetArgument<int>("device_id")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
-        ndim_(spec.GetArgument<int>("ndim")),
-        previous_ndim_(-1),
         sync_worker_(device_id_, false) {
+    if (spec.TryGetArgument(ndim_, "ndim")) {
+      DALI_ENFORCE(ndim_ >= 0, "Incorrect number of dimensions. "
+                   "Use positive values for tensors or 0 for scalars.");
+    } else {
+      ndim_ = -1;
+    }
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
   }
@@ -508,16 +514,18 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                   " and the current type is ", batch.type_info().name(), "."));
     previous_dtype_ = batch.type();
 
-    auto current_ndim = batch.shape().sample_dim();
-    DALI_ENFORCE(ndim_ == -1 || ndim_ == current_ndim,
-      make_string("ExternalSource expected data with ", ndim_, " dimensions and got ",
-                   current_ndim, " dimensions."));
-
-    DALI_ENFORCE(previous_ndim_ == -1 || previous_ndim_ == current_ndim,
-      make_string("Dimensionality of the data fed to the external source has changed "
-                  "from previous iteration. Dimensionality in the previous iteration was ",
-                  previous_ndim_, " and the current is ", current_ndim, "."));
-    previous_ndim_ = current_ndim;
+    auto input_ndim = batch.shape().sample_dim();
+    if (spec_.HasArgument("ndim")) {
+      DALI_ENFORCE(input_ndim == ndim_,
+                   make_string("ExternalSource expected data with ", ndim_, " dimensions and got ",
+                     input_ndim, " dimensions."));
+    } else if (ndim_ != -1) {
+      DALI_ENFORCE(input_ndim == ndim_,
+                   make_string("Dimensionality of the data fed to the external source has "
+                      "changed from previous iteration. Dimensionality in the previous "
+                      "iteration was ", ndim_, " and the current is ", input_ndim, "."));
+    }
+    ndim_ = input_ndim;
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
@@ -563,7 +571,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   DALIDataType dtype_;
   DALIDataType previous_dtype_;
   int ndim_;
-  int previous_ndim_;
 
   /*
    * now it only indicates that there is data in the ExternalSource, in the future

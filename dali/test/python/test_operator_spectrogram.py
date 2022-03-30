@@ -45,6 +45,8 @@ class SpectrogramPipeline(Pipeline):
                                    window_fn=window_fn,
                                    center_windows=center,
                                    power=2)
+        # randomly insert extra axis (channels?)
+        self.r = np.random.randint(-1, 2)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -54,11 +56,9 @@ class SpectrogramPipeline(Pipeline):
 
     def iter_setup(self):
         data = self.iterator.next()
-        # randomly insert extra axis (channels?)
-        r = np.random.randint(-1, 2)
-        if r == 0:
+        if self.r == 0:
             data = [x[np.newaxis,:] for x in data]
-        elif r == 1:
+        elif self.r == 1:
             data = [x[:, np.newaxis] for x in data]
 
         self.feed_input(self.data, data)

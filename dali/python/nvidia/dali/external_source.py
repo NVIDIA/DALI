@@ -368,7 +368,7 @@ Keyword Args
 `ndim` : int, optional
     Input dimensionality.
 
-    The operator will validate that the fetched data has the provided dimensionality.
+    The dimensionality of the data provided to the operator will be verified against this value.
     Number of dimensions can be also inferred from the ``layout`` argument if provided.
 
     Specifying the input dimensionality will be required starting from DALI 2.0
@@ -676,7 +676,7 @@ Keyword Args
             group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
             for i in range(self._num_outputs):
                 this_layout = None
-                inferred_ndim = -1
+                inferred_ndim = None
                 if layout is not None:
                     if isinstance(layout, (list, tuple)):
                         this_layout = layout[i] if i < len(layout) else ""
@@ -694,16 +694,15 @@ Keyword Args
                         this_ndim = ndim[i] if i < len(ndim) else -1
                     else:
                         this_ndim = ndim
-                    if this_ndim == -1:
-                        this_ndim = inferred_ndim
                 else:
                     this_ndim = inferred_ndim
 
-                if this_ndim != -1 and inferred_ndim != -1 and this_ndim != inferred_ndim:
-                    raise ValueError("Layout " + this_layout + " cannot describe " + 
+                if this_ndim is not None and inferred_ndim is not None and this_ndim != inferred_ndim:
+                    raise ValueError("Layout " + this_layout + " cannot describe " +
                                       str(this_ndim) + " dimensional data.")
-                kwargs['ndim'] = this_ndim
-                
+                if this_ndim is not None:
+                    kwargs['ndim'] = this_ndim
+
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
                 op_instance._output_index = i
@@ -717,7 +716,7 @@ Keyword Args
 
             return outputs
         else:
-            inferred_ndim = -1
+            inferred_ndim = None
             if layout is not None and layout != "":
                 inferred_ndim = len(layout)
             if name is not None:
@@ -726,12 +725,12 @@ Keyword Args
                 kwargs["no_copy"] = no_copy
             if dtype is not None:
                 kwargs['dtype'] = dtype
-            if ndim is not None and ndim != -1:
-                if inferred_ndim != -1 and ndim != inferred_ndim:
-                    raise ValueError("Layout " + layout + " cannot describe " + 
+            if ndim is not None:
+                if inferred_ndim is not None and ndim != inferred_ndim:
+                    raise ValueError("Layout " + layout + " cannot describe " +
                                       str(ndim) + " dimensional data.")
                 kwargs['ndim'] = ndim
-            else:
+            elif inferred_ndim is not None:
                 kwargs['ndim'] = inferred_ndim
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
@@ -808,7 +807,7 @@ provided memory is copied to the internal buffer.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, '_debug_on', False):
         return current_pipeline._external_source(source=source, num_outputs=num_outputs, cycle=cycle, name=name,
-                                                 layout=layout, dtype=dtype, ndim=ndim, batch=batch, **kwargs)
+                                                 layout=layout, batch=batch, **kwargs)
     else:
         return _external_source(source, num_outputs, cycle=cycle, name=name, device=device, layout=layout, dtype=dtype,
                                 ndim=ndim, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)

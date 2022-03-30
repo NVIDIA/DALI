@@ -98,10 +98,10 @@ If the argument is omitted or ``DALIDataType.NO_TYPE`` is passed, the operator w
 the type based on the provided data.
 
 This argument will be required starting from DALI 2.0.)code", DALI_NO_TYPE)
-  .AddOptionalArg("ndim", R"code(Input dimensionality.
+  .AddOptionalArg<int>("ndim", R"code(Input dimensionality.
 
-The operator will validate that the fetched data has the provided dimensionality.
+The dimensionality of the data provided to the operator will be verified against this value.
 
-Specifying the input dimensionality will be required starting from DALI 2.0)code", -1);
+Specifying the input dimensionality will be required starting from DALI 2.0)code", nullptr);
 
 }  // namespace dali
