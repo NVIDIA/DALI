@@ -92,6 +92,7 @@ def document_examples(path, result_dict={}):
     for entry in doc_contents.entries:
         if isinstance(entry, str):
             document_examples(str(base_path / entry), result_dict)
+            # TODO if someone wants to link to a index page from operator it can be kinda added here
         else:
             if  entry.operator_ref is None:
                 continue
@@ -100,7 +101,7 @@ def document_examples(path, result_dict={}):
                 if not op_ref.operator in result_dict:
                     result_dict[op_ref.operator] = []
 
-                result_dict[op_ref.operator].append((op_ref.docstring, str(base_path / entry.jupyter_name)))
+                result_dict[op_ref.operator].append((op_ref.docstring, str(base_path / entry.jupyter_name)[:-6] + ".html"))
 
                 print(f"Adding the reference for {op_ref.operator} := {result_dict[op_ref.operator][-1]}")
     return result_dict

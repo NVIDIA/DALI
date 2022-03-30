@@ -59,14 +59,17 @@ def op_autodoc(out_filename):
 
 def fn_autodoc(out_filename, references):
     s = ""
-    for module in get_modules(fn_modules):
+    all_modules = get_modules(fn_modules)
+    print(all_modules)
+    for module in all_modules:
         dali_module = sys.modules[module]
         funs_in_module = list(filter(lambda x: not str(x).startswith("_"), dir(dali_module)))
+        funs_in_module = list(filter(lambda x: not module + "." + str(x) in all_modules, funs_in_module))
         s += module + "\n"
         s += "~" * len(module) + "\n"
         if module in mod_aditional_doc:
             s += mod_aditional_doc[module] + "\n" + "\n"
-        s += ".. automodule:: {}\n".format(module)
+        # s += ".. automodule:: {}\n".format(module)
         # s += "   :members:\n"
         # s += "   :undoc-members:\n"
         # TODO excluded members:
@@ -78,6 +81,7 @@ def fn_autodoc(out_filename, references):
             s += "  See examples for this module:\n"
             for reference in references[fn_module]:
                 s += "    * `{} <../examples/{}>`_\n".format(reference[0], reference[1])
+        # TODO: filter internal
         for fun in funs_in_module:
             reference_key = fn_module + "." + fun
             s += ".. autofunction:: {}.{}\n".format(module, fun)
