@@ -85,7 +85,7 @@ def fn_autodoc(out_filename, references):
             if reference_key in references:
                 s += "  See also\n"
                 for reference in references[reference_key]:
-                    s += "    * `{} <../examples/{}>`_\n".format(reference[0], reference[1])
+                    s += "    * `{} <../{}>`_\n".format(reference[0], reference[1])
         s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)
