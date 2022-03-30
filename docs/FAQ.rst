@@ -48,7 +48,7 @@ DALI to the model ensemble. For more information about using DALI with Triton, p
 Q: How big is the speedup of using DALI compared to loading using OpenCV? Especially for JPEG images.
 ######################################################################################################
 A: DALI utilizes nvJPEG to accelerate JPEG decoding. It achieves up to 2.5x speedup with
-NVIDIA A100 Ampere GPU - `see for details <ttps://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100/>`_.
+NVIDIA A100 Ampere GPU - `see for details <https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decoder-in-a100/>`_.
 In case of other image formats, for which there's no GPU accelerated decoding, DALI uses either OpenCV
 (like for PNG) or dedicated library directly, like libtiff. In this case, the performance should
 be comparable.
@@ -83,7 +83,7 @@ the pipeline for the prototyping purpose.
 Q: Can I access the contents of intermediate data nodes in the pipeline?
 ########################################################################
 A: In the pipeline mode it is not possible, however, thanks to the recently introduced
-`debug mode <examples/general/debug_mode.html>`_` it can be done. For performance
+`debug mode <examples/general/debug_mode.html>`_ it can be done. For performance
 reasons, this feature is intended only for debugging and prototyping.
 
 Q: When will DALI support the XYZ operator?
