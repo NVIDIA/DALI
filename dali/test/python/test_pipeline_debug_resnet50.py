@@ -95,22 +95,22 @@ def test_rn50_benchmark(pipe_fun=rn50_pipeline, batch_size=8, num_threads=2, num
 
     full_stand, build_stand, times_stand = run_benchmark(
         pipe_fun, batch_size, num_threads, num_samples, False, data_path)
-    iter_time_stand = np.mean(times_stand[1:])
+    iter_time_stand = np.mean(times_stand[1:]) / batch_size
     avg_speed_stand = num_samples / full_stand
 
     print(f'Stand pipeline --- time: {full_stand:8.5f} [s] --- build + 1st iter time: {build_stand:.5f} [s] --- '
-          f'avg iter time: {iter_time_stand:7.5f} [s] --- avg speed: {avg_speed_stand:8.3f} [img/s]')
+          f'avg iter time per sample: {iter_time_stand:7.5f} [s] --- avg speed: {avg_speed_stand:8.3f} [img/s]')
 
     full_debug, build_debug, times_debug = run_benchmark(
         pipe_fun, batch_size, num_threads, num_samples, True, data_path)
-    iter_time_debug = np.mean(times_debug[1:])
+    iter_time_debug = np.mean(times_debug[1:]) / batch_size
     avg_speed_debug = num_samples / full_debug
 
     print(f'Debug pipeline --- time: {full_debug:8.5f} [s] --- build + 1st iter time: {build_debug:.5f} [s] --- '
-          f'avg iter time: {iter_time_debug:7.5f} [s] --- avg speed: {avg_speed_debug:8.3f} [img/s]')
+          f'avg iter time per sample: {iter_time_debug:7.5f} [s] --- avg speed: {avg_speed_debug:8.3f} [img/s]')
 
     if save_df is not None:
-        df = pd.DataFrame({'type': ['standard', 'debug'],
+        df = pd.DataFrame({'type': ['standard_sync', 'debug_old'],
                            'batch_size': batch_size,
                            'time': [full_stand, full_debug],
                            'iter_time': [iter_time_stand, iter_time_debug],
@@ -122,7 +122,7 @@ def test_rn50_benchmark(pipe_fun=rn50_pipeline, batch_size=8, num_threads=2, num
 
 def parse_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--batch-sizes', nargs='+', type=int, default=[8, 32, 64, 128],
+    parser.add_argument('--batch-sizes', nargs='+', type=int, default=[1, 4, 8, 32, 64, 128],
                         help='List of batch sizes to run')
     parser.add_argument('--thread-counts', nargs='+', type=int, default=[1, 2, 4, 8],
                         help='List of thread counts')
