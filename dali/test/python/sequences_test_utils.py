@@ -92,15 +92,124 @@ def expand_arg(input_layout, num_expand, arg_has_frames, input_batch, arg_batch)
     return expanded_batch
 
 
-def expand_arg_input(input_data, input_layout, expand_channels, arg_data, arg_layout):
-    num_expand = get_layout_prefix_len(
-        input_layout, "FC" if expand_channels else "F")
+def expand_arg_input(input_data, input_layout, expandable_extents, arg_data, arg_layout):
+    num_expand = get_layout_prefix_len(input_layout, expandable_extents)
     arg_has_frames = arg_layout and arg_layout[0] == "F"
     ret_arg_layout = arg_layout if not arg_has_frames else arg_layout[1:]
     assert(len(input_data) == len(arg_data))
     expanded = [expand_arg(input_layout, num_expand, arg_has_frames, input_batch, arg_batch)
                 for input_batch, arg_batch in zip(input_data, arg_data)]
     return expanded, ret_arg_layout
+
+
+def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_params, input_params,
+                    input_layout, input_data, rng):
+
+    @pipeline_def
+    def pipeline(input_data, input_layout, input_params_data):
+        input = fn.external_source(
+            source=dummy_source(input_data), layout=input_layout)
+        if device == "gpu":
+            input = input.gpu()
+        arg_nodes = {
+            arg_name: fn.external_source(
+                source=dummy_source(arg_data), layout=arg_layout)
+            for arg_name, (arg_data, arg_layout) in input_params_data}
+        output = operator_fn(input, **fixed_params, **arg_nodes)
+        return output
+
+    max_batch_size = max(len(batch) for batch in input_data)
+
+    # compute the arguments data here so that the parameters passed to _test_seq_input are
+    # a bit more readable when printed by nose
+    input_params_data = get_input_params_data(
+        input_data, input_layout, input_params, rng)
+    seq_pipe = pipeline(input_data=input_data, input_layout=input_layout,
+                        input_params_data=input_params_data,
+                        batch_size=max_batch_size, num_threads=4,
+                        device_id=0)
+
+    num_expand = get_layout_prefix_len(input_layout, expandable_extents)
+    unfolded_input = unfold_batches(input_data, num_expand)
+    unfolded_input_layout = input_layout[num_expand:]
+    expanded_params_data = [
+        (arg_name, expand_arg_input(input_data, input_layout,
+         expandable_extents, arg_data, arg_layout))
+        for arg_name, (arg_data, arg_layout) in input_params_data]
+    max_uf_batch_size = max(len(batch) for batch in unfolded_input)
+    baseline_pipe = pipeline(input_data=unfolded_input,
+                             input_layout=unfolded_input_layout,
+                             input_params_data=expanded_params_data,
+                             batch_size=max_uf_batch_size, num_threads=4,
+                             device_id=0)
+    seq_pipe.build()
+    baseline_pipe.build()
+
+    for _ in range(num_iters):
+        (seq_batch,) = seq_pipe.run()
+        (baseline_batch,) = baseline_pipe.run()
+        assert(seq_batch.layout()[num_expand:] == baseline_batch.layout())
+        batch = unfold_batch(as_batch(seq_batch), num_expand)
+        baseline_batch = as_batch(baseline_batch)
+        assert(len(batch) == len(baseline_batch))
+        check_batch(batch, baseline_batch, len(batch))
+
+
+def get_input_params_data(input_data, input_layout, input_params, rng):
+
+    def get_input_arg_per_sample(param_cb):
+        param = [[param_cb(rng) for _ in batch] for batch in input_data]
+        return param, None
+
+    def get_input_arg_per_frame(param_cb):
+        def arg_for_sample(num_frames):
+            if rng.randint(1, 4) == 1:
+                return np.array([param_cb(rng)])
+            return np.array([param_cb(rng) for _ in range(num_frames)])
+        frame_idx = input_layout.find("F")
+        param = [[arg_for_sample(sample.shape[frame_idx])
+                 for sample in batch] for batch in input_data]
+        sample_dim = len(param[0][0].shape)
+        return param, "F" + "*" * (sample_dim - 1)
+
+    return [(param_name, get_input_arg_per_frame(param_cb)) if is_per_frame else
+            (param_name, get_input_arg_per_sample(param_cb))
+            for param_name, param_cb, is_per_frame in input_params]
+
+
+def sequence_suite_helper(rng, expandable_extents, input_cases, ops_test_cases, num_iters=4):
+    for operator_fn, fixed_params, input_params in ops_test_cases:
+        for device in ["cpu", "gpu"]:
+            for (input_layout, input_data) in input_cases:
+                yield _test_seq_input, device, num_iters, expandable_extents, operator_fn, fixed_params, \
+                    input_params, input_layout, input_data, rng
+
+
+def get_video_input_cases(seq_layout, rng):
+    max_batch_size = 8
+    max_num_frames = 16
+    cases = []
+    larger = vid_source(max_batch_size, 1, max_num_frames,
+                        512, 288, seq_layout)
+    smaller = vid_source(max_batch_size, 2, max_num_frames,
+                         384, 216, seq_layout)
+    cases.append(smaller)
+    samples = [sample for batch in [smaller[0], larger[0], smaller[1]]
+               for sample in batch]
+    rng.shuffle(samples)
+    # test variable batch size
+    case2 = [
+        samples[0:1], samples[1:1 + max_batch_size],
+        samples[1 + max_batch_size:2 * max_batch_size],
+        samples[2 * max_batch_size:3 * max_batch_size]]
+    cases.append(case2)
+    frames_idx = seq_layout.find("F")
+    if frames_idx == 0:
+        # test variadic number of frames in different sequences
+        case3 = [[sample[:rng.randint(1, sample.shape[0])]
+                  for sample in batch] for batch in case2]
+        cases.append(case3)
+    return cases
 
 
 @pipeline_def
@@ -137,111 +246,7 @@ def vid_source(batch_size, num_batches, num_frames, width, height, seq_layout):
     return batches
 
 
-def _test_video(device, expand_channels, operator_fn, fixed_params, input_params,
-                input_layout, input_data, rng):
-    num_iters = 3
-    # compute the arguments data here so that the parameters passed to _test_video are
-    # a bit more readable when printed by nose
-    input_params = get_input_params_data(
-        input_data, input_layout, input_params, rng)
-
-    @pipeline_def
-    def pipeline(input_data, input_layout, input_params):
-        input = fn.external_source(
-            source=dummy_source(input_data), layout=input_layout)
-        if device == "gpu":
-            input = input.gpu()
-        arg_nodes = {
-            arg_name: fn.external_source(
-                source=dummy_source(arg_data), layout=arg_layout)
-            for arg_name, (arg_data, arg_layout) in input_params}
-        output = operator_fn(input, **fixed_params, **arg_nodes)
-        return output
-
-    max_batch_size = max(len(batch) for batch in input_data)
-
-    seq_pipe = pipeline(input_data=input_data, input_layout=input_layout, input_params=input_params,
-                        batch_size=max_batch_size, num_threads=4,
-                        device_id=0)
-
-    num_expand = get_layout_prefix_len(
-        input_layout, "FC" if expand_channels else "F")
-    unfolded_input = unfold_batches(input_data, num_expand)
-    unfolded_input_layout = input_layout[num_expand:]
-    expanded_params = [
-        (arg_name, expand_arg_input(input_data, input_layout,
-         expand_channels, arg_data, arg_layout))
-        for arg_name, (arg_data, arg_layout) in input_params]
-    max_uf_batch_size = max(len(batch) for batch in unfolded_input)
-    baseline_pipe = pipeline(input_data=unfolded_input,
-                             input_layout=unfolded_input_layout,
-                             input_params=expanded_params,
-                             batch_size=max_uf_batch_size, num_threads=4,
-                             device_id=0)
-    seq_pipe.build()
-    baseline_pipe.build()
-
-    for _ in range(num_iters):
-        (seq_batch,) = seq_pipe.run()
-        (baseline_batch,) = baseline_pipe.run()
-        assert(seq_batch.layout()[num_expand:] == baseline_batch.layout())
-        batch = unfold_batch(as_batch(seq_batch), num_expand)
-        baseline_batch = as_batch(baseline_batch)
-        assert(len(batch) == len(baseline_batch))
-        check_batch(batch, baseline_batch, len(batch))
-
-
-max_batch_size = 8
-max_num_frames = 16
-
-
-def get_video_input_cases(seq_layout, rng):
-    cases = []
-    lager = vid_source(max_batch_size, 1, max_num_frames, 512, 288, seq_layout)
-    smaller = vid_source(max_batch_size, 2, max_num_frames,
-                         384, 216, seq_layout)
-    cases.append(smaller)
-    samples = [sample for batch in [smaller[0], lager[0], smaller[1]]
-               for sample in batch]
-    rng.shuffle(samples)
-    # test variable batch size
-    case2 = [
-        samples[0:1], samples[1:1 + max_batch_size],
-        samples[1 + max_batch_size:2 * max_batch_size],
-        samples[2 * max_batch_size:3 * max_batch_size]]
-    cases.append(case2)
-    frames_idx = seq_layout.find("F")
-    if frames_idx == 0:
-        # test variadic number of frames in different sequences
-        case3 = [[sample[:rng.randint(1, sample.shape[0])]
-                  for sample in batch] for batch in case2]
-        cases.append(case3)
-    return cases
-
-
-def get_input_params_data(input_data, input_layout, input_params, rng):
-
-    def get_input_arg_per_sample(param_cb):
-        param = [[param_cb(rng) for _ in batch] for batch in input_data]
-        return param, None
-
-    def get_input_arg_per_frame(param_cb):
-        def arg_for_sample(num_frames):
-            if rng.randint(1, 4) == 1:
-                return np.array([param_cb(rng)])
-            return np.array([param_cb(rng) for _ in range(num_frames)])
-        frame_idx = input_layout.find("F")
-        param = [[arg_for_sample(sample.shape[frame_idx])
-                 for sample in batch] for batch in input_data]
-        sample_dim = len(param[0][0].shape)
-        return param, "F" + "*" * (sample_dim - 1)
-
-    return [(param_name, get_input_arg_per_frame(param_cb)) if is_per_frame else
-            (param_name, get_input_arg_per_sample(param_cb))
-            for param_name, param_cb, is_per_frame in input_params]
-
-
-def video_suite_helper(ops_test_cases, expand_channels=False):
+def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=False):
     """
     Generates suite of video test cases for a sequence processing operator.
     The operator should meet the SequenceOperator assumptions, i.e.
@@ -253,6 +258,8 @@ def video_suite_helper(ops_test_cases, expand_channels=False):
     given batch = [sequence, ...], the following holds:
     fn.op([frame for sequence in batch for frame in sequence])
         == [frame for sequence in fn.op(batch) for frame in sequence]
+
+    For testing operator with different input than the video, consider using `sequence_suite_helper` directly.
     ----------
     `ops_test_cases` : List[Tuple[Operator, Dict[str, Any], List[Tuple[str, rng -> np.array, bool]]]]
         List of operators and their parameters that should be tested.
@@ -262,19 +269,23 @@ def video_suite_helper(ops_test_cases, expand_channels=False):
         be passed to the operator and the last one is a list of tuples describing tensor input arguments.
         The `single_arg_cb` should be a function that takes numpy random number generator and returns an argument
         for a single sample or frame, depending on the `is_per_frame` flag.
+    `test_channel_first` : bool
+        If True, the "FCHW" layout is tested.
     `expand_channels` : bool
         If True, for the "FCHW" layout the first two (and not just one) dims are expanded, and "CFHW" layout is tested.
+        Requires `test_channel_first` to be True.
     """
     rng = random.Random(42)
-    layouts = ["FHWC", "FCHW"]
-    if expand_channels:
-        layouts.append("CFHW")
+    expandable_extents = "FC" if expand_channels else "F"
+    layouts = ["FHWC"]
+    if not test_channel_first:
+        assert(not expand_channels)
+    else:
+        layouts.append("FCHW")
+        if expand_channels:
+            layouts.append("CFHW")
     input_cases = [
         (input_layout, input_data)
         for input_layout in layouts
         for input_data in get_video_input_cases(input_layout, rng)]
-    for operator_fn, fixed_params, input_params in ops_test_cases:
-        for device in ["cpu", "gpu"]:
-            for (input_layout, input_data) in input_cases:
-                yield _test_video, device, expand_channels, operator_fn, fixed_params, input_params,\
-                    input_layout, input_data, rng
+    yield from sequence_suite_helper(rng, expandable_extents, input_cases, ops_test_cases)
