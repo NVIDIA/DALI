@@ -59,14 +59,14 @@ def op_autodoc(out_filename):
 
 def single_fun_file(fn_name):
     result = ""
-    result += ".. _{fn_name}:\n{fn_name}\n"
+    result += f".. _{fn_name}:\n{fn_name}\n"
     result += "_" * len(fn_name) + "\n\n"
-    result += f".. autofunction:: {fn_name}"
+    result += f".. autofunction:: {fn_name}\n\n"
     return result
 
 
 def fn_autodoc(out_filename, references):
-    all_modules_str = ".. toctree::\n  :hidden:\n\n"
+    all_modules_str = ".. toctree::\n\n"
 
     all_modules = get_modules(fn_modules)
     print(all_modules)
@@ -75,10 +75,12 @@ def fn_autodoc(out_filename, references):
         dali_module = sys.modules[module]
         funs_in_module = list(filter(lambda x: not str(x).startswith("_"), dir(dali_module)))
         funs_in_module = list(filter(lambda x: not module + "." + str(x) in all_modules, funs_in_module))
-        s += module + "\n"
-        s += "~" * len(module) + "\n"
-        if module in mod_aditional_doc:
-            s += mod_aditional_doc[module] + "\n" + "\n"
+
+        # TODO::
+        # if module in mod_aditional_doc:
+        #     s += mod_aditional_doc[module] + "\n" + "\n"
+
+
         # s += ".. automodule:: {}\n".format(module)
         # s += "   :members:\n"
         # s += "   :undoc-members:\n"
@@ -107,7 +109,7 @@ def fn_autodoc(out_filename, references):
             if reference_key in references:
                 function_file += ".. seealso::\n"
                 for reference in references[reference_key]:
-                    s += "    * `{} <../{}>`_\n".format(reference[0], reference[1])
+                    function_file += "    * `{} <../{}>`_\n".format(reference[0], reference[1])
             with open(full_name + ".rst", "w") as f:
                 f.write(function_file)
 
