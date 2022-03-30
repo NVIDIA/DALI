@@ -504,7 +504,7 @@ def test_input_sets():
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
-def incorrect_input_Sets_pipeline():
+def incorrect_input_sets_pipeline():
     jpegs, _ = fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)
     images = fn.decoders.image(jpegs, seed=42)
     output = fn.cat([images, images, images], [images, images])
@@ -512,8 +512,8 @@ def incorrect_input_Sets_pipeline():
     return tuple(output)
 
 
-@raises(ValueError, glob="All argument lists for Multpile Input Sets used with operator 'Cat' must have the same length")
+@raises(ValueError, glob="All argument lists for Multipile Input Sets used with operator 'cat' must have the same length.")
 def test_incorrect_input_sets():
-    pipe = incorrect_input_Sets_pipeline()
+    pipe = incorrect_input_sets_pipeline()
     pipe.build()
     pipe.run()
