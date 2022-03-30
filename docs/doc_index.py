@@ -107,4 +107,4 @@ def document_examples(path, result_dict={}):
 
 
 
-print(document_examples('examples/index'))
+# print(document_examples('examples/index'))
