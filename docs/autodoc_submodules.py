@@ -57,11 +57,21 @@ def op_autodoc(out_filename):
     with open(out_filename, 'w') as f:
         f.write(s)
 
+def single_fun_file(fn_name):
+    result = ""
+    result += ".. _{fn_name}:\n{fn_name}\n"
+    result += "_" * len(fn_name) + "\n\n"
+    result += f".. autofunction:: {fn_name}"
+    return result
+
+
 def fn_autodoc(out_filename, references):
-    s = ""
+    all_modules_str = ".. toctree::\n  :hidden:\n\n"
+
     all_modules = get_modules(fn_modules)
     print(all_modules)
     for module in all_modules:
+        single_module_str = ""
         dali_module = sys.modules[module]
         funs_in_module = list(filter(lambda x: not str(x).startswith("_"), dir(dali_module)))
         funs_in_module = list(filter(lambda x: not module + "." + str(x) in all_modules, funs_in_module))
@@ -76,23 +86,36 @@ def fn_autodoc(out_filename, references):
         # if module in exclude_fn_members:
         #     excluded = exclude_fn_members[module]
         #     s += "   :exclude-members: {}\n".format(", ".join(excluded))
+        if len(funs_in_module) == 0:
+            continue
+        all_modules_str += f"   {module}\n"
+        single_module_str += f".. _{module}:\n{module}\n"
+        single_module_str += "~" * len(module) + "\n\n"
+        single_module_str += ".. toctree::\n\n"
         fn_module = module[12:]
-        if fn_module in references:
-            s += "  See examples for this module:\n"
-            for reference in references[fn_module]:
-                s += "    * `{} <../examples/{}>`_\n".format(reference[0], reference[1])
+        # if fn_module in references:
+        #     s += "  See examples for this module:\n"
+        #     for reference in references[fn_module]:
+        #         s += "    * `{} <../examples/{}>`_\n".format(reference[0], reference[1])
         # TODO: filter internal
         for fun in funs_in_module:
             reference_key = fn_module + "." + fun
-            s += ".. autofunction:: {}.{}\n".format(module, fun)
-            s += "\n"
+            full_name = module + "." + fun
+            single_module_str += f"   {full_name}\n"
+
+            function_file = single_fun_file(full_name)
             if reference_key in references:
-                s += "  See also\n"
+                function_file += ".. seealso::\n"
                 for reference in references[reference_key]:
                     s += "    * `{} <../{}>`_\n".format(reference[0], reference[1])
-        s += "\n"
+            with open(full_name + ".rst", "w") as f:
+                f.write(function_file)
+
+        with open(module + ".rst", "w") as f:
+            f.write(single_module_str)
+
     with open(out_filename, 'w') as f:
-        f.write(s)
+        f.write(all_modules_str)
 
 if __name__ == "__main__":
     assert(len(sys.argv) == 3)
