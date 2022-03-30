@@ -41,7 +41,7 @@ def _test_large_sample(start_method):
                            prefetch_queue_depth=1, num_threads=2, device_id=0)
     pipe.build()
     capture_processes(pipe._py_pool)
-    for batch_idx in range(5):
+    for batch_idx in range(8):
         (out,) = pipe.run()
         for idx_in_batch in range(batch_size):
             idx_in_epoch = batch_size * batch_idx + idx_in_batch
