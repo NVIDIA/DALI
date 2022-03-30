@@ -13,12 +13,13 @@ in detail in
 Q: What data formats does DALI support?
 #######################################
 A: DALI can load most of the image file formats (JPEG, PNG, TIFF, JPEG2000 and more) as well
-as audio (WAV, OGG, FLAC) and video. The files can be stored individually or grouped in storage
-containers from common DL frameworks - TFRecord, RecordIO, caffe/caffe2 LMDB. WebDataset is
-also supported. In case there's no native support for a particular format, the data can be
-loaded and parsed in user-provided python code and supplied via external source.
+as audio (WAV, OGG, FLAC) and video (avi, mp4, mkv, mov, H264, HEVC, MPEG4, MJPEG, VP8, VP9).
+The files can be stored individually or grouped in storage containers from common DL frameworks -
+TFRecord, RecordIO, caffe/caffe2 LMDB. WebDataset is also supported. In case there's no native
+support for a particular format, the data can be loaded and parsed in user-provided python code
+and supplied via the external source operator.
 
-Q: How does DALI differ from TF, PyTorch, MXNet, XYZ FW
+Q: How does DALI differ from TF, PyTorch, MXNet, or other FWs
 #######################################################
 A: The main difference is that the data preprocessing, and augmentations are GPU accelerated,
 and the processing is done for the whole batch at the time to improve GPU utilization. Also,
@@ -64,31 +65,32 @@ A: It can be controlled by the `sequence_length` argument.
 
 Q: Can DALI volumetric data processing work with ultrasound scans?
 ##################################################################
-A: DALI doesn't support any domain-specific data formats like NIfTI, but in most cases, the data
-is first processed offline and converted to a more data-processing-friendly format like NumPy
-arrays (including initial normalization and conversion). If the data is available in DALI-supported
-format there is no reason why it cannot be processed no matter if it is an ultrasound or CT scan.
+A: DALI doesn't support any domain-specific data formats like `NIfTI <https://nifti.nimh.nih.gov/>`_,
+but in most cases, the data is first processed offline and converted to a more
+data-processing-friendly format like NumPy arrays (including initial normalization and conversion).
+If the data is available in DALI-supported format there is no reason why it cannot be processed
+no matter if it is an ultrasound or CT scan.
 
 Please be advised, that DALI does not support 3D reconstruction, either from sequences of 2D
 ultrasound scans or CT sinograms.
 
 Q: How to debug a DALI pipeline?
 ################################
-A: Just recently DALI added `an eager debug mode <../examples/general/debug_mode.html>`_ so
+A: Just recently DALI added `an eager debug mode <examples/general/debug_mode.html>`_ so
 the output of each operator can be instantly evaluated and Python code can be added inside
 the pipeline for the prototyping purpose.
 
 Q: Can I access the contents of intermediate data nodes in the pipeline?
 ########################################################################
 A: In the pipeline mode it is not possible, however, thanks to the recently introduced
-`debug mode <../examples/general/debug_mode.html>`_` it can be done. For performance
+`debug mode <examples/general/debug_mode.html>`_` it can be done. For performance
 reasons, this feature is intended only for debugging and prototyping.
 
 Q: When will DALI support the XYZ operator?
 ###########################################
 A: We cannot commit to any timeline to add any particular operator. Still, we are open to external
 contributions. On top of that, every user can extend DALI on his own without modifying its code
-base, please check `this page <../examples/custom_operations/index.html>`_ for more details.
+base, please check `this page <examples/custom_operations/index.html>`_ for more details.
 
 Q: How should I know if I should use a CPU or GPU operator variant?
 ###################################################################
@@ -102,8 +104,8 @@ to do it step by step.
 Q: How can I provide a custom data source/reading pattern to DALI?
 ##################################################################
 A: You can define any custom data loading pattern using python and
-`external source operator <../examples/general/data_loading/external_input.html>`_. To make it
-faster please use `its parallel capability <../examples/general/data_loading/parallel_external_source.html>`_.
+`external source operator <examples/general/data_loading/external_input.html>`_. To make it
+faster please use `its parallel capability <examples/general/data_loading/parallel_external_source.html>`_.
 
 Q: Does DALI have any profiling capabilities?
 #############################################
@@ -119,7 +121,7 @@ about these strategies `here <https://pytorch.org/tutorials/intermediate/ddp_tut
 Its shards data into non-overlapping pieces using the number of shards (world size) and shard id (global rank), and
 uses device id to identify the GPU used in the particular node (local rank).
 
-More details can be also found it `this documentation section <../advanced_topics_sharding.html>`_
+More details can be also found it `this documentation section <advanced_topics_sharding.html>`_
 
 Q: How to report an issue/RFE or get help with DALI usage?
 ##########################################################
@@ -148,7 +150,7 @@ is not unsupported.
 
 Q: Where can I find the list of operations that DALI supports?
 ##############################################################
-A: You can find a comprehensive list of operators available `here <../supported_ops.html>`_.
+A: You can find a comprehensive list of operators available `here <supported_ops.html>`_.
 
 Q: Can I send a request to the Triton server with a batch of samples of different shapes (like files with different lengths)?
 #############################################################################################################################
@@ -181,7 +183,8 @@ Q: When to use DALI and when RAPIDS?
 ####################################
 A: RAPIDS is better suited for general-purpose machine learning and data analytics.
 DALI is a specialized tool for Deep Learning workflows, and it's aimed to accelerate dense data
-processing and to overlap the preprocessing with the network forward/backward passes.
+(such as images, video, audio) processing and to overlap the preprocessing with
+the network forward/backward passes.
 
 Q: Is Triton + DALI still significantly better than preprocessing on CPU, when minimum latency i.e. batch_size=1 is desired?
 ############################################################################################################################
@@ -198,7 +201,7 @@ You can see the DALI pipeline that was used `in this example <https://github.com
 
 Q: Where can I find more details on using the image decoder and doing image processing?
 #######################################################################################
-A: You can always refer to `the relevant section of the DALI documentation <../examples>`_
+A: You can always refer to `the relevant section of the DALI documentation <examples>`_
 where you can find multiple examples of DALI used in different use-cases. For the start,
 you can also watch `our introductory talk on this GTC <https://www.nvidia.com/gtc/session-catalog/#/session/1636566824182001pODM>`_.
 
@@ -229,15 +232,10 @@ Q: Can the Triton model config be auto-generated for a DALI pipeline?
 A: Not yet but we are actively working on that feature and we expect to provide
 model config auto-generation for the DALI Backend soon.
 
-Q: How can we decide whether to use RAPIDS(cuDF) or DALI? What are the strengths/weaknesses of either that are not present in the other?
-########################################################################################################################################
-A: DALI is best suited for dense data such as images, video, audio, etc,
-while RAPIDS is better suited for data analytics and ML where data is tabular.
-
 Q: How easy is it to integrate DALI with existing pipelines such as PyTorch Lightning?
 #######################################################################################
 A: It is very easy to integrate with PyTorch Lightning thanks to the PyTorch iterator.
-There is a dedicated example available `here <../examples/frameworks/pytorch/pytorch-lightning.html>`_.
+There is a dedicated example available `here <examples/frameworks/pytorch/pytorch-lightning.html>`_.
 
 Q: Does DALI typically result in slower throughput using a single GPU versus using multiple PyTorch worker threads in a data loader?
 ####################################################################################################################################
@@ -252,27 +250,27 @@ Q: Will labels, for example, bounding boxes, be adapted automatically when trans
 ###########################################################################################################################################################
 A: The meta-data, like bounding boxes or coordinates, will not be adapted automatically with
 the data but DALI has a set of operators, e.g.
-`bbox_paste <../supported_ops.html#nvidia.dali.fn.bbox_paste>`_,
-`random_bbox_crop <../supported_ops.html#nvidia.dali.fn.random_bbox_crop>`_ for bounding boxes or
-`coord_transform <../supported_ops.html#nvidia.dali.fn.coord_transform>`_ for sets of coordinates.
-You can find an example `here <../examples/use_cases/detection_pipeline.html>`_.
+`bbox_paste <supported_ops.html#nvidia.dali.fn.bbox_paste>`_,
+`random_bbox_crop <supported_ops.html#nvidia.dali.fn.random_bbox_crop>`_ for bounding boxes or
+`coord_transform <supported_ops.html#nvidia.dali.fn.coord_transform>`_ for sets of coordinates.
+You can find an example `here <examples/use_cases/detection_pipeline.html>`_.
 
 Q: How easy is it, to implement custom processing steps? In the past, I had issues with calculating 3D Gaussian distributions on the CPU. Would this be possible using a custom DALI function?
 ################################################################################################################################################################################################
 A: There are several ways to do it. You can write custom operators in C++/CUDA, or run arbitrary
 Python code via the Python function and Numba operators. You can learn more about this topic
-`here <../examples/custom_operations/index.html>`_.
+`here <examples/custom_operations/index.html>`_.
 
 Q: Is DALI available in Jetson platforms such as the Xavier AGX or Orin?
 ########################################################################
 A: At the moment we are not releasing binaries for Jetson, but it should be possible to build
 DALI from source. You can learn more about the exact steps
-`here <../compilation.html#cross-compiling-for-aarch64-jetson-linux-docker>`_.
+`here <compilation.html#cross-compiling-for-aarch64-jetson-linux-docker>`_.
 
 Q: Is it possible to get data directly from real-time camera streams to the DALI pipeline?
 ##########################################################################################
 A: There is no dedicated way of dealing with camera streams in DALI but you can implement it using
-`the fn.external_source operator <../examples/general/data_loading/external_input.html>`_.
+`the fn.external_source operator <examples/general/data_loading/external_input.html>`_.
 It allows you to use a Python function or an iterator to provide the data so if your camera stream
 is accessible from Python - this is the way to go.
 
