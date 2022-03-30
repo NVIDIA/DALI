@@ -30,28 +30,28 @@ class ExampleEntry:
         if operator_ref is not None:
             if isinstance(operator_ref, list):
                 for elem in operator_ref:
-                    if not isinstance(elem, DocReference):
-                        raise TypeError("Expected a single doc_reference of a list of them to be provided")
-            elif not isinstance(operator_ref, DocReference):
-                raise TypeError("Expected a single doc_reference of a list of them to be provided")
+                    if not isinstance(elem, OpReference):
+                        raise TypeError("Expected a single op_reference of a list of them to be provided")
+            elif not isinstance(operator_ref, OpReference):
+                raise TypeError("Expected a single op_reference of a list of them to be provided")
         self.operator_ref = operator_ref
 
     def __str__(self):
         return self.jupyter_name
 
-class DocReference:
+class OpReference:
     def __init__(self, operator, docstring):
         self.operator = operator
         self.docstring = docstring
 
 
 # example listed on the page
-def example_entry(jupyter_name, operator_ref: DocReference=None):
+def example_entry(jupyter_name, operator_ref: OpReference=None):
     return ExampleEntry(jupyter_name, operator_ref)
 
 # Add a reference for this tutorial in given operator doc with optional docstring
-def doc_reference(operator, docstring=None):
-    return DocReference(operator, docstring)
+def op_reference(operator, docstring=None):
+    return OpReference(operator, docstring)
 
 
 def obtain_doc(py_file):
@@ -95,9 +95,9 @@ def document_examples(path, result_dict={}):
         else:
             if  entry.operator_ref is None:
                 continue
-            op_refs = [entry.operator_ref] if isinstance(entry.operator_ref, DocReference) else entry.operator_ref
+            op_refs = [entry.operator_ref] if isinstance(entry.operator_ref, OpReference) else entry.operator_ref
             for op_ref in op_refs:
-                if not op_ref in result_dict:
+                if not op_ref.operator in result_dict:
                     result_dict[op_ref.operator] = []
 
                 result_dict[op_ref.operator].append((op_ref.docstring, str(base_path / entry.jupyter_name)))
@@ -107,4 +107,4 @@ def document_examples(path, result_dict={}):
 
 
 
-# print(document_examples('examples/index'))
+print(document_examples('examples/index'))
