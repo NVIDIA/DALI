@@ -1,95 +1,110 @@
 #!/usr/bin/python3
-class ExamplePage:
-    def __init__(self, entries, title, prefix_path, index_name):
-        self.entries = entries
+
+from pathlib import Path
+from typing import Type
+
+from numpy import isin
+
+def parse_entry(entry):
+    if isinstance(entry, str) and entry.endswith('ipynb'):
+        return example_entry(jupyter_name=entry)
+    else:
+        return entry
+
+class Doc:
+    def __init__(self, title, options, entries):
         self.title = title
-        self.prefix_path = prefix_path
-        self.index_name = index_name
+        self.options = options
+        self.entries = entries
+        self.entries = [parse_entry(entry) for entry in entries]
 
-    def get_index(self):
-        s = """
-.. title:: {}
-.. toctree::
-   :maxdepth: 2
-
-""".format(self.title)
-        for entry in self.entries:
-            if isinstance(entry, ExamplePage):
-                if entry.index_name is not None:
-                    s += "  " + entry.index_name
-                else:
-                    s += "  {}/index\n".format(entry.prefix_path)
-            else:
-                s += "  {}".format(entry.jupyter_name)
-        return s
-
-    def write_to_location():
-        pass
+def doc(title, options, entries):
+    global doc_return_value
+    doc_return_value = Doc(title, options, entries)
+    print(title, options, entries)
 
 
 class ExampleEntry:
-    def __init__(self, jupyter_name, operator = None):
+    def __init__(self, jupyter_name, operator_ref):
         self.jupyter_name = jupyter_name
-        self.operator = operator
+        if operator_ref is not None:
+            if isinstance(operator_ref, list):
+                for elem in operator_ref:
+                    if not isinstance(elem, DocReference):
+                        raise TypeError("Expected a single doc_reference of a list of them to be provided")
+            elif not isinstance(operator_ref, DocReference):
+                raise TypeError("Expected a single doc_reference of a list of them to be provided")
+        self.operator_ref = operator_ref
+
+    def __str__(self):
+        return self.jupyter_name
 
 class DocReference:
-    def __init__(self, operator, docstring=None):
+    def __init__(self, operator, docstring):
         self.operator = operator
         self.docstring = docstring
 
-# page listing examples
-def example_page(entries, *, title, prefix_path="", index_name=None):
-    return ExamplePage(entries, title, prefix_path, index_name)
 
 # example listed on the page
-def example_entry(jupyter_name, operator: str or DocReference=None):
-    if isinstance(operator, str):
-        operator = doc_reference(operator)
-    return ExampleEntry(jupyter_name, operator)
+def example_entry(jupyter_name, operator_ref: DocReference=None):
+    return ExampleEntry(jupyter_name, operator_ref)
 
 # Add a reference for this tutorial in given operator doc with optional docstring
 def doc_reference(operator, docstring=None):
     return DocReference(operator, docstring)
 
-# Downside of this approach is the need to define the doc tree bottom-up
-# We can maybe split them into separate files corresponding to the actual index locations?
 
-data_loading = example_page([
-    example_entry('external_input.ipynb', [doc_reference('external_source')]),
-    example_entry('parallel_external_source.ipynb',
-              doc_reference('external_source', 'How to use parallel mode for external source')),
-    example_entry('parallel_external_source_fork.ipynb',
-              doc_reference('external_source', 'How to use parallel mode for external source in fork mode')),
-    example_entry('dataloading_lmdb.ipynb'),
-    example_entry('dataloading_recordio.ipynb'),
-    example_entry('dataloading_tfrecord.ipynb'),
-    example_entry('dataloading_webdataset.ipynb'),
-    example_entry('coco_reader.ipynb'),
-    example_entry('numpy_reader.ipynb', 'readers.numpy'),
-], title='Data Loading', prefix_path='general/data_loading')
-
-
-general_purpose = example_page([
-    example_entry('reductions.ipynb'),
-    example_entry('tensor_join.ipynb'),
-    example_entry('reinterpret.ipynb'),
-    example_entry('normalize.ipynb'),
-], title="General purpose", prefix_path="general")
-
-operations = example_page([
-    general_purpose,
-    # image_processing,
-    # audio_processing,
-    # video_processing,
-], title="Operations", index_name="operations_index")
-
-tot = example_page([
-    data_loading,
-    operations,
-    # use_cases,
-    # other,
-], title="Examples and tutorials")
+def obtain_doc(py_file):
+    with open(py_file, 'r') as f:
+        doc_file = f.read()
+        exec(doc_file)
+        return doc_return_value
 
 
 
-print(tot.get_index())
+def document_examples(path, result_dict={}):
+
+    py_file = path + ".py"
+    rst_file = path + ".rst"
+    print(">>> DOCUMENTING FOR", path, py_file, rst_file)
+
+    doc_contents = obtain_doc(py_file)
+    tab = " " * 3
+    with open(rst_file, "w") as f:
+        if isinstance(doc_contents.title, str):
+            f.write(f".. title:: {doc_contents.title}\n\n")
+        else:
+            title, level = doc_contents.title
+            f.write(f"{title}\n{level * len(title)}\n\n")
+
+        f.write(f".. toctree::\n")
+        if not isinstance(doc_contents.options, list):
+            doc_contents.options = [doc_contents.options]
+        for option in doc_contents.options:
+            f.write(f"{tab}{option}\n")
+        f.write("\n")
+        for entry in doc_contents.entries:
+            f.write(f"{tab}{entry}\n")
+
+    canonical_path = Path(path)
+    base_path = canonical_path.parent
+    print(base_path)
+    for entry in doc_contents.entries:
+        if isinstance(entry, str):
+            document_examples(str(base_path / entry), result_dict)
+        else:
+            if  entry.operator_ref is None:
+                continue
+            op_refs = [entry.operator_ref] if isinstance(entry.operator_ref, DocReference) else entry.operator_ref
+            for op_ref in op_refs:
+                if not op_ref in result_dict:
+                    result_dict[op_ref.operator] = []
+
+                result_dict[op_ref.operator].append((op_ref.docstring, str(base_path / entry.jupyter_name)))
+
+                print(f"Adding the reference for {op_ref.operator} := {result_dict[op_ref.operator][-1]}")
+    return result_dict
+
+
+
+# print(document_examples('examples/index'))

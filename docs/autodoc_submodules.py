@@ -57,7 +57,7 @@ def op_autodoc(out_filename):
     with open(out_filename, 'w') as f:
         f.write(s)
 
-def fn_autodoc(out_filename):
+def fn_autodoc(out_filename, references):
     s = ""
     for module in get_modules(fn_modules):
         dali_module = sys.modules[module]
@@ -73,13 +73,19 @@ def fn_autodoc(out_filename):
         # if module in exclude_fn_members:
         #     excluded = exclude_fn_members[module]
         #     s += "   :exclude-members: {}\n".format(", ".join(excluded))
-        examples = [("Name", "general/data_loading/external_input.html")]
+        fn_module = module[12:]
+        if fn_module in references:
+            s += "  See examples for this module:\n"
+            for reference in references[fn_module]:
+                s += "    * `{} <../examples/{}>`_\n".format(reference[0], reference[1])
         for fun in funs_in_module:
+            reference_key = fn_module + "." + fun
             s += ".. autofunction:: {}.{}\n".format(module, fun)
             s += "\n"
-            s += "  See also\n"
-            for example in examples:
-                s += "    * `{} <../examples/{}>`_\n".format(example[0], example[1])
+            if reference_key in references:
+                s += "  See also\n"
+                for reference in references[reference_key]:
+                    s += "    * `{} <../examples/{}>`_\n".format(reference[0], reference[1])
         s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)
