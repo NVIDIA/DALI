@@ -27,19 +27,31 @@ def large_sample_cb(sample_info):
 
 @with_setup(setup_function, teardown_function)
 def _test_large_sample(start_method):
+    batch_size = 2
 
     @pipeline_def
     def create_pipeline():
         large = fn.external_source(
             large_sample_cb, batch=False, parallel=True, prefetch_queue_depth=1)
-        return large
+        # iteration over array in Python is too slow, so reduce the number of elements to iterate over
+        reduced = fn.reductions.sum(large, axes=(1, 2))
+        return reduced
 
-    pipe = create_pipeline(batch_size=1, py_num_workers=2, py_start_method=start_method,
+    pipe = create_pipeline(batch_size=batch_size, py_num_workers=2, py_start_method=start_method,
                            prefetch_queue_depth=1, num_threads=2, device_id=0)
     pipe.build()
     capture_processes(pipe._py_pool)
-    for _ in range(8):
-        pipe.run()
+    for batch_idx in range(5):
+        (out,) = pipe.run()
+        for idx_in_batch in range(batch_size):
+            idx_in_epoch = batch_size * batch_idx + idx_in_batch
+            expected_val = idx_in_epoch * 1024 * 1024
+            a = np.array(out[idx_in_batch])
+            assert a.shape == (512,), "Expected shape (512,) but got {}".format(a.shape)
+            for val in a.flat:
+                assert val == expected_val, \
+                    "Unexpected value in batch: got {}, expected {}, for batch {}, sample {}".format(
+                        val, expected_val, batch_idx, idx_in_batch)
 
 
 def test_large_sample():

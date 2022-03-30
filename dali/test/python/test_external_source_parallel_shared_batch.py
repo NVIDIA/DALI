@@ -16,7 +16,7 @@
 import os
 import multiprocessing
 import socket
-from contextlib import closing
+from contextlib import closing, contextmanager
 import numpy as np
 
 from nvidia.dali._multiproc.shared_batch import BufShmChunk, SharedBatchWriter, SharedBatchMeta, deserialize_batch
@@ -66,6 +66,7 @@ def worker(start_method, sock, task_queue, res_queue, worker_cb, worker_params):
             break
 
 
+@contextmanager
 def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
     mp = multiprocessing.get_context(start_method)
     task_queue = ShmQueue(mp, capacity)
@@ -76,11 +77,18 @@ def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
         socket_r = None
     proc = mp.Process(target=worker, args=(start_method, socket_r, task_queue, res_queue, worker_cb, worker_params))
     proc.start()
-    if start_method == "spawn":
-        pid = os.getppid()
-        multiprocessing.reduction.send_handle(socket_w, task_queue.shm.handle, pid)
-        multiprocessing.reduction.send_handle(socket_w, res_queue.shm.handle, pid)
-    return proc, task_queue, res_queue
+    try:
+        if start_method == "spawn":
+            pid = os.getppid()
+            multiprocessing.reduction.send_handle(socket_w, task_queue.shm.handle, pid)
+            multiprocessing.reduction.send_handle(socket_w, res_queue.shm.handle, pid)
+        yield task_queue, res_queue
+    finally:
+        if not proc.exitcode:
+            res_queue.close()
+            task_queue.close()
+        proc.join()
+        assert proc.exitcode == 0
 
 
 def _put_msgs(queue, msgs, one_by_one):
@@ -115,8 +123,7 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
         nonlocal count
         count += 1
         return count
-    proc, task_queue, res_queue = setup_queue_and_worker(start_method, capacity, copy_callback, worker_params)
-    try:
+    with setup_queue_and_worker(start_method, capacity, copy_callback, worker_params) as (task_queue, res_queue):
         all_msgs = []
         received = 0
         for send_msg, recv_msg in zip(send_msgs, recv_msgs):
@@ -130,11 +137,6 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
                 recv_msg_values = recv_msg.get_values()
                 assert len(msg_values) == len(recv_msg_values)
                 assert all(msg_value == recv_msg_value for msg_value, recv_msg_value in zip(msg_values, recv_msg_values))
-    finally:
-        if not proc.exitcode:
-            task_queue.close()
-        proc.join()
-    assert proc.exitcode == 0
 
 
 def test_queue_recv():
@@ -149,9 +151,9 @@ def test_queue_recv():
 
 
 def _test_queue_large(start_method, msg_values):
-    proc, task_queue, res_queue = setup_queue_and_worker(
-        start_method, len(msg_values), copy_callback, {'num_samples': None})
-    try:
+    with setup_queue_and_worker(
+            start_method, len(msg_values), copy_callback,
+            {'num_samples': None}) as (task_queue, res_queue):
         msg_instances = [ShmMessageDesc(*values) for values in msg_values]
         _put_msgs(task_queue, msg_instances, False)
         for values in msg_values:
@@ -160,11 +162,6 @@ def _test_queue_large(start_method, msg_values):
             assert len(values) == len(recv_msg_values)
             assert all(msg_value == recv_msg_value for msg_value,
                     recv_msg_value in zip(values, recv_msg_values))
-    finally:
-        if not proc.exitcode:
-            task_queue.close()
-        proc.join()
-    assert proc.exitcode == 0
 
 
 def test_queue_large():
