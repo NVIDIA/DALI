@@ -13,6 +13,7 @@ test_nose() {
       test_external_source_parallel_garbage_collection_order.py \
       test_external_source_parallel_custom_serialization.py \
       test_pool.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py \
+      test_external_source_parallel_large_sample.py \
       | sed "/$FILTER_PATTERN/d"); do
         nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
