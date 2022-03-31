@@ -190,24 +190,20 @@ TEST(TransposeTiled, BuildDescVectorized) {
 }
 
 TEST(TransposeTiled, BuildDescAndForceMisalignment) {
-  TensorShape<> shape = { 57, 37, 53, 4 };  // a bunch of primes, just to make it harder
+  TensorShape<> shape = { 57, 37, 52, 4 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
-  vector<uint8> in_cpu(size), out_cpu(size);
-  vector<uint8> ref(size);
+  vector<uint8> in_cpu(size + 4), out_cpu(size + 4);
+  vector<uint8> ref(size + 4);
     
   DeviceBuffer<uint8> in_gpu, out_gpu;
-  in_gpu.resize(size);
-  out_gpu.resize(size);
+  in_gpu.resize(size + 4);
+  out_gpu.resize(size + 4);
     
   for(uintptr_t offset = 0; offset < 4; offset++)
   {
-    shape = { 57, 37, 53, 4 };
-    size = volume(shape);
     std::iota(in_cpu.begin(), in_cpu.end(), 0);
     CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
-    shape = { 57, 37, 52, 4 };
-    size = volume(shape);
-  
+    
     copyH2D(in_gpu.data() + offset, in_cpu.data(), size);
   
     SmallVector<int, 6> perm = { 1, 2, 0, 3 };
