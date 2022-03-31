@@ -171,13 +171,13 @@ class ConstSampleView : public SampleViewBase<Backend, const void *> {
       : Base(other._raw_data(), other.shape(), other.type()) {}
 
   ConstSampleView &operator=(const SampleView<Backend> &other) {
-    data_ = other.data();
+    data_ = other._raw_data();
     shape_ = other.shape();
     type_id_ = other.type();
     return *this;
   }
 
-  explicit ConstSampleView(SampleView<Backend> &&other) {
+  ConstSampleView(SampleView<Backend> &&other) {  // NOLINT
     *this = std::move(other);
   }
 

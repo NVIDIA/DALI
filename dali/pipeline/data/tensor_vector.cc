@@ -191,7 +191,7 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const TensorVector<
 template <typename Backend>
 void TensorVector<Backend>::SetupLike(const Tensor<Backend> &sample) {
   DALI_ENFORCE(!has_data(),
-               "Batch object can be initialized this way only when it doesn't have allocation.");
+               "Batch object can be initialized this way only when it isn't allocated.");
   set_type(sample.type());
   set_sample_dim(sample.shape().sample_dim());
   SetLayout(sample.GetLayout());
@@ -202,7 +202,7 @@ void TensorVector<Backend>::SetupLike(const Tensor<Backend> &sample) {
 template <typename Backend>
 void TensorVector<Backend>::SetupLike(const TensorVector<Backend> &other) {
   DALI_ENFORCE(!has_data(),
-               "Batch object can be initialized this way only when it doesn't have allocation.");
+               "Batch object can be initialized this way only when it isn't allocated.");
   set_type(other.type());
   set_sample_dim(other.shape().sample_dim());
   SetLayout(other.GetLayout());

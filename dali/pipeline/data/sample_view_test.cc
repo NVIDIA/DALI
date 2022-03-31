@@ -71,6 +71,10 @@ TEST(SampleView, Constructors) {
   nonconst_from_nonconst = from_ptr;
   compare(nonconst_from_nonconst, &data, {1, 2, 3}, DALI_INT32);
 
+  ConstSampleView<CPUBackend> const_from_nonconst_assgin;
+  const_from_nonconst_assgin = from_ptr;
+  compare(const_from_nonconst_assgin, &data, {1, 2, 3}, DALI_INT32);
+
   SampleView<CPUBackend> nonconst_from_moved_nonconst;
   nonconst_from_moved_nonconst = std::move(from_ptr);
   compare(nonconst_from_moved_nonconst, &data, {1, 2, 3}, DALI_INT32);
