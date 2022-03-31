@@ -14,7 +14,6 @@
 
 #include <gtest/gtest.h>
 #include <utility>
-
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/dltensor.h"
 #include "dali/pipeline/data/sample_view.h"
