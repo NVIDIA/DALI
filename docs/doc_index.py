@@ -3,8 +3,8 @@
 from pathlib import Path
 
 def _parse_entry(entry):
-    if isinstance(entry, str) and entry.endswith('ipynb'):
-        return example_entry(jupyter_name=entry)
+    if isinstance(entry, str) and (entry.endswith('ipynb') or entry.endswith('rst')):
+        return example_entry(name=entry)
     else:
         return entry
 class Doc:
@@ -15,8 +15,8 @@ class Doc:
         self.entries = [_parse_entry(entry) for entry in entries]
 
 class ExampleEntry:
-    def __init__(self, jupyter_name, operator_ref):
-        self.jupyter_name = jupyter_name
+    def __init__(self, name, operator_ref):
+        self.name = name
         if operator_ref is not None:
             if isinstance(operator_ref, list):
                 for elem in operator_ref:
@@ -28,7 +28,7 @@ class ExampleEntry:
         self.operator_ref = operator_ref
 
     def __str__(self):
-        return self.jupyter_name
+        return self.name
 
 class OpReference:
     def __init__(self, operator, docstring):
@@ -52,23 +52,30 @@ def doc(title, options, entries):
     entries : list[str or example_entry(...)]
         Toctree of subpages, can be either represented by regular strings or by
         `example_entry()` that allows to put the reference from operator to given notebook.
+
+        Entries come in three form:
+          * a path to index file (without an extension at the end), for example: "operations/index"
+            will expect to lead into `operations/index.py` file and process it recursively
+          * a path with extension to either .rst or .ipynb file - they will be inserted as is
+          * an example_entry()
+
     """
     global doc_return_value
     doc_return_value = Doc(title, options, entries)
 
 
-def example_entry(jupyter_name, operator_ref = None):
-    """Place given notebook in the toctree and optionally add a reference from operator documentation
-    to that notebook.
+def example_entry(name, operator_ref = None):
+    """Place given notebook or doc page in the toctree and optionally add a reference from operator
+    documentation to that notebook or page.
 
     Parameters
     ----------
-    jupyter_name : str
-        Name of jupyter notebook, another index file is not supported now.
+    name : str
+        Name of jupyter notebook or rst file, must contain proper extension.
     operator_ref : OpReference or List[OpReference], optional
         Optional reference, defined by `op_reference()` call, by default None
     """
-    return ExampleEntry(jupyter_name, operator_ref)
+    return ExampleEntry(name, operator_ref)
 
 
 def op_reference(operator, docstring):
@@ -135,7 +142,7 @@ def _document_examples(path, result_dict={}):
                     result_dict[op_ref.operator] = []
 
                 result_dict[op_ref.operator].append(
-                    (op_ref.docstring, str(base_path / entry.jupyter_name)[:-6] + ".html"))
+                    (op_ref.docstring, str(base_path / entry.name)[:-6] + ".html"))
 
     return result_dict
 
@@ -154,6 +161,3 @@ def document_examples(path):
         Mapping from fn.operator or fn.module to list of example references
     """
     return _document_examples(path)
-
-
-# print(document_examples('examples/index'))

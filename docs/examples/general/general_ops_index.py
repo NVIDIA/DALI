@@ -1,7 +1,7 @@
 doc(title=("General Purpose", "="),
     options=":maxdepth: 2",
     entries=[
-        "expressions/index",
+        "expressions/index.rst",
         example_entry("reductions.ipynb",
                       op_reference('fn.reductions', "Tutorial describing how to use reductions")),
         "tensor_join.ipynb",
