@@ -33,44 +33,44 @@
 
 namespace dali {
 
-  void DeserializeOpSpec(const dali_proto::OpDef& def, OpSpec* spec) {
-    std::string name = def.name();
+void DeserializeOpSpec(const dali_proto::OpDef& def, OpSpec* spec) {
+  std::string name = def.name();
 
-    // Due to the fact that External Source existed in DALI as two entities we need to have a place
-    // where we merge it back into one. "ExternalSource" special handling for serialization was
-    // removed so we can merge back _ExternalSource into it.
-    // We need to rename the spec that we construct at some point to not serialize it back
-    // with the doubled operator.
-    if (name == "_ExternalSource") {
-      name = "ExternalSource";
-    }
+  // Due to the fact that External Source existed in DALI as two entities we need to have a place
+  // where we merge it back into one. "ExternalSource" special handling for serialization was
+  // removed so we can merge back _ExternalSource into it.
+  // We need to rename the spec that we construct at some point to not serialize it back
+  // with the doubled operator.
+  if (name == "_ExternalSource") {
+    name = "ExternalSource";
+  }
 
-    spec->set_name(name);
+  spec->set_name(name);
 
-    // Extract all the arguments with correct types
-    for (auto &arg : def.args()) {
-      auto name = arg.name();
-      const DaliProtoPriv arg_wrap(&arg);
+  // Extract all the arguments with correct types
+  for (auto &arg : def.args()) {
+    auto name = arg.name();
+    const DaliProtoPriv arg_wrap(&arg);
 
-      spec->AddInitializedArg(name, DeserializeProtobuf(arg_wrap));
-    }
+    spec->AddInitializedArg(name, DeserializeProtobuf(arg_wrap));
+  }
 
-    for (int i = 0; i < def.input_size(); ++i) {
-      if (!def.input(i).is_argument_input()) {
-        spec->AddInput(def.input(i).name(), def.input(i).device());
-      }
-    }
-
-    for (int i = 0; i < def.input_size(); ++i) {
-      if (def.input(i).is_argument_input()) {
-        spec->AddArgumentInput(def.input(i).arg_name(), def.input(i).name());
-      }
-    }
-
-    for (int i = 0; i < def.output_size(); ++i) {
-      spec->AddOutput(def.output(i).name(), def.output(i).device());
+  for (int i = 0; i < def.input_size(); ++i) {
+    if (!def.input(i).is_argument_input()) {
+      spec->AddInput(def.input(i).name(), def.input(i).device());
     }
   }
+
+  for (int i = 0; i < def.input_size(); ++i) {
+    if (def.input(i).is_argument_input()) {
+      spec->AddArgumentInput(def.input(i).arg_name(), def.input(i).name());
+    }
+  }
+
+  for (int i = 0; i < def.output_size(); ++i) {
+    spec->AddOutput(def.output(i).name(), def.output(i).device());
+  }
+}
 
 
 Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
