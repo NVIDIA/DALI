@@ -1,8 +1,9 @@
 doc(title=("General Purpose", "="),
     options=":maxdepth: 2",
     entries=[
-        # "expressions/index",
-        example_entry("reductions.ipynb", op_reference('fn.reductions', "How to use reductions")),
+        "expressions/index",
+        example_entry("reductions.ipynb",
+                      op_reference('fn.reductions', "Tutorial describing how to use reductions")),
         "tensor_join.ipynb",
         "reinterpret.ipynb",
         "normalize.ipynb",

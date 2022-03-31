@@ -3,6 +3,6 @@ doc(title="Examples and Tutorials",
     entries=[
         "general/data_loading/index",
         "operations_index",
-        # "use_cases/index",
-        # "other_index",
+        "use_cases/index",
+        "other_index",
     ])

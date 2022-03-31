@@ -2,6 +2,7 @@ from nvidia.dali import backend as b
 import nvidia.dali.ops as ops
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba
+import inspect
 import sys
 
 from inspect import getmembers, isfunction
@@ -39,6 +40,20 @@ def get_modules(top_modules):
                 modules += [module]
     return sorted(modules)
 
+
+def get_functions(module):
+    """Get all function names (so DALI API operators) from given DALI module without private
+    or hidden members. No nested modules would be reported."""
+    result = []
+    # Take all public members of given module
+    public_members = list(filter(lambda x: not str(x).startswith("_"), dir(module)))
+    for member_name in public_members:
+        member = getattr(module, member_name)
+        # Just user-defined functions
+        if inspect.isfunction(member) and not member.__module__.endswith("hidden"):
+            result.append(member_name)
+    return result
+
 def op_autodoc(out_filename):
     s = ""
     for module in get_modules(ops_modules):
@@ -57,39 +72,45 @@ def op_autodoc(out_filename):
     with open(out_filename, 'w') as f:
         f.write(s)
 
+def get_module_references(module_name, references):
+    """Generate section with references for given module"""
+    module_name = module_name[12:] # remove nvidia.dali prefix
+    result = ""
+    if module_name in references:
+        result += ".. seealso::\n"
+        for desc, url in references[module_name]:
+            result += f"   * `{desc} </{url}>`_\n"
+    return result
+
+def get_operator_references(op_name, references):
+    """Generate section with references for given operator"""
+    op_name = op_name[12:] # remove nvidia.dali prefix
+    result = ""
+    if op_name in references:
+        result += ".. seealso::\n"
+        for desc, url in references[op_name]:
+            result += f"   * `{desc} </{url}>`_\n"
+    return result
+
+
 def fn_autodoc(out_filename, references):
     s = ""
     all_modules = get_modules(fn_modules)
-    print(all_modules)
     for module in all_modules:
         dali_module = sys.modules[module]
-        funs_in_module = list(filter(lambda x: not str(x).startswith("_"), dir(dali_module)))
-        funs_in_module = list(filter(lambda x: not module + "." + str(x) in all_modules, funs_in_module))
+        # Take all public members of given module
+        funs_in_module = get_functions(dali_module)
         s += module + "\n"
         s += "~" * len(module) + "\n"
         if module in mod_aditional_doc:
             s += mod_aditional_doc[module] + "\n" + "\n"
-        # s += ".. automodule:: {}\n".format(module)
-        # s += "   :members:\n"
-        # s += "   :undoc-members:\n"
-        # TODO excluded members:
-        # if module in exclude_fn_members:
-        #     excluded = exclude_fn_members[module]
-        #     s += "   :exclude-members: {}\n".format(", ".join(excluded))
-        fn_module = module[12:]
-        if fn_module in references:
-            s += "  See examples for this module:\n"
-            for reference in references[fn_module]:
-                s += "    * `{} <../examples/{}>`_\n".format(reference[0], reference[1])
-        # TODO: filter internal
+        s += get_module_references(module, references)
         for fun in funs_in_module:
-            reference_key = fn_module + "." + fun
-            s += ".. autofunction:: {}.{}\n".format(module, fun)
-            s += "\n"
-            if reference_key in references:
-                s += "  See also\n"
-                for reference in references[reference_key]:
-                    s += "    * `{} <../{}>`_\n".format(reference[0], reference[1])
+            full_name = f"{module}.{fun}"
+            if module in exclude_fn_members and fun in exclude_fn_members[module]:
+                continue
+            s += f".. autofunction:: {full_name}\n\n"
+            s += get_operator_references(full_name, references)
         s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)
