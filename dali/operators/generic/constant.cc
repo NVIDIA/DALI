@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ void FillTensorVector(
   assert(is_uniform(shape));
   int64_t n = shape[0].num_elements();
   assert(src.size() == static_cast<size_t>(n) || src.size() == 1);
-  Dst *out = dst[0].mutable_data<Dst>();
+  Dst *out = dst.mutable_tensor<Dst>(0);
   if (src.size() == 1) {
     Dst val = ConvertSat<Dst>(src[0]);
     for (int64_t i = 0; i < n; i++) {
@@ -92,7 +92,7 @@ void FillTensorVector(
     }
   }
   for (int i = 1; i < shape.num_samples(); i++) {
-    dst[i].ShareData(dst[0]);
+    dst.UnsafeSetSample(i, dst, 0);
   }
 }
 }  // namespace
@@ -116,7 +116,7 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
   out.Resize(output_shape_);
   int N = output_shape_.num_samples();
   for (int i = 0; i < N; i++) {
-    assert(out[i].raw_data() == output_[i].raw_data());
+    assert(out.raw_tensor(i) == output_.raw_tensor(i));
   }
   out.SetLayout(layout_);
 }

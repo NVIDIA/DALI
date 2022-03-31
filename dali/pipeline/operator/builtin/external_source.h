@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -253,9 +254,11 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                             AccessOrder order = {}, ExtSrcSettingMode ext_src_setting_mode = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
+    DALI_ENFORCE(vect_of_tensors.size() > 0, "Provided batch cannot be empty.");
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
+    tv.SetupLike(vect_of_tensors[0]);
     for (size_t i = 0; i < tv.num_samples(); ++i) {
-      tv[i].ShareData(const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
+      tv.UnsafeSetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }
     SetDataSourceHelper(tv, order, ext_src_setting_mode);
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -133,6 +133,19 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
  */
 DLL_PUBLIC void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
                                  int thread_idx);
+
+/**
+ * @brief Update the TensorVector properties based on the ones that were set in the individual
+ * samples during execution of the sample-wise operator.
+ *
+ * After running sample-wise operator we need to fix the Tensor Vector guarantees that were
+ * broken by the legacy operators operating just on samples.
+ *
+ * TODO(klecki): Introduce RAII wrapper for MakeSampleView and FixBatchPropertiesConsistency
+ * @param ws The workspace to update after executing samplewise operator
+ * @param contiguous If the operator infers outputs and thus uses contiguous allocations
+ */
+DLL_PUBLIC void FixBatchPropertiesConsistency(HostWorkspace& ws, bool contiguous);
 
 }  // namespace dali
 

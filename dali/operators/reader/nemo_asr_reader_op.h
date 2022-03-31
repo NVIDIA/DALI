@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample> {
   void RunImpl(SampleWorkspace &ws) override;
 
  private:
-  Tensor<CPUBackend>& GetDecodedAudioSample(int sample_idx);
+  ConstSampleView<CPUBackend> GetDecodedAudioSample(int sample_idx);
 
   bool read_sr_;
   bool read_text_;

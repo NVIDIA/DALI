@@ -14,20 +14,22 @@
 
 #include <string>
 
+#include "dali/core/backend_tags.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
+#include "dali/pipeline/data/backend.h"
 
 namespace dali {
 
-static void CopyHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input,
                        ThreadPool &thread_pool, int min_blk_sz, int req_nblocks) {
-  auto out_ptr = static_cast<uint8_t*>(output.raw_mutable_data());
-  auto in_ptr = static_cast<const uint8_t*>(input.raw_data());
-  auto nelements = volume(input.shape());
-  auto nbytes = input.nbytes();
+  auto *out_ptr = static_cast<uint8_t *>(output.raw_mutable_data());
+  const auto *in_ptr = static_cast<const uint8_t *>(input.raw_data());
+  auto nelements = input.shape().num_elements();
+  auto nbytes = nelements * TypeTable::GetTypeInfo(input.type()).size();
   if (nelements <= min_blk_sz) {
     thread_pool.AddWork([=](int tid) {
       std::memcpy(out_ptr, in_ptr, nbytes);
@@ -45,7 +47,7 @@ static void CopyHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &inp
   }
 }
 
-static void TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input) {
+static void TransposeHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input) {
   int n_dims = input.shape().sample_dim();
   SmallVector<int, 6> perm;
   perm.resize(n_dims);
@@ -56,7 +58,7 @@ static void TransposeHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend>
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
 }
 
-static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+static void SliceHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input,
                         const CropWindow &roi, float fill_value, ThreadPool &thread_pool,
                         int min_blk_sz, int req_nblocks) {
   int ndim = input.shape().sample_dim();
@@ -77,7 +79,7 @@ static void SliceHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &in
   ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 }
 
-static void SlicePermuteHelper(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input,
+static void SlicePermuteHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input,
                                const CropWindow &roi, float fill_value, ThreadPool &thread_pool,
                                int min_blk_sz, int req_nblocks) {
   const auto &in_shape = input.shape();
@@ -245,19 +247,20 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
     const auto& file_i = GetSample(i);
     const auto& file_sh = file_i.get_shape();
     int64_t sample_sz = volume(file_i.get_shape());
+    auto input_sample = const_sample_view(file_i.data);
     if (need_slice_[i] && need_transpose_[i]) {
-      SlicePermuteHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold,
+      SlicePermuteHelper(output[i], input_sample, rois_[i], fill_value_, thread_pool, kThreshold,
                          blocks_per_sample);
     } else if (need_slice_[i]) {
-      SliceHelper(output[i], file_i.data, rois_[i], fill_value_, thread_pool, kThreshold,
+      SliceHelper(output[i], input_sample, rois_[i], fill_value_, thread_pool, kThreshold,
                   blocks_per_sample);
     } else if (need_transpose_[i]) {
       // TODO(janton): Parallelize when Transpose supports tiling
-      thread_pool.AddWork([&, i](int tid) {
-        TransposeHelper(output[i], file_i.data);
+      thread_pool.AddWork([&, i, input_sample](int tid) {
+        TransposeHelper(output[i], input_sample);
       }, sample_sz * 8);  // 8 x (heuristic)
     } else {
-      CopyHelper(output[i], file_i.data, thread_pool, kThreshold, blocks_per_sample);
+      CopyHelper(output[i], input_sample, thread_pool, kThreshold, blocks_per_sample);
     }
   }
   thread_pool.RunAll();

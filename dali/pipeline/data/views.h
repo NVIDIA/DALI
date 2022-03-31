@@ -82,8 +82,6 @@ TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
 template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
 view(Tensor<Backend> &data) {
-  if (data.shape().empty())
-    return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
   return { data.template mutable_data<U>(), convert_dim<ndim>(data.shape()) };
@@ -96,8 +94,6 @@ view(const Tensor<Backend> &data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const Tensor<>`. "
                 "Missing `const` in T?");
-  if (data.shape().empty())
-    return {};
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
   return { data.template data<U>(), convert_dim<ndim>(data.shape()) };
@@ -107,17 +103,15 @@ view(const Tensor<Backend> &data) {
 /**
  * @name Convert from SampleView carrying runtime type information to statically typed TensorView.
  */
-// @{
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(SampleView<Backend> &data) {
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(SampleView<Backend> data) {
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
   return {data.template mutable_data<U>(), data.shape()};
 }
 
-
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(const SampleView<Backend> &data) {
+TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(ConstSampleView<Backend> data) {
   static_assert(std::is_const<T>::value,
                 "Cannot create a non-const view of a `const Tensor<>`. "
                 "Missing `const` in T?");
@@ -176,7 +170,7 @@ view(TensorVector<Backend> &data) {
 
   std::vector<T *> ptrs(shape.num_samples());
   for (int i = 0; i < shape.num_samples(); i++) {
-    ptrs[i] = data[i].template mutable_data<U>();
+    ptrs[i] = data.template mutable_tensor<U>(i);
   }
   return { std::move(ptrs), convert_dim<ndim>(shape) };
 }
@@ -196,7 +190,7 @@ view(const TensorVector<Backend> &data) {
 
   std::vector<T *> ptrs(shape.num_samples());
   for (int i = 0; i < shape.num_samples(); i++) {
-    ptrs[i] = data[i].template data<U>();
+    ptrs[i] = data.template tensor<U>(i);
   }
   return { std::move(ptrs), convert_dim<ndim>(shape) };
 }
@@ -214,7 +208,7 @@ reinterpret_view(TensorVector<Backend> &data) {
   assert(data.type_info().size() >= sizeof(T));
   assert(data.type_info().size() % sizeof(T) == 0);
   for (int i = 0; i < ret.shape.num_samples(); i++) {
-    ret.data[i] = static_cast<T*>(data[i].raw_mutable_data());
+    ret.data[i] = static_cast<T*>(data.raw_mutable_tensor(i));
   }
   // If reinterpreting to a smaller type, adjust the inner extent
   if (data.type_info().size() > sizeof(T)) {
@@ -243,7 +237,7 @@ reinterpret_view(const TensorVector<Backend> &data) {
   assert(data.type_info().size() >= sizeof(T));
   assert(data.type_info().size() % sizeof(T) == 0);
   for (int i = 0; i < ret.shape.num_samples(); i++) {
-    ret.data[i] = static_cast<T*>(data[i].raw_data());
+    ret.data[i] = static_cast<T*>(data.raw_tensor(i));
   }
   // If reinterpreting to a smaller type, adjust the inner extent
   if (data.type_info().size() > sizeof(T)) {
@@ -254,6 +248,20 @@ reinterpret_view(const TensorVector<Backend> &data) {
     }
   }
   return ret;
+}
+
+
+template <typename Backend>
+SampleView<Backend>
+sample_view(Tensor<Backend> &data) {
+  return { data.raw_mutable_data(), data.shape(), data.type() };
+}
+
+
+template <typename Backend>
+ConstSampleView<Backend>
+const_sample_view(const Tensor<Backend> &data) {
+  return { data.raw_data(), data.shape(), data.type() };
 }
 
 }  // namespace dali

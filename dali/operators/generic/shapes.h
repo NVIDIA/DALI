@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ class Shapes : public Operator<Backend> {
     int n = out.num_samples();
     assert(n == shape.num_samples());
     for (int i = 0; i < n; i++) {
-      type *data = out[i].mutable_data<type>();
+      type *data = out.mutable_tensor<type>(i);
       auto sample_shape = shape.tensor_shape_span(i);
       for (int j = 0; j < shape.sample_dim(); j++)
         data[j] = sample_shape[j];

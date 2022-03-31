@@ -147,7 +147,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void RunGPUImpl();
   DLL_PUBLIC void SyncDevice();
 
-  template<typename T>
+  template <typename T>
   inline void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
     auto out_size = in.nbytes();
     auto reserved_size = in.capacity();
@@ -156,11 +156,17 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
                                          max_reserved_size);
   }
 
-  template<typename T>
+  template <typename T>
   inline void GetMaxSizesNonCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
-    for (size_t j = 0; j < in.num_samples(); ++j) {
-      max_out_size = std::max(in[j].nbytes(), max_out_size);
-      max_reserved_size = std::max(in[j].capacity(), max_reserved_size);
+    const auto &nbytes = in._chunks_nbytes();
+    const auto &capacity = in._chunks_capacity();
+    max_out_size = 0;
+    max_reserved_size = 0;
+    for (auto &elem : nbytes) {
+      max_out_size = std::max(max_out_size, elem);
+    }
+    for (auto &elem : capacity) {
+      max_reserved_size = std::max(max_reserved_size, elem);
     }
   }
 

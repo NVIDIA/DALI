@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -155,11 +155,11 @@ TEST(MTTransformAttr, MInputTInput) {
   Minp->Resize(Mtls, DALI_FLOAT);
   Tinp->Resize(Ttls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
-    float *data = (*Minp)[i].mutable_data<float>();
+    float *data = Minp->mutable_tensor<float>(i);
     for (int j = 0; j < volume(Mtls[i]); j++)
       data[j] = 1 + j + i * 10;
 
-    data = (*Tinp)[i].mutable_data<float>();
+    data = Tinp->mutable_tensor<float>(i);
     for (int j = 0; j < volume(Ttls[i]); j++)
       data[j] = 10 + j * 10  + i * 100;
   }
@@ -198,9 +198,9 @@ TEST(MTTransformAttr, MScalarInputTScalarInput) {
   Minp->Resize(tls, DALI_FLOAT);
   Tinp->Resize(tls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
-    float *data = (*Minp)[i].mutable_data<float>();
+    float *data = Minp->mutable_tensor<float>(i);
     data[0] = i + 10;
-    data = (*Tinp)[i].mutable_data<float>();
+    data = Tinp->mutable_tensor<float>(i);
     data[0] = i + 100;
   }
 
@@ -233,7 +233,7 @@ TEST(MTTransformAttr, MTInput) {
   int N = tls.num_samples();;
   MTinp->Resize(tls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
-    auto *data = (*MTinp)[i].mutable_data<float>();
+    auto *data = MTinp->mutable_tensor<float>(i);
     for (int j = 0; j < volume(tls[i]); j++)
       data[j] = 1 + j + i * 10;
   }
@@ -342,7 +342,7 @@ TEST(MTTransformAttr, MTInput_ErrorSize) {
   int N = tls.num_samples();;
   MTinp->Resize(tls, DALI_FLOAT);
   for (int i = 0; i < N; i++) {
-    auto *data = (*MTinp)[i].mutable_data<float>();
+    auto *data = MTinp->mutable_tensor<float>(i);
     for (int j = 0; j < volume(tls[i]); j++)
       data[j] = 1 + j + i * 10;
   }

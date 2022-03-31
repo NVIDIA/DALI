@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -494,7 +494,7 @@ inline T OpSpec::GetArgumentImpl(
     DALI_ENFORCE(IsType<T>(value.type()), make_string(
         "Unexpected type of argument \"", name, "\". Expected ",
         TypeTable::GetTypeName<T>(), " and got ", value.type()));
-    return static_cast<T>(value[idx].data<T>()[0]);
+    return static_cast<T>(value.tensor<T>(idx)[0]);
   }
   // Search for the argument locally
   auto arg_it = arguments_.find(name);
@@ -524,7 +524,7 @@ inline bool OpSpec::TryGetArgumentImpl(
     }
     if (!IsType<T>(value.type()))
       return false;
-    result = value[idx].data<T>()[0];
+    result = value.tensor<T>(idx)[0];
     return true;
   }
   // Search for the argument locally

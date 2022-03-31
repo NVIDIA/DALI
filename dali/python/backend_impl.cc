@@ -613,6 +613,9 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
+      if (i == 0) {
+        tv.SetupLike(t);
+      }
       DALIDataType cur_type = t.type();
 
       if (expected_type == -2) {
@@ -622,8 +625,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             "Tensors cannot have different data types. Tensor at position ", i, " has type '",
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
-
-      tv[i].ShareData(t);
+      tv.UnsafeSetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -1269,7 +1271,14 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
-    tv[i] = std::move(t);
+    // TODO(klecki): evaluate if we want to keep such code - we need to be able to set
+    // order, pinned, type, dimensionality and layout every time if we don't want
+    // SetSample to do that.
+    if (i == 0) {
+      tv.SetupLike(t);
+    }
+    tv.UnsafeSetSample(i, t);
+    // TODO(klecki): tv[i] = std::move(t);
   }
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }

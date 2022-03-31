@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ namespace tensor_property {
 namespace detail {
 
 inline const DALIMeta& GetMeta(const TensorVector<CPUBackend>& batch, int tensor_idx) {
-  return batch[tensor_idx].GetMeta();
+  return batch.GetMeta(tensor_idx);
 }
 
 inline const DALIMeta& GetMeta(const TensorList<GPUBackend>& batch, int tensor_idx) {

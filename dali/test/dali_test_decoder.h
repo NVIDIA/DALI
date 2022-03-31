@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,8 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     // single input - encoded images
     // single output - decoded images
 
-     TensorVector<CPUBackend> out(inputs[0]->num_samples());
+    TensorVector<CPUBackend> out(inputs[0]->num_samples());
+    std::vector<Tensor<CPUBackend>> tmp_out(inputs[0]->num_samples());
 
     const TensorList<CPUBackend> &encoded_data = *inputs[0];
 
@@ -41,7 +42,12 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = volume(encoded_data.tensor_shape(i));
 
-      this->DecodeImage(data, data_size, c, this->ImageType(), &out[i]);
+      this->DecodeImage(data, data_size, c, this->ImageType(), &tmp_out[i]);
+    }
+
+    out.SetupLike(tmp_out[0]);
+    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
+      out.UnsafeSetSample(i, tmp_out[i]);
     }
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;

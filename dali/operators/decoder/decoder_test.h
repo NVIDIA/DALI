@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test_decoder.h"
 
 namespace dali {
@@ -64,6 +65,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     // single input - encoded images
     // single output - decoded images
     TensorVector<CPUBackend> out(inputs[0]->num_samples());
+    std::vector<Tensor<CPUBackend>> tmp_out(inputs[0]->num_samples());
     const TensorList<CPUBackend> &encoded_data = *inputs[0];
     const int c = this->GetNumColorComp();
 
@@ -72,7 +74,17 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
       auto data_size = volume(encoded_data.tensor_shape(i));
       this->DecodeImage(
         data, data_size, c, this->ImageType(),
-        &out[i], GetCropWindowGenerator(i));
+        &tmp_out[i], GetCropWindowGenerator(i));
+    }
+
+    TensorListShape<> out_shape(inputs[0]->num_samples(), 3);
+    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
+      out_shape.set_tensor_shape(i, tmp_out[i].shape());
+    }
+    out.SetupLike(tmp_out[0]);
+    out.Resize(out_shape, DALI_UINT8);
+    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
+      out.UnsafeSetSample(i, tmp_out[i]);
     }
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;

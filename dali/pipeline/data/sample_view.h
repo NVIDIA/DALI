@@ -33,8 +33,8 @@ namespace dali {
  * convenient `view<T, ndim>(SampleView)` conversion to TensorView, but doesn't break the batch
  * object encapsulation and doesn't allow to adjust the allocation.
  */
-template <typename Backend>
-class SampleView {
+template <typename Backend, typename ptr_t>
+class SampleViewBase {
  public:
   /**
    * @name Get the underlying pointer to data
@@ -43,7 +43,8 @@ class SampleView {
   /**
    * @brief Return an un-typed pointer to the underlying storage.
    */
-  void *raw_mutable_data() {
+  template <typename ptr_t_ = ptr_t>
+  std::enable_if_t<std::is_same<ptr_t_, void *>::value, void *> raw_mutable_data() {
     return data_;
   }
 
@@ -58,8 +59,8 @@ class SampleView {
    * @brief Returns a typed pointer to the underlying storage.
    * The calling type must match the underlying type of the buffer.
    */
-  template <typename T>
-  inline T *mutable_data() {
+  template <typename T, typename ptr_t_ = ptr_t>
+  inline std::enable_if_t<std::is_same<ptr_t_, void *>::value, T *> mutable_data() {
     DALI_ENFORCE(
         type() == TypeTable::GetTypeId<T>(),
         make_string(
@@ -81,7 +82,7 @@ class SampleView {
             "Calling type does not match buffer data type, requested type: ",
             TypeTable::GetTypeId<T>(), " current buffer type: ", type(),
             ". To set type for the Buffer use 'set_type<T>()' or Resize(shape, type) first."));
-    return static_cast<T *>(data_);
+    return static_cast<const T *>(data_);
   }
   //@}
 
@@ -100,16 +101,16 @@ class SampleView {
   }
 
 
-  SampleView() = default;
+  SampleViewBase() = default;
 
-  SampleView(const SampleView &) = default;
-  SampleView &operator=(const SampleView &) = default;
+  SampleViewBase(const SampleViewBase &) = default;
+  SampleViewBase &operator=(const SampleViewBase &) = default;
 
-  SampleView(SampleView &&other) {
+  SampleViewBase(SampleViewBase &&other) {
     *this = std::move(other);
   }
 
-  SampleView &operator=(SampleView &&other) {
+  SampleViewBase &operator=(SampleViewBase &&other) {
     if (this != &other) {
       data_ = other.data_;
       other.data_ = nullptr;
@@ -125,23 +126,79 @@ class SampleView {
    * @brief Construct the view inferring the type_id from the pointer value.
    */
   template <typename T>
-  SampleView(T *data, TensorShape<> shape)
-      : data_(data), shape_(std::move(shape)), type_id_(TypeTable::GetTypeId<T>()) {}
+  SampleViewBase(T *data, TensorShape<> shape)
+      : data_(data),
+        shape_(std::move(shape)),
+        type_id_(TypeTable::GetTypeId<std::remove_const_t<T>>()) {}
 
   /**
    * @brief Construct the view with explicitly provided type_id.
    */
-  SampleView(void *data, const TensorShape<> shape, DALIDataType type_id)
+  SampleViewBase(ptr_t data, const TensorShape<> shape, DALIDataType type_id)
       : data_(data), shape_(std::move(shape)), type_id_(type_id) {}
 
- private:
+ protected:
   // TODO(klecki): The view is introduced with no co-owning pointer, it will be evaluated
   // if the usage of shared_ptr is possbile and adjusted if necessary.
   // Using shared_ptr might allow for sample exchange between two batches using operator[]
-  void *data_ = nullptr;
+  ptr_t data_ = nullptr;
   TensorShape<> shape_ = {0};
   DALIDataType type_id_ = DALI_NO_TYPE;
+  ~SampleViewBase() = default;
 };
+
+
+template <typename Backend>
+class SampleView : public SampleViewBase<Backend, void *> {
+ public:
+  using Base = SampleViewBase<Backend, void *>;
+  using Base::Base;
+
+ private:
+  using Base::data_;
+  using Base::shape_;
+  using Base::type_id_;
+};
+
+
+template <typename Backend>
+class ConstSampleView : public SampleViewBase<Backend, const void *> {
+ public:
+  using Base = SampleViewBase<Backend, const void *>;
+  using Base::Base;
+
+  ConstSampleView(const SampleView<Backend> &other)  // NOLINT
+      : Base(other.raw_data(), other.shape(), other.type()) {}
+
+  ConstSampleView &operator=(const SampleView<Backend> &other) {
+    data_ = other.raw_data();
+    shape_ = other.shape();
+    type_id_ = other.type();
+    return *this;
+  }
+
+  ConstSampleView(SampleView<Backend> &&other) {  // NOLINT
+    *this = std::move(other);
+  }
+
+  ConstSampleView &operator=(SampleView<Backend> &&other) {
+    if (this != &other) {
+      data_ = other.data_;
+      other.data_ = nullptr;
+      shape_ = std::move(other.shape_);
+      other.shape_ = {0};
+      type_id_ = other.type_id_;
+      other.type_id_ = DALI_NO_TYPE;
+    }
+    return *this;
+  }
+
+ private:
+  using Base::data_;
+  using Base::shape_;
+  using Base::type_id_;
+};
+
 
 }  // namespace dali
 
