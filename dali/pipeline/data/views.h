@@ -107,7 +107,7 @@ template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(SampleView<Backend> data) {
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return {data.template _mutable_data<U>(), data.shape()};
+  return {data.template mutable_data<U>(), data.shape()};
 }
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
@@ -117,7 +117,7 @@ TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(ConstSampleView<Bac
                 "Missing `const` in T?");
   using U = std::remove_const_t<T>;
   detail::enforce_dim_in_view<ndim>(data.shape());
-  return {data.template _data<U>(), data.shape()};
+  return {data.template data<U>(), data.shape()};
 }
 // @}
 

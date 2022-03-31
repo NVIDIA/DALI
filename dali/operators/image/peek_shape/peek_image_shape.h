@@ -83,7 +83,7 @@ class PeekImageShape : public Operator<CPUBackend> {
       thread_pool.AddWork([sample_id, &input, &output, this] (int tid) {
         const auto& image = input[sample_id];
         auto img =
-            ImageFactory::CreateImage(image._data<uint8>(), image.shape().num_elements(), {});
+            ImageFactory::CreateImage(image.data<uint8>(), image.shape().num_elements(), {});
         auto shape = img->PeekShape();
         TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
