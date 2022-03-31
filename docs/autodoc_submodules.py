@@ -66,7 +66,7 @@ def single_fun_file(fn_name):
 
 
 def fn_autodoc(out_filename, references):
-    all_modules_str = ".. toctree::\n\n"
+    all_modules_str = ".. toctree::\n   :hidden:\n\n"
 
     all_modules = get_modules(fn_modules)
     print(all_modules)
@@ -109,7 +109,7 @@ def fn_autodoc(out_filename, references):
             if reference_key in references:
                 function_file += ".. seealso::\n"
                 for reference in references[reference_key]:
-                    function_file += "    * `{} <../{}>`_\n".format(reference[0], reference[1])
+                    function_file += "    * `{} </{}>`_\n".format(reference[0], reference[1])
             with open(full_name + ".rst", "w") as f:
                 f.write(function_file)
 
