@@ -188,21 +188,6 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const TensorVector<
 }
 
 template <typename Backend>
-void TensorVector<Backend>::SetupLike(const Tensor<Backend> &sample) {
-  SetupLikeImpl(sample);
-}
-
-template <typename Backend>
-void TensorVector<Backend>::SetupLike(const TensorVector<Backend> &other) {
-  SetupLikeImpl(other);
-}
-
-template <typename Backend>
-void TensorVector<Backend>::SetupLike(const TensorList<Backend> &other) {
-  SetupLikeImpl(other);
-}
-
-template <typename Backend>
 void TensorVector<Backend>::set_sample_dim(int sample_dim) {
   DALI_ENFORCE(
       !has_data(),

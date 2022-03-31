@@ -235,9 +235,17 @@ class DLL_PUBLIC TensorVector {
    * Configures: type, layout, pinned, order and dimensionality.
    */
   // @{
-  void SetupLike(const Tensor<Backend> &sample);
-  void SetupLike(const TensorVector<Backend> &other);
-  void SetupLike(const TensorList<Backend> &other);
+  void SetupLike(const Tensor<Backend> &sample) {
+    SetupLikeImpl(sample);
+  }
+
+  void SetupLike(const TensorVector<Backend> &other) {
+    SetupLikeImpl(other);
+  }
+
+  void SetupLike(const TensorList<Backend> &other) {
+    SetupLikeImpl(other);
+  }
   // @}
 
   void set_type(DALIDataType new_type);
