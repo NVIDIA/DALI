@@ -102,6 +102,7 @@ void NumpyReaderGPU::Prefetch() {
                                kGDSChunkGranularity);
   chunk_size = std::min(chunk_size, curr_tensor_list.nbytes());
 
+
   // read the data
   for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
