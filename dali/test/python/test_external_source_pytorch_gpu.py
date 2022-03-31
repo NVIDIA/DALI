@@ -1,4 +1,4 @@
-# Copyright (c) 2020, 2022, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import torch
 from test_utils import check_output
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
+from nose.plugins.attrib import attr
 
 def test_external_source_callback_torch_stream():
     with torch.cuda.stream(torch.cuda.Stream()):
@@ -65,6 +66,7 @@ def _test_cross_device(src, dst):
         out, = pipe.run()
         assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1,2,3,4],[5,6,7,8]]) + i)
 
+@attr('multigpu')
 def test_cross_device():
     if torch.cuda.device_count() > 1:
         for src in [0,1]:

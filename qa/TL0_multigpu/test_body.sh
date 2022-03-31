@@ -1,15 +1,17 @@
 #!/bin/bash -e
-# used pip packages
-pip_packages="nose numpy>=1.17 numba scipy librosa==0.8.1"
 
-target_dir=./dali/test/python
+test_nose() {
+  # placeholder function
+  :
+}
 
-test_body() {
-  # CPU only test, remove CUDA from the search path just in case
-  export LD_LIBRARY_PATH=""
-  export PATH=${PATH/cuda/}
+test_py() {
+  # placeholder function
+  :
+}
 
-  for BINNAME in \
+test_gtest() {
+    for BINNAME in \
     "dali_core_test.bin" \
     "dali_kernel_test.bin" \
     "dali_test.bin" \
@@ -30,12 +32,25 @@ test_body() {
         exit 1
     fi
 
-    "$FULLPATH" --gtest_filter="*CpuOnly*:*CApi*/0.*-*0.UseCopyKernel:*ForceNoCopyFail:*daliOutputCopySamples"
+    "$FULLPATH" --gtest_filter="*MultiDevice*"
   done
-
-  nosetests --verbose --attr '!pytorch' test_dali_cpu_only.py
 }
 
-pushd ../..
-source ./qa/test_template.sh
-popd
+test_cupy() {
+    nosetests --verbose --attr 'multigpu' test_external_source_cupy.py
+}
+
+test_pytorch() {
+    nosetests --verbose --attr 'multigpu' test_external_source_pytorch_gpu.py
+}
+
+test_no_fw() {
+    test_nose
+    test_py
+    test_gtest
+}
+
+run_all() {
+  test_no_fw
+  test_pytorch
+}
