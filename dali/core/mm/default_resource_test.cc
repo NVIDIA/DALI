@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -281,7 +281,7 @@ TEST(MMDefaultResource, SetResource_Current) {
   SetDefaultDeviceResource(-1, nullptr);
 }
 
-TEST(MMDefaultResource, GetResource_Device_RangeCheck) {
+TEST(MMDefaultResource, GetResource_Device_RangeCheck_MultiDevice) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   EXPECT_NO_THROW(GetDefaultDeviceResource(-1));

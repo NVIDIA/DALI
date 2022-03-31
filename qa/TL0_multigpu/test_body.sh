@@ -32,7 +32,7 @@ test_gtest() {
         exit 1
     fi
 
-    "$FULLPATH" --gtest_filter="*MultiDevice*:*SyncCrossDevice*:*FreeOnAnotherDevice*:*GetResource_Device_RangeCheck*"
+    "$FULLPATH" --gtest_filter="*MultiDevice*"
   done
 }
 
