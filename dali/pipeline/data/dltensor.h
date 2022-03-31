@@ -51,7 +51,7 @@ DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
 
 template <typename Backend>
 DLMTensorPtr GetDLTensorView(SampleView<Backend> tensor, int device_id) {
-  return MakeDLTensor(tensor._raw_mutable_data(),
+  return MakeDLTensor(tensor.raw_mutable_data(),
                       tensor.type(),
                       std::is_same<Backend, GPUBackend>::value,
                       device_id,

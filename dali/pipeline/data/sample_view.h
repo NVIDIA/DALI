@@ -44,14 +44,14 @@ class SampleViewBase {
    * @brief Return an un-typed pointer to the underlying storage.
    */
   template <typename ptr_t_ = ptr_t>
-  std::enable_if_t<std::is_same<ptr_t_, void *>::value, void *> _raw_mutable_data() {
+  std::enable_if_t<std::is_same<ptr_t_, void *>::value, void *> raw_mutable_data() {
     return data_;
   }
 
   /**
    * @brief Return a const, un-typed pointer to the underlying storage.
    */
-  const void *_raw_data() const {
+  const void *raw_data() const {
     return data_;
   }
 
@@ -60,7 +60,7 @@ class SampleViewBase {
    * The calling type must match the underlying type of the buffer.
    */
   template <typename T, typename ptr_t_ = ptr_t>
-  inline std::enable_if_t<std::is_same<ptr_t_, void *>::value, T *> _mutable_data() {
+  inline std::enable_if_t<std::is_same<ptr_t_, void *>::value, T *> mutable_data() {
     DALI_ENFORCE(
         type() == TypeTable::GetTypeId<T>(),
         make_string(
@@ -75,7 +75,7 @@ class SampleViewBase {
    * The calling type must match the underlying type of the buffer.
    */
   template <typename T>
-  inline const T *_data() const {
+  inline const T *data() const {
     DALI_ENFORCE(
         type() == TypeTable::GetTypeId<T>(),
         make_string(
@@ -168,10 +168,10 @@ class ConstSampleView : public SampleViewBase<Backend, const void *> {
   using Base::Base;
 
   ConstSampleView(const SampleView<Backend> &other)  // NOLINT
-      : Base(other._raw_data(), other.shape(), other.type()) {}
+      : Base(other.raw_data(), other.shape(), other.type()) {}
 
   ConstSampleView &operator=(const SampleView<Backend> &other) {
-    data_ = other._raw_data();
+    data_ = other.raw_data();
     shape_ = other.shape();
     type_id_ = other.type();
     return *this;

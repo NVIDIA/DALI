@@ -198,7 +198,7 @@ void NemoAsrReader::RunImpl(SampleWorkspace &ws) {
   auto &audio = ws.Output<CPUBackend>(0);
   audio.Resize(sample_audio.shape(), sample_audio.type());
   std::memcpy(
-      audio.raw_mutable_data(), sample_audio._raw_data(),
+      audio.raw_mutable_data(), sample_audio.raw_data(),
       sample_audio.shape().num_elements() * TypeTable::GetTypeInfo(sample_audio.type()).size());
 
   DALIMeta meta;

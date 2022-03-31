@@ -145,7 +145,7 @@ class DLL_PUBLIC TensorList {
     sizes.reserve(nsamples);
     for (size_t i = 0; i < nsamples; i++) {
       dsts.emplace_back(this->raw_mutable_tensor(i));
-      srcs.emplace_back(other[i]._raw_data());
+      srcs.emplace_back(other[i].raw_data());
       sizes.emplace_back(other[i].shape().num_elements());
       this->meta_[i] = other.GetMeta(i);
     }

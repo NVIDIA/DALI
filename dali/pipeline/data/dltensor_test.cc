@@ -31,7 +31,7 @@ TEST(DLMTensorPtr, CPU) {
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[2], 3);
-  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv._raw_data());
+  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv.raw_data());
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLFloat);
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(float) * 8);
   ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCPU);
@@ -47,7 +47,7 @@ TEST(DLMTensorPtr, GPU) {
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[0], 100);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[1], 50);
   ASSERT_EQ(dlm_tensor->dl_tensor.shape[2], 1);
-  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv._raw_data());
+  ASSERT_EQ(dlm_tensor->dl_tensor.data, sv.raw_data());
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.code, kDLInt);
   ASSERT_EQ(dlm_tensor->dl_tensor.dtype.bits, sizeof(int) * 8);
   ASSERT_EQ(dlm_tensor->dl_tensor.device.device_type, kDLCUDA);

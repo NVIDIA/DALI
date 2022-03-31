@@ -26,8 +26,8 @@ namespace dali {
 
 static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input,
                        ThreadPool &thread_pool, int min_blk_sz, int req_nblocks) {
-  auto *out_ptr = static_cast<uint8_t *>(output._raw_mutable_data());
-  const auto *in_ptr = static_cast<const uint8_t *>(input._raw_data());
+  auto *out_ptr = static_cast<uint8_t *>(output.raw_mutable_data());
+  const auto *in_ptr = static_cast<const uint8_t *>(input.raw_data());
   auto nelements = input.shape().num_elements();
   auto nbytes = nelements * TypeTable::GetTypeInfo(input.type()).size();
   if (nelements <= min_blk_sz) {

@@ -29,7 +29,7 @@ namespace dali {
 template <typename SampleView>
 void compare(const SampleView &sv, const void *ptr, const TensorShape<> &shape,
              DALIDataType dtype) {
-  EXPECT_EQ(sv._raw_data(), ptr);
+  EXPECT_EQ(sv.raw_data(), ptr);
   EXPECT_EQ(sv.shape(), shape);
   EXPECT_EQ(sv.type(), dtype);
 }
