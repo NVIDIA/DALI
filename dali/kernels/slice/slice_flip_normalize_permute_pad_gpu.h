@@ -104,8 +104,8 @@ class SliceFlipNormalizePermutePadGpu {
 
     int blocks_per_sm_;
     CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_,
-      detail::SliceFlipNormalizePermutePadKernel<false, false, false, OutputType, InputType, Dims>, 
-      kBlockDim, 
+      detail::SliceFlipNormalizePermutePadKernel<false, false, false, OutputType, InputType, Dims>,
+      kBlockDim,
       0));
 
     block_count_ = 0;
@@ -122,7 +122,7 @@ class SliceFlipNormalizePermutePadGpu {
     }
     kBlockSize = div_ceil(all_sample_sizes, block_count_);
     block_count_ = std::ceil(all_sample_sizes / static_cast<float>(kBlockSize));
-    
+
     se.add<mm::memory_kind::pinned, detail::BlockDesc>(block_count_);
     se.add<mm::memory_kind::device, detail::BlockDesc>(block_count_);
     req.scratch_sizes = se.sizes;
@@ -177,7 +177,7 @@ class SliceFlipNormalizePermutePadGpu {
     }
     OutputType *fill_values_gpu;
     std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = context.scratchpad->ToContiguousGPU(
-      context.gpu.stream, 
+      context.gpu.stream,
       make_span(norm_add_cpu, num_samples * norm_args_size_),
       make_span(norm_mul_cpu, num_samples * norm_args_size_),
       make_span(fill_values_cpu, num_samples * nfill_values_));
