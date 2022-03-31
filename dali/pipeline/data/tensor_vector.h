@@ -110,9 +110,17 @@ class DLL_PUBLIC TensorVector {
 
   size_t capacity() const noexcept;
 
-  std::vector<size_t> chunks_nbytes() const noexcept;
+  /**
+   * @brief Returns the size in bytes of the underlying data chunks
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_nbytes() const noexcept;
 
-  std::vector<size_t> chunks_capacity() const noexcept;
+  /**
+   * @brief Returns the real size of the underlying allocations
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_capacity() const noexcept;
 
   TensorListShape<> shape() const;
 
@@ -221,14 +229,16 @@ class DLL_PUBLIC TensorVector {
   void SetSize(int new_size);
 
   /**
-   * @brief Setup all the batch properties of this TensorVector the same way as the provided tensor:
+   * @name Setup all the batch properties of this TensorVector the same way as the provided tensor:
    *
    * Precondition: the TensorVector should not have data.
    * Configures: type, layout, pinned, order and dimensionality.
    */
+  // @{
   void SetupLike(const Tensor<Backend> &sample);
-
   void SetupLike(const TensorVector<Backend> &other);
+  void SetupLike(const TensorList<Backend> &other);
+  // @}
 
   void set_type(DALIDataType new_type);
 
@@ -313,6 +323,17 @@ class DLL_PUBLIC TensorVector {
 
   auto tensor_handle(size_t pos) const {
     return tensors_[pos];
+  }
+
+  template <typename T>
+  void SetupLikeImpl(const T &other) {
+    DALI_ENFORCE(!has_data(),
+                "Batch object can be initialized this way only when it isn't allocated.");
+    set_type(other.type());
+    set_sample_dim(other.shape().sample_dim());
+    SetLayout(other.GetLayout());
+    set_order(other.order());
+    set_pinned(other.is_pinned());
   }
 
   /**

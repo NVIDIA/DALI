@@ -187,27 +187,19 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const TensorVector<
   tensors_[sample_idx]->Copy(*src.tensors_[src_sample_idx], order);
 }
 
-
 template <typename Backend>
 void TensorVector<Backend>::SetupLike(const Tensor<Backend> &sample) {
-  DALI_ENFORCE(!has_data(),
-               "Batch object can be initialized this way only when it isn't allocated.");
-  set_type(sample.type());
-  set_sample_dim(sample.shape().sample_dim());
-  SetLayout(sample.GetLayout());
-  set_order(sample.order());
-  set_pinned(sample.is_pinned());
+  SetupLikeImpl(sample);
 }
 
 template <typename Backend>
 void TensorVector<Backend>::SetupLike(const TensorVector<Backend> &other) {
-  DALI_ENFORCE(!has_data(),
-               "Batch object can be initialized this way only when it isn't allocated.");
-  set_type(other.type());
-  set_sample_dim(other.shape().sample_dim());
-  SetLayout(other.GetLayout());
-  set_order(other.order());
-  set_pinned(other.is_pinned());
+  SetupLikeImpl(other);
+}
+
+template <typename Backend>
+void TensorVector<Backend>::SetupLike(const TensorList<Backend> &other) {
+  SetupLikeImpl(other);
 }
 
 template <typename Backend>
@@ -246,7 +238,7 @@ size_t TensorVector<Backend>::capacity() const noexcept {
 }
 
 template <typename Backend>
-std::vector<size_t> TensorVector<Backend>::chunks_nbytes() const noexcept {
+std::vector<size_t> TensorVector<Backend>::_chunks_nbytes() const noexcept {
   if (state_ == State::contiguous) {
     return {tl_->nbytes()};
   }
@@ -260,7 +252,7 @@ std::vector<size_t> TensorVector<Backend>::chunks_nbytes() const noexcept {
 
 
 template <typename Backend>
-std::vector<size_t> TensorVector<Backend>::chunks_capacity() const noexcept {
+std::vector<size_t> TensorVector<Backend>::_chunks_capacity() const noexcept {
   if (state_ == State::contiguous) {
     return {tl_->capacity()};
   }

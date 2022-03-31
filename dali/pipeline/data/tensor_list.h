@@ -648,15 +648,17 @@ class DLL_PUBLIC TensorList {
 
   /**
    * @brief Returns the size in bytes of the underlying data chunks
+   * TODO(klecki): Temporary API to be reworked, do not use.
    */
-  std::vector<size_t> chunks_nbytes() const {
+  std::vector<size_t> _chunks_nbytes() const {
     return {data_.nbytes()};
   }
 
   /**
    * @brief Returns the real size of the underlying allocations
+   * TODO(klecki): Temporary API to be reworked, do not use.
    */
-  std::vector<size_t> chunks_capacity() const {
+  std::vector<size_t> _chunks_capacity() const {
     return {data_.capacity()};
   }
 

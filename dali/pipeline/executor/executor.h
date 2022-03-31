@@ -158,8 +158,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   template <typename T>
   inline void GetMaxSizesNonCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
-    const auto &nbytes = in.chunks_nbytes();
-    const auto &capacity = in.chunks_capacity();
+    const auto &nbytes = in._chunks_nbytes();
+    const auto &capacity = in._chunks_capacity();
     max_out_size = 0;
     max_reserved_size = 0;
     for (auto &elem : nbytes) {
