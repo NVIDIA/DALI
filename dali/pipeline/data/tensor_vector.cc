@@ -223,7 +223,7 @@ size_t TensorVector<Backend>::capacity() const noexcept {
 }
 
 template <typename Backend>
-std::vector<size_t> TensorVector<Backend>::_chunks_nbytes() const noexcept {
+std::vector<size_t> TensorVector<Backend>::_chunks_nbytes() const {
   if (state_ == State::contiguous) {
     return {tl_->nbytes()};
   }
@@ -237,7 +237,7 @@ std::vector<size_t> TensorVector<Backend>::_chunks_nbytes() const noexcept {
 
 
 template <typename Backend>
-std::vector<size_t> TensorVector<Backend>::_chunks_capacity() const noexcept {
+std::vector<size_t> TensorVector<Backend>::_chunks_capacity() const {
   if (state_ == State::contiguous) {
     return {tl_->capacity()};
   }

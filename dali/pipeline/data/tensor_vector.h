@@ -114,13 +114,13 @@ class DLL_PUBLIC TensorVector {
    * @brief Returns the size in bytes of the underlying data chunks
    * TODO(klecki): Temporary API to be reworked, do not use.
    */
-  std::vector<size_t> _chunks_nbytes() const noexcept;
+  std::vector<size_t> _chunks_nbytes() const;
 
   /**
    * @brief Returns the real size of the underlying allocations
    * TODO(klecki): Temporary API to be reworked, do not use.
    */
-  std::vector<size_t> _chunks_capacity() const noexcept;
+  std::vector<size_t> _chunks_capacity() const;
 
   TensorListShape<> shape() const;
 
