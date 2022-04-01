@@ -37,7 +37,8 @@ class DataNodeDebug(_DataNode):
 
     def __str__(self):
         indent = ' ' * 4
-        return f'DataNodeDebug(\n{indent}name="{self.name}",\n{indent}data={_tensors._tensorlist_to_string(self._data, indent + " " * 5)})'
+        return f'DataNodeDebug(\n{indent}name="{self.name}",\n{indent}data=' \
+            + f'{_tensors._tensorlist_to_string(self._data, indent + " " * 5)})'
 
     __repr__ = __str__
 
@@ -52,107 +53,87 @@ class DataNodeDebug(_DataNode):
     def shape(self):
         return self._data.shape()
 
-    def __add__(self, other):
+    @staticmethod
+    def _arithm_op(*inputs, name=None):
         return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='add')
+            _ops.ArithmeticGenericOp, DataNodeDebug._aritm_op_name, *inputs, name=name)
+
+    def __add__(self, other):
+        return self._arithm_op(self, other, name='add')
 
     def __radd__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='add')
+        return self._arithm_op(other, self, name='add')
 
     def __sub__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='sub')
+        return self._arithm_op(self, other, name='sub')
 
     def __rsub__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='sub')
+        return self._arithm_op(other, self, name='sub')
 
     def __mul__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='mul')
+        return self._arithm_op(self, other, name='mul')
 
     def __rmul__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='mul')
+        return self._arithm_op(other, self, name='mul')
 
     def __pow__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='pow')
+        return self._arithm_op(self, other, name='pow')
 
     def __rpow__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='pow')
+        return self._arithm_op(other, self, name='pow')
 
     def __truediv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='fdiv')
+        return self._arithm_op(self, other, name='fdiv')
 
     def __rtruediv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='fdiv')
+        return self._arithm_op(other, self, name='fdiv')
 
     def __floordiv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='div')
+        return self._arithm_op(self, other, name='div')
 
     def __rfloordiv__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='div')
+        return self._arithm_op(other, self, name='div')
 
     def __neg__(self):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, name='minus')
+        return self._arithm_op(self, name='minus')
 
     def __eq__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='eq')
+        return self._arithm_op(self, other, name='eq')
 
     def __ne__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='neq')
+        return self._arithm_op(self, other, name='neq')
 
     def __lt__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='lt')
+        return self._arithm_op(self, other, name='lt')
 
     def __le__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name,  self, other, name='leq')
+        return self._arithm_op(self, other, name='leq')
 
     def __gt__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='gt')
+        return self._arithm_op(self, other, name='gt')
 
     def __ge__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='geq')
+        return self._arithm_op(self, other, name='geq')
 
     def __and__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='bitand')
+        return self._arithm_op(self, other, name='bitand')
 
     def __rand__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='bitand')
+        return self._arithm_op(other, self, name='bitand')
 
     def __or__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='bitor')
+        return self._arithm_op(self, other, name='bitor')
 
     def __ror__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='bitor')
+        return self._arithm_op(other, self, name='bitor')
 
     def __xor__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, self, other, name='bitxor')
+        return self._arithm_op(self, other, name='bitxor')
 
     def __rxor__(self, other):
-        return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug.aritm_fn_name, other, self, name='bitxor')
+        return self._arithm_op(other, self, name='bitxor')
 
-    aritm_fn_name = _to_snake_case(_ops.ArithmeticGenericOp.__name__)
+    _aritm_op_name = _to_snake_case(_ops.ArithmeticGenericOp.__name__)
 
 
 def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
@@ -351,14 +332,14 @@ class _OperatorManager:
         self._inputs_classification = []
 
         # When using input sets we have to create separate operators for each input.
-        input_set_len = 1
+        input_set_len = -1
         for i, input in enumerate(inputs):
             classification = _Classification(input, f'Input {i}')
 
             if isinstance(classification.is_batch, list):
-                if input_set_len == 1:
+                if input_set_len == -1:
                     input_set_len = len(classification.is_batch)
-                else:
+                elif input_set_len != len(classification.is_batch):
                     raise ValueError("All argument lists for Multipile Input Sets used "
                                      f"with operator '{op_name}' must have the same length.")
             self._inputs_classification.append(classification)
@@ -375,8 +356,11 @@ class _OperatorManager:
         self.op_helper = op_class(**self._init_args)
         self._op_name = op_name
         self.op_spec = self.op_helper._spec
-        self.logical_ids = [id for id in range(next_logical_id, next_logical_id + input_set_len)]
+        self.logical_ids = [id for id in range(
+            next_logical_id, next_logical_id + abs(input_set_len))]
 
+        for i in range(len(inputs)):
+            self.op_spec.AddInput(op_name+f'[{i}]', self._inputs_classification[i].device)
         for arg_name in self._call_args.keys():
             # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             self.op_spec.AddArgumentInput(arg_name, '')

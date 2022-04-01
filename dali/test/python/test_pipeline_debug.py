@@ -486,7 +486,7 @@ def test_variable_batch_size():
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
-def input_sets_pipeline():
+def input_sets_statefull_op_pipeline():
     set_size = 5
     jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
              for _ in range(set_size)]
@@ -498,8 +498,8 @@ def input_sets_pipeline():
 
 
 def test_input_sets():
-    pipe_standard = input_sets_pipeline()
-    pipe_debug = input_sets_pipeline(debug=True)
+    pipe_standard = input_sets_statefull_op_pipeline()
+    pipe_debug = input_sets_statefull_op_pipeline(debug=True)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
 
 
@@ -517,3 +517,19 @@ def test_incorrect_input_sets():
     pipe = incorrect_input_sets_pipeline()
     pipe.build()
     pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def multiple_input_sets_pipeline():
+    jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
+             for _ in range(6)]
+    images = fn.decoders.image(jpegs, seed=42)
+    cropped_images = fn.random_resized_crop(images, size=(224, 224), seed=42)
+    output = fn.cat(cropped_images[:3], cropped_images[3:])
+    return tuple(output)
+
+
+def test_multiple_input_sets():
+    pipe_standard = multiple_input_sets_pipeline()
+    pipe_debug = multiple_input_sets_pipeline(debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
