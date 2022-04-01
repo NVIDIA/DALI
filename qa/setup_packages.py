@@ -29,7 +29,7 @@ class PckgVer():
         `python_min_ver`: str, optional, default = None
             Mimimum python version supported by this package. If empty there is no lower bound
         'alias': std, optional, default = None
-            Alternative name that should be used during installation instad of general package name
+            Alternative name that should be used during installation instead of general package name
         `dependencies` : list of str, optional, default = None
             List of packages in ["name==version", ] format that should be installed together with
             a given package
