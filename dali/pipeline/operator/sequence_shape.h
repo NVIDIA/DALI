@@ -193,16 +193,19 @@ class UnfoldedSliceRange {
 
 template <typename Backend>
 struct TensorVectorBuilder {
-  TensorVectorBuilder(int num_samples, DALIDataType type, bool is_pinned, AccessOrder order)
+  TensorVectorBuilder(int num_samples, DALIDataType type, int sample_dim, bool is_pinned,
+                      AccessOrder order)
       : tv_(num_samples) {
     tv_.set_type(type);
+    tv_.set_sample_dim(sample_dim);
     tv_.set_pinned(is_pinned);
     tv_.set_order(order);
   }
 
   void push(const SliceView &view) {
-    tv_[size++].ShareData(view.ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
-                          view.shape, tv_.type(), tv_.order());
+    std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter
+    tv_.UnsafeSetSample(size++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
+                        view.shape, tv_.type(), tv_.order());
   }
 
   TensorVector<Backend> take() {

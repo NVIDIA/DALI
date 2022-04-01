@@ -508,11 +508,15 @@ class SequenceOperator : public Operator<Backend> {
   TensorVector<CPUBackend> UnfoldBroadcastArgument(const TensorVector<CPUBackend> &arg_input,
                                                    const std::string &arg_name, int input_idx,
                                                    const ExpandDesc &expand_desc) {
+    constexpr int ndims_to_unfold = 1;
     assert((arg_input.num_samples() == expand_desc.NumSamples()) && expand_desc.ExpandFrames());
+    assert(arg_input.sample_dim() >= ndims_to_unfold);
     sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
-        expand_desc.NumExpanded(), arg_input.type(), arg_input.is_pinned(), arg_input.order());
+        expand_desc.NumExpanded(), arg_input.type(), arg_input.sample_dim() - ndims_to_unfold,
+        arg_input.is_pinned(), arg_input.order());
     for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      auto frames_range = sequence_utils::unfolded_slice_range(arg_input, sample_idx, 1);
+      auto frames_range =
+          sequence_utils::unfolded_slice_range(arg_input, sample_idx, ndims_to_unfold);
       auto num_input_frames = expand_desc.NumFrames(sample_idx);
       auto num_arg_frames = frames_range.NumSlices();
       DALI_ENFORCE(
@@ -558,7 +562,8 @@ class SequenceOperator : public Operator<Backend> {
     const auto &shape = arg_input.shape();
     const auto &type_info = arg_input.type_info();
     sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
-        expand_desc.NumExpanded(), type_info.id(), arg_input.is_pinned(), arg_input.order());
+        expand_desc.NumExpanded(), type_info.id(), arg_input.sample_dim(), arg_input.is_pinned(),
+        arg_input.order());
     for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       const auto &slice_shape = shape[sample_idx];
       int num_elements = expand_desc.NumExpanded(sample_idx);
@@ -575,8 +580,10 @@ class SequenceOperator : public Operator<Backend> {
   TensorVector<DataBackend> UnfoldOuterDims(const TensorVector<DataBackend> &data,
                                             const ExpandDesc &expand_desc) {
     auto ndims_to_unfold = expand_desc.NumDimsToExpand();
+    assert(data.sample_dim() >= ndims_to_unfold);
     sequence_utils::TensorVectorBuilder<DataBackend> tv_builder(
-        expand_desc.NumExpanded(), data.type(), data.is_pinned(), data.order());
+        expand_desc.NumExpanded(), data.type(), data.sample_dim() - ndims_to_unfold,
+        data.is_pinned(), data.order());
     for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       for (auto &&slice : sequence_utils::unfolded_slice_range(data, sample_idx, ndims_to_unfold)) {
         tv_builder.push(slice);
