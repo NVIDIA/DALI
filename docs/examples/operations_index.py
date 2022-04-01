@@ -1,8 +1,8 @@
-doc(title=("Operations", "="),
-    options=":maxdepth: 2",
+doc(title="Operations",
+    underline_char="=",
     entries=[
-        "general/general_ops_index",
-        "image_processing/index",
-        "audio_processing/index",
-        "sequence_processing/index",
+        "general/general_ops_index.py",
+        "image_processing/index.py",
+        "audio_processing/index.py",
+        "sequence_processing/index.py",
     ])

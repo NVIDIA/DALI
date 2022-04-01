@@ -1,5 +1,5 @@
-doc(title=("Image Processing", "="),
-    options=":maxdepth: 2",
+doc(title="Image Processing",
+    underline_char="=",
     entries=[
         "augmentation_gallery.ipynb",
         "brightness_contrast_example.ipynb",

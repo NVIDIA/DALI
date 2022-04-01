@@ -1,12 +1,12 @@
-doc(title=("Data Loading", "="),
-    options=[":maxdepth: 2"],
+doc(title="Data Loading",
+    underline_char="=",
     entries=[
-        example_entry("external_input.ipynb",
-                      op_reference("fn.external_source", "Intro tutorial for external source")),
-        example_entry(
+        doc_entry("external_input.ipynb",
+                  op_reference("fn.external_source", "Intro tutorial for external source")),
+        doc_entry(
             "parallel_external_source.ipynb",
             op_reference("fn.external_source", "How to use parallel mode for external source")),
-        example_entry(
+        doc_entry(
             "parallel_external_source_fork.ipynb",
             op_reference("fn.external_source",
                          "How to use parallel mode for external source in fork mode")),

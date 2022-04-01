@@ -70,23 +70,14 @@ def op_autodoc(out_filename):
     with open(out_filename, 'w') as f:
         f.write(s)
 
-def get_module_references(module_name, references):
-    """Generate section with references for given module"""
-    module_name = module_name[12:] # remove nvidia.dali prefix
-    result = ""
-    if module_name in references:
-        result += ".. seealso::\n"
-        for desc, url in references[module_name]:
-            result += f"   * `{desc} <./{url}>`_\n"
-    return result
 
-def get_operator_references(op_name, references):
-    """Generate section with references for given operator"""
-    op_name = op_name[12:] # remove nvidia.dali prefix
+def get_references(name, references):
+    """Generate section with references for given operator or module"""
+    name = name[12:] # remove nvidia.dali prefix
     result = ""
-    if op_name in references:
+    if name in references:
         result += ".. seealso::\n"
-        for desc, url in references[op_name]:
+        for desc, url in references[name]:
             result += f"   * `{desc} <./{url}>`_\n"
     return result
 
@@ -102,13 +93,13 @@ def fn_autodoc(out_filename, references):
         s += "~" * len(module) + "\n"
         if module in mod_aditional_doc:
             s += mod_aditional_doc[module] + "\n" + "\n"
-        s += get_module_references(module, references)
+        s += get_references(module, references)
         for fun in funs_in_module:
             full_name = f"{module}.{fun}"
             if module in exclude_fn_members and fun in exclude_fn_members[module]:
                 continue
             s += f".. autofunction:: {full_name}\n\n"
-            s += get_operator_references(full_name, references)
+            s += get_references(full_name, references)
         s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)

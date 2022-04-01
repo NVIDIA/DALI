@@ -1,5 +1,5 @@
-doc(title=("Custom Operations", "="),
-    options=":maxdepth: 2",
+doc(title="Custom Operations",
+    underline_char="=",
     entries=[
         "custom_operator/create_a_custom_operator.ipynb",
         "python_operator.ipynb",

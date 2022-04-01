@@ -1,5 +1,5 @@
-doc(title=("PaddlePaddle Use-Cases", "="),
-    options=":maxdepth: 2",
+doc(title="PaddlePaddle Use-Cases",
+    underline_char="=",
     entries=[
         "resnet50/paddle-resnet50.rst",
         "ssd/paddle-ssd.rst",
