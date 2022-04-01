@@ -138,13 +138,13 @@ GDSAllocator::GDSAllocator(int device_id) {
 }
 
 struct GDSAllocatorInstance {
-  GDSAllocator &get(int device_id) const {
+  GDSAllocator &get(int device_id) {
     if (alloc_)
       return *alloc_;
     std::lock_guard<std::mutex> g(mtx_);
     if (alloc_)
       return *alloc_;
-    alloc_ = std::make_unique<GDSAllocator>(device_id_);
+    alloc_ = std::make_unique<GDSAllocator>(device_id);
     return *alloc_;
   }
   std::unique_ptr<GDSAllocator> alloc_;
@@ -157,7 +157,7 @@ GDSAllocator &GDSAllocator::instance(int device) {
     CUDA_CALL(cudaGetDeviceCount(&devs));
     return devs;
   }();
-  static vector<GDSAllocatorInstance> instances = GetGDSAllocators(ndevs);
+  static vector<GDSAllocatorInstance> instances(ndevs);
   if (device < 0)
     CUDA_CALL(cudaGetDevice(&device));
   assert(device >= 0 && device < ndevs);
