@@ -115,18 +115,19 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
     const auto& input = ws.template Input<CPUBackend>(0);
     auto& output = ws.template Output<CPUBackend>(0);
     output.SetLayout(input.GetLayout());
-    auto in_shape = input.shape();
     auto& thread_pool = ws.GetThreadPool();
 
-    int nsamples = input.shape().num_samples();
+    int nsamples = input.num_samples();
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
       const auto& shape = input[sample_idx].shape();
       auto elem_volume = volume(shape);
       thread_pool.AddWork(
-          [this, &input, &output, shape, sample_idx](int thread_id) {
+          [this, &input, &output, sample_idx, shape](int thread_id) {
             auto gaussian_windows = windows_[sample_idx].GetWindows();
-            auto in_view = view<const In, ndim>(input[sample_idx]);
-            auto out_view = view<Out, ndim>(output[sample_idx]);
+            auto in_view = TensorView<StorageCPU, const In, ndim>{
+                input.template tensor<In>(sample_idx), shape};
+            auto out_view = TensorView<StorageCPU, Out, ndim>{
+                output.template mutable_tensor<Out>(sample_idx), shape};
             // I need a context for that particular run (or rather matching the thread &
             // scratchpad)
             auto ctx = ctx_;
