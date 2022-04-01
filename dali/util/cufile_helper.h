@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,9 +33,14 @@
 // is only opened once per thread. It is not thread safe, coordination outside
 namespace cufile {
 
-class CUFileDriverHandle{
+class DLL_PUBLIC CUFileDriverHandle {
  public:
-  explicit CUFileDriverHandle(const int& device = 0) {
+  CUFileDriverHandle() {
+    // create for current device
+    CUDA_CALL(cuFileDriverOpen());
+  }
+
+  explicit CUFileDriverHandle(int device) {
     dali::DeviceGuard g(device);
     CUDA_CALL(cuFileDriverOpen());
   }
@@ -43,10 +48,21 @@ class CUFileDriverHandle{
   ~CUFileDriverHandle() {
     CUDA_CALL(cuFileDriverClose());
   }
+
+  /**
+   * @brief Returns a shared pointer to a CUFile driver handle.
+   *
+   * Returns a shared pointer to a global instance of the CUFile driver handle for given device.
+   * If there's already a handle, it's just returned and shared; otherwise, a new handle is created.
+   *
+   * @param device_id The ordinal of the device to get the CUFile driver handle for.
+   *                  If device_id < 0, current device is used.
+   */
+  static std::shared_ptr<CUFileDriverHandle> Get(int device_id = -1);
 };
 
 // wrapper struct to conveniently store the fd's as well
-class CUFileHandle{
+class DLL_PUBLIC CUFileHandle{
  public:
   CUFileHandle() {
     fd = -1;

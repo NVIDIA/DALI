@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,10 +35,12 @@ set(DALI_SRCS ${DALI_SRCS}
 if (BUILD_CUFILE)
   set(DALI_INST_HDRS ${DALI_INST_HDRS}
     "${CMAKE_CURRENT_SOURCE_DIR}/cufile.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cufile_helper.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/std_cufile.h")
 
   set(DALI_SRCS ${DALI_SRCS}
     "${CMAKE_CURRENT_SOURCE_DIR}/cufile.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cufile_helper.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/std_cufile.cc")
 endif()
 

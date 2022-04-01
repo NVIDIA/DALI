@@ -22,19 +22,22 @@ namespace dali {
 
 class GDSAllocator {
  public:
-  GDSAllocator();
+  explicit GDSAllocator(int device_id = -1);
 
   mm::memory_resource<mm::memory_kind::device> *resource() const {
     return rsrc_.get();
   }
 
   static GDSAllocator &instance(int device_id = -1);
+
  private:
   std::shared_ptr<mm::memory_resource<mm::memory_kind::device>> rsrc_;
 };
 
+size_t GetGDSChunkSize();
+
 inline std::shared_ptr<uint8_t> gds_alloc(size_t bytes) {
-    return mm::alloc_raw_shared<uint8_t>(GDSAllocator::instance().resource(), bytes, 4096);
+    return mm::alloc_raw_shared<uint8_t>(GDSAllocator::instance().resource(), bytes);
 }
 
 }  // namespace dali

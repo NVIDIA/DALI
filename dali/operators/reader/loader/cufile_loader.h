@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,19 +42,8 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
   explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = {},
                         bool shuffle_after_epoch = false)
       : FileLoader<GPUBackend, Target, CUFileStream>(spec) {
-    // set the device first
-    DeviceGuard g(this->device_id_);
 
-    // this is needed for the driver singleton
-    static std::mutex open_driver_mutex;
-    static std::weak_ptr<cufile::CUFileDriverHandle> driver_handle;
-
-    // load the cufile driver
-    std::lock_guard<std::mutex> dlock(open_driver_mutex);
-    if (!(d_ = driver_handle.lock())) {
-      d_ = std::make_shared<cufile::CUFileDriverHandle>(this->device_id_);
-      driver_handle = d_;
-    }
+    d_ = cufile::CUFileDriverHandle::Get(this->device_id_);
   }
 
   ~CUFileLoader() {
