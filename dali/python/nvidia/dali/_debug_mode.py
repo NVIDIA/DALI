@@ -356,8 +356,7 @@ class _OperatorManager:
         self.op_helper = op_class(**self._init_args)
         self._op_name = op_name
         self.op_spec = self.op_helper._spec
-        self.logical_ids = [id for id in range(
-            next_logical_id, next_logical_id + abs(input_set_len))]
+        self.logical_ids = [id for id in range(next_logical_id, next_logical_id + abs(input_set_len))]
 
         for i in range(len(inputs)):
             self.op_spec.AddInput(op_name+f'[{i}]', self._inputs_classification[i].device)
