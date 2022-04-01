@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 import os
 import multiprocessing
 import socket
-from contextlib import closing
+from contextlib import closing, contextmanager
 import numpy as np
 
 from nvidia.dali._multiproc.shared_batch import BufShmChunk, SharedBatchWriter, SharedBatchMeta, deserialize_batch
@@ -66,6 +66,7 @@ def worker(start_method, sock, task_queue, res_queue, worker_cb, worker_params):
             break
 
 
+@contextmanager
 def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
     mp = multiprocessing.get_context(start_method)
     task_queue = ShmQueue(mp, capacity)
@@ -76,11 +77,18 @@ def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
         socket_r = None
     proc = mp.Process(target=worker, args=(start_method, socket_r, task_queue, res_queue, worker_cb, worker_params))
     proc.start()
-    if start_method == "spawn":
-        pid = os.getppid()
-        multiprocessing.reduction.send_handle(socket_w, task_queue.shm.handle, pid)
-        multiprocessing.reduction.send_handle(socket_w, res_queue.shm.handle, pid)
-    return proc, task_queue, res_queue
+    try:
+        if start_method == "spawn":
+            pid = os.getppid()
+            multiprocessing.reduction.send_handle(socket_w, task_queue.shm.handle, pid)
+            multiprocessing.reduction.send_handle(socket_w, res_queue.shm.handle, pid)
+        yield task_queue, res_queue
+    finally:
+        if not proc.exitcode:
+            res_queue.close()
+            task_queue.close()
+        proc.join()
+        assert proc.exitcode == 0
 
 
 def _put_msgs(queue, msgs, one_by_one):
@@ -115,24 +123,20 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
         nonlocal count
         count += 1
         return count
-    proc, task_queue, res_queue = setup_queue_and_worker(start_method, capacity, copy_callback, worker_params)
-    all_msgs = []
-    received = 0
-    for send_msg, recv_msg in zip(send_msgs, recv_msgs):
-        msgs = [ShmMessageDesc(next_i(), -next_i(), -next_i(), next_i(), -next_i()) for i in range(send_msg)]
-        all_msgs.extend(msgs)
-        _put_msgs(task_queue, msgs, send_one_by_one)
-        for _ in range(recv_msg):
-            [recv_msg] = res_queue.get()
-            msg_values = all_msgs[received].get_values()
-            received += 1
-            recv_msg_values = recv_msg.get_values()
-            assert len(msg_values) == len(recv_msg_values)
-            assert all(msg_value == recv_msg_value for msg_value, recv_msg_value in zip(msg_values, recv_msg_values))
-    if not proc.exitcode:
-        task_queue.close()
-    proc.join()
-    assert proc.exitcode == 0
+    with setup_queue_and_worker(start_method, capacity, copy_callback, worker_params) as (task_queue, res_queue):
+        all_msgs = []
+        received = 0
+        for send_msg, recv_msg in zip(send_msgs, recv_msgs):
+            msgs = [ShmMessageDesc(next_i(), -next_i(), next_i(), next_i(), next_i()) for i in range(send_msg)]
+            all_msgs.extend(msgs)
+            _put_msgs(task_queue, msgs, send_one_by_one)
+            for _ in range(recv_msg):
+                [recv_msg] = res_queue.get()
+                msg_values = all_msgs[received].get_values()
+                received += 1
+                recv_msg_values = recv_msg.get_values()
+                assert len(msg_values) == len(recv_msg_values)
+                assert all(msg_value == recv_msg_value for msg_value, recv_msg_value in zip(msg_values, recv_msg_values))
 
 
 def test_queue_recv():
@@ -144,3 +148,40 @@ def test_queue_recv():
             for send_one_by_one in (True, False):
                 for worker_params in ({'num_samples': 1}, {'num_samples': None}):
                     yield _test_queue_recv, start_method, worker_params, capacity, send_msg, recv_msg, send_one_by_one
+
+
+def _test_queue_large(start_method, msg_values):
+    with setup_queue_and_worker(
+            start_method, len(msg_values), copy_callback,
+            {'num_samples': None}) as (task_queue, res_queue):
+        msg_instances = [ShmMessageDesc(*values) for values in msg_values]
+        _put_msgs(task_queue, msg_instances, False)
+        for values in msg_values:
+            [recv_msg] = res_queue.get()
+            recv_msg_values = recv_msg.get_values()
+            assert len(values) == len(recv_msg_values)
+            assert all(msg_value == recv_msg_value for msg_value,
+                    recv_msg_value in zip(values, recv_msg_values))
+
+
+def test_queue_large():
+    max_int32 = 2**31 - 1
+    max_uint32 = 2**32 - 1
+    max_uint64 = 2**64 - 1
+    msgs = [(max_int32, max_int32, max_int32, max_int32, max_int32),
+            (max_int32, max_int32, max_uint32, max_uint32, max_uint32),
+            (max_int32, max_int32, max_uint64, max_uint64, max_uint64)]
+    for start_method in ("spawn", "fork"):
+        for msg in msgs:
+            yield _test_queue_large, start_method, [msg]
+
+
+def test_queue_large_failure():
+    max_int32 = 2**31 - 1
+    max_uint32 = 2**32 - 1
+    error_message = "Failed to serialize object as C-like structure. Tried to populate following fields:"
+    for start_method in ("spawn", "fork"):
+        yield raises(RuntimeError, error_message)(_test_queue_large), \
+            start_method, [(max_int32 + 1, 0, max_uint32, max_uint32, max_uint32)]
+        yield raises(RuntimeError, error_message)(_test_queue_large), \
+            start_method, [(max_int32, max_int32, -1, 0, 0)]
