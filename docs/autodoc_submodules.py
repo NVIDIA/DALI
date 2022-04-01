@@ -5,8 +5,6 @@ import nvidia.dali.plugin.numba
 import inspect
 import sys
 
-from inspect import getmembers, isfunction
-
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     'nvidia.dali.ops': nvidia.dali.ops,
@@ -79,7 +77,7 @@ def get_module_references(module_name, references):
     if module_name in references:
         result += ".. seealso::\n"
         for desc, url in references[module_name]:
-            result += f"   * `{desc} </{url}>`_\n"
+            result += f"   * `{desc} <./{url}>`_\n"
     return result
 
 def get_operator_references(op_name, references):
@@ -89,7 +87,7 @@ def get_operator_references(op_name, references):
     if op_name in references:
         result += ".. seealso::\n"
         for desc, url in references[op_name]:
-            result += f"   * `{desc} </{url}>`_\n"
+            result += f"   * `{desc} <./{url}>`_\n"
     return result
 
 
