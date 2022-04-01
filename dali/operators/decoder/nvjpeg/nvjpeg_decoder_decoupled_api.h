@@ -796,12 +796,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
     nvjpeg2k_thread_.AddWork([this, &ws](int) {
       auto &output = ws.Output<GPUBackend>(0);
-      auto &input = ws.Input<CPUBackend>(0);
+      const auto &input = ws.Input<CPUBackend>(0);
+      const auto &input_shape = input.shape();
       for (auto *sample : samples_jpeg2k_) {
         assert(sample);
         auto i = sample->sample_idx;
         auto output_data = output.mutable_tensor<uint8_t>(i);
-        auto in = span<const uint8_t>(input[i].data<uint8_t>(), input[i].size());
+        auto in = span<const uint8_t>(input.tensor<uint8_t>(i), input_shape[i].num_elements());
         ImageCache::ImageShape shape = output_shape_[i].to_static<3>();
         DecodeJpeg2k(output_data, sample, in);
         CacheStore(sample->file_name, output_data, shape, nvjpeg2k_cu_stream_);
