@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ inline float DefaultFilterRadius(ResamplingFilterType type, float in_size, float
   case ResamplingFilterType::Gaussian:
     return in_size > out_size ? in_size/out_size : 1;
   case ResamplingFilterType::Cubic:
-    return 2;
+    return in_size > out_size ? (2*in_size/out_size) : 2;;
   case ResamplingFilterType::Lanczos3:
     return in_size > out_size ? (3*in_size/out_size) : 3;
   default:
