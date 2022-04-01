@@ -218,9 +218,8 @@ class SequenceOperator : public Operator<Backend> {
       if (ref_input_idx != input_idx) {
         VerifyExpansionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
-      ExpandedAddProcessedInput(ws, input_idx, [&](const auto &input) {
-        return UnfoldInput(input, input_idx, input_desc);
-      });
+      ExpandedAddProcessedInput(ws, input_idx,
+                                [&](const auto &input) { return UnfoldBatch(input, input_desc); });
     }
   }
 
@@ -231,9 +230,8 @@ class SequenceOperator : public Operator<Backend> {
    */
   virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-    ExpandedAddProcessedOutput(ws, output_idx, [&](const auto &output) {
-      return UnfoldOutput(output, output_idx, expand_desc);
-    });
+    ExpandedAddProcessedOutput(
+        ws, output_idx, [&](const auto &output) { return UnfoldBatch(output, expand_desc); });
   }
 
   /**
@@ -359,6 +357,7 @@ class SequenceOperator : public Operator<Backend> {
                     "have exactly the same outermost dimensions to expand. However, got `",
                     input_desc.ExpandedLayout(), "` planned for expanding."));
     for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
+      assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
       if (expand_desc.ExpandFrames()) {
         DALI_ENFORCE(expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
                      make_string("Inputs ", expand_idx, " and ", input_idx,
@@ -450,32 +449,17 @@ class SequenceOperator : public Operator<Backend> {
     expanded_.Clear();
   }
 
-  template <typename InputType>
-  auto UnfoldInput(const InputType &input, int input_idx, const ExpandDesc &expand_desc) {
-    auto sample_dim = input.shape().sample_dim();
+  template <typename Type>
+  auto UnfoldBatch(const Type &batch, const ExpandDesc &expand_desc) {
+    auto sample_dim = batch.shape().sample_dim();
     auto num_expand_dims = expand_desc.NumDimsToExpand();
     DALI_ENFORCE(
-        sample_dim > num_expand_dims,
-        make_string("Cannot flatten the sequence-like input ", input_idx,
-                    ". Samples must have more dimensions (got ", sample_dim,
-                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    auto expanded_input = UnfoldOuterDims(input, expand_desc);
-    const auto &input_layout = input.GetLayout();
-    expanded_input.SetLayout(input_layout.sub(num_expand_dims));
-    return std::make_shared<InputType>(std::move(expanded_input));
-  }
-
-  template <typename OutputType>
-  auto UnfoldOutput(const OutputType &output, int output_idx, const ExpandDesc &expand_desc) {
-    auto sample_dim = output.shape().sample_dim();
-    auto num_expand_dims = expand_desc.NumDimsToExpand();
-    DALI_ENFORCE(
-        sample_dim > num_expand_dims,
-        make_string("Cannot flatten the sequence-like output ", output_idx,
-                    ". Samples must have more dimensions (got ", sample_dim,
-                    ") than the requested number of dimensions to unfold: ", num_expand_dims, "."));
-    auto expanded_output = UnfoldOuterDims(output, expand_desc);
-    return std::make_shared<OutputType>(std::move(expanded_output));
+        sample_dim >= num_expand_dims,
+        make_string(
+            "Cannot flatten the sequence-like batch. Samples cannot have less dimensions (got ",
+            sample_dim, ") than the requested number of dimensions to unfold: ", num_expand_dims,
+            "."));
+    return std::make_shared<Type>(UnfoldOuterDims(batch, expand_desc));
   }
 
   TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_input,
@@ -510,10 +494,8 @@ class SequenceOperator : public Operator<Backend> {
                                                    const ExpandDesc &expand_desc) {
     constexpr int ndims_to_unfold = 1;
     assert((arg_input.num_samples() == expand_desc.NumSamples()) && expand_desc.ExpandFrames());
-    assert(arg_input.sample_dim() >= ndims_to_unfold);
-    sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
-        expand_desc.NumExpanded(), arg_input.type(), arg_input.sample_dim() - ndims_to_unfold,
-        arg_input.is_pinned(), arg_input.order());
+    auto tv_builder =
+        sequence_utils::tv_builder_like(arg_input, expand_desc.NumExpanded(), ndims_to_unfold);
     for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       auto frames_range =
           sequence_utils::unfolded_slice_range(arg_input, sample_idx, ndims_to_unfold);
@@ -560,10 +542,9 @@ class SequenceOperator : public Operator<Backend> {
   TensorVector<CPUBackend> BroadcastArgument(const TensorVector<CPUBackend> &arg_input,
                                              const ExpandDesc &expand_desc) {
     const auto &shape = arg_input.shape();
+    auto tv_builder = sequence_utils::tv_builder_like(arg_input, expand_desc.NumExpanded());
     const auto &type_info = arg_input.type_info();
-    sequence_utils::TensorVectorBuilder<CPUBackend> tv_builder(
-        expand_desc.NumExpanded(), type_info.id(), arg_input.sample_dim(), arg_input.is_pinned(),
-        arg_input.order());
+    assert(expand_desc.NumSamples() == arg_input.num_samples());
     for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       const auto &slice_shape = shape[sample_idx];
       int num_elements = expand_desc.NumExpanded(sample_idx);
@@ -580,12 +561,13 @@ class SequenceOperator : public Operator<Backend> {
   TensorVector<DataBackend> UnfoldOuterDims(const TensorVector<DataBackend> &data,
                                             const ExpandDesc &expand_desc) {
     auto ndims_to_unfold = expand_desc.NumDimsToExpand();
-    assert(data.sample_dim() >= ndims_to_unfold);
-    sequence_utils::TensorVectorBuilder<DataBackend> tv_builder(
-        expand_desc.NumExpanded(), data.type(), data.sample_dim() - ndims_to_unfold,
-        data.is_pinned(), data.order());
+    auto tv_builder =
+        sequence_utils::tv_builder_like(data, expand_desc.NumExpanded(), ndims_to_unfold);
+    assert(expand_desc.NumSamples() == data.num_samples());
     for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      for (auto &&slice : sequence_utils::unfolded_slice_range(data, sample_idx, ndims_to_unfold)) {
+      auto slices_range = sequence_utils::unfolded_slice_range(data, sample_idx, ndims_to_unfold);
+      assert(expand_desc.NumExpanded(sample_idx) == slices_range.NumSlices());
+      for (auto &&slice : slices_range) {
         tv_builder.push(slice);
       }
     }

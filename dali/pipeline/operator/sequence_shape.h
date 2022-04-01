@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_H_
 #define DALI_PIPELINE_OPERATOR_SEQUENCE_SHAPE_H_
 
+#include <memory>
 #include <string>
 #include <utility>
 #include "dali/pipeline/data/tensor.h"
@@ -154,6 +155,7 @@ class UnfoldedSliceRange {
   inline UnfoldedSliceRange(SliceViewType view, int ndims_to_unfold)
       : view_{view},
         num_slices_{[&]() {
+          assert(view.shape.sample_dim() >= ndims_to_unfold);
           auto vol = volume(view.shape.begin(), view.shape.begin() + ndims_to_unfold);
           return static_cast<std::make_unsigned_t<decltype(vol)>>(vol);
         }()},
@@ -193,11 +195,12 @@ class UnfoldedSliceRange {
 
 template <typename Backend>
 struct TensorVectorBuilder {
-  TensorVectorBuilder(int num_samples, DALIDataType type, int sample_dim, bool is_pinned,
-                      AccessOrder order)
+  TensorVectorBuilder(int num_samples, DALIDataType type, int sample_dim, TensorLayout layout,
+                      bool is_pinned, AccessOrder order)
       : tv_(num_samples) {
     tv_.set_type(type);
     tv_.set_sample_dim(sample_dim);
+    tv_.SetLayout(layout);
     tv_.set_pinned(is_pinned);
     tv_.set_order(order);
   }
@@ -205,7 +208,7 @@ struct TensorVectorBuilder {
   void push(const SliceView &view) {
     std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter
     tv_.UnsafeSetSample(size++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
-                        view.shape, tv_.type(), tv_.order());
+                        view.shape, tv_.type(), tv_.order(), tv_.GetLayout());
   }
 
   TensorVector<Backend> take() {
@@ -216,6 +219,17 @@ struct TensorVectorBuilder {
   TensorVector<Backend> tv_;
   size_t size = 0;
 };
+
+
+template <typename Backend>
+TensorVectorBuilder<Backend> tv_builder_like(const TensorVector<Backend> &data, int num_samples,
+                                             int ndims_to_unfold = 0) {
+  assert(data.sample_dim() >= ndims_to_unfold);
+  auto sample_dim = data.sample_dim() - ndims_to_unfold;
+  const auto &initial_layout = data.GetLayout();
+  TensorLayout layout = initial_layout.empty() ? "" : initial_layout.last(sample_dim);
+  return {num_samples, data.type(), sample_dim, layout, data.is_pinned(), data.order()};
+}
 
 template <typename Backend>
 UnfoldedSliceRange unfolded_slice_range(const TensorVector<Backend> &data, int sample_idx,
@@ -248,6 +262,9 @@ TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int ndims
   tl.ShareData(data);
   auto expanded_shape = unfold_outer_dims(shape, ndims_to_unfold);
   tl.Resize(expanded_shape, data.type());
+  const auto &initial_layout = data.GetLayout();
+  TensorLayout layout = initial_layout.empty() ? "" : initial_layout.sub(ndims_to_unfold);
+  tl.SetLayout(layout);
   return tl;
 }
 
