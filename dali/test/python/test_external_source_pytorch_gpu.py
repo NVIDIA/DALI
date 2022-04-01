@@ -54,7 +54,7 @@ def _test_cross_device(src, dst):
     iter = 0
     def get_data():
         nonlocal iter
-        data = torch.tensor([[1,2,3,4],[5,6,7,8]], dtype=torch.float32).cuda(device=dst) + iter
+        data = torch.tensor([[1,2,3,4],[5,6,7,8]], dtype=torch.float32).cuda(device=src) + iter
         iter += 1
         return data
 
