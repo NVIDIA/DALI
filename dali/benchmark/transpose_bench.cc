@@ -55,6 +55,7 @@ BENCHMARK_DEFINE_F(OperatorBench, TransposeGPU)(benchmark::State& st) {
       .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", 1)
       .AddArg("device", "gpu")
+      .AddArg("output_type", DALI_RGB)
       .AddArg("perm", perm),
     batch_size, H, W, C);
 }
@@ -62,6 +63,6 @@ BENCHMARK_DEFINE_F(OperatorBench, TransposeGPU)(benchmark::State& st) {
 BENCHMARK_REGISTER_F(OperatorBench, TransposeGPU)->Iterations(1000)
 ->Unit(benchmark::kMicrosecond)
 ->UseRealTime()
-->Apply(TransposeGPU3dArgs);
+->Apply(TransposeGPUArgs);
 
 }  // namespace dali
