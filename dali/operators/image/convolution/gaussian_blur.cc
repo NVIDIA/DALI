@@ -92,7 +92,6 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<CPUBackend>& ws) override {
     const auto& input = ws.template Input<CPUBackend>(0);
     int nsamples = input.num_samples();
-    auto nthreads = ws.GetThreadPool().NumThreads();
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
