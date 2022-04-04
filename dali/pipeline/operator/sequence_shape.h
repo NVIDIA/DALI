@@ -127,11 +127,11 @@ class RangeIterator {
     return range_[idx_];
   }
 
-  bool operator==(const RangeIterator &other) {
+  bool operator==(const RangeIterator &other) const {
     return idx_ == other.idx_;
   }
 
-  bool operator!=(const RangeIterator &other) {
+  bool operator!=(const RangeIterator &other) const {
     return !(*this == other);
   }
 
