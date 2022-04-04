@@ -96,8 +96,8 @@ class DLL_PUBLIC TensorVector {
     return {tensors_[pos]->raw_data(), tensors_[pos]->shape(), tensors_[pos]->type()};
   }
 
-  size_t num_samples() const noexcept {
-    return curr_tensors_size_;
+  int num_samples() const noexcept {
+    return curr_num_tensors_;
   }
 
   void set_sample_dim(int sample_dim);
@@ -367,7 +367,7 @@ class DLL_PUBLIC TensorVector {
 
   std::atomic<int> views_count_;
   std::vector<std::shared_ptr<Tensor<Backend>>> tensors_;
-  size_t curr_tensors_size_;
+  int curr_num_tensors_;
   std::shared_ptr<TensorList<Backend>> tl_;
   State state_ = State::noncontiguous;
   // pinned status and type info should be uniform
