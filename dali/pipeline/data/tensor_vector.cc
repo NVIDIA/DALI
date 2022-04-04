@@ -465,7 +465,7 @@ void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
 
 template <typename Backend>
 bool TensorVector<Backend>::IsContiguous() const noexcept {
-  return state_ == State::contiguous && static_cast<size_t>(views_count_) == num_samples();
+  return state_ == State::contiguous && views_count_ == num_samples();
 }
 
 

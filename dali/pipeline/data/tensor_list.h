@@ -118,7 +118,7 @@ class DLL_PUBLIC TensorList {
 
     int dim = other[0].shape().sample_dim();
     TensorListShape<> new_shape(other.num_samples(), dim);
-    for (size_t i = 0; i < other.num_samples(); ++i) {
+    for (int i = 0; i < other.num_samples(); ++i) {
       DALI_ENFORCE(other[i].shape().sample_dim() == dim,
          "TensorList can only have uniform dimensions across all samples, mismatch at index "
          + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
@@ -143,7 +143,7 @@ class DLL_PUBLIC TensorList {
     dsts.reserve(nsamples);
     SmallVector<Index, 256> sizes;
     sizes.reserve(nsamples);
-    for (size_t i = 0; i < nsamples; i++) {
+    for (int i = 0; i < nsamples; i++) {
       dsts.emplace_back(this->raw_mutable_tensor(i));
       srcs.emplace_back(other[i].raw_data());
       sizes.emplace_back(other[i].shape().num_elements());
