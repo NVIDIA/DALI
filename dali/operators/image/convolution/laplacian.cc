@@ -154,7 +154,7 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     int nsamples = input.num_samples();
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      const auto& shape = input[sample_idx].shape();
+      const auto& shape = input.tensor_shape(sample_idx);
       auto priority = volume(shape) * args.GetTotalWindowSizes(sample_idx);
 
       thread_pool.AddWork(

@@ -119,7 +119,7 @@ class GaussianBlurOpCpu : public OpImplBase<CPUBackend> {
 
     int nsamples = input.num_samples();
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      const auto& shape = input[sample_idx].shape();
+      const auto& shape = input.tensor_shape(sample_idx);
       auto elem_volume = volume(shape);
       thread_pool.AddWork(
           [this, &input, &output, sample_idx, shape](int thread_id) {
