@@ -400,7 +400,7 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Returns the number of tensors in the list.
    */
-  DLL_PUBLIC inline size_t num_samples() const {
+  DLL_PUBLIC inline int num_samples() const {
     return shape_.size();
   }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ void PadVerify(TensorListWrapper input, TensorListWrapper output, Arguments args
 
   auto padded_batch = GetPaddedBatchForaxes<T>(axes);
 
-  for (size_t i = 0; i < output_d->num_samples(); ++i) {
+  for (int i = 0; i < output_d->num_samples(); ++i) {
     auto out_tensor = output_d->tensor<T>(i);
     for (size_t j = 0; j < padded_batch[i].size(); ++j) {
       ASSERT_EQ(out_tensor[j], padded_batch[i][j]);
@@ -118,7 +118,7 @@ class PadTest : public testing::DaliOperatorTest {
     TensorList<CPUBackend> tl_in;
     tl_in.set_type<T>();
     tl_in.Resize(tl_shape);
-    for (size_t i = 0; i < tl_in.num_samples(); ++i) {
+    for (int i = 0; i < tl_in.num_samples(); ++i) {
       auto t = tl_in.mutable_tensor<T>(i);
       std::copy(batch[i].begin(), batch[i].end(), t);
     }

@@ -70,7 +70,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     }
 
     int rsz_h, rsz_w;
-    for (size_t i = 0; i < image_data.num_samples(); ++i) {
+    for (int i = 0; i < image_data.num_samples(); ++i) {
       auto *data = image_data.tensor<unsigned char>(i);
       auto shape = image_data.tensor_shape(i);
       const int H = shape[0], W = shape[1];
@@ -183,7 +183,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     }
 
     out.SetupLike(tmp_out[0]);
-    for (size_t i = 0; i < image_data.num_samples(); ++i) {
+    for (int i = 0; i < image_data.num_samples(); ++i) {
       out.UnsafeSetSample(i, tmp_out[i]);
     }
 
