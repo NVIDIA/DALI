@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -189,7 +189,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
 
     ProcessVideo(video_output, curent_batch, ws);
 
-    for (size_t data_idx = 0; data_idx < curent_batch.num_samples(); ++data_idx) {
+    for (int data_idx = 0; data_idx < curent_batch.num_samples(); ++data_idx) {
       auto &prefetched_video = GetSample(data_idx);
       ProcessAdditionalOutputs(data_idx, prefetched_video, ws.stream());
     }
