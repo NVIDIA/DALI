@@ -37,7 +37,7 @@ void SetupData(TensorVector<CPUBackend> &tv,
                TensorListShape<ndim> sh) {
   tv.set_pinned(false);
   tv.Resize(sh, DALI_FLOAT);
-  for (size_t i = 0; i < tv.num_samples(); i++) {
+  for (int i = 0; i < tv.num_samples(); i++) {
     float *data = tv.mutable_tensor<float>(i);
     for (int j = 0; j < volume(sh[i]); j++) {
       data[j] = 100 * i + j;

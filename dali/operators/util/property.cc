@@ -22,7 +22,7 @@ template <>
 void SourceInfo<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
   auto& output = ws.template Output<CPUBackend>(0);
-  for (size_t sample_id = 0; sample_id < input.num_samples(); sample_id++) {
+  for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto si = GetSourceInfo(input, sample_id);
     std::memcpy(output.mutable_tensor<uint8_t>(sample_id), si.c_str(), si.length());
   }
@@ -32,7 +32,7 @@ template <>
 void Layout<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
   const auto& input = ws.template Input<CPUBackend>(0);
   auto& output = ws.template Output<CPUBackend>(0);
-  for (size_t sample_id = 0; sample_id < input.num_samples(); sample_id++) {
+  for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto layout = GetLayout(input, sample_id);
     std::memcpy(output.mutable_tensor<uint8_t>(sample_id), layout.c_str(), layout.size());
   }

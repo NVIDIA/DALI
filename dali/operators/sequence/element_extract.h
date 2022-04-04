@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ class ElementExtract : public Operator<Backend> {
     for (int k = 0; k < elements_per_sample; k++) {
       int element = element_map_[k];
       auto &output = ws.template Output<Backend>(k);
-      for (unsigned int i = 0; i < input.num_samples(); i++) {
+      for (int i = 0; i < input.num_samples(); i++) {
         auto tensor_shape = input.tensor_shape(i);
         auto element_size = volume(tensor_shape.begin() + 1, tensor_shape.end());
         auto input_offset_bytes = element * element_size * data_type.size();
