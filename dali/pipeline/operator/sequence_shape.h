@@ -25,14 +25,17 @@ namespace dali {
 
 /**
  * @brief Describes expandable prefix of the layout and of the shape of a batch.
+ * For instance, for batch of FHWC samples, expandable prefix is "F", i.e. each sample
+ * should be expanded into number of HWC samples. If ``should_expand_channels`` is true,
+ * the expandable prefix can consits of two extents, for example for FCHW input,
+ * the "FC" extents are expandable.
  */
 class ExpandDesc {
  public:
-  inline ExpandDesc(const TensorListShape<> &shape, TensorLayout layout,
-                    bool should_expand_channels)
-      : layout_{layout},
-        frames_dim_{VideoLayoutInfo::FrameDimIndex(layout)},
-        channels_dim_{VideoLayoutInfo::ChannelDimIndex(layout)},
+  ExpandDesc(const TensorListShape<> &shape, TensorLayout layout, bool should_expand_channels)
+      : layout_{std::move(layout)},
+        frames_dim_{VideoLayoutInfo::FrameDimIndex(layout_)},
+        channels_dim_{VideoLayoutInfo::ChannelDimIndex(layout_)},
         expand_frames_{frames_dim_ == 0 ||
                        (should_expand_channels && frames_dim_ == 1 && channels_dim_ == 0)},
         expand_channels_{should_expand_channels && 0 <= channels_dim_ && channels_dim_ <= 1},
@@ -45,56 +48,56 @@ class ExpandDesc {
         }()} {}
 
 
-  inline bool ExpandChannels() const {
+  bool ExpandChannels() const {
     return expand_channels_;
   }
 
-  inline bool ExpandFrames() const {
+  bool ExpandFrames() const {
     return expand_frames_;
   }
 
-  inline bool IsChannelFirst() const {
+  bool IsChannelFirst() const {
     return is_channel_first_;
   }
 
-  inline int NumDimsToExpand() const {
+  int NumDimsToExpand() const {
     return num_expand_dims_;
   }
 
-  inline size_t NumExpanded() const {
+  size_t NumExpanded() const {
     return num_expanded_;
   }
 
-  inline size_t NumSamples() const {
+  size_t NumSamples() const {
     return dims_to_expand_.num_samples();
   }
 
-  inline size_t NumExpanded(size_t sample_idx) const {
+  size_t NumExpanded(size_t sample_idx) const {
     assert(sample_idx < NumSamples());
     return volume(dims_to_expand_[sample_idx]);
   }
 
-  inline size_t NumFrames(size_t sample_idx) const {
+  size_t NumFrames(size_t sample_idx) const {
     assert(sample_idx < NumSamples());
     assert(frames_dim_ < NumDimsToExpand());
     return dims_to_expand_[sample_idx][frames_dim_];
   }
 
-  inline size_t NumChannels(size_t sample_idx) const {
+  size_t NumChannels(size_t sample_idx) const {
     assert(sample_idx < NumSamples());
     assert(channels_dim_ < NumDimsToExpand());
     return dims_to_expand_[sample_idx][channels_dim_];
   }
 
-  inline const TensorListShape<> &DimsToExpand() const {
+  const TensorListShape<> &DimsToExpand() const {
     return dims_to_expand_;
   }
 
-  inline TensorLayout Layout() const {
+  TensorLayout Layout() const {
     return layout_;
   }
 
-  inline TensorLayout ExpandedLayout() const {
+  TensorLayout ExpandedLayout() const {
     return layout_.first(num_expand_dims_);
   }
 
@@ -112,23 +115,23 @@ class ExpandDesc {
 
 namespace sequence_utils {
 
-template <typename FrameRange>
-class SliceIterator {
-  using IndexType = typename FrameRange::IndexType;
-  using SliceViewType = typename FrameRange::SliceViewType;
+template <typename Range>
+class RangeIterator {
+  using IndexType = typename Range::IndexType;
+  using ValueType = typename Range::ValueType;
 
  public:
-  SliceIterator(const FrameRange &range, IndexType idx) : range_{range}, idx_{idx} {}
+  RangeIterator(const Range &range, IndexType idx) : range_{range}, idx_{idx} {}
 
-  SliceViewType operator*() const {
+  ValueType operator*() const {
     return range_[idx_];
   }
 
-  bool operator==(const SliceIterator &other) {
+  bool operator==(const RangeIterator &other) {
     return idx_ == other.idx_;
   }
 
-  bool operator!=(const SliceIterator &other) {
+  bool operator!=(const RangeIterator &other) {
     return !(*this == other);
   }
 
@@ -137,7 +140,7 @@ class SliceIterator {
   }
 
  private:
-  const FrameRange &range_;
+  const Range &range_;
   IndexType idx_;
 };
 
@@ -147,47 +150,53 @@ struct SliceView {
   size_t type_size;
 };
 
+
+/**
+ * @brief Iterable range over slices of tensor, created by expansion of the outermost
+ * extents of the tensor. For instance passing ``SliceView`` of shape ``{6, 5, 3, 4}``
+ * and ``ndims_to_unfold=2`` will result in range of 30 ``SliceViews`` of shape ``{3, 4}`` each.
+ */
 class UnfoldedSliceRange {
  public:
   using IndexType = size_t;
-  using SliceViewType = SliceView;
+  using ValueType = SliceView;
 
-  inline UnfoldedSliceRange(SliceViewType view, int ndims_to_unfold)
-      : view_{view},
+  UnfoldedSliceRange(ValueType view, int ndims_to_unfold)
+      : view_{std::move(view)},
         num_slices_{[&]() {
-          assert(view.shape.sample_dim() >= ndims_to_unfold);
-          auto vol = volume(view.shape.begin(), view.shape.begin() + ndims_to_unfold);
+          assert(view_.shape.sample_dim() >= ndims_to_unfold);
+          auto vol = volume(view_.shape.begin(), view_.shape.begin() + ndims_to_unfold);
           return static_cast<std::make_unsigned_t<decltype(vol)>>(vol);
         }()},
-        slice_shape_{view.shape.begin() + ndims_to_unfold, view.shape.end()},
-        slice_stride_{view.type_size * volume(slice_shape_)} {}
+        slice_shape_{view_.shape.begin() + ndims_to_unfold, view_.shape.end()},
+        slice_stride_{view_.type_size * volume(slice_shape_)} {}
 
-  inline SliceIterator<UnfoldedSliceRange> begin() const {
+  RangeIterator<UnfoldedSliceRange> begin() const {
     return {*this, 0};
   }
 
-  inline SliceIterator<UnfoldedSliceRange> end() const {
+  RangeIterator<UnfoldedSliceRange> end() const {
     return {*this, NumSlices()};
   }
 
-  inline SliceViewType operator[](IndexType idx) const {
+  ValueType operator[](IndexType idx) const {
     return {view_.ptr + idx * SliceSize(), SliceShape(), view_.type_size};
   }
 
-  inline size_t NumSlices() const {
+  size_t NumSlices() const {
     return num_slices_;
   }
 
-  inline TensorShape<> SliceShape() const {
+  TensorShape<> SliceShape() const {
     return slice_shape_;
   }
 
-  inline size_t SliceSize() const {
+  size_t SliceSize() const {
     return slice_stride_;
   }
 
  private:
-  SliceViewType view_;
+  ValueType view_;
   size_t num_slices_;
   TensorShape<> slice_shape_;
   size_t slice_stride_;
