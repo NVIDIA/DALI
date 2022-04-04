@@ -44,7 +44,7 @@ void SourceInfo<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
   auto& output = ws.template Output<GPUBackend>(0);
   for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto si = GetSourceInfo(input, sample_id);
-    auto output_ptr = output.raw_mutable_tensor(static_cast<int>(sample_id));
+    auto output_ptr = output.raw_mutable_tensor(sample_id);
     cudaMemcpyAsync(output_ptr, si.c_str(), si.length(), cudaMemcpyDefault, ws.stream());
   }
 }
@@ -55,7 +55,7 @@ void Layout<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
   auto& output = ws.template Output<GPUBackend>(0);
   for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto layout = GetLayout(input, sample_id);
-    auto output_ptr = output.raw_mutable_tensor(static_cast<int>(sample_id));
+    auto output_ptr = output.raw_mutable_tensor(sample_id);
     cudaMemcpyAsync(output_ptr, layout.c_str(), layout.size(), cudaMemcpyDefault, ws.stream());
   }
 }
