@@ -53,7 +53,7 @@ __global__ void BinSearchCastKernel(const CastSampleDesc *samples,
                                     const CastSampleBlockDesc *params,
                                     int nsamples, int block_volume_scale) {
   int i = 0;
-  for (int jump = (1 << (32 - __clz(nsamples) - 1)); jump; jump /= 2) {
+  for (int jump = (1 << (32 - __clz(nsamples) - 1)); jump; jump >>= 1) {
     if (i + jump < nsamples && params[i + jump].first_block <= blockIdx.x)
       i += jump;
   }
