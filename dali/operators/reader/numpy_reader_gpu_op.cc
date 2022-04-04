@@ -104,7 +104,7 @@ void NumpyReaderGPU::Prefetch() {
 
 
   // read the data
-  for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
+  for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
     size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx))
                                              * curr_tensor_list.type_info().size());
@@ -125,7 +125,7 @@ void NumpyReaderGPU::Prefetch() {
   }
   thread_pool_.RunAll();
 
-  for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
+  for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_batch[data_idx]->file_stream->Close();
   }
 }
