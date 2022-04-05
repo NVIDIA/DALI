@@ -93,7 +93,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   EXPECT_EQ(tv.is_pinned(), false);
-  for (size_t i = 0; i < tv.num_samples(); i++) {
+  for (int i = 0; i < tv.num_samples(); i++) {
     EXPECT_EQ(tv[i].type(), DALI_INT32);
   }
 }
@@ -109,7 +109,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
   EXPECT_EQ(tv[0].shape(), TensorShape<>(2, 4));
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   EXPECT_EQ(tv.is_pinned(), false);
-  for (size_t i = 0; i < tv.num_samples(); i++) {
+  for (int i = 0; i < tv.num_samples(); i++) {
     EXPECT_EQ(tv[i].type(), DALI_INT32);
   }
 }
@@ -202,7 +202,7 @@ template <typename T, typename U>
     ::testing::AssertionFailure() << make_string("[Testing: ", testing_values,
                                                  "] Inconsistent number of tensors");
   }
-  for (size_t tensor_idx = 0; tensor_idx < rhs.num_samples(); tensor_idx++) {
+  for (int tensor_idx = 0; tensor_idx < rhs.num_samples(); tensor_idx++) {
     if (rhs.tensor_shape(tensor_idx) != lhs.tensor_shape(tensor_idx)) {
       ::testing::AssertionFailure()
           << make_string("[Testing: ", testing_values, "] Inconsistent shapes");

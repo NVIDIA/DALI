@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ class Copy : public Operator<Backend> {
     auto data_type_size = input.type_info().size();
     auto &output = ws.template Output<Backend>(0);
     output.SetLayout(input.GetLayout());
-    for (unsigned int i = 0; i < input.num_samples(); i++) {
+    for (int i = 0; i < input.num_samples(); i++) {
       auto tensor_shape = input.tensor_shape(i);
       auto tensor_size = volume(tensor_shape);
       scatter_gather_.AddCopy(output.raw_mutable_tensor(i), input.raw_tensor(i),

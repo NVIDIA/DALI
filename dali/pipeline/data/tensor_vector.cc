@@ -21,13 +21,13 @@ namespace dali {
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector()
-    : views_count_(0), curr_tensors_size_(0), tl_(std::make_shared<TensorList<Backend>>()) {}
+    : views_count_(0), curr_num_tensors_(0), tl_(std::make_shared<TensorList<Backend>>()) {}
 
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector(int batch_size)
     : views_count_(0),
-      curr_tensors_size_(0),
+      curr_num_tensors_(0),
       tl_(std::make_shared<TensorList<Backend>>(batch_size)) {
   resize_tensors(batch_size);
 }
@@ -35,7 +35,7 @@ TensorVector<Backend>::TensorVector(int batch_size)
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector(std::shared_ptr<TensorList<Backend>> tl)
-    : views_count_(0), curr_tensors_size_(0), tl_(std::move(tl)) {
+    : views_count_(0), curr_num_tensors_(0), tl_(std::move(tl)) {
   assert(tl_ && "Construction with null TensorList is illegal");
   pinned_ = tl_->is_pinned();
   type_ = tl_->type_info();
@@ -50,7 +50,7 @@ template <typename Backend>
 TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
   state_ = other.state_;
   pinned_ = other.pinned_;
-  curr_tensors_size_ = other.curr_tensors_size_;
+  curr_num_tensors_ = other.curr_num_tensors_;
   tl_ = std::move(other.tl_);
   type_ = std::move(other.type_);
   sample_dim_ = other.sample_dim_;
@@ -63,7 +63,7 @@ TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
   }
 
   other.views_count_ = 0;
-  other.curr_tensors_size_ = 0;
+  other.curr_num_tensors_ = 0;
   other.tensors_.clear();
   other.sample_dim_ = -1;
 }
@@ -74,8 +74,8 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const TensorVector<B
   // TODO(klecki): more consistency checks, contiguous -> non-contiguous removes shares_data from
   // samples
   // Bounds check
-  assert(sample_idx >= 0 && sample_idx < static_cast<int>(curr_tensors_size_));
-  assert(src_sample_idx >= 0 && src_sample_idx < static_cast<int>(src.curr_tensors_size_));
+  assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
+  assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
   DALI_ENFORCE(type() == src.type(),
                make_string("Sample must have the same type as a target batch, current: ", type(),
                            " new: ", src.type(), " for ", sample_idx, " <- ", src_sample_idx, "."));
@@ -105,7 +105,7 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend
   // TODO(klecki): more consistency checks, contiguous -> non-contiguous removes shares_data from
   // samples
   // Bounds check
-  assert(sample_idx >= 0 && sample_idx < static_cast<int>(curr_tensors_size_));
+  assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   DALI_ENFORCE(type() == owner.type(),
                make_string("Sample must have the same type as a target batch, current: ", type(),
                            " new: ", owner.type(), " for ", sample_idx, "."));
@@ -133,7 +133,7 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
                                             size_t bytes, bool pinned, const TensorShape<> &shape,
                                             DALIDataType type, AccessOrder order,
                                             const TensorLayout &layout) {
-  assert(sample_idx >= 0 && sample_idx < static_cast<int>(curr_tensors_size_));
+  assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   DALI_ENFORCE(this->type() == type,
                make_string("Sample must have the same type as a target batch, current: ",
                            this->type(), " new: ", type, " for ", sample_idx, "."));
@@ -160,8 +160,8 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const TensorVector<
   // TODO(klecki): more consistency checks, contiguous -> non-contiguous removes shares_data from
   // samples
   // Bounds check
-  assert(sample_idx >= 0 && sample_idx < static_cast<int>(curr_tensors_size_));
-  assert(src_sample_idx >= 0 && src_sample_idx < static_cast<int>(src.curr_tensors_size_));
+  assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
+  assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
   DALI_ENFORCE(type() == src.type(),
                make_string("Sample must have the same type as a target batch, current: ", type(),
                            " new: ", src.type(), " for ", sample_idx, " <- ", src_sample_idx, "."));
@@ -255,11 +255,11 @@ TensorListShape<> TensorVector<Backend>::shape() const {
   if (state_ == State::contiguous) {
     return tl_->shape();
   }
-  if (curr_tensors_size_ == 0) {
+  if (curr_num_tensors_ == 0) {
     return {};
   }
-  TensorListShape<> result(curr_tensors_size_, tensors_[0]->ndim());
-  for (size_t i = 0; i < curr_tensors_size_; i++) {
+  TensorListShape<> result(curr_num_tensors_, tensors_[0]->ndim());
+  for (int i = 0; i < curr_num_tensors_; i++) {
     result.set_tensor_shape(i, tensors_[i]->shape());
   }
   return result;
@@ -299,7 +299,7 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
     return;
   }
 
-  for (size_t i = 0; i < curr_tensors_size_; i++) {
+  for (int i = 0; i < curr_num_tensors_; i++) {
     tensors_[i]->Resize(new_shape[i], new_type);
   }
   set_type(new_type);
@@ -335,10 +335,10 @@ DALIDataType TensorVector<Backend>::type() const {
   if (state_ == State::contiguous) {
     return tl_->type();
   }
-  if (curr_tensors_size_ == 0) {
+  if (curr_num_tensors_ == 0) {
     return type_.id();
   }
-  for (size_t i = 1; i < curr_tensors_size_; i++) {
+  for (int i = 1; i < curr_num_tensors_; i++) {
     assert(tensors_[0]->type() == tensors_[i]->type());
   }
   return tensors_[0]->type();
@@ -349,10 +349,10 @@ const TypeInfo &TensorVector<Backend>::type_info() const {
   if (state_ == State::contiguous) {
     return tl_->type_info();
   }
-  if (curr_tensors_size_ == 0) {
+  if (curr_num_tensors_ == 0) {
     return type_;
   }
-  for (size_t i = 1; i < curr_tensors_size_; i++) {
+  for (int i = 1; i < curr_num_tensors_; i++) {
     assert(tensors_[0]->type() == tensors_[i]->type());
   }
   return tensors_[0]->type_info();
@@ -389,9 +389,9 @@ TensorLayout TensorVector<Backend>::GetLayout() const {
     auto layout = tl_->GetLayout();
     if (!layout.empty()) return layout;
   }
-  if (curr_tensors_size_ > 0) {
+  if (curr_num_tensors_ > 0) {
     auto layout = tensors_[0]->GetLayout();
-    for (size_t i = 1; i < curr_tensors_size_; i++) assert(layout == tensors_[i]->GetLayout());
+    for (int i = 1; i < curr_num_tensors_; i++) assert(layout == tensors_[i]->GetLayout());
     return layout;
   }
   return {};
@@ -400,14 +400,14 @@ TensorLayout TensorVector<Backend>::GetLayout() const {
 
 template <typename Backend>
 const DALIMeta &TensorVector<Backend>::GetMeta(int idx) const {
-  assert(static_cast<size_t>(idx) < curr_tensors_size_);
+  assert(idx < curr_num_tensors_);
   return tensors_[idx]->GetMeta();
 }
 
 
 template <typename Backend>
 void TensorVector<Backend>::SetMeta(int idx, const DALIMeta &meta) {
-  assert(static_cast<size_t>(idx) < curr_tensors_size_);
+  assert(idx < curr_num_tensors_);
   tensors_[idx]->SetMeta(meta);
 }
 
@@ -444,7 +444,7 @@ template <typename Backend>
 void TensorVector<Backend>::reserve(size_t total_bytes) {
   if (state_ == State::noncontiguous) {
     tensors_.clear();
-    curr_tensors_size_ = 0;
+    curr_num_tensors_ = 0;
   }
   state_ = State::contiguous;
   tl_->reserve(total_bytes);
@@ -457,7 +457,7 @@ void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
   assert(batch_size > 0);
   state_ = State::noncontiguous;
   resize_tensors(batch_size);
-  for (size_t i = 0; i < curr_tensors_size_; i++) {
+  for (int i = 0; i < curr_num_tensors_; i++) {
     tensors_[i]->reserve(bytes_per_sample);
   }
 }
@@ -465,7 +465,7 @@ void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
 
 template <typename Backend>
 bool TensorVector<Backend>::IsContiguous() const noexcept {
-  return state_ == State::contiguous && static_cast<size_t>(views_count_) == num_samples();
+  return state_ == State::contiguous && views_count_ == num_samples();
 }
 
 
@@ -482,7 +482,7 @@ void TensorVector<Backend>::SetContiguous(bool contiguous) {
 template <typename Backend>
 void TensorVector<Backend>::Reset() {
   tensors_.clear();
-  curr_tensors_size_ = 0;
+  curr_num_tensors_ = 0;
   type_ = {};
   sample_dim_ = -1;
   if (IsContiguous()) {
@@ -556,7 +556,7 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
   if (&other != this) {
     state_ = other.state_;
     pinned_ = other.pinned_;
-    curr_tensors_size_ = other.curr_tensors_size_;
+    curr_num_tensors_ = other.curr_num_tensors_;
     tl_ = std::move(other.tl_);
     type_ = other.type_;
     sample_dim_ = other.sample_dim_;
@@ -569,7 +569,7 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
     }
 
     other.views_count_ = 0;
-    other.curr_tensors_size_ = 0;
+    other.curr_num_tensors_ = 0;
     other.tensors_.clear();
   }
   return *this;
@@ -584,10 +584,10 @@ void TensorVector<Backend>::UpdateViews() {
   type_ = tl_->type_info();
   sample_dim_ = tl_->shape().sample_dim();
 
-  assert(curr_tensors_size_ == tl_->num_samples());
+  assert(curr_num_tensors_ == tl_->num_samples());
 
-  views_count_ = curr_tensors_size_;
-  for (size_t i = 0; i < curr_tensors_size_; i++) {
+  views_count_ = curr_num_tensors_;
+  for (int i = 0; i < curr_num_tensors_; i++) {
     update_view(i);
   }
 }
@@ -599,7 +599,7 @@ std::shared_ptr<TensorList<Backend>> TensorVector<Backend>::AsTensorList(bool ch
                "Cannot cast non continuous TensorVector to TensorList.");
   // Update the metadata when we are exposing the TensorList to the outside, as it might have been
   // kept in the individual tensors
-  for (size_t idx = 0; idx < curr_tensors_size_; idx++) {
+  for (int idx = 0; idx < curr_num_tensors_; idx++) {
     tl_->SetMeta(idx, tensors_[idx]->GetMeta());
   }
   return tl_;
@@ -609,7 +609,7 @@ std::shared_ptr<TensorList<Backend>> TensorVector<Backend>::AsTensorList(bool ch
 template <typename Backend>
 void TensorVector<Backend>::resize_tensors(int new_size) {
   if (static_cast<size_t>(new_size) > tensors_.size()) {
-    auto old_size = curr_tensors_size_;
+    auto old_size = curr_num_tensors_;
     tensors_.resize(new_size);
     for (int i = old_size; i < new_size; i++) {
       if (!tensors_[i]) {
@@ -618,8 +618,8 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
         tensors_[i]->set_order(order());
       }
     }
-  } else if (static_cast<size_t>(new_size) < curr_tensors_size_) {
-    for (size_t i = new_size; i < curr_tensors_size_; i++) {
+  } else if (new_size < curr_num_tensors_) {
+    for (int i = new_size; i < curr_num_tensors_; i++) {
       if (tensors_[i]->shares_data()) {
         tensors_[i]->Reset();
       }
@@ -628,7 +628,7 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
     // also gets rid of reserved memory.
     // tensors_.resize(new_size);
   }
-  curr_tensors_size_ = new_size;
+  curr_num_tensors_ = new_size;
 }
 
 template <typename Backend>
@@ -637,14 +637,14 @@ void TensorVector<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
   // to the batch object for consitency and easier use in checks. It should allow for shape()
   // to be ready to use as well as easy verification for SetSample/CopySample.
   SetContiguous(contiguous);
-  // assume that the curr_tensors_size_ is valid
-  DALI_ENFORCE(curr_tensors_size_ > 0, "Unexpected empty output of operator. Internal DALI error.");
+  // assume that the curr_num_tensors_ is valid
+  DALI_ENFORCE(curr_num_tensors_ > 0, "Unexpected empty output of operator. Internal DALI error.");
   type_ = tensors_[0]->type_info();
   sample_dim_ = tensors_[0]->shape().sample_dim();
   pinned_ = tensors_[0]->is_pinned();
   order_ = tensors_[0]->order();
   tl_->set_order(order_);
-  for (size_t i = 0; i < curr_tensors_size_; i++) {
+  for (int i = 0; i < curr_num_tensors_; i++) {
     DALI_ENFORCE(type() == tensors_[i]->type(),
                  make_string("Samples must have the same type, expected: ", type(),
                              " got: ", tensors_[i]->type(), " at ", i, "."));
@@ -676,8 +676,8 @@ bool TensorVector<Backend>::has_data() const {
 
 template <typename Backend>
 void TensorVector<Backend>::update_view(int idx) {
-  assert(static_cast<size_t>(idx) < curr_tensors_size_);
-  assert(static_cast<size_t>(idx) < tl_->num_samples());
+  assert(idx < curr_num_tensors_);
+  assert(idx < tl_->num_samples());
 
   auto *ptr = tl_->raw_mutable_tensor(idx);
 

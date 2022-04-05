@@ -774,7 +774,7 @@ void ExposeTensorList(py::module &m) {
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
-          DALI_ENFORCE(static_cast<size_t>(id) < tl.num_samples(), "Index is out-of-range.");
+          DALI_ENFORCE(id < tl.num_samples(), "Index is out-of-range.");
           DALI_ENFORCE(id >= 0, "Index is out-of-range.");
 
           std::vector<ssize_t> shape(tl.tensor_shape(id).size()),

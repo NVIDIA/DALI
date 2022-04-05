@@ -24,7 +24,7 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   DALIDataType type = input.type();
   size_t type_size = input.type_info().size();
 
-  for (size_t i = 0; i < input.num_samples(); ++i) {
+  for (int i = 0; i < input.num_samples(); ++i) {
     auto sample = ws.Input<CPUBackend>(0)[i];
     size_t sample_bytes = sample.shape().num_elements() * type_size;
     if (coalesced && sample_bytes > COALESCE_THRESHOLD)

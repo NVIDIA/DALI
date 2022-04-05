@@ -69,7 +69,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     const TensorList<CPUBackend> &encoded_data = *inputs[0];
     const int c = this->GetNumColorComp();
 
-    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
+    for (int i = 0; i < encoded_data.num_samples(); ++i) {
       auto *data = encoded_data.tensor<unsigned char>(i);
       auto data_size = volume(encoded_data.tensor_shape(i));
       this->DecodeImage(
@@ -78,12 +78,12 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
     }
 
     TensorListShape<> out_shape(inputs[0]->num_samples(), 3);
-    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
+    for (int i = 0; i < encoded_data.num_samples(); ++i) {
       out_shape.set_tensor_shape(i, tmp_out[i].shape());
     }
     out.SetupLike(tmp_out[0]);
     out.Resize(out_shape, DALI_UINT8);
-    for (size_t i = 0; i < encoded_data.num_samples(); ++i) {
+    for (int i = 0; i < encoded_data.num_samples(); ++i) {
       out.UnsafeSetSample(i, tmp_out[i]);
     }
 

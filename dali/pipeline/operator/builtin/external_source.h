@@ -257,7 +257,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     DALI_ENFORCE(vect_of_tensors.size() > 0, "Provided batch cannot be empty.");
     TensorVector<SrcBackend> tv(vect_of_tensors.size());
     tv.SetupLike(vect_of_tensors[0]);
-    for (size_t i = 0; i < tv.num_samples(); ++i) {
+    for (int i = 0; i < tv.num_samples(); ++i) {
       tv.UnsafeSetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }
     SetDataSourceHelper(tv, order, ext_src_setting_mode);

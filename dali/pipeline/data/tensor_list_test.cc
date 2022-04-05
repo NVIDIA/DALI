@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -240,7 +240,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   }
 
   // Verify the internals
-  for (size_t i = 0; i < tl.num_samples(); i++) {
+  for (int i = 0; i < tl.num_samples(); i++) {
     ASSERT_EQ(tl.raw_tensor(i), sharer.raw_tensor(i));
   }
   ASSERT_EQ(tl._num_elements(), size);
@@ -275,7 +275,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   }
 
   // Verify the internals
-  for (size_t i = 0; i < tl.num_samples(); i++) {
+  for (int i = 0; i < tl.num_samples(); i++) {
     ASSERT_EQ(tl.raw_tensor(i), sharer.raw_tensor(i));
   }
   ASSERT_EQ(tl._num_elements(), size);
@@ -453,7 +453,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
 
   // Save the pointers
   std::vector<const void *> ptrs;
-  for (size_t i = 0; i < tensor_list.num_samples(); i++) {
+  for (int i = 0; i < tensor_list.num_samples(); i++) {
     ptrs.push_back(tensor_list.raw_tensor(i));
   }
   size_t nbytes = tensor_list.nbytes();
@@ -463,7 +463,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSameSize) {
 
   // Check the internals
   ASSERT_EQ(tensor_list.num_samples(), shape.size());
-  for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
+  for (int i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(ptrs[i], tensor_list.raw_tensor(i));
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
@@ -490,7 +490,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeSmaller) {
 
   // Check the internals
   ASSERT_EQ(tensor_list.num_samples(), shape.size());
-  for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
+  for (int i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(unsafe_raw_data(tensor_list), base_ptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
@@ -516,7 +516,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
 
   // Check the internals
   ASSERT_EQ(tensor_list.num_samples(), shape.size());
-  for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
+  for (int i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
@@ -546,7 +546,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   tensor_list2.Resize(flattened_shape);
 
   // Make sure the pointers match
-  for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
+  for (int i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(tensor_list.raw_tensor(i), tensor_list2.raw_tensor(i));
   }
   ASSERT_TRUE(tensor_list2.shares_data());
@@ -562,7 +562,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes());
   ASSERT_EQ(tensor_list2.num_samples(), tensor_list.num_samples());
   ASSERT_EQ(tensor_list2._num_elements(), tensor_list._num_elements());
-  for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
+  for (int i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(tensor_list.raw_tensor(i), tensor_list2.raw_tensor(i));
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
     ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
