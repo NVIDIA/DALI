@@ -484,6 +484,7 @@ class SequenceOperator : public Operator<Backend> {
   TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_input,
                                                    const std::string &arg_name, int input_idx) {
     const auto &expand_desc = GetInputExpandDesc(input_idx);
+    assert(expand_desc.NumDimsToExpand() > 0);
     DALI_ENFORCE(arg_input.num_samples() == expand_desc.NumSamples(),
                  make_string("Number of samples passed for argument ", arg_name, " (got ",
                              arg_input.num_samples(),
