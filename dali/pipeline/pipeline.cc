@@ -33,7 +33,22 @@
 
 namespace dali {
 
-void DeserializeOpSpec(const dali_proto::OpDef& def, OpSpec* spec) {
+namespace {
+
+
+bool DeserializePipeline(const std::string &serialized_pipeline,
+                         dali_proto::PipelineDef &deserialized_pipeline) {
+  //  Reading Protobuf file has a limitation of 64 MB
+  //  Following instructions will increase the
+  //  limits to support the given pipeline
+  google::protobuf::io::CodedInputStream coded_input(
+      reinterpret_cast<const uint8_t *>(serialized_pipeline.c_str()), serialized_pipeline.size());
+  coded_input.SetTotalBytesLimit(serialized_pipeline.size());
+  return deserialized_pipeline.ParseFromCodedStream(&coded_input);
+}
+
+
+void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
   std::string name = def.name();
 
   // Due to the fact that External Source existed in DALI as two entities we need to have a place
@@ -73,20 +88,17 @@ void DeserializeOpSpec(const dali_proto::OpDef& def, OpSpec* spec) {
 }
 
 
+}  // namespace
+
+
 Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
                    bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                    int default_cuda_stream_priority, int64_t seed)
         : built_(false), separated_execution_(false) {
+
     dali_proto::PipelineDef def;
-    //  Reading Protobuf file has a limitation of 64 MB
-    //  Following instructions will increase the
-    //  limits to support the given pipeline
-    google::protobuf::io::CodedInputStream coded_input(
-            reinterpret_cast<const uint8_t *>(serialized_pipe.c_str()), serialized_pipe.size());
-    coded_input.SetTotalBytesLimit(serialized_pipe.size());
-    auto res = def.ParseFromCodedStream(&coded_input);
-    DALI_ENFORCE(res, "Error parsing serialized pipeline.");
+    DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
     // If not given, take parameters from the serialized pipeline
     this->max_batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
@@ -775,6 +787,12 @@ int Pipeline::GetNextInternalLogicalId() {
   int ret = next_internal_logical_id_;
   next_internal_logical_id_--;
   return ret;
+}
+
+
+bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
+  dali_proto::PipelineDef def;
+  return DeserializePipeline(serialized_pipeline, def);
 }
 
 }  // namespace dali
