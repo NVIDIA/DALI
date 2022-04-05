@@ -197,6 +197,11 @@ class UnfoldedSliceRange {
   size_t slice_stride_;
 };
 
+
+/**
+ * @brief Utility to build the sharing tensor vector from slices of samples of
+ * another tensor vector.
+ */
 template <typename Backend>
 struct TensorVectorBuilder {
   TensorVectorBuilder(int num_samples, DALIDataType type, int sample_dim, TensorLayout layout,
@@ -215,6 +220,10 @@ struct TensorVectorBuilder {
                         view.shape, tv_.type(), tv_.order(), tv_.GetLayout());
   }
 
+  /**
+   * @brief Returns the created tensor vector: must be called after pusing exactly ``num_samples``.
+   * Calling ``take`` invalidates the ``TensorVectorBuilder`` instance.
+   */
   TensorVector<Backend> take() {
     assert(size == tv_.num_samples());
     return std::move(tv_);

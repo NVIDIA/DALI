@@ -149,7 +149,7 @@ class SequenceOperator : public Operator<Backend> {
    * (for example ``FHWC -> HWC``). If true, layouts starting with ``C`` will be expandable as well,
    * i.e. ``FCHW -> HW, CFHW -> HW, CHW -> HW`` etc.
    *
-   * However, operator does not support specifing tensor arguments per-chanel.
+   * The operator does not support specifying tensor arguments per-channel.
    */
   virtual bool ShouldExpandChannels(int input_idx) const {
     (void)input_idx;
@@ -168,6 +168,10 @@ class SequenceOperator : public Operator<Backend> {
     return GetInputExpandDesc(GetReferenceInputIdx());
   }
 
+   /**
+   * @brief Returns the index of the operator input which is expandable and given argument input
+   * should be expanded or broadcast in a manner consistent with the input.
+   */
   virtual int GetArgExpandDescInputIdx(const std::string &arg_name) const {
     (void)arg_name;
     return GetReferenceInputIdx();
@@ -176,12 +180,12 @@ class SequenceOperator : public Operator<Backend> {
   /**
    * @brief Expands the tensor arguments from ``ws`` and adds them to expanded workspace.
    * Arguments marked as supporting per-frame tensors and with leading `F` in tensor layout are
-   * unfolded (and additionally broadcasted if the channels in the operator's input are unfolded) to
+   * unfolded (and additionally broadcast if the channels in the operator's input are unfolded) to
    * match the operator's input. If the argument is unfolded, each sample of the argument must have
-   * the number of frames equal to either: one (so it can be broadcasted) or to the number of frames
+   * the number of frames equal to either: one (so it can be broadcast) or to the number of frames
    * in the corresponding sample of operator's expandable input.
    *
-   * Tensor inputs not marked per-frame or with no leading frames in the layout are broadcasted to
+   * Tensor inputs not marked per-frame or with no leading frames in the layout are broadcast to
    * match the operator's expandable input.
    *
    * Assumes ``IsExpandble()`` is true, i.e. there is some expandable input to match the expanded
@@ -189,6 +193,7 @@ class SequenceOperator : public Operator<Backend> {
    */
   virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
                               const TensorVector<CPUBackend> &arg_input) {
+    assert(IsExpandable());
     auto input_idx = GetArgExpandDescInputIdx(arg_name);
     auto expanded_arg = ExpandArgumentLikeInput(arg_input, arg_name, input_idx);
     auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
@@ -204,10 +209,11 @@ class SequenceOperator : public Operator<Backend> {
    * all other inputs must be expandable in an agreeable way, i.e:
    * 1. have the same expandble layout prefix and matching outermost dimensions that are to
    *    be expanded, or
-   * 2. have no expandable layout prefix, in that case the samples are going to be broadcasted
+   * 2. have no expandable layout prefix, in that case the samples are going to be broadcast
    *    to match the other expanded inputs (TODO).
    */
   virtual void ExpandInput(const workspace_t<Backend> &ws, int input_idx) {
+    assert(IsExpandable());
     int ref_input_idx = GetReferenceInputIdx();
     const auto &ref_expand_desc = GetInputExpandDesc(ref_input_idx);
     const auto &input_desc = GetInputExpandDesc(input_idx);
@@ -304,7 +310,7 @@ class SequenceOperator : public Operator<Backend> {
 
   /**
    * @brief Returns the index of the operator input which is expandable and other
-   * inputs should be expanded or broadcasted in a manner consistent with the
+   * inputs should be expanded or broadcast in a manner consistent with the
    * given input. If no input is expandable, returns -1.
    */
   int GetReferenceInputIdx() const {
