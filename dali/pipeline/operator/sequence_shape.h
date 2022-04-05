@@ -42,11 +42,7 @@ class ExpandDesc {
         num_expand_dims_{expand_channels_ + expand_frames_},
         is_channel_first_{num_expand_dims_ == 2 && channels_dim_ < frames_dim_},
         dims_to_expand_{shape.first(num_expand_dims_)},
-        num_expanded_{[&]() {
-          auto num_elements = dims_to_expand_.num_elements();
-          return static_cast<std::make_unsigned_t<decltype(num_elements)>>(num_elements);
-        }()} {}
-
+        num_expanded_{dims_to_expand_.num_elements()} {}
 
   bool ExpandChannels() const {
     return expand_channels_;
@@ -64,27 +60,27 @@ class ExpandDesc {
     return num_expand_dims_;
   }
 
-  size_t NumExpanded() const {
-    return num_expanded_;
-  }
-
-  size_t NumSamples() const {
+  int NumSamples() const {
     return dims_to_expand_.num_samples();
   }
 
-  size_t NumExpanded(size_t sample_idx) const {
+  int64_t NumExpanded() const {
+    return num_expanded_;
+  }
+
+  int64_t NumExpanded(int sample_idx) const {
     assert(sample_idx < NumSamples());
     return volume(dims_to_expand_[sample_idx]);
   }
 
-  size_t NumFrames(size_t sample_idx) const {
-    assert(sample_idx < NumSamples());
+  int64_t NumFrames(int sample_idx) const {
+    assert(0 <= sample_idx && sample_idx < NumSamples());
     assert(frames_dim_ < NumDimsToExpand());
     return dims_to_expand_[sample_idx][frames_dim_];
   }
 
-  size_t NumChannels(size_t sample_idx) const {
-    assert(sample_idx < NumSamples());
+  int64_t NumChannels(int sample_idx) const {
+    assert(0 <= sample_idx && sample_idx < NumSamples());
     assert(channels_dim_ < NumDimsToExpand());
     return dims_to_expand_[sample_idx][channels_dim_];
   }
@@ -110,7 +106,7 @@ class ExpandDesc {
   int num_expand_dims_;
   bool is_channel_first_;
   TensorListShape<> dims_to_expand_;
-  size_t num_expanded_;
+  int64_t num_expanded_;
 };
 
 namespace sequence_utils {
@@ -158,15 +154,14 @@ struct SliceView {
  */
 class UnfoldedSliceRange {
  public:
-  using IndexType = size_t;
+  using IndexType = int64_t;
   using ValueType = SliceView;
 
   UnfoldedSliceRange(ValueType view, int ndims_to_unfold)
       : view_{std::move(view)},
         num_slices_{[&]() {
           assert(view_.shape.sample_dim() >= ndims_to_unfold);
-          auto vol = volume(view_.shape.begin(), view_.shape.begin() + ndims_to_unfold);
-          return static_cast<std::make_unsigned_t<decltype(vol)>>(vol);
+          return volume(view_.shape.begin(), view_.shape.begin() + ndims_to_unfold);
         }()},
         slice_shape_{view_.shape.begin() + ndims_to_unfold, view_.shape.end()},
         slice_stride_{view_.type_size * volume(slice_shape_)} {}
@@ -183,7 +178,7 @@ class UnfoldedSliceRange {
     return {view_.ptr + idx * SliceSize(), SliceShape(), view_.type_size};
   }
 
-  size_t NumSlices() const {
+  int64_t NumSlices() const {
     return num_slices_;
   }
 
@@ -197,7 +192,7 @@ class UnfoldedSliceRange {
 
  private:
   ValueType view_;
-  size_t num_slices_;
+  int64_t num_slices_;
   TensorShape<> slice_shape_;
   size_t slice_stride_;
 };
@@ -226,7 +221,7 @@ struct TensorVectorBuilder {
   }
 
   TensorVector<Backend> tv_;
-  size_t size = 0;
+  int size = 0;
 };
 
 

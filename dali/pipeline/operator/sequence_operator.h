@@ -265,7 +265,7 @@ class SequenceOperator : public Operator<Backend> {
     for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       const auto &shape = output_desc[output_idx].shape;
-      DALI_ENFORCE(static_cast<size_t>(shape.num_samples()) == expand_desc.NumExpanded(),
+      DALI_ENFORCE(shape.num_samples() == expand_desc.NumExpanded(),
                    make_string("Unexpected number of frames inferred in the operator for output ",
                                output_idx, ". Expected ", expand_desc.NumExpanded(),
                                " but the operator returned ", shape.num_samples(), "."));
@@ -356,7 +356,7 @@ class SequenceOperator : public Operator<Backend> {
                     " is expected to either: have no outermost dimensions planned for expanding or "
                     "have exactly the same outermost dimensions to expand. However, got `",
                     input_desc.ExpandedLayout(), "` planned for expanding."));
-    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
+    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
       assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
       if (expand_desc.ExpandFrames()) {
         DALI_ENFORCE(expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
@@ -496,7 +496,7 @@ class SequenceOperator : public Operator<Backend> {
     assert((arg_input.num_samples() == expand_desc.NumSamples()) && expand_desc.ExpandFrames());
     auto tv_builder =
         sequence_utils::tv_builder_like(arg_input, expand_desc.NumExpanded(), ndims_to_unfold);
-    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       auto frames_range =
           sequence_utils::unfolded_slice_range(arg_input, sample_idx, ndims_to_unfold);
       auto num_input_frames = expand_desc.NumFrames(sample_idx);
@@ -510,7 +510,7 @@ class SequenceOperator : public Operator<Backend> {
                       " frames in the sample."));
       if (num_arg_frames == 1) {  // broadcast the sample
         auto slice = frames_range[0];
-        for (size_t j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
+        for (int j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
           tv_builder.push(slice);
         }
       } else if (!expand_desc.ExpandChannels()) {  // expand frames dimension
@@ -545,7 +545,7 @@ class SequenceOperator : public Operator<Backend> {
     auto tv_builder = sequence_utils::tv_builder_like(arg_input, expand_desc.NumExpanded());
     const auto &type_info = arg_input.type_info();
     assert(expand_desc.NumSamples() == arg_input.num_samples());
-    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       const auto &slice_shape = shape[sample_idx];
       int num_elements = expand_desc.NumExpanded(sample_idx);
       uint8_t *ptr =
@@ -564,7 +564,7 @@ class SequenceOperator : public Operator<Backend> {
     auto tv_builder =
         sequence_utils::tv_builder_like(data, expand_desc.NumExpanded(), ndims_to_unfold);
     assert(expand_desc.NumSamples() == data.num_samples());
-    for (size_t sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       auto slices_range = sequence_utils::unfolded_slice_range(data, sample_idx, ndims_to_unfold);
       assert(expand_desc.NumExpanded(sample_idx) == slices_range.NumSlices());
       for (auto &&slice : slices_range) {
