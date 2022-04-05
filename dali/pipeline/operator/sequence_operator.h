@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATOR_SEQUENCE_OPERATOR_H_
 #define DALI_PIPELINE_OPERATOR_SEQUENCE_OPERATOR_H_
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -375,6 +376,17 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
+  void VerifyExpandedBatchSizeNumericLimit(const ExpandDesc &expand_desc) {
+    // int is used in containers such as TensorVector to store the number of samples,
+    // so we cannot handle total number of frames in the batch greater than that
+    DALI_ENFORCE(
+        expand_desc.NumExpanded() <= std::numeric_limits<int>::max(),
+        make_string(
+            "Cannot expand sequence-like batch into batch of samples: there are too many frames ",
+            (expand_desc.ExpandChannels() ? "(or channels)" : ""), ": ", expand_desc.NumExpanded(),
+            " while the limit for batch size is ", std::numeric_limits<int>::max(), "."));
+  }
+
   template <typename OutputBackend>
   void SetOutputLayout(const workspace_t<Backend> &ws, int output_idx, TensorLayout layout_prefix) {
     auto &expanded_output = ExpandedOutput<OutputBackend>(output_idx);
@@ -459,6 +471,7 @@ class SequenceOperator : public Operator<Backend> {
             "Cannot flatten the sequence-like batch. Samples cannot have less dimensions (got ",
             sample_dim, ") than the requested number of dimensions to unfold: ", num_expand_dims,
             "."));
+    VerifyExpandedBatchSizeNumericLimit(expand_desc);
     return std::make_shared<Type>(UnfoldOuterDims(batch, expand_desc));
   }
 
@@ -470,6 +483,7 @@ class SequenceOperator : public Operator<Backend> {
                              arg_input.num_samples(),
                              ") does not match the number of samples in the input (got ",
                              expand_desc.NumSamples(), ")."));
+    VerifyExpandedBatchSizeNumericLimit(expand_desc);
     const auto &schema = Operator<Backend>::GetSpec().GetSchema();
     // Do not error out but simply ignore `F` layout of the argument input
     // if it is not marked as per-frame in schema to be consistent with operators
