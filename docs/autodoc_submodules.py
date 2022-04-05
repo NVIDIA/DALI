@@ -4,7 +4,9 @@ import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba
 import inspect
 import sys
+from pathlib import Path
 
+import operations_table
 
 # Dictionary with modules that can have registered Ops
 ops_modules = {
@@ -58,6 +60,9 @@ def get_functions(module):
             result.append(member_name)
     return result
 
+def get_schema_names(module, functions):
+    return [getattr(sys.modules[module], fun)._schema_name for fun in functions]
+
 
 def op_autodoc(out_filename):
     s = ""
@@ -85,34 +90,70 @@ def get_references(name, references):
     if name in references:
         result += ".. seealso::\n"
         for desc, url in references[name]:
-            result += f"   * `{desc} <./{url}>`_\n"
+            result += f"   * `{desc} <../{url}>`_\n"
     return result
 
+def single_fun_file(full_name, references):
+    """Generate stub page for documentation of given function from fn api.
+    """
+    result = ""
+    result += f".. _{full_name}:\n{full_name}\n"
+    result += "-" * len(full_name) + "\n\n"
+    result += f".. autofunction:: {full_name}\n\n"
+    result += get_references(full_name, references)
+    return result
 
-def fn_autodoc(out_filename, references):
-    s = ""
+def single_module_file(module, funs_in_module, references):
+    """Generate stub page for documentation of given module
+    """
+    result = ""
+    result += f".. _{module}:\n{module}\n"
+    result += "~" * len(module) + "\n\n"
+
+    if module in mod_aditional_doc:
+        result += mod_aditional_doc[module] + "\n\n"
+    result += get_references(module, references)
+
+    result += f"The following table lists all operations available in ``{module}`` module:\n"
+    result += operations_table.operations_table_str(get_schema_names(module, funs_in_module))
+
+
+    result += ".. toctree::\n   :hidden:\n\n"
+
+    for fun in funs_in_module:
+        if module in exclude_fn_members and fun in exclude_fn_members[module]:
+            continue
+        full_name = f"{module}.{fun}"
+        result += f"   {full_name}\n"
+    return result
+
+def fn_autodoc(out_filename, generated_path, references):
+    all_modules_str = ".. toctree::\n   :hidden:\n\n"
     all_modules = get_modules(fn_modules)
     for module in all_modules:
         dali_module = sys.modules[module]
         # Take all public members of given module
         funs_in_module = get_functions(dali_module)
-        s += module + "\n"
-        s += "~" * len(module) + "\n"
-        if module in mod_aditional_doc:
-            s += mod_aditional_doc[module] + "\n" + "\n"
-        s += get_references(module, references)
+        if len(funs_in_module) == 0:
+            continue
+
+        # As the top-level file is included from a directory above generated_path
+        # we need to provide the relative path to the per-module files
+        # the rest is within the same directory, so there is no need for that
+        all_modules_str += f"   {generated_path / module}\n"
+
+        single_module_str = single_module_file(module, funs_in_module, references)
+        with open(generated_path / (module + ".rst"), 'w') as module_file:
+            module_file.write(single_module_str)
+
         for fun in funs_in_module:
             full_name = f"{module}.{fun}"
             if module in exclude_fn_members and fun in exclude_fn_members[module]:
                 continue
-            s += f".. autofunction:: {full_name}\n\n"
-            s += get_references(full_name, references)
-        s += "\n"
+            with open(generated_path / (full_name + ".rst"), "w") as function_file:
+                single_file_str = single_fun_file(full_name, references)
+                function_file.write(single_file_str)
+
     with open(out_filename, 'w') as f:
-        f.write(s)
+        f.write(all_modules_str)
 
-
-if __name__ == "__main__":
-    assert (len(sys.argv) == 3)
-    op_autodoc(sys.argv[1])
-    fn_autodoc(sys.argv[2])

@@ -23,6 +23,7 @@ from builtins import str
 from enum import Enum
 import re
 import subprocess
+from pathlib import Path
 
 # -- Project information -----------------------------------------------------
 
@@ -50,20 +51,24 @@ version = str(version_long + u"-" + git_sha)
 # The full version, including alpha/beta/rc tags
 release = str(version_long)
 
+# Use a predefined path as a place for all the automatically generated docs pages
+generated_path = Path("./operations")
+generated_path.mkdir(exist_ok=True)
+
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
 with mock(["torch", "numba"]):
     sys.path.insert(0, os.path.abspath('./'))
     import operations_table
-    operations_table.operations_table("fn_table")
-    operations_table.fn_to_op_table("fn_to_op_table")
+    operations_table.operations_table(generated_path / "fn_table")
+    operations_table.fn_to_op_table(generated_path / "fn_to_op_table")
 
     import doc_index
     references = doc_index.document_examples('examples/index.py')
 
     import autodoc_submodules
-    autodoc_submodules.op_autodoc("op_autodoc")
-    autodoc_submodules.fn_autodoc("fn_autodoc", references)
+    autodoc_submodules.op_autodoc(generated_path / "op_autodoc")
+    autodoc_submodules.fn_autodoc(generated_path / "fn_autodoc", generated_path, references)
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
@@ -166,8 +171,7 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-# We remove the `_static` as we do not use it
-html_static_path = []
+html_static_path = ['_static']
 
 # Download favicon and set it (the variable `html_favicon`) for this project.
 # It must be relative path.
@@ -332,6 +336,7 @@ class EnumAttributeDocumenter(AttributeDocumenter):
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
+        app.add_js_file('redirect.js')
     # Register a sphinx.ext.autodoc.between listener to ignore everything
     # between lines that contain the word <SPHINX_IGNORE>
     app.connect('autodoc-process-docstring', between('^.*<SPHINX_IGNORE>.*$', exclude=True))
