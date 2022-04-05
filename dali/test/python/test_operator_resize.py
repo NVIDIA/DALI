@@ -612,33 +612,18 @@ def test_very_small_output():
             yield _test_very_small_output, dim, device
 
 def test_checkerboard_dali_vs_onnx_ref():
-    checkerboard = np.array([[1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],
-                             [1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1],], dtype=np.float32) * 255
+    improc_data_dir = os.path.join(test_data_root, 'db', 'imgproc')
+    ref_dir = os.path.join(improc_data_dir, 'ref', 'resampling')
+
+    # Checker board with shape (22, 22) with 2x2 squares
+    checkerboard_file =  os.path.join(improc_data_dir, 'checkerboard_22_22.npy')
+    checkerboard = np.load(checkerboard_file)
+    assert checkerboard.shape == (22, 22)
+
     out_size = (17, 13)
     out_size_str = '_'.join([str(n) for n in out_size])
-    dir = os.path.dirname(__file__)
-    ref_resized_linear_filename = os.path.join(dir, f"ref_checkerboard_resized_linear_{out_size_str}.npy")
-    ref_resized_cubic_filename = os.path.join(dir, f"ref_checkerboard_resized_cubic_{out_size_str}.npy")
+    ref_resized_linear_filename = os.path.join(ref_dir, f"checkerboard_linear_{out_size_str}.npy")
+    ref_resized_cubic_filename = os.path.join(ref_dir, f"checkerboard_cubic_{out_size_str}.npy")
 
     # Reference generated with ONNX reference code. To regenerate uncomment
 
