@@ -222,7 +222,8 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
 
 
 int daliIsDeserializable(const char* serialized_pipeline, int length) {
-  return dali::Pipeline::IsDeserializable({serialized_pipeline, length}) ? 0 : 1;
+  auto len = static_cast<size_t>(length);
+  return dali::Pipeline::IsDeserializable({serialized_pipeline, len}) ? 0 : 1;
 }
 
 
