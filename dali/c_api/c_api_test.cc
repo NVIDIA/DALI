@@ -964,7 +964,7 @@ TYPED_TEST(CApiTest, daliOutputCopySamples) {
 
 
 TYPED_TEST(CApiTest, IsDeserializableTest) {
-  using namespace std;
+  using namespace std;  // NOLINT
   vector<tuple<string /* serialized pipeline */, bool /* is deserializable? */>> test_cases;
   auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
@@ -977,10 +977,10 @@ TYPED_TEST(CApiTest, IsDeserializableTest) {
   test_cases.emplace_back("", false);
   test_cases.emplace_back("This can't possibly be a valid DALI pipeline.", false);
 
-  for (const auto & test_case : test_cases) {
-    const auto& str = get<0>(test_case);
-    const auto& res = get<1>(test_case);
-    EXPECT_EQ(daliIsDeserializable(str.c_str(),str.length()), res ? 0 : 1) << str;
+  for (const auto &test_case : test_cases) {
+    const auto &str = get<0>(test_case);
+    const auto &res = get<1>(test_case);
+    EXPECT_EQ(daliIsDeserializable(str.c_str(), str.length()), res ? 0 : 1) << str;
   }
 }
 
