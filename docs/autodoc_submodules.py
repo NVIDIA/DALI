@@ -2,7 +2,9 @@ from nvidia.dali import backend as b
 import nvidia.dali.ops as ops
 import nvidia.dali.plugin.pytorch
 import nvidia.dali.plugin.numba
+import inspect
 import sys
+
 
 # Dictionary with modules that can have registered Ops
 ops_modules = {
@@ -10,9 +12,11 @@ ops_modules = {
     'nvidia.dali.plugin.numba.experimental': nvidia.dali.plugin.numba.experimental,
 }
 
+
 exclude_ops_members = {
     'nvidia.dali.ops': ["PythonFunctionBase"]
 }
+
 
 fn_modules = {
     'nvidia.dali.fn': nvidia.dali.fn,
@@ -20,14 +24,17 @@ fn_modules = {
     'nvidia.dali.plugin.numba.fn.experimental': nvidia.dali.plugin.numba.fn.experimental,
 }
 
+
 exclude_fn_members = {
 }
+
 
 mod_aditional_doc = {
     'nvidia.dali.fn.transforms' : "All operators in this module support only CPU device as they are meant " +
 "to be provided as an input to named keyword operator arguments. Check for more details the relevant " +
 ":ref:`pipeline documentation section<Processing Graph Structure>`."
 }
+
 
 def get_modules(top_modules):
     modules = []
@@ -36,6 +43,21 @@ def get_modules(top_modules):
             if module.startswith(doc_module) and not module.endswith('hidden'):
                 modules += [module]
     return sorted(modules)
+
+
+def get_functions(module):
+    """Get all function names (so DALI API operators) from given DALI module without private
+    or hidden members. No nested modules would be reported."""
+    result = []
+    # Take all public members of given module
+    public_members = list(filter(lambda x: not str(x).startswith("_"), dir(module)))
+    for member_name in public_members:
+        member = getattr(module, member_name)
+        # Just user-defined functions
+        if inspect.isfunction(member) and not member.__module__.endswith("hidden"):
+            result.append(member_name)
+    return result
+
 
 def op_autodoc(out_filename):
     s = ""
@@ -51,28 +73,46 @@ def op_autodoc(out_filename):
         if module in exclude_ops_members:
             excluded = exclude_ops_members[module]
             s += "   :exclude-members: {}\n".format(", ".join(excluded))
-        s += "\n"
+        s += "\n\n"
     with open(out_filename, 'w') as f:
         f.write(s)
 
-def fn_autodoc(out_filename):
+
+def get_references(name, references):
+    """Generate section with references for given operator or module"""
+    name = name[12:]  # remove nvidia.dali prefix
+    result = ""
+    if name in references:
+        result += ".. seealso::\n"
+        for desc, url in references[name]:
+            result += f"   * `{desc} <./{url}>`_\n"
+    return result
+
+
+def fn_autodoc(out_filename, references):
     s = ""
-    for module in get_modules(fn_modules):
+    all_modules = get_modules(fn_modules)
+    for module in all_modules:
+        dali_module = sys.modules[module]
+        # Take all public members of given module
+        funs_in_module = get_functions(dali_module)
         s += module + "\n"
         s += "~" * len(module) + "\n"
         if module in mod_aditional_doc:
             s += mod_aditional_doc[module] + "\n" + "\n"
-        s += ".. automodule:: {}\n".format(module)
-        s += "   :members:\n"
-        s += "   :undoc-members:\n"
-        if module in exclude_fn_members:
-            excluded = exclude_fn_members[module]
-            s += "   :exclude-members: {}\n".format(", ".join(excluded))
+        s += get_references(module, references)
+        for fun in funs_in_module:
+            full_name = f"{module}.{fun}"
+            if module in exclude_fn_members and fun in exclude_fn_members[module]:
+                continue
+            s += f".. autofunction:: {full_name}\n\n"
+            s += get_references(full_name, references)
         s += "\n"
     with open(out_filename, 'w') as f:
         f.write(s)
 
+
 if __name__ == "__main__":
-    assert(len(sys.argv) == 3)
+    assert (len(sys.argv) == 3)
     op_autodoc(sys.argv[1])
     fn_autodoc(sys.argv[2])
