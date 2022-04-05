@@ -5,15 +5,18 @@ import nvidia.dali.plugin.numba
 import inspect
 import sys
 
+
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     'nvidia.dali.ops': nvidia.dali.ops,
     'nvidia.dali.plugin.numba.experimental': nvidia.dali.plugin.numba.experimental,
 }
 
+
 exclude_ops_members = {
     'nvidia.dali.ops': ["PythonFunctionBase"]
 }
+
 
 fn_modules = {
     'nvidia.dali.fn': nvidia.dali.fn,
@@ -21,14 +24,17 @@ fn_modules = {
     'nvidia.dali.plugin.numba.fn.experimental': nvidia.dali.plugin.numba.fn.experimental,
 }
 
+
 exclude_fn_members = {
 }
+
 
 mod_aditional_doc = {
     'nvidia.dali.fn.transforms' : "All operators in this module support only CPU device as they are meant " +
 "to be provided as an input to named keyword operator arguments. Check for more details the relevant " +
 ":ref:`pipeline documentation section<Processing Graph Structure>`."
 }
+
 
 def get_modules(top_modules):
     modules = []
@@ -52,6 +58,7 @@ def get_functions(module):
             result.append(member_name)
     return result
 
+
 def op_autodoc(out_filename):
     s = ""
     for module in get_modules(ops_modules):
@@ -73,7 +80,7 @@ def op_autodoc(out_filename):
 
 def get_references(name, references):
     """Generate section with references for given operator or module"""
-    name = name[12:] # remove nvidia.dali prefix
+    name = name[12:]  # remove nvidia.dali prefix
     result = ""
     if name in references:
         result += ".. seealso::\n"
@@ -104,7 +111,8 @@ def fn_autodoc(out_filename, references):
     with open(out_filename, 'w') as f:
         f.write(s)
 
+
 if __name__ == "__main__":
-    assert(len(sys.argv) == 3)
+    assert (len(sys.argv) == 3)
     op_autodoc(sys.argv[1])
     fn_autodoc(sys.argv[2])

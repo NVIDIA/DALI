@@ -2,18 +2,22 @@
 
 from pathlib import Path
 
+
 def _parse_entry(entry):
     """Wrap in DocEntry object if it the entry was just a string"""
     if isinstance(entry, str):
         return doc_entry(entry)
     else:
         return entry
+
+
 class Doc:
     def __init__(self, title, underline_char, options, entries):
         self.title = title
         self.underline_char = underline_char
         if self.underline_char is not None and len(self.underline_char) != 1:
-            raise ValueError(f"Expected only 1 character for `underline_char`, got {self.underline_char}.")
+            raise ValueError(
+                f"Expected only 1 character for `underline_char`, got {self.underline_char}.")
         if not isinstance(options, list):
             self.options = [options]
         else:
@@ -26,6 +30,7 @@ class Doc:
             return f".. title:: {self.title}\n"
         else:
             return f"{self.title}\n{self.underline_char * len(self.title)}\n"
+
 
 class DocEntry:
     def __init__(self, name, operator_refs):
@@ -52,6 +57,7 @@ class DocEntry:
         if self.name.endswith(".py"):
             return str(Path(self.name).with_suffix(".rst"))
         return self.name
+
 
 class OpReference:
     def __init__(self, operator, docstring):
@@ -136,6 +142,7 @@ def _collect_references(base_path, entry_name, operator_refs, result_dict):
         result_dict[op_ref.operator].append(
             (op_ref.docstring, str((base_path / entry_name).with_suffix(".html"))))
 
+
 def _document_examples(path, result_dict={}):
     if not path.endswith(".py"):
         raise ValueError(f"Expected a path to Python index file (ending with '.py'), got {path}")
@@ -161,6 +168,7 @@ def _document_examples(path, result_dict={}):
             _document_examples(str(base_path / entry.name), result_dict)
 
     return result_dict
+
 
 def document_examples(path):
     """Main api entry point, for given path to top-level index.py file containing doc() defintion
