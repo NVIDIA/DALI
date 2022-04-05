@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-def autoserialize(dali_pipeline_def):
-    """
+import sys
 
-    :param dali_pipeline_def:
-    :return:
-    """
-    filename = "/tmp/model.dali"
-    dali_pipeline_def().serialize(filename=filename)
+
+def autoserialize(dali_pipeline):
+    assert len(sys.argv) == 2
+    filepath = sys.argv[1]
+
+    dali_pipeline().serialize(filename=filepath)
