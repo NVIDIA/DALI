@@ -28,10 +28,12 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
+#include "dali/pipeline/operator/eager_operator.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/pipeline/pipeline_debug.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/python/python3_compat.h"
 #include "dali/util/half.hpp"
@@ -579,6 +581,53 @@ void ExposeTensor(py::module &m) {
       to be passed as an input to DALI.
 
       It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
+}
+
+void ExposeEagerOperator(py::module &m) {
+  py::class_<EagerOperator<CPUBackend>>(m, "EagerOperatorCPU")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<EagerOperator<CPUBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](EagerOperator<CPUBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<CPUBackend, CPUBackend>(inputs, kwargs); });
+
+  py::class_<EagerOperator<GPUBackend>>(m, "EagerOperatorGPU")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<EagerOperator<GPUBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](EagerOperator<GPUBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<GPUBackend, GPUBackend>(inputs, kwargs); });
+
+  py::class_<EagerOperator<MixedBackend>>(m, "EagerOperatorMixed")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<EagerOperator<MixedBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](EagerOperator<MixedBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<CPUBackend, GPUBackend>(inputs, kwargs); });
+}
+
+void ExposePipelineDebug(py::module &m) {
+  py::class_<PipelineDebug>(m, "PipelineDebug")
+      .def(py::init([](int batch_size, int num_threads, int device_id, bool set_affinity = false) {
+        return std::make_unique<PipelineDebug>(batch_size, num_threads, device_id, set_affinity);
+      }))
+      .def("AddOperator", &PipelineDebug::AddOperator)
+      .def("AddMultipleOperators", &PipelineDebug::AddMultipleOperators)
+      .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend, CPUBackend>)
+      .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend, GPUBackend>)
+      .def("RunOperatorMixed", &PipelineDebug::RunOperator<CPUBackend, GPUBackend>);
 }
 
 template <typename Backend>
@@ -1797,6 +1846,8 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
+  ExposeEagerOperator(m);
+  ExposePipelineDebug(m);
 
   types_m.attr("NHWC") = "HWC";
   types_m.attr("NCHW") = "CHW";

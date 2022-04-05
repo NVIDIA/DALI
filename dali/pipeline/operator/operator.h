@@ -33,6 +33,7 @@
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator_factory.h"
+#include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/device_workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
@@ -60,26 +61,6 @@ namespace arg_names {
 const std::string kSeed = "seed";            // NOLINT
 const std::string kDtype = "dtype";          // NOLINT
 }  // namespace arg_names
-
-/**
- * @brief Verifies that the inputs in the workspace satisfy the layout
- *        constraints imposed by the schema.
- */
-template <typename Workspace>
-inline void CheckInputLayouts(const Workspace &ws, const OpSpec &spec) {
-  auto &schema = spec.GetSchema();
-  for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    if (ws.template InputIsType<CPUBackend>(i)) {
-      auto &input = ws.template Input<CPUBackend>(i);
-      (void) schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
-    } else if (ws.template InputIsType<GPUBackend>(i)) {
-      auto &input = ws.template Input<GPUBackend>(i);
-      (void) schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
-    } else {
-      DALI_FAIL(make_string("Input ", i, " has an unknown backend"));
-    }
-  }
-}
 
 /**
  * @brief Baseclass for the basic unit of computation in the pipeline.
