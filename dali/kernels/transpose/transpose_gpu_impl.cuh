@@ -101,8 +101,7 @@ namespace transpose_shared {
 }  // namespace transpose_shared
 
 template <int ndim, unsigned pack_ratio_log, typename T, typename OldT>
-__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc)
-{
+__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc) {
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
   unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
   if (start_tile >= end_tile)
@@ -153,23 +152,24 @@ __device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc)
 
     unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
     unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
-    unsigned jump = blockDim.y >> pack_ratio_log;
-    
+    unsigned strides_dim1 = desc.out_strides[ndim-1] >> pack_ratio_log;
+    unsigned strides_dim2 = desc.in_strides[ndim-2] >> pack_ratio_log;
+
     if (threadIdx.x < tile_w) {
-      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += jump) {
+      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += blockDim.y) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++) {
-          tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + desc.in_strides[ndim-2]*dy + lane]);
+          tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + strides_dim2*dy + lane]);
         }
       }
     }
     __syncthreads();
 
     if (threadIdx.x < tile_h) {
-      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += jump) {
+      for (unsigned ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += blockDim.y) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++)
-          out[out_ofs + desc.out_strides[ndim-1]*dy + lane] = tmp[lane][threadIdx.x][ty];
+          out[out_ofs + strides_dim1*dy + lane] = tmp[lane][threadIdx.x][ty];
       }
     }
 
