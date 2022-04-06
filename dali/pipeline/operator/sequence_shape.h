@@ -283,6 +283,7 @@ TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int ndims
 
 inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
                                              const TensorListShape<> &unfolded_extents) {
+  assert(shape.num_samples() == unfolded_extents.num_elements());
   if (unfolded_extents.sample_dim() == 0) {
     return shape;
   }
