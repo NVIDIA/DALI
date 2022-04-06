@@ -30,9 +30,11 @@ test_body() {
 
     # DALI TF DATASET run
     nosetests --verbose test_dali_tf_dataset.py
-    nosetests --verbose test_dali_tf_dataset_shape.py
-    nosetests --verbose test_dali_tf_dataset_eager.py
-    nosetests --verbose test_dali_tf_dataset_graph.py
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+        nosetests --verbose test_dali_tf_dataset_shape.py
+        nosetests --verbose test_dali_tf_dataset_eager.py
+        nosetests --verbose test_dali_tf_dataset_graph.py
+    fi
 }
 
 pushd ../..
