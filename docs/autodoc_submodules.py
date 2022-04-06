@@ -96,8 +96,7 @@ def get_references(name, references):
 def single_fun_file(full_name, references):
     """Generate stub page for documentation of given function from fn api.
     """
-    result = ""
-    result += f".. _{full_name}:\n\n{full_name}\n"
+    result = f"{full_name}\n"
     result += "-" * len(full_name) + "\n\n"
     result += f".. autofunction:: {full_name}\n\n"
     result += get_references(full_name, references)
@@ -106,16 +105,17 @@ def single_fun_file(full_name, references):
 def single_module_file(module, funs_in_module, references):
     """Generate stub page for documentation of given module
     """
-    result = ""
-    result += f".. _{module}:\n\n{module}\n"
+    result = f"{module}\n"
     result += "~" * len(module) + "\n\n"
 
     if module in mod_aditional_doc:
         result += mod_aditional_doc[module] + "\n\n"
     result += get_references(module, references)
+    result += "\n"
 
     result += f"The following table lists all operations available in ``{module}`` module:\n"
     result += operations_table.operations_table_str(get_schema_names(module, funs_in_module))
+    result += "\n\n"
 
 
     result += ".. toctree::\n   :hidden:\n\n"

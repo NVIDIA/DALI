@@ -121,7 +121,7 @@ def operations_table_str(ops_to_process):
             full_doc = schema.Dox()
         else:
             full_doc = eval('ops.' + op).__doc__
-        short_descr = full_doc.split("\n\n")[0].replace('\n', ' ')
+        short_descr = full_doc.split("\n\n")[0].replace('\n', ' ').replace("::", '.')
         for (module_name, module) in ops_modules.items():
             m = module
             for part in submodule:
