@@ -20,7 +20,7 @@ test_nose() {
         done
         # execute only when no matches are found
         if [ ${status} -eq 0 ]; then
-            nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
+            nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
         fi
     done
 }

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,6 +89,7 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     fn_wrapper.__name__ = wrapper_name
     fn_wrapper.__qualname__ = wrapper_name
     fn_wrapper.__doc__ = wrapper_doc
+    fn_wrapper._schema_name = op_class.schema_name
     return fn_wrapper
 
 def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
@@ -121,3 +122,4 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
 
 from nvidia.dali.external_source import external_source
 external_source.__module__ = __name__
+external_source._schema_name = "ExternalSource"
