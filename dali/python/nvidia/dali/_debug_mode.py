@@ -15,7 +15,6 @@
 import inspect
 import traceback
 from queue import Queue
-from cv2 import trace
 
 import nvidia.dali.backend as _b
 import nvidia.dali.ops as _ops
