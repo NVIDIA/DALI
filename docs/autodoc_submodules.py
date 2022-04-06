@@ -97,7 +97,7 @@ def single_fun_file(full_name, references):
     """Generate stub page for documentation of given function from fn api.
     """
     result = ""
-    result += f".. _{full_name}:\n{full_name}\n"
+    result += f".. _{full_name}:\n\n{full_name}\n"
     result += "-" * len(full_name) + "\n\n"
     result += f".. autofunction:: {full_name}\n\n"
     result += get_references(full_name, references)
@@ -107,7 +107,7 @@ def single_module_file(module, funs_in_module, references):
     """Generate stub page for documentation of given module
     """
     result = ""
-    result += f".. _{module}:\n{module}\n"
+    result += f".. _{module}:\n\n{module}\n"
     result += "~" * len(module) + "\n\n"
 
     if module in mod_aditional_doc:

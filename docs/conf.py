@@ -336,7 +336,7 @@ class EnumAttributeDocumenter(AttributeDocumenter):
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
-        app.add_js_file('redirect.js')
+    app.add_js_file('redirect.js')
     # Register a sphinx.ext.autodoc.between listener to ignore everything
     # between lines that contain the word <SPHINX_IGNORE>
     app.connect('autodoc-process-docstring', between('^.*<SPHINX_IGNORE>.*$', exclude=True))
