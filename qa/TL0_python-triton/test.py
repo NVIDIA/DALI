@@ -61,7 +61,7 @@ def test_importing_decorated_function():
 def test_double_decorated_functions():
     cmd = ["python", "double_decorated_function.py", serialized_filename, "autoserialize.me"]
     try:
-        out = subprocess.run(cmd, capture_output=True, cwd=None, check=True, text=True)
+        subprocess.run(cmd, capture_output=True, cwd=None, check=True, text=True)
     except subprocess.CalledProcessError:
         return
     sys.exit(1)
