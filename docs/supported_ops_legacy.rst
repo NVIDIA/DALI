@@ -72,12 +72,12 @@ Mapping to Functional API
 The following table shows the correspondence between the operations in the current functional API
 and the legacy operator objects API.
 
-.. include:: fn_to_op_table
+.. include:: operations/fn_to_op_table
 
 Modules
 ^^^^^^^
 
-.. include:: op_autodoc
+.. include:: operations/op_autodoc
 
 
 nvidia.dali.plugin.pytorch
