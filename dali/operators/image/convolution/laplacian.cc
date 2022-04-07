@@ -153,12 +153,12 @@ class LaplacianOpCpu : public OpImplBase<CPUBackend> {
     int nsamples = input.num_samples();
 
     for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      const auto& shape = input.tensor_shape(sample_idx);
-      auto priority = volume(shape) * args.GetTotalWindowSizes(sample_idx);
+      auto priority = volume(input.tensor_shape(sample_idx)) * args.GetTotalWindowSizes(sample_idx);
 
       thread_pool.AddWork(
-          [this, &input, &output, sample_idx, shape](int thread_id) {
+          [this, &input, &output, sample_idx](int thread_id) {
             const auto& scales = args.GetScales(sample_idx);
+            const auto& shape = input.tensor_shape(sample_idx);
             auto in_view = TensorView<StorageCPU, const In, ndim>{
                 input.template tensor<In>(sample_idx), shape};
             auto out_view = TensorView<StorageCPU, Out, ndim>{
