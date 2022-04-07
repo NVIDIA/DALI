@@ -14,9 +14,19 @@
 
 import sys
 
+pipeline_serialized = False
+
 
 def autoserialize(dali_pipeline):
-    assert len(sys.argv) == 2
+    """
+    TODO
+    :param dali_pipeline:
+    :return:
+    """
+    if len(sys.argv) != 3 or sys.argv[2] != "autoserialize.me":
+        return
+    global pipeline_serialized
+    assert not pipeline_serialized, f"There can be only one autoserialized pipeline in a file. Offending pipeline name: {dali_pipeline.__qualname__}"
     filepath = sys.argv[1]
-
     dali_pipeline().serialize(filename=filepath)
+    pipeline_serialized = True
