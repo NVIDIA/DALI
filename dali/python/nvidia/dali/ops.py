@@ -130,6 +130,8 @@ def _get_kwargs(schema):
                     default_value = ast.literal_eval(default_value_string)
                     type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
             doc += schema.GetArgumentDox(arg)
+            if schema.ArgSupportsPerFrameInput(arg):
+                doc += "\n\nSupports per-frame inputs."
             if deprecation_warning:
                 doc += "\n\n" + deprecation_warning
         elif deprecation_warning:
