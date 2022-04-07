@@ -216,6 +216,7 @@ template <typename BatchType>
 void setup_expanded_like(BatchType &expanded_batch, const BatchType &batch) {
   expanded_batch.set_pinned(batch.is_pinned());
   expanded_batch.set_order(batch.order());
+  expanded_batch.set_device_id(batch.device_id());
 }
 
 template <typename BatchType>
