@@ -72,7 +72,7 @@ namespace {
 template <typename Dst, typename Src>
 void FillTensorVector(
   TensorVector<CPUBackend> &dst, const TensorListShape<> &shape, const std::vector<Src> &src) {
-  dst.SetContiguous(false);
+  dst.SetContiguous(BatchState::Noncontiguous);
   dst.set_type<Dst>();
   dst.Resize(shape);
   assert(is_uniform(shape));
