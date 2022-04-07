@@ -146,7 +146,7 @@ Q: Which OS does DALI support?
 ##############################
 A: DALI does support all major Linux distributions and indirectly Windows through
 `WSL <https://docs.nvidia.com/cuda/wsl-user-guide/index.html>`_. Regrettably, MacOS
-is not unsupported.
+is not supported.
 
 Q: Where can I find the list of operations that DALI supports?
 ##############################################################
@@ -250,9 +250,9 @@ Q: Will labels, for example, bounding boxes, be adapted automatically when trans
 ###########################################################################################################################################################
 A: The meta-data, like bounding boxes or coordinates, will not be adapted automatically with
 the data but DALI has a set of operators, e.g.
-`bbox_paste <supported_ops.html#nvidia.dali.fn.bbox_paste>`_,
-`random_bbox_crop <supported_ops.html#nvidia.dali.fn.random_bbox_crop>`_ for bounding boxes or
-`coord_transform <supported_ops.html#nvidia.dali.fn.coord_transform>`_ for sets of coordinates.
+`bbox_paste <operations/nvidia.dali.fn.bbox_paste.html>`_,
+`random_bbox_crop <operations/nvidia.dali.fn.random_bbox_crop.html>`_ for bounding boxes or
+`coord_transform <operations/nvidia.dali.fn.coord_transform.html>`_ for sets of coordinates.
 You can find an example `here <examples/use_cases/detection_pipeline.html>`_.
 
 Q: How easy is it, to implement custom processing steps? In the past, I had issues with calculating 3D Gaussian distributions on the CPU. Would this be possible using a custom DALI function?
