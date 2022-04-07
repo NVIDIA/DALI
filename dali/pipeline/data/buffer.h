@@ -448,6 +448,7 @@ class DLL_PUBLIC Buffer {
     size_ = other.size_;
     type_ = other.type_;
     num_bytes_ = other.num_bytes_;
+    pinned_ = other.pinned_;
     shares_data_ = num_bytes_ > 0 ? true : false;
     device_ = other.device_id();
   }

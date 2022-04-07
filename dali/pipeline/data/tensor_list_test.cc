@@ -539,6 +539,8 @@ TYPED_TEST(TensorListTest, TestShareData) {
 
   // Share the data
   tensor_list2.ShareData(tensor_list);
+  ASSERT_EQ(tensor_list2.is_pinned(), tensor_list.is_pinned());
+  ASSERT_EQ(tensor_list2.order(), tensor_list.order());
   // We need to use the same size as the underlying buffer
   // N.B. using other type is UB in most cases
   auto flattened_shape = collapse_dims(shape, {std::make_pair(0, shape.sample_dim())});
