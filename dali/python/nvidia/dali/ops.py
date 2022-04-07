@@ -602,7 +602,7 @@ def python_op_factory(name, schema_name = None):
             inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
 
             input_sets = self._build_input_sets(inputs)
-           
+
             # Create OperatorInstance for every input set
             op_instances = []
             for input_set in input_sets:
@@ -693,7 +693,7 @@ def python_op_factory(name, schema_name = None):
                             self._schema.MinNumInput(),
                             self._schema.MaxNumInput(),
                             len(inputs)))
-        
+
         def _build_input_sets(self, inputs):
             # Build input sets, most of the time we only have one
             input_sets = []
@@ -703,7 +703,7 @@ def python_op_factory(name, schema_name = None):
                 input_sets = self._repack_input_sets(packed_inputs)
             else:
                 input_sets = [inputs]
-            
+
             return input_sets
 
 
@@ -961,6 +961,7 @@ def _dlpack_from_array(array):
 
 
 class PythonFunction(PythonFunctionBase):
+    schema_name = "PythonFunction"
     global _cpu_ops
     global _gpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
@@ -1054,6 +1055,7 @@ class PythonFunction(PythonFunctionBase):
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
+    schema_name = "DLTensorPythonFunction"
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'DLTensorPythonFunction'})
     global _gpu_ops

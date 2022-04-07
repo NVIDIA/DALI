@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,15 @@
 
 from typing import Type
 import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import numpy as np
 from nose_utils import assert_raises
+import sys
+import inspect
+from nose.plugins.attrib import attr
+import nose
 
 def _test_fn_rotate(device):
     pipe = Pipeline(batch_size = 1, num_threads = 1, device_id = 0)
@@ -177,3 +182,38 @@ def test_to_snake_case_impl():
 
     for inp, out in fn_name_tests:
         assert fn._to_snake_case(inp) == out, f"{fn._to_snake_case(inp)} != {out}"
+
+# Sanity test if we didn't miss the _schema_name for any op with custom wrapper
+def _test_schema_name_for_module(module_name, base_name=""):
+    if module_name.endswith("hidden"):
+        return
+    if base_name == "":
+        base_name = module_name
+    dali_module = sys.modules[module_name]
+    for member_name in dir(dali_module):
+        if member_name.startswith("_"):
+            continue
+        member = getattr(dali_module, member_name)
+        if inspect.isfunction(member):
+            # Check if we can reconstruct the name of the op from provided schema
+            assert hasattr(member, "_schema_name")
+            full_name = ops._op_name(member._schema_name)
+            nose.tools.eq_(base_name + "." + full_name, module_name + "." + member_name)
+        elif inspect.ismodule(member) and (module_name + "." + member_name) in sys.modules.keys():
+            # Recurse on DALI submodule (filter out non-DALI reexported modules like `sys`)
+            _test_schema_name_for_module(module_name + "." + member_name, base_name)
+
+def test_schema_name():
+    _test_schema_name_for_module('nvidia.dali.fn')
+
+
+@attr('pytorch')
+def test_schema_name_torch():
+    import nvidia.dali.plugin.pytorch
+    _test_schema_name_for_module('nvidia.dali.plugin.pytorch.fn')
+
+
+@attr('numba')
+def test_schema_name_numba():
+    import nvidia.dali.plugin.numba
+    _test_schema_name_for_module('nvidia.dali.plugin.numba.fn.experimental')
