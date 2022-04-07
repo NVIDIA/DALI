@@ -38,6 +38,15 @@ class GPUBackend;
 class CPUBackend;
 
 
+enum class BatchState {
+  Default = 0,
+  Contiguous = 1,
+  Noncontiguous = 2,
+  // TODO(klecki): ForceContiguous?
+};
+
+
+
 DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes,
                                            bool pinned, int device_id,
                                            AccessOrder order, GPUBackend *);
@@ -567,8 +576,19 @@ class DLL_PUBLIC Buffer {
     num_bytes_ = 0;
   }
 
+  /**
+   * @brief Clear the ShareData flag of the buffer. It will still hold (and co-own) the data due
+   * to the shared_ptr semantics, but it is allowed to call resize() on it.
+   */
+  void mark_detached() {
+    shares_data_ = false;
+  }
+
   template <typename>
   friend class TensorList;
+
+  template <typename>
+  friend class TensorVector;
 
   static double growth_factor_;
   static double shrink_threshold_;

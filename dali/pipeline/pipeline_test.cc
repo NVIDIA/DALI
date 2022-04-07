@@ -448,6 +448,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
 
   pipe.Build(outputs);
   pipe.SetExternalInput("raw_jpegs", data);
+  pipe.SerializeToProtobuf();
   DeviceWorkspace ws;
   pipe.RunCPU();
   pipe.RunGPU();

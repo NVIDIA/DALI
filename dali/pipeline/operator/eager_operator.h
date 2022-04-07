@@ -58,12 +58,14 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<B
 }
 
 template <typename StorageType>
-void MakeContiguous(std::shared_ptr<StorageType> storage) {}
-
-template <>
-void MakeContiguous(std::shared_ptr<TensorVector<CPUBackend>> storage) {
-  storage->SetContiguous(true);
+void MakeContiguous(std::shared_ptr<StorageType> storage) {
+  storage->SetContiguous(BatchState::Contiguous);
 }
+
+// template <>
+// void MakeContiguous(std::shared_ptr<TensorVector<CPUBackend>> storage) {
+//   storage->SetContiguous(BatchState::Contiguous);
+// }
 
 template <typename Backend>
 struct Backend2Types {};

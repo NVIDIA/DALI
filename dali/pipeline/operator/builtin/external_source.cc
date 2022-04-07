@@ -49,6 +49,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     thread_pool.RunAll();
   } else {
     // swap output with tensor_vector_elm content
+    // TODO (klecki): SWAP IS BAD
     std::swap(output, *tensor_vector_elm.front());
   }
   RecycleBuffer(tensor_vector_elm);
