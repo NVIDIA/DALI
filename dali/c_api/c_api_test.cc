@@ -970,7 +970,7 @@ TYPED_TEST(CApiTest, IsDeserializableTest) {
   auto serialized = pipe_ptr->SerializeToProtobuf();
   test_cases.emplace_back(serialized, true);
   {
-    dali::Pipeline pipe(1, 1, 0);
+    dali::Pipeline pipe(1, 1, dali::CPU_ONLY_DEVICE_ID);
     auto ser = pipe.SerializeToProtobuf();
     test_cases.emplace_back(ser, true);
   }
