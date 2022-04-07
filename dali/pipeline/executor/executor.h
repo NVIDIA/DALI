@@ -738,7 +738,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
               reserve_batch(storage, *node.op, hint, max_batch_size_);
             }
             if (node.op->CanInferOutputs()) {
-              storage->SetContiguous(true);
+              storage->SetContiguous(BatchState::Contiguous);
             }
           }
         ), DALI_FAIL("Invalid StorageDevice"));  // NOLINT(whitespace/parens)

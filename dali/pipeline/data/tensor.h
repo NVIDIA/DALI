@@ -245,8 +245,10 @@ class Tensor : public Buffer<Backend> {
     free_storage();
 
     // Set the new order, if provided.
-    if (order)
+    if (order) {
       this->set_order(order);
+      device_ = order.device_id();
+    }
 
     // Save our new pointer and bytes. Reset our type, shape, and size
     type_ = TypeTable::GetTypeInfo(type);

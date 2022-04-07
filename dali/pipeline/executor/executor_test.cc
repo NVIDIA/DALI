@@ -396,19 +396,19 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
+          .AddOutput("data", "cpu")), "ExternalSource");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
           .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
+          .AddOutput("images", "cpu")), "Copy");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
           .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")), "");
+          .AddOutput("final_images", "cpu")), "MakeContiguous");
 
   vector<string> outputs = {"final_images_cpu"};
   exe->Build(&graph, outputs);
@@ -419,11 +419,17 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   test::MakeRandomBatch(tl, this->batch_size_);
+
+  std::cout << "I'm here 0" << std::endl;
   src_op->SetDataSource(tl);
+  std::cout << "I'm here 1" << std::endl;
 
   exe->RunCPU();
+  std::cout << "I'm here 2" << std::endl;
   exe->RunMixed();
+  std::cout << "I'm here 3" << std::endl;
   exe->RunGPU();
+  std::cout << "I'm here 4" << std::endl;
 
   DeviceWorkspace ws;
   exe->Outputs(&ws);

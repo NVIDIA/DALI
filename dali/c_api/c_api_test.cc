@@ -646,7 +646,7 @@ TYPED_TEST(CApiTest, TestExecutorMeta) {
   size_t N;
   daliExecutorMetadata *meta;
   daliGetExecutorMetadata(&handle, &meta, &N);
-  EXPECT_EQ(N, 4);
+  EXPECT_EQ(N, 5);
   for (size_t i = 0; i< N; ++i) {
     auto &meta_entry = meta[i];
     for (size_t j = 0; j < meta_entry.out_num; ++j) {
