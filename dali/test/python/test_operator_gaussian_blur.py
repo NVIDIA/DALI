@@ -353,6 +353,7 @@ def test_per_frame():
         return np.array([sigma(rng) for _ in range(2)])
 
     video_test_cases = [
+        (fn.gaussian_blur, {'window_size': 3}, []),
         (fn.gaussian_blur, {}, [("window_size", window_size, True)]),
         (fn.gaussian_blur, {}, [("window_size", per_axis_window_size, True)]),
         (fn.gaussian_blur, {}, [("sigma", sigma, True)]),
