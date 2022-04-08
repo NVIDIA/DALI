@@ -92,29 +92,27 @@ def expand_arg(input_layout, num_expand, arg_has_frames, input_batch, arg_batch)
     return expanded_batch
 
 
-def expand_arg_input(input_data, input_layout, expandable_extents, arg_data, arg_layout):
-    num_expand = get_layout_prefix_len(input_layout, expandable_extents)
-    arg_has_frames = arg_layout and arg_layout[0] == "F"
-    ret_arg_layout = arg_layout if not arg_has_frames else arg_layout[1:]
+def expand_arg_input(input_data, input_layout, num_expand, arg_data, arg_has_frames):
     assert(len(input_data) == len(arg_data))
     expanded = [expand_arg(input_layout, num_expand, arg_has_frames, input_batch, arg_batch)
                 for input_batch, arg_batch in zip(input_data, arg_data)]
-    return expanded, ret_arg_layout
+    return expanded
 
 
 def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_params, input_params,
                     input_layout, input_data, rng):
 
     @pipeline_def
-    def pipeline(input_data, input_layout, input_params_data):
+    def pipeline(input_data, input_layout, per_sample_params_input, per_frame_params_input):
         input = fn.external_source(
             source=dummy_source(input_data), layout=input_layout)
         if device == "gpu":
             input = input.gpu()
         arg_nodes = {
-            arg_name: fn.external_source(
-                source=dummy_source(arg_data), layout=arg_layout)
-            for arg_name, (arg_data, arg_layout) in input_params_data}
+            arg_name: fn.external_source(source=dummy_source(arg_data))
+            for arg_name, arg_data in per_sample_params_input + per_frame_params_input}
+        for arg_name, _ in per_frame_params_input:
+            arg_nodes[arg_name] = fn.per_frame(arg_nodes[arg_name])
         output = operator_fn(input, **fixed_params, **arg_nodes)
         return output
 
@@ -122,24 +120,31 @@ def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_pa
 
     # compute the arguments data here so that the parameters passed to _test_seq_input are
     # a bit more readable when printed by nose
-    input_params_data = get_input_params_data(
+    per_sample_params_input, per_frame_params_input = get_input_params_data(
         input_data, input_layout, input_params, rng)
     seq_pipe = pipeline(input_data=input_data, input_layout=input_layout,
-                        input_params_data=input_params_data,
+                        per_sample_params_input=per_sample_params_input,
+                        per_frame_params_input=per_frame_params_input,
                         batch_size=max_batch_size, num_threads=4,
                         device_id=0)
 
     num_expand = get_layout_prefix_len(input_layout, expandable_extents)
     unfolded_input = unfold_batches(input_data, num_expand)
     unfolded_input_layout = input_layout[num_expand:]
-    expanded_params_data = [
-        (arg_name, expand_arg_input(input_data, input_layout,
-         expandable_extents, arg_data, arg_layout))
-        for arg_name, (arg_data, arg_layout) in input_params_data]
+    expanded_per_sample_params = [
+        (arg_name, expand_arg_input(input_data,
+         input_layout, num_expand, arg_data, False))
+        for arg_name, arg_data in per_sample_params_input]
+    expanded_per_frame_params = [
+        (arg_name, expand_arg_input(input_data,
+         input_layout, num_expand, arg_data, True))
+        for arg_name, arg_data in per_frame_params_input]
+    expanded_params_data = expanded_per_sample_params + expanded_per_frame_params
     max_uf_batch_size = max(len(batch) for batch in unfolded_input)
     baseline_pipe = pipeline(input_data=unfolded_input,
                              input_layout=unfolded_input_layout,
-                             input_params_data=expanded_params_data,
+                             per_sample_params_input=expanded_params_data,
+                             per_frame_params_input=[],
                              batch_size=max_uf_batch_size, num_threads=4,
                              device_id=0)
     seq_pipe.build()
@@ -159,7 +164,7 @@ def get_input_params_data(input_data, input_layout, input_params, rng):
 
     def get_input_arg_per_sample(param_cb):
         param = [[param_cb(rng) for _ in batch] for batch in input_data]
-        return param, None
+        return param
 
     def get_input_arg_per_frame(param_cb):
         def arg_for_sample(num_frames):
@@ -169,12 +174,16 @@ def get_input_params_data(input_data, input_layout, input_params, rng):
         frame_idx = input_layout.find("F")
         param = [[arg_for_sample(sample.shape[frame_idx])
                  for sample in batch] for batch in input_data]
-        sample_dim = len(param[0][0].shape)
-        return param, "F" + "*" * (sample_dim - 1)
+        return param
 
-    return [(param_name, get_input_arg_per_frame(param_cb)) if is_per_frame else
-            (param_name, get_input_arg_per_sample(param_cb))
-            for param_name, param_cb, is_per_frame in input_params]
+    per_sample_args = [
+        (param_name, get_input_arg_per_sample(param_cb))
+        for param_name, param_cb, is_per_frame in input_params if not is_per_frame]
+    per_frame_args = [
+        (param_name, get_input_arg_per_frame(param_cb))
+        for param_name, param_cb, is_per_frame in input_params if is_per_frame]
+
+    return per_sample_args, per_frame_args
 
 
 def sequence_suite_helper(rng, expandable_extents, input_cases, ops_test_cases, num_iters=4):

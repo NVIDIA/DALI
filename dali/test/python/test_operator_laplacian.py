@@ -649,6 +649,7 @@ def test_per_frame():
         return np.array([scale(rng) for _ in range(2)])
 
     video_test_cases = [
+        (fn.laplacian, {}, []),
         (fn.laplacian, {}, [("window_size", window_size, True)]),
         (fn.laplacian, {}, [("window_size", per_axis_window_size, True)]),
         (fn.laplacian, {'dtype': types.FLOAT},
