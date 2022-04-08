@@ -430,7 +430,9 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC const std::string &output_device(int id) const;
 
   /**
-   * Checks, if the pipeline TODO
+   * Checks, if a provided pipeline can be deserialized, according to the Pipeline protobuf
+   * definition.
+   *
    * @param serialized_pipeline
    * @return True, if the pipeline is serializable. False otherwise.
    */

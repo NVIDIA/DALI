@@ -1,3 +1,1 @@
 import decorated_function
-
-pass

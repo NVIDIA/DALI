@@ -128,8 +128,8 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
 /// @{
 
 /**
- * Checks, if the pipeline given by the string can be deserialized. It can be assumed, that the
- * pipeline which can be deserialized is a formally valid DALI pipeline.
+ * Checks, if the pipeline given by the string can be deserialized. It can be assumed that the
+ * pipeline, which can be deserialized, is a formally valid DALI pipeline.
  *
  * @param serialized_pipeline String with the serialized pipeline.
  * @param length Length of the string.
