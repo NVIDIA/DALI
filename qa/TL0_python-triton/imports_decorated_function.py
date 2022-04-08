@@ -1,2 +1,1 @@
-# lgtm [py/unused-import]
-import decorated_function
+import decorated_function  # lgtm [py/unused-import]
