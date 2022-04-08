@@ -336,22 +336,25 @@ class _IterBatchInfo:
 
     def check_input(self, other_size, other_context, op_name, input_idx):
         if not self.set_if_empty(other_size, other_context) and self._size != other_size:
-            raise RuntimeError(("Batch size must be uniform across an iteration. Input {} for operator '{}' "
-                                "has batch size = {}. Expected batch size = {} from:\n{}")
+            raise RuntimeError(("Batch size must be uniform across an iteration. Input {} for operator '{}' has batch "
+                                "size = {}. Expected batch size = {} from:\n{}")
                                .format(input_idx, op_name, other_size, self._size, self._source_context))
 
     def check_external_source(self, other_size, other_context, output_idx=-1):
         if not self.set_if_empty(other_size, other_context) and self._size != other_size:
             if self._source_context == other_context and output_idx > 0:
-                raise RuntimeError(("External source must return outputs with consistent batch size. Output {} "
-                                    "has batch size = {}, previous batch size = {}")
+                raise RuntimeError(("External source must return outputs with consistent batch size. Output {} has "
+                                    "batch size = {}, previous batch size = {}")
                                    .format(output_idx, other_size, self._size))
             else:
-                raise RuntimeError(
-                    ("Batch size must be uniform across an iteration. External Source operator returned batch "
-                        "size: {}, expected: {}.\nIf you want to use batch size returned by "
-                        "external source it has to be the first operator in the pipeline. It should be before:\n{}")
-                    .format(other_size, self._size, self._source_context))
+                raise RuntimeError(("Batch size must be uniform across an iteration. External Source operator returned"
+                                    " batch size: {}, expected: {}.\nIf you want to use variable batch size (that is "
+                                    "different batch size in each iteration) you must call all the external source "
+                                    "operators at the beginning of your debug pipeline, before other DALI operators. "
+                                    "All the external source operators are expected to return the same batch size in "
+                                    "a given iteration, but it can change between the iterations. Other operators will"
+                                    " use that batch size for processing.")
+                                   .format(other_size, self._size))
 
 
 class _OperatorManager:
