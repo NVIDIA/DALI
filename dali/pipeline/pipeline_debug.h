@@ -44,7 +44,6 @@ class DLL_PUBLIC PipelineDebug {
 
   DLL_PUBLIC void AddOperator(OpSpec &spec, int logical_id) {
     FillOpSpec(spec);
-    std::string op_name = "__debug__" + spec.name() + "_" + std::to_string(logical_id);
     AddOperatorImpl(spec, logical_id);
   }
 

@@ -315,10 +315,43 @@ class _Classification:
         return False, 'cpu', data
 
 
-class _BatchInfo:
+class _IterBatchInfo:
     def __init__(self, size, source_context):
-        self.size = size
-        self.source_context = source_context
+        self._size = size
+        self._source_context = source_context
+
+    @property
+    def size(self):
+        return self._size
+
+    def reset(self):
+        self._size = -1
+        self._source_context = None
+
+    def set_if_empty(self, size, context):
+        if self._size == -1:
+            self.__init__(size, context)
+            return True
+        return False
+
+    def check_input(self, other_size, other_context, op_name, input_idx):
+        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
+            raise RuntimeError(("Batch size must be uniform across an iteration. Input {} for operator '{}' "
+                                "has batch size = {}. Expected batch size = {} from:\n{}")
+                               .format(input_idx, op_name, other_size, self._size, self._source_context))
+
+    def check_external_source(self, other_size, other_context, output_idx=-1):
+        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
+            if self._source_context == other_context and output_idx > 0:
+                raise RuntimeError(("External source must return outputs with consistent batch size. Output {} "
+                                    "has batch size = {}, previous batch size = {}")
+                                   .format(output_idx, other_size, self._size))
+            else:
+                raise RuntimeError(
+                    ("Batch size must be uniform across an iteration. External Source operator returned batch "
+                        "size: {}, expected: {}.\nIf you want to use batch size returned by "
+                        "external source it has to be the first operator in the pipeline. It should be before:\n{}")
+                    .format(other_size, self._size, self._source_context))
 
 
 class _OperatorManager:
@@ -427,22 +460,15 @@ class _OperatorManager:
             raise RuntimeError(f"{arg_type} {value} for operator '{self._op_name}' is a {actual_str} "
                                f"but was a {expected_str} when created.")
 
-    def _check_single_input_batch_size(self, input, input_idx):
-        if self._pipe._cur_batch_info.size == -1:
-            self._pipe._cur_batch_info = _BatchInfo(len(input), self._source_context)
-        elif self._pipe._cur_batch_info.size != len(input):
-            raise RuntimeError(("Batch size must be uniform across an iteration. Input {} for operator '{}' "
-                                "has batch size = {}. Expected batch size = {} from:\n{}")
-                               .format(input_idx, self._op_name, len(input), self._pipe._cur_batch_info.size,
-                                       self._pipe._cur_batch_info.source_context))
-
     def _check_batch_size(self, classification, input_idx):
         if isinstance(classification.is_batch, list):
             # Checking for input set.
             for input in classification.data:
-                self._check_single_input_batch_size(input, input_idx)
+                self._pipe._cur_iter_batch_info.check_input(
+                    len(input), self._source_context, self._op_name, input_idx)
         else:
-            self._check_single_input_batch_size(classification.data, input_idx)
+            self._pipe._cur_iter_batch_info.check_input(
+                len(classification.data), self._source_context, self._op_name, input_idx)
 
     def run(self, inputs, kwargs):
         """Checks correctness of inputs and kwargs and runs the backend operator."""
@@ -490,9 +516,8 @@ class _OperatorManager:
         res = [self._pipe._run_op_on_device(self._op_name, logical_id, self._device, input, call_args)
                for input, logical_id in zip(input_sets, self.logical_ids)]
 
-        if self._pipe._cur_batch_info.size == -1:
-            # Set iteration batch size if wasn't set already.
-            self._pipe._cur_batch_info = _BatchInfo(len(res[0][0]), self._source_context)
+        # Set iteration batch size if it wasn't set already.
+        self._pipe._cur_iter_batch_info.set_if_empty(len(res[0][0]), self._source_context)
 
         if len(res) == 1:
             res = self._pack_to_data_node_debug(res[0])
@@ -519,6 +544,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._next_logical_id = 0
         self._operators = {}
         self._operators_built = False
+        self._cur_iter_batch_info = _IterBatchInfo(-1, None)  # Used for variable batch sizes.
         self._pipe = _b.PipelineDebug(
             self._max_batch_size, self._num_threads, self._device_id, self._set_affinity)
 
@@ -549,7 +575,7 @@ class _PipelineDebug(_pipeline.Pipeline):
 
         self._debug_on = True
         self._cur_operator_id = -1
-        self._cur_batch_info = _BatchInfo(-1, None)  # Used for variable batch sizes.
+        self._cur_iter_batch_info.reset()
         _pipeline.Pipeline.push_current(self)
 
         res = self._exec_func()
@@ -608,28 +634,11 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._next_logical_id = self._operators[key].logical_ids[-1] + 1
 
     def _check_external_source_batch_size(self, data, cur_context):
-        def _check_single_batch_size(data, output_idx=-1):
-            batch_size = len(data.get())
-
-            if self._cur_batch_info.size == -1:
-                self._cur_batch_info = _BatchInfo(batch_size, cur_context)
-            elif self._cur_batch_info.size != batch_size:
-                if self._cur_batch_info.source_context == cur_context and output_idx > 0:
-                    raise RuntimeError(("External source must return outputs with consistent batch size. Output {} "
-                                        "has batch size = {}, previous batch size = {}")
-                                       .format(output_idx, batch_size, self._cur_batch_info.size))
-                else:
-                    raise RuntimeError(
-                        ("Batch size must be uniform across an iteration. External Source operator returned batch with "
-                         "size = {}, for this iteration used batch size = {}.\nIf you want to use batch size returned by "
-                         "external source it has to be the first operator in the pipeline. It should be before:\n{}")
-                        .format(batch_size, self._cur_batch_info.size, self._cur_batch_info.source_context))
-
         if isinstance(data, list):
             for i, output in enumerate(data):
-                _check_single_batch_size(output, i)
+                self._cur_iter_batch_info.check_external_source(len(output.get()), cur_context, i)
         else:
-            _check_single_batch_size(data)
+            self._cur_iter_batch_info.check_external_source(len(data.get()), cur_context)
 
     def _external_source(self, name=None, **kwargs):
         self._cur_operator_id += 1
@@ -655,11 +664,11 @@ class _PipelineDebug(_pipeline.Pipeline):
 
     def _run_op_on_device(self, op_name, logical_id, device, inputs, kwargs):
         if device == 'gpu':
-            return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs, self._cur_batch_info.size)
+            return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
         if device == 'cpu':
-            return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs, self._cur_batch_info.size)
+            return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
         if device == 'mixed':
-            return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs, self._cur_batch_info.size)
+            return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
 
         raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
 

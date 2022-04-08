@@ -519,23 +519,21 @@ def test_multiple_input_sets():
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
-def variable_batch_size_from_external_source_pipeline(variable_batch_size):
-    src_data = np.zeros((1, variable_batch_size, 64, 64, 3), dtype=np.uint8)
+def variable_batch_size_from_external_source_pipeline(src_data):
     images = fn.external_source(src_data)
-    assert len(images.get()) == variable_batch_size
-
     output = fn.random_resized_crop(images, size=(32, 32))
-    assert len(output.get()) == variable_batch_size
 
     return output,
 
 
 def test_variable_batch_size_from_external_source():
-    batch_size = 6
-    pipe = variable_batch_size_from_external_source_pipeline(batch_size)
+    batch_sizes = [3, 6, 7, 8]
+    src_data = [np.zeros((batch_size, 64, 64, 3), dtype=np.uint8) for batch_size in batch_sizes]
+    pipe = variable_batch_size_from_external_source_pipeline(src_data)
     pipe.build()
-    output, = pipe.run()
-    assert len(output) == batch_size
+    for batch_size in batch_sizes:
+        output, = pipe.run()
+        assert len(output) == batch_size
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
@@ -546,7 +544,7 @@ def incorrect_variable_batch_size_from_es_pipeline():
     return images,
 
 
-@raises(RuntimeError, glob='Batch size must be uniform across an iteration. External Source operator returned batch with size*')
+@raises(RuntimeError, glob='Batch size must be uniform across an iteration. External Source operator returned batch size*')
 def test_incorrect_variable_batch_size_from_es():
     pipe = incorrect_variable_batch_size_from_es_pipeline()
     pipe.build()

@@ -58,14 +58,7 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(
 template <typename Backend>
 class DLL_PUBLIC EagerOperator {
  public:
-  DLL_PUBLIC inline EagerOperator(const OpSpec &spec)
-      : max_batch_size_(spec.GetArgument<int>("max_batch_size")),
-        op_spec_(spec),
-        name_(spec.name()),
-        op_(InstantiateOperator(spec)) {
-    num_outputs_ = op_spec_.GetSchema().CalculateOutputs(op_spec_) +
-                   op_spec_.GetSchema().CalculateAdditionalOutputs(op_spec_);
-  }
+  DLL_PUBLIC inline EagerOperator(const OpSpec &spec) : EagerOperator(spec, spec.name()) {}
 
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name)
       : max_batch_size_(spec.GetArgument<int>("max_batch_size")),
@@ -124,6 +117,11 @@ class DLL_PUBLIC EagerOperator {
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
       int batch_size = -1);
 
+  inline std::string ExtendErrorMsg(const std::string &backend, const char *what) {
+    return make_string("Error when executing ", backend, " operator ", op_spec_.name(),
+                       ", instance name: \"", name_, "\", encountered:\n", what);
+  }
+
   int max_batch_size_;
   size_t num_outputs_;
   workspace_t<Backend> ws_;
@@ -141,12 +139,14 @@ std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     ThreadPool *thread_pool, int batch_size) {
-  DomainTimeRange tr("[DALI][CPU op] " + name_, DomainTimeRange::kBlue1);
-  ws_.Clear();
-  ws_.SetThreadPool(thread_pool);
+  try {
+    DomainTimeRange tr("[DALI][CPU op] " + name_, DomainTimeRange::kBlue1);
+    ws_.Clear();
+    ws_.SetThreadPool(thread_pool);
 
-  return RunImpl<CPUBackend, CPUBackend, TensorVector<CPUBackend>, TensorVector<CPUBackend>>(
-      inputs, kwargs, batch_size);
+    return RunImpl<CPUBackend, CPUBackend, TensorVector<CPUBackend>, TensorVector<CPUBackend>>(
+        inputs, kwargs, batch_size);
+  } catch (std::exception &e) { throw std::runtime_error(ExtendErrorMsg("CPU", e.what())); }
 }
 
 template <>
@@ -155,13 +155,15 @@ std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<GPUBackend>::
     const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     CUDAStreamLease &cuda_stream, int batch_size) {
-  DomainTimeRange tr("[DALI][GPU op] " + name_, DomainTimeRange::knvGreen);
-  ws_.Clear();
-  ws_.set_stream(cuda_stream);
-  auto output = RunImpl<GPUBackend, GPUBackend, TensorList<GPUBackend>, TensorList<GPUBackend>>(
-      inputs, kwargs, batch_size);
-  CUDA_CALL(cudaStreamSynchronize(cuda_stream));
-  return output;
+  try {
+    DomainTimeRange tr("[DALI][GPU op] " + name_, DomainTimeRange::knvGreen);
+    ws_.Clear();
+    ws_.set_stream(cuda_stream);
+    auto output = RunImpl<GPUBackend, GPUBackend, TensorList<GPUBackend>, TensorList<GPUBackend>>(
+        inputs, kwargs, batch_size);
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    return output;
+  } catch (std::exception &e) { throw std::runtime_error(ExtendErrorMsg("GPU", e.what())); }
 }
 
 template <>
@@ -170,13 +172,15 @@ std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<MixedBackend>
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     CUDAStreamLease &cuda_stream, int batch_size) {
-  DomainTimeRange tr("[DALI][Mixed op] " + name_, DomainTimeRange::kOrange);
-  ws_.Clear();
-  ws_.set_stream(cuda_stream);
-  auto output = RunImpl<CPUBackend, GPUBackend, TensorVector<CPUBackend>, TensorList<GPUBackend>>(
-      inputs, kwargs, batch_size);
-  CUDA_CALL(cudaStreamSynchronize(cuda_stream));
-  return output;
+  try {
+    DomainTimeRange tr("[DALI][Mixed op] " + name_, DomainTimeRange::kOrange);
+    ws_.Clear();
+    ws_.set_stream(cuda_stream);
+    auto output = RunImpl<CPUBackend, GPUBackend, TensorVector<CPUBackend>, TensorList<GPUBackend>>(
+        inputs, kwargs, batch_size);
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    return output;
+  } catch (std::exception &e) { throw std::runtime_error(ExtendErrorMsg("Mixed", e.what())); }
 }
 
 template <>
@@ -227,14 +231,18 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
 
     DALI_ENFORCE(cur_batch_size == batch_size,
                  make_string("Expected uniform batch size in a single operator. Expected: ",
-                             batch_size, ", got: ", cur_batch_size));
+                             batch_size, ", input ", in_idx, " batch size: ", cur_batch_size));
     DALI_ENFORCE(
         cur_batch_size <= max_batch_size_,
         make_string("Expected batch size lower or equal to max batch size. Expected at most: ",
-                    max_batch_size_, ", got: ", batch_size));
+                    max_batch_size_, ", input ", in_idx, " batch size: ", batch_size));
 
     SetDefaultLayoutIfNeeded(*tensor_in, op_spec_.GetSchema(), in_idx);
     ws_.AddInput(tensor_in);
+  }
+
+  if (batch_size == -1) {
+    batch_size = max_batch_size_;
   }
 
   for (auto &arg : kwargs) {
@@ -250,12 +258,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
     ws_.AddOutput(std::make_shared<WSOutputType>(max_batch_size_));
   }
 
-  if (batch_size != -1) {
-    ws_.SetBatchSizes(batch_size);
-  } else {
-    ws_.SetBatchSizes(max_batch_size_);
-  }
-
+  ws_.SetBatchSizes(batch_size);
 
   // Setup outputs.
   if (op_->Setup(output_desc, ws_) && op_->CanInferOutputs()) {
@@ -268,6 +271,13 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
 
   for (size_t i = 0; i < num_outputs_; ++i) {
     outputs.push_back(AsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i)));
+  }
+
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    int cur_batch_size = outputs[i]->num_samples();
+    DALI_ENFORCE(cur_batch_size == batch_size,
+                 make_string("Unexpected batch size for output ", i, ". Expected: ", batch_size,
+                             ", returned: ", cur_batch_size));
   }
 
   return outputs;
