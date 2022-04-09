@@ -20,6 +20,7 @@ serialized_filename = "some_custom_name"
 
 def test_correct_usage():
     cmd = ["python", "decorated_function.py", serialized_filename, "autoserialize.me"]
+    cmd = ["python", "imports_decorated_function.py", serialized_filename, "autoserialize.me"]
     out = subprocess.run(cmd, capture_output=True, cwd=None, check=True, text=True)
     if out.stdout != f"Serialized to {serialized_filename}\n":
         print(out)

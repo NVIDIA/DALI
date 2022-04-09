@@ -20,9 +20,10 @@ pipeline_autoserialized = False
 def autoserialize(dali_pipeline):
     """
     Decorator, that marks a DALI pipeline (represented by :meth:`nvidia.dali.pipeline_def`) for
-    autoserialization in DALI Backend's model repository.
+    autoserialization in [DALI Backend's](https://github.com/triton-inference-server/dali_backend#dali-triton-backend) model repository.
 
-    For details about the autoserialization feature, please refer to the DALI Backend documentation.
+    For details about the autoserialization feature, please refer to the
+    [DALI Backend documentation](https://github.com/triton-inference-server/dali_backend#autoserialization).
 
     To properly autoserialize the DALI pipeline, the caller needs to run the Python script, that
     contains the pipeline marked with ``autoserialize``, pass the target file name
