@@ -12,9 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
+import inspect
 
-pipeline_autoserialized = False
+
+def _discover_autoserialize(module, visited=[]):  # TODO test
+    """
+    TODO
+    :param module:
+    :return:
+    """
+    assert module is not None
+    ret = []
+    mems = inspect.getmembers(module)
+    modules = []
+    for mem in mems:
+        obj = getattr(module, mem[0], None)
+        if inspect.ismodule(obj) and mem[1] not in visited:
+            modules.append(mem[0])
+            visited.append(mem[1])
+        elif inspect.isfunction(obj) and getattr(obj, 'autoserialize_me', False):
+            ret.append(obj)
+    for mod in modules:
+        ret.extend(_discover_autoserialize(getattr(module, mod, None), visited))
+    return ret
+
+
+def invoke_autoserialize(module, filename):
+    """
+    TODO
+    :param module:
+    :param filename:
+    :return:
+    """
+    autoserialize_me_functions = _discover_autoserialize(module)
+    assert len(
+        autoserialize_me_functions) == 1, f"Precisely one autoserialize function must exist in the module. Discovered: {autoserialize_me_functions}"
+    dali_pipeline = autoserialize_me_functions[0]
+    pipe = dali_pipeline()
+    pipe.serialize(filename=filename)
 
 
 def autoserialize(dali_pipeline):
@@ -25,47 +60,15 @@ def autoserialize(dali_pipeline):
     For details about the autoserialization feature, please refer to the
     [DALI Backend documentation](https://github.com/triton-inference-server/dali_backend#autoserialization).
 
-    To properly autoserialize the DALI pipeline, the caller needs to run the Python script, that
-    contains the pipeline marked with ``autoserialize``, pass the target file name
-    (i.e. the path to the file, where the serialized model will be saved) and the magical command
-    ``autoserialize.me``. For example:
-
-        # identity.py
-        import nvidia.dali as dali
-
-        @dali.triton.autoserialize
-        @dali.pipeline_def(batch_size=3, num_threads=1, device_id=0)
-        def pipe():
-            data = dali.fn.external_source(device="cpu", name="DALI_INPUT_0")
-            return data
-
-
-        $ python identity.py /tmp/model.dali autoserialize.me
-
-
-    The above command will serialize a DALI Pipeline, no matter where in the module it exists.
-    On the other hand, invoking a python script in any other way than presented above, will be
-    a no-op regarding pipeline serialization. For example, let's consider the following file:
-
-        # imported.py
-        import identity  # the identity.py above
-
-
-        $ python imported.py /tmp/model.dali autoserialize.me  # serializes DALI pipeline into the
-                                                               # /tmp/model.dali file
-        $ python imported.py  # nothing happens
+    To perform autoserialization, please refer to :meth:`invoke_autoserialize`.
 
     Only a ``pipeline_def`` can be decorated with ``autoserialize``.
 
-    Only one ``pipeline_Def`` may be decorated with ``autoserialize`` in given program.
+    Only one ``pipeline_def`` may be decorated with ``autoserialize`` in given program.
 
     :param dali_pipeline: DALI Python model definition (``pipeline_def``)
     """
-    if len(sys.argv) != 3 or sys.argv[2] != "autoserialize.me":
-        return
-    global pipeline_autoserialized
-    assert not pipeline_autoserialized, f"There can be only one autoserialized pipeline in a file. Offending pipeline name: {dali_pipeline.__qualname__}."
-    assert getattr(dali_pipeline, "is_pipeline_def", False), "Only `@pipeline_def` can be decorated with `@triton.autoserialize`."
-    filepath = sys.argv[1]
-    dali_pipeline().serialize(filename=filepath)
-    pipeline_autoserialized = True
+    assert getattr(dali_pipeline, "is_pipeline_def",
+                   False), "Only `@pipeline_def` can be decorated with `@triton.autoserialize`."
+    dali_pipeline.autoserialize_me = True
+    return dali_pipeline
