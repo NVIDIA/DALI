@@ -36,7 +36,7 @@ function redirect_legacy_op_link() {
     var hash = window.location.hash.substring(1);
     if (hash) {
       var page = hash_to_new_page_name(hash);
-      if (page) {
+      if (page != "") {
         var current = window.location.pathname;
         var target = current.replace("supported_ops.html", page);
         window.location.replace(target);
