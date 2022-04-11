@@ -9,7 +9,7 @@ doc(title="Video Processing",
                   op_reference('fn.readers.video', "Tutorial describing how to output frames with \
                                 labels assigned to dedicated ranges of frame numbers/timestamps")),
         doc_entry("sequence_reader_simple_example.ipynb",
-                  op_reference('fn.readers.sequence', "Tutorial describing how to read sequence of video frames stored as separate files"),
+                  op_reference('fn.readers.sequence', "Tutorial describing how to read sequence of video frames stored as separate files")),
         doc_entry("optical_flow_example.ipynb",
                   [op_reference('fn.readers.video', "Tutorial describing how to calculate optical flow from video inputs"),
                    op_reference('fn.optical_flow', "Tutorial describing how to calculate optical flow from sequence inputs")]),
