@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/pipeline/util/thread_pool.h"
+#include "dali/pipeline/util/worker_thread.h"
 #include <gtest/gtest.h>
 #include <atomic>
 
@@ -65,6 +66,11 @@ TEST(ThreadPool, AddWorkWithPriority) {
 
   tp.RunAll();
   ASSERT_EQ(((1+1) << 3) + 1, count);
+}
+
+TEST(WorkerThread, Destructing) {
+  WorkerThread wt(0, false);
+  // check destruction of a running worker thread
 }
 
 }  // namespace test
