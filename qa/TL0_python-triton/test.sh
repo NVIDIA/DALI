@@ -1,5 +1,5 @@
 #!/bin/bash -e
-target_dir=./dali/python/test
+target_dir=./dali/python/nvidia/dali/test
 
 test_body() {
     nosetests -s -v "$(ls ./*_test.py)"
