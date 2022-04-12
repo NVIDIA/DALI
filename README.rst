@@ -1,4 +1,5 @@
-|License|  |Documentation| |LGTM Python badge|
+|License|  |Documentation|
+|LGTM Python badge|
 
 NVIDIA DALI
 ===========
@@ -226,4 +227,5 @@ Simon Layton, Andrei Ivanov and Serge Panev.
 .. |Documentation| image:: https://img.shields.io/badge/Nvidia%20DALI-documentation-brightgreen.svg?longCache=true
    :target: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html
 
-.. |LGTM Python badge| image:: [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/NVIDIA/DALI.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/NVIDIA/DALI/context:python)
+.. |LGTM Python badge| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/DALI.svg?logo=lgtm&logoWidth=18
+   :target: https://lgtm.com/projects/g/NVIDIA/DALI/context:python
