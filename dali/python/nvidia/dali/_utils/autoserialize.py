@@ -46,7 +46,7 @@ def _discover_autoserialize(module, visited=[]):
 
 def invoke_autoserialize(head_module, filename):
     """
-    Perform the autoserialization of a function marked by :meth:`nvidia.dali.triton.autoserialize`.
+    Perform the autoserialization of a function marked by :meth:`nvidia.dali.plugin.triton.autoserialize`.
 
     Assuming, that user marked a function with ``@autoserialize`` decorator, the
     ``invoke_autoserialize`` is a utility function, which will actually perform the autoserialization.
