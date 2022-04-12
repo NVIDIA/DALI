@@ -229,3 +229,4 @@ Simon Layton, Andrei Ivanov and Serge Panev.
 
 .. |LGTM Python badge| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/DALI.svg?logo=lgtm&logoWidth=18
    :target: https://lgtm.com/projects/g/NVIDIA/DALI/context:python
+   :alt: Language grade: Python
