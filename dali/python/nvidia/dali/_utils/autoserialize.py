@@ -19,7 +19,7 @@ def _is_marked_autoserializable(object):
     return getattr(object, 'autoserialize_me', False)
 
 
-def _discover_autoserialize(module, visited=[]):
+def _discover_autoserialize(module, visited):
     """
     Traverses a module tree given by the head module and
     returns all functions that are marked with ``@autoserialize`` decorator.
@@ -58,7 +58,7 @@ def invoke_autoserialize(head_module, filename):
     :param head_module: Module, denoting the model tree in which the decorated function shall exist.
     :param filename: Path to the file, where the output of serialization will be saved.
     """
-    autoserialize_me_functions = _discover_autoserialize(head_module)
+    autoserialize_me_functions = _discover_autoserialize(head_module, visited=[])
     if len(autoserialize_me_functions) > 1:
         raise RuntimeError(
             f"Precisely one autoserialize function must exist in the module. "
