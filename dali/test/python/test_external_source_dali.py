@@ -324,7 +324,7 @@ def test_layout_ndim_match():
         assert np.allclose(t2, [np.ones((120, 120), dtype=np.uint8)])
 
 
-@raises(ValueError, glob="Layout HWC cannot describe 2 dimensional data.")
+
 def test_ndim_layout_mismatch():
     src_pipe = Pipeline(1, 1, 0)
     src_ext = fn.external_source(layout="HWC", ndim=2)

@@ -222,13 +222,15 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         device_id_(spec.GetArgument<int>("device_id")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
+        ndim_(-1),
+        layout_(),
         sync_worker_(device_id_, false) {
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, "Incorrect number of dimensions. "
                    "Use positive values for tensors or 0 for scalars.");
-    } else {
-      ndim_ = -1;
     }
+    layout_ = spec.GetArgument<TensorLayout>("layout");
+    InferNdim();
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
   }
@@ -236,6 +238,22 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   inline ~ExternalSource() {
     sync_worker_.ForceStop();
     sync_worker_.Shutdown();
+  }
+
+  inline bool HasNdim() {
+    return !layout_.empty() || spec_.HasArgument("ndim");
+  }
+
+  inline void InferNdim() {
+    if (!layout_.empty()) {
+      if (ndim_ != -1) {
+        DALI_ENFORCE(ndim_ == layout_.ndim(), make_string("Dimensionality of the provided "
+                     "layout does not match the ndim argument. The provided ndim: ", ndim_,
+                     ". Provided layout: ", layout_, "."));
+      } else {
+        ndim_ = layout_.ndim();
+      }
+    }
   }
 
   inline string name() const override {
@@ -408,7 +426,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     } else {
       // it is not contiguous so we need to copy
       tl_elm.front()->Copy(batch, order, use_copy_kernel);
-
       std::list<uptr_cuda_event_type> copy_to_storage_event;
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
       CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
@@ -454,7 +471,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tv_elm.front()->set_pinned(batch.is_pinned());
     }
     tv_elm.front()->Copy(batch, order);
-
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_data_.PushBack(tv_elm);
@@ -515,7 +531,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     previous_dtype_ = batch.type();
 
     auto input_ndim = batch.shape().sample_dim();
-    if (spec_.HasArgument("ndim")) {
+    if (HasNdim()) {
       DALI_ENFORCE(input_ndim == ndim_,
                    make_string("ExternalSource expected data with ", ndim_, " dimensions and got ",
                      input_ndim, " dimensions."));
@@ -526,6 +542,12 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                       "iteration was ", ndim_, " and the current is ", input_ndim, "."));
     }
     ndim_ = input_ndim;
+
+    if (spec_.HasArgument("layout")) {
+      DALI_ENFORCE(layout_ == batch.GetLayout(),
+                   make_string("Expected data with layout: \"", layout_,
+                     "\" and got: \"", batch.GetLayout(), "\"."));
+    }
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>
@@ -571,6 +593,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   DALIDataType dtype_;
   DALIDataType previous_dtype_;
   int ndim_;
+  TensorLayout layout_;
 
   /*
    * now it only indicates that there is data in the ExternalSource, in the future

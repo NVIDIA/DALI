@@ -675,15 +675,6 @@ Keyword Args
             kwargs = {"no_copy": no_copy}
             group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
             for i in range(self._num_outputs):
-                this_layout = None
-                inferred_ndim = None
-                if layout is not None:
-                    if isinstance(layout, (list, tuple)):
-                        this_layout = layout[i] if i < len(layout) else ""
-                    else:
-                        this_layout = layout
-                    if this_layout != "":
-                        inferred_ndim = len(this_layout)
                 if dtype is not None:
                     if isinstance(dtype, (list, tuple)):
                         kwargs['dtype'] = dtype[i] if i < len(dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
@@ -691,34 +682,28 @@ Keyword Args
                         kwargs['dtype'] = dtype
                 if ndim is not None:
                     if isinstance(ndim, (list, tuple)):
-                        this_ndim = ndim[i] if i < len(ndim) else -1
+                        kwargs['ndim'] = ndim[i] if i < len(ndim) else None
                     else:
-                        this_ndim = ndim
-                else:
-                    this_ndim = inferred_ndim
-
-                if this_ndim is not None and inferred_ndim is not None and this_ndim != inferred_ndim:
-                    raise ValueError("Layout " + this_layout + " cannot describe " +
-                                      str(this_ndim) + " dimensional data.")
-                if this_ndim is not None:
-                    kwargs['ndim'] = this_ndim
-
+                        kwargs['ndim'] = ndim
+                this_layout = None
+                if layout is not None:
+                    if isinstance(layout, (list, tuple)):
+                        this_layout = layout[i] if i < len(layout) else ""
+                    else:
+                        this_layout = layout
+                    kwargs['layout'] = this_layout
                 op_instance = _OperatorInstance([], self, **kwargs)
                 op_instance._callback = callback
                 op_instance._output_index = i
                 op_instance._group = group
                 op_instance._layout = this_layout
                 op_instance._batch = batch
-
                 group.append(op_instance)
                 op_instance.generate_outputs()
                 outputs.append(op_instance.unwrapped_outputs)
 
             return outputs
         else:
-            inferred_ndim = None
-            if layout is not None and layout != "":
-                inferred_ndim = len(layout)
             if name is not None:
                 kwargs["name"] = name
             if no_copy is not None:
@@ -726,12 +711,9 @@ Keyword Args
             if dtype is not None:
                 kwargs['dtype'] = dtype
             if ndim is not None:
-                if inferred_ndim is not None and ndim != inferred_ndim:
-                    raise ValueError("Layout " + layout + " cannot describe " +
-                                      str(ndim) + " dimensional data.")
                 kwargs['ndim'] = ndim
-            elif inferred_ndim is not None:
-                kwargs['ndim'] = inferred_ndim
+            if layout is not None:
+                kwargs['layout'] = layout
             op_instance = _OperatorInstance([], self, **kwargs)
             op_instance._callback = callback
             op_instance._output_index = None
