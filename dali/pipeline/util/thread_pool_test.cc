@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/pipeline/util/worker_thread.h"
 #include <gtest/gtest.h>
 #include <atomic>
+#include "dali/pipeline/util/worker_thread.h"
 
 namespace dali {
 
