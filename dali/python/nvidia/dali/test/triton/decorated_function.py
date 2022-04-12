@@ -1,6 +1,7 @@
 import nvidia.dali as dali
-from pipeline_stub import PipelineStub
+
 
 @dali.triton.autoserialize
+@dali.pipeline_def
 def func_under_test():
-    return PipelineStub()
+    return 42
