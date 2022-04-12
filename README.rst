@@ -1,4 +1,4 @@
-|License|  |Documentation|
+|License|  |Documentation| |LGTM Python badge|
 
 NVIDIA DALI
 ===========
