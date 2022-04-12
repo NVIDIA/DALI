@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -303,8 +303,11 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     string error_str = "(op: '" + spec.name() + "', input: '" +
       input_name + "')";
 
-    DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
-        "only on GPU. " + error_str);
+    if (!it->second.has_cpu) {
+      DALI_FAIL(make_string(
+          "Named arguments inputs to operators must be CPU data nodes. However, a GPU ",
+          "data node was provided (op: '", spec.name(), "', input: '", input_name, "')"));
+    }
 
     if (device == "gpu" && separated_execution_)
       SetupCPUInput(it, input_idx, &spec);

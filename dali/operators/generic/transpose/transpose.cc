@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,8 +46,8 @@ class TransposeCPU : public Transpose<CPUBackend> {
             TensorShape<> src_ts = input.shape()[i];
             auto dst_ts = permute(src_ts, perm_);
             kernels::TransposeGrouped(
-                TensorView<StorageCPU, T>{output[i].mutable_data<T>(), dst_ts},
-                TensorView<StorageCPU, const T>{input[i].data<T>(), src_ts}, make_cspan(perm_));
+                TensorView<StorageCPU, T>{output.mutable_tensor<T>(i), dst_ts},
+                TensorView<StorageCPU, const T>{input.tensor<T>(i), src_ts}, make_cspan(perm_));
           }, out_shape.tensor_size(i));
       }
     ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT

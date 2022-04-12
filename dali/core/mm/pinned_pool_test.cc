@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ TEST(MMPinnedAlloc, SyncAndSteal) {
   upstream.check_leaks();
 }
 
-TEST(MMPinnedAlloc, SyncCrossDevice) {
+TEST(MMPinnedAlloc, SyncCrossDeviceMultiDevice) {
   test_pinned_resource upstream;
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
@@ -117,7 +117,7 @@ TEST(MMPinnedAlloc, SyncCrossDevice) {
   upstream.check_leaks();
 }
 
-TEST(MMPinnedAlloc, FreeOnAnotherDevice) {
+TEST(MMPinnedAlloc, FreeOnAnotherDeviceMultiDevice) {
   test_pinned_resource upstream;
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));

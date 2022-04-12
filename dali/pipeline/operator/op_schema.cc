@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -280,17 +280,28 @@ OpSchema::FindDefaultValue(const std::string &name, bool local_only, bool includ
   return { nullptr, nullptr };
 }
 
-
-bool OpSchema::IsTensorArgument(const std::string &name) const {
-  bool ret = tensor_arguments_.find(name) != tensor_arguments_.end();
-  if (ret) {
-    return ret;
+const TensorArgDesc* OpSchema::FindTensorArgument(const std::string &name) const {
+  auto it = tensor_arguments_.find(name);
+  if (it != tensor_arguments_.end()) {
+    return &it->second;
   }
   for (const auto &p : parents_) {
     const OpSchema &parent = SchemaRegistry::GetSchema(p);
-    ret = ret || parent.IsTensorArgument(name);
+    auto desc = parent.FindTensorArgument(name);
+    if (desc) {
+      return desc;
+    }
   }
-  return ret;
+  return nullptr;
+}
+
+bool OpSchema::IsTensorArgument(const std::string &name) const {
+  return FindTensorArgument(name);
+}
+
+bool OpSchema::ArgSupportsPerFrameInput(const std::string &arg_name) const {
+  auto arg_desc = FindTensorArgument(arg_name);
+  return arg_desc && arg_desc->supports_per_frame;
 }
 
 }  // namespace dali

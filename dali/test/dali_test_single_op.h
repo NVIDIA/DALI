@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -695,7 +695,7 @@ class DALISingleOpTest : public DALITest {
     ASSERT_TRUE(t1);
     ASSERT_TRUE(t2);
     ASSERT_EQ(t1->num_samples(), t2->num_samples());
-    for (size_t i = 0; i < t1->num_samples(); i++) {
+    for (int i = 0; i < t1->num_samples(); i++) {
       ASSERT_EQ(t1->tensor_shape(i), t2->tensor_shape(i));
     }
     ASSERT_EQ(t1->_num_elements(), t2->_num_elements());
@@ -710,7 +710,7 @@ class DALISingleOpTest : public DALITest {
     double mean;
     if (checkElements) {
       // The the results are checked for each element separately
-      for (size_t i = 0; i < t1->num_samples(); ++i) {
+      for (int i = 0; i < t1->num_samples(); ++i) {
         const auto shape1 = t1->tensor_shape(i);
         const auto shape2 = t2->tensor_shape(i);
         ASSERT_EQ(shape1.size(), 3);

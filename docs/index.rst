@@ -62,8 +62,14 @@ NVIDIA DALI Documentation
 
 .. toctree::
    :hidden:
+   :caption: Frequently Asked Questions
+
+   FAQ
+
+.. toctree::
+   :hidden:
    :caption: Reference
 
    Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
    GitHub <https://github.com/NVIDIA/DALI>
-   Roadmap <https://github.com/NVIDIA/DALI/issues/2978>
+   Roadmap <https://github.com/NVIDIA/DALI/issues/3774>

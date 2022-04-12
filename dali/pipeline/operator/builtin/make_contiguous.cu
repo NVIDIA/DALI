@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,11 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   int sample_dim = input[0].shape().sample_dim();
   size_t batch_size = input.num_samples();
   DALIDataType type = input.type();
+  size_t type_size = input.type_info().size();
 
-  for (size_t i = 0; i < input.num_samples(); ++i) {
-    auto &sample = ws.Input<CPUBackend>(0)[i];
-    size_t sample_bytes = sample.nbytes();
+  for (int i = 0; i < input.num_samples(); ++i) {
+    auto sample = ws.Input<CPUBackend>(0)[i];
+    size_t sample_bytes = sample.shape().num_elements() * type_size;
     if (coalesced && sample_bytes > COALESCE_THRESHOLD)
       coalesced = false;
     DALI_ENFORCE(type == sample.type(), "Inconsistent types in "

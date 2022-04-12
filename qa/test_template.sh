@@ -103,6 +103,9 @@ for e in ${extra_indices}; do
     extra_indices_string="${extra_indices_string} --extra-index-url=${e}"
 done
 
+# store the original LD_LIBRARY_PATH
+OLD_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+
 for i in `seq 0 $last_config_index`;
 do
     echo "Test run $i"
@@ -133,6 +136,11 @@ do
                 pip install /opt/dali/nvidia_dali*.whl
                 pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
             fi
+            # if we are using any wheel named nvidia- in the test, like nvidia-tensorflow
+            # unset LD_LIBRARY_PATH to not used cuda from /usr/local/ but from wheels
+            if [[ "$inst" == *nvidia-* ]]; then
+                export LD_LIBRARY_PATH=
+            fi
         fi
         # test code
         # Run test_body in subshell, the exit on error is turned off in current shell,
@@ -146,6 +154,8 @@ do
         if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
             process_sanitizers_logs
         fi
+        # restore the original LD_LIBRARY_PATH
+        export LD_LIBRARY_PATH=$OLD_LD_LIBRARY_PATH
         if [ $RV -gt 0 ]; then
             # if sanitizers are enabled don't capture core
             if [ -z "$DALI_ENABLE_SANITIZERS" ]; then

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import os
 from nose_utils import assert_raises
 from nose.plugins.attrib import attr
 
+from sequences_test_utils import video_suite_helper
 from test_utils import get_dali_extra_path, check_batch, compare_pipelines, RandomlyShapedDataIterator, dali_type
 
 data_root = get_dali_extra_path()
@@ -336,3 +337,32 @@ def test_fail_gaussian_blur():
           "Kernel window should have odd length, got: \d*\."
     yield check_fail_gaussian_blur, 10, 0.0, 2, (100, 20, 3), "HWC", 3, "gpu", \
           "Even or non-centered windows are not supported yet, got window with even length: [\s\S]* for sample \d*\."
+
+
+def test_per_frame():
+    def window_size(rng):
+        return np.array(2 * rng.randint(1, 15) + 1, dtype=np.int32)
+
+    def per_axis_window_size(rng):
+        return np.array([window_size(rng) for _ in range(2)])
+
+    def sigma(rng):
+        return np.array((rng.random() + 1) * 3., dtype=np.float32)
+
+    def per_axis_sigma(rng):
+        return np.array([sigma(rng) for _ in range(2)])
+
+    video_test_cases = [
+        (fn.gaussian_blur, {'window_size': 3}, []),
+        (fn.gaussian_blur, {}, [("window_size", window_size, True)]),
+        (fn.gaussian_blur, {}, [("window_size", per_axis_window_size, True)]),
+        (fn.gaussian_blur, {}, [("sigma", sigma, True)]),
+        (fn.gaussian_blur, {}, [
+            ("window_size", per_axis_window_size, True),
+            ("sigma", per_axis_sigma, True)]),
+        (fn.gaussian_blur, {'dtype': types.FLOAT}, [
+            ("window_size", per_axis_window_size, False),
+            ("sigma", per_axis_sigma, True)]),
+    ]
+
+    yield from video_suite_helper(video_test_cases, expand_channels=True)

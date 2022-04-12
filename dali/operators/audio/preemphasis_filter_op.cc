@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,11 +65,11 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   for (int sample_id = 0; sample_id < nsamples; sample_id++) {
     tp.AddWork(
       [this, &output, &input, sample_id](int thread_id) {
-        const auto in_ptr = input[sample_id].data<InputType>();
-        auto out_ptr = output[sample_id].mutable_data<OutputType>();
-        DALI_ENFORCE(input[sample_id].shape() == output[sample_id].shape(),
+        const auto *in_ptr = input.tensor<InputType>(sample_id);
+        auto *out_ptr = output.mutable_tensor<OutputType>(sample_id);
+        DALI_ENFORCE(input.tensor_shape(sample_id) == output.tensor_shape(sample_id),
                      "Input and output shapes don't match");
-        auto n = volume(output[sample_id].shape());
+        auto n = volume(output.tensor_shape(sample_id));
         auto coeff = preemph_coeff_[sample_id];
         if (coeff == 0.0f) {
           for (int64_t j = 0; j < n; j++) {

@@ -227,8 +227,8 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
 
   auto view_window_fn = make_tensor_cpu<1>(window_fn_.data(), window_length_);
   for (int i = 0; i < nsamples; i++) {
-    auto view_signal_1d =
-        make_tensor_cpu<1>(input[i].template data<const InputType>(), {input[i].size()});
+    auto view_signal_1d = make_tensor_cpu<1>(input.template tensor<const InputType>(i),
+                                             {input.tensor_shape(i).num_elements()});
 
     auto &windows_req =
       kmgr_window_.Setup<WindowKernel>(
@@ -269,8 +269,8 @@ void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
         win_out.set_type<InputType>();
         win_out.Resize(window_out_desc_[0].shape.tensor_shape(i));
 
-        auto view_signal_1d =
-            make_tensor_cpu<1>(input[i].data<const InputType>(), {input[i].size()});
+        auto view_signal_1d = make_tensor_cpu<1>(input.tensor<const InputType>(i),
+                                                 {input.tensor_shape(i).num_elements()});
         kmgr_window_.Run<WindowKernel>(
           i, ctx,
           view<InputType, WindowsDims>(win_out),

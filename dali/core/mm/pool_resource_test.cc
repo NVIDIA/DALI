@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ void TestPoolResource(int num_iter) {
   test_host_resource upstream;
   {
     auto opt = default_host_pool_opts();
+    opt.max_upstream_alignment = 32;  // force the use of overaligned upstream allocations
     pool_resource_base<memory_kind::host, FreeList, detail::dummy_lock>
       pool(&upstream, opt);
     std::mt19937_64 rng(12345);

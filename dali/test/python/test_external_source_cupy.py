@@ -1,4 +1,4 @@
-# Copyright (c) 2020, 2022, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ use_cupy()
 
 # extra tests, GPU-specific
 import cupy as cp
-import os
+from nose.plugins.attrib import attr
 
 def test_external_source_with_iter_cupy_stream():
     with cp.cuda.Stream(non_blocking=True):
@@ -79,6 +79,7 @@ def _test_cross_device(src, dst):
         out, = pipe.run()
         assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1,2,3,4],[5,6,7,8]]) + i)
 
+@attr('multigpu')
 def test_cross_device():
     if cp.cuda.runtime.getDeviceCount() > 1:
         for src in [0,1]:

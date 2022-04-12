@@ -64,8 +64,7 @@ class LaplacianOpGpu : public OpImplBase<GPUBackend> {
 
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    // The shape of data stays untouched
-    output_desc[0].shape = input.shape();
+    // Shape is set by ProcessOutputDesc
 
     args.ObtainLaplacianArgs(spec_, ws, nsamples);
 

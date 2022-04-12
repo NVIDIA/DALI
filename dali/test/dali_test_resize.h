@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_RESIZE_H_
 #define DALI_TEST_DALI_TEST_RESIZE_H_
 
@@ -28,6 +28,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     // single input - encoded images
     // single output - decoded images
     TensorVector<CPUBackend> out(inputs[0]->num_samples());
+    std::vector<Tensor<CPUBackend>> tmp_out(inputs[0]->num_samples());
     const TensorList<CPUBackend>& image_data = *inputs[0];
 
     const uint32_t resizeOptions = getResizeOptions();
@@ -69,7 +70,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
     }
 
     int rsz_h, rsz_w;
-    for (size_t i = 0; i < image_data.num_samples(); ++i) {
+    for (int i = 0; i < image_data.num_samples(); ++i) {
       auto *data = image_data.tensor<unsigned char>(i);
       auto shape = image_data.tensor_shape(i);
       const int H = shape[0], W = shape[1];
@@ -175,10 +176,15 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
         finalImg = &mirror_img;
       }
 
-      out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);
-      auto *out_data = out[i].mutable_data<unsigned char>();
+      tmp_out[i].Resize({finalImg->rows, finalImg->cols, c}, DALI_UINT8);
+      auto *out_data = tmp_out[i].mutable_data<unsigned char>();
 
       std::memcpy(out_data, finalImg->ptr(), finalImg->rows * finalImg->cols * c);
+    }
+
+    out.SetupLike(tmp_out[0]);
+    for (int i = 0; i < image_data.num_samples(); ++i) {
+      out.UnsafeSetSample(i, tmp_out[i]);
     }
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;

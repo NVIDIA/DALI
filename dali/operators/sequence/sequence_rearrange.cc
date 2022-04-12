@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,9 +79,9 @@ void SequenceRearrange<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
   for (int sample_idx = 0; sample_idx < curr_batch_size; ++sample_idx) {
     thread_pool.AddWork([this, &ws, &input, &output, sample_idx](int tid) {
       const TypeInfo &type = input.type_info();
-      const auto *in_sample = reinterpret_cast<const char *>(input[sample_idx].raw_data());
-      auto *out_sample = reinterpret_cast<char *>(output[sample_idx].raw_mutable_data());
-      const auto &in_shape = input[sample_idx].shape();
+      const auto *in_sample = reinterpret_cast<const char *>(input.raw_tensor(sample_idx));
+      auto *out_sample = reinterpret_cast<char *>(output.raw_mutable_tensor(sample_idx));
+      const auto &in_shape = input.tensor_shape(sample_idx);
       auto element_sizeof = volume(in_shape.last(in_shape.sample_dim() - 1)) * type.size();
 
       TensorView<StorageCPU, const int, 1> new_order = {};

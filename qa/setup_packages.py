@@ -28,6 +28,8 @@ class PckgVer():
             Maximum python version supported by this package. If empty there is no upper bound
         `python_min_ver`: str, optional, default = None
             Mimimum python version supported by this package. If empty there is no lower bound
+        'alias': std, optional, default = None
+            Alternative name that should be used during installation instead of general package name
         `dependencies` : list of str, optional, default = None
             List of packages in ["name==version", ] format that should be installed together with
             a given package
@@ -439,7 +441,7 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                               PckgVer("1.15.5", python_max_ver="3.7"),
                               PckgVer("2.7.1", python_min_ver="3.7"),
                               PckgVer("2.8.0", python_min_ver="3.7"),
-                              PckgVer("1.15.5+nv22.01", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
+                              PckgVer("1.15.5+nv22.03", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
                         }),
                 CudaPackageExtraIndex("torch",
                         { "101" : ["1.8.0"],

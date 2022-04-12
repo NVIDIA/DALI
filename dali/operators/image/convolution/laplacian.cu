@@ -69,25 +69,40 @@ extern template op_impl_uptr GetLaplacianGpuImpl<float, float>(const OpSpec*,
 
 }  // namespace laplacian
 
+// Passing to the kernel less samples (not split into frames) speeds-up
+// the processing, so expand frames dim only if some argument was specified per-frame
+template <>
+bool Laplacian<GPUBackend>::ShouldExpand(const workspace_t<GPUBackend>& ws) {
+  const auto& input = ws.template Input<GPUBackend>(0);
+  auto layout = input.GetLayout();
+  dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
+  bool should_expand = SequenceOperator<GPUBackend>::ShouldExpand(ws) && HasPerFrameArgInputs(ws);
+  if (should_expand) {
+    assert(dim_desc_.usable_axes_start > 0);
+    dim_desc_.total_axes_count -= dim_desc_.usable_axes_start;
+    dim_desc_.usable_axes_start = 0;
+  }
+  return should_expand;
+}
+
 template <>
 bool Laplacian<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
                                       const workspace_t<GPUBackend>& ws) {
   const auto& input = ws.template Input<GPUBackend>(0);
-  auto layout = input.GetLayout();
-  auto dim_desc = ParseAndValidateDim(input.shape().sample_dim(), layout);
+  assert(input.GetLayout().empty() || input.GetLayout().size() == dim_desc_.total_axes_count);
   auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
   DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
                "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
 
-  if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc) {
+  if (!impl_ || impl_in_dtype_ != input.type() || impl_dim_desc_ != dim_desc_) {
     impl_in_dtype_ = input.type();
-    impl_dim_desc_ = dim_desc;
+    impl_dim_desc_ = dim_desc_;
 
     TYPE_SWITCH(input.type(), type2id, In, LAPLACIAN_GPU_SUPPORTED_TYPES, (
       if (dtype == input.type()) {
-        impl_ = laplacian::GetLaplacianGpuImpl<In, In>(&spec_, dim_desc);
+        impl_ = laplacian::GetLaplacianGpuImpl<In, In>(&spec_, dim_desc_);
       } else {
-        impl_ = laplacian::GetLaplacianGpuImpl<float, In>(&spec_, dim_desc);
+        impl_ = laplacian::GetLaplacianGpuImpl<float, In>(&spec_, dim_desc_);
       }
     ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
   }

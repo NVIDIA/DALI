@@ -15,6 +15,7 @@ test_body() {
     nosetests --verbose test_dali_fork_torch.py
     nosetests --verbose --attr 'pytorch' test_external_source_impl_utils.py
     nosetests --verbose --attr 'pytorch' test_pipeline_debug.py
+    nosetests --verbose --attr 'pytorch' test_functional_api.py
 }
 
 pushd ../..

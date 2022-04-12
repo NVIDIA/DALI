@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 
 #include "dali/core/common.h"
 #include "dali/operators/image/remap/displacement_filter.h"
+#include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/imgproc/sampler.h"
@@ -90,7 +91,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   template <typename Out, typename In, DALIInterpType interp>
-  void RunWarp(Tensor<CPUBackend> &output, const Tensor<CPUBackend> &input, int thread_idx) {
+  void RunWarp(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input, int thread_idx) {
     auto &displace = displace_[thread_idx];
     In fill[1024];
     auto in = view<const Out, 3>(input);
@@ -109,9 +110,9 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
 
     PrepareDisplacement(ws, sample_idx, thread_idx);
 
-    if (!has_mask_ || (*mask_)[sample_idx].data<int>()[0]) {
-      const auto &in_tensor = input[sample_idx];
-      auto &out_tensor = output[sample_idx];
+    if (!has_mask_ || mask_->tensor<int>(sample_idx)[0]) {
+      auto in_tensor = input[sample_idx];
+      auto out_tensor = output[sample_idx];
 
       switch (interp_type_) {
         case DALI_INTERP_NN:
@@ -138,9 +139,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      const auto &in_tensor = input[sample_idx];
-      auto &out_tensor = output[sample_idx];
-      out_tensor.Copy(in_tensor);
+      output.UnsafeCopySample(sample_idx, input, sample_idx);
     }
   }
 

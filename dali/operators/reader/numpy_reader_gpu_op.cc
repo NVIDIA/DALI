@@ -17,28 +17,10 @@
 #include "dali/core/mm/memory.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/operators/reader/numpy_reader_gpu_op.h"
+#include "dali/operators/reader/gds_mem.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
-
-namespace {
-
-/**
- * @brief Allocates memory that's suitable for use with GDS / CUfile
- *
- * Currently (CUDA 11.4) GPUDirect Storage can work only with memory allocated with cudaMalloc and
- * cuMemAlloc. Since DALI is transitioning to CUDA Virtual Memory Management for memory
- * allocation, we need a special allocator that's compatible with GDS.
- */
-std::shared_ptr<uint8_t> gds_alloc(size_t bytes) {
-  uint8_t *ptr = nullptr;
-  CUDA_CALL(cudaMalloc(&ptr, bytes));
-  return std::shared_ptr<uint8_t>(ptr, [](void *mem) {
-    CUDA_DTOR_CALL(cudaFree(mem));
-  });
-}
-
-}  // namespace
 
 NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
     : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),
@@ -113,12 +95,16 @@ void NumpyReaderGPU::Prefetch() {
   }
   curr_tensor_list.Resize(tmp_shapes, ref_type);
 
-  size_t chunk_size = static_cast<size_t>( \
-                        div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
-                                 static_cast<uint64_t>(thread_pool_.NumThreads())));
+  const size_t kGDSChunkGranularity = 1<<20;
+
+  size_t chunk_size = align_up(div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
+                                        static_cast<uint64_t>(thread_pool_.NumThreads())),
+                               kGDSChunkGranularity);
+  chunk_size = std::min(chunk_size, curr_tensor_list.nbytes());
+
 
   // read the data
-  for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
+  for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
     size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx))
                                              * curr_tensor_list.type_info().size());
@@ -139,7 +125,7 @@ void NumpyReaderGPU::Prefetch() {
   }
   thread_pool_.RunAll();
 
-  for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
+  for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_batch[data_idx]->file_stream->Close();
   }
 }

@@ -1,0 +1,9 @@
+doc(title="Other",
+    underline_char="=",
+    entries=[
+        "general/multigpu.ipynb",
+        "custom_operations/index.py",
+        "advanced/serialization.ipynb",
+        "legacy_getting_started.ipynb",
+        "general/debug_mode.ipynb",
+    ])

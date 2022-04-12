@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,12 @@
 #define DALI_PIPELINE_DATA_DLTENSOR_H_
 
 #include <memory>
-#include <vector>
 #include <utility>
+#include <vector>
 #include "third_party/dlpack/include/dlpack/dlpack.h"
-#include "dali/pipeline/data/tensor.h"
+
+#include "dali/pipeline/data/sample_view.h"
+#include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
@@ -48,11 +50,11 @@ DLL_PUBLIC DLMTensorPtr MakeDLTensor(void *data, DALIDataType type,
                                      std::unique_ptr<DLTensorResource> resource);
 
 template <typename Backend>
-DLMTensorPtr GetDLTensorView(Tensor<Backend> &tensor) {
+DLMTensorPtr GetDLTensorView(SampleView<Backend> tensor, int device_id) {
   return MakeDLTensor(tensor.raw_mutable_data(),
                       tensor.type(),
                       std::is_same<Backend, GPUBackend>::value,
-                      tensor.device_id(),
+                      device_id,
                       std::make_unique<DLTensorResource>(tensor.shape()));
 }
 
@@ -60,7 +62,7 @@ template <typename Backend>
 std::vector<DLMTensorPtr> GetDLTensorListView(TensorList<Backend> &tensor_list) {
   std::vector<DLMTensorPtr> dl_tensors{};
   dl_tensors.reserve(tensor_list.num_samples());
-  for (size_t i = 0; i < tensor_list.num_samples(); ++i) {
+  for (int i = 0; i < tensor_list.num_samples(); ++i) {
     const auto &shape = tensor_list.tensor_shape(i);
     dl_tensors.push_back(MakeDLTensor(tensor_list.raw_mutable_tensor(i),
                                       tensor_list.type(),

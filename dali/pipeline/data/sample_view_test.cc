@@ -26,7 +26,6 @@
 
 namespace dali {
 
-
 template <typename SampleView>
 void compare(const SampleView &sv, const void *ptr, const TensorShape<> &shape,
              DALIDataType dtype) {
@@ -53,13 +52,64 @@ TEST(SampleView, Constructors) {
 
   SampleView<CPUBackend> from_void_ptr{reinterpret_cast<void *>(42), {1, 2, 3}, DALI_FLOAT};
   compare(from_void_ptr, reinterpret_cast<void *>(42), {1, 2, 3}, DALI_FLOAT);
+
+  const int32_t cdata{};
+  ConstSampleView<CPUBackend> const_from_ptr{&cdata, {1, 2, 3}};
+  compare(const_from_ptr, &cdata, {1, 2, 3}, DALI_INT32);
+
+  ConstSampleView<CPUBackend> const_from_void_ptr{
+      reinterpret_cast<const void *>(42), {1, 2, 3}, DALI_FLOAT};
+  compare(const_from_void_ptr, reinterpret_cast<void *>(42), {1, 2, 3}, DALI_FLOAT);
+
+  ConstSampleView<CPUBackend> const_from_nonconst{from_ptr};
+  compare(const_from_nonconst, &data, {1, 2, 3}, DALI_INT32);
+
+  ConstSampleView<CPUBackend> const_from_const{const_from_ptr};
+  compare(const_from_const, &cdata, {1, 2, 3}, DALI_INT32);
+
+  SampleView<CPUBackend> nonconst_from_nonconst;
+  nonconst_from_nonconst = from_ptr;
+  compare(nonconst_from_nonconst, &data, {1, 2, 3}, DALI_INT32);
+
+  ConstSampleView<CPUBackend> const_from_nonconst_assgin;
+  const_from_nonconst_assgin = from_ptr;
+  compare(const_from_nonconst_assgin, &data, {1, 2, 3}, DALI_INT32);
+
+  SampleView<CPUBackend> nonconst_from_moved_nonconst;
+  nonconst_from_moved_nonconst = std::move(from_ptr);
+  compare(nonconst_from_moved_nonconst, &data, {1, 2, 3}, DALI_INT32);
+
+  ConstSampleView<CPUBackend> const_from_moved_const;
+  const_from_moved_const = std::move(const_from_ptr);
+  compare(const_from_moved_const, &cdata, {1, 2, 3}, DALI_INT32);
+}
+
+
+TEST(SampleView, FromTensor) {
+  Tensor<CPUBackend> tensor;
+  tensor.Resize({1, 2, 3}, DALI_INT32);
+
+  auto sv = sample_view(tensor);
+  auto csv = const_sample_view(tensor);
+
+  compare(sv, tensor.raw_data(), {1, 2, 3}, DALI_INT32);
+  compare(csv, tensor.raw_data(), {1, 2, 3}, DALI_INT32);
+
+  Tensor<CPUBackend> scalar_tensor;
+  scalar_tensor.Resize({}, DALI_FLOAT);
+
+  auto scalar_sv = sample_view(scalar_tensor);
+  auto scalar_csv = const_sample_view(scalar_tensor);
+
+  compare(scalar_sv, scalar_tensor.raw_data(), {}, DALI_FLOAT);
+  compare(scalar_csv, scalar_tensor.raw_data(), {}, DALI_FLOAT);
 }
 
 
 TEST(SampleView, ViewConversion) {
   int32_t data{};
   SampleView<CPUBackend> sample_view{&data, {1, 2, 3}};
-  const SampleView<CPUBackend> const_sample_view{&data, {1, 2, 3}};
+  ConstSampleView<CPUBackend> const_sample_view{&data, {1, 2, 3}};
 
   compare(view<int32_t>(sample_view), TensorView<StorageCPU, int32_t>{&data, {1, 2, 3}});
   compare(view<int32_t, 3>(sample_view), TensorView<StorageCPU, int32_t, 3>{&data, {1, 2, 3}});
@@ -77,10 +127,11 @@ TEST(SampleView, ViewConversion) {
 TEST(SampleView, ViewConversionError) {
   int32_t data{};
   SampleView<CPUBackend> sample_view{&data, {1, 2, 3}};
-  const SampleView<CPUBackend> const_sample_view{&data, {1, 2, 3}};
+  ConstSampleView<CPUBackend> const_sample_view{&data, {1, 2, 3}};
 
   EXPECT_THROW(view<float>(sample_view), std::runtime_error);
   EXPECT_THROW(view<const float>(sample_view), std::runtime_error);
   EXPECT_THROW(view<const float>(const_sample_view), std::runtime_error);
 }
+
 }  // namespace dali

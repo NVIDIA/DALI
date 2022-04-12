@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,15 +29,15 @@ class ShmMessageDesc(Structure):
         -1 in case of a main process.
     `shm_chunk_id` : int
         Integer identifying shm chunk that contains pickled data to be read by the receiver
-    `shm_capacity` : int
+    `shm_capacity` : unsigned long long int
         Size of the `shm_chunk_id` chunk, receiver should resize the mapping if the chunk
         was resized by the writer.
-    `offset` : int
+    `offset` : unsigned long long int
         Offset in the shm chunk where the serialized message starts
-    `num_bytes` : int
+    `num_bytes` : unsigned long long int
         Size in bytes of the serialized message
     """
-    _fields = ("worker_id", "i"), ("shm_chunk_id", "i"), ("shm_capacity", "i"), ("offset", "i"), ("num_bytes", "i")
+    _fields = ("worker_id", "i"), ("shm_chunk_id", "i"), ("shm_capacity", "Q"), ("offset", "Q"), ("num_bytes", "Q")
 
 
 

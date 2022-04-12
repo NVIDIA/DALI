@@ -129,7 +129,6 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   if (layout_str != nullptr) {
     layout = dali::TensorLayout(layout_str);
   }
-  dali::TensorVector<Backend> data(curr_batch_size);
   auto type_id = static_cast<dali::DALIDataType>(data_type);
   auto elem_sizeof = dali::TypeTable::GetTypeInfo(type_id).size();
 
@@ -139,15 +138,20 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   else
     order = AccessOrder::host();
 
+  dali::TensorVector<Backend> data(curr_batch_size);
+  data.set_pinned(flags & DALI_ext_pinned);
+  data.set_sample_dim(sample_dim);
+  data.set_type(type_id);
+  data.set_order(order);
+  data.SetLayout(layout);
+
   for (int i = 0; i < curr_batch_size; i++) {
     // We cast away the const from data_ptr, as there is no other way of passing it to the
     // Tensor as we must also set the shape and type metadata.
     // The vector that we pass to pipeline is const.
-    data[i].set_pinned(flags & DALI_ext_pinned);
-    data[i].set_order(order);
-    data[i].ShareData(const_cast<void *>(data_ptr[i]), tl_shape[i].num_elements() * elem_sizeof);
-    data[i].Resize(tl_shape[i], type_id);
-    data[i].SetLayout(layout);
+    std::shared_ptr<void> ptr(const_cast<void *>(data_ptr[i]), [](void *){});  // no deleter
+    data.UnsafeSetSample(i, ptr, tl_shape[i].num_elements() * elem_sizeof, flags & DALI_ext_pinned,
+                         tl_shape[i], type_id, order, layout);
   }
   pipeline->SetExternalInput(name, data, order,
                              flags & DALI_ext_force_sync,

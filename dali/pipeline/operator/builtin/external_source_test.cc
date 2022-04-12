@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -202,7 +202,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     CUDA_CALL(cudaStreamSynchronize(ws.has_stream() ? ws.stream() : 0));
 
     for (int j = 0; j < this->batch_size_; ++j) {
-      auto data = tensor_cpu_list.template mutable_tensor<int>(j);
+      const auto *data = tensor_cpu_list.template tensor<int>(j);
       for (int i = 0; i < volume(tensor_cpu_list.tensor_shape(j)); ++i) {
         if (data[i] != check_counter_) {
           return false;

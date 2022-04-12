@@ -30,6 +30,40 @@ can easily be retargeted to TensorFlow, PyTorch, MXNet and PaddlePaddle.
     :align: center
     :alt: DALI Diagram
 
+DALI in action::
+
+  from nvidia.dali.pipeline import pipeline_def
+  import nvidia.dali.types as types
+  import nvidia.dali.fn as fn
+  from nvidia.dali.plugin.pytorch import DALIGenericIterator
+
+  @pipeline_def(batch_size=128, num_threads=4, device_id=0)
+  def get_dali_pipeline(data_dir, crop_size):
+    images, labels = fn.readers.file(file_root=data_dir, shuffle=True, name="Reader")
+    # decode data on the GPU
+    images = fn.decoders.image_random_crop(images, device="mixed", output_type=types.RGB)
+    # the rest of processing happens on the GPU as well
+    images = fn.resize(images, resize_x=crop_size, resize_y=crop_size)
+    images = fn.crop_mirror_normalize(images,
+                                      mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+                                      std=[0.229 * 255,0.224 * 255,0.225 * 255],
+                                      mirror=fn.random.coin_flip())
+    return images, label
+
+  train_data = DALIGenericIterator(
+     [get_dali_pipeline(data_dir, (244,244))], ['data', 'label’],
+     reader_name='Reader’
+  )
+
+
+  for i, data in enumerate(train_data):
+    x, y = data[0]['data'], data[0]['label’]
+    pred = model(x)
+    loss = loss_func(pred, y)
+    backward(loss, model)
+
+
+
 Highlights
 ----------
 - Easy-to-use functional style Python API.
@@ -120,6 +154,8 @@ depending on your version.
 Additional Resources
 --------------------
 
+- GPU Technology Conference 2022; **Effective NVIDIA DALI: Accelerating Real-life Deep-learning Applications**; Rafał Banaś: |talkAdvanced2022|_.
+- GPU Technology Conference 2022; **Introduction to NVIDIA DALI: GPU-accelerated Data Preprocessing**; Joaquin Anton Guirao: |talkIntro2022|_.
 - GPU Technology Conference 2021; **NVIDIA DALI: GPU-Powered Data Preprocessing** by Krzysztof Łęcki and Michał Szołucha: |event2021|_.
 - GPU Technology Conference 2020; **Fast Data Pre-Processing with NVIDIA Data Loading Library (DALI)**; Albert Wolant, Joaquin Anton Guirao |recording4|_.
 - GPU Technology Conference 2019; **Fast AI data pre-preprocessing with DALI**; Janusz Lisiecki, Michał Zientkiewicz: |slides2|_, |recording2|_.
@@ -143,7 +179,11 @@ Additional Resources
 .. |recording4| replace:: recording
 .. _recording4: https://developer.nvidia.com/gtc/2020/video/s21139
 .. |event2021| replace:: event
-.. _event2021:  https://gtc21.event.nvidia.com/media/1_j4dk7w7q
+.. _event2021: https://www.nvidia.com/en-us/on-demand/session/gtcspring21-s31298/
+.. |talkIntro2022| replace:: event
+.. _talkIntro2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636566824182001pODM
+.. |talkAdvanced2022| replace:: event
+.. _talkAdvanced2022: https://www.nvidia.com/gtc/session-catalog/#/session/1636559250287001p4DG
 
 ----
 

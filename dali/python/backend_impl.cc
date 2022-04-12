@@ -28,10 +28,12 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
+#include "dali/pipeline/operator/eager_operator.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/pipeline/pipeline_debug.h"
 #include "dali/plugin/plugin_manager.h"
 #include "dali/python/python3_compat.h"
 #include "dali/util/half.hpp"
@@ -581,6 +583,53 @@ void ExposeTensor(py::module &m) {
       It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
 }
 
+void ExposeEagerOperator(py::module &m) {
+  py::class_<EagerOperator<CPUBackend>>(m, "EagerOperatorCPU")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<EagerOperator<CPUBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](EagerOperator<CPUBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<CPUBackend, CPUBackend>(inputs, kwargs); });
+
+  py::class_<EagerOperator<GPUBackend>>(m, "EagerOperatorGPU")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<EagerOperator<GPUBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](EagerOperator<GPUBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<GPUBackend, GPUBackend>(inputs, kwargs); });
+
+  py::class_<EagerOperator<MixedBackend>>(m, "EagerOperatorMixed")
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<EagerOperator<MixedBackend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](EagerOperator<MixedBackend> &op,
+              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run<CPUBackend, GPUBackend>(inputs, kwargs); });
+}
+
+void ExposePipelineDebug(py::module &m) {
+  py::class_<PipelineDebug>(m, "PipelineDebug")
+      .def(py::init([](int batch_size, int num_threads, int device_id, bool set_affinity = false) {
+        return std::make_unique<PipelineDebug>(batch_size, num_threads, device_id, set_affinity);
+      }))
+      .def("AddOperator", &PipelineDebug::AddOperator)
+      .def("AddMultipleOperators", &PipelineDebug::AddMultipleOperators)
+      .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend, CPUBackend>)
+      .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend, GPUBackend>)
+      .def("RunOperatorMixed", &PipelineDebug::RunOperator<CPUBackend, GPUBackend>);
+}
+
 template <typename Backend>
 std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, Index id) {
   int num_tensors = static_cast<int>(t.num_samples());
@@ -613,6 +662,9 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
+      if (i == 0) {
+        tv.SetupLike(t);
+      }
       DALIDataType cur_type = t.type();
 
       if (expected_type == -2) {
@@ -622,8 +674,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             "Tensors cannot have different data types. Tensor at position ", i, " has type '",
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
-
-      tv[i].ShareData(t);
+      tv.UnsafeSetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -772,7 +823,7 @@ void ExposeTensorList(py::module &m) {
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
-          DALI_ENFORCE(static_cast<size_t>(id) < tl.num_samples(), "Index is out-of-range.");
+          DALI_ENFORCE(id < tl.num_samples(), "Index is out-of-range.");
           DALI_ENFORCE(id >= 0, "Index is out-of-range.");
 
           std::vector<ssize_t> shape(tl.tensor_shape(id).size()),
@@ -1269,7 +1320,14 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
   TensorVector<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
-    tv[i] = std::move(t);
+    // TODO(klecki): evaluate if we want to keep such code - we need to be able to set
+    // order, pinned, type, dimensionality and layout every time if we don't want
+    // SetSample to do that.
+    if (i == 0) {
+      tv.SetupLike(t);
+    }
+    tv.UnsafeSetSample(i, t);
+    // TODO(klecki): tv[i] = std::move(t);
   }
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);
 }
@@ -1767,6 +1825,7 @@ PYBIND11_MODULE(backend_impl, m) {
         "arg_name"_a,
         "local_only"_a = false)
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)
+    .def("ArgSupportsPerFrameInput", &OpSchema::ArgSupportsPerFrameInput)
     .def("IsSequenceOperator", &OpSchema::IsSequenceOperator)
     .def("AllowsSequences", &OpSchema::AllowsSequences)
     .def("SupportsVolumetric", &OpSchema::SupportsVolumetric)
@@ -1788,6 +1847,8 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
+  ExposeEagerOperator(m);
+  ExposePipelineDebug(m);
 
   types_m.attr("NHWC") = "HWC";
   types_m.attr("NCHW") = "CHW";

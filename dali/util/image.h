@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -129,7 +129,7 @@ template <typename T, typename Backend>
 void WriteBatch(const TensorList<Backend> &tl, float bias, float scale, const string &suffix,
                 const std::array<int, 3> &permute, outFunc pFunc) {
   DALI_ENFORCE(IsType<T>(tl.type()));
-  for (size_t i = 0; i < tl.num_samples(); ++i) {
+  for (int i = 0; i < tl.num_samples(); ++i) {
     DALI_ENFORCE(tl.tensor_shape(i).size() == 3);
     int h = tl.tensor_shape(i)[permute[0]];
     int w = tl.tensor_shape(i)[permute[1]];

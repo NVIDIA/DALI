@@ -13,25 +13,25 @@
 # limitations under the License.
 
 #pylint: disable=no-member
-import sys
-import copy
 import ast
-from itertools import count
+import sys
 import threading
 import warnings
+from itertools import count
+
+import nvidia.dali.python_function_plugin
 from nvidia.dali import backend as _b
+from nvidia.dali import fn as _functional
+from nvidia.dali import internal as _internal
+from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import \
         _type_name_convert_to_string, _type_convert_value, _default_converter, \
-        _vector_element_type, _bool_types, _int_types, _int_like_types, _float_types, \
+        _vector_element_type, _bool_types, _int_like_types, _float_types, \
         DALIDataType, \
         CUDAStream as _CUDAStream, \
         ScalarConstant as _ScalarConstant, \
         Constant as _Constant
-from nvidia.dali.pipeline import Pipeline as _Pipeline
-from nvidia.dali import fn as _functional
-import nvidia.dali.python_function_plugin
-from nvidia.dali.data_node import DataNode as _DataNode
-from nvidia.dali import internal as _internal
 
 cupy = None
 def _setup_cupy():
@@ -130,6 +130,8 @@ def _get_kwargs(schema):
                     default_value = ast.literal_eval(default_value_string)
                     type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
             doc += schema.GetArgumentDox(arg)
+            if schema.ArgSupportsPerFrameInput(arg):
+                doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
             if deprecation_warning:
                 doc += "\n\n" + deprecation_warning
         elif deprecation_warning:
@@ -530,20 +532,17 @@ def _check_arg_input(schema, op_name, name):
         raise TypeError("The argument `{}` for operator `{}` should not be a `DataNode` but a {}".format(
             name, op_name, _type_name_convert_to_string(schema.GetArgumentType(name), False)))
 
-def python_op_factory(name, schema_name = None, op_device = "cpu"):
+
+def python_op_factory(name, schema_name = None):
     class Operator(metaclass=_DaliOperatorMeta):
-        def __init__(self, **kwargs):
+        def __init__(self, *, device="cpu", **kwargs):
             schema_name = _schema_name(type(self))
             self._spec = _b.OpSpec(schema_name)
             self._schema = _b.GetSchema(schema_name)
 
             # Get the device argument. We will need this to determine
             # the device that our outputs will be stored on
-            if "device" in kwargs.keys():
-                self._device = kwargs["device"]
-                del kwargs["device"]
-            else:
-                self._device = op_device
+            self._device = device
             self._spec.AddArg("device", self._device)
 
             kwargs, self._call_args = _separate_kwargs(kwargs)
@@ -602,26 +601,11 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
             return self._preserve
 
         def __call__(self, *inputs, **kwargs):
-            if (len(inputs) > self._schema.MaxNumInput() or
-                    len(inputs) < self._schema.MinNumInput()):
-                raise ValueError(
-                    ("Operator {} expects from {} to " +
-                    "{} inputs, but received {}.")
-                    .format(type(self).__name__,
-                            self._schema.MinNumInput(),
-                            self._schema.MaxNumInput(),
-                            len(inputs)))
+            self._check_schema_num_inputs(inputs)
 
             inputs = _preprocess_inputs(inputs, self.__class__.__name__, self._device, self._schema)
 
-            # Build input sets, most of the time we only have one
-            input_sets = []
-            if self._detect_multiple_input_sets(inputs):
-                arg_list_len = self._check_common_length(inputs)
-                packed_inputs = self._unify_lists(inputs, arg_list_len)
-                input_sets = self._repack_input_sets(packed_inputs)
-            else:
-                input_sets = [inputs]
+            input_sets = self._build_input_sets(inputs)
 
             # Create OperatorInstance for every input set
             op_instances = []
@@ -658,10 +642,10 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
             return arg_list_len
 
         def _safe_len(self, input):
-            if isinstance(input, _DataNode):
-                return 1
-            else:
+            if isinstance(input, list):
                 return len(input)
+            else:
+                return 1
 
         # Pack single _DataNodes into lists, so they are treated as Multiple Input Sets
         # consistently with the ones already present
@@ -703,11 +687,52 @@ def python_op_factory(name, schema_name = None, op_device = "cpu"):
                 output_list.append(fn(input_set[i] for input_set in sets))
             return output_list
 
+        def _check_schema_num_inputs(self, inputs):
+            if (len(inputs) > self._schema.MaxNumInput() or
+                    len(inputs) < self._schema.MinNumInput()):
+                raise ValueError(
+                    ("Operator {} expects from {} to " +
+                    "{} inputs, but received {}.")
+                    .format(type(self).__name__,
+                            self._schema.MinNumInput(),
+                            self._schema.MaxNumInput(),
+                            len(inputs)))
+
+        def _build_input_sets(self, inputs):
+            # Build input sets, most of the time we only have one
+            input_sets = []
+            if self._detect_multiple_input_sets(inputs):
+                arg_list_len = self._check_common_length(inputs)
+                packed_inputs = self._unify_lists(inputs, arg_list_len)
+                input_sets = self._repack_input_sets(packed_inputs)
+            else:
+                input_sets = [inputs]
+
+            return input_sets
+
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
     return Operator
+
+
+def _prep_input_sets(op, inputs):
+    from nvidia.dali._debug_mode import _transform_data_to_tensorlist
+    import nvidia.dali.tensors as tensors
+
+    inputs = list(inputs)
+
+    for i, input in enumerate(inputs):
+        # Transforming any convertable datatype to TensorList (DataNodeDebugs are already unpacked).
+        # Additionally accepting input sets, but only as list of TensorList.
+        if not isinstance(input, (tensors.TensorListCPU, tensors.TensorListGPU)) and \
+                not (isinstance(input, list) and
+                     all([isinstance(elem, (tensors.TensorListCPU, tensors.TensorListGPU)) for elem in input])):
+            inputs[i] = _transform_data_to_tensorlist(input, len(input))
+
+    return op._build_input_sets(inputs)
+
 
 def _process_op_name(op_schema_name, make_hidden=False):
     namespace_delim = "__"  # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
@@ -743,10 +768,10 @@ def _load_ops():
     for op_reg_name in _cpu_gpu_ops:
         schema = _b.TryGetSchema(op_reg_name)
         make_hidden = schema.IsDocHidden() if schema else False
-        op_full_name, submodule, op_name = _process_op_name(op_reg_name, make_hidden)
+        _, submodule, op_name = _process_op_name(op_reg_name, make_hidden)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):
-            op_class = python_op_factory(op_name, op_reg_name, op_device = "cpu")
+            op_class = python_op_factory(op_name, op_reg_name)
             op_class.__module__ = module.__name__
             setattr(module, op_name, op_class)
 
@@ -940,6 +965,7 @@ def _dlpack_from_array(array):
 
 
 class PythonFunction(PythonFunctionBase):
+    schema_name = "PythonFunction"
     global _cpu_ops
     global _gpu_ops
     _cpu_ops = _cpu_ops.union({'PythonFunction'})
@@ -1033,6 +1059,7 @@ class PythonFunction(PythonFunctionBase):
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
+    schema_name = "DLTensorPythonFunction"
     global _cpu_ops
     _cpu_ops = _cpu_ops.union({'DLTensorPythonFunction'})
     global _gpu_ops

@@ -3,7 +3,7 @@
 test_nose() {
     # numpy seems to be extremly slow with sanitizers to dissable it
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
-        FILTER_PATTERN="test_operator_readers_numpy.py"
+          FILTER_PATTERN="test_operator_readers_numpy.py\|test_external_source_parallel.py\|test_external_source_parallel_custom_serialization\|test_external_source_parallel_garbage_collection_order"
     else
         FILTER_PATTERN="#"
     fi
@@ -13,8 +13,9 @@ test_nose() {
       test_external_source_parallel_garbage_collection_order.py \
       test_external_source_parallel_custom_serialization.py \
       test_pool.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py \
+      test_external_source_parallel_large_sample.py \
       | sed "/$FILTER_PATTERN/d"); do
-        nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
+        nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
     done
 }
 

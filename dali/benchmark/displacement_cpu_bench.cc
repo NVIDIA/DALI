@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
   // tensor out is resized by operator itself in DisplacementFilter::DataDependentSetup()
 
   // TODO(klecki) Accomodate to use different inputs from test data
-  auto *ptr = (*tensor_in)[0].template mutable_data<T>();
+  auto *ptr = (*tensor_in).template mutable_tensor<T>(0);
   for (int i = 0; i < N; i++) {
     ptr[i] = i;
   }

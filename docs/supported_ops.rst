@@ -13,8 +13,8 @@ The operation functions cannot be used to process data directly.
 The constraints for defining the processing pipeline can be found in
 :ref:`this section <processing_graph_structure>` of Pipeline documentation.
 
-The following table lists all available operations available in DALI:
+The following table lists all operations available in DALI:
 
-.. include:: fn_table
+.. include:: operations/fn_table
 
-.. include:: fn_autodoc
+.. include:: operations/fn_autodoc

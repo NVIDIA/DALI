@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,13 +88,13 @@ AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace
 
   for (int i = 0; i < batch_size; i++) {
     auto &meta = sample_meta_[i] =
-        decoders_[i]->Open({static_cast<const char *>(input[i].raw_data()),
-                            input[i].shape().num_elements()});
+        decoders_[i]->Open({static_cast<const char *>(input.raw_tensor(i)),
+                            input.tensor_shape(i).num_elements()});
     TensorShape<> data_sample_shape = DecodedAudioShape(
         meta, use_resampling_ ? target_sample_rates_[i] : -1.0f, downmix_);
     shape_data.set_tensor_shape(i, data_sample_shape);
     shape_rate.set_tensor_shape(i, {});
-    files_names_[i] = input[i].GetSourceInfo();
+    files_names_[i] = input.GetMeta(i).GetSourceInfo();
   }
 
   output_desc[0] = { shape_data, output_type_ };

@@ -51,8 +51,8 @@ void CastCPU::RunImpl(HostWorkspace &ws) {
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
 
       for (int sample_id = 0; sample_id < num_samples; sample_id++) {
-        auto *out = output[sample_id].mutable_data<OType>();
-        const auto *in = input[sample_id].data<IType>();
+        auto *out = output.mutable_tensor<OType>(sample_id);
+        const auto *in = input.tensor<IType>(sample_id);
         auto size = input_shape.tensor_size(sample_id);
         tp.AddWork([out, in, size](int thread_id) { CpuHelper<OType, IType>(out, in, size); },
                    size);

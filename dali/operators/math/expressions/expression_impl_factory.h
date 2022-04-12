@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ struct ExprImplTask {
 };
 
 inline OutputSamplePtr GetOutputSamplePointer(HostWorkspace &ws, int output_idx, int sample_idx) {
-  return ws.template Output<CPUBackend>(output_idx)[sample_idx].raw_mutable_data();
+  return ws.template Output<CPUBackend>(output_idx).raw_mutable_tensor(sample_idx);
 }
 
 inline OutputSamplePtr GetOutputSamplePointer(DeviceWorkspace &ws, int output_idx, int sample_idx) {
@@ -138,7 +138,7 @@ inline OutputSamplePtr GetOutputSamplePointer(DeviceWorkspace &ws, int output_id
 }
 
 inline InputSamplePtr GetInputSamplePointer(HostWorkspace &ws, int input_idx, int sample_idx) {
-  return ws.template Input<CPUBackend>(input_idx)[sample_idx].raw_data();
+  return ws.template Input<CPUBackend>(input_idx).raw_tensor(sample_idx);
 }
 
 inline InputSamplePtr GetInputSamplePointer(DeviceWorkspace &ws, int input_idx, int sample_idx) {

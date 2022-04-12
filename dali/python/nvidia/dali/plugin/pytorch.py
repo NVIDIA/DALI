@@ -371,6 +371,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
 
 class TorchPythonFunction(ops.PythonFunctionBase):
+    schema_name = "TorchPythonFunction"
     ops.register_cpu_op('TorchPythonFunction')
     ops.register_gpu_op('TorchPythonFunction')
 

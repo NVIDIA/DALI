@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ std::unique_ptr<TensorList<Backend>> ToTensorList(const TestSample (&sample)[N])
 template <typename Backend>
 std::vector<Roi> FromTensorListPtr(const TensorList<Backend> *tl) {
   std::vector<Roi> ret;
-  for (size_t i = 0; i < tl->num_samples(); i++) {
+  for (int i = 0; i < tl->num_samples(); i++) {
     auto *ptr = tl->template tensor<float>(i);
     Roi roi;
     for (float &val : roi) {

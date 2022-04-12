@@ -113,18 +113,18 @@ class DLL_PUBLIC TensorList {
   template <typename SrcBackend>
   DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, AccessOrder order = {},
                               bool use_copy_kernel = false) {
-    auto type = other[0].type();
-    auto layout = other[0].GetLayout();
+    auto type = other.type();
+    auto layout = other.GetLayout();
 
     int dim = other[0].shape().sample_dim();
     TensorListShape<> new_shape(other.num_samples(), dim);
-    for (size_t i = 0; i < other.num_samples(); ++i) {
+    for (int i = 0; i < other.num_samples(); ++i) {
       DALI_ENFORCE(other[i].shape().sample_dim() == dim,
          "TensorList can only have uniform dimensions across all samples, mismatch at index "
          + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
          + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
       assert(type == other[i].type());
-      assert(layout == other[i].GetLayout());
+      assert(layout == other.GetMeta(i).GetLayout());
       new_shape.set_tensor_shape(i, other[i].shape());
     }
 
@@ -143,12 +143,11 @@ class DLL_PUBLIC TensorList {
     dsts.reserve(nsamples);
     SmallVector<Index, 256> sizes;
     sizes.reserve(nsamples);
-    for (size_t i = 0; i < nsamples; i++) {
+    for (int i = 0; i < nsamples; i++) {
       dsts.emplace_back(this->raw_mutable_tensor(i));
       srcs.emplace_back(other[i].raw_data());
-      sizes.emplace_back(other[i].size());
-      this->meta_[i].SetSourceInfo(other[i].GetSourceInfo());
-      this->meta_[i].SetSkipSample(other[i].ShouldSkipSample());
+      sizes.emplace_back(other[i].shape().num_elements());
+      this->meta_[i] = other.GetMeta(i);
     }
 
     use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
@@ -401,7 +400,7 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Returns the number of tensors in the list.
    */
-  DLL_PUBLIC inline size_t num_samples() const {
+  DLL_PUBLIC inline int num_samples() const {
     return shape_.size();
   }
 
@@ -645,6 +644,22 @@ class DLL_PUBLIC TensorList {
    */
   size_t capacity() const {
     return data_.capacity();
+  }
+
+  /**
+   * @brief Returns the size in bytes of the underlying data chunks
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_nbytes() const {
+    return {data_.nbytes()};
+  }
+
+  /**
+   * @brief Returns the real size of the underlying allocations
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_capacity() const {
+    return {data_.capacity()};
   }
 
   /**

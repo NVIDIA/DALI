@@ -43,7 +43,7 @@ void VideoReader::Prefetch() {
   curr_tensor_list.Resize(tmp_shapes, ref_type);
 
   // ask for frames
-  for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
+  for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
     // TODO(klecki): Rework this with proper sample-based tensor batch data structure
     auto sample_shared_ptr = unsafe_sample_owner(curr_tensor_list, data_idx);
@@ -57,7 +57,7 @@ void VideoReader::Prefetch() {
     sample->sequence.Reset();
   }
   // make sure that frames have been processed
-  for (size_t data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
+  for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     auto &sample = curr_batch[data_idx];
     // We have to wait for all kernel recorded in sequence's event are completed
     LOG_LINE << "Waiting for sequence..";

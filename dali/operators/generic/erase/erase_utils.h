@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -95,17 +95,17 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
 
   for (int i = 0; i < nsamples; i++) {
     if (has_tensor_roi_anchor) {
-      const auto& anchor = ws.ArgumentInput("anchor")[i];
-      assert(anchor.size() > 0);
-      roi_anchor.resize(anchor.size());
-      std::memcpy(roi_anchor.data(), anchor.data<float>(), sizeof(float) * roi_anchor.size());
+      auto anchor = view<const float>(ws.ArgumentInput("anchor")[i]);
+      assert(anchor.shape.num_elements() > 0);
+      roi_anchor.resize(anchor.shape.num_elements());
+      std::memcpy(roi_anchor.data(), anchor.data, sizeof(float) * roi_anchor.size());
     }
 
     if (has_tensor_roi_shape) {
-      const auto& shape = ws.ArgumentInput("shape")[i];
-      assert(shape.size() > 0);
-      roi_shape.resize(shape.size());
-      std::memcpy(roi_shape.data(), shape.data<float>(), sizeof(float) * roi_shape.size());
+      auto shape = view<const float>(ws.ArgumentInput("shape")[i]);
+      assert(shape.shape.num_elements() > 0);
+      roi_shape.resize(shape.num_elements());
+      std::memcpy(roi_shape.data(), shape.data, sizeof(float) * roi_shape.size());
     }
 
     DALI_ENFORCE(roi_anchor.size() == roi_shape.size());

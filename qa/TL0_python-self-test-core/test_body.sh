@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
 test_nose() {
+    # Note that we do not filter '!numba' below as it is installed as dependency
     for test_script in $(ls test_pipeline*.py \
                             test_functional_api.py \
                             test_backend_impl.py \

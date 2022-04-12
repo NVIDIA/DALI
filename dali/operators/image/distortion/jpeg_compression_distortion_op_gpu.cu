@@ -70,8 +70,9 @@ void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
 
   // Set quality argument for an image from samples
   if (is_sequence) {
+    const auto &in_shape = input.shape();
     for (int i = 0; i < nsamples; i++) {
-      auto nframes = input.tensor_shape_span(i)[0];
+      int nframes = in_shape.tensor_shape_span(i)[0];
       for (int j = 0; j < nframes; ++j) {
         quality_.push_back(quality_arg_[i].data[0]);
       }

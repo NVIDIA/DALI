@@ -37,8 +37,8 @@ void SetupData(TensorVector<CPUBackend> &tv,
                TensorListShape<ndim> sh) {
   tv.set_pinned(false);
   tv.Resize(sh, DALI_FLOAT);
-  for (size_t i = 0; i < tv.num_samples(); i++) {
-    float *data = tv[i].mutable_data<float>();
+  for (int i = 0; i < tv.num_samples(); i++) {
+    float *data = tv.mutable_tensor<float>(i);
     for (int j = 0; j < volume(sh[i]); j++) {
       data[j] = 100 * i + j;
     }
@@ -63,7 +63,7 @@ void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
     auto sh = ts[i];
     ASSERT_EQ(sh, arg[i].shape);
     for (int j = 0; j < volume(sh); j++) {
-      float *ptr = (*arg_data)[i].mutable_data<float>();
+      float *ptr = arg_data->mutable_tensor<float>(i);
       ASSERT_EQ(ptr[j], arg[i].data[j]);
     }
   }

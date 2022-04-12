@@ -330,7 +330,7 @@ def inputs_batch_change():
     return fn.random.coin_flip(input)
 
 
-@raises(RuntimeError, glob='In operator * input *')
+@raises(RuntimeError, glob='Input * for operator * is')
 def test_inputs_batch_change():
     inputs_batch_change.change = True
     pipe = inputs_batch_change()
@@ -350,7 +350,7 @@ def kwargs_batch_change():
     return fn.random.coin_flip(**kwargs)
 
 
-@raises(RuntimeError, glob='In operator * argument *')
+@raises(RuntimeError, glob='Argument * for operator * is')
 def test_kwargs_batch_change():
     kwargs_batch_change.change = True
     pipe = kwargs_batch_change()
@@ -427,3 +427,109 @@ def test_seed_generation_base():
     pipe1 = seed_rn50_pipeline_base()
     pipe2 = seed_rn50_pipeline_base()
     compare_pipelines(pipe1, pipe2, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def device_change_rn50_pipeline_base():
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
+    images = fn.decoders.image(jpegs, output_type=types.RGB)
+
+    if device_change_rn50_pipeline_base.change:
+        images = images.gpu()
+
+    output = fn.random_resized_crop(images, size=(224, 224))
+    return labels, output
+
+
+@raises(RuntimeError, glob='Input * for operator * is on * but was on * when created.')
+def test_device_change():
+    pipe = device_change_rn50_pipeline_base()
+    pipe.build()
+    device_change_rn50_pipeline_base.change = True
+    pipe.run()
+    device_change_rn50_pipeline_base.change = False
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def cpu_after_gpu_pipeline():
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
+    images = fn.decoders.image(jpegs, output_type=types.RGB, device='mixed')
+
+    output = fn.random_resized_crop(images, size=(224, 224), device='cpu')
+    return labels, output
+
+
+@raises(RuntimeError, glob='Cannot call * operator * with * input *')
+def test_cpu_operator_after_gpu():
+    pipe = cpu_after_gpu_pipeline()
+    pipe.build()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def variable_batch_size_pipeline():
+    jpegs, labels = fn.readers.file(file_root=file_root)
+    images = fn.decoders.image(jpegs)
+    images = [images.get()[i] for i in range(6)]
+    output = fn.random_resized_crop(images, size=(224, 224))
+    return labels, output
+
+
+@raises(RuntimeError, glob='Variable batch size is not supported in debug mode.*')
+def test_variable_batch_size():
+    pipe = variable_batch_size_pipeline()
+    pipe.build()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def input_sets_statefull_op_pipeline():
+    set_size = 5
+    jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
+             for _ in range(set_size)]
+    images = fn.decoders.image(jpegs, seed=42)
+    output = fn.random_resized_crop(images, size=(224, 224), seed=42)
+
+    assert len(output) == set_size
+    return tuple(output)
+
+
+def test_input_sets():
+    pipe_standard = input_sets_statefull_op_pipeline()
+    pipe_debug = input_sets_statefull_op_pipeline(debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
+def incorrect_input_sets_pipeline():
+    jpegs, _ = fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)
+    images = fn.decoders.image(jpegs, seed=42)
+    output = fn.cat([images, images, images], [images, images])
+
+    return tuple(output)
+
+
+@raises(ValueError, glob="All argument lists for Multipile Input Sets used with operator 'cat' must have the same length.")
+def test_incorrect_input_sets():
+    pipe = incorrect_input_sets_pipeline()
+    pipe.build()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0)
+def multiple_input_sets_pipeline():
+    jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
+             for _ in range(6)]
+    images = fn.decoders.image(jpegs, seed=42)
+    cropped_images = fn.random_resized_crop(images, size=(224, 224), seed=42)
+    output = fn.cat(cropped_images[:3], cropped_images[3:])
+    return tuple(output)
+
+
+def test_multiple_input_sets():
+    pipe_standard = multiple_input_sets_pipeline()
+    pipe_debug = multiple_input_sets_pipeline(debug=True)
+    compare_pipelines(pipe_standard, pipe_debug, 8, 10)

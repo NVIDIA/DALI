@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,8 +52,8 @@ void WebdatasetReader::RunImpl(HostWorkspace& ws) {
       auto& sample = GetSample(data_idx);
       ThreadPool::Work copy_task = [output_idx = output_idx, data_idx = data_idx, &output,
                                     &sample](int) {
-        output[data_idx].SetMeta(sample[output_idx].GetMeta());
-        std::memcpy(output[data_idx].raw_mutable_data(), sample[output_idx].raw_data(),
+        output.SetMeta(data_idx, sample[output_idx].GetMeta());
+        std::memcpy(output.raw_mutable_tensor(data_idx), sample[output_idx].raw_data(),
                     sample[output_idx].nbytes());
       };
       if (threaded) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -325,7 +325,7 @@ class DisplacementFilter<GPUBackend, Displacement,
       sample.input = input.template tensor<T>(sample_idx);
       sample.raw_params = GetDisplacementParams(sample_idx);
       sample.shape = shape.tensor_shape<nDims>(sample_idx);
-      sample.mask = has_mask_ ? ws.ArgumentInput("mask")[sample_idx].data<int>()[0] : true;
+      sample.mask = has_mask_ ? ws.ArgumentInput("mask").tensor<int>(sample_idx)[0] : true;
     }
 
     samples_dev_.from_host(samples_, stream);

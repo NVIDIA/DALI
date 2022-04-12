@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
@@ -204,6 +205,9 @@ class PositionalSliceAttr {
     normalized_shape_ = spec.GetArgument<bool>("normalized_shape");
     int max_batch_sz = spec.GetArgument<int>("max_batch_size");
     crop_window_generators_.resize(max_batch_sz);
+
+    crop_anchor_cpu_.set_pinned(true);
+    crop_shape_cpu_.set_pinned(true);
   }
 
   template <typename Backend>
@@ -216,27 +220,20 @@ class PositionalSliceAttr {
 
     axis_args_.Acquire(spec, ws, curr_batch_size, ndim);
 
-    const auto &crop_anchor = ws.template Input<CPUBackend>(1);
-    const auto &crop_shape = ws.template Input<CPUBackend>(2);
-    DALI_ENFORCE(crop_anchor.type() == crop_shape.type(),
-                make_string("Anchor and shape should have the same type. Got: ",
-                            crop_anchor.type(), " and ", crop_shape.type()));
-    auto args_dtype = crop_anchor.type();
-    TYPE_SWITCH(args_dtype, type2id, ArgsType, SLICE_ARGS_TYPES, (
-      auto anchor_view = view<const ArgsType>(crop_anchor);
-      auto shape_view = view<const ArgsType>(crop_shape);
+    auto crop_anchor_type = ws.GetInputDataType(1);
+    auto crop_shape_type = ws.GetInputDataType(2);
+    DALI_ENFORCE(crop_anchor_type == crop_shape_type,
+                 make_string("Anchor and shape should have the same type. Got: ",
+                             crop_anchor_type, " and ", crop_shape_type));
+    TYPE_SWITCH(crop_anchor_type, type2id, ArgsType, SLICE_ARGS_TYPES, (
+      TensorListView<StorageCPU, const ArgsType> anchor, shape;
+      GetPositionalSliceArgsCPU<const ArgsType, Backend>(anchor, shape, ws);
       for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
-        span<const ArgsType> anchor(anchor_view.tensor_data(data_idx),
-                                    anchor_view.shape.ndim != 0 ?
-                                      anchor_view.tensor_shape_span(data_idx)[0] :
-                                      1);
-        span<const ArgsType> shape(shape_view.tensor_data(data_idx),
-                                   anchor_view.shape.ndim != 0 ?
-                                      anchor_view.tensor_shape_span(data_idx)[0] :
-                                      1);
-        ProcessPositionalInputArgs(data_idx, anchor, shape);
+        ProcessPositionalInputArgs(data_idx,
+                                   sample_as_span(anchor, data_idx),
+                                   sample_as_span(shape, data_idx));
       }
-    ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", args_dtype)));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported type of anchor and shape arguments: ", crop_anchor_type)));  // NOLINT
     return true;
   }
 
@@ -246,6 +243,39 @@ class PositionalSliceAttr {
   }
 
  private:
+  template <typename T>
+  span<T> sample_as_span(const TensorListView<StorageCPU, T>& v,
+                         int sample_idx) {
+    ptrdiff_t vol = volume(v.tensor_shape_span(sample_idx));
+    return span<T>(v.tensor_data(sample_idx), vol);
+  }
+
+  template <typename T, typename Backend>
+  void GetPositionalSliceArgsCPU(TensorListView<StorageCPU, T> &anchor,
+                                 TensorListView<StorageCPU, T> &shape,
+                                 const workspace_t<Backend>& ws) {
+    AccessOrder order;
+    auto in_cpu_view = [&](int idx, TensorList<CPUBackend>& cpu_buffer) {
+      if (ws.template InputIsType<CPUBackend>(idx)) {
+        return view<T>(ws.template Input<CPUBackend>(idx));
+      } else {
+        const auto& arg = ws.template Input<GPUBackend>(idx);
+        if (!order)
+          order = AccessOrder(ws.stream());
+        cpu_buffer.set_order(order);
+        cpu_buffer.Copy(arg);
+        return view<T>(cpu_buffer);
+      }
+    };
+
+    anchor = in_cpu_view(1, crop_anchor_cpu_);
+    shape = in_cpu_view(2, crop_shape_cpu_);
+
+    // Sync with stream used for copy, only if needed
+    if (order)
+      AccessOrder::host().wait(order);
+  }
+
   template <typename AnchorT, typename ShapeT>
   void ProcessPositionalInputArgs(int data_idx,
                                   span<const AnchorT> slice_anchor_data,
@@ -318,6 +348,9 @@ class PositionalSliceAttr {
   bool normalized_anchor_, normalized_shape_;
   AxisArgs axis_args_;
   std::vector<CropWindowGenerator> crop_window_generators_;
+
+  // To be used to copy GPU arguments
+  TensorList<CPUBackend> crop_anchor_cpu_, crop_shape_cpu_;
 };
 
 class SliceAttr {

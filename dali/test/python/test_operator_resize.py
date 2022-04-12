@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
@@ -20,7 +20,7 @@ import numpy as np
 import math
 import os.path
 import PIL.Image
-from test_utils import check_batch, get_dali_extra_path
+from test_utils import check_batch, get_dali_extra_path, as_array
 from nvidia.dali.data_node import DataNode as _DataNode
 import functools
 import cv2
@@ -610,3 +610,85 @@ def test_very_small_output():
     for device in ["cpu", "gpu"]:
         for dim in [2, 3]:
             yield _test_very_small_output, dim, device
+
+def test_checkerboard_dali_vs_onnx_ref():
+    improc_data_dir = os.path.join(test_data_root, 'db', 'imgproc')
+    ref_dir = os.path.join(improc_data_dir, 'ref', 'resampling')
+
+    # Checker board with shape (22, 22) with 2x2 squares
+    checkerboard_file =  os.path.join(improc_data_dir, 'checkerboard_22_22.npy')
+    checkerboard = np.load(checkerboard_file)
+    assert checkerboard.shape == (22, 22)
+
+    out_size = (17, 13)
+    out_size_str = '_'.join([str(n) for n in out_size])
+    ref_resized_linear_filename = os.path.join(ref_dir, f"checkerboard_linear_{out_size_str}.npy")
+    ref_resized_cubic_filename = os.path.join(ref_dir, f"checkerboard_cubic_{out_size_str}.npy")
+
+    # Reference generated with ONNX reference code. To regenerate uncomment
+
+    # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, cubic_coeffs
+    # ref_resized_linear = interpolate_nd(
+    #    checkerboard, linear_coeffs, output_size=out_size)
+    # np.save(ref_resized_linear_filename, ref_resized_linear)
+
+    # ref_resized_cubic = interpolate_nd(
+    #    checkerboard, lambda x: cubic_coeffs(x, A=-0.5), output_size=out_size)
+    # np.save(ref_resized_cubic_filename, ref_resized_cubic)
+
+    ref_resized_linear = np.load(ref_resized_linear_filename)
+    assert ref_resized_linear.shape == out_size
+
+    ref_resized_cubic = np.load(ref_resized_cubic_filename)
+    assert ref_resized_cubic.shape == out_size
+
+    ref_data = {
+        types.INTERP_LINEAR: ref_resized_linear,
+        types.INTERP_CUBIC: ref_resized_cubic
+    }
+
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe(device, interp_type, test_data=checkerboard, out_size=out_size):
+        data = types.Constant(test_data, device=device)
+        data = fn.expand_dims(data, axes=[2])
+        resized = fn.resize(data, dtype=types.FLOAT,
+                            min_filter=interp_type,
+                            mag_filter=interp_type,
+                            size=out_size)
+        resized = fn.squeeze(resized, axes=[2])
+        return resized
+
+    def impl(device, interp_type):
+        assert interp_type in ref_data
+        ref = ref_data[interp_type]
+
+        p = pipe(device, interp_type)
+        p.build()
+        out, = p.run()
+
+        out_dali = as_array(out[0])
+
+        print("DALI:\n", out_dali)
+        print("Ref:\n", ref)
+        abs_diff = np.abs(ref - out_dali)
+        print("Abs diff:\n", abs_diff)
+
+        max_error = np.max(abs_diff)
+        print("Max error: ", np.max(abs_diff))
+
+        if max_error > 1:
+            suffix_str = 'cubic' if interp_type == types.INTERP_CUBIC else 'linear'
+            img1 = PIL.Image.fromarray(np.clip(ref, 0, 255).astype(np.uint8))
+            img1.save(f'ref_resized_{suffix_str}.png')
+
+            img2 = PIL.Image.fromarray(np.clip(out_dali, 0, 255).astype(np.uint8))
+            img2.save(f'dali_resized_{suffix_str}.png')
+
+            img2 = PIL.Image.fromarray(np.clip(127 + abs_diff, 0, 255).astype(np.uint8))
+            img2.save(f'diff_resized_{suffix_str}.png')
+
+        np.testing.assert_allclose(out_dali, ref, atol=1)
+
+    for device in ['cpu', 'gpu']:
+        for interp_type in [types.INTERP_LINEAR, types.INTERP_CUBIC]:
+            yield impl, device, interp_type

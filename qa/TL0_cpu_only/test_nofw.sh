@@ -31,9 +31,9 @@ test_body() {
     fi
 
     "$FULLPATH" --gtest_filter="*CpuOnly*:*CApi*/0.*-*0.UseCopyKernel:*ForceNoCopyFail:*daliOutputCopySamples"
-
-    nosetests --verbose --attr '!pytorch' test_dali_cpu_only.py
   done
+
+  nosetests --verbose --attr '!pytorch' test_dali_cpu_only.py
 }
 
 pushd ../..

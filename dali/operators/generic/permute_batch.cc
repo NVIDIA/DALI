@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,7 +45,8 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
     int src = indices_[i];
     tp.AddWork([&, i, src](int tid) {
       output.SetMeta(i, input.GetMeta(i));
-      output[i].Copy(input[src]);
+      // TODO(klecki): SetSample
+      output.UnsafeCopySample(i, input, src);
     }, size);
   }
   tp.RunAll();

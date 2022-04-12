@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,9 +139,9 @@ class WarpAffineParamProvider
     auto *params = this->template AllocParams<mm::memory_kind::host>();
     for (int i = 0; i < num_samples_; i++) {
       if (invert) {
-        params[i] = static_cast<const MappingParams *>(input[i].raw_data())->inv();
+        params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
       } else {
-        params[i] = *static_cast<const MappingParams *>(input[i].raw_data());
+        params[i] = *static_cast<const MappingParams *>(input.raw_tensor(i));
       }
     }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,10 @@
 #define DALI_OPERATORS_IMAGE_PEEK_SHAPE_PEEK_IMAGE_SHAPE_H_
 
 #include <vector>
+#include "dali/core/backend_tags.h"
 #include "dali/image/image_factory.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
 
@@ -62,10 +64,9 @@ class PeekImageShape : public Operator<CPUBackend> {
   }
 
   template <typename type>
-  void WriteShape(Tensor<CPUBackend> &out, const TensorShape<3> &shape) {
-    type *data = out.mutable_data<type>();
+  void WriteShape(TensorView<StorageCPU, type, 1> out, const TensorShape<3> &shape) {
     for (int i = 0; i < 3; ++i) {
-      data[i] = shape[i];
+      out.data[i] = shape[i];
     }
   }
 
@@ -74,20 +75,19 @@ class PeekImageShape : public Operator<CPUBackend> {
     const auto &input = ws.template Input<CPUBackend>(0);
     auto &output = ws.template Output<CPUBackend>(0);
     size_t batch_size = input.num_samples();
+    DALI_ENFORCE(input.type() == DALI_UINT8,
+                 "The input must be a raw, undecoded file stored as a flat uint8 array.");
+    DALI_ENFORCE(input.sample_dim() == 1, "Input must be 1D encoded JPEG bit stream.");
 
     for (size_t sample_id = 0; sample_id < batch_size; ++sample_id) {
       thread_pool.AddWork([sample_id, &input, &output, this] (int tid) {
         const auto& image = input[sample_id];
-        // Verify input
-        DALI_ENFORCE(image.ndim() == 1,
-                      "Input must be 1D encoded jpeg string.");
-        DALI_ENFORCE(IsType<uint8>(image.type()),
-                      "Input must be stored as uint8 data.");
-        auto img = ImageFactory::CreateImage(image.data<uint8>(), image.size(), {});
+        auto img =
+            ImageFactory::CreateImage(image.data<uint8>(), image.shape().num_elements(), {});
         auto shape = img->PeekShape();
         TYPE_SWITCH(output_type_, type2id, type,
                 (int32_t, uint32_t, int64_t, uint64_t, float, double),
-          (WriteShape<type>(output[sample_id], shape);),
+          (WriteShape(view<type, 1>(output[sample_id]), shape);),
           (DALI_FAIL(make_string("Unsupported type for Shapes: ", output_type_))));
       }, 0);
       // the amount of work depends on the image format and exact sample which is unknown here
