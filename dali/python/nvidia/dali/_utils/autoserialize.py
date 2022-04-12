@@ -49,7 +49,7 @@ def invoke_autoserialize(head_module, filename):
     Perform the autoserialization of a function marked by :meth:`nvidia.dali.triton.autoserialize`.
 
     Assuming, that user marked a function with ``@autoserialize`` decorator, the
-    ``invoke_autoserialize`` is an utility function, which will actually perform the autoserialization.
+    ``invoke_autoserialize`` is a utility function, which will actually perform the autoserialization.
     It discovers the ``@autoserialize`` function in a model tree denoted by provided ``head_module``
     and saves the serialized DALI pipeline to the file in the ``filename`` path.
 
