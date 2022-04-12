@@ -457,7 +457,6 @@ def cpu_after_gpu_pipeline():
     jpegs, labels = fn.readers.file(
         file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
     images = fn.decoders.image(jpegs, output_type=types.RGB, device='mixed')
-
     output = fn.random_resized_crop(images, size=(224, 224), device='cpu')
     return labels, output
 
@@ -465,22 +464,6 @@ def cpu_after_gpu_pipeline():
 @raises(RuntimeError, glob='Cannot call * operator * with * input *')
 def test_cpu_operator_after_gpu():
     pipe = cpu_after_gpu_pipeline()
-    pipe.build()
-    pipe.run()
-
-
-@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
-def variable_batch_size_pipeline():
-    jpegs, labels = fn.readers.file(file_root=file_root)
-    images = fn.decoders.image(jpegs)
-    images = [images.get()[i] for i in range(6)]
-    output = fn.random_resized_crop(images, size=(224, 224))
-    return labels, output
-
-
-@raises(RuntimeError, glob='Variable batch size is not supported in debug mode.*')
-def test_variable_batch_size():
-    pipe = variable_batch_size_pipeline()
     pipe.build()
     pipe.run()
 
@@ -533,3 +516,68 @@ def test_multiple_input_sets():
     pipe_standard = multiple_input_sets_pipeline()
     pipe_debug = multiple_input_sets_pipeline(debug=True)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def variable_batch_size_from_external_source_pipeline(src_data):
+    images = fn.external_source(src_data)
+    output = fn.random_resized_crop(images, size=(32, 32))
+
+    return output,
+
+
+def test_variable_batch_size_from_external_source():
+    batch_sizes = [3, 6, 7, 8]
+    src_data = [np.zeros((batch_size, 64, 64, 3), dtype=np.uint8) for batch_size in batch_sizes]
+    pipe = variable_batch_size_from_external_source_pipeline(src_data)
+    pipe.build()
+    for batch_size in batch_sizes:
+        output, = pipe.run()
+        assert len(output) == batch_size
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def incorrect_variable_batch_size_from_es_pipeline():
+    rng = fn.random.coin_flip(probability=0.5)
+    src_data = np.zeros((1, 6, 64, 64, 3), dtype=np.uint8)
+    images = fn.external_source(src_data)
+    return images,
+
+
+@raises(RuntimeError, glob='Batch size must be uniform across an iteration. External Source operator returned batch size*')
+def test_incorrect_variable_batch_size_from_es():
+    pipe = incorrect_variable_batch_size_from_es_pipeline()
+    pipe.build()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def incorrect_variable_batch_size_inside_es_pipeline():
+    src_data = [[[np.ones((120, 120, 3), dtype=np.uint8)]*8,
+                 [np.ones((120, 120, 3), dtype=np.float32)]*6]]
+    out1, out2 = fn.external_source(source=src_data, num_outputs=2,
+                                    dtype=[types.DALIDataType.UINT8, types.DALIDataType.FLOAT])
+    return out1, out2
+
+
+@raises(RuntimeError, glob='External source must return outputs with consistent batch size.*')
+def test_incorrect_variable_batch_size_inside_es():
+    pipe = incorrect_variable_batch_size_inside_es_pipeline()
+    pipe.build()
+    pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def incorrect_variable_batch_size_pipeline():
+    jpegs, labels = fn.readers.file(file_root=file_root)
+    images = fn.decoders.image(jpegs)
+    images = [images.get()[i] for i in range(6)]
+    output = fn.random_resized_crop(images, size=(224, 224))
+    return labels, output
+
+
+@raises(RuntimeError, glob='Batch size must be uniform across an iteration. Input*')
+def test_variable_batch_size():
+    pipe = incorrect_variable_batch_size_pipeline()
+    pipe.build()
+    pipe.run()

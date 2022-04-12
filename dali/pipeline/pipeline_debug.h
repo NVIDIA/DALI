@@ -60,7 +60,8 @@ class DLL_PUBLIC PipelineDebug {
   template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> RunOperator(
       int logical_id, const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
-      const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
+      const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
+      int batch_size = -1) {
     DALI_FAIL("Unsupported backends in PipelineDebug.RunOperator().");
   }
 
@@ -72,14 +73,15 @@ class DLL_PUBLIC PipelineDebug {
   }
 
   void AddOperatorImpl(OpSpec &spec, int logical_id) {
+    std::string name = "__debug__" + spec.name() + "_" + std::to_string(logical_id);
     std::string device = spec.GetArgument<std::string>("device");
 
     if (device == "gpu") {
-      gpu_operators_.insert({logical_id, EagerOperator<GPUBackend>(spec)});
+      gpu_operators_.insert({logical_id, EagerOperator<GPUBackend>(spec, name)});
     } else if (device == "cpu") {
-      cpu_operators_.insert({logical_id, EagerOperator<CPUBackend>(spec)});
+      cpu_operators_.insert({logical_id, EagerOperator<CPUBackend>(spec, name)});
     } else if (device == "mixed") {
-      mixed_operators_.insert({logical_id, EagerOperator<MixedBackend>(spec)});
+      mixed_operators_.insert({logical_id, EagerOperator<MixedBackend>(spec, name)});
     }
   }
 
@@ -96,28 +98,31 @@ class DLL_PUBLIC PipelineDebug {
 template <>
 std::vector<std::shared_ptr<TensorList<CPUBackend>>> PipelineDebug::RunOperator(
     int logical_id, const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
-    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
+    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
+    int batch_size) {
   auto op = cpu_operators_.find(logical_id);
   DALI_ENFORCE(op != cpu_operators_.end(), "Failed to acquire CPU Operator in PipelineDebug.");
-  return op->second.template Run<CPUBackend, CPUBackend>(inputs, kwargs, &thread_pool_);
+  return op->second.template Run<CPUBackend, CPUBackend>(inputs, kwargs, &thread_pool_, batch_size);
 }
 
 template <>
 std::vector<std::shared_ptr<TensorList<GPUBackend>>> PipelineDebug::RunOperator(
     int logical_id, const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
-    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
+    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
+    int batch_size) {
   auto op = gpu_operators_.find(logical_id);
   DALI_ENFORCE(op != gpu_operators_.end(), "Failed to acquire GPU Operator in PipelineDebug.");
-  return op->second.template Run<GPUBackend, GPUBackend>(inputs, kwargs, cuda_stream_);
+  return op->second.template Run<GPUBackend, GPUBackend>(inputs, kwargs, cuda_stream_, batch_size);
 }
 
 template <>
 std::vector<std::shared_ptr<TensorList<GPUBackend>>> PipelineDebug::RunOperator(
     int logical_id, const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
-    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs) {
+    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
+    int batch_size) {
   auto op = mixed_operators_.find(logical_id);
   DALI_ENFORCE(op != mixed_operators_.end(), "Failed to acquire Mixed Operator in PipelineDebug.");
-  return op->second.template Run<CPUBackend, GPUBackend>(inputs, kwargs, cuda_stream_);
+  return op->second.template Run<CPUBackend, GPUBackend>(inputs, kwargs, cuda_stream_, batch_size);
 }
 
 }  // namespace dali
