@@ -1323,10 +1323,9 @@ def pipeline_def(fn=None, **pipeline_kwargs):
                     po = (pipe_outputs,)
                 pipe.set_outputs(*po)
             return pipe
+        create_pipeline.is_pipeline_def = True  # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
         return create_pipeline
-    ret = actual_decorator(fn) if fn else actual_decorator
-    ret.is_pipeline_def = True
-    return ret
+    return actual_decorator(fn) if fn else actual_decorator
 
 
 def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
@@ -1353,10 +1352,9 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
                         po = (pipe_outputs,)
                     pipe.set_outputs(*po)
             return pipe
+        create_pipeline.is_pipeline_def = True  # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
         return create_pipeline
-    ret = actual_decorator(fn) if fn else actual_decorator
-    ret.is_pipeline_def = True
-    return ret
+    return actual_decorator(fn) if fn else actual_decorator
 
 
 def _insert_experimental_pipeline_def():
