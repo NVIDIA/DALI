@@ -105,5 +105,5 @@ The dimensionality of the data provided to the operator will be verified against
 
 Specifying the input dimensionality will be required starting from DALI 2.0)code", nullptr)
   .AddOptionalArg<TensorLayout>("layout",
-    "If provided, sets the layout of the data.", TensorLayout(""));
+    "If provided, sets the layout of the data.", nullptr);
 }  // namespace dali

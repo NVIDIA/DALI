@@ -230,7 +230,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       DALI_ENFORCE(ndim_ >= 0, "Incorrect number of dimensions. "
                    "Use positive values for tensors or 0 for scalars.");
     }
-    layout_ = spec.GetArgument<TensorLayout>("layout");
+    spec.TryGetArgument(layout_, "layout");
     InferNdim();
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
@@ -305,8 +305,9 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     if (!layout_.empty()) {
       if (ndim_ != -1) {
         DALI_ENFORCE(ndim_ == layout_.ndim(), make_string("Dimensionality of the provided "
-                     "layout does not match the ndim argument. The provided ndim: ", ndim_,
-                     ". Provided layout: ", layout_, "."));
+                     "layout does not match the ndim argument. The arguments provided:",
+                     "\n ndim = ", ndim_, ",",
+                     "\n layout: \"", layout_, "\"."));
       } else {
         ndim_ = layout_.ndim();
       }
@@ -546,7 +547,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
     ndim_ = input_ndim;
 
-    if (spec_.HasArgument("layout")) {
+    if (!layout_.empty()) {
       DALI_ENFORCE(layout_ == batch.GetLayout(),
                    make_string("Expected data with layout: \"", layout_,
                      "\" and got: \"", batch.GetLayout(), "\"."));

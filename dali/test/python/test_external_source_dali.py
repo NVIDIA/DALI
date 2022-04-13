@@ -326,7 +326,7 @@ def test_layout_ndim_match():
 
 
 @raises(RuntimeError, glob="Dimensionality of the provided layout does not match the ndim "
-                           "argument. The provided ndim: 2. Provided layout: HWC.")
+                           "argument. The arguments provided:\n ndim = 2,\n layout: \"HWC\".")
 def test_ndim_layout_mismatch():
     src_pipe = Pipeline(1, 1, 0)
     src_ext = fn.external_source(layout="HWC", ndim=2)
