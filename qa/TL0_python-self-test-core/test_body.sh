@@ -2,6 +2,7 @@
 
 test_nose() {
     for test_script in $(ls test_pipeline*.py \
+                            test_autoserialize*.py \
                             test_functional_api.py \
                             test_backend_impl.py \
                             test_dali_variable_batch_size.py \

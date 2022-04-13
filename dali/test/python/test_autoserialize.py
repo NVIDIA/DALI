@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali._utils.autoserialize import invoke_autoserialize
-from nose.tools import raises
+from nose_utils import raises
 
 serialized_filename = "/tmp/some_custom_name"
 
@@ -28,13 +28,13 @@ def test_indirect_import():
     invoke_autoserialize(imports_decorated_function, serialized_filename)
 
 
-@raises(RuntimeError)
+@raises(RuntimeError, glob="Precisely one autoserialize function must exist in the module.*")
 def test_double_decorated_functions():
     from .triton import double_decorated_functions
     invoke_autoserialize(double_decorated_functions, serialized_filename)
 
 
-@raises(TypeError)
+@raises(TypeError, glob="Only `@pipeline_def` can be decorated with `@triton.autoserialize`.")
 def test_improper_decorated_function():
     from .triton import improper_decorated_function
     invoke_autoserialize(improper_decorated_function, serialized_filename)
