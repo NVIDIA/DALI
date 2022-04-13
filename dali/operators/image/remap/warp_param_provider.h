@@ -104,9 +104,11 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual ~WarpParamProvider() = default;
 
-  void SetContext(const OpSpec &spec, const Workspace &ws) {
+  void SetContext(const OpSpec &spec, const Workspace &ws,
+                  const TensorListShape<> &sequence_extents) {
     spec_ = &spec;
     ws_ = &ws;
+    sequence_extents_ = &sequence_extents;
     num_samples_ = NumSamples(ws);
   }
 
@@ -126,7 +128,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    * Transform-dependent size: canvas resized to fit rotated image
    */
   virtual void Setup() {
-    assert(ws_ && spec_ && "Use SetContext before calling Setup");
+    assert(ws_ && spec_ && sequence_extents_ && "Use SetContext before calling Setup");
     ResetParams();
     // Step 1: Check if the sizes are specified explicitly or copied
     // from the input size. These sizes do not depend on the
@@ -137,8 +139,12 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     // Step 3: If the operator must infer the output size based
     // on the params, then this size inference must obviously
     // follow SetParams.
-    if (infer_size)
+    if (infer_size) {
       InferSize();
+      if (sequence_extents_->num_samples()) {
+        CoalesceSequenceSize();
+      }
+    }
     // Step 4: Adjust parameters after shape inference
     AdjustParams();
 
@@ -307,6 +313,33 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     DALI_FAIL("This operator does not support size inference.");
   }
 
+  virtual void CoalesceSequenceSize() {
+    const auto &sequence_extents = *sequence_extents_;
+    auto num_sequences = sequence_extents.num_samples();
+    if (num_sequences == 0) {
+      return;
+    }
+    assert(sequence_extents.num_elements() == num_samples_);
+    assert(out_sizes_.size() == num_samples_);
+    int frame_idx = 0;
+    for (int seq_idx = 0; seq_idx < num_sequences; seq_idx++) {
+      auto num_frames = volume(sequence_extents[seq_idx]);
+      if (num_frames == 0) {
+        continue;
+      }
+      SpatialShape acc_shape = out_sizes_[frame_idx];
+      for (int i = 1; i < num_frames; i++) {
+        const auto &frame_shape = out_sizes_[frame_idx + i];
+        for (int dim_idx = 0; dim_idx < spatial_ndim; dim_idx++) {
+          acc_shape[dim_idx] = std::max(acc_shape[dim_idx], frame_shape[dim_idx]);
+        }
+      }
+      for (int i = 0; i < num_frames; i++) {
+        out_sizes_[frame_idx++] = acc_shape;
+      }
+    }
+  }
+
   /** @brief Allocates num_samples_ MappingParams objects in memory specified by alloc  */
   template <typename MemoryKind>
   MappingParams *AllocParams() {
@@ -340,6 +373,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   std::string size_arg_name_ = "size";
   const OpSpec *spec_ = nullptr;
   const Workspace *ws_ = nullptr;
+  const TensorListShape<> *sequence_extents_ = nullptr;
   int num_samples_ = 0;
 
   std::vector<SpatialShape> out_sizes_;

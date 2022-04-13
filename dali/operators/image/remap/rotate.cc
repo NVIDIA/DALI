@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ DALI_SCHEMA(Rotate)
   .DocStr(R"code(Rotates the images by the specified angle.)code")
   .NumInput(1)
   .NumOutput(1)
-  .InputLayout(0, { "HWC", "DHWC" })
+  .InputLayout(0, { "HWC", "FHWC", "DHWC", "FDHWC"})
   .SupportVolumetric()
   .AddOptionalArg<float>("axis", R"code(Applies **only** to three-dimension and is the axis
 around which to rotate the image.
@@ -28,12 +28,12 @@ around which to rotate the image.
 The vector does not need to be normalized, but it must have a non-zero length.
 Reversing the vector is equivalent to changing the sign of ``angle``.
 )code",
-  std::vector<float>(), true)
+  std::vector<float>(), true, true)
   .AddArg("angle", R"code(Angle, in degrees, by which the image is rotated.
 
 For two-dimensional data, the rotation is counter-clockwise, assuming the top-left corner is
 at ``(0,0)``. For three-dimensional data, the ``angle`` is a positive rotation around the provided
-axis.)code", DALI_FLOAT, true)
+axis.)code", DALI_FLOAT, true, true)
   .AddOptionalArg("keep_size", R"code(If True, original canvas size is kept.
 
 If set to False (default), and the size is not set, the canvas size is adjusted to
