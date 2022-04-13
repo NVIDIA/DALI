@@ -241,22 +241,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     sync_worker_.Shutdown();
   }
 
-  inline bool HasNdim() {
-    return !layout_.empty() || spec_.HasArgument("ndim");
-  }
-
-  inline void InferNdim() {
-    if (!layout_.empty()) {
-      if (ndim_ != -1) {
-        DALI_ENFORCE(ndim_ == layout_.ndim(), make_string("Dimensionality of the provided "
-                     "layout does not match the ndim argument. The provided ndim: ", ndim_,
-                     ". Provided layout: ", layout_, "."));
-      } else {
-        ndim_ = layout_.ndim();
-      }
-    }
-  }
-
   inline string name() const override {
     return "ExternalSource (" + output_name_ + ")";
   }
@@ -313,6 +297,22 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
+  inline bool HasNdim() {
+    return !layout_.empty() || spec_.HasArgument("ndim");
+  }
+
+  inline void InferNdim() {
+    if (!layout_.empty()) {
+      if (ndim_ != -1) {
+        DALI_ENFORCE(ndim_ == layout_.ndim(), make_string("Dimensionality of the provided "
+                     "layout does not match the ndim argument. The provided ndim: ", ndim_,
+                     ". Provided layout: ", layout_, "."));
+      } else {
+        ndim_ = layout_.ndim();
+      }
+    }
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     if (blocking_) {
