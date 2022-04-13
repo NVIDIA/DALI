@@ -1,6 +1,6 @@
-import nvidia.dali as dali
+from nvidia.dali.plugin.triton import autoserialize
 
 
-@dali.plugin.triton.autoserialize
+@autoserialize
 def func_under_test():
     return 42
