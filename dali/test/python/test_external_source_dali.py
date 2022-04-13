@@ -241,8 +241,9 @@ def test_incorrect_dtype_arg():
     src_pipe.build()
     src_pipe.run()
 
-@raises(RuntimeError, glob="Type of the data fed to the external source has changed from the previous iteration. "
-                           "Type in the previous iteration was float and the current type is uint8.")
+@raises(RuntimeError, glob="Type of the data fed to the external source has changed from the "
+                           "previous iteration. Type in the previous iteration was float and "
+                           "the current type is uint8.")
 def test_changing_dtype():
     batch_size = 2
     src_data = [
@@ -285,7 +286,7 @@ def test_ndim_arg_multioutput():
     src1_ext, src1_ext2 = fn.external_source(source=src_data, num_outputs=2,
                                            dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
                                            ndim=[3, 2])
-    
+
     src2_ext, src2_ext2 = fn.external_source(source=src_data, num_outputs=2,
                                            dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
                                            layout=["HWC", "HW"])
@@ -324,7 +325,8 @@ def test_layout_ndim_match():
         assert np.allclose(t2, [np.ones((120, 120), dtype=np.uint8)])
 
 
-
+@raises(RuntimeError, glob="Dimensionality of the provided layout does not match the ndim "
+                           "argument. The provided ndim: 2. Provided layout: HWC.")
 def test_ndim_layout_mismatch():
     src_pipe = Pipeline(1, 1, 0)
     src_ext = fn.external_source(layout="HWC", ndim=2)
