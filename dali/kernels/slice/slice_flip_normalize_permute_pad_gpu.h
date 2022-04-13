@@ -37,7 +37,7 @@ template <typename OutputType, typename InputType, int Dims>
 class SliceFlipNormalizePermutePadGpu {
  private:
   static constexpr size_t kBlockDim = 256;
-  size_t kBlockSize = 32 * kBlockDim;
+  size_t block_size_ = 32 * kBlockDim;
   size_t block_count_ = 0;
 
   using ProcessedArgs = detail::SliceFlipNormalizePermutePadProcessedArgs<Dims>;
@@ -111,17 +111,25 @@ class SliceFlipNormalizePermutePadGpu {
     block_count_ = 0;
     auto number_of_blocks = GetSmCount() * blocks_per_sm_;
     size_t all_sample_sizes = 0;
+
     for (auto &elem : args) {
       size_t sample_size = volume(elem.shape);
       all_sample_sizes += sample_size;
-      block_count_ += std::ceil(
-        sample_size / static_cast<float>(kBlockSize));
+      block_count_ += static_cast<size_t>(std::ceil(
+        sample_size / static_cast<float>(block_size_)));
     }
-    if (block_count_ % number_of_blocks != 0) {
-      block_count_ += (number_of_blocks - (block_count_ % number_of_blocks));
+    auto block_remainder = block_count_ % number_of_blocks;
+    if (block_remainder != 0) {
+      block_count_ += number_of_blocks - block_remainder;
     }
-    kBlockSize = div_ceil(all_sample_sizes, block_count_);
-    block_count_ = std::ceil(all_sample_sizes / static_cast<float>(kBlockSize));
+    block_size_ = div_ceil(all_sample_sizes, block_count_);
+    
+    block_count_ = 0;
+    for (auto &elem : args) {
+      size_t sample_size = volume(elem.shape);
+      block_count_ += static_cast<size_t>(std::ceil(
+        sample_size / static_cast<float>(block_size_)));
+    }
 
     se.add<mm::memory_kind::pinned, detail::BlockDesc>(block_count_);
     se.add<mm::memory_kind::device, detail::BlockDesc>(block_count_);
@@ -242,7 +250,7 @@ class SliceFlipNormalizePermutePadGpu {
       size_t offset = 0;
       size_t remaining = volume(processed_args_[i].out_shape);
       while (remaining > 0) {
-        size_t size = remaining < kBlockSize ? remaining : kBlockSize;
+        size_t size = remaining < block_size_ ? remaining : block_size_;
         block_descs_cpu[block_idx++] = {i, offset, size};
         remaining -= size;
         offset += size;
