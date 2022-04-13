@@ -26,6 +26,8 @@ def autoserialize(dali_pipeline):
 
     To perform autoserialization, please refer to :meth:`nvidia.dali._utils.invoke_autoserialize`.
 
+    For more information about Triton, please refer to [Triton documentation](https://github.com/triton-inference-server/server#triton-inference-server).
+
     :param dali_pipeline: DALI Python model definition (``pipeline_def``).
     """
     if not getattr(dali_pipeline, "is_pipeline_def", False):
