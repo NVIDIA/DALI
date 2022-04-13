@@ -22,7 +22,7 @@ def autoserialize(dali_pipeline):
 
     Only a ``pipeline_def`` can be decorated with ``autoserialize``.
 
-    Only one ``pipeline_def`` may be decorated with ``autoserialize`` in given program.
+    Only one ``pipeline_def`` may be decorated with ``autoserialize`` in a given program.
 
     To perform autoserialization, please refer to :meth:`nvidia.dali._utils.invoke_autoserialize`.
 
