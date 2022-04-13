@@ -84,6 +84,7 @@ void CastGPU::RunImpl(DeviceWorkspace &ws) {
   }
 
   auto blocks = block_setup_.Blocks();
+  // Calculate id of the earliest block that should process given sample
   for (int block_id = 0, sample_id = -1; block_id < blocks.size(); block_id++) {
     if (blocks[block_id].sample_idx != sample_id) {
       sample_id++;
