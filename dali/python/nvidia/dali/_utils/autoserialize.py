@@ -16,7 +16,7 @@ import inspect
 
 
 def _is_marked_autoserializable(object):
-    return getattr(object, 'autoserialize_me', False)
+    return getattr(object, '_is_autoserialize', False)
 
 
 def _discover_autoserialize(module, visited):
@@ -58,13 +58,13 @@ def invoke_autoserialize(head_module, filename):
     :param head_module: Module, denoting the model tree in which the decorated function shall exist.
     :param filename: Path to the file, where the output of serialization will be saved.
     """
-    autoserialize_me_functions = _discover_autoserialize(head_module, visited=[])
-    if len(autoserialize_me_functions) > 1:
+    autoserialize_functions = _discover_autoserialize(head_module, visited=[])
+    if len(autoserialize_functions) > 1:
         raise RuntimeError(
             f"Precisely one autoserialize function must exist in the module. "
-            f"Found {len(autoserialize_me_functions)}: {autoserialize_me_functions}.")
-    if len(autoserialize_me_functions) < 1:
+            f"Found {len(autoserialize_functions)}: {autoserialize_functions}.")
+    if len(autoserialize_functions) < 1:
         raise RuntimeError(
             f"Precisely one autoserialize function must exist in the module. Found none.")
-    dali_pipeline = autoserialize_me_functions[0]
+    dali_pipeline = autoserialize_functions[0]
     dali_pipeline().serialize(filename=filename)

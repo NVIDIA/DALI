@@ -31,6 +31,6 @@ def pipe_conf():
 
 
 def test_is_pipeline_def():
-    assert getattr(pipe, 'is_pipeline_def', False)
-    assert getattr(pipe_unconf, 'is_pipeline_def', False)
-    assert getattr(pipe_conf, 'is_pipeline_def', False)
+    assert getattr(pipe, '_is_pipeline_def', False)
+    assert getattr(pipe_unconf, '_is_pipeline_def', False)
+    assert getattr(pipe_conf, '_is_pipeline_def', False)
