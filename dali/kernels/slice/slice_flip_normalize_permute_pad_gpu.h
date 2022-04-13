@@ -123,7 +123,7 @@ class SliceFlipNormalizePermutePadGpu {
       block_count_ += number_of_blocks - block_remainder;
     }
     block_size_ = div_ceil(all_sample_sizes, block_count_);
-    
+
     block_count_ = 0;
     for (auto &elem : args) {
       size_t sample_size = volume(elem.shape);
