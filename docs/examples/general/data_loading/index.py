@@ -19,7 +19,7 @@ doc(title="Data Loading",
         doc_entry(
             "dataloading_recordio.ipynb",
             op_reference("fn.readers.mxnet",
-                         "Example of reading data stored in the MXNet recordIO format")),
+                         "Example of reading data stored in the MXNet RecordIO format")),
         doc_entry(
             "dataloading_tfrecord.ipynb",
             op_reference("fn.readers.tfrecord",
