@@ -141,9 +141,6 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     // follow SetParams.
     if (infer_size) {
       InferSize();
-      if (sequence_extents_->num_samples()) {
-        CoalesceSequenceSize();
-      }
     }
     // Step 4: Adjust parameters after shape inference
     AdjustParams();
@@ -311,33 +308,6 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual void InferSize() {
     DALI_FAIL("This operator does not support size inference.");
-  }
-
-  virtual void CoalesceSequenceSize() {
-    const auto &sequence_extents = *sequence_extents_;
-    auto num_sequences = sequence_extents.num_samples();
-    if (num_sequences == 0) {
-      return;
-    }
-    assert(sequence_extents.num_elements() == num_samples_);
-    assert(out_sizes_.size() == num_samples_);
-    int frame_idx = 0;
-    for (int seq_idx = 0; seq_idx < num_sequences; seq_idx++) {
-      auto num_frames = volume(sequence_extents[seq_idx]);
-      if (num_frames == 0) {
-        continue;
-      }
-      SpatialShape acc_shape = out_sizes_[frame_idx];
-      for (int i = 1; i < num_frames; i++) {
-        const auto &frame_shape = out_sizes_[frame_idx + i];
-        for (int dim_idx = 0; dim_idx < spatial_ndim; dim_idx++) {
-          acc_shape[dim_idx] = std::max(acc_shape[dim_idx], frame_shape[dim_idx]);
-        }
-      }
-      for (int i = 0; i < num_frames; i++) {
-        out_sizes_[frame_idx++] = acc_shape;
-      }
-    }
   }
 
   /** @brief Allocates num_samples_ MappingParams objects in memory specified by alloc  */

@@ -331,11 +331,7 @@ class Warp : public SequenceOperator<Backend> {
           });))),
         (DALI_FAIL("Only 2D and 3D warping is supported")));
 
-
-    TensorListShape<> sequence_extents{};
-    if (IsExpanding()) {
-      sequence_extents = GetInputExpandDesc(0).DimsToExpand();
-    }
+    auto sequence_extents = GetInputExpandDesc(0).DimsToExpand();
     impl_->Setup(out_shape, ws, sequence_extents);
     out_type = output_type_;
   }
