@@ -227,8 +227,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         layout_(),
         sync_worker_(device_id_, false) {
     if (spec.TryGetArgument(ndim_, "ndim")) {
-      DALI_ENFORCE(ndim_ >= 0, "Incorrect number of dimensions. "
-                   "Use positive values for tensors or 0 for scalars.");
+      DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
+                   "). Use positive values for tensors or 0 for scalars."));
     }
     spec.TryGetArgument(layout_, "layout");
     InferNdim();
@@ -297,14 +297,14 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
-  inline bool HasNdim() {
+  bool HasNdim() {
     return !layout_.empty() || spec_.HasArgument("ndim");
   }
 
-  inline void InferNdim() {
+  void InferNdim() {
     if (!layout_.empty()) {
       if (ndim_ != -1) {
-        DALI_ENFORCE(ndim_ == layout_.ndim(), make_string("Dimensionality of the provided "
+        DALI_ENFORCE(ndim_ == layout_.ndim(), make_string("Number of dimensions in the provided "
                      "layout does not match the ndim argument. The arguments provided:",
                      "\n ndim = ", ndim_, ",",
                      "\n layout: \"", layout_, "\"."));
@@ -541,7 +541,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                      input_ndim, " dimensions."));
     } else if (ndim_ != -1) {
       DALI_ENFORCE(input_ndim == ndim_,
-                   make_string("Dimensionality of the data fed to the external source has "
+                   make_string("Number of dimensions of the data fed to the external source has "
                       "changed from previous iteration. Dimensionality in the previous "
                       "iteration was ", ndim_, " and the current is ", input_ndim, "."));
     }

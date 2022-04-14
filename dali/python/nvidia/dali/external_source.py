@@ -359,17 +359,25 @@ Keyword Args
 `dtype` : `nvidia.dali.types.DALIDataType` or list/tuple thereof, optional
     Input data type.
 
+    When ``num_outputs > 1``, the ``dtype`` can be a list that contains a distinct value for each
+    output.
+
     The operator will validate that the fetched data is of the provided type.
     If the argument is omitted or :const:`DALIDataType.NO_TYPE` is passed, the operator will infer
     the type from the provided data.
 
     This argument will be required starting from DALI 2.0.
 
-`ndim` : int, optional
-    Input dimensionality.
+`ndim` : int or list/tuple thereof, optional
+    Number of dimensions in the input data.
+
+    When ``num_outputs > 1``, the ``ndim`` can be a list that contains a distinct value for each
+    output.
 
     The dimensionality of the data provided to the operator will be verified against this value.
     Number of dimensions can be also inferred from the ``layout`` argument if provided.
+
+    If the ``layout`` argument is provided, the ``ndim`` must match the number of dimensions in the layout.
 
     Specifying the input dimensionality will be required starting from DALI 2.0
 
