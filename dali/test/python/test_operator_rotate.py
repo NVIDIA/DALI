@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,15 +16,11 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import math
-from numpy.testing import assert_array_equal, assert_allclose
 import os
 import cv2
-from test_utils import check_batch
 from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -86,7 +82,7 @@ def CVRotate(output_type, input_type, fixed_size):
       img = np.float32(img)
     out_size_wh = (out_size[1], out_size[0])
     out = cv2.warpAffine(img, matrix, out_size_wh, borderMode = cv2.BORDER_CONSTANT, borderValue = [42,42,42],
-      flags = (cv2.INTER_LINEAR|cv2.WARP_INVERSE_MAP));
+      flags = (cv2.INTER_LINEAR|cv2.WARP_INVERSE_MAP))
     if output_type == dali.types.UINT8 and input_type == dali.types.FLOAT:
       out = np.uint8(np.clip(out, 0, 255))
     return out
@@ -141,9 +137,9 @@ def compare(pipe1, pipe2, eps):
   pipe1.build()
   pipe2.build()
   epoch_size = pipe1.epoch_size("Reader")
-  batch_size = pipe1.batch_size
+  batch_size = pipe1.max_batch_size
   niter = 1 if batch_size >= epoch_size else 2
-  compare_pipelines(pipe1, pipe2, batch_size, niter, eps);
+  compare_pipelines(pipe1, pipe2, batch_size, niter, eps)
 
 io_types = [
   (dali.types.UINT8, dali.types.UINT8),
