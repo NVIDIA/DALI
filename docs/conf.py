@@ -24,11 +24,12 @@ from enum import Enum
 import re
 import subprocess
 from pathlib import Path
+from datetime import date
 
 # -- Project information -----------------------------------------------------
 
 project = u'NVIDIA DALI'
-copyright = u'2018-2021, NVIDIA Corporation'
+copyright = u'2018-{}, NVIDIA Corporation'.format(date.today().year)
 author = u'NVIDIA Corporation'
 
 version_long = u'0.0.0'
