@@ -349,7 +349,7 @@ def test_ndim_data_mismatch():
     src_pipe.run()
 
 
-@raises(RuntimeError, glob="Dimensionality of the data fed to the external source has changed "
+@raises(RuntimeError, glob="Number of dimensions of the data fed to the external source has changed "
                            "from previous iteration. Dimensionality in the previous iteration "
                            "was 3 and the current is 2.")
 def test_ndim_changing():
