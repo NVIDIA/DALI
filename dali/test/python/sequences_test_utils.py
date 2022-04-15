@@ -28,6 +28,56 @@ data_root = get_dali_extra_path()
 vid_file = os.path.join(data_root, 'db', 'video',
                         'sintel', 'sintel_trailer-720p.mp4')
 
+class ParamsProviderBase:
+    def __init__(self):
+        self.input_data = None
+        self.input_layout = None
+        self.rng = None
+        self.num_expand = None
+        self.unfolded_input = None
+        self.unfolded_input_layout = None
+
+    def setup(self, input_data, input_layout, rng):
+        self.input_data = input_data
+        self.input_layout = input_layout
+        self.rng = rng
+
+    def setup_expand(self, num_expand, unfolded_input, unfolded_input_layout):
+        self.num_expand = num_expand
+        self.unfolded_input = unfolded_input
+        self.unfolded_input_layout = unfolded_input_layout
+
+    def compute_params(self):
+        raise NotImplementedError
+
+    def expand_params(self):
+        raise NotImplementedError
+
+
+class ParamsProvider(ParamsProviderBase):
+
+    def __init__(self, input_params):
+        super().__init__()
+        self.input_params = input_params
+        self.per_sample_params_data = None
+        self.per_frame_params_data = None
+        self.expanded_params_data = None
+
+    def compute_params(self):
+        self.per_sample_params_data, self.per_frame_params_data = get_input_params_data(
+            self.input_data, self.input_layout, self.input_params, self.rng)
+        return self.per_sample_params_data, self.per_frame_params_data
+
+    def expand_params(self):
+        expanded_per_sample_params = [
+            (arg_name, expand_arg_input(self.input_data, self.input_layout, self.num_expand, arg_data, False))
+            for arg_name, arg_data in self.per_sample_params_data]
+        expanded_per_frame_params = [
+            (arg_name, expand_arg_input(self.input_data, self.input_layout, self.num_expand, arg_data, True))
+            for arg_name, arg_data in self.per_frame_params_data]
+        self.expanded_params_data = expanded_per_sample_params + expanded_per_frame_params
+        return self.expanded_params_data
+
 
 def as_batch(tensor):
     if isinstance(tensor, _Tensors.TensorListGPU):
@@ -117,10 +167,10 @@ def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_pa
 
     max_batch_size = max(len(batch) for batch in input_data)
 
-    # compute the arguments data here so that the parameters passed to _test_seq_input are
-    # a bit more readable when printed by nose
-    per_sample_params_input, per_frame_params_input = get_input_params_data(
-        input_data, input_layout, input_params, rng)
+    params_provider = input_params if isinstance(
+        input_params, ParamsProviderBase) else ParamsProvider(input_params)
+    params_provider.setup(input_data, input_layout, rng)
+    per_sample_params_input, per_frame_params_input = params_provider.compute_params()
     seq_pipe = pipeline(input_data=input_data, input_layout=input_layout,
                         per_sample_params_input=per_sample_params_input,
                         per_frame_params_input=per_frame_params_input,
@@ -130,15 +180,8 @@ def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_pa
     num_expand = get_layout_prefix_len(input_layout, expandable_extents)
     unfolded_input = unfold_batches(input_data, num_expand)
     unfolded_input_layout = input_layout[num_expand:]
-    expanded_per_sample_params = [
-        (arg_name, expand_arg_input(input_data,
-         input_layout, num_expand, arg_data, False))
-        for arg_name, arg_data in per_sample_params_input]
-    expanded_per_frame_params = [
-        (arg_name, expand_arg_input(input_data,
-         input_layout, num_expand, arg_data, True))
-        for arg_name, arg_data in per_frame_params_input]
-    expanded_params_data = expanded_per_sample_params + expanded_per_frame_params
+    params_provider.setup_expand(num_expand, unfolded_input, unfolded_input_layout)
+    expanded_params_data = params_provider.expand_params()
     max_uf_batch_size = max(len(batch) for batch in unfolded_input)
     baseline_pipe = pipeline(input_data=unfolded_input,
                              input_layout=unfolded_input_layout,
