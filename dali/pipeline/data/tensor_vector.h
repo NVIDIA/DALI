@@ -62,8 +62,6 @@ class DLL_PUBLIC TensorVector {
    */
   explicit TensorVector(int batch_size);
 
-  explicit TensorVector(std::shared_ptr<TensorList<Backend>> tl);
-
   TensorVector(const TensorVector &) = delete;
   TensorVector &operator=(const TensorVector &) = delete;
 
@@ -329,8 +327,6 @@ class DLL_PUBLIC TensorVector {
   TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;
 
   void UpdateViews();
-
-  shared_ptr<TensorList<Backend>> AsTensorList(bool check_contiguity = true);
 
  private:
   enum class State { contiguous, noncontiguous };
