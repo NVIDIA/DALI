@@ -435,11 +435,13 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
     bool copied_shared_data = false;
-    if (batch.IsContiguous()) {
-      auto &in_tl = *const_cast<TensorVector<Backend> &>(batch).AsTensorList();
-      tl_elm.front()->ShareData(in_tl);
-      zero_copy_noncontiguous_gpu_input_ = true;
-    } else {
+
+    // TODO(klecki): Add missing optimization
+    // if (batch.IsContiguous()) {
+    //   auto &in_tl = *const_cast<TensorVector<Backend> &>(batch).AsTensorList();
+    //   tl_elm.front()->ShareData(in_tl);
+    //   zero_copy_noncontiguous_gpu_input_ = true;
+    // } else {
       // it is not contiguous so we need to copy
       tl_elm.front()->Copy(batch, order, use_copy_kernel);
       std::list<uptr_cuda_event_type> copy_to_storage_event;
@@ -453,7 +455,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                   "of memory would be trashed.");
       }
       copied_shared_data = true;
-    }
+    // }
     state_.push_back({copied_shared_data, true});
     tl_data_.PushBack(tl_elm);
   }
