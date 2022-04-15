@@ -94,9 +94,8 @@ def expand_arg(input_layout, num_expand, arg_has_frames, input_batch, arg_batch)
 
 def expand_arg_input(input_data, input_layout, num_expand, arg_data, arg_has_frames):
     assert(len(input_data) == len(arg_data))
-    expanded = [expand_arg(input_layout, num_expand, arg_has_frames, input_batch, arg_batch)
-                for input_batch, arg_batch in zip(input_data, arg_data)]
-    return expanded
+    return [expand_arg(input_layout, num_expand, arg_has_frames, input_batch, arg_batch)
+            for input_batch, arg_batch in zip(input_data, arg_data)]
 
 
 def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_params, input_params,
@@ -160,27 +159,27 @@ def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_pa
         check_batch(batch, baseline_batch, len(batch))
 
 
+def get_input_arg_per_sample(input_data, param_cb, rng):
+    return [[param_cb(rng) for _ in batch] for batch in input_data]
+
+
+def get_input_arg_per_frame(input_data, input_layout, param_cb, rng):
+    def arg_for_sample(num_frames):
+        if rng.randint(1, 4) == 1:
+            return np.array([param_cb(rng)])
+        return np.array([param_cb(rng) for _ in range(num_frames)])
+    frame_idx = input_layout.find("F")
+    return [[arg_for_sample(sample.shape[frame_idx])
+             for sample in batch] for batch in input_data]
+
+
 def get_input_params_data(input_data, input_layout, input_params, rng):
-
-    def get_input_arg_per_sample(param_cb):
-        param = [[param_cb(rng) for _ in batch] for batch in input_data]
-        return param
-
-    def get_input_arg_per_frame(param_cb):
-        def arg_for_sample(num_frames):
-            if rng.randint(1, 4) == 1:
-                return np.array([param_cb(rng)])
-            return np.array([param_cb(rng) for _ in range(num_frames)])
-        frame_idx = input_layout.find("F")
-        param = [[arg_for_sample(sample.shape[frame_idx])
-                 for sample in batch] for batch in input_data]
-        return param
-
     per_sample_args = [
-        (param_name, get_input_arg_per_sample(param_cb))
+        (param_name, get_input_arg_per_sample(input_data, param_cb, rng))
         for param_name, param_cb, is_per_frame in input_params if not is_per_frame]
     per_frame_args = [
-        (param_name, get_input_arg_per_frame(param_cb))
+        (param_name, get_input_arg_per_frame(
+            input_data, input_layout, param_cb, rng))
         for param_name, param_cb, is_per_frame in input_params if is_per_frame]
 
     return per_sample_args, per_frame_args
@@ -194,14 +193,16 @@ def sequence_suite_helper(rng, expandable_extents, input_cases, ops_test_cases, 
                     input_params, input_layout, input_data, rng
 
 
-def get_video_input_cases(seq_layout, rng):
+def get_video_input_cases(seq_layout, rng, larger_shape=(512, 288), smaller_shape=(384, 216)):
     max_batch_size = 8
     max_num_frames = 16
     cases = []
+    w, h = larger_shape
     larger = vid_source(max_batch_size, 1, max_num_frames,
-                        512, 288, seq_layout)
+                        w, h, seq_layout)
+    w, h = smaller_shape
     smaller = vid_source(max_batch_size, 2, max_num_frames,
-                         384, 216, seq_layout)
+                         w, h, seq_layout)
     cases.append(smaller)
     samples = [sample for batch in [smaller[0], larger[0], smaller[1]]
                for sample in batch]

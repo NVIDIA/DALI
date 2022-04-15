@@ -12,26 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import cv2
+import numpy as np
+import math
+import os
+import random
+
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
-import numpy as np
-import math
-import os
-import cv2
-from test_utils import compare_pipelines
+from test_utils import compare_pipelines, check_batch
+from sequences_test_utils import get_video_input_cases, video_suite_helper, dummy_source, \
+  get_input_arg_per_frame, unfold_batches, expand_arg_input, unfold_batch, as_batch
+
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
-def get_output_size(angle, input_size):
+
+def get_output_size(angle, input_size, parity_correction=True):
     cosa = abs(math.cos(angle))
     sina = abs(math.sin(angle))
     (h, w) = input_size[0:2]
     eps = 1e-2
     out_w = int(math.ceil(w*cosa + h*sina - eps))
     out_h = int(math.ceil(h*cosa + w*sina - eps))
+    if not parity_correction:
+      return (out_h, out_w)
+
     if sina <= cosa:
       if out_w % 2 != w % 2:
         out_w += 1
@@ -100,7 +109,7 @@ class RotatePipeline(Pipeline):
         else:
           self.cast = None
 
-        self.uniform = ops.random.Uniform(range = (-180.0, 180.0), seed = 42);
+        self.uniform = ops.random.Uniform(range = (-180.0, 180.0), seed = 42)
         self.rotate = ops.Rotate(device = device, size=fixed_size, fill_value = 42, dtype = output_type)
 
     def define_graph(self):
@@ -176,3 +185,129 @@ def test_gpu_vs_cpu():
   for test in run_cases("gpu", "cpu", 1):
     yield test
 
+
+def small_angle(rng):
+    return np.array(rng.uniform(-44., 44.), dtype=np.float32)
+
+
+def random_angle(rng):
+    return np.array(rng.uniform(-180., 180.), dtype=np.float32)
+
+
+def test_video():
+    video_test_cases = [
+        (dali.fn.rotate, {'angle': 45.}, []),
+        (dali.fn.rotate, {}, [("angle", random_angle, False)]),
+    ]
+
+    yield from video_suite_helper(video_test_cases, test_channel_first=False, expand_channels=False)
+
+
+def maximum_array(arrays):
+  assert(len(arrays))
+  acc_max = arrays[0]
+  for array in arrays[1:]:
+    acc_max = np.maximum(acc_max, array)
+  return acc_max
+
+
+def infer_sequence_size(input_shapes, angles):
+  assert(len(input_shapes) == len(angles))
+  no_correction_shapes = [
+      np.array(get_output_size(math.radians(
+          angle), shape, False), dtype=np.int32)
+      for shape, angle in zip(input_shapes, angles)]
+  corrected_shapes = [
+      np.array(get_output_size(math.radians(
+          angle), shape, True), dtype=np.int32)
+      for shape, angle in zip(input_shapes, angles)]
+  max_shape = maximum_array(no_correction_shapes)
+  parity = sum([np.array([extent % 2 for extent in shape], dtype=np.int32)
+               for shape in corrected_shapes])
+  for i in range(len(max_shape)):
+    if max_shape[i] % 2 != (2 * parity[i] > len(input_shapes)):
+      max_shape[i] += 1
+  return max_shape
+
+
+def sequence_batch_output_size(unfolded_extents, input_batch, angle_batch):
+  def iter_by_groups():
+    assert(sum(unfolded_extents) == len(input_batch))
+    assert(len(input_batch) == len(angle_batch))
+    offset = 0
+    for group in unfolded_extents:
+      yield input_batch[offset:offset + group], angle_batch[offset:offset + group]
+      offset += group
+  sequence_output_shape = [
+      infer_sequence_size([frame.shape for frame in input_frames], angles)
+      for input_frames, angles in iter_by_groups()]
+  return [
+      output_shape for output_shape, num_frames in zip(sequence_output_shape, unfolded_extents)
+      for _ in range(num_frames)]
+
+
+def _test_per_frame(device, angle_fn, input_data, rng):
+  num_iters = 5
+
+  @dali.pipeline_def
+  def per_frame_pipeline(data, angles_data):
+      input = dali.fn.external_source(source=dummy_source(data), layout="FHWC")
+      if device == "gpu":
+          input = input.gpu()
+      angle = dali.fn.external_source(source=dummy_source(angles_data))
+      output = dali.fn.rotate(input, angle=dali.fn.per_frame(angle))
+      return output
+
+  @dali.pipeline_def
+  def expanded_pipeline(data, angles_data, output_shapes_data):
+      input = dali.fn.external_source(source=dummy_source(data), layout="HWC")
+      if device == "gpu":
+          input = input.gpu()
+      angle = dali.fn.external_source(source=dummy_source(angles_data))
+      output_shape = dali.fn.external_source(
+          source=dummy_source(output_shapes_data))
+      output = dali.fn.rotate(input, angle=angle, size=output_shape)
+      return output
+
+  max_batch_size = max(len(batch) for batch in input_data)
+  angles_data = get_input_arg_per_frame(input_data, "FHWC", angle_fn, rng)
+
+  per_frame_pipe = per_frame_pipeline(
+      data=input_data, angles_data=angles_data,
+      batch_size=max_batch_size, num_threads=4,
+      device_id=0)
+
+  unfolded_input = unfold_batches(input_data, 1)
+  expanded_angles = expand_arg_input(input_data, "FHWC", 1, angles_data, True)
+  sequence_extents = [[sample.shape[0]
+                       for sample in input_batch] for input_batch in input_data]
+  output_sizes = [
+      sequence_batch_output_size(*args)
+      for args in zip(sequence_extents, unfolded_input, expanded_angles)]
+  max_uf_batch_size = max(len(batch) for batch in unfolded_input)
+  baseline_pipe = expanded_pipeline(
+      data=unfolded_input, angles_data=expanded_angles,
+      output_shapes_data=output_sizes,
+      batch_size=max_uf_batch_size, num_threads=4,
+      device_id=0)
+  per_frame_pipe.build()
+  baseline_pipe.build()
+
+  for _ in range(num_iters):
+      (seq_batch,) = per_frame_pipe.run()
+      (baseline_batch,) = baseline_pipe.run()
+      assert(seq_batch.layout()[1:] == baseline_batch.layout())
+      batch = unfold_batch(as_batch(seq_batch), 1)
+      baseline_batch = as_batch(baseline_batch)
+      assert(len(batch) == len(baseline_batch))
+      check_batch(batch, baseline_batch, len(batch))
+
+
+def test_per_frame():
+  rng = random.Random(42)
+  input_cases = get_video_input_cases(
+      "FHWC", rng, larger_shape=(512, 287), smaller_shape=(385, 216))
+  for input_case in input_cases:
+    for device in ["cpu", "gpu"]:
+      for angle_fn in [small_angle, random_angle]:
+        yield _test_per_frame, device, angle_fn, input_case, rng

@@ -42,7 +42,7 @@ inline std::tuple<TensorShape<2>, ivec2> RotatedCanvasSize(TensorShape<2> input_
   int h = input_size[0];
   int w_out = std::ceil(abs_cos * w + abs_sin * h - eps);
   int h_out = std::ceil(abs_cos * h + abs_sin * w - eps);
-  ivec2 parity(0);
+  ivec2 parity;
   if (abs_sin <= abs_cos) {
     // if rotated by less than +/-45deg (or more than +/-135deg),
     // maintain size parity to reduce blur
@@ -68,7 +68,7 @@ inline std::tuple<TensorShape<3>, ivec3> RotatedCanvasSize(TensorShape<3> input_
       absM(i, j) = std::abs(M(i, j));
 
   ivec3 out_size = ceil_int(absM * vec3(in_size) - eps);
-  ivec3 parity(0);
+  ivec3 parity;
 
   // This vector contains indices of dimensions that contribute (relatively) most
   // to the output size.
