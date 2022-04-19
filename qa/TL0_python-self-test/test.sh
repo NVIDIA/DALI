@@ -1,4 +1,5 @@
 #!/bin/bash -e
+set -o errexit
 
 pushd ../TL0_python-self-test-core
 bash -e ./test.sh
