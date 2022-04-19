@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,16 +19,41 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/small_vector.h"
+
 namespace dali {
 
 namespace detail {
 
-template <typename T, typename S>
-void copy_vector(std::vector<T> &out, const std::vector<S> &in) {
+template <typename From, typename To>
+struct is_explicitly_convertible {
+ private:
+  static void sink_cast_target(To);
+
+  template <typename F, typename T>
+  constexpr static auto test(int)  // NOLINT
+      -> decltype(sink_cast_target(static_cast<T>(std::declval<F>())), true) {
+    return true;
+  }
+
+  template <typename F, typename T>
+  constexpr static bool test(...) {
+    return false;
+  }
+
+ public:
+  constexpr static bool value = test<From, To>(0);  // = requires(From t) { static_cast<To>(t); };
+};
+
+template <typename C1, typename C2>
+void copy_vector(C1 &out, const C2 &in) {
+  using To = typename C1::value_type;
+  using From = typename C2::value_type;
+  static_assert(is_explicitly_convertible<From, To>::value, "Element types not convertible");
   out.reserve(in.size());
   out.clear();
   for (decltype(auto) v : in) {
-    out.emplace_back(static_cast<T>(v));
+    out.emplace_back(static_cast<To>(v));
   }
 }
 

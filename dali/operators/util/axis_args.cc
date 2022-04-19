@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,9 +44,7 @@ AxisArgs::AxisArgs(const OpSpec &spec, const char *axis_index_arg, const char *a
         DALI_FAIL(make_string("Can't have empty axes. Check argument name: ", axis_name_arg));
     }
     if (!use_axis_names_ && axis_index_arg) {
-      std::vector<int> tmp;  // TODO(janton): support SmallVector in TryGetRepeatedArgument
-      if (spec.TryGetRepeatedArgument(tmp, axis_index_arg))
-        const_axes_ = {tmp.begin(), tmp.end()};
+      spec.TryGetRepeatedArgument(const_axes_, axis_index_arg);
 
       if (!allow_empty && const_axes_.empty())
         DALI_FAIL(make_string("Can't have empty axes. Check argument name: ", axis_index_arg));

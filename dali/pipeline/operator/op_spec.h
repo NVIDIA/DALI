@@ -378,12 +378,11 @@ class DLL_PUBLIC OpSpec {
    * @brief Checks the Spec for a repeated argument of the given name/type.
    * Returns the default if an argument with the given name does not exist.
    */
-  template <typename T>
-  DLL_PUBLIC bool TryGetRepeatedArgument(
-      std::vector<T> &result,
-      const string &name) const {
+  template <typename Collection>
+  DLL_PUBLIC bool TryGetRepeatedArgument(Collection &result, const string &name) const {
+    using T = typename Collection::value_type;
     using S = argument_storage_t<T>;
-    return TryGetRepeatedArgumentImpl<T, S>(result, name);
+    return TryGetRepeatedArgumentImpl<S>(result, name);
   }
 
   DLL_PUBLIC OpSpec& ShareArguments(OpSpec& other) {
@@ -464,8 +463,8 @@ class DLL_PUBLIC OpSpec {
   template <typename T, typename S>
   inline std::vector<T> GetRepeatedArgumentImpl(const string &name) const;
 
-  template <typename T, typename S>
-  inline bool TryGetRepeatedArgumentImpl(std::vector<T> &result, const string &name) const;
+  template <typename S, typename C>
+  inline bool TryGetRepeatedArgumentImpl(C &result, const string &name) const;
 
   string name_;
   const OpSchema *schema_ = nullptr;
@@ -564,8 +563,8 @@ inline std::vector<T> OpSpec::GetRepeatedArgumentImpl(const string &name) const 
   }
 }
 
-template <typename T, typename S>
-inline bool OpSpec::TryGetRepeatedArgumentImpl(std::vector<T> &result, const string &name) const {
+template <typename S, typename C>
+inline bool OpSpec::TryGetRepeatedArgumentImpl(C &result, const string &name) const {
   using V = std::vector<S>;
   // Search for the argument locally
   auto arg_it = arguments_.find(name);
