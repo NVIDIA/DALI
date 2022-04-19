@@ -23,8 +23,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from test_utils import compare_pipelines
-from sequences_test_utils import get_video_input_cases, get_input_arg_per_frame,\
-  expand_arg_input, ParamsProviderBase, sequence_suite_helper
+from sequences_test_utils import get_video_input_cases, ParamsProvider, sequence_suite_helper
 
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -229,35 +228,35 @@ def sequence_batch_output_size(unfolded_extents, input_batch, angle_batch):
       for _ in range(num_frames)]
 
 
-class RotatePerFrameParamsProvider(ParamsProviderBase):
+class RotatePerFrameParamsProvider(ParamsProvider):
   """
   Provides per frame angle argument input to the video rotate operator test.
   The expanded baseline pipeline must be provided with additional argument ``size``
   to make allowance for coalescing of inferred frames sizes
   """
 
-  def __init__(self, angle_fn):
-    super().__init__()
-    self.angle_fn = angle_fn
-    self.angles_data = None
-
-  def compute_params(self):
-    self.angles_data = get_input_arg_per_frame(self.input_data, "FHWC", self.angle_fn, self.rng)
-    return [], [('angle', self.angles_data)]
+  def __init__(self, input_params):
+    super().__init__(input_params)
 
   def expand_params(self):
     assert(self.num_expand == 1)
-    expanded_angles = expand_arg_input(self.input_data, "FHWC", 1, self.angles_data, True)
+    expanded_params = super().expand_params()
+    params_dict = dict(expanded_params)
+    (_, expanded_angles) = next(filter(lambda param : param[0] == 'angle', expanded_params), None)
+    expanded_angles = params_dict.get('angle')
+    if expanded_angles is None or 'size' in self.fixed_params or 'size' in params_dict:
+      return expanded_params
     sequence_extents = [
       [sample.shape[0] for sample in input_batch]
       for input_batch in self.input_data]
     output_sizes = [
         sequence_batch_output_size(*args)
         for args in zip(sequence_extents, self.unfolded_input, expanded_angles)]
-    return [('angle', expanded_angles), ('size', output_sizes)]
+    expanded_params.append(('size', output_sizes))
+    return expanded_params
 
   def __repr__(self):
-    return "{}({})".format(repr(self.__class__), repr(self.angle_fn))
+    return "{}({})".format(repr(self.__class__), repr(self.input_params))
 
 
 def test_video():
@@ -267,12 +266,17 @@ def test_video():
     def random_angle(rng):
       return np.array(rng.uniform(-180., 180.), dtype=np.float32)
 
+    def random_output(rng):
+      return np.array([rng.randint(300, 400), rng.randint(300, 400)])
+
     video_test_cases = [
         (dali.fn.rotate, {'angle': 45.}, []),
         (dali.fn.rotate, {}, [("angle", small_angle, False)]),
         (dali.fn.rotate, {}, [("angle", random_angle, False)]),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider(small_angle)),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider(random_angle)),
+        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", small_angle, True)])),
+        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", small_angle, True)])),
+        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([
+          ("angle", small_angle, True), ("size", random_output, False)])),
     ]
 
     rng = random.Random(42)
