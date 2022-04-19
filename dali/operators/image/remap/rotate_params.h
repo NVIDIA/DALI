@@ -265,6 +265,14 @@ class RotateParamProvider
   void InferSize() override {
     assert(sequence_extents_);
     const auto &sequence_extents = *sequence_extents_;
+    VALUE_SWITCH(sequence_extents.sample_dim(), ndims_unfolded, (0, 1),
+      (InferSize(sequence_extents.template to_static<ndims_unfolded>());),
+      (DALI_FAIL("Unsupported number of frame extents"))
+    );
+  }
+
+  template <int ndims_unfolded>
+  void InferSize(const TensorListShape<ndims_unfolded> sequence_extents) {
     assert(sequence_extents.num_elements() == num_samples_);
     assert(out_sizes_.size() == num_samples_);
     constexpr auto ndim_tag = std::integral_constant<int, spatial_ndim>();
