@@ -325,7 +325,7 @@ def test_layout_ndim_match():
         assert np.allclose(t2, [np.ones((120, 120), dtype=np.uint8)])
 
 
-@raises(RuntimeError, glob="Dimensionality of the provided layout does not match the ndim "
+@raises(RuntimeError, glob="Number of dimensions in the provided layout does not match the ndim "
                            "argument. The arguments provided:\n ndim = 2,\n layout: \"HWC\".")
 def test_ndim_layout_mismatch():
     src_pipe = Pipeline(1, 1, 0)
