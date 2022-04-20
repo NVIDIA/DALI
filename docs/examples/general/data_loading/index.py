@@ -12,10 +12,10 @@ doc(title="Data Loading",
                          "How to use parallel mode for external source in fork mode")),
         doc_entry(
             "dataloading_lmdb.ipynb",
-            op_reference("fn.readers.caffe",
+            [op_reference("fn.readers.caffe",
                          "Example of reading data stored in LMDB in the Caffe format"),
             op_reference("fn.readers.caffe2",
-                         "Example of reading data stored in LMDB in the Caffe 2 format")),
+                         "Example of reading data stored in LMDB in the Caffe 2 format")]),
         doc_entry(
             "dataloading_recordio.ipynb",
             op_reference("fn.readers.mxnet",
