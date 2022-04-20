@@ -91,7 +91,8 @@ inline std::tuple<TensorShape<3>, ivec3> RotatedCanvasSize(TensorShape<3> input_
   // source dimension - this helps reduce the blur in central area, especially for
   // small angles.
   for (int i = 0; i < 3; i++) {
-    parity[i] = in_size[dominant_src_axis[i]] % 2;
+    // kernels::vec2shape reverses the extents, store them in that order in parity vector
+    parity[2 - i] = in_size[dominant_src_axis[i]] % 2;
   }
 
   return {kernels::vec2shape(out_size), parity};
