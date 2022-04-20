@@ -268,8 +268,7 @@ class RotateParamProvider
     const auto &sequence_extents = *sequence_extents_;
     VALUE_SWITCH(sequence_extents.sample_dim(), ndims_unfolded, (0, 1),
       (InferSize(sequence_extents.template to_static<ndims_unfolded>());),
-      (DALI_FAIL("Unsupported number of frame extents"))
-    );
+      (DALI_FAIL("Unsupported number of frame extents")));
   }
 
   template <int ndims_unfolded>
