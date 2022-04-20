@@ -52,6 +52,45 @@ def get_output_size(angle, input_size, parity_correction=True):
         out_h += 1
     return (out_h, out_w)
 
+
+def get_3d_lin_rotation(angle, axis):
+  # mirrors transform.h:rotation3D
+  if not angle:
+    return np.eye((3, 3), dtype=np.float32)
+  axis_norm = np.linalg.norm(axis)
+  axis = [dim / axis_norm for dim in axis]
+  u, v, w = axis
+  cosa = math.cos(angle)
+  sina = math.sin(angle)
+  return np.array([
+    [u*u + (v*v+w*w)*cosa, u*v*(1-cosa) - w*sina, u*w*(1-cosa) + v*sina],
+    [u*v*(1-cosa) + w*sina, v*v + (u*u+w*w)*cosa, v*w*(1-cosa) - u*sina],
+    [u*w*(1-cosa) - v*sina, v*w*(1-cosa) + u*sina, w*w + (u*u+v*v)*cosa],
+  ], dtype=np.float32)
+
+
+def get_3d_output_size(angle, axis, input_size, parity_correction=False):
+  rotation = np.abs(get_3d_lin_rotation(angle, axis))
+  eps = 1e-2
+  in_size = np.array(list(reversed(input_size[:3])))
+  out_size = np.int32(np.ceil(np.matmul(rotation, in_size) - eps))
+  dominant_axis = [0, 1, 2]
+
+  if parity_correction:
+    for i in range(3):
+      maxv = rotation[i, dominant_axis[i]]
+      for j in range(3):
+        if rotation[i, j] > maxv:
+          maxv = rotation[i, j]
+          dominant_axis[i] = j
+
+    for i in range(3):
+      if out_size[i] % 2 != in_size[dominant_axis[i]] % 2:
+        out_size[i] += 1
+
+  return np.array(list(reversed(out_size)), dtype=np.int32)
+
+
 def get_transform(angle, input_size, output_size):
     cosa = math.cos(angle)
     sina = math.sin(angle)
@@ -193,16 +232,23 @@ def maximum_array(arrays):
   return acc_max
 
 
-def infer_sequence_size(input_shapes, angles):
+def infer_sequence_size(input_shapes, angles, axes=None):
   assert(len(input_shapes) == len(angles))
-  no_correction_shapes = [
-      np.array(get_output_size(math.radians(
-          angle), shape, False), dtype=np.int32)
-      for shape, angle in zip(input_shapes, angles)]
-  corrected_shapes = [
-      np.array(get_output_size(math.radians(
-          angle), shape, True), dtype=np.int32)
-      for shape, angle in zip(input_shapes, angles)]
+  assert(axes is None or len(axes) == len(angles))
+  if axes is None:
+    no_correction_shapes = [
+        np.array(get_output_size(math.radians(angle), shape, False), dtype=np.int32)
+        for shape, angle in zip(input_shapes, angles)]
+    corrected_shapes = [
+        np.array(get_output_size(math.radians(angle), shape, True), dtype=np.int32)
+        for shape, angle in zip(input_shapes, angles)]
+  else:
+    no_correction_shapes = [
+        np.array(get_3d_output_size(math.radians(angle), axis, shape, False), dtype=np.int32)
+        for shape, angle, axis in zip(input_shapes, angles, axes)]
+    corrected_shapes = [
+        np.array(get_3d_output_size(math.radians(angle), axis, shape, True), dtype=np.int32)
+        for shape, angle, axis in zip(input_shapes, angles, axes)]
   max_shape = maximum_array(no_correction_shapes)
   parity = sum([np.array([extent % 2 for extent in shape], dtype=np.int32)
                for shape in corrected_shapes])
@@ -212,17 +258,19 @@ def infer_sequence_size(input_shapes, angles):
   return max_shape
 
 
-def sequence_batch_output_size(unfolded_extents, input_batch, angle_batch):
+def sequence_batch_output_size(unfolded_extents, input_batch, angle_batch, axis_batch=None):
   def iter_by_groups():
     assert(sum(unfolded_extents) == len(input_batch))
     assert(len(input_batch) == len(angle_batch))
+    assert(axis_batch is None or len(axis_batch) == len(angle_batch))
     offset = 0
     for group in unfolded_extents:
-      yield input_batch[offset:offset + group], angle_batch[offset:offset + group]
+      yield input_batch[offset:offset + group], angle_batch[offset:offset + group],\
+        None if axis_batch is None else axis_batch[offset:offset + group]
       offset += group
   sequence_output_shape = [
-      infer_sequence_size([frame.shape for frame in input_frames], angles)
-      for input_frames, angles in iter_by_groups()]
+      infer_sequence_size([frame.shape for frame in input_frames], angles, axes)
+      for input_frames, angles, axes in iter_by_groups()]
   return [
       output_shape for output_shape, num_frames in zip(sequence_output_shape, unfolded_extents)
       for _ in range(num_frames)]
@@ -244,14 +292,17 @@ class RotatePerFrameParamsProvider(ParamsProvider):
     params_dict = dict(expanded_params)
     (_, expanded_angles) = next(filter(lambda param : param[0] == 'angle', expanded_params), None)
     expanded_angles = params_dict.get('angle')
-    if expanded_angles is None or 'size' in self.fixed_params or 'size' in params_dict:
-      return expanded_params
+    expanded_axis = params_dict.get('axis')
+    assert(expanded_angles is not None and 'size' not in self.fixed_params and 'size' not in params_dict)
     sequence_extents = [
       [sample.shape[0] for sample in input_batch]
       for input_batch in self.input_data]
+    output_size_params = (sequence_extents, self.unfolded_input, expanded_angles)
+    if expanded_axis is not None:
+      output_size_params += (expanded_axis,)
     output_sizes = [
         sequence_batch_output_size(*args)
-        for args in zip(sequence_extents, self.unfolded_input, expanded_angles)]
+        for args in zip(*output_size_params)]
     expanded_params.append(('size', output_sizes))
     return expanded_params
 
@@ -275,11 +326,42 @@ def test_video():
         (dali.fn.rotate, {}, [("angle", random_angle, False)]),
         (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", small_angle, True)])),
         (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", small_angle, True)])),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([
-          ("angle", small_angle, True), ("size", random_output, False)])),
+        (dali.fn.rotate, {}, [("angle", small_angle, True), ("size", random_output, False)]),
     ]
 
     rng = random.Random(42)
     video_cases = get_video_input_cases("FHWC", rng, larger_shape=(512, 287))
     input_cases = [("FHWC", input_data) for input_data in video_cases]
     yield from sequence_suite_helper(rng, "F", input_cases, video_test_cases)
+
+
+def test_3d_sequence():
+  rng = random.Random(42)
+  num_batches = 4
+  max_batch_size = 8
+  max_frames_num = 32
+  input_layout = "FDHWC"
+  np_rng = np.random.default_rng(42)
+
+  def get_random_sample():
+    num_frames = rng.randint(1, max_frames_num)
+    d, h, w = tuple(rng.randint(10, 50) for _ in range(3))
+    return np.int32(np_rng.uniform(0, 255, (num_frames, d, h, w, 3)))
+
+  def get_random_batch():
+    return [get_random_sample() for _ in range(rng.randint(1, max_batch_size))]
+
+  input_cases = [(input_layout, [get_random_batch() for _ in range(num_batches)])]
+
+  def random_angle(rng):
+    return np.array(rng.uniform(-180., 180.), dtype=np.float32)
+
+  def random_axis(rng):
+    return np.array([rng.uniform(-1, 1) for _ in range(3)], dtype=np.float32)
+
+  test_cases = [
+    (dali.fn.rotate, {'angle': 45., 'axis': np.array([1, 0, 0], dtype=np.float32)}, []),
+    (dali.fn.rotate, {'size': (50, 30, 20)}, [("angle", random_angle, True), ("axis", random_axis, True)]),
+    (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", random_angle, True), ("axis", random_axis, True)])),
+  ]
+  yield from sequence_suite_helper(rng, "F", input_cases, test_cases)
