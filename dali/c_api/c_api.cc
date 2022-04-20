@@ -225,6 +225,12 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
 }
 
 
+int daliIsDeserializable(const char* serialized_pipeline, int length) {
+  auto len = static_cast<size_t>(length);
+  return dali::Pipeline::IsDeserializable({serialized_pipeline, len}) ? 0 : 1;
+}
+
+
 void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   for (int i = 0; i < queue_depth; ++i) {
