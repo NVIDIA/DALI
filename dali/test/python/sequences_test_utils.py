@@ -28,10 +28,8 @@ data_root = get_dali_extra_path()
 vid_file = os.path.join(data_root, 'db', 'video',
                         'sintel', 'sintel_trailer-720p.mp4')
 
-class ParamsProvider:
-    def __init__(self, input_params):
-        self.input_params = input_params
-
+class ParamsProviderBase:
+    def __init__(self):
         self.input_data = None
         self.input_layout = None
         self.fixed_params = None
@@ -40,10 +38,6 @@ class ParamsProvider:
         self.num_expand = None
         self.unfolded_input = None
         self.unfolded_input_layout = None
-
-        self.per_sample_params_data = None
-        self.per_frame_params_data = None
-        self.expanded_params_data = None
 
     def setup(self, input_data, input_layout, fixed_params, rng):
         self.input_data = input_data
@@ -55,6 +49,27 @@ class ParamsProvider:
         self.num_expand = num_expand
         self.unfolded_input = unfolded_input
         self.unfolded_input_layout = unfolded_input_layout
+
+    def compute_params(self):
+        raise NotImplementedError
+
+    def expand_params(self):
+        raise NotImplementedError
+
+
+class ParamsProvider(ParamsProviderBase):
+
+    def __init__(self, input_params):
+        """
+        `input_params` : List[Tuple[str, rng -> np.array, bool]]
+        List describing tensor input arguments of the form: [(tensor_arg_name, single_arg_cb, is_per_frame)])]
+        The `single_arg_cb` should be a function that takes numpy random number generator and returns an argument
+        for a single sample or frame, depending on the `is_per_frame` flag."""
+        super().__init__()
+        self.input_params = input_params
+        self.per_sample_params_data = None
+        self.per_frame_params_data = None
+        self.expanded_params_data = None
 
     def compute_params(self):
         self.per_sample_params_data, self.per_frame_params_data = get_input_params_data(
@@ -160,7 +175,7 @@ def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_pa
 
     max_batch_size = max(len(batch) for batch in input_data)
 
-    params_provider = input_params if isinstance(input_params, ParamsProvider) else ParamsProvider(input_params)
+    params_provider = input_params if isinstance(input_params, ParamsProviderBase) else ParamsProvider(input_params)
     params_provider.setup(input_data, input_layout, fixed_params, rng)
     per_sample_params_input, per_frame_params_input = params_provider.compute_params()
     seq_pipe = pipeline(input_data=input_data, input_layout=input_layout,
