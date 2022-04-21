@@ -98,6 +98,16 @@ The operator will validate that the fetched data is of the provided type.
 If the argument is omitted or ``DALIDataType.NO_TYPE`` is passed, the operator will infer
 the type based on the provided data.
 
-This argument will be required starting from DALI 2.0.)code", DALI_NO_TYPE);
+This argument will be required starting from DALI 2.0.)code", DALI_NO_TYPE)
+  .AddOptionalArg<int>("ndim", R"code(Number of dimensions in the input.
 
+The dimensionality of the data provided to the operator will be verified against this value.
+Number of dimensions can be also inferred from the ``layout`` argument if provided.
+
+If the ``layout`` argument is provided, the ``ndim`` must match the number
+of dimensions in the layout.
+
+Specifying the input dimensionality will be required starting from DALI 2.0)code", nullptr)
+  .AddOptionalArg<TensorLayout>("layout",
+    "If provided, sets the layout of the data.", nullptr);
 }  // namespace dali

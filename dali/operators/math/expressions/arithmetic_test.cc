@@ -563,7 +563,7 @@ namespace {
 std::array<TensorListShape<>, 3> GetShapesForSequence(int batch_size, int left_elems,
                                                       int right_elems) {
   auto GetTensorOrScalar = [=](int elems) {
-    return elems != 1 ? uniform_list_shape(batch_size, {elems}) : TensorListShape<0>(batch_size);
+    return uniform_list_shape(batch_size, {elems});
   };
   return {GetTensorOrScalar(left_elems),
           GetTensorOrScalar(right_elems),
