@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 #include "dali/operators/reader/gds_mem.h"
+#include "dali/core/math_util.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/mm/pool_resource.h"
 #include "dali/core/mm/detail/align.h"
@@ -44,11 +45,23 @@ size_t GetGDSChunkSize() {
 }
 
 void RegisterChunks(void *start, int chunks, size_t chunk_size) {
-  //cuFileRegister
+  char *addr = static_cast<char *>(start);
+  char *end = addr + chunks * chunk_size;
+  for (; addr < end; addr += chunk_size) {
+    CUDA_CALL(cuFileBufRegister(addr, chunk_size, 0));
+  }
 }
 
 void UnregisterChunks(void *start, int chunks, size_t chunk_size) {
+  char *addr = static_cast<char *>(start);
+  char *end = addr + chunks * chunk_size;
+  for (; addr < end; addr += chunk_size) {
+    CUDA_CALL(cuFileBufDeregister(addr));
+  }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// GDSRegisteredResource
 
 class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device> {
  public:
@@ -104,9 +117,12 @@ class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device
   std::shared_ptr<cufile::CUFileDriverHandle> cufile_driver_;
 };
 
-class GDSMemoryResource : public mm::memory_resource<mm::memory_kind::device> {
+///////////////////////////////////////////////////////////////////////////////
+// GDSMemoryPool
+
+class GDSMemoryPool : public mm::memory_resource<mm::memory_kind::device> {
  public:
-  GDSMemoryResource(int device_id) : upstream_(device_id), pool_(&upstream_, pool_opts()) {
+  GDSMemoryPool(int device_id) : upstream_(device_id), pool_(&upstream_, pool_opts()) {
   }
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
@@ -125,8 +141,13 @@ class GDSMemoryResource : public mm::memory_resource<mm::memory_kind::device> {
     return opt;
   }
   GDSRegisteredResource upstream_;
-  mm::pool_resource_base<mm::memory_kind::device, mm::coalescing_free_tree, spinlock> pool_;
+  mm::pool_resource_base<mm::memory_kind::device,
+                         mm::coalescing_free_tree,
+                         spinlock> pool_;
 };
+
+///////////////////////////////////////////////////////////////////////////////
+// GDSAllocator
 
 GDSAllocator::GDSAllocator(int device_id) {
   if (device_id < 0)
@@ -134,7 +155,8 @@ GDSAllocator::GDSAllocator(int device_id) {
   // Currently, GPUDirect Storage can work only with memory allocated with cudaMalloc and
   // cuMemAlloc. Since DALI is transitioning to CUDA Virtual Memory Management for memory
   // allocation, we need a special allocator that's compatible with GDS.
-  rsrc_ = std::make_shared<GDSMemoryResource>(device_id);
+  rsrc_ = std::make_shared<GDSMemoryPool>(device_id);
+
 }
 
 struct GDSAllocatorInstance {
@@ -162,6 +184,102 @@ GDSAllocator &GDSAllocator::instance(int device) {
     CUDA_CALL(cudaGetDevice(&device));
   assert(device >= 0 && device < ndevs);
   return instances[device].get(device);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// GDSStagingEngine
+
+GDSStagingEngine::GDSStagingEngine(int device_id, int max_buffers, int commit_after)
+: device_id_(device_id)
+, commit_after_(commit_after)
+, max_buffers_(max_buffers) {
+  ready_ = CUDAEventPool::instance().Get(device_id);
+}
+
+void GDSStagingEngine::set_stream(cudaStream_t stream) {
+  this->stream_ = stream;
+}
+
+int GDSStagingEngine::allocate_buffers() {
+  int prev = blocks_.size();
+  int new_total = clamp(prev * 2, 2, max_buffers_);
+  for (int i = prev; i < new_total; i++) {
+    blocks_.push_back(gds_alloc_unique(chunk_size_));
+    ready_buffers_.insert(blocks_.back().get());
+  }
+  return blocks_.size() - prev;
+}
+
+void GDSStagingEngine::wait_buffers(std::unique_lock<std::mutex> &lock) {
+  if (scheduled_.empty() && !unscheduled_.empty())
+    commit();
+  CUDA_CALL(cudaEventSynchronize(ready_));
+  for (void *ptr : scheduled_)
+    ready_buffers_.insert(ptr);
+  scheduled_.clear();
+}
+
+void GDSStagingEngine::copy_to_client(void *client_buffer, size_t nbytes,
+                                    GDSStagingBuffer &&staging_buffer, ptrdiff_t offset) {
+  std::lock_guard g(lock_);
+  copy_engine_.AddCopy(client_buffer, staging_buffer.at(offset), nbytes);
+  unscheduled_.push_back(staging_buffer.release());
+  if (unscheduled_.size() > static_cast<size_t>(commit_after_))
+    commit_no_lock();
+}
+
+void GDSStagingEngine::return_ready() {
+  cudaError_t ret = cudaEventQuery(ready_);
+  if (ret == cudaErrorNotReady)
+    return;
+  CUDA_CALL(ret);
+  for (void *ptr : scheduled_)
+    ready_buffers_.insert(ptr);
+  scheduled_.clear();
+}
+
+void GDSStagingEngine::commit() {
+  std::lock_guard g(lock_);
+  commit_no_lock();
+}
+
+void GDSStagingEngine::commit_no_lock() {
+  copy_engine_.Run(stream_, true, kernels::ScatterGatherGPU::Method::Default,
+                   cudaMemcpyDeviceToDevice);
+  return_ready();
+  if (scheduled_.empty()) {
+    scheduled_.swap(unscheduled_);
+  } else {
+    scheduled_.insert(scheduled_.end(), unscheduled_.begin(), unscheduled_.end());
+    unscheduled_.clear();
+  }
+  CUDA_CALL(cudaEventRecord(ready_, stream_));
+}
+
+GDSStagingBuffer GDSStagingEngine::get_staging_buffer(void *hint) {
+  std::unique_lock ulock(lock_);
+  for (;;) {
+    auto it = ready_buffers_.find(hint);
+    // try to get a buffer by hint
+    if (it != ready_buffers_.end()) {
+      void *ptr = *it;
+      ready_buffers_.erase(it);
+      return GDSStagingBuffer(ptr);
+    }
+    // hint failed - use any
+    it = ready_buffers_.begin();
+    if (it != ready_buffers_.end()) {
+      void *ptr = *it;
+      ready_buffers_.erase(it);
+      return GDSStagingBuffer(ptr);
+    }
+
+    // no ready buffers? try to allocate more
+    if (!allocate_buffers()) {
+      // couldn't allocate? wait for some
+      wait_buffers(ulock);
+    }
+  }
 }
 
 }  // namespace dali

@@ -22,40 +22,33 @@
 
 namespace dali {
 
-// register buffer
-void NumpyLoaderGPU::RegisterBuffer(void *buffer, size_t total_size) {
-  if (register_buffers_) {
-    // get raw pointer
-    auto dptr = static_cast<uint8_t*>(buffer);
-    std::unique_lock<std::mutex> reg_lock(reg_mutex_);
-    auto iter = reg_buff_.find(dptr);
-    reg_lock.unlock();
-    if (iter != reg_buff_.end()) {
-      if (iter->second == total_size) {
-        // the right buffer is registered already, return
-        return;
-      } else {
-        CUDA_CALL(cuFileBufDeregister(iter->first));
-      }
-    }
-    // no buffer found or with different size so register again
-    CUDA_CALL(cuFileBufRegister(dptr, total_size, 0));
-    reg_lock.lock();
-    reg_buff_[dptr] = total_size;
-  }
-}
-
-void NumpyLoaderGPU::ReadSampleHelper(CUFileStream *file,
-                                      void *buffer, Index file_offset, size_t read_size) {
-  // register the buffer (if needed)
-  RegisterBuffer(buffer, read_size);
-
-  // copy the image
-  file->ReadGPUImpl(static_cast<uint8_t*>(buffer), read_size, 0, file_offset);
-}
-
 void NumpyLoaderGPU::PrepareEmpty(NumpyFileWrapperGPU& target) {
   target = {};
+}
+
+void NumpyFileWrapperGPU::Reopen() {
+  file_stream = CUFileStream::Open(filename, read_ahead, false);
+}
+
+void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
+  NumpyHeaderMeta header;
+  auto ret = cache.GetFromCache(filename, header);
+  try {
+    if (!ret) {
+      file_stream->Seek(header.data_offset);
+    } else {
+      detail::ParseHeader(file_stream.get(), header);
+      cache.UpdateCache(filename, header);
+    }
+  } catch (const std::runtime_error &e) {
+    DALI_FAIL(e.what() + ". File: " + filename);
+  }
+
+
+  type = header.type();
+  shape = header.shape;
+  fortran_order = header.fortran_order;
+  data_offset = header.data_offset;
 }
 
 // we need to implement that but we should split parsing and reading in this case
@@ -74,6 +67,9 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   meta.SetSourceInfo(filename);
   meta.SetSkipSample(false);
 
+  // set file path
+  target.filename = filesystem::join_path(file_root_, filename);
+
   // if image is cached, skip loading
   if (ShouldSkipImage(filename)) {
     meta.SetSkipSample(true);
@@ -85,39 +81,14 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   // set metadata
   target.meta = meta;
 
-  target.read_meta_f = [this, filename, &target] () {
-    // open file
-    target.file_stream = CUFileStream::Open(file_root_ + "/" + filename, read_ahead_, false);
-
-    // read the header
-    NumpyParseTarget parse_target;
-    auto ret = header_cache_.GetFromCache(filename, parse_target);
-    try {
-      if (ret) {
-        target.file_stream->Seek(parse_target.data_offset);
-      } else {
-        detail::ParseHeader(target.file_stream.get(), parse_target);
-        header_cache_.UpdateCache(filename, parse_target);
-      }
-    } catch (const std::runtime_error &e) {
-      DALI_FAIL(e.what() + ". File: " + filename);
-    }
-
-
-    target.type = parse_target.type();
-    target.shape = parse_target.shape;
-    target.fortran_order = parse_target.fortran_order;
+  target.read_sample_f = [] (NumpyFileWrapperGPU &tgt, void *buffer, Index offset, size_t bytes) {
+    // Read a chunk of data at given offset.
+    // The file offset is calculated as offset + target.file_offset
+    auto *file = tgt.file_stream.get();
+    file->ReadAtGPU(static_cast<uint8_t *>(buffer), bytes, 0, offset + tgt.data_offset);
   };
 
-  target.read_sample_f = [this, filename, &target] (void *buffer, Index file_offset,
-                                                      size_t read_size) {
-    // read sample
-    ReadSampleHelper(target.file_stream.get(), buffer, file_offset, read_size);
-    // we cannot close the file handle here, we need to remember to do it later on
-  };
-
-  // set file path
-  target.filename = file_root_ + "/" + filename;
+  target.read_ahead = read_ahead_;
 }
 
 }  // namespace dali

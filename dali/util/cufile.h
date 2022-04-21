@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,14 +40,23 @@ class DLL_PUBLIC CUFileStream : public FileStream {
   };
 
   static std::unique_ptr<CUFileStream> Open(const std::string& uri, bool read_ahead, bool use_mmap);
-  /*
+  /**
+   * @brief Reads `n_bytes` to the buffer at position `offset`
+   *
    * It accepts the base address of the buffer to read to and the offset in it
    * The API is the effect how cufile works - it need to get the base address of the registered
    * buffer and the offset where it should put the data.
    */
-  virtual size_t ReadGPU(uint8_t* buffer, size_t n_bytes, size_t offset = 0) = 0;
-  virtual size_t ReadGPUImpl(uint8_t* buffer, size_t n_bytes,
-                             size_t buffer_offset, size_t file_offset) = 0;
+  virtual size_t ReadGPU(uint8_t* buffer, size_t n_bytes, ptrdiff_t buffer_offset = 0) = 0;
+
+  /**
+   * @brief Reads `n_bytes` to the buffer at position `offset` from a given position in the file.
+   *
+   * The file_offset is absolute - the function neither depends on or affects the file pointer.
+   * This function is thread-safe.
+   */
+  virtual size_t ReadAtGPU(uint8_t* buffer, size_t n_bytes,
+                           ptrdiff_t buffer_offset, int64 file_offset) = 0;
 
  protected:
   explicit CUFileStream(const std::string& path) : FileStream(path) {}

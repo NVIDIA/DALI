@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,6 +71,13 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
   kernels::KernelManager kmgr_slice_;
   TensorListShape<> tmp_buf_sh_;
   TensorList<GPUBackend> tmp_buf_;
+
+  void ChunkedRead(ThreadPool &tp, NumpyFileWrapperGPU &target);
+
+  size_t chunk_size_ = GetGDSChunkSize();
+  detail::NumpyHeaderCache header_cache_;
+  GDSStagingEngine staging_;
+  vector<CUDAStreamLease> copy_streams_;
 };
 
 }  // namespace dali

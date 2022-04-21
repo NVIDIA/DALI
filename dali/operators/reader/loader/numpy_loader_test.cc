@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
     detail::ParseHeaderMetadata(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
     ASSERT_EQ(target.type(), DALI_INT16);
     ASSERT_EQ(target.fortran_order, true);
-    ASSERT_EQ(target.shape, std::vector<int64_t>({7, 4}));
+    ASSERT_EQ(target.shape, (TensorShape<>{7, 4}));
   }
   {
     NumpyParseTarget target;
@@ -33,7 +33,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
                         "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
     ASSERT_EQ(target.type(), DALI_FLOAT);
     ASSERT_EQ(target.fortran_order, false);
-    ASSERT_EQ(target.shape, std::vector<int64_t>({4}));
+    ASSERT_EQ(target.shape, (TensorShape<>{4}));
   }
   {
     NumpyParseTarget target;
