@@ -52,12 +52,11 @@ NvDecoder::NvDecoder(int device_id,
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
-      current_recv_(), textures_(), stop_(false) {
+      current_recv_(), req_ready_(REQ_READY), textures_(), stop_(false) {
 
   DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
     "Check your library paths and if NVIDIA driver is installed correctly.");
-
 
   // This is a workaround for an issue with nvcuvid in drivers >460 and < 470.21 where concurrent
   // use on default context and non-default streams may lead to memory corruption.
@@ -141,10 +140,11 @@ NvDecoder::~NvDecoder() {
 #endif
 }
 
-int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time, AVRational stream_base) {
+VidReqStatus NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time,
+                                         AVRational stream_base) {
   if (stop_) {
     LOG_LINE << "NvDecoder::stop_ requested" << std::endl;
-    return 0;
+    return REQ_READY;
   }
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
@@ -174,7 +174,7 @@ int NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time, AVRational 
     // right now and we don't want to throw exception in exception
     NVCUVID_CALL(ret);
   }
-  return 0;
+  return req_ready_;
 }
 
 int NvDecoder::handle_sequence(void* user_data, CUVIDEOFORMAT* format) {
@@ -329,6 +329,11 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   auto frame = av_rescale_q(disp_info->timestamp,
                             nv_time_base_, current_recv_.frame_base);
 
+  // it means that any frame has been decoded
+  if (req_ready_ == REQ_NOT_STARTED) {
+    req_ready_ = REQ_IN_PROGRESS;
+  }
+
   if (current_recv_.count <= 0) {
     if (recv_queue_.empty()) {
       LOG_LINE << "Ditching frame " << frame << " since "
@@ -369,10 +374,13 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
 
   frame_in_use_[disp_info->picture_index] = true;
   frame_queue_.push(disp_info);
+  if (current_recv_.count <= 0) {
+    req_ready_ = REQ_READY;
+  }
   return kNvcuvid_success;
 }
 
-int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base,
+VidReqStatus NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base,
                              const CodecParameters* codecpar) {
   AVMediaType codec_type = AVMEDIA_TYPE_VIDEO;
   // if they are null we are flushing the decoder and we don't want the bellow check
@@ -388,10 +396,11 @@ int NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time, AVRational strea
       DALI_FAIL("Got to decode_packet in a decoder that is not "
                 "for an audio, video, or subtitle stream.");
   }
-  return -1;
+  return REQ_READY;
 }
 
 void NvDecoder::push_req(FrameReq req) {
+  req_ready_ = REQ_NOT_STARTED;
   recv_queue_.push(std::move(req));
 }
 
