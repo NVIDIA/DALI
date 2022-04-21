@@ -70,25 +70,16 @@ def get_3d_lin_rotation(angle, axis):
 
 
 def get_3d_output_size(angle, axis, input_size, parity_correction=False):
-  rotation = np.abs(get_3d_lin_rotation(angle, axis))
+  transform = np.abs(get_3d_lin_rotation(angle, axis))
   eps = 1e-2
-  in_size = np.array(list(reversed(input_size[:3])))
-  out_size = np.int32(np.ceil(np.matmul(rotation, in_size) - eps))
-  dominant_axis = [0, 1, 2]
+  in_size = np.array(input_size[2::-1], dtype=np.int32)
+  out_size = np.int32(np.ceil(np.matmul(transform, in_size) - eps))
 
   if parity_correction:
-    for i in range(3):
-      maxv = rotation[i, dominant_axis[i]]
-      for j in range(3):
-        if rotation[i, j] > maxv:
-          maxv = rotation[i, j]
-          dominant_axis[i] = j
+    dominant_axis = np.argmax(transform, axis=1)
+    out_size += (out_size % 2) ^ (in_size[dominant_axis] % 2)
 
-    for i in range(3):
-      if out_size[i] % 2 != in_size[dominant_axis[i]] % 2:
-        out_size[i] += 1
-
-  return np.array(list(reversed(out_size)), dtype=np.int32)
+  return out_size[::-1]
 
 
 def get_transform(angle, input_size, output_size):
@@ -316,7 +307,7 @@ def test_video():
         (dali.fn.rotate, {}, [("angle", small_angle, False)]),
         (dali.fn.rotate, {}, [("angle", random_angle, False)]),
         (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", small_angle, True)])),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", small_angle, True)])),
+        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", random_angle, True)])),
         (dali.fn.rotate, {}, [("angle", small_angle, True), ("size", random_output, False)]),
     ]
 
