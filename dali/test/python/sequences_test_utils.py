@@ -29,6 +29,12 @@ vid_file = os.path.join(data_root, 'db', 'video',
                         'sintel', 'sintel_trailer-720p.mp4')
 
 class ParamsProviderBase:
+    """
+    Computes data to be passed as argument inputs in sequence processing tests, the `compute_params` params
+    should return tuple of lists with data for respectively per-sample and per-frame arguments.
+    The `expand_params` should return corressponding unfolded/expanded arguments to be used in the
+    baseline pipeline.
+    """
     def __init__(self):
         self.input_data = None
         self.input_layout = None
@@ -63,8 +69,8 @@ class ParamsProvider(ParamsProviderBase):
         """
         `input_params` : List[Tuple[str, rng -> np.array, bool]]
         List describing tensor input arguments of the form: [(tensor_arg_name, single_arg_cb, is_per_frame)])]
-        The `single_arg_cb` should be a function that takes numpy random number generator and returns an argument
-        for a single sample or frame, depending on the `is_per_frame` flag."""
+        The `single_arg_cb` should be a function that takes Python's random number generator and returns
+        an argument for a single sample or frame, depending on the `is_per_frame` flag."""
         super().__init__()
         self.input_params = input_params
         self.per_sample_params_data = None
@@ -321,14 +327,13 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
 
     For testing operator with different input than the video, consider using `sequence_suite_helper` directly.
     ----------
-    `ops_test_cases` : List[Tuple[Operator, Dict[str, Any], List[Tuple[str, rng -> np.array, bool]]]]
+    `ops_test_cases` : List[Tuple[Operator, Dict[str, Any], ParamProviderBase|List[Tuple[str, rng -> np.array, bool]]]]
         List of operators and their parameters that should be tested.
         Each element is expected to be a triple of the form:
         [(fn.operator, {fixed_param_name: fixed_param_value}, [(tensor_arg_name, single_arg_cb, is_per_frame)])]
         where the first element is ``fn.operator``, the second one is a dictionary of fixed arguments that should
-        be passed to the operator and the last one is a list of tuples describing tensor input arguments.
-        The `single_arg_cb` should be a function that takes numpy random number generator and returns an argument
-        for a single sample or frame, depending on the `is_per_frame` flag.
+        be passed to the operator and the last one is a list of tuples describing tensor input arguments
+        (see `ParamsProvider` argument description) or custom params provider instance.
     `test_channel_first` : bool
         If True, the "FCHW" layout is tested.
     `expand_channels` : bool
