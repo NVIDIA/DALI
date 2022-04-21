@@ -90,7 +90,6 @@ inline std::tuple<ivec3, ivec3> RotatedCanvasSize(TensorShape<3> input_shape, ve
   // source dimension - this helps reduce the blur in central area, especially for
   // small angles.
   for (int i = 0; i < 3; i++) {
-    // kernels::vec2shape reverses the extents, store them in that order in parity vector
     parity[i] = in_size[dominant_src_axis[i]] % 2;
   }
 
@@ -290,7 +289,7 @@ class RotateParamProvider
         acc_shape = max(acc_shape, shape);
       }
       // do the correction of shape extents parity by a majority vote, so that at least half
-      // of the frames in the sequence have the desired parity
+      // of the frames in the sequence have the desired parity of each extent
       acc_shape += (acc_shape % 2) ^ (2 * acc_parity > num_frames);
       // set the output shape to all frames
       auto shape = kernels::vec2shape(acc_shape);
