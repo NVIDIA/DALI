@@ -224,14 +224,6 @@ def test_gpu_vs_cpu():
     yield test
 
 
-def maximum_array(arrays):
-  assert(len(arrays))
-  acc_max = arrays[0]
-  for array in arrays[1:]:
-    acc_max = np.maximum(acc_max, array)
-  return acc_max
-
-
 def infer_sequence_size(input_shapes, angles, axes=None):
   assert(len(input_shapes) == len(angles))
   assert(axes is None or len(axes) == len(angles))
@@ -249,9 +241,8 @@ def infer_sequence_size(input_shapes, angles, axes=None):
     corrected_shapes = [
         np.array(get_3d_output_size(math.radians(angle), axis, shape, True), dtype=np.int32)
         for shape, angle, axis in zip(input_shapes, angles, axes)]
-  max_shape = maximum_array(no_correction_shapes)
-  parity = sum([np.array([extent % 2 for extent in shape], dtype=np.int32)
-               for shape in corrected_shapes])
+  max_shape = np.max(no_correction_shapes, axis=0)
+  parity = np.sum(np.array(corrected_shapes, dtype=np.int32) % 2, axis=0)
   for i in range(len(max_shape)):
     if max_shape[i] % 2 != (2 * parity[i] > len(input_shapes)):
       max_shape[i] += 1

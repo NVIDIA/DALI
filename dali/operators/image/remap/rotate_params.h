@@ -33,8 +33,7 @@ namespace dali {
 template <int spatial_ndim>
 using RotateParams = kernels::AffineMapping<spatial_ndim>;
 
-inline std::tuple<TensorShape<2>, ivec2> RotatedCanvasSize(TensorShape<2> input_size,
-                                                           double angle) {
+inline std::tuple<ivec2, ivec2> RotatedCanvasSize(TensorShape<2> input_size, double angle) {
   double eps = 1e-2;
   double abs_cos = std::abs(std::cos(angle));
   double abs_sin = std::abs(std::sin(angle));
@@ -46,17 +45,17 @@ inline std::tuple<TensorShape<2>, ivec2> RotatedCanvasSize(TensorShape<2> input_
   if (abs_sin <= abs_cos) {
     // if rotated by less than +/-45deg (or more than +/-135deg),
     // maintain size parity to reduce blur
-    parity[0] = h % 2;
-    parity[1] = w % 2;
-  } else {
     parity[0] = w % 2;
     parity[1] = h % 2;
+  } else {
+    parity[0] = h % 2;
+    parity[1] = w % 2;
   }
-  return {{ h_out, w_out}, parity};
+  return {{w_out, h_out}, parity};
 }
 
-inline std::tuple<TensorShape<3>, ivec3> RotatedCanvasSize(TensorShape<3> input_shape, vec3 axis,
-                                                           double angle) {
+inline std::tuple<ivec3, ivec3> RotatedCanvasSize(TensorShape<3> input_shape, vec3 axis,
+                                                  double angle) {
   ivec3 in_size = kernels::shape2vec(input_shape);
   float eps = 1e-2f;
   mat3 M = sub<3, 3>(rotation3D(axis, angle));
@@ -92,10 +91,10 @@ inline std::tuple<TensorShape<3>, ivec3> RotatedCanvasSize(TensorShape<3> input_
   // small angles.
   for (int i = 0; i < 3; i++) {
     // kernels::vec2shape reverses the extents, store them in that order in parity vector
-    parity[2 - i] = in_size[dominant_src_axis[i]] % 2;
+    parity[i] = in_size[dominant_src_axis[i]] % 2;
   }
 
-  return {kernels::vec2shape(out_size), parity};
+  return {out_size, parity};
 }
 
 template <typename Backend, int spatial_ndim_, typename BorderType>
@@ -281,30 +280,22 @@ class RotateParamProvider
       if (num_frames == 0) {
         continue;
       }
-      ivec<spatial_ndim> acc_parity;
-      SpatialShape acc_shape;
+      ivec<spatial_ndim> acc_parity, acc_shape;
       std::tie(acc_shape, acc_parity) = InferSize(ndim_tag, frame_idx);
       // acc_shape is (extentwise) max of output shapes of all frames in the sample
       for (int i = 1; i < num_frames; i++) {
-        ivec<spatial_ndim> parity;
-        SpatialShape shape;
+        ivec<spatial_ndim> parity, shape;
         std::tie(shape, parity) = InferSize(ndim_tag, frame_idx + i);
         acc_parity += parity;
-        for (int dim_idx = 0; dim_idx < spatial_ndim; dim_idx++) {
-          acc_shape[dim_idx] = std::max(acc_shape[dim_idx], shape[dim_idx]);
-        }
+        acc_shape = max(acc_shape, shape);
       }
       // do the correction of shape extents parity by a majority vote, so that at least half
       // of the frames in the sequence have the desired parity
-      for (int dim_idx = 0; dim_idx < spatial_ndim; dim_idx++) {
-        bool should_be_odd = 2 * acc_parity[dim_idx] > num_frames;
-        if (acc_shape[dim_idx] % 2 != should_be_odd) {
-          acc_shape[dim_idx]++;
-        }
-      }
+      acc_shape += (acc_shape % 2) ^ (2 * acc_parity > num_frames);
       // set the output shape to all frames
+      auto shape = kernels::vec2shape(acc_shape);
       for (int i = 0; i < num_frames; i++) {
-        out_sizes_[frame_idx++] = acc_shape;
+        out_sizes_[frame_idx++] = shape;
       }
     }
   }
