@@ -547,11 +547,17 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
     ndim_ = input_ndim;
 
-    if (!layout_.empty()) {
+    if (spec_.HasArgument("layout")) {
       DALI_ENFORCE(layout_ == batch.GetLayout(),
                    make_string("Expected data with layout: \"", layout_,
                      "\" and got: \"", batch.GetLayout(), "\"."));
+    } else if (!layout_.empty()) {
+      DALI_ENFORCE(layout_ == batch.GetLayout(),
+                   make_string("Layout of the data fed to the external source has changed "
+                     "from previous iteration. Layout in the previous iteration was \"", layout_,
+                     "\" and the current is \"", batch.GetLayout(), "\"."));
     }
+    layout_ = batch.GetLayout();
   }
 
   template<typename SrcBackend, template<typename> class SourceDataType>

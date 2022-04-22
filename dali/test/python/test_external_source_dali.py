@@ -364,3 +364,22 @@ def test_ndim_changing():
     src_pipe.build()
     src_pipe.run()
     src_pipe.run()
+
+
+@raises(RuntimeError, glob="Expected data with layout: \"H\" and got: \"W\"")
+def test_layout_data_mismatch():
+    src_pipe = Pipeline(1, 1, 0)
+    src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
+    src_pipe.build()
+    src_pipe.feed_input("input", [np.zeros((1))], layout="W")
+
+
+@raises(RuntimeError, glob="Layout of the data fed to the external source has changed from "
+                            "previous iteration. Layout in the previous iteration was \"W\" "
+                            "and the current is \"H\".")
+def test_layout_changing():
+    src_pipe = Pipeline(1, 1, 0)
+    src_pipe.set_outputs(fn.external_source(name="input"))
+    src_pipe.build()
+    src_pipe.feed_input("input", [np.zeros((1))], layout="W")
+    src_pipe.feed_input("input", [np.zeros((1))], layout="H")
