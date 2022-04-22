@@ -749,6 +749,7 @@ Parameters
             channel-last video it's "FHWC" and so on.
             If ``data`` is a DALI `TensorList` or a list of DALI `Tensor` objects and ``layout``
             is ``None``, the layout is taken from ``data``.
+            The layout of the data must be the same in each iteration.
 
         cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
             The CUDA stream, which is going to be used for copying data to GPU or from a GPU

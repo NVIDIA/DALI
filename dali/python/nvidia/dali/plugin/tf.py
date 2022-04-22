@@ -155,8 +155,8 @@ dataset : tf.data.Dataset
     The dataset used as an input
 layout : str, optional, default = None
     Layout of the input. If None, the layout will be taken from the corresponding
-    External Source node in the Python Pipeline object. If it is not provided there,
-    empty layout will be used.
+    External Source node in the Python Pipeline object. If both are provided, the layouts must be the same.
+    If neither is provided, empty layout will be used.
 batch: bool, optional, default = False
     Batch mode of a given input. If None, the batch mode will be taken from the
     corresponding External Source node in the Python Pipeline object.
