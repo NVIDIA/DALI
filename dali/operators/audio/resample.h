@@ -79,6 +79,20 @@ class ResampleBase : public Operator<Backend> {
       for (int s = 0; s < N; s++) {
         double in_rate = in_rate_[s].data[0];
         double out_rate = out_rate_[s].data[0];
+        if (!(in_rate > 0)) {  // also handles NaN
+          std::stringstream error;
+          error << "Input sampling rates must be positive. Got in_rate == " << in_rate;
+          if (in_rate_.HasArgumentInput())
+            error << " for sample " << s;
+          DALI_FAIL(error.str());
+        }
+        if (!(out_rate >= 0)) {  // also handles NaN
+          std::stringstream error;
+          error << "Output sampling rates must be non-negative. Got out_rate == " << out_rate;
+          if (out_rate_.HasArgumentInput())
+            error << " for sample " << s;
+          DALI_FAIL(error.str());
+        }
         scales_[s] = out_rate / in_rate;
         int64_t in_length = shape.tensor_shape_span(s)[0];
         int64_t out_length =
@@ -89,6 +103,13 @@ class ResampleBase : public Operator<Backend> {
       scale_.Acquire(spec_, ws, N);
       for (int s = 0; s < N; s++) {
         double scale = scale_[s].data[0];
+        if (!(scale >= 0)) {  // also handles NaN
+          std::stringstream error;
+          error << "The scaling factor must be non-negative. Got scale == " << scale;
+          if (scale_.HasArgumentInput())
+            error << " for sample " << s;
+          DALI_FAIL(error.str());
+        }
         scales_[s] = scale;
         int64_t in_length = shape.tensor_shape_span(s)[0];
         int64_t out_length =
@@ -100,7 +121,11 @@ class ResampleBase : public Operator<Backend> {
       for (int s = 0; s < N; s++) {
         int64_t in_length = shape.tensor_shape_span(s)[0];
         int64_t out_length = out_length_[s].data[0];
-        scales_[s] = 1.0 * out_length / in_length;
+        if (in_length == 0 && out_length != 0) {
+          DALI_FAIL(make_string("Cannot produce a non-empty signal from an empty input.\n"
+            "Error at sample ", s));
+        }
+        scales_[s] = in_length ? 1.0 * out_length / in_length : 0.0;
         out_shape.tensor_shape_span(s)[0] = out_length;
       }
     } else {
