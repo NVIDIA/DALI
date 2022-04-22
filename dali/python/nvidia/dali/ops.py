@@ -324,17 +324,21 @@ def _instantiate_constant_node(device, constant):
     return _Constant(device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape)
 
 
-def _separate_kwargs(kwargs):
+def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     """Separates arguments into ones that should go to operator's __init__ and to __call__.
 
     Returns a pair of dictionaries of kwargs - the first for __init__, the second for __call__.
+
+    Args:
+        kwargs: Keyward arguments.
+        arg_input_type: operator's input type, DataNode for pipeline mode, TensorListCPU for eager mode.
     """
-    def is_data_node(x):
-        return isinstance(x, _DataNode)
+    def is_arg_input_type(x):
+        return isinstance(x, arg_input_type)
     def is_call_arg(name, value):
         if name == "device":
             return False
-        if name == "name" or is_data_node(value):
+        if name == "name" or is_arg_input_type(value):
             return True
         if isinstance(value, (str, list, tuple, nvidia.dali.types.ScalarConstant)):
             return False
