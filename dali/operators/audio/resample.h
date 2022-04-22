@@ -52,7 +52,7 @@ class ResampleBase : public Operator<Backend> {
     return true;
   }
 
-  virtual bool SetupImpl(std::vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) {
+  bool SetupImpl(std::vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
     outputs.resize(1);
     if (dtype_ == DALI_NO_TYPE)
       dtype_ = ws.template Input<Backend>(0).type();
