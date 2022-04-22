@@ -341,9 +341,8 @@ def test_tf_dataset_layouts():
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': in_dataset}, layout
         # Captured from pipeline
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': Input(in_dataset)}, layout
-        # Overridden via experimental.Input, use placeholder layout of equal dimensionality
-        # TODO(banasraf): Adjust when the ability to override layouts in TF Dataset is changed
-        yield check_layout, {'layout': 'x' * len(layout), 'name': 'in'}, {'in': Input(in_dataset, layout=layout)}, layout
+        # Set via experimental.Input, not specified in external source
+        yield check_layout, {'name': 'in'}, {'in': Input(in_dataset, layout=layout)}, layout
 
 
 # Test if the TypeError is raised for unsupported arguments for regular DALIDataset
