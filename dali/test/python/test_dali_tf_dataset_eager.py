@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -341,9 +341,8 @@ def test_tf_dataset_layouts():
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': in_dataset}, layout
         # Captured from pipeline
         yield check_layout, {'layout': layout, 'name': 'in'}, {'in': Input(in_dataset)}, layout
-        # Overridden via experimental.Input
-        yield check_layout, {'layout': 'TO_OVERRIDE', 'name': 'in'}, {'in': Input(in_dataset, layout=layout)}, layout
-
+        # Set via experimental.Input, not specified in external source
+        yield check_layout, {'name': 'in'}, {'in': Input(in_dataset, layout=layout)}, layout
 
 
 # Test if the TypeError is raised for unsupported arguments for regular DALIDataset
