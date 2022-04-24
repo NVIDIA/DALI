@@ -43,7 +43,7 @@ def main(_):
     tfrecord_idxs = [filename + "_idx" for filename in tfrecord_files]
     if not os.path.isfile(FLAGS.tfrecord2idx_script):
         raise ValueError(
-            "{FLAGS.tfrecord2idx_script} does not lead to valid tfrecord2idx script."
+            f"{FLAGS.tfrecord2idx_script} does not lead to valid tfrecord2idx script."
         )
 
     for tfrecord, tfrecord_idx in zip(tfrecord_files, tfrecord_idxs):
