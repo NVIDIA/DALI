@@ -104,9 +104,11 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual ~WarpParamProvider() = default;
 
-  void SetContext(const OpSpec &spec, const Workspace &ws) {
+  void SetContext(const OpSpec &spec, const Workspace &ws,
+                  const TensorListShape<> &sequence_extents) {
     spec_ = &spec;
     ws_ = &ws;
+    sequence_extents_ = &sequence_extents;
     num_samples_ = NumSamples(ws);
   }
 
@@ -126,7 +128,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    * Transform-dependent size: canvas resized to fit rotated image
    */
   virtual void Setup() {
-    assert(ws_ && spec_ && "Use SetContext before calling Setup");
+    assert(ws_ && spec_ && sequence_extents_ && "Use SetContext before calling Setup");
     ResetParams();
     // Step 1: Check if the sizes are specified explicitly or copied
     // from the input size. These sizes do not depend on the
@@ -137,8 +139,9 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     // Step 3: If the operator must infer the output size based
     // on the params, then this size inference must obviously
     // follow SetParams.
-    if (infer_size)
+    if (infer_size) {
       InferSize();
+    }
     // Step 4: Adjust parameters after shape inference
     AdjustParams();
 
@@ -340,6 +343,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   std::string size_arg_name_ = "size";
   const OpSpec *spec_ = nullptr;
   const Workspace *ws_ = nullptr;
+  const TensorListShape<> *sequence_extents_ = nullptr;
   int num_samples_ = 0;
 
   std::vector<SpatialShape> out_sizes_;

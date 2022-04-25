@@ -24,12 +24,13 @@
 
 #include "dali/core/static_switch.h"
 #include "dali/core/tuple_helpers.h"
-#include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/imgproc/warp_cpu.h"
 #include "dali/kernels/imgproc/warp_gpu.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/remap/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 
 namespace dali {
 namespace detail {
@@ -57,7 +58,8 @@ using detail::UnzipPairs;
 template <typename Backend>
 class OpImplInterface {
  public:
-  virtual void Setup(TensorListShape<> &shape, const workspace_t<Backend> &ws) = 0;
+  virtual void Setup(TensorListShape<> &shape, const workspace_t<Backend> &ws,
+                     TensorListShape<> sequence_extents) = 0;
   virtual void Run(workspace_t<Backend> &ws) = 0;
   virtual ~OpImplInterface() = default;
 };
@@ -86,8 +88,10 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   : spec_(*spec), param_provider_(std::move(pp)) {
   }
 
-  void Setup(TensorListShape<> &shape, const Workspace &ws) override {
-    param_provider_->SetContext(Spec(), ws);
+  void Setup(TensorListShape<> &shape, const Workspace &ws,
+             TensorListShape<> sequence_extents) override {
+    sequence_extents_ = std::move(sequence_extents);
+    param_provider_->SetContext(Spec(), ws, sequence_extents_);
 
     input_ = view<const InputType, tensor_ndim>(ws.template Input<Backend>(0));
     param_provider_->Setup();
@@ -104,6 +108,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
  private:
   const OpSpec &spec_;
   kernels::KernelManager kmgr_;
+  TensorListShape<> sequence_extents_;
 
   TensorListView<Storage, const InputType, tensor_ndim> input_;
 
@@ -151,7 +156,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
 
 
   void RunBackend(HostWorkspace &ws) {
-    param_provider_->SetContext(Spec(), ws);
+    param_provider_->SetContext(Spec(), ws, sequence_extents_);
 
     auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
     input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
@@ -177,7 +182,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   }
 
   void RunBackend(DeviceWorkspace &ws) {
-    param_provider_->SetContext(Spec(), ws);
+    param_provider_->SetContext(Spec(), ws, sequence_extents_);
 
     auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
     input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
@@ -212,12 +217,14 @@ struct WarpKernelSelector<CPUBackend, Mapping, spatial_ndim, OutputType, InputTy
 
 
 template <typename Backend, typename Derived>
-class Warp : public Operator<Backend> {
+class Warp : public SequenceOperator<Backend> {
  public:
   using MyType = Derived;
   MyType &This() { return static_cast<MyType&>(*this); }
   const MyType &This() const { return static_cast<const MyType&>(*this); }
   using Workspace = workspace_t<Backend>;
+  using SequenceOperator<Backend>::IsExpanding;
+  using SequenceOperator<Backend>::GetInputExpandDesc;
 
   const OpSpec &Spec() const { return this->spec_; }
 
@@ -250,7 +257,7 @@ class Warp : public Operator<Backend> {
 
   /// @}
  public:
-  explicit Warp(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Warp(const OpSpec &spec) : SequenceOperator<Backend>(spec) {
     border_clamp_ = !spec.HasArgument("fill_value");
     spec.TryGetArgument(output_type_arg_, "dtype");
   }
@@ -324,8 +331,8 @@ class Warp : public Operator<Backend> {
           });))),
         (DALI_FAIL("Only 2D and 3D warping is supported")));
 
-
-    impl_->Setup(out_shape, ws);
+    auto sequence_extents = GetInputExpandDesc(0).DimsToExpand();
+    impl_->Setup(out_shape, ws, sequence_extents);
     out_type = output_type_;
   }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
@@ -32,8 +33,7 @@ namespace dali {
 template <int spatial_ndim>
 using RotateParams = kernels::AffineMapping<spatial_ndim>;
 
-inline TensorShape<2> RotatedCanvasSize(TensorShape<2> input_size, double angle) {
-  TensorShape<2> out_size;
+inline std::tuple<ivec2, ivec2> RotatedCanvasSize(TensorShape<2> input_size, double angle) {
   double eps = 1e-2;
   double abs_cos = std::abs(std::cos(angle));
   double abs_sin = std::abs(std::sin(angle));
@@ -41,25 +41,21 @@ inline TensorShape<2> RotatedCanvasSize(TensorShape<2> input_size, double angle)
   int h = input_size[0];
   int w_out = std::ceil(abs_cos * w + abs_sin * h - eps);
   int h_out = std::ceil(abs_cos * h + abs_sin * w - eps);
+  ivec2 parity;
   if (abs_sin <= abs_cos) {
     // if rotated by less than +/-45deg (or more than +/-135deg),
     // maintain size parity to reduce blur
-    if (w_out % 2 != w % 2)
-      w_out++;
-    if (h_out % 2 != h % 2)
-      h_out++;
+    parity[0] = w % 2;
+    parity[1] = h % 2;
   } else {
-    // if rotated by +/-(45..135deg), swap size parity to reduce blur
-    if (h_out % 2 != w % 2)
-      h_out++;
-    if (w_out % 2 != h % 2)
-      w_out++;
+    parity[0] = h % 2;
+    parity[1] = w % 2;
   }
-  out_size = { h_out, w_out };
-  return out_size;
+  return {{w_out, h_out}, parity};
 }
 
-inline TensorShape<3> RotatedCanvasSize(TensorShape<3> input_shape, vec3 axis, double angle) {
+inline std::tuple<ivec3, ivec3> RotatedCanvasSize(TensorShape<3> input_shape, vec3 axis,
+                                                  double angle) {
   ivec3 in_size = kernels::shape2vec(input_shape);
   float eps = 1e-2f;
   mat3 M = sub<3, 3>(rotation3D(axis, angle));
@@ -71,6 +67,7 @@ inline TensorShape<3> RotatedCanvasSize(TensorShape<3> input_shape, vec3 axis, d
       absM(i, j) = std::abs(M(i, j));
 
   ivec3 out_size = ceil_int(absM * vec3(in_size) - eps);
+  ivec3 parity;
 
   // This vector contains indices of dimensions that contribute (relatively) most
   // to the output size.
@@ -93,11 +90,10 @@ inline TensorShape<3> RotatedCanvasSize(TensorShape<3> input_shape, vec3 axis, d
   // source dimension - this helps reduce the blur in central area, especially for
   // small angles.
   for (int i = 0; i < 3; i++) {
-    if (out_size[i] % 2 != in_size[dominant_src_axis[i]] % 2)
-      out_size[i]++;
+    parity[i] = in_size[dominant_src_axis[i]] % 2;
   }
 
-  return kernels::vec2shape(out_size);
+  return {out_size, parity};
 }
 
 template <typename Backend, int spatial_ndim_, typename BorderType>
@@ -108,8 +104,10 @@ class RotateParamProvider
   using MappingParams = RotateParams<spatial_ndim>;
   using Base = WarpParamProvider<Backend, spatial_ndim, MappingParams, BorderType>;
   using Workspace = typename Base::Workspace;
+  using SpatialShape = typename Base::SpatialShape;
   using Base::ws_;
   using Base::spec_;
+  using Base::sequence_extents_;
   using Base::params_gpu_;
   using Base::params_cpu_;
   using Base::num_samples_;
@@ -264,23 +262,51 @@ class RotateParamProvider
   }
 
   void InferSize() override {
-    InferSize(std::integral_constant<int, spatial_ndim>());
+    assert(sequence_extents_);
+    const auto &sequence_extents = *sequence_extents_;
+    VALUE_SWITCH(sequence_extents.sample_dim(), ndims_unfolded, (0, 1),
+      (InferSize(sequence_extents.template to_static<ndims_unfolded>());),
+      (DALI_FAIL("Unsupported number of frame extents")));
   }
 
-  void InferSize(std::integral_constant<int, 2>) {
-    assert(static_cast<int>(out_sizes_.size()) == num_samples_);
-    for (int i = 0; i < num_samples_; i++) {
-      auto in_shape = kernels::skip_dim<2>(input_shape_[i]);
-      out_sizes_[i] = RotatedCanvasSize(in_shape, deg2rad(angles_[i]));
+  template <int ndims_unfolded>
+  void InferSize(const TensorListShape<ndims_unfolded> sequence_extents) {
+    assert(sequence_extents.num_elements() == num_samples_);
+    assert(out_sizes_.size() == num_samples_);
+    constexpr auto ndim_tag = std::integral_constant<int, spatial_ndim>();
+    for (int frame_idx = 0, seq_idx = 0; seq_idx < sequence_extents.num_samples(); seq_idx++) {
+      auto num_frames = volume(sequence_extents[seq_idx]);
+      if (num_frames == 0) {
+        continue;
+      }
+      ivec<spatial_ndim> acc_parity, acc_shape;
+      std::tie(acc_shape, acc_parity) = InferSize(ndim_tag, frame_idx);
+      // acc_shape is (extentwise) max of output shapes of all frames in the sample
+      for (int i = 1; i < num_frames; i++) {
+        ivec<spatial_ndim> parity, shape;
+        std::tie(shape, parity) = InferSize(ndim_tag, frame_idx + i);
+        acc_parity += parity;
+        acc_shape = max(acc_shape, shape);
+      }
+      // do the correction of shape extents parity by a majority vote, so that at least half
+      // of the frames in the sequence have the desired parity of each extent
+      acc_shape += (acc_shape % 2) ^ (2 * acc_parity > num_frames);
+      // set the output shape to all frames
+      auto shape = kernels::vec2shape(acc_shape);
+      for (int i = 0; i < num_frames; i++) {
+        out_sizes_[frame_idx++] = shape;
+      }
     }
   }
 
-  void InferSize(std::integral_constant<int, 3>) {
-    assert(static_cast<int>(out_sizes_.size()) == num_samples_);
-    for (int i = 0; i < num_samples_; i++) {
-      auto in_shape = kernels::skip_dim<3>(input_shape_[i]);
-      out_sizes_[i] = RotatedCanvasSize(in_shape, axes_[i], deg2rad(angles_[i]));
-    }
+  auto InferSize(std::integral_constant<int, 2>, int sample_idx) {
+    auto in_shape = kernels::skip_dim<2>(input_shape_[sample_idx]);
+    return RotatedCanvasSize(in_shape, deg2rad(angles_[sample_idx]));
+  }
+
+  auto InferSize(std::integral_constant<int, 3>, int sample_idx) {
+    auto in_shape = kernels::skip_dim<3>(input_shape_[sample_idx]);
+    return RotatedCanvasSize(in_shape, axes_[sample_idx], deg2rad(angles_[sample_idx]));
   }
 
   bool ShouldInferSize() const override {
