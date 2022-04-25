@@ -203,6 +203,9 @@ def test_cast_cpu():
 def test_resize_cpu():
     check_single_input(fn.resize, resize_x=50, resize_y=50)
 
+def test_per_frame_cpu():
+    check_single_input(fn.per_frame, replace=True)
+
 def test_gaussian_blur_cpu():
     check_single_input(fn.gaussian_blur, window_size=5)
 
@@ -1079,6 +1082,7 @@ tested_methods = [
     "noise.gaussian",
     "noise.salt_and_pepper",
     "reshape",
+    "per_frame",
     "reinterpret",
     "water",
     "sphere",
