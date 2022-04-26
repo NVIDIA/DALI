@@ -302,6 +302,7 @@ ops_image_custom_args = [
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'shape': (10,)}),
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'align': 16}),
     (fn.paste, {'fill_value': 69, 'ratio': 1, 'devices': ['gpu']}),
+    (fn.per_frame, {'replace': True, 'devices': ['cpu']}),
     (fn.resize, {'resize_x': 50, 'resize_y': 50}),
     (fn.resize_crop_mirror, {'crop': [5, 5], 'resize_shorter': 10, 'devices': ['cpu']}),
     (fn.rotate, {'angle': 25}),
@@ -361,6 +362,7 @@ sequence_ops = [
     (fn.flip, {'horizontal': True}),
     (fn.gaussian_blur, {'window_size': 5}),
     (fn.normalize, {'batch': True}),
+    (fn.per_frame, {'devices': ['cpu']}),
     (fn.resize, {'resize_x': 50, 'resize_y': 50}),
 ]
 
@@ -1069,6 +1071,7 @@ tested_methods = [
     "normalize",
     "pad",
     "paste",
+    "per_frame",
     "resize",
     "resize_crop_mirror",
     "rotate",
