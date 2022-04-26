@@ -21,13 +21,13 @@
 namespace dali {
 
 DALI_SCHEMA(experimental__AudioResample)
-  .DocStr(R"(Resamples a signal with a different sampling rate.
+  .DocStr(R"(Resamples an audio signal.
 
 The resampling is achieved by applying a sinc filter with Hann window with an extent
 controlled by the ``quality`` argument.
 
-The resampling ratio can specified either directly or as a ratio of target to source sampling rate
-or calculated from the ratio of requested output length to input length.
+The resampling ratio can be specified directly or as a ratio of target to source sampling rate,
+or calculated from the ratio of the requested output length to the input length.
 )")
   .NumInput(1)
   .NumOutput(1)
@@ -40,10 +40,10 @@ units of input and output rates match.
 The ``in_rate`` and ``out_rate`` parameters cannot be specified together with ``scale`` or
 ``out_length``.)",
     nullptr, true)
-  .AddOptionalArg<float>("out_rate", R"(Input sampling rate.
+  .AddOptionalArg<float>("out_rate", R"(Output sampling rate.
 
-The sampling rate of the input sample. This parameter must be specified together with ``out_rate``.
-The value is relative to ``out_rate`` and doesn't need to use any specific unit as long as the
+The requested output sampling rate. This parameter must be specified together with ``in_rate``.
+The value is relative to ``in_rate`` and doesn't need to use any specific unit as long as the
 units of input and output rates match.
 
 The ``in_rate`` and ``out_rate`` parameters cannot be specified together with ``scale`` or
@@ -70,8 +70,28 @@ the highest.
 
 If not specified, the output type is the same as the input type. When the type is changed,
 the values are normalized to fill the dynamic range of the target data type. When converting
-floating point inputs to integer types, the values are assumed to be in -1..1 range. When converting
-between signed and unsigned types, 0 translates to half-range of the unsigned type.)",
+floating point inputs to integer types, the input values are assumed to be in -1..1 range.
+When converting between signed and unsigned types, 0 translates to half-range of the unsigned
+type. Example::
+
+   float -> uint8
+   -1.0  -> 0
+   0     -> 128
+   1.0   -> 255
+
+   uint8 -> int16
+   0     -> -32767
+   127   -> -128
+   128   ->  128
+   255   ->  32767
+
+   uint16 -> float
+   0      -> -1
+   32767  -> -0.000015
+   32768  ->  0.000015
+   65535  ->  1
+
+)",
     nullptr, false);
 
 namespace audio {
