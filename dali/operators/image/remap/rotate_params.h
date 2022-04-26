@@ -272,7 +272,7 @@ class RotateParamProvider
   template <int ndims_unfolded>
   void InferSize(const TensorListShape<ndims_unfolded> sequence_extents) {
     assert(sequence_extents.num_elements() == num_samples_);
-    assert(out_sizes_.size() == num_samples_);
+    assert(static_cast<int>(out_sizes_.size()) == num_samples_);
     constexpr auto ndim_tag = std::integral_constant<int, spatial_ndim>();
     for (int frame_idx = 0, seq_idx = 0; seq_idx < sequence_extents.num_samples(); seq_idx++) {
       auto num_frames = volume(sequence_extents[seq_idx]);
