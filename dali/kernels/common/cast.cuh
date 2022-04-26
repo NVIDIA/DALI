@@ -27,7 +27,7 @@ struct CastSampleDesc {
 };
 
 struct CastSampleBlockDesc {
-  unsigned first_block; // Id of the earliest block that should process given sample
+  unsigned first_block;  // Id of the earliest block that should process given sample
   unsigned sample_size;
 };
 
@@ -55,7 +55,7 @@ __global__ void BinSearchCastKernel(const CastSampleDesc *samples,
   unsigned i = 0;
   for (unsigned jump = (1 << (32 - __clz(nsamples) - 1)); jump; jump >>= 1) {
     if (i + jump < nsamples && params[i + jump].first_block <= blockIdx.x)
-      i += jump; // Binary search to find sample that this block should process
+      i += jump;  // Binary search to find sample that this block should process
   }
   CastSampleDesc sample = samples[i];
   auto size = params[i].sample_size;
