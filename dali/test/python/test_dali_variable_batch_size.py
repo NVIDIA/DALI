@@ -329,8 +329,8 @@ float_array_ops = [
     (fn.preemphasis_filter, {}),
     (fn.spectrogram, {'nfft': 60, 'window_length': 50, 'window_step': 25}),
     (fn.to_decibels, {}),
+    (fn.experimental.audio_resample, {'devices': ['cpu'], 'scale' : 1.2}),
 ]
-
 
 def test_float_array_ops():
     for op, args in float_array_ops:
@@ -1020,6 +1020,7 @@ def test_subscript_dim_check():
     check_pipeline(generate_data(31, 13, array_1d_shape_generator, lo=0, hi=255, dtype=np.uint8),
                    single_op_pipeline,
                    operator_fn=fn.subscript_dim_check, num_subscripts=1)
+
 
 
 tested_methods = [

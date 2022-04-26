@@ -378,6 +378,9 @@ def test_mel_filter_bank_cpu():
 def test_to_decibels_cpu():
     check_single_input(fn.to_decibels, get_data=get_audio_data, input_layout=None)
 
+def test_audio_resample():
+    check_single_input(fn.experimental.audio_resample, get_data=get_audio_data, input_layout=None, scale=1.25)
+
 def test_mfcc_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     data = fn.external_source(source=get_audio_data)
@@ -1104,6 +1107,7 @@ tested_methods = [
     "normal_distribution",
     "mel_filter_bank",
     "nonsilent_region",
+    "experimental.audio_resample",
     "one_hot",
     "copy",
     "resize_crop_mirror",
