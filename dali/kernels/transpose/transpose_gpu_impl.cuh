@@ -20,7 +20,7 @@
 #include "dali/core/fast_div.h"
 #include "dali/kernels/transpose/transpose_gpu_def.h"
 #include "dali/core/static_switch.h"
-
+#include "dali/kernels/common/type_erasure.h"
 /**
  * @file
  *
@@ -100,9 +100,8 @@ namespace transpose_shared {
   extern __shared__ uint8_t shared_tmp[];
 }  // namespace transpose_shared
 
-
-template <int ndim, typename T>
-__device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
+template <int ndim, unsigned pack_ratio_log, typename T, typename OldT>
+__device__ inline void TransposeTiledPacked(TiledTransposeDesc<OldT> desc) {
   unsigned start_tile = blockIdx.x * desc.tiles_per_block;
   unsigned end_tile = min(desc.total_tiles, start_tile + desc.tiles_per_block);
   if (start_tile >= end_tile)
@@ -111,7 +110,7 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
   T (*tmp)[kTileSize][kTileSize+1] =
       reinterpret_cast<T (*)[kTileSize][kTileSize+1]>(transpose_shared::shared_tmp);
 
-  int lanes = desc.lanes;
+  int lanes = desc.lanes >> pack_ratio_log;
 
   unsigned tile_in_slice = start_tile;
   uint64_t fused_slice = ndim > 2
@@ -126,11 +125,11 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
 
   unsigned tile_x, tile_y;
   tile_y = div_mod(tile_x, tile_in_slice, desc.tiles_x);
-  pos[ndim - 1] = tile_x * kTileSize;
-  pos[ndim - 2] = tile_y * kTileSize;
+  pos[ndim-1] = tile_x * kTileSize;
+  pos[ndim-2] = tile_y * kTileSize;
 
-  T *out = desc.out;
-  const T *in = desc.in;
+  T *out = reinterpret_cast<T*> (desc.out);
+  const T *in = reinterpret_cast<const T*>(desc.in);
 
   for (uint64_t tile = start_tile;;) {
     uint64_t in_ofs = 0, out_ofs = 0;
@@ -148,13 +147,19 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
     in_ofs  += desc.in_strides[ndim-2]  * in_y  + desc.in_strides[ndim-1]  * in_x;
     out_ofs += desc.out_strides[ndim-2] * out_y + desc.out_strides[ndim-1] * out_x;
 
+    in_ofs >>= pack_ratio_log;
+    out_ofs >>= pack_ratio_log;
+
     unsigned tile_w = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-1] - pos[ndim-1]);
     unsigned tile_h = min(static_cast<uint64_t>(kTileSize), desc.shape[ndim-2] - pos[ndim-2]);
+    unsigned strides_dim1 = desc.out_strides[ndim-1] >> pack_ratio_log;
+    unsigned strides_dim2 = desc.in_strides[ndim-2] >> pack_ratio_log;
+
     if (threadIdx.x < tile_w) {
       for (unsigned ty = threadIdx.y, dy = 0; ty < tile_h; ty += blockDim.y, dy += blockDim.y) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++) {
-          tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + desc.in_strides[ndim-2]*dy + lane]);
+          tmp[lane][ty][threadIdx.x] = __ldg(&in[in_ofs + strides_dim2*dy + lane]);
         }
       }
     }
@@ -164,7 +169,7 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
       for (unsigned ty = threadIdx.y, dy = 0; ty < tile_w; ty += blockDim.y, dy += blockDim.y) {
         #pragma unroll 4
         for (int lane = 0; lane < lanes; lane++)
-          out[out_ofs + desc.out_strides[ndim-1]*dy + lane] = tmp[lane][threadIdx.x][ty];
+          out[out_ofs + strides_dim1*dy + lane] = tmp[lane][threadIdx.x][ty];
       }
     }
 
@@ -181,6 +186,23 @@ __device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
     }
     __syncthreads();
   }
+}
+
+template <int ndim, typename T>
+__device__ void TransposeTiledStatic(TiledTransposeDesc<T> desc) {
+  if (sizeof(T) == 1 && desc.lanes % 4 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 4 == 0 &&
+      reinterpret_cast<uintptr_t>(desc.in) % 4 == 0) {
+    return TransposeTiledPacked<ndim, 2, type_of_size<4>>(desc);
+  }
+  if (sizeof(T) < 4 && desc.lanes % 2 == 0 && reinterpret_cast<uintptr_t>(desc.out) % 2 == 0 &&
+      reinterpret_cast<uintptr_t>(desc.in) % 2 == 0) {
+    if (sizeof(T) == 2) {
+      return TransposeTiledPacked<ndim, 1, type_of_size<4>>(desc);
+    } else {
+      return TransposeTiledPacked<ndim, 1, type_of_size<2>>(desc);
+    }
+  }
+  return TransposeTiledPacked<ndim, 0, T>(desc);
 }
 
 template <typename T>
