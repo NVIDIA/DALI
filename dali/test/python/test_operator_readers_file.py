@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ import glob
 import random
 import numpy as np
 import nvidia.dali.fn as fn
-from functools import partial
 from nvidia.dali import Pipeline, pipeline_def
 from test_utils import compare_pipelines
+from nose_utils import assert_raises
 
 def ref_contents(path):
     fname = path[path.rfind('/')+1:]
@@ -180,3 +180,13 @@ def test_file_reader_alias():
     new_pipe = file_pipe(fn.readers.file, file_list)
     legacy_pipe = file_pipe(fn.file_reader, file_list)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
+def test_invalid_number_of_shards():
+    @pipeline_def(batch_size=1, device_id=0, num_threads=4)
+    def get_test_pipe():
+        root = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/mixed')
+        files, labels = fn.readers.file(file_root=root, shard_id=0, num_shards=9999)
+        return files, labels
+
+    pipe = get_test_pipe()
+    assert_raises(RuntimeError, pipe.build, glob="The number of input samples: *, needs to be at least equal to the number of the shards:*.")

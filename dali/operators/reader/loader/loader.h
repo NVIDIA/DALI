@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -218,6 +218,9 @@ class Loader {
         PrepareMetadataImpl();
         std::atomic_thread_fence(std::memory_order_release);
         loading_flag_ = true;
+        DALI_ENFORCE(num_shards_ <= Size(), make_string("The number of input samples: ", Size(),
+                                        ", needs to be at least equal to the number of the shards:",
+                                        num_shards_, "."));
       }
     }
   }
