@@ -1171,6 +1171,7 @@ tested_methods = [
     "random_bbox_crop",
     "ssd_random_crop",
     "optical_flow",
+    "experimental.audio_resample",
 ]
 
 excluded_methods = [

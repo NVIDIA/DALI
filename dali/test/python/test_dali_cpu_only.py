@@ -1107,7 +1107,6 @@ tested_methods = [
     "normal_distribution",
     "mel_filter_bank",
     "nonsilent_region",
-    "experimental.audio_resample",
     "one_hot",
     "copy",
     "resize_crop_mirror",
@@ -1165,6 +1164,7 @@ tested_methods = [
     "math.min",
     "numba.fn.experimental.numba_function",
     "dl_tensor_python_function",
+    "experimental.audio_resample",
 ]
 
 excluded_methods = [
