@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,15 +19,20 @@
 #include <vector>
 #include <utility>
 
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/common.h"
+#include "dali/pipeline/workspace/device_workspace.h"
 
 // Found by benchmarking coalesced vs non coalesced on diff size images
 #define COALESCE_THRESHOLD 8192
 
 namespace dali {
 
+
+// TODO(klecki): Pass the information about the input being able to infer the data
+// and if it is cross device - based on that we can detect what should the CanInferOutput return
 template<typename Backend>
 class MakeContiguousBase : public Operator<Backend> {
  public:
@@ -42,24 +47,57 @@ class MakeContiguousBase : public Operator<Backend> {
   virtual inline ~MakeContiguousBase() = default;
 
   bool CanInferOutputs() const override {
-    return true;
+    return !pass_through_;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
-    auto &input = ws.template Input<CPUBackend>(0);
-    output_desc[0].shape = input.shape();
-    output_desc[0].type = input.type();
-    return true;
+    // TODO: deduplicate
+    if (ws.template InputIsType<CPUBackend>(0)) {
+      auto &input = ws.template Input<CPUBackend>(0);
+      output_desc[0].shape = input.shape();
+      output_desc[0].type = input.type();
+    } else {
+      auto &input = ws.template Input<GPUBackend>(0);
+      output_desc[0].shape = input.shape();
+      output_desc[0].type = input.type();
+    }
+    return !pass_through_;
   }
 
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguousBase);
+
+  /**
+   * @brief Intended to be called by the executor. If the executor guarantees that the input
+   * to the make contiguous is always contiguous and we can safely pass through the data
+   * (so the executor queueing will be taken into account)
+   *
+   */
+  void MarkPassThrough() {
+    pass_through_ = true;
+  }
+
+  bool IsPassThrough() const {
+    return pass_through_;
+  }
 
  protected:
   USE_OPERATOR_MEMBERS();
   TensorList<CPUBackend> cpu_output_buff;
   bool coalesced = true;
   int bytes_per_sample_hint = 0;
+  bool pass_through_ = false;
+};
+
+
+class MakeContiguousGPU : public MakeContiguousBase<GPUBackend> {
+ public:
+  inline explicit MakeContiguousGPU(const OpSpec &spec) :
+      MakeContiguousBase<GPUBackend>(spec) {}
+
+  using Operator<GPUBackend>::RunImpl;
+  void RunImpl(DeviceWorkspace &ws) override;
+  DISABLE_COPY_MOVE_ASSIGN(MakeContiguousGPU);
 };
 
 class MakeContiguousMixed : public MakeContiguousBase<MixedBackend> {
@@ -82,6 +120,10 @@ class MakeContiguousCPU : public MakeContiguousBase<CPUBackend> {
   void RunImpl(HostWorkspace &ws) override;
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguousCPU);
 };
+
+bool IsPassThrough(const OperatorBase &op);
+
+void MarkPassThrough(OperatorBase &op);
 
 }  // namespace dali
 

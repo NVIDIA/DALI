@@ -84,6 +84,11 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
           .AddArg("device_id", 0)
+          .AddOutput("data", "gpu")), "");
+    graph_.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "gpu")
+          .AddInput("data", "gpu")
           .AddOutput("final_images", "gpu")), "");
   }
 
