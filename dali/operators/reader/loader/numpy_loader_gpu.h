@@ -50,14 +50,14 @@ struct NumpyFileWrapperGPU {
   DALIDataType type;
   DALIMeta meta;
 
+  std::unique_ptr<CUFileStream> file_stream;
+  bool read_ahead = false;
+
   void ReadHeader(detail::NumpyHeaderCache &cache);
 
   void ReadChunk(void* buffer, Index offset, size_t bytes);
 
   void Reopen();
-
-  std::unique_ptr<CUFileStream> file_stream;
-  bool read_ahead = false;
 
   const TensorShape<>& get_shape() const {
     return shape;

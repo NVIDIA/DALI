@@ -72,7 +72,7 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
   TensorListShape<> tmp_buf_sh_;
   TensorList<GPUBackend> tmp_buf_;
 
-  void ChunkedRead(ThreadPool &tp, NumpyFileWrapperGPU &target);
+  void ScheduleChunkedRead(const SampleView<GPUBackend> &out_sample, NumpyFileWrapperGPU &target);
 
   size_t chunk_size_ = GetGDSChunkSize();
   detail::NumpyHeaderCache header_cache_;

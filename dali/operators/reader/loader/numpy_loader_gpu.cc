@@ -51,6 +51,10 @@ void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
   data_offset = header.data_offset;
 }
 
+void NumpyFileWrapperGPU::ReadChunk(void* buffer, Index offset, size_t bytes) {
+  file_stream->ReadAtGPU(static_cast<uint8_t *>(buffer), bytes, 0, offset + data_offset);
+}
+
 // we need to implement that but we should split parsing and reading in this case
 void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   // set the device:
@@ -80,14 +84,6 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
 
   // set metadata
   target.meta = meta;
-
-  target.read_sample_f = [] (NumpyFileWrapperGPU &tgt, void *buffer, Index offset, size_t bytes) {
-    // Read a chunk of data at given offset.
-    // The file offset is calculated as offset + target.file_offset
-    auto *file = tgt.file_stream.get();
-    file->ReadAtGPU(static_cast<uint8_t *>(buffer), bytes, 0, offset + tgt.data_offset);
-  };
-
   target.read_ahead = read_ahead_;
 }
 

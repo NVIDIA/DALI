@@ -48,7 +48,7 @@ void NumpyReaderGPU::Prefetch() {
 
   // get shapes
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
-    thread_pool_.AddWork([&curr_batch, data_idx](int tid) {
+    thread_pool_.AddWork([this, &curr_batch, data_idx](int tid) {
         curr_batch[data_idx]->Reopen();
         curr_batch[data_idx]->ReadHeader(header_cache_);
       });
@@ -83,7 +83,9 @@ void NumpyReaderGPU::Prefetch() {
   // read the data
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->meta);
-    ChunkedRead(curr_tensor_list[data_idx], curr_batch[data_idx]);
+    SampleView<GPUBackend> sample(curr_tensor_list.raw_mutable_tensor(data_idx),
+                                  curr_tensor_list.tensor_shape(data_idx));
+    ScheduleChunkedRead(sample, curr_batch[data_idx]);
   }
   thread_pool_.RunAll();
 
@@ -92,8 +94,8 @@ void NumpyReaderGPU::Prefetch() {
   }
 }
 
-void NumpyReaderGPU::ChunkedRead(const SampleView<GPUBackend> &out_sample,
-                                 NumpyFileWrapperGPU &load_target) {
+void NumpyReaderGPU::ScheduleChunkedRead(const SampleView<GPUBackend> &out_sample,
+                                         NumpyFileWrapperGPU &load_target) {
   // TODO(michalz): add nbytes and num_elements to SampleView.
   size_t data_bytes = out_sample.shape().num_elements() *
                       TypeTable::GetTypeInfo(out_sample.type()).size();
@@ -104,7 +106,7 @@ void NumpyReaderGPU::ChunkedRead(const SampleView<GPUBackend> &out_sample,
   ssize_t read_bytes = data_bytes + (target.data_offset - read_start);
   while (read_bytes > 0) {
     size_t this_chunk = std::min(read_bytes, chunk_size_);
-    thread_pool_.AddWork([this, &load_target, dst_ptr, file_offset, this_chunk](int tid) {
+    tp.AddWork([this, &load_target, dst_ptr, file_offset, this_chunk](int tid) {
       void *chunk = staging_.GetChunk();
       load_target->ReadChunk(buffer, file_offset, read_bytes);
     });
