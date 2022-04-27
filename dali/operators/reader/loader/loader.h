@@ -219,8 +219,8 @@ class Loader {
         std::atomic_thread_fence(std::memory_order_release);
         loading_flag_ = true;
         DALI_ENFORCE(num_shards_ <= Size(), make_string("The number of input samples: ", Size(),
-                                        ", needs to be at least equal to the number of the shards:",
-                                        num_shards_, "."));
+                                        ", needs to be at least equal to the requested number of"
+                                        " shards: ", num_shards_, "."));
       }
     }
   }

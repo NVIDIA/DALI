@@ -189,4 +189,4 @@ def test_invalid_number_of_shards():
         return files, labels
 
     pipe = get_test_pipe()
-    assert_raises(RuntimeError, pipe.build, glob="The number of input samples: *, needs to be at least equal to the number of the shards:*.")
+    assert_raises(RuntimeError, pipe.build, glob="The number of input samples: *, needs to be at least equal to the requested number of shards:*.")
