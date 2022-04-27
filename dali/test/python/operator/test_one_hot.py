@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -111,6 +111,7 @@ def check_one_hot_operator(source, device='cpu', axis=-1,
         num_classes=num_classes, source=source, axis=axis,
         layout=initial_layout, axis_name=axis_name, device=device)
     pipeline.build()
+    pipeline.save_graph_to_dot_file("one_hot.dot", True, True, True)
     (outputs, input_batch) = pipeline.run()
     if device == 'gpu':
         input_batch = input_batch.as_cpu()

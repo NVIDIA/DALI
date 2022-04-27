@@ -522,7 +522,7 @@ class DLL_PUBLIC Pipeline {
       edge.has_contiguous = true;
     } else {
       DALI_FAIL("Invalid device argument \"" + device + "\". "
-          "Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");
+          "Valid options are \"cpu\", \"gpu\" or \"mixed\".");
     }
     return edge;
   }

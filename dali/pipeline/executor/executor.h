@@ -252,7 +252,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
 
-  virtual void SetupOutputInfo(const OpGraph &graph);
+  virtual void SetupOutputInfo(OpGraph &graph);
 
   std::vector<int> GetMemoryHints(const OpNode &node);
 
@@ -503,7 +503,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
     auto storage_dev = out_tensor.producer.storage_device;
     VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU),
     (
-      VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
+      VALUE_SWITCH(op_type, op_type_static, (OpType::CPU, OpType::MIXED, OpType::GPU),
       (
         auto &queue = get_queue<op_type_static, storage_dev_static>(
             tensor_to_store_queue_[out_tensor_id]);
@@ -515,6 +515,18 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
   // If the output event list is not empty, it means that there are outputs on GPU that we
   // have to wait for.
+
+
+  // TODO(klecki): better error, with generic check
+  for (int i = 0; i < ws->NumOutput(); i++) {
+    if (ws->OutputIsType<CPUBackend>(i)) {
+      DALI_ENFORCE(ws->Output<CPUBackend>(i).IsContiguous(),
+                   "Internal errors: outputs must be contiguous.");
+    } else {
+      DALI_ENFORCE(ws->Output<GPUBackend>(i).IsContiguous(),
+                   "Internal errors: outputs must be contiguous.");
+    }
+  }
 
   AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
 
@@ -588,9 +600,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
+void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGraph &graph) {
   DeviceGuard g(device_id_);
   pipeline_outputs_ = graph.GetOutputs(output_names_);
+
+
+  graph.SetupMakeContiguousPassThrough(output_names_);
 
   // If there are GPU outputs from given stages, we have to wait for them
   auto has_gpu_output = [] (OpType stage_type, const auto &pipeline_outputs,

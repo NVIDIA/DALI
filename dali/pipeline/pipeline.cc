@@ -359,6 +359,10 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
       }
     }
 
+    // The edge describes that the named output of this operator produces the cpu or gpu data
+    // the former for "cpu" ops, the latter for "mixed" and "gpu"
+    // How can we produce CPU output from mixed MakeContiguous - see ::Build where we
+    // add a MakeContiguous without the constraint from Python.
     EdgeMeta meta = NewEdge(output_device);
     if (mark_explicitly_contiguous) {
       meta.has_contiguous = true;
@@ -497,6 +501,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   vector<string> outputs;
   for (const auto &out_desc : output_descs_) {
     string name = out_desc.name;
+    // what device is it? Op placement, output placement, requested placement?
     string device = out_desc.device;
     auto it = edge_names_.find(name);
     DALI_ENFORCE(it != edge_names_.end(), "Requested output name '" +
@@ -510,12 +515,13 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
         // Add a make contiguous op to produce this output
         OpSpec spec =
           OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
+          .AddArg("device", "mixed")  // TODO(klecki): we can revert back to using CPU stage here
           .AddInput(name, "cpu")
           .AddOutput("contiguous_" + name, "cpu");  // TODO(klecki): [cpu output of mixed]
         // This is a hack, never in other places can we produce CPU out of mixed operator
         // due to how specs are created in Python
         PrepareOpSpec(&spec, GetNextInternalLogicalId());
+        // TODO(klecki) - enable early exit from executor for CPU only
 
         graph_.AddOp(spec, "__MakeContiguous_" + name);
         it->second.has_contiguous = true;
@@ -539,8 +545,17 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
           .AddOutput(name, "gpu");
         PrepareOpSpec(&spec, GetNextLogicalId());
         graph_.AddOp(spec, "__MakeContiguous_" + name);
+        outputs.push_back(name + "_" + device);
+      } else {
+        // We need to always create make contiguous to normalize the outputs
+        OpSpec spec = OpSpec("MakeContiguous")
+          .AddArg("device", "gpu")
+          .AddInput(name, "gpu")
+          .AddOutput("contiguous_" + name, "gpu");
+        PrepareOpSpec(&spec, GetNextLogicalId());
+        graph_.AddOp(spec, "__MakeContiguous_" + name);
+        outputs.push_back("contiguous_" + name + "_" + device);
       }
-      outputs.push_back(name + "_" + device);
     } else {
       DALI_FAIL("Invalid device argument \"" + device +
           "\". Valid options are \"cpu\" or \"gpu\"");

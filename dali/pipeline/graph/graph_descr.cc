@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,12 @@
 
 #include <algorithm>
 
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/graph/op_graph.h"
 
 #include "dali/pipeline/operator/op_schema.h"
+
+#include "dali/pipeline/operator/builtin/make_contiguous.h"
 
 namespace dali {
 
@@ -589,16 +592,19 @@ std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_
       visited[tid] = true;
       result.push_back(tid);
       auto output = Tensor(tid).producer;
-      auto &schema = Node(output.node).spec.GetSchema();
-      if (schema.HasPassThrough()) {
-        for (TensorNodeId parent_tid : Node(output.node).parent_tensors) {
-          for (TensorMeta input : Tensor(parent_tid).consumers) {
-            if (input.node == output.node &&
-                schema.GetPassThroughOutputIdx(input.index) == output.index) {
-                q.push_back(parent_tid);
-            }
-          }
+      auto &output_op_node = Node(output.node);
+      auto &schema = output_op_node.spec.GetSchema();
+      // std::cout << schema.name() << std::endl;
+      // Special PassThrough handling for built-in operator. We calculate it via earlier pass.
+      if (schema.name() == "MakeContiguous") {
+        if (IsPassThrough(*output_op_node.op)) {
+          assert(output_op_node.parent_tensors.size() == 1);
+          q.push_back(output_op_node.parent_tensors[0]);
         }
+      }
+      auto source_tids = FollowPassThroughUp(output.node, tid);
+      for (auto parent_tid : source_tids) {
+        q.push_back(parent_tid);
       }
     }
   }
@@ -654,10 +660,12 @@ bool OpGraph::HasConsumersInOtherStage(const TensorNode &tensor, OpType this_sta
       return true;
     }
     const OpSchema &schema = cons_op.spec.GetSchema();
-    int out_idx = schema.GetPassThroughOutputIdx(cons_edge.index);
-    if (out_idx >= 0) {
-      if (HasConsumersInOtherStage(Tensor(cons_op.children_tensors[out_idx]), this_stage))
+    auto out_idxs = schema.GetPassThroughOutputIdxs(cons_edge.index);
+    if (!out_idxs.empty()) {
+      for (auto out_idx : out_idxs) {
+        if (HasConsumersInOtherStage(Tensor(cons_op.children_tensors[out_idx]), this_stage))
         return true;
+      }
     }
   }
   return false;
