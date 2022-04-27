@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
 
     std::cerr << "Testing permutation "
       << perm[0] << " " << perm[1] << " " << perm[2] << " " << perm[3] << "\n";
-    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, size**sizeof(*in_gpu.data())));
 
     TiledTransposeDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
@@ -153,7 +153,7 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
     float time;
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6;
-    std::cerr << 2*size*sizeof(int) / time << " GB/s" << "\n";
+    std::cerr << 2*size**sizeof(*in_gpu.data()) / time << " GB/s" << "\n";
 
     for (int i = 0; i < size; i++) {
       ASSERT_EQ(out_cpu[i], ref[i]) << " at " << i;
@@ -169,7 +169,7 @@ TEST(TransposeTiled, BuildDescVectorized) {
   DeviceBuffer<int> in_gpu, out_gpu;
   in_gpu.resize(size);
   out_gpu.resize(size);
-  CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+  CUDA_CALL(cudaMemset(out_gpu, 0xff, size**sizeof(*in_gpu.data())));
   copyH2D(in_gpu.data(), in_cpu.data(), size);
 
   SmallVector<int, 6> perm = { 1, 2, 0, 3 };
@@ -201,7 +201,7 @@ TEST(TransposeTiled, BuildDescAndForceMisalignment) {
 
   for (uintptr_t offset = 0; offset < 4; offset++) {
     std::iota(in_cpu.begin(), in_cpu.end(), 0);
-    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(*in_gpu.data())));
 
     copyH2D(in_gpu.data() + offset, in_cpu.data(), size);
 
@@ -234,7 +234,7 @@ TEST(TransposeTiled, BuildDescVectorized16BitOpt) {
   DeviceBuffer<uint16_t> in_gpu, out_gpu;
   in_gpu.resize(size);
   out_gpu.resize(size);
-  CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+  CUDA_CALL(cudaMemset(out_gpu, 0xff, size**sizeof(*in_gpu.data())));
   copyH2D(in_gpu.data(), in_cpu.data(), size);
 
   SmallVector<int, 6> perm = { 1, 2, 0, 3 };
@@ -269,7 +269,7 @@ TEST(TransposeTiled, HighDimensionTest) {
     shape = { 3, 3, 5, 7, 23, 3, 37, size_of_last_dim };
     size = volume(shape);
     std::iota(in_cpu.begin(), in_cpu.end(), 0);
-    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, size**sizeof(*in_gpu.data())));
 
     copyH2D(in_gpu.data(), in_cpu.data(), size);
 
@@ -315,7 +315,7 @@ TEST(TransposeDeinterleave, AllPerm4DInnermost) {
 
     std::cerr << "Testing permutation "
       << perm[0] << " " << perm[1] << " " << perm[2] << " " << perm[3] << "\n";
-      CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+      CUDA_CALL(cudaMemset(out_gpu, 0xff, size**sizeof(*in_gpu.data())));
 
     DeinterleaveDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
@@ -329,7 +329,7 @@ TEST(TransposeDeinterleave, AllPerm4DInnermost) {
     float time;
     CUDA_CALL(cudaEventElapsedTime(&time, start, end));
     time *= 1e+6;
-    std::cerr << 2*size*sizeof(int) / time << " GB/s" << "\n";
+    std::cerr << 2*size**sizeof(*in_gpu.data()) / time << " GB/s" << "\n";
 
 
     for (int i = 0; i < size; i++) {
@@ -356,7 +356,7 @@ TEST(TransposeGeneric, AllPerm4D) {
     std::cerr << "Testing permutation "
       << perm[0] << " " << perm[1] << " " << perm[2] << " " << perm[3] << "  input shape "
       << shape << "\n";
-      CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+      CUDA_CALL(cudaMemset(out_gpu, 0xff, size**sizeof(*in_gpu.data())));
 
     GenericTransposeDesc<int> desc;
     memset(&desc, 0xCC, sizeof(desc));
@@ -388,7 +388,7 @@ TEST(TransposeGeneric, AllPerm4D) {
     std::cerr << " input shape " << simplified_shape << "\n";
 
     memset(&desc, 0xCC, sizeof(desc));
-    CUDA_CALL(cudaMemset(out_gpu, 0xff, size*sizeof(int)));
+    CUDA_CALL(cudaMemset(out_gpu, 0xff, size**sizeof(*in_gpu.data())));
     InitGenericTranspose(desc, simplified_shape, make_span(simplified_perm), out_gpu, in_gpu);
     TransposeGenericSingle<<<grid_size, block_size>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
