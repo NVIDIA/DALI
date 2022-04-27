@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ It's an error to remove a dimension that would cause the total volume to change.
   .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be squeezed")
-  .PassThrough({{0, 0}})
+  .PassThrough({{0, {0}}})
   .AllowSequences()
   .SupportVolumetric()
   .AddOptionalArg<int>("axes", R"code(Indices of dimensions which should be removed.

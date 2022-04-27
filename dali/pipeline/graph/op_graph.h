@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -333,6 +333,17 @@ class DLL_PUBLIC OpGraph {
                                                   bool follow_pass_through = false) const;
   DLL_PUBLIC std::vector<TensorNodeId> GetStageOutputs(OpType stage) const;
 
+  /**
+   * @brief Indicate to MakeContiguous nodes that the data should be passed through or copied
+   * depending on whether the input will be provided as contiguous or not (this is currently
+   * the constant behaviour of every op).
+   *
+   * TODO(klecki): Separate the information of CanInferOutputs into indicating the contiguous
+   * allocation or not, and the request to allocate vs the ability to estimate. Check if it is
+   * always consisten between iterations
+   */
+  DLL_PUBLIC void SetupMakeContiguousPassThrough(const std::vector<string>& output_names);
+
  private:
   // Should be called only once for each tensor
   void GenerateDOTFromGraph(const TensorNode& current_node, std::ofstream& ofs, bool show_tensors,
@@ -340,6 +351,20 @@ class DLL_PUBLIC OpGraph {
 
   bool HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const;
 
+  /**
+   * @brief Check if the tensor is always produced as contiguous.
+   */
+  bool IsAlwaysContiguous(TensorNodeId tensor_id) const;
+
+  /**
+   * @brief Find the parent tensor id that was used to produce the `passed_through` tensor by
+   * the op.
+   * @param full_only for true detect only proper pass through (the whole batch without change),
+   * for false the tensor can be scrambled (for example by SplitBatch - todo(klecki))
+
+   */
+  std::vector<TensorNodeId> FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through,
+                                                    bool full_only = true) const;
 
   /**
    * @brief Recalculate OpNodes partitioning

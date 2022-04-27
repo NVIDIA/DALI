@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ layout will be empty.")code")
   .NumInput(1)
   .NumOutput(1)
   .InputDox(0, "data", "TensorList", "Data to be expanded")
-  .PassThrough({{0, 0}})
+  .PassThrough({{0, {0}}})
   .AllowSequences()
   .SupportVolumetric()
   .AddArg("axes", R"code(Indices at which the new dimensions are inserted.)code",
