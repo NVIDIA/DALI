@@ -197,6 +197,11 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
 
 void FramesDecoder::Reset() {
   next_frame_idx_ = 0;
+
+  if (flush_state_) {
+    flush_state_ = false;
+  }
+
   int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
     ret >= 0,
