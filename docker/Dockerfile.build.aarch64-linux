@@ -4,7 +4,8 @@ FROM ${AARCH64_BASE_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CUDA_CROSS_VERSION=10.2
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     wget \
