@@ -736,4 +736,39 @@ TEST(PipelineTest, AddOperator) {
   ASSERT_EQ(pipe.GetOperatorNode("third_op")->spec.GetArgument<int64_t>("seed"), 0xDEADBEEF);
 }
 
+TEST(PipelineTest, InputsListing) {
+  Pipeline pipe(10, 4, 0);
+  pipe.AddExternalInput("ZINPUT");
+  pipe.AddExternalInput("AINPUT1");
+  pipe.AddExternalInput("AINPUT0");
+
+  pipe.AddOperator(OpSpec("DummyOpToAdd")
+          .AddArg("device", "cpu")
+          .AddInput("ZINPUT", "cpu")
+          .AddOutput("OUTPUT", "cpu"), "first_op");
+
+  ASSERT_EQ(pipe.num_inputs(), 3);
+  ASSERT_EQ(pipe.input_name(0), "AINPUT0");
+  ASSERT_EQ(pipe.input_name(1), "AINPUT1");
+  ASSERT_EQ(pipe.input_name(2), "ZINPUT");
+}
+
+TEST(PipelineTest, InputDetails) {
+  Pipeline pipe(1, 1, 0);
+  pipe.AddExternalInput("INPUT", "cpu", 3, "HWC");
+  pipe.AddExternalInput("INPUT2", "gpu", -1, "NHWC");
+  pipe.AddExternalInput("INPUT3");
+
+  pipe.Build({{"INPUT", "cpu"}, {"INPUT2", "gpu"}, {"INPUT3", "cpu"}});
+
+  ASSERT_EQ(pipe.GetInputLayout("INPUT"), "HWC");
+  ASSERT_EQ(pipe.GetInputNdim("INPUT"), 3);
+
+  ASSERT_EQ(pipe.GetInputLayout("INPUT2"), "NHWC");
+  ASSERT_EQ(pipe.GetInputNdim("INPUT2"), 4);
+
+  ASSERT_EQ(pipe.GetInputLayout("INPUT3"), "");
+  ASSERT_EQ(pipe.GetInputNdim("INPUT3"), -1);
+}
+
 }  // namespace dali

@@ -358,6 +358,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
 
   // store updated spec
   AddToOpSpecs(inst_name, spec, logical_id);
+  if (spec.name() == "ExternalSource") {
+    input_names_.insert(inst_name);
+  }
   return logical_id;
 }
 
@@ -754,6 +757,50 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   return meta;
 }
 
+const TensorLayout& Pipeline::GetInputLayout(const std::string &name) {
+  const auto *node = GetOperatorNode(name);
+  if (node->op_type == OpType::CPU) {
+    const auto *es_ptr = dynamic_cast<ExternalSource<CPUBackend>*>(node->op.get());
+    if (es_ptr) {
+      return es_ptr->layout();
+    }
+  } else if (node->op_type == OpType::GPU) {
+    const auto *es_ptr = dynamic_cast<ExternalSource<GPUBackend>*>(node->op.get());
+    if (es_ptr) {
+      return es_ptr->layout();
+    }
+  }
+  DALI_FAIL(make_string("Could not find an external input named \"", name, "\"."));
+}
+
+int Pipeline::GetInputNdim(const std::string &name) {
+  const auto *node = GetOperatorNode(name);
+  if (node->op_type == OpType::CPU) {
+    const auto *es_ptr = dynamic_cast<ExternalSource<CPUBackend>*>(node->op.get());
+    if (es_ptr) {
+      return es_ptr->ndim();
+    }
+  } else if (node->op_type == OpType::GPU) {
+    const auto *es_ptr = dynamic_cast<ExternalSource<GPUBackend>*>(node->op.get());
+    if (es_ptr) {
+      return es_ptr->ndim();
+    }
+  }
+  DALI_FAIL(make_string("Could not find an external input named \"", name, "\"."));
+}
+
+const std::string &Pipeline::input_name(int n) const {
+  DALI_ENFORCE(n >= 0, "Id of an external source must be a non-negative integer.");
+  for (const auto &name : input_names_) {
+    if (n == 0) {
+      return name;
+    }
+    --n;
+  }
+  DALI_FAIL(make_string("Trying to fetch the name of the ", n, ". external input while "
+                        "the pipeline has only ", num_inputs(), " inputs."));
+}
+
 const std::string &Pipeline::output_name(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_name()\".");
   DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
@@ -764,6 +811,10 @@ const std::string &Pipeline::output_device(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_device()\".");
   DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
   return output_names_[id].second;
+}
+
+int Pipeline::num_inputs() const {
+  return input_names_.size();
 }
 
 int Pipeline::num_outputs() const {

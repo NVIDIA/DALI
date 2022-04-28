@@ -317,6 +317,30 @@ void daliSetExternalInputTensorsAsync(daliPipelineHandle *pipe_handle, const cha
 }
 
 
+int daliGetNumExternalInput(daliPipelineHandle *pipe_handle) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return pipeline->num_inputs();
+}
+
+
+const char *daliGetExternalInputName(daliPipelineHandle *pipe_handle, int n) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return pipeline->input_name(n).c_str();
+}
+
+
+const char *daliGetExternalInputLayout(daliPipelineHandle *pipe_handle, const char *name) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return pipeline->GetInputLayout(name).c_str();
+}
+
+
+int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const char *name) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return pipeline->GetInputNdim(name);
+}
+
+
 void daliRun(daliPipelineHandle *pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   pipeline->RunCPU();

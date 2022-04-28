@@ -245,6 +245,14 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     return "ExternalSource (" + output_name_ + ")";
   }
 
+  const TensorLayout& layout() const {
+    return layout_;
+  }
+
+  int ndim() const {
+    return ndim_;
+  }
+
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */

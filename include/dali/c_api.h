@@ -277,6 +277,48 @@ daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 ///@}
 
 /**
+ * @brief Get number of external inputs in the pipeline.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ * @return Number of inputs.
+ */
+DLL_PUBLIC int daliGetNumExternalInput(daliPipelineHandle *pipe_handle);
+
+/**
+ * @brief Get the name of nth external input in the pipeline in the lexicographic order.
+ *
+ * Rreturned pointer is valid until the lifetime of the pipeline object ends.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ * @param n
+ * @return Name of the external input.
+ */
+DLL_PUBLIC const char *daliGetExternalInputName(daliPipelineHandle *pipe_handle, int n);
+
+/**
+ * @brief Get the data layout required by the external input with a given name.
+ * If the layout is not determined, an empty string is returned.
+ *
+ * Returned pointer is valid until the lifetime of the pipeline object ends.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ * @param name Name of the external input.
+ * @return Layout string.
+ */
+DLL_PUBLIC const char *daliGetExternalInputLayout(daliPipelineHandle *pipe_handle,
+                                                  const char *name);
+
+/**
+ * @brief Get the data dimensionality required by the external input with a given name.
+ * If the dimensionality is not determined, -1 is returned.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ * @param name Name of the external input.
+ * @return Dimensionality.
+ */
+DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const char *name);
+
+/**
  * @brief Start the execution of the pipeline.
  */
 DLL_PUBLIC void daliRun(daliPipelineHandle *pipe_handle);

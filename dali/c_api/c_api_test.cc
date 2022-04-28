@@ -1020,4 +1020,29 @@ TEST(CApiTest, GetBackendTest) {
   daliDeletePipeline(&handle);
 }
 
+TEST(CApiTest, GetESDetailsTest) {
+  dali::Pipeline pipe(1, 1, 0);
+  pipe.AddExternalInput("INPUT3", "cpu", 3, "HWC");
+  pipe.AddExternalInput("INPUT1", "gpu", -1, "NHWC");
+  pipe.AddExternalInput("INPUT2", "cpu");
+
+  pipe.SetOutputNames({{"INPUT3", "cpu"}, {"INPUT1", "gpu"}, {"INPUT2", "cpu"}});
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+  EXPECT_EQ(daliGetNumExternalInput(&handle), 3);
+
+  EXPECT_EQ(daliGetExternalInputName(&handle, 0), std::string("INPUT1"));
+  EXPECT_EQ(daliGetExternalInputLayout(&handle, "INPUT1"), std::string("NHWC"));
+  EXPECT_EQ(daliGetExternalInputNdim(&handle, "INPUT1"), 4);
+
+  EXPECT_EQ(daliGetExternalInputName(&handle, 1), std::string("INPUT2"));
+  EXPECT_EQ(daliGetExternalInputLayout(&handle, "INPUT2"), std::string(""));
+  EXPECT_EQ(daliGetExternalInputNdim(&handle, "INPUT2"), -1);
+
+  EXPECT_EQ(daliGetExternalInputName(&handle, 2), std::string("INPUT3"));
+  EXPECT_EQ(daliGetExternalInputLayout(&handle, "INPUT3"), std::string("HWC"));
+  EXPECT_EQ(daliGetExternalInputNdim(&handle, "INPUT3"), 3);
+}
+
 }  // namespace dali
