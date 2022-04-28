@@ -168,7 +168,7 @@ class SequenceOperator : public Operator<Backend> {
     return GetInputExpandDesc(GetReferenceInputIdx());
   }
 
-   /**
+  /**
    * @brief Returns the index of the operator input which is expandable and given argument input
    * should be expanded or broadcast in a manner consistent with the input.
    */
@@ -200,6 +200,10 @@ class SequenceOperator : public Operator<Backend> {
     ExpandedAddArgument(arg_name, std::move(expanded_handle));
   }
 
+  // TODO(ktokarski) Treat all but main input as arguments and make positional args expansion
+  // consistent with named arguments expansion. For now, if the main input has "CF/FC" expandable
+  // layout, named arg with "F" or "" expandable layout is supported, while for positional arg it
+  // must be either "CF/FC" or "".
   /**
    * @brief Expands the input from the provided workspace and adds to the expanded workspace.
    *
@@ -219,8 +223,8 @@ class SequenceOperator : public Operator<Backend> {
     const auto &input_desc = GetInputExpandDesc(input_idx);
     int num_expand_dims = input_desc.NumDimsToExpand();
     if (num_expand_dims == 0) {
-      // TODO(ktokarski) Add support for broadcasting inputs in multi-input case.
-      DALI_FAIL("Broadcasting of inputs for multi-input operators is not supported.")
+      ExpandedAddProcessedInput(
+          ws, input_idx, [&](const auto &input) { return BroadcastBatch(input, ref_expand_desc); });
     } else {
       if (ref_input_idx != input_idx) {
         VerifyExpansionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
@@ -481,6 +485,12 @@ class SequenceOperator : public Operator<Backend> {
     return std::make_shared<Type>(UnfoldOuterDims(batch, expand_desc));
   }
 
+  template <typename Type>
+  auto BroadcastBatch(const Type &batch, const ExpandDesc &expand_desc) {
+    VerifyExpandedBatchSizeNumericLimit(expand_desc);
+    return std::make_shared<Type>(BroadcastSamples(batch, expand_desc));
+  }
+
   TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_input,
                                                    const std::string &arg_name, int input_idx) {
     const auto &expand_desc = GetInputExpandDesc(input_idx);
@@ -507,7 +517,7 @@ class SequenceOperator : public Operator<Backend> {
               expand_desc.Layout(), " for operator intput ", input_idx, "."));
       return UnfoldBroadcastArgument(arg_input, arg_name, input_idx, expand_desc);
     }
-    return BroadcastArgument(arg_input, expand_desc);
+    return BroadcastSamples(arg_input, expand_desc);
   }
 
   TensorVector<CPUBackend> UnfoldBroadcastArgument(const TensorVector<CPUBackend> &arg_input,
@@ -560,7 +570,8 @@ class SequenceOperator : public Operator<Backend> {
     return tv_builder.take();
   }
 
-  TensorVector<CPUBackend> BroadcastArgument(const TensorVector<CPUBackend> &arg_input,
+  template <typename DataBackend>
+  TensorVector<DataBackend> BroadcastSamples(const TensorVector<DataBackend> &arg_input,
                                              const ExpandDesc &expand_desc) {
     const auto &shape = arg_input.shape();
     auto tv_builder = sequence_utils::tv_builder_like(arg_input, expand_desc.NumExpanded());
@@ -576,6 +587,16 @@ class SequenceOperator : public Operator<Backend> {
       }
     }
     return tv_builder.take();
+  }
+
+  TensorList<CPUBackend> BroadcastSamples(const TensorList<CPUBackend> &arg_input,
+                                          const ExpandDesc &expand_desc) {
+    DALI_FAIL("Unsupported input container");
+  }
+
+  TensorList<GPUBackend> BroadcastSamples(const TensorList<GPUBackend> &arg_input,
+                                          const ExpandDesc &expand_desc) {
+    DALI_FAIL("Supported input container");
   }
 
   template <typename DataBackend>
