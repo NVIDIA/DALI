@@ -329,8 +329,8 @@ float_array_ops = [
     (fn.preemphasis_filter, {}),
     (fn.spectrogram, {'nfft': 60, 'window_length': 50, 'window_step': 25}),
     (fn.to_decibels, {}),
+    (fn.experimental.audio_resample, {'devices': ['cpu'], 'scale' : 1.2}),
 ]
-
 
 def test_float_array_ops():
     for op, args in float_array_ops:
@@ -1022,6 +1022,7 @@ def test_subscript_dim_check():
                    operator_fn=fn.subscript_dim_check, num_subscripts=1)
 
 
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1170,6 +1171,7 @@ tested_methods = [
     "random_bbox_crop",
     "ssd_random_crop",
     "optical_flow",
+    "experimental.audio_resample",
 ]
 
 excluded_methods = [

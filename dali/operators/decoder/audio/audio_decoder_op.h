@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/operators/decoder/audio/audio_decoder.h"
 #include "dali/operators/decoder/audio/generic_decoder.h"
+#include "dali/operators/audio/resampling_params.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
@@ -46,8 +47,8 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
       double q = quality_;
       DALI_ENFORCE(q >= 0 && q <= 100, "Resampling quality must be in [0..100] range");
       // this should give 3 lobes for q = 0, 16 lobes for q = 50 and 64 lobes for q = 100
-      int lobes = std::round(0.007 * q * q - 0.09 * q + 3);
-      resampler_.Initialize(lobes, lobes * 64 + 1);
+      auto params = audio::ResamplingParams::FromQuality(q);
+      resampler_.Initialize(params.lobes, params.lookup_size);
     }
   }
 
