@@ -29,61 +29,55 @@
 #include "dali/pipeline/pipeline.h"
 
 namespace dali {
-class FramesDecoderTestBase : public VideoTestBase {};
-
-class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
+class FramesDecoderTestBase : public VideoTestBase {
  public:
-  void RunTest(std::string file_name, TestVideo &ground_truth) {
-    FramesDecoder file(testing::dali_extra_path() + file_name);
-
-    ASSERT_EQ(file.Height(), ground_truth.Height());
-    ASSERT_EQ(file.Width(), ground_truth.Width());
-    ASSERT_EQ(file.Channels(), ground_truth.NumChannels());
-    ASSERT_EQ(file.NumFrames(), ground_truth.NumFrames());
-
-    std::vector<uint8_t> frame(file.FrameSize());
+  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth) {
+    ASSERT_EQ(decoder.Height(), ground_truth.Height());
+    ASSERT_EQ(decoder.Width(), ground_truth.Width());
+    ASSERT_EQ(decoder.Channels(), ground_truth.NumChannels());
+    ASSERT_EQ(decoder.NumFrames(), ground_truth.NumFrames());
 
     // Iterate through the whole video in order
-    for (int i = 0; i < file.NumFrames(); ++i) {
-      ASSERT_EQ(file.NextFrameIdx(), i);
-      file.ReadNextFrame(frame.data());
-      ground_truth.CompareFrame(i, frame.data());
+    for (int i = 0; i < decoder.NumFrames(); ++i) {
+      ASSERT_EQ(decoder.NextFrameIdx(), i);
+      decoder.ReadNextFrame(FrameData());
+      AssertFrame(FrameData(), i, ground_truth);
     }
 
-    ASSERT_EQ(file.NextFrameIdx(), -1);
-    file.Reset();
+    ASSERT_EQ(decoder.NextFrameIdx(), -1);
+    decoder.Reset();
 
     // Read first frame
-    ASSERT_EQ(file.NextFrameIdx(), 0);
-    file.ReadNextFrame(frame.data());
-    ground_truth.CompareFrame(0, frame.data());
+    ASSERT_EQ(decoder.NextFrameIdx(), 0);
+    decoder.ReadNextFrame(FrameData());
+    AssertFrame(FrameData(), 0, ground_truth);
 
     // Seek to frame
-    file.SeekFrame(25);
-    ASSERT_EQ(file.NextFrameIdx(), 25);
-    file.ReadNextFrame(frame.data());
-    ground_truth.CompareFrame(25, frame.data());
+    decoder.SeekFrame(25);
+    ASSERT_EQ(decoder.NextFrameIdx(), 25);
+    decoder.ReadNextFrame(FrameData());
+    AssertFrame(FrameData(), 25, ground_truth);
 
     // Seek back to frame
-    file.SeekFrame(12);
-    ASSERT_EQ(file.NextFrameIdx(), 12);
-    file.ReadNextFrame(frame.data());
-    ground_truth.CompareFrame(12, frame.data());
+    decoder.SeekFrame(12);
+    ASSERT_EQ(decoder.NextFrameIdx(), 12);
+    decoder.ReadNextFrame(FrameData());
+    AssertFrame(FrameData(), 12, ground_truth);
 
     // Seek to last frame (flush frame)
     int last_frame_index = ground_truth.NumFrames() - 1;
-    file.SeekFrame(last_frame_index);
-    ASSERT_EQ(file.NextFrameIdx(), last_frame_index);
-    file.ReadNextFrame(frame.data());
-    ground_truth.CompareFrame(last_frame_index, frame.data());
-    ASSERT_EQ(file.NextFrameIdx(), -1);
+    decoder.SeekFrame(last_frame_index);
+    ASSERT_EQ(decoder.NextFrameIdx(), last_frame_index);
+    decoder.ReadNextFrame(FrameData());
+    AssertFrame(FrameData(), last_frame_index, ground_truth);
+    ASSERT_EQ(decoder.NextFrameIdx(), -1);
 
     // Wrap around to first frame
-    ASSERT_FALSE(file.ReadNextFrame(frame.data()));
-    file.Reset();
-    ASSERT_EQ(file.NextFrameIdx(), 0);
-    file.ReadNextFrame(frame.data());
-    ground_truth.CompareFrame(0, frame.data());
+    ASSERT_FALSE(decoder.ReadNextFrame(FrameData()));
+    decoder.Reset();
+    ASSERT_EQ(decoder.NextFrameIdx(), 0);
+    decoder.ReadNextFrame(FrameData());
+    AssertFrame(FrameData(), 0, ground_truth);
 
     // Seek to random frames and read them
     std::mt19937 gen(0);
@@ -92,11 +86,33 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
     for (int i = 0; i < 20; ++i) {
       int next_index = distr(gen);
 
-      file.SeekFrame(next_index);
-      file.ReadNextFrame(frame.data());
-      ground_truth.CompareFrame(next_index, frame.data());
+      decoder.SeekFrame(next_index);
+      decoder.ReadNextFrame(FrameData());
+      AssertFrame(FrameData(), next_index, ground_truth);
     }
   }
+
+  virtual void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) = 0;
+
+  virtual uint8_t *FrameData() = 0;
+};
+
+class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
+ public:
+  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
+    ground_truth.CompareFrame(index, frame);
+  }
+
+  void SetUp() override {
+    frame_buffer.resize(VideoTestBase::MaxFrameSize());
+  }
+
+  uint8_t *FrameData() override {
+    return frame_buffer.data();
+  }
+
+ private:
+  std::vector<uint8_t> frame_buffer;
 };
 
 class FramesDecoderGpuTest : public FramesDecoderTestBase {
@@ -107,88 +123,34 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
-  void RunTest(std::string file_name, TestVideo &ground_truth) {
-    FramesDecoderGpu file(testing::dali_extra_path() + file_name);
-
-    ASSERT_EQ(file.Height(), ground_truth.Height());
-    ASSERT_EQ(file.Width(), ground_truth.Width());
-    ASSERT_EQ(file.Channels(), ground_truth.NumChannels());
-    ASSERT_EQ(file.NumFrames(), ground_truth.NumFrames());
-
-    DeviceBuffer<uint8_t> frame;
-    frame.resize(file.FrameSize());
-    std::vector<uint8_t> frame_cpu(file.FrameSize());
-
-    // Iterate through the whole video in order
-    for (int i = 0; i < file.NumFrames(); ++i) {
-      ASSERT_EQ(file.NextFrameIdx(), i);
-      file.ReadNextFrame(frame.data());
-      MemCopy(frame_cpu.data(), frame.data(), file.FrameSize());
-      ground_truth.CompareFrameAvgError(i, frame_cpu.data());
-    }
-
-    ASSERT_EQ(file.NextFrameIdx(), -1);
-    file.Reset();
-
-    // Read first frame
-    ASSERT_EQ(file.NextFrameIdx(), 0);
-    file.ReadNextFrame(frame.data());
-    MemCopy(frame_cpu.data(), frame.data(), file.FrameSize());
-    ground_truth.CompareFrameAvgError(0, frame_cpu.data());
-
-    // Seek to frame
-    file.SeekFrame(25);
-    ASSERT_EQ(file.NextFrameIdx(), 25);
-    file.ReadNextFrame(frame.data());
-    MemCopy(frame_cpu.data(), frame.data(), file.FrameSize());
-    ground_truth.CompareFrameAvgError(25, frame_cpu.data());
-
-    // Seek back to frame
-    file.SeekFrame(12);
-    ASSERT_EQ(file.NextFrameIdx(), 12);
-    file.ReadNextFrame(frame.data());
-    MemCopy(frame_cpu.data(), frame.data(), file.FrameSize());
-    ground_truth.CompareFrameAvgError(12, frame_cpu.data());
-
-    // Seek to last frame (flush frame)
-    int last_frame_index = ground_truth.NumFrames() - 1;
-    file.SeekFrame(last_frame_index);
-    ASSERT_EQ(file.NextFrameIdx(), last_frame_index);
-    file.ReadNextFrame(frame.data());
-    MemCopy(frame_cpu.data(), frame.data(), file.FrameSize());
-    ground_truth.CompareFrameAvgError(last_frame_index, frame_cpu.data());
-    ASSERT_EQ(file.NextFrameIdx(), -1);
-
-    // Wrap around to first frame
-    ASSERT_FALSE(file.ReadNextFrame(frame.data()));
-    file.Reset();
-    ASSERT_EQ(file.NextFrameIdx(), 0);
-    file.ReadNextFrame(frame.data());
-    MemCopy(frame_cpu.data(), frame.data(), file.FrameSize());
-    ground_truth.CompareFrameAvgError(0, frame_cpu.data());
-
-    // Seek to random frames and read them
-    std::mt19937 gen(0);
-    std::uniform_int_distribution<> distr(0, last_frame_index);
-
-    for (int i = 0; i < 20; ++i) {
-      int next_index = distr(gen);
-
-      file.SeekFrame(next_index);
-      file.ReadNextFrame(frame.data());
-      MemCopy(frame_cpu.data(), frame.data(), file.FrameSize());
-      ground_truth.CompareFrameAvgError(next_index, frame_cpu.data());
-    }
+  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) {
+    MemCopy(frame_cpu_buffer.data(), frame, ground_truth.FrameSize());
+    ground_truth.CompareFrameAvgError(index, frame_cpu_buffer.data());
   }
+
+  void SetUp() override {
+    frame_cpu_buffer.resize(VideoTestBase::MaxFrameSize());
+    frame_gpu_buffer.resize(VideoTestBase::MaxFrameSize());
+  }
+
+  uint8_t *FrameData() override {
+    return frame_gpu_buffer.data();
+  }
+
+ private:
+  std::vector<uint8_t> frame_cpu_buffer;
+  DeviceBuffer<uint8_t> frame_gpu_buffer;
 };
 
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
-  RunTest("/db/video/cfr/test_1.mp4", cfr_videos_[0]);
+  FramesDecoder decoder(testing::dali_extra_path() + "/db/video/cfr/test_1.mp4");
+  RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
-  RunTest("/db/video/vfr/test_2.mp4", vfr_videos_[1]);
+  FramesDecoder decoder(testing::dali_extra_path() + "/db/video/vfr/test_2.mp4");
+  RunTest(decoder, vfr_videos_[1]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
@@ -224,11 +186,13 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
-  RunTest("/db/video/cfr/test_1.mp4", cfr_videos_[0]);
+  FramesDecoderGpu decoder(testing::dali_extra_path() + "/db/video/cfr/test_1.mp4");
+  RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
-  RunTest("/db/video/vfr/test_2.mp4", vfr_videos_[1]);
+  FramesDecoderGpu decoder(testing::dali_extra_path() + "/db/video/vfr/test_2.mp4");
+  RunTest(decoder, vfr_videos_[1]);
 }
 
 }  // namespace dali
