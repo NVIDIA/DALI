@@ -104,15 +104,15 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
   }
 
   void SetUp() override {
-    frame_buffer.resize(VideoTestBase::MaxFrameSize());
+    frame_buffer_.resize(VideoTestBase::MaxFrameSize());
   }
 
   uint8_t *FrameData() override {
-    return frame_buffer.data();
+    return frame_buffer_.data();
   }
 
  private:
-  std::vector<uint8_t> frame_buffer;
+  std::vector<uint8_t> frame_buffer_;
 };
 
 class FramesDecoderGpuTest : public FramesDecoderTestBase {
@@ -124,22 +124,22 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   }
 
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) {
-    MemCopy(frame_cpu_buffer.data(), frame, ground_truth.FrameSize());
-    ground_truth.CompareFrameAvgError(index, frame_cpu_buffer.data());
+    MemCopy(frame_cpu_buffer_.data(), frame, ground_truth.FrameSize());
+    ground_truth.CompareFrameAvgError(index, frame_cpu_buffer_.data());
   }
 
   void SetUp() override {
-    frame_cpu_buffer.resize(VideoTestBase::MaxFrameSize());
-    frame_gpu_buffer.resize(VideoTestBase::MaxFrameSize());
+    frame_cpu_buffer_.resize(VideoTestBase::MaxFrameSize());
+    frame_gpu_buffer_.resize(VideoTestBase::MaxFrameSize());
   }
 
   uint8_t *FrameData() override {
-    return frame_gpu_buffer.data();
+    return frame_gpu_buffer_.data();
   }
 
  private:
-  std::vector<uint8_t> frame_cpu_buffer;
-  DeviceBuffer<uint8_t> frame_gpu_buffer;
+  std::vector<uint8_t> frame_cpu_buffer_;
+  DeviceBuffer<uint8_t> frame_gpu_buffer_;
 };
 
 
