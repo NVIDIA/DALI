@@ -12,3 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <gtest/gtest.h>
+#include "dali/operators/reader/gds_mem.h"
+
+namespace dali {
+namespace gds {
+
+TEST(GDSMem, AllocatorMultiDevice) {
+  int ndev;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2) {
+    GTEST_SKIP() << "This test requires more than one CUDA capable device to run.";
+    return;
+  }
+  ASSERT_NE(&GDSAllocator::instance(0), &GDSAllocator::instance(1));
+}
+
+TEST(GDSMem, Allocator) {
+  mm::uptr<uint8_t> unq = gds::gds_alloc_unique(1024);
+  ASSERT_NE(unq, nullptr);
+  CUDA_CALL(cudaMemset(unq.get(), 0, 1024));
+  unq.reset();
+}
+
+}  // namespace gds
+}  // namespace dali

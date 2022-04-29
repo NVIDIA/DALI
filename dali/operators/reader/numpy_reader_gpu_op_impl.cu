@@ -35,6 +35,9 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   auto curr_batch = GetCurrBatchView<T, Dims>();
   const auto &dtype = TypeTable::GetTypeInfo<T>();
 
+
+  CUDA_CALL(cudaStreamWaitEvent(ws.stream(), staging_ready_));
+
   // Permuted dims, to use for the transposition
   std::array<int, Dims> perm;
   for (int d = 0; d < Dims; d++)

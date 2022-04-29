@@ -31,6 +31,9 @@ NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
   // make the device current
   DeviceGuard g(device_id_);
 
+  staging_stream_ = CUDAStreamPool::instance().Get();
+  staging_ready_ = CUDAEventPool::instance().Get();
+
   // init loader
   bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
   loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(), shuffle_after_epoch);
@@ -84,37 +87,47 @@ void NumpyReaderGPU::Prefetch() {
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->meta);
     SampleView<GPUBackend> sample(curr_tensor_list.raw_mutable_tensor(data_idx),
-                                  curr_tensor_list.tensor_shape(data_idx));
-    ScheduleChunkedRead(sample, curr_batch[data_idx]);
+                                  curr_tensor_list.tensor_shape(data_idx),
+                                  curr_tensor_list.type());
+    ScheduleChunkedRead(sample, *curr_batch[data_idx]);
   }
   thread_pool_.RunAll();
+  staging_.commit();
+  CUDA_CALL(cudaEventRecord(staging_ready_, staging_stream_));
 
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_batch[data_idx]->file_stream->Close();
   }
 }
 
-void NumpyReaderGPU::ScheduleChunkedRead(const SampleView<GPUBackend> &out_sample,
+void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
                                          NumpyFileWrapperGPU &load_target) {
   // TODO(michalz): add nbytes and num_elements to SampleView.
   size_t data_bytes = out_sample.shape().num_elements() *
                       TypeTable::GetTypeInfo(out_sample.type()).size();
 
   uint8_t* dst_ptr = static_cast<uint8_t*>(out_sample.raw_mutable_data());
-  ssize_t read_start = load_target.data_offset & -kGDSAlignment;  // align _down_
-  ssize_t file_offset = ;
-  ssize_t read_bytes = data_bytes + (target.data_offset - read_start);
+  ssize_t read_start = load_target.data_offset & -gds::kGDSAlignment;  // align _down_
+  ssize_t file_offset = read_start;
+  ssize_t read_bytes = data_bytes + load_target.data_offset - read_start;
   while (read_bytes > 0) {
-    size_t this_chunk = std::min(read_bytes, chunk_size_);
-    tp.AddWork([this, &load_target, dst_ptr, file_offset, this_chunk](int tid) {
-      void *chunk = staging_.GetChunk();
-      load_target->ReadChunk(buffer, file_offset, read_bytes);
+    ssize_t this_chunk = std::min<ssize_t>(read_bytes, chunk_size_);
+    thread_pool_.AddWork([this, &load_target, dst_ptr, file_offset, this_chunk](int tid) {
+      unsigned ptr_alignment = reinterpret_cast<uintptr_t>(dst_ptr) & (gds::kGDSAlignment-1);
+      unsigned file_alignment = file_offset & (gds::kGDSAlignment-1);
+      auto buffer = staging_.get_staging_buffer();
+      load_target.ReadChunk(buffer.at(0), this_chunk, 0, file_offset);
+      ssize_t copy_start = std::max(file_offset, load_target.data_offset);
+      ssize_t copy_skip = copy_start - file_offset;
+      ssize_t copy_end = file_offset + this_chunk;
+      ssize_t copy_length = copy_end - copy_start;
+      staging_.copy_to_client(dst_ptr + copy_start, copy_length, std::move(buffer), copy_skip);
     });
 
     // update addresses
-    dst_ptr += read_bytes;
-    file_offset += read_bytes;
-    image_bytes -= read_bytes;
+    dst_ptr += this_chunk;
+    file_offset += this_chunk;
+    read_bytes -= this_chunk;
   }
 }
 

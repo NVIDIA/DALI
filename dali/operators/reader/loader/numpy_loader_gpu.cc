@@ -51,8 +51,9 @@ void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
   data_offset = header.data_offset;
 }
 
-void NumpyFileWrapperGPU::ReadChunk(void* buffer, Index offset, size_t bytes) {
-  file_stream->ReadAtGPU(static_cast<uint8_t *>(buffer), bytes, 0, offset + data_offset);
+void NumpyFileWrapperGPU::ReadChunk(void* buffer, size_t bytes, Index buffer_offset, Index offset) {
+  file_stream->ReadAtGPU(static_cast<uint8_t *>(buffer),
+                         bytes, buffer_offset, offset + data_offset);
 }
 
 // we need to implement that but we should split parsing and reading in this case

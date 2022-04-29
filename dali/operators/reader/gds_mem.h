@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_READER_GDS_MEM_H_
 
 #include <atomic>
+#include <cassert>
 #include <memory>
 #include <mutex>
 #include <unordered_set>
@@ -27,10 +28,12 @@
 #include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
+namespace gds {
 
-size_t GetGDSChunkSize();
+static constexpr size_t kGDSAlignment = 4096;
+DLL_PUBLIC size_t GetGDSChunkSize();
 
-class GDSAllocator {
+class DLL_PUBLIC GDSAllocator {
  public:
   explicit GDSAllocator(int device_id = -1);
 
@@ -59,14 +62,18 @@ class GDSStagingBuffer {
     base = other.base;
     other.base = nullptr;
   }
-  GDSStagingBuffer &&operator=(GDSStagingBuffer &&other) noexcept(false) {
-    if (base)
-      throw std::logic_error("Cannot overwrite a non-null staging buffer pointer.");
+  GDSStagingBuffer &operator=(GDSStagingBuffer &&other) {
+    assert(!base && "Cannot overwrite a non-null staging buffer pointer.");
     base = other.base;
     other.base = nullptr;
+    return *this;
   }
 
   void* at(ptrdiff_t offset) const { return static_cast<char *>(base) + offset; }
+
+  ~GDSStagingBuffer() {
+    assert(!base && "A staging buffer must be returned to the staging engine");
+  }
  private:
   explicit GDSStagingBuffer(void *base) : base(base) {}
   void *release() {
@@ -74,16 +81,12 @@ class GDSStagingBuffer {
     base = nullptr;
     return ptr;
   }
-  ~GDSStagingBuffer() noexcept(false) {
-    if (base)
-      throw std::logic_error("A staging buffer must be returned to the staging engine");
-  }
 
   friend class GDSStagingEngine;
   void *base = nullptr;
 };
 
-class GDSStagingEngine {
+class DLL_PUBLIC GDSStagingEngine {
  public:
   GDSStagingEngine(int device_id = -1, int max_buffers = 64, int commit_after = 32);
   void set_stream(cudaStream_t stream);
@@ -120,6 +123,7 @@ class GDSStagingEngine {
 
 };
 
+}  // namespace gds
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_READER_GDS_MEM_H_

@@ -27,12 +27,14 @@
 #include <cufile.h>
 
 namespace dali {
+namespace gds {
 
 static size_t GetGDSChunkSizeEnv() {
   if (char *env = getenv("DALI_GDS_CHUNK_SIZE")) {
     size_t s = atoll(env);
     DALI_ENFORCE(!is_pow2(s), "GDS chunk size must be a power of 2");
-    DALI_ENFORCE(s >= 4096 && s <= (16 << 10), "GDS chunk size must be between 4 KiB and 16 MiB");
+    DALI_ENFORCE(s >= kGDSAlignment && s <= (16 << 20),
+      make_string("GDS chunk size must be a power of two between ", kGDSAlignment, " and 16 M"));
     return s;
   } else {
     return 2 << 20;  // default - 2 MiB
@@ -93,6 +95,7 @@ class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device
   }
 
   void do_deallocate(void *ptr, size_t size, size_t alignment) override {
+    adjust_params(size, alignment);
     std::unique_lock<spinlock> ul(map_lock_);
     auto it = allocs_.find(ptr);
     if (it == allocs_.end())
@@ -282,4 +285,5 @@ GDSStagingBuffer GDSStagingEngine::get_staging_buffer(void *hint) {
   }
 }
 
+}  // namespace gds
 }  // namespace dali

@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include "dali/core/cuda_event_pool.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/kernels/transpose/transpose_gpu.h"
@@ -72,12 +74,13 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
   TensorListShape<> tmp_buf_sh_;
   TensorList<GPUBackend> tmp_buf_;
 
-  void ScheduleChunkedRead(const SampleView<GPUBackend> &out_sample, NumpyFileWrapperGPU &target);
+  void ScheduleChunkedRead(SampleView<GPUBackend> &out_sample, NumpyFileWrapperGPU &target);
 
-  size_t chunk_size_ = GetGDSChunkSize();
+  size_t chunk_size_ = gds::GetGDSChunkSize();
   detail::NumpyHeaderCache header_cache_;
-  GDSStagingEngine staging_;
-  vector<CUDAStreamLease> copy_streams_;
+  gds::GDSStagingEngine staging_;
+  CUDAStreamLease staging_stream_;
+  CUDAEvent staging_ready_;
 };
 
 }  // namespace dali
