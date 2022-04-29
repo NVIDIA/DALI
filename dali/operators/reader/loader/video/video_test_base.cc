@@ -26,27 +26,30 @@
 
 namespace dali {
 namespace detail {
-static void parallel_for(int nb_elements, std::function<void(int start, int end, int id)> func) {
-  int nb_threads_hint = std::thread::hardware_concurrency();
-  int nb_threads = nb_threads_hint == 0 ? 8 : (nb_threads_hint);
+static void parallel_for(
+  int elements_count, int thread_count, std::function<void(int start, int end, int id)> func) {
+  std::vector<std::thread> threads(thread_count);
 
-  std::vector<std::thread> threads(nb_threads);
-
-  for (int i = 0; i < nb_threads; ++i) {
-    int start = nb_elements * i / nb_threads;
-    int end = nb_elements * (i+1) / nb_threads;
+  for (int i = 0; i < thread_count; ++i) {
+    int start = elements_count * i / thread_count;
+    int end = elements_count * (i+1) / thread_count;
     threads[i] = std::thread(func, start, end, i);
   }
 
   std::for_each(threads.begin(), threads.end(), std::mem_fn(&std::thread::join));
 }
+
+int ThreadCount() {
+  int num_thread_hint = std::thread::hardware_concurrency();
+  return num_thread_hint == 0 ? 8 : num_thread_hint;
+}
 }  // namespace detail
 
 void CompareFrameAvgError(
   const uint8_t *ground_truth, const uint8_t *frame, int frame_size, double eps) {
-  std::vector<double> sums(std::thread::hardware_concurrency(), 0.0);
+  std::vector<double> sums(detail::ThreadCount(), 0.0);
 
-  detail::parallel_for(frame_size, [&](int start, int end, int id){
+  detail::parallel_for(frame_size, detail::ThreadCount(), [&](int start, int end, int id){
     double sum = 0.0;
     for (int j = start; j < end; ++j) {
       sum += std::abs(frame[j] - ground_truth[j]);
@@ -63,7 +66,7 @@ void CompareFrameAvgError(
 void TestVideo::CompareFrame(int frame_id, const uint8_t *frame, int eps) {
   auto &ground_truth = frames_[frame_id];
 
-  detail::parallel_for(FrameSize(), [&](int start, int end, int id){
+  detail::parallel_for(FrameSize(), detail::ThreadCount(), [&](int start, int end, int id){
   for (int j = start; j < end; ++j) {
     ASSERT_NEAR(frame[j], ground_truth.data[j], eps);
   }});
