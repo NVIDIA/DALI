@@ -28,6 +28,8 @@ void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
   auto &video_output = ws.Output<CPUBackend>(0);
 
+  video_output.SetLayout("FHWC");
+
   video_output.Copy(sample.data_);
 
   if (has_labels_) {
