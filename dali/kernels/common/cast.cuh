@@ -36,7 +36,7 @@ __device__ __forceinline__ void CastKernelInternal(const CastSampleDesc& sample,
                                                    unsigned block_start, unsigned block_end) {
   auto *out = static_cast<OType *>(sample.output);
   const auto *in = static_cast<const IType *>(sample.input);
-  for (int x = threadIdx.x + block_start; x < block_end; x += blockDim.x) {
+  for (unsigned x = threadIdx.x + block_start; x < block_end; x += blockDim.x) {
     out[x] = ConvertSat<OType>(in[x]);
   }
 }
