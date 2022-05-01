@@ -138,8 +138,8 @@ This function is invoked once per batch.)code", 0)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
 separately for each sample in the batch.)code", false);
 
-template <typename Backend>
-NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
+template <typename CPUBackend>
+NumbaFuncImpl<CPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
   run_fn_ = spec.GetArgument<uint64_t>("run_fn");
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
   batch_processing_ = spec.GetArgument<bool>("batch_processing");

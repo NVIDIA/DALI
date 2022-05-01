@@ -19,7 +19,7 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali import ops
 from nvidia.dali import types as dali_types
 from numba import types as numba_types
-from numba import njit, cfunc, carray
+from numba import njit, cfunc, carray, cuda
 import numpy as np
 import numba as nb
 
@@ -301,3 +301,114 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
 
 
 ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")
+
+
+njit()
+
+class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
+    schema_name = 'NumbaFunction'
+    ops.register_gpu_op('NumbaFunction')
+
+    @property
+    def spec(self):
+        return self._spec
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def preserve(self):
+        return self._preserve
+
+    def __call__(self, *inputs, **kwargs):
+        pipeline = Pipeline.current()
+        if pipeline is None:
+            Pipeline._raise_no_current_pipeline("NumbaFunction")
+        inputs = ops._preprocess_inputs(inputs, self._impl_name, self._device, None)
+        if pipeline is None:
+            Pipeline._raise_pipeline_required("NumbaFunction operator")
+        if (len(inputs) > self._schema.MaxNumInput() or
+                len(inputs) < self._schema.MinNumInput()):
+            raise ValueError(
+                ("Operator {} expects from {} to " +
+                 "{} inputs, but received {}.")
+                .format(type(self).__name__,
+                        self._schema.MinNumInput(),
+                        self._schema.MaxNumInput(),
+                        len(inputs)))
+        for inp in inputs:
+            if not isinstance(inp, _DataNode):
+                raise TypeError(
+                      ("Expected inputs of type `DataNode`. Received input of type '{}'. " +
+                       "Python Operators do not support Multiple Input Sets.")
+                      .format(type(inp).__name__))
+        op_instance = ops._OperatorInstance(inputs, self, **kwargs)
+        op_instance.spec.AddArg("run_fn", self.run_fn)
+        if self.setup_fn != None:
+            op_instance.spec.AddArg("setup_fn", self.setup_fn)
+        op_instance.spec.AddArg("out_types", self.out_types)
+        op_instance.spec.AddArg("in_types", self.in_types)
+        op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
+        op_instance.spec.AddArg("ins_ndim", self.ins_ndim)
+        op_instance.spec.AddArg("device", self.device)
+        op_instance.spec.AddArg("batch_processing", self.batch_processing)
+
+        if self.num_outputs == 0:
+            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
+            t = _DataNode(t_name, self._device, op_instance)
+            pipeline.add_sink(t)
+            return
+        outputs = []
+
+
+        for i in range(self.num_outputs):
+            t_name = op_instance._name
+            if self.num_outputs > 1:
+                t_name += "[{}]".format(i)
+            t = _DataNode(t_name, self._device, op_instance)
+            op_instance.spec.AddOutput(t.name, t.device)
+            op_instance.append_output(t)
+            pipeline.add_sink(t)
+            outputs.append(t)
+        return outputs[0] if len(outputs) == 1 else outputs
+
+    def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, **kwargs):
+        assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
+        assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
+        if not isinstance(outs_ndim, list):
+            outs_ndim = [outs_ndim]
+        if not isinstance(ins_ndim, list):
+            ins_ndim = [ins_ndim]
+        if not isinstance(out_types, list):
+            out_types = [out_types]
+        if not isinstance(in_types, list):
+            in_types = [in_types]
+
+
+        self._impl_name = "NumbaFuncImpl"
+        self._schema = _b.GetSchema(self._impl_name)
+        self._spec = _b.OpSpec(self._impl_name)
+        self._device = device
+
+        kwargs, self._call_args = ops._separate_kwargs(kwargs)
+
+        for key, value in kwargs.items():
+            self._spec.AddArg(key, value)
+
+        self.run_fn = cuda.jit(numba_types.void(numba_types.uint64))(run_fn)
+        self.setup_fn = None
+        self.out_types = out_types
+        self.in_types = in_types
+        self.outs_ndim = outs_ndim
+        self.ins_ndim = ins_ndim
+        self.num_outputs = len(out_types)
+        self.batch_processing = batch_processing
+        self._preserve = True
+
+
+ops._wrap_op(NumbaFunctionCuda, "fn.experimental", "nvidia.dali.plugin.numba")
