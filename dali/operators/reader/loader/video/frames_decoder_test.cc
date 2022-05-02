@@ -144,12 +144,12 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
 
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
-  FramesDecoder decoder(testing::dali_extra_path() + "/db/video/cfr/test_1.mp4");
+  FramesDecoder decoder(cfr_videos_paths_[0]);
   RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
-  FramesDecoder decoder(testing::dali_extra_path() + "/db/video/vfr/test_2.mp4");
+  FramesDecoder decoder(vfr_videos_paths_[1]);
   RunTest(decoder, vfr_videos_[1]);
 }
 
@@ -175,8 +175,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, NoVideoStream) {
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
-  std::string path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
-  FramesDecoder file(path);
+  FramesDecoder file(cfr_videos_paths_[0]);
 
   try {
     file.SeekFrame(60);
@@ -186,12 +185,12 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
-  FramesDecoderGpu decoder(testing::dali_extra_path() + "/db/video/cfr/test_1.mp4");
+  FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   RunTest(decoder, cfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
-  FramesDecoderGpu decoder(testing::dali_extra_path() + "/db/video/vfr/test_2.mp4");
+  FramesDecoderGpu decoder(vfr_videos_paths_[1]);
   RunTest(decoder, vfr_videos_[1]);
 }
 

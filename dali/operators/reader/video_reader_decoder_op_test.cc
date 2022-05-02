@@ -37,8 +37,9 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
   virtual void AssertLabel(const int *label, int ground_truth_label) = 0;
 
-  virtual void AssertFrame(int frame_id, const uint8_t *frame, TestVideo &ground_truth) = 0;
-  
+  virtual void AssertFrame(
+    int frame_id, const uint8_t *frame, TestVideo &ground_truth) = 0;
+
  private:
   template<typename Backend>
   void RunTestImpl(
@@ -132,8 +133,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
       .AddArg("initial_fill", cfr_videos_[0].NumFrames())
       .AddArg(
         "filenames",
-        std::vector<std::string>{
-          testing::dali_extra_path() + "/db/video/cfr/test_1.mp4"})
+        std::vector<std::string>{cfr_videos_paths_[0]})
       .AddOutput("frames", backend));
 
     pipe.Build({{"frames", backend}});
@@ -158,7 +158,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 };
 
 template<>
-void VideoReaderDecoderBaseTest::RunTest<dali::CPUBackend>(    
+void VideoReaderDecoderBaseTest::RunTest<dali::CPUBackend>(
   std::vector<std::string> &videos_paths,
   std::vector<TestVideo> &ground_truth_videos) {
     RunTestImpl<dali::CPUBackend>(
@@ -171,7 +171,7 @@ void VideoReaderDecoderBaseTest::RunShuffleTest<dali::CPUBackend>() {
 }
 
 template<>
-void VideoReaderDecoderBaseTest::RunTest<dali::GPUBackend>(    
+void VideoReaderDecoderBaseTest::RunTest<dali::GPUBackend>(
   std::vector<std::string> &videos_paths,
   std::vector<TestVideo> &ground_truth_videos) {
     RunTestImpl<dali::GPUBackend>(
