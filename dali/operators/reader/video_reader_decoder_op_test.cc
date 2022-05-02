@@ -83,7 +83,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
       auto &frame_video_output = ws.Output<Backend>(0);
       auto &frame_label_output = ws.Output<Backend>(1);
 
-      // ASSERT_EQ(frame_video_output.GetLayout(), "FHWC");
+      ASSERT_EQ(frame_video_output.GetLayout(), "FHWC");
 
       for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
         const auto sample = frame_video_output.template tensor<uint8_t>(sample_id);

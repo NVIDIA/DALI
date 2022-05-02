@@ -18,6 +18,7 @@ namespace dali {
 void VideoLoaderDecoderCpu::PrepareEmpty(VideoSample<CPUBackend> &sample) {
   sample = {};
   sample.data_.set_pinned(false);
+  sample.data_.SetLayout("FHWC");
 }
 
 void VideoLoaderDecoderCpu::ReadSample(VideoSample<CPUBackend> &sample) {
