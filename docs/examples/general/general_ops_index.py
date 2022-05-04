@@ -23,9 +23,9 @@ doc(title="General Purpose",
         doc_entry(
             "../math/geometric_transforms.ipynb",
             [
-                op_reference('fn.transforms', "Tutorial describing tensor geometric transformations"),
-                op_reference('fn.warp_affine', "Tutorial describing tensor geometric transformations"),
-                op_reference('fn.coord_transform', "Tutorial describing tensor geometric transformations")]),
+                op_reference('fn.transforms', "Tutorial describing tensor geometric transformations to transform points and images"),
+                op_reference('fn.warp_affine', "Tutorial showing how to use afine transform"),
+                op_reference('fn.coord_transform', "Tutorial describing how to transform points accompanying images")]),
         doc_entry(
             "erase.ipynb",
             op_reference('fn.erase', "Tutorial describing tensor erasing"))
