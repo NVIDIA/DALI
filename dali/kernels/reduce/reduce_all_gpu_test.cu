@@ -208,11 +208,9 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
   int nsamples = 35;
   constexpr int ndim = 1;
   TensorListShape<ndim> data_shape(nsamples, ndim);
-  int64_t total_size = 0;
   for (int i = 0; i < nsamples; i++) {
     auto size = size_dist(rng);
     data_shape.set_tensor_shape(i, {size});
-    total_size += size;
   }
 
   TestTensorList<In> in;
