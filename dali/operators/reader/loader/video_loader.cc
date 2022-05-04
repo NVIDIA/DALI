@@ -568,9 +568,9 @@ void VideoLoader::read_file() {
         last_key_frame = frame;
       }
 
-      // if decoding hasn't produced any frames after providing 10 frames,
+      // if decoding hasn't produced any frames after providing startup_frame_treshold_ frames,
       // or we are at next key frame
-      if (((key && frame != last_key_frame) || frame > last_key_frame + 10)
+      if (((key && frame != last_key_frame) || frame > last_key_frame + startup_frame_treshold_)
             && dec_status == REQ_NOT_STARTED) {
         LOG_LINE << "Decoding not started, seek to preceding key frame, "
                  << "current frame " << frame

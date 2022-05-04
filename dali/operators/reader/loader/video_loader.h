@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -353,6 +353,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int max_width_;
   int additional_decode_surfaces_;
   static constexpr int channels_ = 3;
+  // 10 is rather an arbitrary decision
+  static constexpr int startup_frame_treshold_ = 10;
   DALIImageType image_type_;
   DALIDataType dtype_;
   bool normalized_;
