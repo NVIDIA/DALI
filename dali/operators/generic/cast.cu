@@ -29,7 +29,7 @@ namespace dali {
 
 class CastGPU : public Cast<GPUBackend> {
  public:
-  explicit CastGPU(const OpSpec &spec) : Cast<GPUBackend>{spec} {}
+  explicit CastGPU(const OpSpec &spec) : Cast<GPUBackend>{spec}, block_setup_{block_volume_scale} {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override;
   void RunImpl(DeviceWorkspace &ws) override;
@@ -38,6 +38,8 @@ class CastGPU : public Cast<GPUBackend> {
 
  protected:
   void PrepareBlocks(const DeviceWorkspace &ws);
+
+  static const int block_volume_scale = 4;
 
  private:
   using GpuBlockSetup = kernels::BlockSetup<1, -1>;
@@ -76,18 +78,33 @@ void CastGPU::RunImpl(DeviceWorkspace &ws) {
     samples_[sample_id].input = input.raw_tensor(sample_id);
   }
 
-  GpuBlockSetup::BlockDesc *blocks_dev;
+  std::vector<kernels::CastSampleBlockDesc> params_host(num_samples);
+  for (int sample_id = 0; sample_id < num_samples; sample_id++) {
+    params_host[sample_id].sample_size = volume(input.tensor_shape(sample_id));
+  }
+
+  auto blocks = block_setup_.Blocks();
+  // Calculate id of the earliest block that should process given sample
+  for (int block_id = 0, sample_id = -1; block_id < blocks.size(); block_id++) {
+    if (blocks[block_id].sample_idx != sample_id) {
+      sample_id++;
+      params_host[sample_id].first_block = block_id;
+    }
+  }
+
+  kernels::CastSampleBlockDesc *params_dev;
   kernels::CastSampleDesc *samples_dev;
-  std::tie(blocks_dev, samples_dev) = scratchpad.ToContiguousGPU(ws.stream(),
-    block_setup_.Blocks(), samples_);
+  std::tie(params_dev, samples_dev) = scratchpad.ToContiguousGPU(ws.stream(),
+                                                                 params_host, samples_);
 
   DALIDataType itype = input.type();
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
   TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
     TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
-      kernels::BatchedCastKernel<OType, IType>
-          <<<grid_dim, block_dim, 0, ws.stream()>>>(samples_dev, blocks_dev);
+      kernels::BinSearchCastKernel<OType, IType>
+          <<<grid_dim, block_dim, 0, ws.stream()>>>(samples_dev, params_dev,
+            num_samples, block_volume_scale);
     ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
   ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
 }
