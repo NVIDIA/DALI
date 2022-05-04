@@ -266,6 +266,19 @@ inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int n
   }
 }
 
+inline TensorListShape<> broadcast_samples(const TensorListShape<> &shape,
+                                           const ExpandDesc &expand_desc) {
+  assert(shape.num_samples() == expand_desc.NumSamples());
+  TensorListShape<> broadcast(expand_desc.NumExpanded(), shape.sample_dim());
+  for (int sample_idx = 0, elem_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+    const auto &sample_shape = shape[sample_idx];
+    for (int i = 0; i < expand_desc.NumExpanded(sample_idx); i++) {
+      broadcast.set_tensor_shape(elem_idx++, sample_shape);
+    }
+  }
+  return broadcast;
+}
+
 template <typename Backend>
 TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int ndims_to_unfold) {
   // TODO(ktokarski) TODO(klecki)

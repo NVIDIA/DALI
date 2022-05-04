@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/argument.h"
@@ -589,14 +590,45 @@ class SequenceOperator : public Operator<Backend> {
     return tv_builder.take();
   }
 
-  TensorList<CPUBackend> BroadcastSamples(const TensorList<CPUBackend> &arg_input,
-                                          const ExpandDesc &expand_desc) {
-    DALI_FAIL("Unsupported input container");
-  }
-
   TensorList<GPUBackend> BroadcastSamples(const TensorList<GPUBackend> &arg_input,
                                           const ExpandDesc &expand_desc) {
-    DALI_FAIL("Supported input container");
+    assert(expand_desc.NumSamples() == arg_input.num_samples());
+    TensorList<GPUBackend> broadcast(expand_desc.NumExpanded());
+    const auto &stream = expanded_.stream();
+    broadcast.set_order(AccessOrder(stream));
+    const auto &shape = arg_input.shape();
+    auto broadcast_shape = sequence_utils::broadcast_samples(shape, expand_desc);
+    broadcast.Resize(broadcast_shape, arg_input.type());
+    kernels::ScatterGatherGPU scatter_gather;
+    auto type_size = arg_input.type_info().size();
+    for (int sample_idx = 0, elem_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+      auto sample_size = type_size * volume(shape[sample_idx]);
+      for (int i = 0; i < expand_desc.NumExpanded(sample_idx); i++) {
+        scatter_gather.AddCopy(broadcast.raw_mutable_tensor(elem_idx++),
+                               arg_input.raw_tensor(sample_idx), sample_size);
+      }
+    }
+    scatter_gather.Run(stream, true);
+    return broadcast;
+  }
+
+  TensorList<CPUBackend> BroadcastSamples(const TensorList<CPUBackend> &arg_input,
+                                          const ExpandDesc &expand_desc) {
+    assert(expand_desc.NumSamples() == arg_input.num_samples());
+    TensorList<CPUBackend> broadcast(expand_desc.NumExpanded());
+    broadcast.set_order(AccessOrder::host());
+    const auto &shape = arg_input.shape();
+    auto broadcast_shape = sequence_utils::broadcast_samples(shape, expand_desc);
+    broadcast.Resize(broadcast_shape, arg_input.type());
+    auto type_size = arg_input.type_info().size();
+    for (int sample_idx = 0, elem_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
+      auto sample_size = type_size * volume(shape[sample_idx]);
+      for (int i = 0; i < expand_desc.NumExpanded(sample_idx); i++) {
+        std::memcpy(broadcast.raw_mutable_tensor(elem_idx++), arg_input.raw_tensor(sample_idx),
+                    sample_size);
+      }
+    }
+    return broadcast;
   }
 
   template <typename DataBackend>
