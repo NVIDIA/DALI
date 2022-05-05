@@ -749,6 +749,7 @@ Parameters
             channel-last video it's "FHWC" and so on.
             If ``data`` is a DALI `TensorList` or a list of DALI `Tensor` objects and ``layout``
             is ``None``, the layout is taken from ``data``.
+            The layout of the data must be the same in each iteration.
 
         cuda_stream : optional, `cudaStream_t` or an object convertible to `cudaStream_t`, e.g. `cupy.cuda.Stream`, `torch.cuda.Stream`
             The CUDA stream, which is going to be used for copying data to GPU or from a GPU
@@ -1323,6 +1324,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
                     po = (pipe_outputs,)
                 pipe.set_outputs(*po)
             return pipe
+        create_pipeline._is_pipeline_def = True  # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
 
@@ -1351,6 +1353,7 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
                         po = (pipe_outputs,)
                     pipe.set_outputs(*po)
             return pipe
+        create_pipeline._is_pipeline_def = True  # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
 

@@ -213,6 +213,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   using uptr_tv_type = std::unique_ptr<TensorVector<Backend>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
+  using Operator<Backend>::spec_;
+
  public:
   inline explicit ExternalSource(const OpSpec &spec)
       : Operator<Backend>(spec),
@@ -221,7 +223,15 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         device_id_(spec.GetArgument<int>("device_id")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
+        ndim_(-1),
+        layout_(),
         sync_worker_(device_id_, false) {
+    if (spec.TryGetArgument(ndim_, "ndim")) {
+      DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
+                   "). Use positive values for tensors or 0 for scalars."));
+    }
+    spec.TryGetArgument(layout_, "layout");
+    InferNdim();
     output_name_ = spec.Output(0);
     sync_worker_.WaitForInit();
   }
@@ -287,6 +297,23 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
+  bool HasNdim() {
+    return !layout_.empty() || spec_.HasArgument("ndim");
+  }
+
+  void InferNdim() {
+    if (!layout_.empty()) {
+      if (ndim_ != -1) {
+        DALI_ENFORCE(ndim_ == layout_.ndim(), make_string("Number of dimensions in the provided "
+                     "layout does not match the ndim argument. The arguments provided:",
+                     "\n ndim = ", ndim_, ",",
+                     "\n layout: \"", layout_, "\"."));
+      } else {
+        ndim_ = layout_.ndim();
+      }
+    }
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     if (blocking_) {
@@ -403,7 +430,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     } else {
       // it is not contiguous so we need to copy
       tl_elm.front()->Copy(batch, order, use_copy_kernel);
-
       std::list<uptr_cuda_event_type> copy_to_storage_event;
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
       CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
@@ -449,7 +475,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tv_elm.front()->set_pinned(batch.is_pinned());
     }
     tv_elm.front()->Copy(batch, order);
-
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tv_data_.PushBack(tv_elm);
@@ -482,9 +507,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType>
-  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, AccessOrder order = {},
-                                  ExtSrcSettingMode ext_src_setting_mode = {}) {
+  template <typename SrcBackend, template<typename> class SourceDataType>
+  inline void ValidateInputData(const SourceDataType<SrcBackend> &batch) {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
@@ -492,6 +516,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
           "Warning: Loading GPU-originated data into CPU ExternalSource operator is discouraged "
           "and might be inefficient.");
     }
+
     DALI_ENFORCE(
         OperatorBase::max_batch_size_ >= static_cast<int>(batch.num_samples()),
         make_string("Data list provided to ExternalSource needs to have batch_size <= ",
@@ -508,6 +533,37 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                   TypeTable::GetTypeInfo(previous_dtype_).name(),
                   " and the current type is ", batch.type_info().name(), "."));
     previous_dtype_ = batch.type();
+
+    auto input_ndim = batch.shape().sample_dim();
+    if (HasNdim()) {
+      DALI_ENFORCE(input_ndim == ndim_,
+                   make_string("ExternalSource expected data with ", ndim_, " dimensions and got ",
+                     input_ndim, " dimensions."));
+    } else if (ndim_ != -1) {
+      DALI_ENFORCE(input_ndim == ndim_,
+                   make_string("Number of dimensions of the data fed to the external source has "
+                      "changed from previous iteration. Dimensionality in the previous "
+                      "iteration was ", ndim_, " and the current is ", input_ndim, "."));
+    }
+    ndim_ = input_ndim;
+
+    if (spec_.HasArgument("layout")) {
+      DALI_ENFORCE(layout_ == batch.GetLayout(),
+                   make_string("Expected data with layout: \"", layout_,
+                     "\" and got: \"", batch.GetLayout(), "\"."));
+    } else if (!layout_.empty()) {
+      DALI_ENFORCE(layout_ == batch.GetLayout(),
+                   make_string("Layout of the data fed to the external source has changed "
+                     "from previous iteration. Layout in the previous iteration was \"", layout_,
+                     "\" and the current is \"", batch.GetLayout(), "\"."));
+    }
+    layout_ = batch.GetLayout();
+  }
+
+  template<typename SrcBackend, template<typename> class SourceDataType>
+  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, AccessOrder order = {},
+                                  ExtSrcSettingMode ext_src_setting_mode = {}) {
+    ValidateInputData(batch);
 
     // Note: If we create a GPU source, we will need to figure
     // out what stream we want to do this copy in. CPU we can
@@ -546,6 +602,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   int device_id_;
   DALIDataType dtype_;
   DALIDataType previous_dtype_;
+  int ndim_;
+  TensorLayout layout_;
 
   /*
    * now it only indicates that there is data in the ExternalSource, in the future

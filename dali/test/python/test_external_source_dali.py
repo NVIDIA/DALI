@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -241,8 +241,9 @@ def test_incorrect_dtype_arg():
     src_pipe.build()
     src_pipe.run()
 
-@raises(RuntimeError, glob="Type of the data fed to the external source has changed from the previous iteration. "
-                           "Type in the previous iteration was float and the current type is uint8.")
+@raises(RuntimeError, glob="Type of the data fed to the external source has changed from the "
+                           "previous iteration. Type in the previous iteration was float and "
+                           "the current type is uint8.")
 def test_changing_dtype():
     batch_size = 2
     src_data = [
@@ -255,3 +256,130 @@ def test_changing_dtype():
     src_pipe.build()
     src_pipe.run()
     src_pipe.run()
+
+
+def test_ndim_arg():
+    batch_size = 2
+    src_data = [
+        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8, ndim=3)
+    src_ext2 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8, layout="HWC")
+    src_pipe.set_outputs(src_ext1, src_ext2)
+    src_pipe.build()
+    out1, out2 = src_pipe.run()
+    for i in range(batch_size):
+        t1 = out1.at(i)
+        t2 = out2.at(i)
+        assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
+        assert np.array_equal(t2, np.ones((120, 120, 3), dtype=np.uint8))
+
+
+def test_ndim_arg_multioutput():
+    batch_size = 2
+    src_data = [
+        [[np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
+         [np.ones((120, 120), dtype=np.float32)]*batch_size]
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src1_ext, src1_ext2 = fn.external_source(source=src_data, num_outputs=2,
+                                           dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
+                                           ndim=[3, 2])
+
+    src2_ext, src2_ext2 = fn.external_source(source=src_data, num_outputs=2,
+                                           dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
+                                           layout=["HWC", "HW"])
+
+    src_pipe.set_outputs(src1_ext, src1_ext2, src2_ext, src2_ext2)
+    src_pipe.build()
+    out11, out12, out21, out22 = src_pipe.run()
+    for i in range(batch_size):
+        t1 = out11.at(i)
+        t2 = out12.at(i)
+        assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
+        assert np.allclose(t2, [np.ones((120, 120), dtype=np.float32)])
+        t3 = out21.at(i)
+        t4 = out22.at(i)
+        assert np.array_equal(t3, np.ones((120, 120, 3), dtype=np.uint8))
+        assert np.allclose(t4, [np.ones((120, 120), dtype=np.float32)])
+
+
+def test_layout_ndim_match():
+    batch_size = 2
+    src_data = [
+        [[np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
+         [np.ones((120, 120), dtype=np.uint8)]*batch_size]
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src_ext1, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
+                                            dtype=DALIDataType.UINT8, layout=["HWC", "HW"],
+                                            ndim=[3, 2])
+    src_pipe.set_outputs(src_ext1, src_ext2)
+    src_pipe.build()
+    out1, out2= src_pipe.run()
+    for i in range(batch_size):
+        t1 = out1.at(i)
+        t2 = out2.at(i)
+        assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
+        assert np.allclose(t2, [np.ones((120, 120), dtype=np.uint8)])
+
+
+@raises(RuntimeError, glob="Number of dimensions in the provided layout does not match the ndim "
+                           "argument. The arguments provided:\n ndim = 2,\n layout: \"HWC\".")
+def test_ndim_layout_mismatch():
+    src_pipe = Pipeline(1, 1, 0)
+    src_ext = fn.external_source(layout="HWC", ndim=2)
+    src_pipe.set_outputs(src_ext)
+    src_pipe.build()
+
+
+@raises(RuntimeError, glob="ExternalSource expected data with 3 dimensions and got 2 dimensions")
+def test_ndim_data_mismatch():
+    batch_size = 2
+    src_data = [
+        [[np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
+         [np.ones((120, 120), dtype=np.uint8)]*batch_size]
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src_ext1, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
+                                            dtype=DALIDataType.UINT8, ndim=3)
+    src_pipe.set_outputs(src_ext1, src_ext2)
+    src_pipe.build()
+    src_pipe.run()
+
+
+@raises(RuntimeError, glob="Number of dimensions of the data fed to the external source has changed "
+                           "from previous iteration. Dimensionality in the previous iteration "
+                           "was 3 and the current is 2.")
+def test_ndim_changing():
+    batch_size = 2
+    src_data = [
+        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
+        [np.ones((120, 120), dtype=np.uint8)]*batch_size
+    ]
+    src_pipe = Pipeline(batch_size, 1, 0)
+    src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
+    src_pipe.set_outputs(src_ext1)
+    src_pipe.build()
+    src_pipe.run()
+    src_pipe.run()
+
+
+@raises(RuntimeError, glob="Expected data with layout: \"H\" and got: \"W\"")
+def test_layout_data_mismatch():
+    src_pipe = Pipeline(1, 1, 0)
+    src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
+    src_pipe.build()
+    src_pipe.feed_input("input", [np.zeros((1))], layout="W")
+
+
+@raises(RuntimeError, glob="Layout of the data fed to the external source has changed from "
+                            "previous iteration. Layout in the previous iteration was \"W\" "
+                            "and the current is \"H\".")
+def test_layout_changing():
+    src_pipe = Pipeline(1, 1, 0)
+    src_pipe.set_outputs(fn.external_source(name="input"))
+    src_pipe.build()
+    src_pipe.feed_input("input", [np.zeros((1))], layout="W")
+    src_pipe.feed_input("input", [np.zeros((1))], layout="H")

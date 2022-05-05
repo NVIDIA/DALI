@@ -24,6 +24,7 @@
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
@@ -35,8 +36,8 @@ namespace kernels {
 template <typename OutputType, typename InputType, int Dims>
 class SliceFlipNormalizePermutePadGpu {
  private:
-  static constexpr size_t kBlockDim = 512;
-  static constexpr size_t kBlockSize = 64 * kBlockDim;
+  static constexpr size_t kBlockDim = 256;
+  size_t block_size_ = 32 * kBlockDim;
   size_t block_count_ = 0;
 
   using ProcessedArgs = detail::SliceFlipNormalizePermutePadProcessedArgs<Dims>;
@@ -101,11 +102,33 @@ class SliceFlipNormalizePermutePadGpu {
     se.add<mm::memory_kind::pinned, detail::SampleDesc<Dims>>(num_samples);
     se.add<mm::memory_kind::device, detail::SampleDesc<Dims>>(num_samples);
 
+    int blocks_per_sm_;
+    CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_,
+      detail::SliceFlipNormalizePermutePadKernel<false, false, false, OutputType, InputType, Dims>,
+      kBlockDim,
+      0));
+
+    block_count_ = 0;
+    auto number_of_blocks = GetSmCount() * blocks_per_sm_;
+    size_t all_sample_sizes = 0;
+
+    for (auto &elem : args) {
+      size_t sample_size = volume(elem.shape);
+      all_sample_sizes += sample_size;
+      block_count_ += static_cast<size_t>(std::ceil(
+        sample_size / static_cast<float>(block_size_)));
+    }
+    auto block_remainder = block_count_ % number_of_blocks;
+    if (block_remainder != 0) {
+      block_count_ += number_of_blocks - block_remainder;
+    }
+    block_size_ = div_ceil(all_sample_sizes, block_count_);
+
     block_count_ = 0;
     for (auto &elem : args) {
       size_t sample_size = volume(elem.shape);
-      block_count_ += std::ceil(
-        sample_size / static_cast<float>(kBlockSize));
+      block_count_ += static_cast<size_t>(std::ceil(
+        sample_size / static_cast<float>(block_size_)));
     }
 
     se.add<mm::memory_kind::pinned, detail::BlockDesc>(block_count_);
@@ -149,11 +172,6 @@ class SliceFlipNormalizePermutePadGpu {
           norm_mul_data[d] = sample_args.inv_stddev[d];
         }
       }
-
-      std::tie(norm_add_gpu, norm_mul_gpu) = context.scratchpad->ToContiguousGPU(
-          context.gpu.stream,
-          make_span(norm_add_cpu, num_samples * norm_args_size_),
-          make_span(norm_mul_cpu, num_samples * norm_args_size_));
     }
 
     assert(nfill_values_ > 0);
@@ -165,8 +183,12 @@ class SliceFlipNormalizePermutePadGpu {
       for (int d = 0; d < nfill_values_; d++)
         fill_values[d] = sample_args.fill_values[d];
     }
-    OutputType *fill_values_gpu = context.scratchpad->ToGPU(
-        context.gpu.stream, make_span(fill_values_cpu, num_samples * nfill_values_));
+    OutputType *fill_values_gpu;
+    std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = context.scratchpad->ToContiguousGPU(
+      context.gpu.stream,
+      make_span(norm_add_cpu, num_samples * norm_args_size_),
+      make_span(norm_mul_cpu, num_samples * norm_args_size_),
+      make_span(fill_values_cpu, num_samples * nfill_values_));
 
     auto *sample_descs_cpu =
         context.scratchpad->AllocatePinned<detail::SampleDesc<Dims>>(num_samples);
@@ -228,7 +250,7 @@ class SliceFlipNormalizePermutePadGpu {
       size_t offset = 0;
       size_t remaining = volume(processed_args_[i].out_shape);
       while (remaining > 0) {
-        size_t size = remaining < kBlockSize ? remaining : kBlockSize;
+        size_t size = remaining < block_size_ ? remaining : block_size_;
         block_descs_cpu[block_idx++] = {i, offset, size};
         remaining -= size;
         offset += size;

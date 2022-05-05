@@ -78,6 +78,7 @@ class WorkerThread {
   }
 
   inline ~WorkerThread() {
+    Shutdown();
 #if NVML_ENABLED
     nvml::Shutdown();
 #endif

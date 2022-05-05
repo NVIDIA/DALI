@@ -4,7 +4,8 @@ FROM ${AARCH64_BASE_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CUDA_CROSS_VERSION=10.2
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     wget \
@@ -84,7 +85,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
 # hack - install cross headers in the default python paths, so host python3-config would point to them
 RUN export PYVERS="3.6.9 3.7.8 3.8.5 3.9.0 3.10.0" && \
     for PYVER in ${PYVERS}; do \
-        cd /tmp && curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - && \
+        cd /tmp && (curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - || exit 1) && \
         rm -rf *.tgz && cd Python*                                                                     && \
         ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no \
             --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ Use ``min_filter`` and ``mag_filter`` to specify different filtering for downsca
   .AddOptionalArg("mag_filter", "Filter used when scaling up.",
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("min_filter", "Filter used when scaling down.",
-      DALI_INTERP_LINEAR, true)
+      DALI_INTERP_TRIANGULAR, true)
   .AddOptionalArg<DALIDataType>("dtype", R"code(Output data type.
 
 Must be same as input type or ``float``. If not set, input type is used.)code", nullptr)

@@ -115,3 +115,21 @@ def pipeline_kwargs(arg1, arg2, *args, **kwargs):
 @raises(TypeError, regex="\*\*kwargs.*not allowed")
 def test_kwargs_exception():
     pipeline_kwargs(arg1=1, arg2=2, arg3=3)
+
+
+def test_is_pipeline_def():
+    @pipeline_def
+    def pipe():
+        return 42
+
+    @pipeline_def()
+    def pipe_unconf():
+        return 42
+
+    @pipeline_def(max_batch_size=1, num_threads=1, device_id=0)
+    def pipe_conf():
+        return 42
+
+    assert getattr(pipe, '_is_pipeline_def', False)
+    assert getattr(pipe_unconf, '_is_pipeline_def', False)
+    assert getattr(pipe_conf, '_is_pipeline_def', False)

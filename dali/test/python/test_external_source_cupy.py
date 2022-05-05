@@ -40,7 +40,7 @@ def test_external_source_mixed_contiguous():
     iterations = 4
     def generator(i):
         if i % 2:
-            return cp.array([100 + i * 10 + 1.5] * batch_size, dtype=cp.float32)
+            return cp.array([[100 + i * 10 + 1.5]] * batch_size, dtype=cp.float32)
         else:
             return batch_size * [cp.array([100 + i * 10 + 1.5], dtype=cp.float32)]
 

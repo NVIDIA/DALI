@@ -302,6 +302,7 @@ ops_image_custom_args = [
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'shape': (10,)}),
     (fn.pad, {'fill_value': -1, 'axes': (0,), 'align': 16}),
     (fn.paste, {'fill_value': 69, 'ratio': 1, 'devices': ['gpu']}),
+    (fn.per_frame, {'replace': True, 'devices': ['cpu']}),
     (fn.resize, {'resize_x': 50, 'resize_y': 50}),
     (fn.resize_crop_mirror, {'crop': [5, 5], 'resize_shorter': 10, 'devices': ['cpu']}),
     (fn.rotate, {'angle': 25}),
@@ -328,8 +329,8 @@ float_array_ops = [
     (fn.preemphasis_filter, {}),
     (fn.spectrogram, {'nfft': 60, 'window_length': 50, 'window_step': 25}),
     (fn.to_decibels, {}),
+    (fn.experimental.audio_resample, {'devices': ['cpu'], 'scale' : 1.2}),
 ]
-
 
 def test_float_array_ops():
     for op, args in float_array_ops:
@@ -361,6 +362,7 @@ sequence_ops = [
     (fn.flip, {'horizontal': True}),
     (fn.gaussian_blur, {'window_size': 5}),
     (fn.normalize, {'batch': True}),
+    (fn.per_frame, {'devices': ['cpu']}),
     (fn.resize, {'resize_x': 50, 'resize_y': 50}),
 ]
 
@@ -1020,6 +1022,7 @@ def test_subscript_dim_check():
                    operator_fn=fn.subscript_dim_check, num_subscripts=1)
 
 
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1069,6 +1072,7 @@ tested_methods = [
     "normalize",
     "pad",
     "paste",
+    "per_frame",
     "resize",
     "resize_crop_mirror",
     "rotate",
@@ -1167,6 +1171,7 @@ tested_methods = [
     "random_bbox_crop",
     "ssd_random_crop",
     "optical_flow",
+    "experimental.audio_resample",
 ]
 
 excluded_methods = [

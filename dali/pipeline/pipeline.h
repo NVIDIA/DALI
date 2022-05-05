@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -428,6 +428,15 @@ class DLL_PUBLIC Pipeline {
    * @brief Returns a string describing the device type backing the output specified by given id.
    */
   DLL_PUBLIC const std::string &output_device(int id) const;
+
+  /**
+   * Checks, if a provided pipeline can be deserialized, according to the Pipeline protobuf
+   * definition.
+   *
+   * @param serialized_pipeline
+   * @return True, if the pipeline is serializable. False otherwise.
+   */
+  static bool IsDeserializable(const std::string& serialized_pipeline);
 
   // For testing
   template <typename T>

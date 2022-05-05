@@ -204,9 +204,9 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       block_size_ = std::max(grain,  // at least grain, for correctness
                              std::min<size_t>(next_pow2(total_mem_ >> 8),  // capacity-dependent...
                                               64 << 20));  // ...but capped at 64 MiB
-      if (initial_va_size_ == 0)
-        initial_va_size_ = align_up(2 * total_mem_, block_size_);  // get 2x physical size of VA
     }
+    if (initial_va_size_ == 0)
+        initial_va_size_ = align_up(2 * total_mem_, block_size_);  // get 2x physical size of VA
   }
 
   struct va_region {

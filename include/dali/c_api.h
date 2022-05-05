@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -126,6 +126,17 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
                                        int length);
 /// }@
 /// @{
+
+/**
+ * Checks, if the pipeline given by the string can be deserialized. It can be assumed that the
+ * pipeline, which can be deserialized, is a formally valid DALI pipeline.
+ *
+ * @param serialized_pipeline String with the serialized pipeline.
+ * @param length Length of the string.
+ * @return 0, if the pipeline is serializable. 1 otherwise.
+ */
+DLL_PUBLIC int daliIsDeserializable(const char* serialized_pipeline, int length);
+
 
 enum {
   DALI_ext_default = 0,
