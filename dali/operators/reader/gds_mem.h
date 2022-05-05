@@ -41,20 +41,40 @@ class DLL_PUBLIC GDSAllocator {
     return rsrc_.get();
   }
 
-  static GDSAllocator &instance(int device_id = -1);
+  static std::shared_ptr<GDSAllocator> get(int device_id = -1);
+
+  /**
+   * @brief Allocates a block of size `bytes`, usable with GDS
+   *
+   * The memory allocated is registered with GDS and suitably aligned, so it can be used
+   * with GDS wihtout additional staging/copying.
+   *
+   * The block must not outlive the GDSAllocator which allocated it.
+   *
+   * @param bytes The size of the block to allocate
+   */
+  inline std::shared_ptr<uint8_t> alloc_shared(size_t bytes) {
+      return mm::alloc_raw_shared<uint8_t>(resource(), bytes);
+  }
+
+  /**
+   * @brief Allocates a block of size `bytes`, usable with GDS
+   *
+   * The memory allocated is registered with GDS and suitably aligned, so it can be used
+   * with GDS wihtout additional staging/copying.
+   *
+   * The block must not outlive the GDSAllocator which allocated it.
+   *
+   * @param bytes The size of the block to allocate
+   */
+  inline mm::uptr<uint8_t> alloc_unique(size_t bytes) {
+      return mm::alloc_raw_unique<uint8_t>(resource(), bytes);
+  }
 
  private:
-  std::shared_ptr<mm::memory_resource<mm::memory_kind::device>> rsrc_;
+  std::unique_ptr<mm::memory_resource<mm::memory_kind::device>> rsrc_;
 };
 
-
-inline std::shared_ptr<uint8_t> gds_alloc(size_t bytes) {
-    return mm::alloc_raw_shared<uint8_t>(GDSAllocator::instance().resource(), bytes);
-}
-
-inline mm::uptr<uint8_t> gds_alloc_unique(size_t bytes) {
-    return mm::alloc_raw_unique<uint8_t>(GDSAllocator::instance().resource(), bytes);
-}
 
 class GDSStagingBuffer {
  public:
@@ -92,11 +112,30 @@ class DLL_PUBLIC GDSStagingEngine {
   void set_stream(cudaStream_t stream);
   GDSStagingBuffer get_staging_buffer(void *hint = nullptr);
 
-  void return_buffer(GDSStagingBuffer &&buf);
-
+  /**
+   * @brief Enqueues a copy from a staging buffer to a client-provided destination buffer.
+   *
+   * Enqueues a copy from a staging buffer to a client buffer. The copy is enqueued, but not
+   * scheduled for execution until either a call to `commit` or a
+   *
+   *
+   * @param client_buffer   the destination buffer, to which the contents of the staging buffer
+   *                        will be copied.
+   * @param nbytes          the amount of data to copy
+   * @param staging_buffer  the source buffer; when the copy completes, it is returned to the pool
+   * @param staging_offset  the offset in the staging (source) buffer to copy from
+   */
   void copy_to_client(void *client_buffer, size_t nbytes,
-                      GDSStagingBuffer &&staging_buffer, ptrdiff_t offset = 0);
+                      GDSStagingBuffer &&staging_buffer, ptrdiff_t staging_offset = 0);
+
+  /**
+   * @brief Immediately returns an unused buffer to the staging engine's buffer pool.
+   */
+  void return_unused(GDSStagingBuffer &&buf);
+
   void commit();
+
+  size_t chunk_size() const { return chunk_size_; }
 
  private:
   int allocate_buffers();
@@ -110,6 +149,7 @@ class DLL_PUBLIC GDSStagingEngine {
   int max_buffers_ = 64;
   size_t chunk_size_ = GetGDSChunkSize();
   cudaStream_t stream_ = 0;
+  std::shared_ptr<GDSAllocator> allocator_;
 
   using StagingBuffer = mm::uptr<uint8_t>;
 

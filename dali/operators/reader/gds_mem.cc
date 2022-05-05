@@ -70,8 +70,8 @@ class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device
   GDSRegisteredResource(int device_id) {
     cufile_driver_ = cufile::CUFileDriverHandle::Get(device_id);
   }
- private:
 
+ private:
   void adjust_params(size_t &size, size_t &alignment) {
     if (alignment < chunk_size_) {
       alignment = chunk_size_;
@@ -80,6 +80,7 @@ class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device
                         // blocks which might get glued in the pool - and that would lead to
                         // failures in cudaMemcpy etc.
   }
+
   void *do_allocate(size_t size, size_t alignment) override {
     adjust_params(size, alignment);
     char *raw = nullptr;
@@ -158,25 +159,27 @@ GDSAllocator::GDSAllocator(int device_id) {
   // Currently, GPUDirect Storage can work only with memory allocated with cudaMalloc and
   // cuMemAlloc. Since DALI is transitioning to CUDA Virtual Memory Management for memory
   // allocation, we need a special allocator that's compatible with GDS.
-  rsrc_ = std::make_shared<GDSMemoryPool>(device_id);
-
+  rsrc_ = std::make_unique<GDSMemoryPool>(device_id);
 }
 
 struct GDSAllocatorInstance {
-  GDSAllocator &get(int device_id) {
-    if (alloc_)
-      return *alloc_;
+  std::shared_ptr<GDSAllocator> get(int device_id) {
+    std::shared_ptr<GDSAllocator> alloc = alloc_.lock();
+    if (alloc)
+      return alloc;
     std::lock_guard<std::mutex> g(mtx_);
-    if (alloc_)
-      return *alloc_;
-    alloc_ = std::make_unique<GDSAllocator>(device_id);
-    return *alloc_;
+    alloc = alloc_.lock();
+    if (alloc)
+      return alloc;
+    alloc = std::make_shared<GDSAllocator>(device_id);
+    alloc_ = alloc;
+    return alloc;
   }
-  std::unique_ptr<GDSAllocator> alloc_;
+  std::weak_ptr<GDSAllocator> alloc_;
   std::mutex mtx_;
 };
 
-GDSAllocator &GDSAllocator::instance(int device) {
+std::shared_ptr<GDSAllocator> GDSAllocator::get(int device) {
   static int ndevs = []() {
     int devs = 0;
     CUDA_CALL(cudaGetDeviceCount(&devs));
@@ -192,10 +195,15 @@ GDSAllocator &GDSAllocator::instance(int device) {
 ///////////////////////////////////////////////////////////////////////////////
 // GDSStagingEngine
 
-GDSStagingEngine::GDSStagingEngine(int device_id, int max_buffers, int commit_after)
-: device_id_(device_id)
-, commit_after_(commit_after)
-, max_buffers_(max_buffers) {
+GDSStagingEngine::GDSStagingEngine(int device_id, int max_buffers, int commit_after) {
+  if (device_id < 0) {
+    CUDA_CALL(cudaGetDevice(&device_id));
+  }
+  device_id_ = device_id;
+  max_buffers_ = max_buffers;
+  commit_after_ = commit_after;
+
+  allocator_ = GDSAllocator::get(device_id);
   ready_ = CUDAEventPool::instance().Get(device_id);
 }
 
@@ -207,7 +215,7 @@ int GDSStagingEngine::allocate_buffers() {
   int prev = blocks_.size();
   int new_total = clamp(prev * 2, 2, max_buffers_);
   for (int i = prev; i < new_total; i++) {
-    blocks_.push_back(gds_alloc_unique(chunk_size_));
+    blocks_.push_back(allocator_->alloc_unique(chunk_size_));
     ready_buffers_.insert(blocks_.back().get());
   }
   return blocks_.size() - prev;
@@ -222,9 +230,15 @@ void GDSStagingEngine::wait_buffers(std::unique_lock<std::mutex> &lock) {
   scheduled_.clear();
 }
 
-void GDSStagingEngine::copy_to_client(void *client_buffer, size_t nbytes,
-                                    GDSStagingBuffer &&staging_buffer, ptrdiff_t offset) {
+void GDSStagingEngine::return_unused(GDSStagingBuffer &&staging_buffer) {
   std::lock_guard g(lock_);
+  ready_buffers_.insert(staging_buffer.release());
+}
+
+void GDSStagingEngine::copy_to_client(void *client_buffer, size_t nbytes,
+                                      GDSStagingBuffer &&staging_buffer, ptrdiff_t offset) {
+  std::lock_guard g(lock_);
+  assert(staging_buffer.at(0) != nullptr && "Staging buffer already released.");
   copy_engine_.AddCopy(client_buffer, staging_buffer.at(offset), nbytes);
   unscheduled_.push_back(staging_buffer.release());
   if (unscheduled_.size() > static_cast<size_t>(commit_after_))
