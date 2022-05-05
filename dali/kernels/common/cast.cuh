@@ -26,15 +26,46 @@ struct CastSampleDesc {
   const void *input;
 };
 
+struct CastSampleBlockDesc {
+  unsigned first_block;  // Id of the earliest block that should process given sample
+  unsigned sample_size;
+};
+
+template <typename OType, typename IType>
+__device__ __forceinline__ void CastKernelInternal(const CastSampleDesc& sample,
+                                                   unsigned block_start, unsigned block_end) {
+  auto *out = static_cast<OType *>(sample.output);
+  const auto *in = static_cast<const IType *>(sample.input);
+  for (unsigned x = threadIdx.x + block_start; x < block_end; x += blockDim.x) {
+    out[x] = ConvertSat<OType>(in[x]);
+  }
+}
+
 template <typename OType, typename IType>
 __global__ void BatchedCastKernel(const CastSampleDesc *samples, const BlockDesc<1> *blocks) {
   const auto &block = blocks[blockIdx.x];
   const auto &sample = samples[block.sample_idx];
-  auto *out = static_cast<OType *>(sample.output);
-  const auto *in = static_cast<const IType *>(sample.input);
-  for (int x = threadIdx.x + block.start.x; x < block.end.x; x += blockDim.x) {
-    out[x] = ConvertSat<OType>(in[x]);
+  CastKernelInternal<OType, IType>(sample, block.start.x, block.end.x);
+}
+
+template <typename OType, typename IType>
+__global__ void BinSearchCastKernel(const CastSampleDesc *samples,
+                                    const CastSampleBlockDesc *params,
+                                    unsigned nsamples, int block_volume_scale) {
+  unsigned i = 0;
+  for (unsigned jump = (1 << (32 - __clz(nsamples) - 1)); jump; jump >>= 1) {
+    if (i + jump < nsamples && params[i + jump].first_block <= blockIdx.x)
+      i += jump;  // Binary search to find sample that this block should process
   }
+  CastSampleDesc sample = samples[i];
+  auto size = params[i].sample_size;
+  auto block_offset = blockIdx.x - params[i].first_block;
+
+  auto block_size = block_volume_scale * blockDim.x;
+  auto block_start = block_offset * block_size;
+  auto block_end = block_start + block_size <= size ? block_start + block_size : size;
+
+  CastKernelInternal<OType, IType>(sample, block_start, block_end);
 }
 
 }  // namespace kernels

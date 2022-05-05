@@ -107,10 +107,6 @@ void TestBatchedExtract(
 
   int N = lengths.num_samples();
 
-  ptrdiff_t total_length = 0;
-  for (int i = 0; i < N; i++) {
-    total_length += lengths[i][0];
-  }
 
   TestTensorList<float, 1> in_list;
   in_list.reshape(lengths);
