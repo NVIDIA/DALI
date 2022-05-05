@@ -308,6 +308,18 @@ DLL_PUBLIC const char *daliGetExternalInputName(daliPipelineHandle *pipe_handle,
 DLL_PUBLIC const char *daliGetExternalInputLayout(daliPipelineHandle *pipe_handle,
                                                   const char *name);
 
+
+/**
+ * @brief Get the data type required by the external input with a given name.
+ * 
+ * @param pipe_handle Pointer to pipeline handle.
+ * @param name Name of the external input.
+ * @return Data type. 
+ */
+DLL_PUBLIC dali_data_type_t daliGetExternalInputType(daliPipelineHandle *pipe_handle,
+                                                     const char *name);
+
+
 /**
  * @brief Get the data dimensionality required by the external input with a given name.
  * If the dimensionality is not determined, -1 is returned.

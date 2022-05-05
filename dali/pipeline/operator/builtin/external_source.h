@@ -253,6 +253,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     return ndim_;
   }
 
+  DALIDataType dtype() const {
+    return dtype_;
+  }
+
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */

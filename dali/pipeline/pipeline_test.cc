@@ -755,20 +755,23 @@ TEST(PipelineTest, InputsListing) {
 
 TEST(PipelineTest, InputDetails) {
   Pipeline pipe(1, 1, 0);
-  pipe.AddExternalInput("INPUT", "cpu", 3, "HWC");
-  pipe.AddExternalInput("INPUT2", "gpu", -1, "NHWC");
+  pipe.AddExternalInput("INPUT", "cpu", DALI_UINT32, 3, "HWC");
+  pipe.AddExternalInput("INPUT2", "gpu", DALI_FLOAT16, -1, "NHWC");
   pipe.AddExternalInput("INPUT3");
 
   pipe.Build({{"INPUT", "cpu"}, {"INPUT2", "gpu"}, {"INPUT3", "cpu"}});
 
   ASSERT_EQ(pipe.GetInputLayout("INPUT"), "HWC");
   ASSERT_EQ(pipe.GetInputNdim("INPUT"), 3);
+  ASSERT_EQ(pipe.GetInputDtype("INPUT"), DALI_UINT32);
 
   ASSERT_EQ(pipe.GetInputLayout("INPUT2"), "NHWC");
   ASSERT_EQ(pipe.GetInputNdim("INPUT2"), 4);
+  ASSERT_EQ(pipe.GetInputDtype("INPUT2"), DALI_FLOAT16);
 
   ASSERT_EQ(pipe.GetInputLayout("INPUT3"), "");
   ASSERT_EQ(pipe.GetInputNdim("INPUT3"), -1);
+  ASSERT_EQ(pipe.GetInputDtype("INPUT3"), DALI_NO_TYPE);
 }
 
 }  // namespace dali

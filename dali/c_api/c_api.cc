@@ -340,6 +340,11 @@ int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const char *name) 
   return pipeline->GetInputNdim(name);
 }
 
+dali_data_type_t daliGetExternalInputType(daliPipelineHandle *pipe_handle, const char *name) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  auto type_id = pipeline->GetInputDtype(name);
+  return static_cast<dali_data_type_t>(static_cast<int>(type_id));
+}
 
 void daliRun(daliPipelineHandle *pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);

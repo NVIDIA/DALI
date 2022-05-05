@@ -115,6 +115,7 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC inline int AddExternalInput(const string &name,
                                          const string &device = "cpu",
+                                         DALIDataType dtype = DALI_NO_TYPE,
                                          int ndim = -1,
                                          const TensorLayout &layout = "") {
     auto spec = OpSpec("ExternalSource")
@@ -123,6 +124,7 @@ class DLL_PUBLIC Pipeline {
                       .AddOutput(name, device);
     if (!layout.empty()) spec.AddArg("layout", layout);
     if (ndim >= 0) spec.AddArg("ndim", ndim);
+    if (dtype != DALI_NO_TYPE) spec.AddArg("dtype", dtype);
     return AddOperator(spec, name);
   }
 
@@ -417,6 +419,11 @@ class DLL_PUBLIC Pipeline {
    * @brief Get the data dimensionality required by the external input with a given name.
    */
   DLL_PUBLIC int GetInputNdim(const std::string &name);
+
+  /**
+   * @brief Get the data type required by the external input with a given name.
+   */
+  DLL_PUBLIC DALIDataType GetInputDtype(const std::string &name);
 
   /**
    * @brief Returns the number of threads used by the pipeline.
