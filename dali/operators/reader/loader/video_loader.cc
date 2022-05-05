@@ -544,7 +544,7 @@ void VideoLoader::read_file() {
     // how many key frames following the last requested frames we need to see before we stop
     // feeding the decoder
     const int key_frames_treshold = 2;
-    VidReqStatus dec_status = REQ_IN_PROGRESS;
+    VidReqStatus dec_status = VidReqStatus::REQ_IN_PROGRESS;
 
     while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
       auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
@@ -564,14 +564,11 @@ void VideoLoader::read_file() {
       file.last_frame_ = frame;
       key = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
 
-      if (key) {
-        last_key_frame = frame;
-      }
-
-      // if decoding hasn't produced any frames after providing startup_frame_treshold_ frames,
+      // if decoding hasn't produced any frames after providing kStartupFrameTreshold frames,
       // or we are at next key frame
-      if (((key && frame != last_key_frame) || frame > last_key_frame + startup_frame_treshold_)
-            && dec_status == REQ_NOT_STARTED) {
+      if (((last_key_frame != -1 && key && last_key_frame != frame)
+            || frame > last_key_frame + kStartupFrameTreshold)
+              && dec_status == VidReqStatus::REQ_NOT_STARTED) {
         LOG_LINE << "Decoding not started, seek to preceding key frame, "
                  << "current frame " << frame
                  << ", last key frame " << last_key_frame
@@ -579,6 +576,10 @@ void VideoLoader::read_file() {
         seek(file, last_key_frame - 1);
         last_key_frame = -1;
         continue;
+      }
+
+      if (key) {
+        last_key_frame = frame;
       }
 
       int pkt_frames = 1;
@@ -692,8 +693,8 @@ void VideoLoader::read_file() {
                                     codecpar(stream));
       }
       is_first_frame = false;
-      if (dec_status == REQ_READY) {
-        LOG_LINE << "Request completted: " << dec_status << std::endl;
+      if (dec_status == VidReqStatus::REQ_READY) {
+        LOG_LINE << "Request completted" << std::endl;
         break;
       }
     }

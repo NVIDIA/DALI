@@ -52,7 +52,7 @@ NvDecoder::NvDecoder(int device_id,
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       recv_queue_(), frame_queue_(),
-      current_recv_(), req_ready_(REQ_READY), textures_(), stop_(false) {
+      current_recv_(), req_ready_(VidReqStatus::REQ_READY), textures_(), stop_(false) {
 
   DALI_ENFORCE(cuInitChecked(),
     "Failed to load libcuda.so. "
@@ -144,7 +144,7 @@ VidReqStatus NvDecoder::decode_av_packet(AVPacket* avpkt, int64_t start_time,
                                          AVRational stream_base) {
   if (stop_) {
     LOG_LINE << "NvDecoder::stop_ requested" << std::endl;
-    return REQ_READY;
+    return VidReqStatus::REQ_READY;
   }
 
   CUVIDSOURCEDATAPACKET cupkt = {0};
@@ -330,8 +330,8 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
                             nv_time_base_, current_recv_.frame_base);
 
   // it means that any frame has been decoded
-  if (req_ready_ == REQ_NOT_STARTED) {
-    req_ready_ = REQ_IN_PROGRESS;
+  if (req_ready_ == VidReqStatus::REQ_NOT_STARTED) {
+    req_ready_ = VidReqStatus::REQ_IN_PROGRESS;
   }
 
   if (current_recv_.count <= 0) {
@@ -375,7 +375,7 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
   frame_in_use_[disp_info->picture_index] = true;
   frame_queue_.push(disp_info);
   if (current_recv_.count <= 0) {
-    req_ready_ = REQ_READY;
+    req_ready_ = VidReqStatus::REQ_READY;
   }
   return kNvcuvid_success;
 }
@@ -396,11 +396,11 @@ VidReqStatus NvDecoder::decode_packet(AVPacket* pkt, int64_t start_time, AVRatio
       DALI_FAIL("Got to decode_packet in a decoder that is not "
                 "for an audio, video, or subtitle stream.");
   }
-  return REQ_READY;
+  return VidReqStatus::REQ_READY;
 }
 
 void NvDecoder::push_req(FrameReq req) {
-  req_ready_ = REQ_NOT_STARTED;
+  req_ready_ = VidReqStatus::REQ_NOT_STARTED;
   recv_queue_.push(std::move(req));
 }
 

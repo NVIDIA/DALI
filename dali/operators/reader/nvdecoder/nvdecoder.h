@@ -74,7 +74,7 @@ enum ScaleMethod {
 };
 
 
-enum VidReqStatus {
+enum class VidReqStatus {
   REQ_READY = 0,
   REQ_IN_PROGRESS,
   REQ_NOT_STARTED,
@@ -109,7 +109,7 @@ class NvDecoder {
   static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
   VidReqStatus decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base,
-                    const CodecParameters*);
+                             const CodecParameters*);
 
   void push_req(FrameReq req);
 
