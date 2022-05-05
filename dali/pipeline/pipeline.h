@@ -113,7 +113,7 @@ class DLL_PUBLIC Pipeline {
    * Equivalent to inserting ExternalSource with output of given name and specified
    * device placemnt.
    */
-  DLL_PUBLIC inline int AddExternalInput(const string &name,
+  DLL_PUBLIC int AddExternalInput(const string &name,
                                          const string &device = "cpu",
                                          DALIDataType dtype = DALI_NO_TYPE,
                                          int ndim = -1,
@@ -416,7 +416,7 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC const TensorLayout &GetInputLayout(const std::string &name);
 
   /**
-   * @brief Get the data dimensionality required by the external input with a given name.
+   * @brief Get the required number of dimensions for the external input with a given name.
    */
   DLL_PUBLIC int GetInputNdim(const std::string &name);
 
@@ -569,7 +569,7 @@ class DLL_PUBLIC Pipeline {
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 
-  std::set<std::string> input_names_;
+  std::set<std::string> ext_input_names_;
 };
 
 }  // namespace dali

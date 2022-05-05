@@ -285,9 +285,9 @@ daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
 DLL_PUBLIC int daliGetNumExternalInput(daliPipelineHandle *pipe_handle);
 
 /**
- * @brief Get the name of nth external input in the pipeline in the lexicographic order.
+ * @brief Get the name of n-th external input in the pipeline in the lexicographic order.
  *
- * Rreturned pointer is valid until the lifetime of the pipeline object ends.
+ * Returned pointer is valid until the lifetime of the pipeline object ends.
  *
  * @param pipe_handle Pointer to pipeline handle.
  * @param n
@@ -321,12 +321,12 @@ DLL_PUBLIC dali_data_type_t daliGetExternalInputType(daliPipelineHandle *pipe_ha
 
 
 /**
- * @brief Get the data dimensionality required by the external input with a given name.
- * If the dimensionality is not determined, -1 is returned.
+ * @brief Get the data number of dimensions required by the external input with a given name.
+ * If the number of dimensions is not determined, -1 is returned.
  *
  * @param pipe_handle Pointer to pipeline handle.
  * @param name Name of the external input.
- * @return Dimensionality.
+ * @return Number of dimensions.
  */
 DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const char *name);
 

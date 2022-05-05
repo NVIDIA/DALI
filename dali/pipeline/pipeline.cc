@@ -359,7 +359,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
   // store updated spec
   AddToOpSpecs(inst_name, spec, logical_id);
   if (spec.name() == "ExternalSource") {
-    input_names_.insert(inst_name);
+    ext_input_names_.insert(inst_name);
   }
   return logical_id;
 }
@@ -824,15 +824,14 @@ DALIDataType Pipeline::GetInputDtype(const std::string &name) {
 }
 
 const std::string &Pipeline::input_name(int n) const {
-  DALI_ENFORCE(n >= 0, "Id of an external source must be a non-negative integer.");
-  for (const auto &name : input_names_) {
-    if (n == 0) {
-      return name;
-    }
-    --n;
-  }
-  DALI_FAIL(make_string("Trying to fetch the name of the ", n, ". external input while "
-                        "the pipeline has only ", num_inputs(), " inputs."));
+  DALI_ENFORCE(n >= 0,
+               make_string("Id of an external source must be a non-negative integer. Got: ", n));
+  DALI_ENFORCE(static_cast<size_t>(n) < ext_input_names_.size(),
+               make_string("Trying to fetch the name of the external input with id=", n,
+                           " while the id has to be smaller than ", num_inputs(), "."));
+  auto it = ext_input_names_.begin();
+  std::advance(it, n);
+  return *it;
 }
 
 const std::string &Pipeline::output_name(int id) const {
@@ -848,7 +847,7 @@ const std::string &Pipeline::output_device(int id) const {
 }
 
 int Pipeline::num_inputs() const {
-  return input_names_.size();
+  return ext_input_names_.size();
 }
 
 int Pipeline::num_outputs() const {
