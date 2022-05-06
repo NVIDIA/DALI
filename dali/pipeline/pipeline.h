@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -112,12 +113,19 @@ class DLL_PUBLIC Pipeline {
    * Equivalent to inserting ExternalSource with output of given name and specified
    * device placemnt.
    */
-  DLL_PUBLIC inline int AddExternalInput(const string &name, const string &device = "cpu") {
-    return AddOperator(OpSpec("ExternalSource")
-                           .AddArg("name", name)
-                           .AddArg("device", device)
-                           .AddOutput(name, device),
-                       name);
+  DLL_PUBLIC int AddExternalInput(const string &name,
+                                         const string &device = "cpu",
+                                         DALIDataType dtype = DALI_NO_TYPE,
+                                         int ndim = -1,
+                                         const TensorLayout &layout = "") {
+    auto spec = OpSpec("ExternalSource")
+                      .AddArg("name", name)
+                      .AddArg("device", device)
+                      .AddOutput(name, device);
+    if (!layout.empty()) spec.AddArg("layout", layout);
+    if (ndim >= 0) spec.AddArg("ndim", ndim);
+    if (dtype != DALI_NO_TYPE) spec.AddArg("dtype", dtype);
+    return AddOperator(spec, name);
   }
 
   template <typename T, typename OperatorBackend>
@@ -403,6 +411,21 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC ReaderMeta GetReaderMeta(std::string name);
 
   /**
+   * @brief Get the data layout required by the external input with a given name.
+   */
+  DLL_PUBLIC const TensorLayout &GetInputLayout(const std::string &name);
+
+  /**
+   * @brief Get the required number of dimensions for the external input with a given name.
+   */
+  DLL_PUBLIC int GetInputNdim(const std::string &name);
+
+  /**
+   * @brief Get the data type required by the external input with a given name.
+   */
+  DLL_PUBLIC DALIDataType GetInputDtype(const std::string &name);
+
+  /**
    * @brief Returns the number of threads used by the pipeline.
    */
   DLL_PUBLIC inline int num_threads() const { return num_threads_; }
@@ -415,9 +438,19 @@ class DLL_PUBLIC Pipeline {
   }
 
   /**
+   * @brief Returns number of external inputs.
+   */
+  DLL_PUBLIC int num_inputs() const;
+
+  /**
    * @brief Returns number of outputs.
    */
   DLL_PUBLIC int num_outputs() const;
+
+  /**
+   * @brief Return the name of the nth external input in the pipeline in lexicographic order.
+   */
+  DLL_PUBLIC const std::string &input_name(int n) const;
 
   /**
    * @brief Returns a string describing the name of the output specified by given id.
@@ -535,6 +568,8 @@ class DLL_PUBLIC Pipeline {
   // Mapping between logical id and index in op_spces_;
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
+
+  std::set<std::string> ext_input_names_;
 };
 
 }  // namespace dali
