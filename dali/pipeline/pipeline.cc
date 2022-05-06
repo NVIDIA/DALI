@@ -757,24 +757,6 @@ ReaderMeta Pipeline::GetReaderMeta(std::string name) {
   return meta;
 }
 
-template <typename Prop, typename T>
-bool GetInputProperty(const OpNode *node, Prop property, T* &value) {
-  if (node->op_type == OpType::CPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<CPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      value = &property(es_ptr);
-      return true;
-    }
-  } else if (node->op_type == OpType::GPU) {
-    const auto *es_ptr = dynamic_cast<ExternalSource<GPUBackend>*>(node->op.get());
-    if (es_ptr) {
-      value = &property(es_ptr);
-      return true;
-    }
-  }
-  return false;
-}
-
 const TensorLayout& Pipeline::GetInputLayout(const std::string &name) {
   const auto *node = GetOperatorNode(name);
   if (node->op_type == OpType::CPU) {
