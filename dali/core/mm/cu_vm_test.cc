@@ -35,7 +35,7 @@ TEST(CUMemAddressRange, Reserve) {
   };
   CUdeviceptr start = 0;
   size_t size = 0;
-  bool mapped = false;
+  int mapped = 0;
   void *data[3] = { &start, &size, &mapped };
   CUDA_CALL(cuPointerGetAttributes(3, attrs, data, range.ptr() + 100));
   EXPECT_EQ(start, range.ptr());
@@ -61,7 +61,7 @@ TEST(CUMemAddressRange, ReserveAndMap) {
   };
   CUdeviceptr start = 0;
   size_t size = 0;
-  bool mapped = false;
+  int mapped = 0;
   void *data[3] = { &start, &size, &mapped };
   void *ptr = cuvm::Map(base, mem);
   EXPECT_EQ(ptr, reinterpret_cast<void*>(base));
@@ -97,7 +97,7 @@ TEST(CUMemAddressRange, ReserveAndMapPiecewise) {
   };
   CUdeviceptr start = 0;
   size_t size = 0;
-  bool mapped = false;
+  int mapped = 0;
   void *data[3] = { &start, &size, &mapped };
   void *ptr1 = cuvm::Map(base, mem1);
   void *ptr2 = cuvm::Map(base + phys_size, mem2);
