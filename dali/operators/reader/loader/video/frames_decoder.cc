@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,6 +71,9 @@ void FramesDecoder::FindVideoStream() {
 
 FramesDecoder::FramesDecoder(const std::string &filename)
     : av_state_(std::make_unique<AvState>()), filename_(filename) {
+
+  av_log_set_level(AV_LOG_ERROR);
+
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
 
