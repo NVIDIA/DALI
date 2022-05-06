@@ -102,7 +102,7 @@ endif()
 if(BUILD_LIBSND)
   find_library(libsnd_LIBS
           NAMES sndfile libsndfile
-          PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBSND_ROOT_DIR} "/usr/local"
+          PATHS ${LIBSND_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
           PATH_SUFFIXES lib lib64)
   if(${libsnd_LIBS} STREQUAL libsnd_LIBS-NOTFOUND)
     message(FATAL_ERROR "libsnd (sndfile) could not be found. Try to specify it's location with `-DLIBSND_ROOT_DIR`.")
@@ -117,7 +117,7 @@ endif()
 if(BUILD_LIBTAR)
   find_library(libtar_LIBS
           NAMES libtar.a tar libtar
-          PATHS ${CMAKE_SYSTEM_PREFIX_PATH} ${LIBTAR_ROOT_DIR} "/usr/local"
+          PATHS ${LIBTAR_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
           PATH_SUFFIXES lib lib64)
   if(${libtar_LIBS} STREQUAL libtar_LIBS-NOTFOUND)
     message(FATAL_ERROR "libtar could not be found. Try to specify it's location with `-DLIBTAR_ROOT_DIR`.")
