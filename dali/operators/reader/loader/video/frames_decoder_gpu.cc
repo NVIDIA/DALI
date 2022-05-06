@@ -87,7 +87,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
 
     // Init internal frame buffer
-    // TODO(awolant): Check, if continuos buffer would be faster
+    // TODO(awolant): Check, if continuous buffer would be faster
     for (size_t i = 0; i < frame_buffer_.size(); ++i) {
       frame_buffer_[i].frame_.resize(FrameSize());
       frame_buffer_[i].pts_ = -1;
