@@ -566,9 +566,9 @@ void VideoLoader::read_file() {
 
       // if decoding hasn't produced any frames after providing kStartupFrameTreshold frames,
       // or we are at next key frame
-      if (((last_key_frame != -1 && key && last_key_frame != frame)
-            || frame > last_key_frame + kStartupFrameTreshold)
-              && dec_status == VidReqStatus::REQ_NOT_STARTED) {
+      if (last_key_frame != -1 &&
+          ((key && last_key_frame != frame) || frame > last_key_frame + kStartupFrameTreshold) &&
+          dec_status == VidReqStatus::REQ_NOT_STARTED) {
         LOG_LINE << "Decoding not started, seek to preceding key frame, "
                  << "current frame " << frame
                  << ", last key frame " << last_key_frame
