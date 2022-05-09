@@ -204,9 +204,11 @@ class UnfoldedSliceRange {
  */
 template <typename Backend>
 struct TensorVectorBuilder {
-  TensorVectorBuilder(int num_samples, DALIDataType type, int sample_dim, TensorLayout layout,
-                      bool is_pinned, AccessOrder order)
-      : tv_(num_samples) {
+  TensorVectorBuilder(TensorVector<Backend> &tv, int num_samples, DALIDataType type, int sample_dim,
+                      TensorLayout layout, bool is_pinned, AccessOrder order)
+      : tv_{tv} {
+    tv_.Reset();
+    tv_.SetSize(num_samples);
     tv_.set_type(type);
     tv_.set_sample_dim(sample_dim);
     tv_.SetLayout(layout);
@@ -214,34 +216,32 @@ struct TensorVectorBuilder {
     tv_.set_order(order);
   }
 
-  void push(const SliceView &view) {
+  void SetNext(const SliceView &view) {
     std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter
     tv_.UnsafeSetSample(size++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
                         view.shape, tv_.type(), tv_.order(), tv_.GetLayout());
   }
 
-  /**
-   * @brief Returns the created tensor vector: must be called after pusing exactly ``num_samples``.
-   * Calling ``take`` invalidates the ``TensorVectorBuilder`` instance.
-   */
-  TensorVector<Backend> take() {
-    assert(size == tv_.num_samples());
-    return std::move(tv_);
+  int Size() {
+    return size;
   }
 
-  TensorVector<Backend> tv_;
+ private:
+  TensorVector<Backend> &tv_;
   int size = 0;
 };
 
 
 template <typename Backend>
-TensorVectorBuilder<Backend> tv_builder_like(const TensorVector<Backend> &data, int num_samples,
+TensorVectorBuilder<Backend> tv_builder_like(const TensorVector<Backend> &batch,
+                                             TensorVector<Backend> &expanded_batch, int num_samples,
                                              int ndims_to_unfold = 0) {
-  assert(data.sample_dim() >= ndims_to_unfold);
-  auto sample_dim = data.sample_dim() - ndims_to_unfold;
-  const auto &initial_layout = data.GetLayout();
+  assert(batch.sample_dim() >= ndims_to_unfold);
+  auto sample_dim = batch.sample_dim() - ndims_to_unfold;
+  const auto &initial_layout = batch.GetLayout();
   TensorLayout layout = initial_layout.empty() ? "" : initial_layout.last(sample_dim);
-  return {num_samples, data.type(), sample_dim, layout, data.is_pinned(), data.order()};
+  return {expanded_batch, num_samples,       batch.type(), sample_dim,
+          layout,         batch.is_pinned(), batch.order()};
 }
 
 template <typename Backend>
@@ -280,18 +280,18 @@ inline TensorListShape<> broadcast_samples(const TensorListShape<> &shape,
 }
 
 template <typename Backend>
-TensorList<Backend> unfold_outer_dims(const TensorList<Backend> &data, int ndims_to_unfold) {
+void unfold_outer_dims(const TensorList<Backend> &batch, TensorList<Backend> &expanded_batch,
+                       int ndims_to_unfold) {
   // TODO(ktokarski) TODO(klecki)
   // Rework it when TensorList stops being contigious and supports "true sample" mode
-  const auto &shape = data.shape();
-  TensorList<Backend> tl;
-  tl.ShareData(data);
+  const auto &shape = batch.shape();
+  expanded_batch.Reset();
+  expanded_batch.ShareData(batch);
   auto expanded_shape = unfold_outer_dims(shape, ndims_to_unfold);
-  tl.Resize(expanded_shape, data.type());
-  const auto &initial_layout = data.GetLayout();
+  expanded_batch.Resize(expanded_shape, batch.type());
+  const auto &initial_layout = batch.GetLayout();
   TensorLayout layout = initial_layout.empty() ? "" : initial_layout.sub(ndims_to_unfold);
-  tl.SetLayout(layout);
-  return tl;
+  expanded_batch.SetLayout(layout);
 }
 
 inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
