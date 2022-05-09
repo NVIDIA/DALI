@@ -303,9 +303,10 @@ inline void broadcast_samples(const TensorList<GPUBackend> &batch,
                               TensorList<GPUBackend> &expanded_batch, const ExpandDesc &expand_desc,
                               kernels::ScatterGatherGPU &sg, cudaStream_t stream) {
   assert(expand_desc.NumSamples() == batch.num_samples());
-  sequence_utils::setup_expanded_like(batch, expanded_batch);
+  expanded_batch.Reset();
+  setup_expanded_like(batch, expanded_batch);
   const auto &shape = batch.shape();
-  auto broadcast_shape = sequence_utils::broadcast_samples(shape, expand_desc);
+  auto broadcast_shape = broadcast_samples(shape, expand_desc);
   expanded_batch.Resize(broadcast_shape, batch.type());
   auto type_size = batch.type_info().size();
   for (int sample_idx = 0, elem_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
@@ -322,6 +323,7 @@ inline void broadcast_samples(const TensorList<CPUBackend> &batch,
                               TensorList<CPUBackend> &expanded_batch,
                               const ExpandDesc &expand_desc) {
   assert(expand_desc.NumSamples() == batch.num_samples());
+  expanded_batch.Reset();
   setup_expanded_like(batch, expanded_batch);
   const auto &shape = batch.shape();
   auto broadcast_shape = broadcast_samples(shape, expand_desc);

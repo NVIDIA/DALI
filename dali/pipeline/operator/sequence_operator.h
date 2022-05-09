@@ -58,8 +58,8 @@ using batch_backend_t =
 }  // namespace detail
 
 
-// make broadcasting samples a mixing because the GPU backend op,
-// temporarily, requires some extra state
+// broadcasting on gpu requires some extra state,
+// so separate it from the sequence operator
 template <typename Backend>
 class SampleBroadcasting;
 
@@ -278,7 +278,7 @@ class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Bac
     const auto &input_desc = GetInputExpandDesc(input_idx);
     int num_expand_dims = input_desc.NumDimsToExpand();
     if (num_expand_dims == 0) {
-      ProcessInput(ws, input_idx, [this, &input_idx, &ref_expand_desc](const auto &input) {
+      ProcessInput(ws, input_idx, [&](const auto &input) {
         auto &expanded_input = ExpandedInput<detail::batch_backend_t<decltype(input)>>(input_idx);
         BroadcastBatch(input, expanded_input, ref_expand_desc);
       });
@@ -286,7 +286,7 @@ class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Bac
       if (ref_input_idx != input_idx) {
         VerifyExpansionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
-      ProcessInput(ws, input_idx, [this, &input_idx, &ref_expand_desc](const auto &input) {
+      ProcessInput(ws, input_idx, [&](const auto &input) {
         auto &expanded_input = ExpandedInput<detail::batch_backend_t<decltype(input)>>(input_idx);
         UnfoldBatch(input, expanded_input, ref_expand_desc);
       });
@@ -300,7 +300,7 @@ class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Bac
    */
   virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-    ProcessOutput(ws, output_idx, [this, &output_idx, &expand_desc](const auto &output) {
+    ProcessOutput(ws, output_idx, [&](const auto &output) {
       auto &expanded_output = ExpandedOutput<detail::batch_backend_t<decltype(output)>>(output_idx);
       UnfoldBatch(output, expanded_output, expand_desc);
     });
