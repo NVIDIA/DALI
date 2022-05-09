@@ -68,7 +68,7 @@ void UnregisterChunks(void *start, int chunks, size_t chunk_size) {
 class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device> {
  public:
   GDSRegisteredResource(int device_id) {
-    cufile_driver_ = cufile::CUFileDriverHandle::Get(device_id);
+    cufile_driver_ = cufile::CUFileDriverHandle::Get();
   }
 
  private:

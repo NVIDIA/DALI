@@ -45,7 +45,7 @@ def is_gds_supported(device_id=0):
         compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         compute_cap = compute_cap[0] + compute_cap[1] / 10.
     except ModuleNotFoundError:
-        pass
+        print("Python bindings for NVML not found")
 
     is_gds_supported_var = platform.processor() == "x86_64" and compute_cap >= 6.0
     return is_gds_supported_var

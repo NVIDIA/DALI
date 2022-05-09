@@ -38,36 +38,11 @@ struct CUFileHandleInstance {
   }
 };
 
-class CUFileHandleManager {
- public:
-  static CUFileHandleManager &instance() {
-    static CUFileHandleManager instance;
-    return instance;
-  }
-
-  std::shared_ptr<CUFileDriverHandle> get(int device) {
-    DeviceGuard g(device);
-    if (device < 0)
-        CUDA_CALL(cudaGetDevice(&device));
-    return handles_[device].get();
-  }
-
- private:
-  CUFileHandleManager() : handles_(GetDeviceCount()) {}
-
-  static int GetDeviceCount() {
-    int ndevs = 0;
-    CUDA_CALL(cudaGetDeviceCount(&ndevs));
-    return ndevs;
-  }
-
-  std::vector<CUFileHandleInstance> handles_;
-};
-
 }  // namespace
 
-std::shared_ptr<CUFileDriverHandle> CUFileDriverHandle::Get(int device) {
-  return CUFileHandleManager::instance().get(device);
+std::shared_ptr<CUFileDriverHandle> CUFileDriverHandle::Get() {
+  static CUFileHandleInstance instance;
+  instance.get();
 }
 
 }  // namespace cufile

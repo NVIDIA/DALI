@@ -52,13 +52,10 @@ class DLL_PUBLIC CUFileDriverHandle {
   /**
    * @brief Returns a shared pointer to a CUFile driver handle.
    *
-   * Returns a shared pointer to a global instance of the CUFile driver handle for given device.
+   * Returns a shared pointer to a global instance of the CUFile driver handle.
    * If there's already a handle, it's just returned and shared; otherwise, a new handle is created.
-   *
-   * @param device_id The ordinal of the device to get the CUFile driver handle for.
-   *                  If device_id < 0, current device is used.
    */
-  static std::shared_ptr<CUFileDriverHandle> Get(int device_id = -1);
+  static std::shared_ptr<CUFileDriverHandle> Get();
 };
 
 // wrapper struct to conveniently store the fd's as well

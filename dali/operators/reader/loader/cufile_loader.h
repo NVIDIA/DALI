@@ -43,7 +43,7 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
                         bool shuffle_after_epoch = false)
       : FileLoader<GPUBackend, Target, CUFileStream>(spec) {
 
-    d_ = cufile::CUFileDriverHandle::Get(this->device_id_);
+    d_ = cufile::CUFileDriverHandle::Get();
   }
 
   ~CUFileLoader() {
