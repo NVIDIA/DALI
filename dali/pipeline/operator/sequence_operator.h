@@ -441,8 +441,8 @@ class SequenceOperator : public Operator<Backend> {
   }
 
   void SetupExpandedWorkspace(const workspace_t<Backend> &ws) {
-    if (!is_expanded_setup_) {
-      is_expanded_setup_ = true;
+    if (!is_expanded_set_up_) {
+      is_expanded_set_up_ = true;
       SetupExpandedWorkspaceGraph(ws);
       SetupExpandedWorkspace(expanded_, ws);
     }
@@ -519,7 +519,7 @@ class SequenceOperator : public Operator<Backend> {
             sample_dim, ") than the requested number of dimensions to unfold: ", num_expand_dims,
             "."));
     VerifyExpandedBatchSizeNumericLimit(expand_desc);
-    UnfoldOuterDims(batch, expanded_batch, expand_desc);
+    sequence_utils::unfold_outer_dims(batch, expanded_batch, expand_desc);
   }
 
   template <typename Type>
@@ -602,85 +602,24 @@ class SequenceOperator : public Operator<Backend> {
         }
       }
     }
+    assert(tv_builder.Size() == expanded_arg.num_samples());
   }
 
   template <typename DataBackend>
   void BroadcastSamples(const TensorVector<DataBackend> &batch,
                         TensorVector<DataBackend> &expanded_batch, const ExpandDesc &expand_desc) {
-    const auto &shape = batch.shape();
-    auto tv_builder =
-        sequence_utils::tv_builder_like(batch, expanded_batch, expand_desc.NumExpanded());
-    const auto &type_info = batch.type_info();
-    assert(expand_desc.NumSamples() == batch.num_samples());
-    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      const auto &slice_shape = shape[sample_idx];
-      int num_elements = expand_desc.NumExpanded(sample_idx);
-      uint8_t *ptr =
-          const_cast<uint8_t *>(static_cast<const uint8_t *>(batch.raw_tensor(sample_idx)));
-      for (int sample_slice_idx = 0; sample_slice_idx < num_elements; sample_slice_idx++) {
-        tv_builder.SetNext({ptr, slice_shape, type_info.size()});
-      }
-    }
-    assert(tv_builder.Size() == expanded_batch.num_samples());
+    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc);
   }
 
-  void BroadcastSamples(const TensorList<GPUBackend> &batch,
-                        TensorList<GPUBackend> &expanded_batch, const ExpandDesc &expand_desc) {
-    assert(expand_desc.NumSamples() == batch.num_samples());
-    expanded_batch.set_order(batch.order());
-    const auto &shape = batch.shape();
-    auto broadcast_shape = sequence_utils::broadcast_samples(shape, expand_desc);
-    expanded_batch.Resize(broadcast_shape, batch.type());
-    kernels::ScatterGatherGPU scatter_gather;
-    auto type_size = batch.type_info().size();
-    for (int sample_idx = 0, elem_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      auto sample_size = type_size * volume(shape[sample_idx]);
-      for (int i = 0; i < expand_desc.NumExpanded(sample_idx); i++) {
-        scatter_gather.AddCopy(expanded_batch.raw_mutable_tensor(elem_idx++),
-                               batch.raw_tensor(sample_idx), sample_size);
-      }
-    }
-    scatter_gather.Run(expanded_.stream(), true);
+  void BroadcastSamples(const TensorList<GPUBackend> &batch, TensorList<GPUBackend> &expanded_batch,
+                        const ExpandDesc &expand_desc) {
+    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc, scatter_gather,
+                                      expanded_.stream());
   }
 
-  void BroadcastSamples(const TensorList<CPUBackend> &batch,
-                        TensorList<CPUBackend> &expanded_batch, const ExpandDesc &expand_desc) {
-    assert(expand_desc.NumSamples() == batch.num_samples());
-    expanded_batch.set_order(batch.order());
-    const auto &shape = batch.shape();
-    auto broadcast_shape = sequence_utils::broadcast_samples(shape, expand_desc);
-    expanded_batch.Resize(broadcast_shape, batch.type());
-    auto type_size = batch.type_info().size();
-    for (int sample_idx = 0, elem_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      auto sample_size = type_size * volume(shape[sample_idx]);
-      for (int i = 0; i < expand_desc.NumExpanded(sample_idx); i++) {
-        std::memcpy(expanded_batch.raw_mutable_tensor(elem_idx++), batch.raw_tensor(sample_idx),
-                    sample_size);
-      }
-    }
-  }
-
-  template <typename DataBackend>
-  void UnfoldOuterDims(const TensorVector<DataBackend> &batch,
-                       TensorVector<DataBackend> &expanded_batch, const ExpandDesc &expand_desc) {
-    auto ndims_to_unfold = expand_desc.NumDimsToExpand();
-    auto tv_builder = sequence_utils::tv_builder_like(batch, expanded_batch,
-                                                      expand_desc.NumExpanded(), ndims_to_unfold);
-    assert(expand_desc.NumSamples() == batch.num_samples());
-    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      auto slices_range = sequence_utils::unfolded_slice_range(batch, sample_idx, ndims_to_unfold);
-      assert(expand_desc.NumExpanded(sample_idx) == slices_range.NumSlices());
-      for (auto &&slice : slices_range) {
-        tv_builder.SetNext(slice);
-      }
-    }
-    assert(tv_builder.Size() == expanded_batch.num_samples());
-  }
-
-  template <typename DataBackend>
-  void UnfoldOuterDims(const TensorList<DataBackend> &data, TensorList<DataBackend> &expanded_batch,
-                       const ExpandDesc &expand_desc) {
-    sequence_utils::unfold_outer_dims(data, expanded_batch, expand_desc.NumDimsToExpand());
+  void BroadcastSamples(const TensorList<CPUBackend> &batch, TensorList<CPUBackend> &expanded_batch,
+                        const ExpandDesc &expand_desc) {
+    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc);
   }
 
   std::vector<ExpandDesc> input_expand_desc_;
@@ -689,8 +628,9 @@ class SequenceOperator : public Operator<Backend> {
  private:
   int expand_like_idx_ = -1;
   bool is_expanding_ = false;
-  bool is_expanded_setup_ = false;
+  bool is_expanded_set_up_ = false;
   workspace_t<Backend> expanded_;
+  kernels::ScatterGatherGPU scatter_gather;
 };
 
 
