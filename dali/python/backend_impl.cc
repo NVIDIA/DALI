@@ -1579,13 +1579,12 @@ PYBIND11_MODULE(backend_impl, m) {
                                       DALIDataType /* dtype */,
                                       int          /* ndim */>
                                             > &outputs) {
-             //TODO ładniej
              std::vector<PipelineOutputDesc> build_args;
-             for (auto& o : outputs) {
-               build_args.emplace_back(to_struct<PipelineOutputDesc>(o));
+             for (auto& out : outputs) {
+               build_args.emplace_back(to_struct<PipelineOutputDesc>(out));
              }
              p->Build(build_args);
-           } )
+         })
     .def("Build", [](Pipeline *p) { p->Build(); } )
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
@@ -1899,7 +1898,7 @@ PYBIND11_MODULE(backend_impl, m) {
         return new TFFeature(converted_type, converted_default_value, partial_shape);
       });
 #endif  // DALI_BUILD_PROTO3
-}
+}  // NOLINT(readability/fn_size)
 
 }  // namespace python
 }  // namespace dali

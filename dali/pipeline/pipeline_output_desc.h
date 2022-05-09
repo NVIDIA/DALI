@@ -12,13 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OUTPUT_DESC_H
-#define DALI_PIPELINE_OUTPUT_DESC_H
+#ifndef DALI_PIPELINE_PIPELINE_OUTPUT_DESC_H_
+#define DALI_PIPELINE_PIPELINE_OUTPUT_DESC_H_
+
 #include <string>
 #include <vector>
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
+
+/**
+ * Descriptor for an output, used by the Pipeline.
+ *
+ * Note: the Executor also has an output descriptor inside. It is different than this one.
+ */
 struct PipelineOutputDesc {
   std::string name, device;
   DALIDataType dtype;
@@ -35,6 +42,7 @@ struct PipelineOutputDesc {
         dtype(DALI_NO_TYPE),
         ndim(-1) {}
 };
+
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_OUTPUT_DESC_H
+#endif  // DALI_PIPELINE_PIPELINE_OUTPUT_DESC_H_

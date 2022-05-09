@@ -548,7 +548,6 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
 void Pipeline::SetOutputNames(const vector<std::pair<string, string>> &output_names) {
   DALI_ENFORCE(output_descs_.empty() || output_descs_.size() == output_names.size());
-  // TODO DALI ENFORMCE assert
   if (output_descs_.empty()) {
     output_descs_ = {output_names.begin(), output_names.end()};
   } else {
