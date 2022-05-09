@@ -21,7 +21,8 @@ namespace dali {
 
 class NonsilenceOperatorGpu : public FalseGPUOperator<NonsilenceOperatorCpu> {
  public:
-  explicit NonsilenceOperatorGpu(const OpSpec &spec) : FalseGPUOperator<NonsilenceOperatorCpu>(spec) {}
+  explicit NonsilenceOperatorGpu(const OpSpec &spec)
+      : FalseGPUOperator<NonsilenceOperatorCpu>(spec) {}
   ~NonsilenceOperatorGpu() override = default;
   DISABLE_COPY_MOVE_ASSIGN(NonsilenceOperatorGpu);
 };

@@ -44,7 +44,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
   explicit FalseGPUOperator(const OpSpec &spec)
       : Operator<GPUBackend>(spec),
         cpu_impl_(spec),
-        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), true /** set_affine */ ) {
+        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), true) {
     cpu_ws_.SetThreadPool(&thread_pool_);
   }
   ~FalseGPUOperator() override = default;
@@ -56,7 +56,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
     return false;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
     return false;
   }
 
