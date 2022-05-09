@@ -152,8 +152,24 @@ Parameters
     by decorating them with `@dali.pickling.pickle_by_value`. It may be especially useful when
     working with Jupyter notebook to work around the issue of worker process being unable to import
     the callback defined as a global function inside the notebook.
-`output_dtype` : TODO
-`output_ndim` : TODO
+`output_dtype` : nvidia.dali.types or list of those, default = None
+    With this argument, you may declare, what data type you expect in the given output. You shall
+    pass a list of values from module:`nvidia.dali.types`, each element in the list corresponding to
+    one output from the pipeline. Additionally, you can pass ``None`` as a wildcard. The outputs,
+    after each iteration, will be validated against the types you passed to this argument. If any
+    output does not match the provided type, RuntimeError will be raised.
+
+    If the ``output_dtype`` value is a single value (not a list), it will be broadcast to the
+    number of outputs from the pipeline.
+`output_ndim` : int or list of ints, default = None
+    With this argument, you may declare, how many dimensions you expect in the given output. You shall
+    pass a list of integers, each element in the list corresponding to one output from the pipeline.
+    Additionally, you can pass ``None`` as a wildcard. The outputs, after each iteration, will be
+    validated against the numbers of dimensions you passed to this argument. If the dimensionality
+    of any output does not match the provided ``ndim``, RuntimeError will be raised.
+
+    If the ``output_ndim`` value is a single value (not a list), it will be broadcast to the
+    number of outputs from the pipeline.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
