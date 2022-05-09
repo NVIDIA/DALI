@@ -214,6 +214,68 @@ inline const char *GetBuiltinTypeName(DALIDataType t) {
   }
 }
 
+inline DALIDataType GetBuiltinDataType(const std::string &type_name) {
+  if (type_name == "<no_type>")
+    return DALI_NO_TYPE;
+  if (type_name == "uint8")
+    return DALI_UINT8;
+  if (type_name == "uint16")
+    return DALI_UINT16;
+  if (type_name == "uint32")
+    return DALI_UINT32;
+  if (type_name == "uint64")
+    return DALI_UINT64;
+  if (type_name == "int8")
+    return DALI_INT8;
+  if (type_name == "int16")
+    return DALI_INT16;
+  if (type_name == "int32")
+    return DALI_INT32;
+  if (type_name == "int64")
+    return DALI_INT64;
+  if (type_name == "float16")
+    return DALI_FLOAT16;
+  if (type_name == "float")
+    return DALI_FLOAT;
+  if (type_name == "double")
+    return DALI_FLOAT64;
+  if (type_name == "bool")
+    return DALI_BOOL;
+  if (type_name == "string")
+    return DALI_STRING;
+  if (type_name == "list of bool")
+    return DALI_BOOL_VEC;
+  if (type_name == "list of int")
+    return DALI_INT_VEC;
+  if (type_name == "list of string")
+    return DALI_STRING_VEC;
+  if (type_name == "list of float")
+    return DALI_FLOAT_VEC;
+#ifdef DALI_BUILD_PROTO3
+  if (type_name == "TFUtil::Feature")
+    return DALI_TF_FEATURE;
+  if (type_name == "list of TFUtil::Feature")
+    return DALI_TF_FEATURE_VEC;
+  if (type_name == "dictionary of TFUtil::Feature")
+    return DALI_TF_FEATURE_DICT;
+#endif  // DALI_BUILD_PROTO3
+  if (type_name == "DALIImageType")
+    return DALI_IMAGE_TYPE;
+  if (type_name == "DALIDataType")
+    return DALI_DATA_TYPE;
+  if (type_name == "DALIInterpType")
+    return DALI_INTERP_TYPE;
+  if (type_name == "TensorLayout")
+    return DALI_TENSOR_LAYOUT;
+  if (type_name == "Python object")
+    return DALI_PYTHON_OBJECT;
+  if (type_name == "list of TensorLayout")
+    return DALI_TENSOR_LAYOUT_VEC;
+  if (type_name == "list of DALIDataType")
+    return DALI_DATA_TYPE_VEC;
+  return DALI_NO_TYPE;
+}
+
 inline std::string to_string(DALIDataType dtype);
 inline std::ostream &operator<<(std::ostream &, DALIDataType dtype);
 
