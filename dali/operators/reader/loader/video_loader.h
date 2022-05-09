@@ -355,6 +355,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
   int max_width_;
   int additional_decode_surfaces_;
   static constexpr int channels_ = 3;
+  // 10 is rather an arbitrary decision
+  static constexpr int kStartupFrameTreshold = 10;
   DALIImageType image_type_;
   DALIDataType dtype_;
   bool normalized_;

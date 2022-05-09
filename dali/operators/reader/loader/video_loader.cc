@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -536,6 +536,7 @@ void VideoLoader::read_file() {
     std::vector<bool> frames_read(frames_left, false);
 
     bool is_first_frame = true;
+    int last_key_frame = -1;
     bool key = false;
     bool seek_must_succeed = false;
     // how many key frames following the last requested frames we saw so far
@@ -543,6 +544,7 @@ void VideoLoader::read_file() {
     // how many key frames following the last requested frames we need to see before we stop
     // feeding the decoder
     const int key_frames_treshold = 2;
+    VidReqStatus dec_status = VidReqStatus::REQ_IN_PROGRESS;
 
     while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
       auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
@@ -561,6 +563,25 @@ void VideoLoader::read_file() {
 
       file.last_frame_ = frame;
       key = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
+
+      // if decoding hasn't produced any frames after providing kStartupFrameTreshold frames,
+      // or we are at next key frame
+      if (last_key_frame != -1 &&
+          ((key && last_key_frame != frame) || frame > last_key_frame + kStartupFrameTreshold) &&
+          dec_status == VidReqStatus::REQ_NOT_STARTED) {
+        LOG_LINE << "Decoding not started, seek to preceding key frame, "
+                 << "current frame " << frame
+                 << ", last key frame " << last_key_frame
+                 << ", is_key " << key << std::endl;
+        seek(file, last_key_frame - 1);
+        last_key_frame = -1;
+        continue;
+      }
+
+      if (key) {
+        last_key_frame = frame;
+      }
+
       int pkt_frames = 1;
       if (pkt->duration) {
         pkt_frames = av_rescale_q(pkt->duration, file.stream_base_, file.frame_base_);
@@ -584,37 +605,13 @@ void VideoLoader::read_file() {
           if (req.frame > seek_hack) {
             seek(file, req.frame - seek_hack);
             seek_hack *= 2;
+            last_key_frame = -1;
           } else {
             seek_must_succeed = true;
             seek(file, 0);
+            last_key_frame = -1;
           }
           continue;
-      }
-      if (frame > req.frame) {
-        if (key) {
-          if (!is_first_frame) {
-            nonkey_frame_count = 0;
-            if (frame > req.frame + req.count) {
-              // Found a second key frame past the requested range. We can stop searching
-              // (If there were missing frames in the range they won't be found after
-              // the next key frame)
-              // in case HEVC it seems that preceding frames can appear after a given key frame
-              // but rather not after the next one
-              if (key_frames_count >= key_frames_treshold) {
-                key_frames_count = 0;
-                break;
-              }
-              ++key_frames_count;
-            }
-          }
-          seek_must_succeed = false;
-        } else {
-          nonkey_frame_count += pkt_frames;
-          // A heuristic so we don't go way over... what should "20" be?
-          if (frames_left <= 0 && frame > req.frame + req.count + 20) {
-            break;
-          }
-        }
       }
 
       if (frame >= req.frame && frame < req.frame + req.count) {
@@ -650,7 +647,7 @@ void VideoLoader::read_file() {
         }
         while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
           auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
-          vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_,
+          dec_status = vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_,
                                       codecpar(stream));
         }
         if (ret != AVERROR(EAGAIN)) {
@@ -688,14 +685,18 @@ void VideoLoader::read_file() {
           }
           *pkt.get() = fpkt;
         }
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+        dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
                                     codecpar(stream));
 #endif
       } else {
-        vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+        dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
                                     codecpar(stream));
       }
       is_first_frame = false;
+      if (dec_status == VidReqStatus::REQ_READY) {
+        LOG_LINE << "Request completted" << std::endl;
+        break;
+      }
     }
 
     // flush the decoder
