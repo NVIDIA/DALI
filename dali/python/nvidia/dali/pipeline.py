@@ -235,7 +235,7 @@ Parameters
             for ndim in output_ndim:
                 assert type(ndim) is int or ndim is None, \
                     f"`output_ndim` must be either: an int, a list of ints or None. Found type {type(ndim)} in the list."
-                assert ndim >= 0 or ndim is None, f"`output_ndim` must be non-negative. Found value {ndim} in the list."
+                assert ndim is None or ndim >= 0, f"`output_ndim` must be non-negative. Found value {ndim} in the list."
         elif type(output_ndim) is not int and output_ndim is not None:
             raise TypeError(
                 f"`output_ndim` must be either: an int, a list of ints or None. Found type: {type(output_ndim)}.")
@@ -1234,7 +1234,10 @@ Parameters
         output_dtype = [output_dtype] * num_outputs if type(
             output_dtype) is not list else output_dtype
         output_ndim = [output_ndim] * num_outputs if type(output_ndim) is not list else output_ndim
-        assert len(output_dtype) == len(output_ndim) == num_outputs
+        if not (len(output_dtype) == len(output_ndim) == num_outputs):
+            raise RuntimeError(
+                f"Inconsistent output description. Length of provided output descriptions do not match. \n"
+                f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={output_dtype}\noutput_ndim={output_ndim}")
 
         for nd, dtype, ndim in zip(self._names_and_devices, output_dtype, output_ndim):
             ret.append((nd[0], nd[1], types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim))

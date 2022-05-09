@@ -146,7 +146,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     }
     // output names
     for (auto &output : def.pipe_outputs()) {
-      this->output_names_.emplace_back(output.name(), output.device(),
+      this->output_descs_.emplace_back(output.name(), output.device(),
                                        GetBuiltinDataType(output.dtype()), output.ndim());
     }
 }
@@ -434,12 +434,9 @@ void Pipeline::Build(const vector<std::pair<string, string>>& output_names) {
 
 void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   DeviceGuard d(device_id_);
-  output_names_ = std::move(output_descs);
-  for (auto& on : output_names_) {
-    std::cout<<"DAPO "<<on.name<<" "<<on.device<<" "<<on.dtype<<" "<<on.ndim<<std::endl;
-  }
+  output_descs_ = std::move(output_descs);
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
-  auto num_outputs = output_names_.size();
+  auto num_outputs = output_descs_.size();
   DALI_ENFORCE(num_outputs > 0,
                make_string("User specified incorrect number of outputs (", num_outputs, ")."));
 
@@ -485,7 +482,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
   // Validate the output tensors names
   vector<string> outputs;
-  for (const auto &out_desc : output_names_) {
+  for (const auto &out_desc : output_descs_) {
     string name = out_desc.name;
     string device = out_desc.device;
     auto it = edge_names_.find(name);
@@ -550,15 +547,15 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 }
 
 void Pipeline::SetOutputNames(const vector<std::pair<string, string>> &output_names) {
-  DALI_ENFORCE(output_names_.empty() || output_names_.size() == output_names.size());
+  DALI_ENFORCE(output_descs_.empty() || output_descs_.size() == output_names.size());
   // TODO DALI ENFORMCE assert
-  if (output_names_.empty()) {
-    output_names_ = {output_names.begin(), output_names.end()};
+  if (output_descs_.empty()) {
+    output_descs_ = {output_names.begin(), output_names.end()};
   } else {
-    assert(output_names_.size() == output_names.size());
+    assert(output_descs_.size() == output_names.size());
     for (size_t i = 0; i < output_names.size(); i++) {
-      output_names_[i].name = output_names[i].first;
-      output_names_[i].device = output_names[i].second;
+      output_descs_[i].name = output_names[i].first;
+      output_descs_[i].device = output_names[i].second;
     }
   }
 }
@@ -582,23 +579,22 @@ void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
 
 bool Pipeline::ValidateOutputs(const DeviceWorkspace &ws) const {
   DALI_ENFORCE(
-      ws.NumOutput() == output_names_.size(),
+      ws.NumOutput() == static_cast<int>(output_descs_.size()),
       make_string("Inconsistent output description. Number of outputs does not match. Expected: ",
-                  output_names_.size(), ". Received: ", ws.NumOutput(), "."));
+                  output_descs_.size(), ". Received: ", ws.NumOutput(), "."));
   for (int i = 0; i < ws.NumOutput(); i++) {
-    cout << "DUPA " << ws.GetOutputDim(i) << " " << output_names_[i].ndim << " "
-         << ws.GetOutputDataType(i) << " " << output_names_[i].dtype << endl;
     DALI_ENFORCE(
-        ws.GetOutputDim(i) == output_names_[i].ndim || output_names_[i].ndim == -1,
+        ws.GetOutputDim(i) == output_descs_[i].ndim || output_descs_[i].ndim == -1,
         make_string("Inconsistent output description. Number of dimensions in the output_idx=", i,
-                    " does not match. Expected: ", output_names_[i].ndim,
-                    ". Received:", ws.GetOutputDim(i), "."));
+                    " does not match. Expected: ", output_descs_[i].ndim,
+                    ". Received: ", ws.GetOutputDim(i), "."));
     DALI_ENFORCE(
-        ws.GetOutputDataType(i) == output_names_[i].dtype || output_names_[i].dtype == DALI_NO_TYPE,
+        ws.GetOutputDataType(i) == output_descs_[i].dtype || output_descs_[i].dtype == DALI_NO_TYPE,
         make_string("Inconsistent output description. Data type of int the output_idx=", i,
-                    " does not match. Expected: ", output_names_[i].dtype,
+                    " does not match. Expected: ", output_descs_[i].dtype,
                     ". Received: ", ws.GetOutputDataType(i), "."));
   }
+  return true;
 }
 
 void Pipeline::Outputs(DeviceWorkspace *ws) {
@@ -755,7 +751,7 @@ string Pipeline::SerializeToProtobuf() const {
   }
 
   // loop over outputs used to create the graph
-  for (auto& output : output_names_) {
+  for (auto& output : output_descs_) {
     dali_proto::InputOutput *out = pipe.add_pipe_outputs();
 
     out->set_name(output.name);
@@ -864,26 +860,26 @@ const std::string &Pipeline::input_name(int n) const {
 
 const std::string &Pipeline::output_name(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_name()\".");
-  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
-  return output_names_[id].name;
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].name;
 }
 
 const std::string &Pipeline::output_device(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_device()\".");
-  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
-  return output_names_[id].device;
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].device;
 }
 
 DALIDataType Pipeline::output_dtype(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_dtype()\".");
-  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
-  return output_names_[id].dtype;
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].dtype;
 }
 
 int Pipeline::output_ndim(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_ndim()\".");
-  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
-  return output_names_[id].ndim;
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].ndim;
 }
 
 int Pipeline::num_inputs() const {
@@ -892,7 +888,7 @@ int Pipeline::num_inputs() const {
 
 int Pipeline::num_outputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_outputs()\".");
-  return output_names_.size();
+  return output_descs_.size();
 }
 
 void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,

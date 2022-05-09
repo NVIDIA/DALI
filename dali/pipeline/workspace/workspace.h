@@ -247,18 +247,16 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /**
-   * Returns number of dimensions for a given output
+   * @return Type of the data in the output with given index.
    */
   DALIDataType GetOutputDataType(int output_idx) const {
     DALI_ENFORCE(NumOutput() > 0, "No outputs found");
     DALI_ENFORCE(
         output_idx >= 0 && output_idx < NumOutput(),
-        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumInput()));
+        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumOutput()));
     if (OutputIsType<GPUBackend>(output_idx)) {
-      cout << Output<GPUBackend>(output_idx).type() << endl;
       return Output<GPUBackend>(output_idx).type();
     } else {
-      cout << Output<CPUBackend>(output_idx).type() << endl;
       return Output<CPUBackend>(output_idx).type();
     }
   }
@@ -274,21 +272,6 @@ class WorkspaceBase : public ArgumentWorkspace {
       return Input<GPUBackend>(input_idx).num_samples();
     } else {
       return Input<CPUBackend>(input_idx).num_samples();
-    }
-  }
-
-  /**
-   * Returns number of dimensions for a given output
-   */
-  int GetOutputBatchSize(int output_idx) const {
-    DALI_ENFORCE(NumOutput() > 0, "No outputs found");
-    DALI_ENFORCE(
-        output_idx >= 0 && output_idx < NumOutput(),
-        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumInput()));
-    if (OutputIsType<GPUBackend>(output_idx)) {
-      return Output<GPUBackend>(output_idx).sample_dim();
-    } else {
-      return Output<CPUBackend>(output_idx).sample_dim();
     }
   }
 
@@ -313,7 +296,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     DALI_ENFORCE(NumOutput() > 0, "No outputs found");
     DALI_ENFORCE(
         output_idx >= 0 && output_idx < NumOutput(),
-        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumInput()));
+        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumOutput()));
     if (OutputIsType<GPUBackend>(output_idx)) {
       return Output<GPUBackend>(output_idx).sample_dim();
     } else {

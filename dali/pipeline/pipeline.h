@@ -277,7 +277,7 @@ class DLL_PUBLIC Pipeline {
    * @brief Build a pipeline from deserialized output (name, device) pairs
    */
   DLL_PUBLIC void Build() {
-    Build(this->output_names_);
+    Build(this->output_descs_);
   }
 
   /**
@@ -587,9 +587,9 @@ class DLL_PUBLIC Pipeline {
   std::vector<OpDefinition> op_specs_;
   std::vector<OpDefinition> op_specs_for_serialization_;
 
-  std::vector<PipelineOutputDesc> output_names_;
+  std::vector<PipelineOutputDesc> output_descs_;
 
-  // Mapping between logical id and index in op_spces_;
+  // Mapping between logical id and index in op_specs_
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 

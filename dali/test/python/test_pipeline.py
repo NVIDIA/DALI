@@ -1656,6 +1656,22 @@ def test_invoke_serialize_error_handling_not_string():
     _identity_pipe().serialize(42)
 
 
+def check_dtype_ndim(dali_pipeline):
+    import tempfile
+    with tempfile.NamedTemporaryFile() as f:
+        dali_pipeline.serialize(filename=f.name)
+        deserialized_pipeline = Pipeline.deserialize(filename=f.name)
+        deserialized_pipeline.build()
+        deserialized_pipeline.run()
+    dali_pipeline.build()
+    dali_pipeline.run()
+
+
+@raises(RuntimeError, glob="Inconsistent output description.*")
+def check_dtype_ndim_with_raise(dali_pipeline):
+    check_dtype_ndim(dali_pipeline=dali_pipeline)
+
+
 def test_one_output_dtype_ndim():
     @pipeline_def
     def pipe():
@@ -1666,7 +1682,7 @@ def test_one_output_dtype_ndim():
 
     def create_pipe(output_dtype=None, output_ndim=None):
         return pipe(batch_size=1, num_threads=1, device_id=0, output_dtype=output_dtype,
-                         output_ndim=output_ndim)
+                    output_ndim=output_ndim)
 
     both_correct = create_pipe(output_dtype=[types.UINT8], output_ndim=[3])
     ndim_correct_dtype_wildcard = create_pipe(output_dtype=[None], output_ndim=[3])
@@ -1678,32 +1694,48 @@ def test_one_output_dtype_ndim():
     correct_dtypes_but_too_many = create_pipe(output_dtype=[types.UINT8, types.UINT8])
     correct_ndims_but_too_many = create_pipe(output_ndim=[3, 3])
     all_wildcards = create_pipe()
-    correct_pipes=[both_correct, ndim_correct_dtype_wildcard, dtype_correct_ndim_wildcard, both_correct_one_list, all_wildcards]
-    pipes_that_raise = [dtype_incorrect, ndim_incorrect, too_many_dtypes, correct_dtypes_but_too_many, correct_ndims_but_too_many]
+    correct_pipes = [both_correct, ndim_correct_dtype_wildcard, dtype_correct_ndim_wildcard,
+                     both_correct_one_list, all_wildcards]
+    pipes_that_raise = [dtype_incorrect, ndim_incorrect, too_many_dtypes,
+                        correct_dtypes_but_too_many, correct_ndims_but_too_many]
 
     for pipe_under_test in correct_pipes:
-        pipe_under_test.build()
-        pipe_under_test.run()
-    with assert_raises(RuntimeError, glob="Inconsistent output description.*"):
-        for pipe_under_test in pipes_that_raise:
-            pipe_under_test.build()
-            pipe_under_test.run()
-
+        yield check_dtype_ndim, pipe_under_test
+    for pipe_under_test in pipes_that_raise:
+        yield check_dtype_ndim_with_raise, pipe_under_test
 
 
 def test_double_output_dtype_ndim():
     @pipeline_def
-    def pipe():
-        images = dali.fn.external_source(device="cpu", name="DALI_INPUT_0")
-        dec = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
-        return dali.fn.resize(dec, resize_x=299, resize_y=299), images
+    def pipe(cast_labels):
+        inputs, labels = fn.readers.file(
+            file_root=os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg'), name="Reader")
+        decoded = fn.decoders.image(inputs, device="mixed", output_type=types.RGB)
+        labels_casted = fn.cast(labels, dtype=types.UINT8)
+        return decoded, labels_casted if cast_labels else labels
 
-    def create_pipe(output_dtype, output_ndim):
+    def create_pipe(output_dtype=None, output_ndim=None, cast_labels=False):
         return pipe(batch_size=1, num_threads=1, device_id=0, output_dtype=output_dtype,
-                    output_ndim=output_ndim)
+                    output_ndim=output_ndim, cast_labels=cast_labels)
 
-    both_correct = create_pipe(output_dtype=[types.UINT8, types.UINT8], output_ndim=[3,1])
-    dtype_incorrect = create_pipe(output_dtype=types.FLOAT, output_ndim=3)
-    #not enough
-
-    both_correct.build()
+    both_correct = create_pipe(output_dtype=[types.UINT8, types.INT32], output_ndim=[3, 1])
+    ndim_correct_dtype_wildcard = create_pipe(output_dtype=[None, None], output_ndim=[3, 1])
+    dtype_correct_ndim_wildcard = create_pipe(output_dtype=[types.UINT8, types.UINT8],
+                                              cast_labels=True)
+    dtype_incorrect = create_pipe(output_dtype=[types.UINT8, types.FLOAT])
+    ndim_incorrect = create_pipe(output_ndim=[3, 3])
+    dtype_broadcast = create_pipe(output_dtype=types.UINT8, cast_labels=True)
+    wildcard_in_dtype = create_pipe(output_dtype=[types.UINT8, None])
+    wildcard_in_ndim = create_pipe(output_ndim=[3, None])
+    not_enough_dtypes = create_pipe(output_dtype=[types.UINT8])
+    not_enough_ndim = create_pipe(output_ndim=[1])
+    all_wildcards = create_pipe()
+    all_wildcards_but_shapes_dont_match = create_pipe(output_dtype=[None, None], output_ndim=[None])
+    correct_pipes = [both_correct, ndim_correct_dtype_wildcard, dtype_correct_ndim_wildcard,
+                     dtype_broadcast, wildcard_in_dtype, wildcard_in_ndim, all_wildcards]
+    pipes_that_raise = [dtype_incorrect, ndim_incorrect, not_enough_dtypes, not_enough_ndim,
+                        all_wildcards_but_shapes_dont_match]
+    for pipe_under_test in correct_pipes:
+        yield check_dtype_ndim, pipe_under_test
+    for pipe_under_test in pipes_that_raise:
+        yield check_dtype_ndim_with_raise, pipe_under_test
