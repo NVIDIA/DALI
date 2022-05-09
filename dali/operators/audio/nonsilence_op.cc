@@ -43,7 +43,8 @@ Inputs and outputs:
   At this moment, the 'gpu' backend of this operator is implemented in terms of the 'cpu'
   implementation. This results in a device-to-host copy of the inputs and a host-to-device copy of the
   outputs. While using the 'gpu' implementation of this operator doesn't add any performance
-  benefit on its own, using it might make sense in order to enable moving previous operations to the GPU.
+  benefit on its own, using it might make sense in order to enable moving preceding operations in the
+  pipeline to the GPU.
 )code")
   .NumInput(1)
   .NumOutput(detail::kNumOutputs)

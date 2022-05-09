@@ -41,24 +41,37 @@ namespace dali {
 template <typename CPUOperator>
 class FalseGPUOperator : public Operator<GPUBackend> {
  public:
-  FalseGPUOperator(const OpSpec &spec) : Operator<GPUBackend>(spec), cpu_impl_(spec), thread_pool_(3, 0, false) {
+  explicit FalseGPUOperator(const OpSpec &spec)
+      : Operator<GPUBackend>(spec),
+        cpu_impl_(spec),
+        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
     cpu_ws_.SetThreadPool(&thread_pool_);
   }
   ~FalseGPUOperator() override = default;
 
  protected:
-  bool CanInferOutputs() const override { return true; }
+  bool CanInferOutputs() const override {
+    // To run Setup we need to first copy from device to host.
+    // To avoid delaying the Setup stage, we will do Setup and Run in one go (during Run)
+    return false;
+  }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<GPUBackend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+    return false;
+  }
+
+  void RunImpl(workspace_t<GPUBackend> &ws) override {
     if (cpu_ws_.NumInput() == 0 && cpu_ws_.NumOutput() == 0) {
       cpu_inputs_.resize(ws.NumInput());
       for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
         cpu_inputs_[input_idx] = std::make_shared<TensorVector<CPUBackend>>();
+        cpu_inputs_[input_idx]->set_pinned(true);
         cpu_ws_.AddInput(cpu_inputs_[input_idx]);
       }
       for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
-        cpu_ws_.AddOutput(std::make_shared<TensorVector<CPUBackend>>());
+        auto cpu_output = std::make_shared<TensorVector<CPUBackend>>();
+        cpu_output->set_pinned(true);
+        cpu_ws_.AddOutput(std::move(cpu_output));
       }
     } else {
       // Number of inputs/outputs should not change after first iteration
@@ -66,34 +79,34 @@ class FalseGPUOperator : public Operator<GPUBackend> {
       assert(ws.NumOutput() == cpu_ws_.NumOutput());
     }
 
+    AccessOrder stream_order(ws.stream());
+
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       if (ws.InputIsType<GPUBackend>(0)) {
         auto& gpu_input = ws.Input<GPUBackend>(input_idx);
-        cpu_inputs_[input_idx]->Copy(gpu_input, AccessOrder(ws.stream()));
+        cpu_inputs_[input_idx]->Copy(gpu_input, stream_order);
       } else {
         // Some GPU operators might accept CPU inputs (e.g. Slice)
         auto& cpu_input = ws.Input<CPUBackend>(input_idx);
-        cpu_inputs_[input_idx]->Copy(cpu_input);
+        cpu_inputs_[input_idx]->ShareData(cpu_input);
       }
     }
 
-    CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+    AccessOrder::host().wait(stream_order);
 
-    auto ret = cpu_impl_.Setup(output_desc, cpu_ws_);
+    output_desc_.clear();
+    auto ret = cpu_impl_.Setup(output_desc_, cpu_ws_);
 
     for (int output_idx = 0; output_idx < cpu_ws_.NumOutput(); output_idx++) {
-      auto &desc = output_desc[output_idx];
+      auto &desc = output_desc_[output_idx];
       cpu_ws_.template Output<CPUBackend>(output_idx).Resize(desc.shape, desc.type);
     }
-    return ret;
-  }
 
-  void RunImpl(workspace_t<GPUBackend> &ws) override {
     cpu_impl_.Run(cpu_ws_);
 
     for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
       const auto& cpu_output = cpu_ws_.Output<CPUBackend>(output_idx);
-      ws.Output<GPUBackend>(output_idx).Copy(cpu_output, ws.stream());
+      ws.Output<GPUBackend>(output_idx).Copy(cpu_output, stream_order);
     }
   }
 
@@ -107,6 +120,9 @@ class FalseGPUOperator : public Operator<GPUBackend> {
 
   // Keep it here so that we can modify (ws gives only const ref to inputs)
   std::vector<std::shared_ptr<TensorVector<CPUBackend>>> cpu_inputs_;
+
+  // keep here to avoid reallocations
+  std::vector<OutputDesc> output_desc_;
 };
 
 }  // namespace dali
