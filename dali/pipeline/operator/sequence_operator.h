@@ -57,6 +57,44 @@ using batch_backend_t =
 
 }  // namespace detail
 
+
+// make broadcasting samples a mixing because the GPU backend op,
+// temporarily, requires some extra state
+template <typename Backend>
+class SampleBroadcasting;
+
+template <>
+class SampleBroadcasting<CPUBackend> {
+ protected:
+  template <typename DataBackend>
+  void BroadcastSamples(const TensorVector<DataBackend> &batch,
+                        TensorVector<DataBackend> &expanded_batch, const ExpandDesc &expand_desc,
+                        const ArgumentWorkspace &expanded) {
+    (void)expanded;
+    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc);
+  }
+};
+
+template <>
+class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
+ protected:
+  using SampleBroadcasting<CPUBackend>::BroadcastSamples;
+
+  void BroadcastSamples(const TensorList<GPUBackend> &batch, TensorList<GPUBackend> &expanded_batch,
+                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
+    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc, scatter_gather_,
+                                      expanded.stream());
+  }
+
+  void BroadcastSamples(const TensorList<CPUBackend> &batch, TensorList<CPUBackend> &expanded_batch,
+                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
+    (void)expanded;
+    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc);
+  }
+
+  kernels::ScatterGatherGPU scatter_gather_;
+};
+
 /**
  * @brief SequenceOperator
  * Provides generic support for sequence processing to an operator by unfolding
@@ -74,12 +112,13 @@ using batch_backend_t =
  * resize the outputs.
  */
 template <typename Backend>
-class SequenceOperator : public Operator<Backend> {
+class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Backend> {
  public:
   inline explicit SequenceOperator(const OpSpec &spec) : Operator<Backend>{spec} {}
 
   using Operator<Backend>::Setup;
   using Operator<Backend>::Run;
+  using SampleBroadcasting<Backend>::BroadcastSamples;
 
   template <typename InputBackend>
   using ws_input_t = typename workspace_t<Backend>::template input_t<InputBackend>;
@@ -525,7 +564,7 @@ class SequenceOperator : public Operator<Backend> {
   template <typename Type>
   void BroadcastBatch(const Type &batch, Type &expanded_batch, const ExpandDesc &expand_desc) {
     VerifyExpandedBatchSizeNumericLimit(expand_desc);
-    BroadcastSamples(batch, expanded_batch, expand_desc);
+    BroadcastSamples(batch, expanded_batch, expand_desc, expanded_);
   }
 
   void ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_input,
@@ -540,7 +579,7 @@ class SequenceOperator : public Operator<Backend> {
                              expand_desc.NumSamples(), ")."));
     VerifyExpandedBatchSizeNumericLimit(expand_desc);
     if (!IsPerFrameArg(arg_name, arg_input)) {
-      BroadcastSamples(arg_input, expanded_arg_input, expand_desc);
+      BroadcastSamples(arg_input, expanded_arg_input, expand_desc, expanded_);
     } else {
       DALI_ENFORCE(
           expand_desc.ExpandFrames(),
@@ -605,23 +644,6 @@ class SequenceOperator : public Operator<Backend> {
     assert(tv_builder.Size() == expanded_arg.num_samples());
   }
 
-  template <typename DataBackend>
-  void BroadcastSamples(const TensorVector<DataBackend> &batch,
-                        TensorVector<DataBackend> &expanded_batch, const ExpandDesc &expand_desc) {
-    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc);
-  }
-
-  void BroadcastSamples(const TensorList<GPUBackend> &batch, TensorList<GPUBackend> &expanded_batch,
-                        const ExpandDesc &expand_desc) {
-    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc, scatter_gather,
-                                      expanded_.stream());
-  }
-
-  void BroadcastSamples(const TensorList<CPUBackend> &batch, TensorList<CPUBackend> &expanded_batch,
-                        const ExpandDesc &expand_desc) {
-    sequence_utils::broadcast_samples(batch, expanded_batch, expand_desc);
-  }
-
   std::vector<ExpandDesc> input_expand_desc_;
   USE_OPERATOR_MEMBERS();
 
@@ -630,7 +652,6 @@ class SequenceOperator : public Operator<Backend> {
   bool is_expanding_ = false;
   bool is_expanded_set_up_ = false;
   workspace_t<Backend> expanded_;
-  kernels::ScatterGatherGPU scatter_gather;
 };
 
 
