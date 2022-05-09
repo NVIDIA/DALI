@@ -41,7 +41,10 @@
 #include "tensorflow/core/framework/types.h"
 
 #include "tensorflow/core/framework/tensor.h"
+
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 8)
 #include "tensorflow/core/framework/full_type_util.h"
+#endif
 
 #include "dali/c_api.h"
 #include "dali/core/common.h"
