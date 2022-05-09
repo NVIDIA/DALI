@@ -44,7 +44,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
   explicit FalseGPUOperator(const OpSpec &spec)
       : Operator<GPUBackend>(spec),
         cpu_impl_(spec),
-        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
+        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), true /** set_affine */ ) {
     cpu_ws_.SetThreadPool(&thread_pool_);
   }
   ~FalseGPUOperator() override = default;
@@ -66,11 +66,13 @@ class FalseGPUOperator : public Operator<GPUBackend> {
       for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
         cpu_inputs_[input_idx] = std::make_shared<TensorVector<CPUBackend>>();
         cpu_inputs_[input_idx]->set_pinned(true);
+        cpu_inputs_[input_idx]->set_order(AccessOrder::host());
         cpu_ws_.AddInput(cpu_inputs_[input_idx]);
       }
       for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
         auto cpu_output = std::make_shared<TensorVector<CPUBackend>>();
         cpu_output->set_pinned(true);
+        cpu_output->set_order(AccessOrder::host());
         cpu_ws_.AddOutput(std::move(cpu_output));
       }
     } else {
@@ -79,31 +81,29 @@ class FalseGPUOperator : public Operator<GPUBackend> {
       assert(ws.NumOutput() == cpu_ws_.NumOutput());
     }
 
-    AccessOrder stream_order(ws.stream());
-
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       if (ws.InputIsType<GPUBackend>(0)) {
         auto& gpu_input = ws.Input<GPUBackend>(input_idx);
-        cpu_inputs_[input_idx]->Copy(gpu_input, stream_order);
+        cpu_inputs_[input_idx]->Copy(gpu_input);
       } else {
-        // Some GPU operators might accept CPU inputs (e.g. Slice)
+        // Some GPU operators might accept some CPU inputs (e.g. Slice)
         auto& cpu_input = ws.Input<CPUBackend>(input_idx);
         cpu_inputs_[input_idx]->ShareData(cpu_input);
       }
     }
 
-    AccessOrder::host().wait(stream_order);
-
     output_desc_.clear();
-    auto ret = cpu_impl_.Setup(output_desc_, cpu_ws_);
-
-    for (int output_idx = 0; output_idx < cpu_ws_.NumOutput(); output_idx++) {
-      auto &desc = output_desc_[output_idx];
-      cpu_ws_.template Output<CPUBackend>(output_idx).Resize(desc.shape, desc.type);
+    if (cpu_impl_.Setup(output_desc_, cpu_ws_)) {
+      assert(static_cast<int>(output_desc_.size()) == cpu_ws_.NumOutput());
+      for (int output_idx = 0; output_idx < cpu_ws_.NumOutput(); output_idx++) {
+        auto &desc = output_desc_[output_idx];
+        cpu_ws_.template Output<CPUBackend>(output_idx).Resize(desc.shape, desc.type);
+      }
     }
 
     cpu_impl_.Run(cpu_ws_);
 
+    AccessOrder stream_order(ws.stream());
     for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
       const auto& cpu_output = cpu_ws_.Output<CPUBackend>(output_idx);
       ws.Output<GPUBackend>(output_idx).Copy(cpu_output, stream_order);
