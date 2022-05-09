@@ -22,6 +22,7 @@ from numba import types as numba_types
 from numba import njit, cfunc, carray, cuda
 import numpy as np
 import numba as nb
+from ctypes import addressof
 
 _to_numpy = {
     dali_types.UINT8 : "uint8",
@@ -303,8 +304,6 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
 ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")
 
 
-njit()
-
 class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
     schema_name = 'NumbaFunction'
     ops.register_gpu_op('NumbaFunction')
@@ -348,6 +347,7 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
                        "Python Operators do not support Multiple Input Sets.")
                       .format(type(inp).__name__))
         op_instance = ops._OperatorInstance(inputs, self, **kwargs)
+        # op_instance.spec.AddArg("run_fn_cuda", self.run_fn_cuda)
         op_instance.spec.AddArg("run_fn", self.run_fn)
         if self.setup_fn != None:
             op_instance.spec.AddArg("setup_fn", self.setup_fn)
@@ -400,7 +400,25 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
-        self.run_fn = cuda.jit(numba_types.void(numba_types.uint64))(run_fn)
+        nvvm_options = {
+            'debug': True,
+            'lineinfo': False,
+            'fastmath': False,
+            'opt': 3
+        }
+
+        # cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, [numba_types.Array(numba_types.int8, 2, 'C')])
+        cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, [])
+        tgt_ctx = cres.target_context
+        code = run_fn.__code__
+        filename = code.co_filename
+        linenum = code.co_firstlineno
+        lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
+                                            True, nvvm_options,
+                                            filename, linenum)
+
+        # self.run_fn_cuda = lib.get_cufunc().handle
+        self.run_fn = lib.get_cufunc().handle.value
         self.setup_fn = None
         self.out_types = out_types
         self.in_types = in_types

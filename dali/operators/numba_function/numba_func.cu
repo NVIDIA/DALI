@@ -19,6 +19,7 @@ namespace dali {
 
 template <typename GPUBackend>
 NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
+  // run_fn_cuda_ = spec.GetArgument<void*>("run_fn_cuda");
   run_fn_ = spec.GetArgument<uint64_t>("run_fn");
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
   batch_processing_ = spec.GetArgument<bool>("batch_processing");
@@ -87,45 +88,9 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     }
   }
 
-  if (!setup_fn_) {
-    for (int i = 0; i < noutputs; i++) {
-      const auto &in = ws.Input<GPUBackend>(i);
-      output_desc[i] = {in.shape(), in.type()};
-    }
-    return true;
-  }
-
-  out_shapes_.resize(noutputs);
   for (int i = 0; i < noutputs; i++) {
-    out_shapes_[i].resize(N, outs_ndim_[i]);
-    output_desc[i].type = static_cast<DALIDataType>(out_types_[i]);
-  }
-
-  output_shape_ptrs_.resize(N * noutputs);
-  for (int out_id = 0; out_id < noutputs; out_id++) {
-    for (int i = 0; i < N; i++) {
-      output_shape_ptrs_[N * out_id + i] =
-        reinterpret_cast<uint64_t>(out_shapes_[out_id].tensor_shape_span(i).data());
-    }
-  }
-
-//   auto p = output_shape_ptrs_.data();
-//   auto d = outs_ndim_.data();
-//   ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
-//     output_shape_ptrs_.data(), outs_ndim_.data(), noutputs,
-//     input_shape_ptrs_.data(), ins_ndim_.data(), ninputs, N);
-
-  for (int out_id = 0; out_id < noutputs; out_id++) {
-    output_desc[out_id].shape = out_shapes_[out_id];
-    for (int i = 0; i < N; i++) {
-      auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
-      for (int d = 0; d < outs_ndim_[out_id]; d++) {
-        DALI_ENFORCE(out_shape_span[d] >= 0, make_string(
-          "Shape of data should be non negative. ",
-          "After setup function shape for output number ",
-          out_id, " in sample ", i, " at dimension ", d, " is negative."));
-      }
-    }
+    const auto &in = ws.Input<GPUBackend>(i);
+    output_desc[i] = {in.shape(), in.type()};
   }
   return true;
 }
@@ -151,49 +116,25 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     }
   }
 
-//   if (batch_processing_) {
-//     ((void (*)(void*, const void*, const void*, int32_t,
-//       const void*, const void*, const void*, int32_t, int32_t))run_fn_)(
-//         out_ptrs.data(),
-//         (setup_fn_ ? output_shape_ptrs_.data() : input_shape_ptrs_.data()),
-//         outs_ndim_.data(), outs_ndim_.size(),
-//         in_ptrs.data(), input_shape_ptrs_.data(),
-//         ins_ndim_.data(), ins_ndim_.size(), N);
-//     return;
-//   }
-
-//   auto &out = ws.Output<GPUBackend>(0);
-//   auto out_shape = out.shape();
-//   auto &tp = ws.GetThreadPool();
-//   for (int sample_id = 0; sample_id < N; sample_id++) {
-//     tp.AddWork([&, sample_id](int thread_id) {
-//       SmallVector<uint64_t, 6> out_ptrs_per_sample;
-//       SmallVector<uint64_t, 6> out_shapes_per_sample;
-//       auto& out_shapes_ptrs = setup_fn_ ? output_shape_ptrs_ : input_shape_ptrs_;
-//       for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-//         out_ptrs_per_sample[out_id] = out_ptrs[N * out_id + sample_id];
-//         out_shapes_per_sample[out_id] = out_shapes_ptrs[N * out_id + sample_id];
-//       }
-//       SmallVector<uint64_t, 6> in_ptrs_per_sample;
-//       SmallVector<uint64_t, 6> in_shapes_per_sample;
-//       for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-//         in_ptrs_per_sample[in_id] = in_ptrs[N * in_id + sample_id];
-//         in_shapes_per_sample[in_id] = input_shape_ptrs_[N * in_id + sample_id];
-//       }
-
-//       ((void (*)(void*, const void*, const void*, int32_t,
-//       const void*, const void*, const void*, int32_t))run_fn_)(
-//         out_ptrs_per_sample.data(),
-//         out_shapes_per_sample.data(),
-//         outs_ndim_.data(),
-//         outs_ndim_.size(),
-//         in_ptrs_per_sample.data(),
-//         in_shapes_per_sample.data(),
-//         ins_ndim_.data(),
-//         ins_ndim_.size());
-//     }, out_shape.tensor_size(sample_id));
-//   }
-//   tp.RunAll();
+  // const auto &input_ref = ws.template Input<GPUBackend>(0);
+  // auto &output_ref = ws.template Output<GPUBackend>(0);
+  // output_ref.SetLayout(input_ref.GetLayout());
+  // auto input = view<const float, 2>(input_ref);
+  // auto output = view<float, 2>(output_ref);
+  // void* p_v = static_cast<void*>(out_ptrs.data());
+  std::vector<void*> out_ptrs_v {NULL};
+  void** data = NULL;
+  dim3 block(10, 10);
+  dim3 grid(1, 1);
+  // auto fun = *reinterpret_cast<void**>(run_fn_);
+  cudaError_t result = cudaLaunchKernel(reinterpret_cast<void*>(run_fn_), grid, block, data, 0, ws.stream());
+  // cudaError_t result = cudaLaunchKernel(run_fn_cuda_, grid, block, data, 0, ws.stream());
+  printf("Result: %d \n", result);
+  // CUresult result = cuLaunchKernel(static_cast<CUfunction>(run_fn_), 1, 1, 1, 1, 1, 1, 0, 0, (void**)(out_ptrs_v.data()), NULL);
+  // if (result != 0) {
+    // const char *msg = cudaGetErrorString(result);
+    // printf("error: %s failed with error %s\n", result, msg);
+  // }
 }
 
 DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<GPUBackend>, GPU);

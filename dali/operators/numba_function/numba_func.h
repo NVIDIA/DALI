@@ -39,6 +39,7 @@ class NumbaFuncImpl : public Operator<Backend> {
  private:
   using NumbaPtr = uint64_t;
 
+  void* run_fn_cuda_;
   NumbaPtr run_fn_;
   NumbaPtr setup_fn_;
   bool batch_processing_;

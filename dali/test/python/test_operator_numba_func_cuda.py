@@ -26,15 +26,17 @@ from nvidia.dali.plugin.numba.fn.experimental import numba_function, numba_funct
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
-@cuda.jit
-def set_all_values_to_255_sample(io_array):
+# @cuda.jit
+# def set_all_values_to_255_sample(io_array):
+#     x, y = cuda.grid(2)
+#     if x < io_array.shape[0] and y < io_array.shape[1]:
+#         io_array[x][y] = 255
+def set_all_values_to_255_sample():
     x, y = cuda.grid(2)
-    ### YOUR SOLUTION HERE
-    if x < io_array.shape[0] and y < io_array.shape[1]:
-        io_array[x][y] = 255
+
 
 def get_data(shapes, dtype):
-    return [np.empty(shape, dtype = dtype) for shape in shapes]
+    return [np.ones(shape, dtype = dtype) for shape in shapes]
 
 @pipeline_def
 def numba_func_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
@@ -55,13 +57,13 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
     for _ in range(3):
         outs = pipe.run()
         for i in range(batch_size):
-            out_arr = np.array(outs[0][i])
+            out_arr = np.array(outs[0][i].as_cpu())
             assert np.array_equal(out_arr, expected_out[i])
 
 def test_numba_func():
     # shape, dtype, run_fn, out_types, in_types, out_ndim, in_ndim, setup_fn, batch_processing, expected_out
     args = [
-        ([(10, 10, 10)], np.uint8, set_all_values_to_255_batch, [dali_types.UINT8], [dali_types.UINT8], [3], [3], None, True, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
+        ([(10, 10)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [2], [2], None, True, [np.full((10, 10), 255, dtype=np.uint8)]),
     ]
 
     for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out in args:
