@@ -152,6 +152,8 @@ Parameters
     by decorating them with `@dali.pickling.pickle_by_value`. It may be especially useful when
     working with Jupyter notebook to work around the issue of worker process being unable to import
     the callback defined as a global function inside the notebook.
+`output_dtype` : TODO
+`output_ndim` : TODO
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
@@ -159,7 +161,7 @@ Parameters
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
                  enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
-                 py_callback_pickler=None):
+                 py_callback_pickler=None, output_dtype=None, output_ndim=None):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -217,6 +219,29 @@ Parameters
             self._gpu_queue_size = prefetch_queue_depth
         else:
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
+
+        # Assign and validate output_dtype
+        if type(output_dtype) is list:
+            for dtype in output_dtype:
+                assert type(dtype) is types.DALIDataType or dtype is None, \
+                    f"`output_dtype` must be either: a type from nvidia.dali.types module, a list of these or None. Found type {type(dtype)} in the list."
+        elif type(output_dtype) is not types.DALIDataType and output_dtype is not None:
+            raise TypeError(
+                f"`output_dtype` must be either: a type from nvidia.dali.types module, a list of these or None. Found type: {type(output_dtype)}.")
+        self._output_dtype = output_dtype
+
+        # Assign and validate output_ndim
+        if type(output_ndim) is list:
+            for ndim in output_ndim:
+                assert type(ndim) is int or ndim is None, \
+                    f"`output_ndim` must be either: an int, a list of ints or None. Found type {type(ndim)} in the list."
+                assert ndim >= 0 or ndim is None, f"`output_ndim` must be non-negative. Found value {ndim} in the list."
+        elif type(output_ndim) is not int and output_ndim is not None:
+            raise TypeError(
+                f"`output_ndim` must be either: an int, a list of ints or None. Found type: {type(output_ndim)}.")
+        elif output_ndim is not None and output_ndim < 0:
+            raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
+        self._output_ndim = output_ndim
 
     @property
     def batch_size(self):
@@ -699,7 +724,7 @@ Parameters
             self._init_pipeline_backend()
         self._setup_pipe_pool_dependency()
 
-        self._pipe.Build(self._names_and_devices)
+        self._pipe.Build(self._generate_build_args(self._output_dtype, self._output_ndim))
         self._built = True
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
@@ -1202,6 +1227,19 @@ Parameters
         For example, one can use this function to feed the input
         data from NumPy arrays."""
         pass
+
+    def _generate_build_args(self, output_dtype, output_ndim):
+        ret = []
+        num_outputs = len(self._names_and_devices)
+        output_dtype = [output_dtype] * num_outputs if type(
+            output_dtype) is not list else output_dtype
+        output_ndim = [output_ndim] * num_outputs if type(output_ndim) is not list else output_ndim
+        assert len(output_dtype) == len(output_ndim) == num_outputs
+
+        for nd, dtype, ndim in zip(self._names_and_devices, output_dtype, output_ndim):
+            ret.append((nd[0], nd[1], types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim))
+        return ret
+
 
 
 def _discriminate_args(func, **func_kwargs):

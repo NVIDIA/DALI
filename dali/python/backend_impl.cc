@@ -1569,13 +1569,24 @@ PYBIND11_MODULE(backend_impl, m) {
                                       (&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
-        [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
-          p->Build(outputs);
-          })
+         [](Pipeline *p, const std::vector<std::pair<string, string>> &outputs) {
+             p->Build(outputs);
+         })
     .def("Build",
-        [](Pipeline *p) {
-          p->Build();
-          })
+         [](Pipeline *p, const std::vector<
+                           std::tuple<std::string  /* name */,
+                                      std::string  /* device */,
+                                      DALIDataType /* dtype */,
+                                      int          /* ndim */>
+                                            > &outputs) {
+             //TODO ładniej
+             std::vector<PipelineOutputDesc> build_args;
+             for (auto& o : outputs) {
+               build_args.emplace_back(to_struct<PipelineOutputDesc>(o));
+             }
+             p->Build(build_args);
+           } )
+    .def("Build", [](Pipeline *p) { p->Build(); } )
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
           p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);

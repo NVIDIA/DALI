@@ -1654,3 +1654,56 @@ def test_invoke_serialize_error_handling_string():
 @raises(TypeError, "*define_graph*callable*")
 def test_invoke_serialize_error_handling_not_string():
     _identity_pipe().serialize(42)
+
+
+def test_one_output_dtype_ndim():
+    @pipeline_def
+    def pipe():
+        inputs, labels = fn.readers.file(
+            file_root=os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg'), name="Reader")
+        decoded = fn.decoders.image(inputs, device="mixed", output_type=types.RGB)
+        return decoded
+
+    def create_pipe(output_dtype=None, output_ndim=None):
+        return pipe(batch_size=1, num_threads=1, device_id=0, output_dtype=output_dtype,
+                         output_ndim=output_ndim)
+
+    both_correct = create_pipe(output_dtype=[types.UINT8], output_ndim=[3])
+    ndim_correct_dtype_wildcard = create_pipe(output_dtype=[None], output_ndim=[3])
+    dtype_correct_ndim_wildcard = create_pipe(output_dtype=types.UINT8)
+    dtype_incorrect = create_pipe(output_dtype=[types.FLOAT], output_ndim=[3])
+    ndim_incorrect = create_pipe(output_dtype=types.UINT8, output_ndim=0)
+    both_correct_one_list = create_pipe(output_dtype=types.UINT8, output_ndim=[3])
+    too_many_dtypes = create_pipe(output_dtype=[types.UINT8, types.FLOAT])
+    correct_dtypes_but_too_many = create_pipe(output_dtype=[types.UINT8, types.UINT8])
+    correct_ndims_but_too_many = create_pipe(output_ndim=[3, 3])
+    all_wildcards = create_pipe()
+    correct_pipes=[both_correct, ndim_correct_dtype_wildcard, dtype_correct_ndim_wildcard, both_correct_one_list, all_wildcards]
+    pipes_that_raise = [dtype_incorrect, ndim_incorrect, too_many_dtypes, correct_dtypes_but_too_many, correct_ndims_but_too_many]
+
+    for pipe_under_test in correct_pipes:
+        pipe_under_test.build()
+        pipe_under_test.run()
+    with assert_raises(RuntimeError, glob="Inconsistent output description.*"):
+        for pipe_under_test in pipes_that_raise:
+            pipe_under_test.build()
+            pipe_under_test.run()
+
+
+
+def test_double_output_dtype_ndim():
+    @pipeline_def
+    def pipe():
+        images = dali.fn.external_source(device="cpu", name="DALI_INPUT_0")
+        dec = dali.fn.decoders.image(images, device="cpu", output_type=types.RGB)
+        return dali.fn.resize(dec, resize_x=299, resize_y=299), images
+
+    def create_pipe(output_dtype, output_ndim):
+        return pipe(batch_size=1, num_threads=1, device_id=0, output_dtype=output_dtype,
+                    output_ndim=output_ndim)
+
+    both_correct = create_pipe(output_dtype=[types.UINT8, types.UINT8], output_ndim=[3,1])
+    dtype_incorrect = create_pipe(output_dtype=types.FLOAT, output_ndim=3)
+    #not enough
+
+    both_correct.build()

@@ -27,12 +27,13 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/pipeline_output_desc.h"
+#include "dali/pipeline/operator/builtin/external_source.h"
 
 
 namespace dali {
@@ -90,7 +91,9 @@ class DLL_PUBLIC Pipeline {
                              bool pipelined_execution = true, int prefetch_queue_depth = 2,
                              bool async_execution = true, size_t bytes_per_sample_hint = 0,
                              bool set_affinity = false, int max_num_stream = -1,
-                             int default_cuda_stream_priority = 0)
+                             int default_cuda_stream_priority = 0,
+                             const std::vector<DALIDataType> &output_dtype = {},
+                             const std::vector<int> &output_ndim = {})
       : built_(false), separated_execution_{false} {
     Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
          async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
@@ -102,7 +105,8 @@ class DLL_PUBLIC Pipeline {
                       int prefetch_queue_depth = 2, bool async_execution = true,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
-                      int64_t seed = -1);
+                      int64_t seed = -1, const std::vector<DALIDataType> &output_dtype = {},
+                      const std::vector<int> &output_ndim = {});
 
   DLL_PUBLIC ~Pipeline();
 
@@ -259,12 +263,15 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
 
+  ///@{
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution. The input
    * vector specifies the name and device of the desired outputs of the pipeline.
    */
-  DLL_PUBLIC void Build(vector<std::pair<string, string>> output_names);
+  DLL_PUBLIC void Build(const std::vector<std::pair<string, string>>& output_names);
+  DLL_PUBLIC void Build(std::vector<PipelineOutputDesc> output_descs);
+  ///@}
 
   /**
    * @brief Build a pipeline from deserialized output (name, device) pairs
@@ -307,7 +314,7 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() {
     if (executor_) {
-      return  executor_->GetExecutorMeta();
+      return executor_->GetExecutorMeta();
     } else {
       return {};
     }
@@ -463,13 +470,23 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC const std::string &output_device(int id) const;
 
   /**
+   * @brief Returns data type of the output specified by given id.
+   */
+  DLL_PUBLIC DALIDataType output_dtype(int id) const;
+
+  /**
+   * @brief Returns number of dimensions in the output specified by given id.
+   */
+  DLL_PUBLIC int output_ndim(int id) const;
+
+  /**
    * Checks, if a provided pipeline can be deserialized, according to the Pipeline protobuf
    * definition.
    *
    * @param serialized_pipeline
    * @return True, if the pipeline is serializable. False otherwise.
    */
-  static bool IsDeserializable(const std::string& serialized_pipeline);
+  static bool IsDeserializable(const std::string &serialized_pipeline);
 
   // For testing
   template <typename T>
@@ -531,6 +548,12 @@ class DLL_PUBLIC Pipeline {
   int GetNextLogicalId();
   int GetNextInternalLogicalId();
 
+  /**
+   * Validate, that the outputs from the Pipeline match the criteria.
+   * @return True, if the outputs passed the validation test.
+   */
+  bool ValidateOutputs(const DeviceWorkspace &ws) const;
+
   const int MAX_SEEDS = 1024;
 
   bool built_;
@@ -561,9 +584,10 @@ class DLL_PUBLIC Pipeline {
     int logical_id;
   };
 
-  vector<OpDefinition> op_specs_;
-  vector<OpDefinition> op_specs_for_serialization_;
-  vector<std::pair<string, string>> output_names_;
+  std::vector<OpDefinition> op_specs_;
+  std::vector<OpDefinition> op_specs_for_serialization_;
+
+  std::vector<PipelineOutputDesc> output_names_;
 
   // Mapping between logical id and index in op_spces_;
   std::map<int, std::vector<size_t>> logical_ids_;
