@@ -73,6 +73,13 @@ enum ScaleMethod {
     ScaleMethod_Linear
 };
 
+
+enum class VidReqStatus {
+  REQ_READY = 0,
+  REQ_IN_PROGRESS,
+  REQ_NOT_STARTED,
+};
+
 class NvDecoder {
  public:
   NvDecoder(int device_id,
@@ -101,8 +108,8 @@ class NvDecoder {
   static int handle_decode(void* user_data, CUVIDPICPARAMS* pic_params);
   static int handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info);
 
-  int decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base,
-                    const CodecParameters*);
+  VidReqStatus decode_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base,
+                             const CodecParameters*);
 
   void push_req(FrameReq req);
 
@@ -111,7 +118,7 @@ class NvDecoder {
   void finish();
 
  private:
-  int decode_av_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
+  VidReqStatus decode_av_packet(AVPacket* pkt, int64_t start_time, AVRational stream_base);
 
   void record_sequence_event_(SequenceWrapper& sequence);
 
@@ -189,6 +196,7 @@ class NvDecoder {
   ThreadSafeQueue<FrameReq> recv_queue_;
   ThreadSafeQueue<CUVIDPARSERDISPINFO*> frame_queue_;
   FrameReq current_recv_;
+  VidReqStatus req_ready_;
 
   using TexID = std::tuple<uint8_t*, ScaleMethod, uint16_t, uint16_t, unsigned int>;
 

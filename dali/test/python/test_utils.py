@@ -519,7 +519,7 @@ def to_array(dali_out):
 
 def module_functions(cls, prefix = "", remove_prefix = ""):
     res = []
-    if len(cls.__dict__.keys()) == 0:
+    if "_schema_name" in cls.__dict__.keys():
         prefix = prefix.replace(remove_prefix, "")
         prefix = prefix.lstrip('.')
         if len(prefix):

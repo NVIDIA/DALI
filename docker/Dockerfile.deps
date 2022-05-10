@@ -23,7 +23,7 @@ RUN yum remove -y devtoolset* && \
 RUN rm -f /opt/python/cp27-cp27m
 
 # Clang, build it before deps as deps changes more frequently
-RUN CLANG_VERSION=12.0.1                                                                           && \
+RUN CLANG_VERSION=14.0.2                                                                           && \
     cd tmp                                                                                         && \
     wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
     tar -xf llvmorg-*.tar.gz                                                                       && \

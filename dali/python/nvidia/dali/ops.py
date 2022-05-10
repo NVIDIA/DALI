@@ -129,7 +129,7 @@ def _get_kwargs(schema):
                     default_value_string = schema.GetArgumentDefaultValueString(arg)
                     default_value = ast.literal_eval(default_value_string)
                     type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
-            doc += schema.GetArgumentDox(arg)
+            doc += schema.GetArgumentDox(arg).rstrip("\n")
             if schema.ArgSupportsPerFrameInput(arg):
                 doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
             if deprecation_warning:
@@ -337,6 +337,8 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
         return isinstance(x, arg_input_type)
     def is_call_arg(name, value):
         if name == "device":
+            return False
+        if name == "ndim":
             return False
         if name == "name" or is_arg_input_type(value):
             return True

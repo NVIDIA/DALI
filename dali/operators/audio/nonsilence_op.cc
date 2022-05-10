@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,15 @@ Inputs and outputs:
 * **Output 1** - Length of nonsilent region.
 
 .. note::
-  If ``Outputs[1] == 0``,  the value in ``Outputs[0]`` is undefined.)code")
+  If ``Outputs[1] == 0``,  the value in ``Outputs[0]`` is undefined.
+
+.. warning::
+  At this moment, the 'gpu' backend of this operator is implemented in terms of the 'cpu'
+  implementation. This results in a device-to-host copy of the inputs and a host-to-device copy of the
+  outputs. While using the 'gpu' implementation of this operator doesn't add any performance
+  benefit on its own, using it might make sense in order to enable moving preceding operations in the
+  pipeline to the GPU.
+)code")
   .NumInput(1)
   .NumOutput(detail::kNumOutputs)
   .AddOptionalArg("cutoff_db",

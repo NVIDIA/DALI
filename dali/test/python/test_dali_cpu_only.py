@@ -203,6 +203,9 @@ def test_cast_cpu():
 def test_resize_cpu():
     check_single_input(fn.resize, resize_x=50, resize_y=50)
 
+def test_per_frame_cpu():
+    check_single_input(fn.per_frame, replace=True)
+
 def test_gaussian_blur_cpu():
     check_single_input(fn.gaussian_blur, window_size=5)
 
@@ -374,6 +377,9 @@ def test_mel_filter_bank_cpu():
 
 def test_to_decibels_cpu():
     check_single_input(fn.to_decibels, get_data=get_audio_data, input_layout=None)
+
+def test_audio_resample():
+    check_single_input(fn.experimental.audio_resample, get_data=get_audio_data, input_layout=None, scale=1.25)
 
 def test_mfcc_cpu():
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
@@ -1079,6 +1085,7 @@ tested_methods = [
     "noise.gaussian",
     "noise.salt_and_pepper",
     "reshape",
+    "per_frame",
     "reinterpret",
     "water",
     "sphere",
@@ -1157,6 +1164,7 @@ tested_methods = [
     "math.min",
     "numba.fn.experimental.numba_function",
     "dl_tensor_python_function",
+    "experimental.audio_resample",
 ]
 
 excluded_methods = [

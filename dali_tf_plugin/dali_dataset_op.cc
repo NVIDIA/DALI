@@ -42,6 +42,10 @@
 
 #include "tensorflow/core/framework/tensor.h"
 
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 8)
+#include "tensorflow/core/framework/full_type_util.h"
+#endif
+
 #include "dali/c_api.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
@@ -1018,6 +1022,10 @@ REGISTER_OP("DALIDataset")
         "list({bool, half, float, uint8, uint16, uint32, uint64, int8, int16, int32, int64}) >= 1")
     .Attr("fail_on_device_mismatch: bool = true")
     .SetIsStateful()
+#if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 8)
+    .SetTypeConstructor(tensorflow::full_type::VariadicTensorContainer(TFT_DATASET,
+                                                                       "output_dtypes"))
+#endif
     .SetShapeFn(shape_inference::ScalarShape)
     .Doc(R"doc(
 DALI Dataset plugin
