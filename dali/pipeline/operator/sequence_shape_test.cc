@@ -151,31 +151,25 @@ class SequenceShapeUnfoldTVTest : public ::testing::Test {
     if (!layout.empty()) {
       batch.SetLayout(layout);
     }
-    return std::move(batch);
+    return batch;
   }
 
   void TestUnfolding(TensorVector<Backend> &batch, int ndims_to_unfold) {
     const auto &shape = batch.shape();
-    auto groups = shape.first(ndims_to_unfold);
+    auto unfolded_extents = shape.first(ndims_to_unfold);
     auto slice_shapes = shape.last(shape.sample_dim() - ndims_to_unfold);
-    auto num_slices = groups.num_elements();
-    auto tv_builder = tv_builder_like(batch, num_slices, ndims_to_unfold);
-    for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-      auto range = unfolded_slice_range(batch, sample_idx, ndims_to_unfold);
-      ASSERT_EQ(range.NumSlices(), volume(groups[sample_idx]));
-      for (auto &&slice : unfolded_slice_range(batch, sample_idx, ndims_to_unfold)) {
-        tv_builder.push(slice);
-      }
-    }
-    auto unfolded_batch = tv_builder.take();
-    check_batch_props(batch, unfolded_batch, num_slices, ndims_to_unfold);
+    auto unfolded_batch_handle = expanded_like(batch, ndims_to_unfold);
+    auto &unfolded_batch = *unfolded_batch_handle;
+    auto unfolded_batch_size = unfolded_extents.num_elements();
+    unfold_outer_dims(batch, unfolded_batch, ndims_to_unfold, unfolded_batch_size);
+    check_batch_props(batch, unfolded_batch, unfolded_batch_size, ndims_to_unfold);
     int slice_idx = 0;
     size_t type_size = batch.type_info().size();
     for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-      auto base_ptr = static_cast<uint8_t *>(batch[sample_idx].raw_mutable_data());
+      auto base_ptr = static_cast<uint8_t *>(batch.raw_mutable_tensor(sample_idx));
       size_t stride = type_size * volume(slice_shapes[sample_idx]);
-      for (int i = 0; i < volume(groups[sample_idx]); i++) {
-        auto ptr = static_cast<uint8_t *>(unfolded_batch[slice_idx++].raw_mutable_data());
+      for (int i = 0; i < volume(unfolded_extents[sample_idx]); i++) {
+        auto ptr = static_cast<uint8_t *>(unfolded_batch.raw_mutable_tensor(slice_idx++));
         EXPECT_EQ(ptr, base_ptr + stride * i);
       }
     }
@@ -231,15 +225,17 @@ class SequenceShapeUnfoldTLTest : public ::testing::Test {
     if (!layout.empty()) {
       batch.SetLayout(layout);
     }
-    return std::move(batch);
+    return batch;
   }
 
-  void TestUnfolding(TensorList<Backend> &batch, int ndims_to_unfold, bool check_layout = true) {
+  void TestUnfolding(TensorList<Backend> &batch, int ndims_to_unfold) {
     const auto &shape = batch.shape();
     auto groups = shape.first(ndims_to_unfold);
     auto slice_shapes = shape.last(shape.sample_dim() - ndims_to_unfold);
     auto num_slices = groups.num_elements();
-    auto unfolded_batch = unfold_outer_dims(batch, ndims_to_unfold);
+    auto unfolded_batch_handle = expanded_like(batch, ndims_to_unfold);
+    auto &unfolded_batch = *unfolded_batch_handle;
+    unfold_outer_dims(batch, unfolded_batch, ndims_to_unfold);
     check_batch_props(batch, unfolded_batch, num_slices, ndims_to_unfold);
     int slice_idx = 0;
     size_t type_size = batch.type_info().size();

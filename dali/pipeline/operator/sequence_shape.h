@@ -225,9 +225,9 @@ std::shared_ptr<Type> expanded_like(const Type &batch, int ndims_to_unfold) {
   TensorLayout layout = initial_layout.empty() ? "" : initial_layout.last(sample_dim);
   // TODO(ktokarski) TODO(klecki) hack with non-empty batch, so that TV does not complain
   // about setting Layout to an empty batch, change it when TV stores layout by itself
-  Type expanded(1);
-  setup_expanded_like(batch, expanded, batch.sample_dim() - ndims_to_unfold, layout);
-  return std::make_shared<Type>(std::move(expanded));
+  auto expanded_handle = std::make_shared<Type>(1);
+  setup_expanded_like(batch, *expanded_handle, batch.sample_dim() - ndims_to_unfold, layout);
+  return expanded_handle;
 }
 
 /**
