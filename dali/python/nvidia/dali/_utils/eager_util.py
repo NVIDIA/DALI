@@ -37,18 +37,38 @@ class _Classification:
     This includes lists of supported tensor-like objects e.g. numpy arrays (the only list not
     treated as a batch is a list of objects of primitive types), :class:`DataNodeDebug` and
     TensorLists.
+
+    Args:
+        data: Data to be classified.
+        type_name (str): Representation of argument type (input or keyward).
+        to_constant (bool): If array types (e.g. numpy array) should be treated as constants.
     """
 
-    def __init__(self, data, type_name):
-        self.is_batch, self.device, self.data = self._classify_data(data, type_name)
+    def __init__(self, data, type_name, to_constant=False):
+        self.is_batch, self.device, self.data = self._classify_data(data, type_name, to_constant)
 
     @staticmethod
-    def _classify_data(data, type_name):
+    def _classify_data(data, type_name, to_constant):
         from nvidia.dali._debug_mode import DataNodeDebug
         """Returns tuple (is_batch, device, unpacked data). """
 
         def is_primitive_type(x):
             return isinstance(x, (int, float, bool, str))
+
+        def classify_array_type(data, to_constant):
+            if _types._is_numpy_array(data):
+                device = 'cpu'
+            elif _types._is_torch_tensor(data):
+                device = 'gpu' if data.is_cuda else 'cpu'
+            elif _types._is_mxnet_array(data):
+                device = 'gpu' if 'gpu' in str(data.context) else 'cpu'
+            else:
+                raise RuntimeError(f"Unsupported array type '{type(data)}'.")
+
+            if to_constant:
+                data = _types._preprocess_constant(data)[0]
+
+            return False, device, data
 
         if isinstance(data, list):
             if len(data) == 0 or any([is_primitive_type(d) for d in data]):
@@ -59,7 +79,8 @@ class _Classification:
             data_list = []
 
             for d in data:
-                is_batch, device, val = _Classification._classify_data(d, type_name)
+                is_batch, device, val = _Classification._classify_data(
+                    d, type_name, to_constant=False)
                 is_batch_list.append(is_batch)
                 device_list.append(device)
                 data_list.append(val)
@@ -86,14 +107,8 @@ class _Classification:
                 return True, 'gpu', data
             if is_primitive_type(data) or isinstance(data, _tensors.TensorCPU):
                 return False, 'cpu', data
-            if _types._is_numpy_array(data):
-                return False, 'cpu', _types._preprocess_constant(data)[0]
-            if _types._is_torch_tensor(data):
-                device = 'gpu' if data.is_cuda else 'cpu'
-                return False, device, _types._preprocess_constant(data)[0]
-            if _types._is_mxnet_array(data):
-                device = 'gpu' if 'gpu' in str(data.context) else 'cpu'
-                return False, device, _types._preprocess_constant(data)[0]
+            if _types._is_compatible_array_type(data):
+                return classify_array_type(data, to_constant)
             if hasattr(data, '__cuda_array_interface__') or isinstance(data, _tensors.TensorGPU):
                 return False, 'gpu', data
 

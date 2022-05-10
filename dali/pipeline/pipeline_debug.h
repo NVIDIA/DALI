@@ -31,10 +31,10 @@ namespace dali {
  */
 class DLL_PUBLIC PipelineDebug {
   template <typename Backend>
-  using input_t = TensorList<typename Backend2Types<Backend>::InBackend>;
+  using input_t = std::shared_ptr<TensorList<typename Backend2Types<Backend>::InBackend>>;
 
   template <typename Backend>
-  using output_t = TensorList<typename Backend2Types<Backend>::OutBackend>;
+  using output_t = std::shared_ptr<TensorList<typename Backend2Types<Backend>::OutBackend>>;
 
  public:
   DLL_PUBLIC inline PipelineDebug(int max_batch_size, int num_threads, int device_id,
@@ -65,8 +65,8 @@ class DLL_PUBLIC PipelineDebug {
   }
 
   template <typename Backend>
-  DLL_PUBLIC std::vector<std::shared_ptr<output_t<Backend>>> RunOperator(
-      int logical_id, const std::vector<std::shared_ptr<input_t<Backend>>> &inputs,
+  DLL_PUBLIC std::vector<output_t<Backend>> RunOperator(
+      int logical_id, const std::vector<input_t<Backend>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
       int batch_size = -1) {
     DALI_FAIL("Unsupported backends in PipelineDebug.RunOperator().");

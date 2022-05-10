@@ -19,8 +19,8 @@ from nose.plugins.attrib import attr
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nvidia.dali.pipeline.experimental import pipeline_def
-from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import raises
+from test_utils import compare_pipelines, get_dali_extra_path
 
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 

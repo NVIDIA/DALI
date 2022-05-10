@@ -337,7 +337,7 @@ class _OperatorManager:
         self._kwargs_classification = {}
 
         for key, value in kwargs.items():
-            classification = _Classification(value, f'Argument {key}')
+            classification = _Classification(value, f'Argument {key}', to_constant=True)
             if classification.is_batch:
                 self._call_args[key] = classification.data
             else:
@@ -437,7 +437,7 @@ class _OperatorManager:
 
         # Check kwargs classification as batches and setup call args.
         for key, value in kwargs.items():
-            classification = _Classification(value, f'Argument {key}')
+            classification = _Classification(value, f'Argument {key}', to_constant=True)
 
             self._check_batch_classification(
                 self._kwargs_classification[key].is_batch, classification.is_batch, 'Argument', key)

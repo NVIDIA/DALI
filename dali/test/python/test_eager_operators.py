@@ -179,9 +179,10 @@ def test_coord_transform_cpu():
 def test_grid_mask_cpu():
     compare_eager_with_pipeline("grid_mask", tile=51, ratio=0.38158387, angle=2.6810782)
 
+import torch
 
 def test_multi_paste_cpu():
-    compare_eager_with_pipeline("multi_paste", in_ids=np.array([0, 1]), output_size=sample_shape)
+    compare_eager_with_pipeline("multi_paste", in_ids=torch.tensor([0, 1], dtype=torch.int32, device='cuda'), output_size=sample_shape)
 
 
 @raises(RuntimeError, glob=f"Argument '*' is not supported by eager operator 'crop'.")

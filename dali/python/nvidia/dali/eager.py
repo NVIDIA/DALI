@@ -167,6 +167,8 @@ def _choose_batch_size(inputs, batch_size):
     return batch_size
 
 def _prep_inputs(inputs, batch_size):
+    inputs = list(inputs)
+
     for i, input in enumerate(inputs):
         if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
             inputs[i] = _transform_data_to_tensorlist(input, batch_size)
@@ -175,7 +177,7 @@ def _prep_inputs(inputs, batch_size):
 
 def _prep_kwargs(kwargs):
     for key, value in kwargs.items():
-        kwargs[key] = _Classification(value, f'Argument {key}').data
+        kwargs[key] = _Classification(value, f'Argument {key}', to_constant=True).data
 
     return kwargs
 
