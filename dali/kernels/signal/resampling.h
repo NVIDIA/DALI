@@ -61,12 +61,12 @@ struct ResamplingWindow {
     return {i0, i1};
   }
 
-  inline float operator()(float x) const {
+  inline DALI_HOST_DEV float operator()(float x) const {
     float fi = x * scale + center;
     float floori = std::floor(fi);
     float di = fi - floori;
     int i = floori;
-    assert(i >= 0 && i < static_cast<int>(lookup.size()));
+    assert(i >= 0 && i < lookup_size);
     return lookup[i] + di * (lookup[i + 1] - lookup[i]);
   }
 
@@ -112,25 +112,32 @@ struct ResamplingWindow {
 
   float scale = 1, center = 1;
   int lobes = 0, coeffs = 0;
-  std::vector<float> lookup;
+  int lookup_size = 0;
+  const float *lookup = nullptr;
 };
 
-inline void windowed_sinc(ResamplingWindow &window,
+struct ResamplingWindowCPU : ResamplingWindow {
+  std::vector<float> storage;
+};
+
+inline void windowed_sinc(ResamplingWindowCPU &window,
     int coeffs, int lobes, std::function<double(double)> envelope = Hann) {
   assert(coeffs > 1 && lobes > 0 && "Degenerate parameters specified.");
   float scale = 2.0f * lobes / (coeffs - 1);
   float scale_envelope = 2.0f / coeffs;
   window.coeffs = coeffs;
   window.lobes = lobes;
-  window.lookup.clear();
-  window.lookup.resize(coeffs + 5);  // add zeros and a full 4-lane vector
+  window.storage.clear();
+  window.storage.resize(coeffs + 5);  // add zeros and a full 4-lane vector
   int center = (coeffs - 1) * 0.5f;
   for (int i = 0; i < coeffs; i++) {
     float x = (i - center) * scale;
     float y = (i - center) * scale_envelope;
     float w = sinc(x) * envelope(y);
-    window.lookup[i + 1] = w;
+    window.storage[i + 1] = w;
   }
+  window.lookup = window.storage.data();
+  window.lookup_size = window.storage.size();
   window.center = center + 1;  // allow for leading zero
   window.scale = 1 / scale;
 }
@@ -141,7 +148,7 @@ inline int64_t resampled_length(int64_t in_length, double in_rate, double out_ra
 }
 
 struct Resampler {
-  ResamplingWindow window;
+  ResamplingWindowCPU window;
 
   void Initialize(int lobes = 16, int lookup_size = 2048) {
     windowed_sinc(window, lookup_size, lobes);
