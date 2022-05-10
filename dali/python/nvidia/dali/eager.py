@@ -136,7 +136,7 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         if op_name in _ops._mixed_ops:
             device = 'mixed'
         else:
-            ValueError(f"Operator '{wrapper_name}' not registered for mixed.")
+            raise ValueError(f"Operator '{wrapper_name}' not registered for mixed.")
 
     return device, device_id
 
