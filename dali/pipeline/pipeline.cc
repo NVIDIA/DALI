@@ -94,9 +94,8 @@ void DeserializeOpSpec(const dali_proto::OpDef &def, OpSpec *spec) {
 Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_threads, int device_id,
                    bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
-                   int default_cuda_stream_priority, int64_t seed,
-                   const std::vector<DALIDataType> &output_dtype,
-                   const std::vector<int> &output_ndim)
+                   int default_cuda_stream_priority, const std::vector<DALIDataType> &output_dtype,
+                   const std::vector<int> &output_ndim, int64_t seed)
     : built_(false), separated_execution_(false) {
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
@@ -147,7 +146,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     // output names
     for (auto &output : def.pipe_outputs()) {
       this->output_descs_.emplace_back(output.name(), output.device(),
-                                       GetBuiltinDataType(output.dtype()), output.ndim());
+                                       static_cast<DALIDataType>(output.dtype()), output.ndim());
     }
 }
 
@@ -756,7 +755,7 @@ string Pipeline::SerializeToProtobuf() const {
     out->set_name(output.name);
     out->set_device(output.device);
     out->set_is_argument_input(false);
-    out->set_dtype(GetBuiltinTypeName(output.dtype));
+    out->set_dtype(output.dtype);
     out->set_ndim(output.ndim);
   }
   pipe.set_device_id(this->device_id_);

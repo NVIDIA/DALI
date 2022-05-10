@@ -105,8 +105,8 @@ class DLL_PUBLIC Pipeline {
                       int prefetch_queue_depth = 2, bool async_execution = true,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
-                      int64_t seed = -1, const std::vector<DALIDataType> &output_dtype = {},
-                      const std::vector<int> &output_ndim = {});
+                      const std::vector<DALIDataType> &output_dtype = {},
+                      const std::vector<int> &output_ndim = {}, int64_t seed = -1);
 
   DLL_PUBLIC ~Pipeline();
 

@@ -35,7 +35,7 @@ message InputOutput {
   required string device = 2;
   required bool is_argument_input = 3 [default = false];
   optional string arg_name = 4;
-  optional string dtype = 5;
+  optional int32 dtype = 5 [default = -1];  // @ref DALIDataType
   optional int32 ndim = 6 [default = -1];
 }
 

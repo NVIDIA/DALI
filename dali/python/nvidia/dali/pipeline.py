@@ -345,6 +345,16 @@ Parameters
         """The number of iterations processed ahead by the GPU stage."""
         return self._gpu_queue_size
 
+    @property
+    def output_ndim(self):
+        """Number of dimensions expected at the given output."""
+        return self._output_ndim
+
+    @property
+    def output_dtype(self):
+        """Data type expected at the given output."""
+        return self._output_dtype
+
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
 
