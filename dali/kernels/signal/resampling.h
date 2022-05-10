@@ -29,6 +29,7 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/geom/vec.h"
 
 namespace dali {
 namespace kernels {
@@ -54,7 +55,7 @@ inline float32x4_t vsetq_f32(float x0, float x1, float x2, float x3) {
 #endif
 
 struct ResamplingWindow {
-  inline std::pair<int, int> input_range(float x) const {
+  inline DALI_HOST_DEV ivec<2> input_range(float x) const {
     int xc = std::ceil(x);
     int i0 = xc - lobes;
     int i1 = xc + lobes;
@@ -220,8 +221,9 @@ struct Resampler {
       float in_pos = in_block_f - in_block_i;
       const float *__restrict__ in_block_ptr = in + in_block_i;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
-        int i0, i1;
-        std::tie(i0, i1) = window.input_range(in_pos);
+        auto irange = window.input_range(in_pos);
+        int i0 = irange[0];
+        int i1 = irange[1];
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i > n_in)
@@ -251,8 +253,9 @@ struct Resampler {
    * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
    *
    * @tparam static_channels   number of channels, if known at compile time, or -1
+   * @tparam downmix           whether to downmix all channels in the output
    */
-  template <int static_channels, typename Out>
+  template <int static_channels, bool downmix, typename Out>
   void Resample(
         Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *__restrict__ in, int64_t n_in, double in_rate,
@@ -282,8 +285,9 @@ struct Resampler {
       float in_pos = in_block_f - in_block_i;
       const float *__restrict__ in_block_ptr = in + in_block_i * num_channels;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
-        int i0, i1;
-        std::tie(i0, i1) = window.input_range(in_pos);
+        auto irange = window.input_range(in_pos);
+        int i0 = irange[0];
+        int i1 = irange[1];
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i > n_in)
@@ -304,8 +308,16 @@ struct Resampler {
           }
         }
         assert(out_pos >= out_begin && out_pos < out_end);
-        for (int c = 0; c < num_channels; c++)
-          out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
+        if (downmix) {
+          float out_val = 0;
+          for (int c = 0; c < num_channels; c++)
+            out_val += tmp[c];
+          out_val /= num_channels;
+          out[out_pos] = ConvertSatNorm<Out>(out_val);
+        } else {
+          for (int c = 0; c < num_channels; c++)
+            out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
+        }
       }
     }
   }
@@ -321,12 +333,14 @@ struct Resampler {
   void Resample(
         Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *__restrict__ in, int64_t n_in, double in_rate,
-        int num_channels) {
-    VALUE_SWITCH(num_channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8),
-      (Resample<static_channels, Out>(out, out_begin, out_end, out_rate,
-        in, n_in, in_rate, static_channels);),
-      (Resample<-1, Out>(out, out_begin, out_end, out_rate,
-        in, n_in, in_rate, num_channels)));
+        int num_channels, bool downmix = false) {
+    BOOL_SWITCH(downmix, Downmix, (
+      VALUE_SWITCH(num_channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8),
+        (Resample<static_channels, Downmix, Out>(out, out_begin, out_end, out_rate,
+          in, n_in, in_rate, static_channels);),
+        (Resample<-1, Downmix, Out>(out, out_begin, out_end, out_rate,
+          in, n_in, in_rate, num_channels)));
+    ));  // NOLINT
   }
 };
 

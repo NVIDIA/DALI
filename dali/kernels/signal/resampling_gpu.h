@@ -15,7 +15,14 @@
 #ifndef DALI_KERNELS_SIGNAL_RESAMPLING_GPU_H_
 #define DALI_KERNELS_SIGNAL_RESAMPLING_GPU_H_
 
+#include <cuda_runtime.h>
 #include "dali/kernels/signal/resampling.h"
+#include "dali/kernels/signal/resampling_gpu.cuh"
+#include "dali/kernels/kernel.h"
+#include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/core/mm/memory.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
@@ -23,41 +30,86 @@ namespace signal {
 
 namespace resampling {
 
-ResamplingWindow ToGPU(Scratchpad &scratch, const ResamplingWindow &cpu_window) {
-  ResamplingWindow wnd = cpu_window;
-  wnd.lookup = scratch.ToGPU(make_span(cpu_window.lookup, cpu_windwo.lookup_size));
-  return wnd;
-}
-
-struct ResamplerGPU {
-  ResamplingWindowCPU window;
-
+template <typename OutputType = float, typename InputType = OutputType>
+class ResamplerGPU {
+ public:
   void Initialize(int lobes = 16, int lookup_size = 2048) {
-    windowed_sinc(window, lookup_size, lobes);
+    windowed_sinc(window_cpu_, lookup_size, lobes);
+    window_gpu_storage_.from_host(window_cpu_.storage);
+    window_gpu_ = window_cpu_;
+    window_gpu_.lookup = window_gpu_storage_.data();
   }
 
+  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType> &in,
+                           span<const float> in_rate, span<const float> out_rate, bool downmix) {
+    KernelRequirements req;
+    auto out_shape = in.shape;
+    for (int i = 0; i < in.num_samples(); i++) {
+      auto in_sh = in.shape.tensor_shape_span(i);
+      auto out_sh = out_shape.tensor_shape_span(i);
+      out_sh[0] = resampled_length(in_sh[0], in_rate[i], out_rate[i]);
+      if (downmix)
+        out_sh[1] = 1;
+    }
+    req.output_shapes = {out_shape};
+    return req;
+  }
 
-  /**
-   * @brief Resample multi-channel signal and convert to Out
-   *
-   * Calculates a range of resampled signal.
-   * The function can seamlessly resample the input and produce the result in chunks.
-   * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
-   */
-  template <typename Out>
-  void Resample(
-        Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
-        const float *__restrict__ in, int64_t n_in, double in_rate,
-        int num_channels,
-        cudaStream_t stream);
+  void Run(KernelContext &context, const OutListGPU<OutputType> &out,
+           const InListGPU<InputType> &in, span<const float> in_rates, span<const float> out_rates,
+           bool downmix) {
+    if (window_gpu_storage_.empty())
+      Initialize();
+
+    DynamicScratchpad dyn_scratchpad({}, AccessOrder(context.gpu.stream));
+    if (!context.scratchpad)
+      context.scratchpad = &dyn_scratchpad;
+    auto &scratch = *context.scratchpad;
+
+    int nsamples = in.num_samples();
+    auto samples_cpu =
+        make_span(scratch.Allocate<mm::memory_kind::pinned, SampleDesc>(nsamples), nsamples);
+
+    bool any_multichannel = false;
+    for (int i = 0; i < nsamples; i++) {
+      auto &desc = samples_cpu[i];
+      desc.in = in[i].data;
+      desc.out = out[i].data;
+      desc.window = window_gpu_;
+      const auto &in_sh = in[i].shape;
+      const auto &out_sh = out[i].shape;
+      desc.in_len = in_sh[0];
+      desc.out_len = resampled_length(in_sh[0], in_rates[i], out_rates[i]);
+      assert(desc.out_len == out_sh[0]);
+      desc.nchannels = in[i].shape.sample_dim() > 1 ? in_sh[1] : 1;
+      desc.scale = static_cast<double>(in_rates[i]) / out_rates[i];
+      any_multichannel |= desc.nchannels > 1;
+    }
+
+    auto samples_gpu = scratch.ToGPU(context.gpu.stream, samples_cpu);
+
+    dim3 block(256, 1);
+    int blocks_per_sample = std::max(32, 1024 / nsamples);
+    dim3 grid(blocks_per_sample, nsamples);
+
+    BOOL_SWITCH(downmix && any_multichannel, Downmix, (
+      BOOL_SWITCH(!any_multichannel, SingleChannel, (
+        ResampleGPUKernel<OutputType, InputType, SingleChannel, Downmix>
+          <<<grid, block, 0, context.gpu.stream>>>(samples_gpu);
+      ));  // NOLINT
+    ));  // NOLINT
+    CUDA_CALL(cudaGetLastError());
+  }
+
+ private:
+  ResamplingWindowCPU window_cpu_;
+  ResamplingWindow window_gpu_;
+  DeviceBuffer<float> window_gpu_storage_;
 };
 
 }  // namespace resampling
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
-
-} // namespace dali
-
 
 #endif  // DALI_KERNELS_SIGNAL_RESAMPLING_GPU_H_
