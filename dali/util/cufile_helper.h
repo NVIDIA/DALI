@@ -36,12 +36,6 @@ namespace cufile {
 class DLL_PUBLIC CUFileDriverHandle {
  public:
   CUFileDriverHandle() {
-    // create for current device
-    CUDA_CALL(cuFileDriverOpen());
-  }
-
-  explicit CUFileDriverHandle(int device) {
-    dali::DeviceGuard g(device);
     CUDA_CALL(cuFileDriverOpen());
   }
 

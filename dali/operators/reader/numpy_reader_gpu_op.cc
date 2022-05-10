@@ -33,6 +33,7 @@ NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
 
   staging_stream_ = CUDAStreamPool::instance().Get();
   staging_ready_ = CUDAEventPool::instance().Get();
+  staging_.set_stream(staging_stream_);
 
   // init loader
   bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
@@ -121,7 +122,7 @@ void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
       ssize_t copy_skip = copy_start - file_offset;
       ssize_t copy_end = file_offset + this_chunk;
       ssize_t copy_length = copy_end - copy_start;
-      staging_.copy_to_client(dst_ptr + copy_start, copy_length, std::move(buffer), copy_skip);
+      staging_.copy_to_client(dst_ptr, copy_length, std::move(buffer), copy_skip);
     });
 
     // update addresses

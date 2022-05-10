@@ -32,9 +32,9 @@ void NumpyFileWrapperGPU::Reopen() {
 
 void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
   NumpyHeaderMeta header;
-  auto ret = cache.GetFromCache(filename, header);
+  bool ret = cache.GetFromCache(filename, header);
   try {
-    if (!ret) {
+    if (ret) {
       file_stream->Seek(header.data_offset);
     } else {
       detail::ParseHeader(file_stream.get(), header);

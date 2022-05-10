@@ -33,7 +33,8 @@ struct CUFileHandleInstance {
     sptr = wptr.lock();  // double check under lock
     if (sptr)
       return sptr;
-    sptr = std::make_shared<CUFileDriverHandle>(-1);
+    sptr = std::make_shared<CUFileDriverHandle>();
+    wptr = sptr;
     return sptr;
   }
 };
@@ -42,7 +43,7 @@ struct CUFileHandleInstance {
 
 std::shared_ptr<CUFileDriverHandle> CUFileDriverHandle::Get() {
   static CUFileHandleInstance instance;
-  instance.get();
+  return instance.get();
 }
 
 }  // namespace cufile
