@@ -71,6 +71,9 @@ void FramesDecoder::FindVideoStream() {
 
 FramesDecoder::FramesDecoder(const std::string &filename)
     : av_state_(std::make_unique<AvState>()), filename_(filename) {
+
+  av_log_set_level(AV_LOG_ERROR);
+
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
 

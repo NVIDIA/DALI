@@ -43,16 +43,6 @@ struct Args {
 };
 
 
-/**
- * If the buffer is not silent, add window length to the actual result,
- * since we don't know where in the window the non-silent signal is
- */
-void extend_nonsilent_range(std::pair<int, int> &thresholding_result, int window_length) {
-  if (thresholding_result.second != 0) {
-    thresholding_result.second += window_length - 1;
-  }
-}
-
 
 template<typename T, int ndims>
 T max_element(const TensorView<StorageCPU, const T, ndims> &tv) {
@@ -126,7 +116,11 @@ DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<Input
       10.f, args.reference_max ? max_element(signal_mms) : args.reference_power);
   auto ret = LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),
                              db2mag(args.cutoff_db));
-  extend_nonsilent_range(ret, args.window_length);
+  // If the buffer is not silent, add window length to the actual result,
+  // since we don't know where in the window the non-silent signal is
+  if (ret.second != 0) {
+    ret.second += args.window_length - 1;
+  }
   return ret;
 }
 
