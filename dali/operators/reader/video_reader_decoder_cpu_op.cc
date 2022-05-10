@@ -26,7 +26,7 @@ VideoReaderDecoderCpu::VideoReaderDecoderCpu(const OpSpec &spec)
 
 void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
-  auto &video_output = ws.Output<CPUBackend>(0);
+  auto &video_output = ws.template Output<CPUBackend>(0);
 
   video_output.Copy(sample.data_);
 

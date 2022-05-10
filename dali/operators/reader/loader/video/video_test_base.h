@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,32 +17,60 @@
 
 #include <gtest/gtest.h>
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <fstream>
 #include <vector>
 #include <string>
 
+#include "dali/test/dali_test_config.h"
+#include "dali/test/cv_mat_utils.h"
 
 namespace dali {
+void CompareFrameAvgError(
+  const uint8_t *ground_truth, const uint8_t *frame, int frame_size, double eps = 1.0);
+
+class TestVideo {
+ public:
+  TestVideo(std::string folder_path, bool is_vfr):
+    is_vfr_(is_vfr) {
+    std::ifstream frames_list(folder_path + "frames_list.txt");
+    std::string frame_filename;
+
+    while (std::getline(frames_list, frame_filename)) {
+      cv::Mat frame;
+      cv::cvtColor(cv::imread(folder_path + frame_filename), frame, cv::COLOR_BGR2RGB);
+      DALI_ENFORCE(frame.isContinuous(), "Loaded frame is not continuous in memory");
+
+      frames_.push_back(frame);
+    }
+  }
+
+  int NumFrames() const { return frames_.size(); }
+
+  int NumChannels() const { return 3; }
+
+  int Width() const { return frames_[0].cols; }
+
+  int Height() const { return frames_[0].rows; }
+
+  int FrameSize() const { return Height() * Width() * NumChannels(); }
+
+  void CompareFrame(int frame_id, const uint8_t *frame, int eps = 10);
+
+  void CompareFrameAvgError(int frame_id, const uint8_t *frame, double eps = 1.0);
+
+  std::vector<cv::Mat> frames_;
+  bool is_vfr_ = false;
+};
+
 class VideoTestBase : public ::testing::Test {
  public:
-  int NumVideos() const { return cfr_frames_.size(); }
+  int NumVideos() const { return cfr_videos_.size(); }
 
-  int NumFrames(int i) const { return cfr_frames_[i].size(); }
-
-  int Channels() const { return 3; }
-
-  int Width(int i) const { return cfr_frames_[i][0].cols; }
-
-  int Height(int i) const { return cfr_frames_[i][0].rows; }
-
-  int FrameSize(int i) const { return Height(i) * Width(i) * Channels(); }
-
-  void CompareFrames(const uint8_t *frame, const uint8_t *gt, int size, int eps = 10);
-
-  void CompareFramesAvgError(const uint8_t *frame, const uint8_t *gt, int size, double eps = 1.0);
-
-  uint8_t *GetCfrFrame(int video_id, int frame_id) { return cfr_frames_[video_id][frame_id].data; }
-
-  uint8_t *GetVfrFrame(int video_id, int frame_id) { return vfr_frames_[video_id][frame_id].data; }
+  int MaxFrameSize() const {
+    return std::max(cfr_videos_[0].FrameSize(), cfr_videos_[1].FrameSize());
+  }
 
   /**
    * @brief Utility to save decoded frame as a PNG file.
@@ -75,12 +103,16 @@ class VideoTestBase : public ::testing::Test {
     int height);
 
  protected:
-  static std::vector<std::vector<cv::Mat>> cfr_frames_;
-  static std::vector<std::vector<cv::Mat>> vfr_frames_;
+  static std::vector<std::string> cfr_videos_frames_paths_;
+  static std::vector<std::string> vfr_videos_frames_paths_;
+
+  static std::vector<std::string> cfr_videos_paths_;
+  static std::vector<std::string> vfr_videos_paths_;
+
+  static std::vector<TestVideo> cfr_videos_;
+  static std::vector<TestVideo> vfr_videos_;
 
   static void SetUpTestSuite();
-  static void LoadFrames(
-    std::vector<std::string> &paths, std::vector<std::vector<cv::Mat>> &frames);
 };
 }  // namespace dali
 
