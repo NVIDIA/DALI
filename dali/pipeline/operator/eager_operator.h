@@ -22,9 +22,9 @@
 #include <utility>
 #include <vector>
 
-
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/nvtx.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
@@ -36,16 +36,18 @@
 namespace dali {
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(const std::shared_ptr<TensorList<Backend>> &in) {
+std::shared_ptr<TensorList<Backend>> AsTensorList(const std::shared_ptr<TensorList<Backend>> in) {
   return in;
 }
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(
-    const std::shared_ptr<TensorVector<Backend>> &in) {
+std::shared_ptr<TensorList<Backend>> AsTensorList(const std::shared_ptr<TensorVector<Backend>> in) {
   if (in->IsContiguous()) {
     // Filled contiguous TensorVector, we can return TensorList directly.
-    return in->AsTensorList(false);
+    auto tl = in->AsTensorList(false);
+    // Explicitly set layout (it could be empty in case of per-sample operators).
+    tl->SetLayout(in->GetLayout());
+    return tl;
   }
 
   auto tl = std::make_shared<TensorList<Backend>>();
@@ -53,26 +55,68 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(
   return tl;
 }
 
+template <typename StorageType>
+void MakeContiguous(std::shared_ptr<StorageType> storage) {}
+
+template <>
+void MakeContiguous(std::shared_ptr<TensorVector<CPUBackend>> storage) {
+  storage->SetContiguous(true);
+}
+
+template <typename Backend>
+struct Backend2Types {};
+
+template <>
+struct Backend2Types<CPUBackend> {
+  using InBackend = CPUBackend;
+  using OutBackend = CPUBackend;
+  using WSInputType = TensorVector<CPUBackend>;
+  using WSOutputType = TensorVector<CPUBackend>;
+};
+
+template <>
+struct Backend2Types<GPUBackend> {
+  using InBackend = GPUBackend;
+  using OutBackend = GPUBackend;
+  using WSInputType = TensorList<GPUBackend>;
+  using WSOutputType = TensorList<GPUBackend>;
+};
+
+template <>
+struct Backend2Types<MixedBackend> {
+  using InBackend = CPUBackend;
+  using OutBackend = GPUBackend;
+  using WSInputType = TensorVector<CPUBackend>;
+  using WSOutputType = TensorList<GPUBackend>;
+};
+
 /**
  * @brief Direct operator providing eager execution of an operator in Run.
  */
 template <typename Backend>
 class DLL_PUBLIC EagerOperator {
+  using InBackend = typename Backend2Types<Backend>::InBackend;
+  using OutBackend = typename Backend2Types<Backend>::OutBackend;
+  using WSInputType = typename Backend2Types<Backend>::WSInputType;
+  using WSOutputType = typename Backend2Types<Backend>::WSOutputType;
+
  public:
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec) : EagerOperator(spec, spec.name()) {}
 
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name)
+      : EagerOperator(spec, std::move(name), shared_thread_pool->NumThreads()) {}
+
+  DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name, int num_threads)
       : max_batch_size_(spec.GetArgument<int>("max_batch_size")),
         op_spec_(spec),
-        name_(std::move(name)){
-    op_spec_.AddArg("num_threads", shared_thread_pool->NumThreads());
+        name_(std::move(name)) {
+    op_spec_.AddArg("num_threads", num_threads);
     op_ = InstantiateOperator(op_spec_);
     num_outputs_ = op_spec_.GetSchema().CalculateOutputs(op_spec_) +
                    op_spec_.GetSchema().CalculateAdditionalOutputs(op_spec_);
   }
 
   // Runs operator using shared thread pool and shared CUDA stream.
-  template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
@@ -81,7 +125,6 @@ class DLL_PUBLIC EagerOperator {
   }
 
   // Runs operator using specified thread pool.
-  template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
@@ -90,7 +133,6 @@ class DLL_PUBLIC EagerOperator {
   }
 
   // Runs operator using specified CUDA stream.
-  template <typename InBackend, typename OutBackend>
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
@@ -112,7 +154,6 @@ class DLL_PUBLIC EagerOperator {
   }
 
  private:
-  template <typename InBackend, typename OutBackend, typename WSInputType, typename WSOutputType>
   std::vector<std::shared_ptr<TensorList<OutBackend>>> RunImpl(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
@@ -140,7 +181,6 @@ class DLL_PUBLIC EagerOperator {
 };
 
 template <>
-template <>
 std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::Run(
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
@@ -150,12 +190,12 @@ std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::
     ws_.Clear();
     ws_.SetThreadPool(thread_pool);
 
-    return RunImpl<CPUBackend, CPUBackend, TensorVector<CPUBackend>, TensorVector<CPUBackend>>(
-        inputs, kwargs, batch_size);
-  } catch (std::exception &e) { throw std::runtime_error(ExtendErrorMsg("CPU", e.what())); }
+    return RunImpl(inputs, kwargs, batch_size);
+  } catch (std::exception &e) {
+    throw std::runtime_error(ExtendErrorMsg("CPU", e.what()));
+  }
 }
 
-template <>
 template <>
 std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<GPUBackend>::Run(
     const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
@@ -165,14 +205,14 @@ std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<GPUBackend>::
     DomainTimeRange tr("[DALI][GPU op] " + name_, DomainTimeRange::knvGreen);
     ws_.Clear();
     ws_.set_stream(cuda_stream);
-    auto output = RunImpl<GPUBackend, GPUBackend, TensorList<GPUBackend>, TensorList<GPUBackend>>(
-        inputs, kwargs, batch_size);
+    auto output = RunImpl(inputs, kwargs, batch_size);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     return output;
-  } catch (std::exception &e) { throw std::runtime_error(ExtendErrorMsg("GPU", e.what())); }
+  } catch (std::exception &e) {
+    throw std::runtime_error(ExtendErrorMsg("GPU", e.what()));
+  }
 }
 
-template <>
 template <>
 std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<MixedBackend>::Run(
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
@@ -182,43 +222,41 @@ std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<MixedBackend>
     DomainTimeRange tr("[DALI][Mixed op] " + name_, DomainTimeRange::kOrange);
     ws_.Clear();
     ws_.set_stream(cuda_stream);
-    auto output = RunImpl<CPUBackend, GPUBackend, TensorVector<CPUBackend>, TensorList<GPUBackend>>(
-        inputs, kwargs, batch_size);
+    auto output = RunImpl(inputs, kwargs, batch_size);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     return output;
-  } catch (std::exception &e) { throw std::runtime_error(ExtendErrorMsg("Mixed", e.what())); }
+  } catch (std::exception &e) {
+    throw std::runtime_error(ExtendErrorMsg("Mixed", e.what()));
+  }
 }
 
-template <>
 template <>
 std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::Run(
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run<CPUBackend, CPUBackend>(inputs, kwargs, shared_thread_pool.get(), batch_size);
+  return Run(inputs, kwargs, shared_thread_pool.get(), batch_size);
 }
 
-template <>
 template <>
 std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<GPUBackend>::Run(
     const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run<GPUBackend, GPUBackend>(inputs, kwargs, shared_cuda_stream, batch_size);
+  return Run(inputs, kwargs, shared_cuda_stream, batch_size);
 }
 
-template <>
 template <>
 std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<MixedBackend>::Run(
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run<CPUBackend, GPUBackend>(inputs, kwargs, shared_cuda_stream, batch_size);
+  return Run(inputs, kwargs, shared_cuda_stream, batch_size);
 }
 
 template <typename Backend>
-template <typename InBackend, typename OutBackend, typename WSInputType, typename WSOutputType>
-std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::RunImpl(
+std::vector<std::shared_ptr<TensorList<typename EagerOperator<Backend>::OutBackend>>>
+EagerOperator<Backend>::RunImpl(
     const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
@@ -256,12 +294,12 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
   }
 
   std::vector<OutputDesc> output_desc{};
-  std::vector<std::shared_ptr<TensorList<OutBackend>>> outputs{};
-
-  outputs.reserve(num_outputs_);
+  std::vector<std::shared_ptr<TensorList<OutBackend>>> outputs(num_outputs_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    ws_.AddOutput(std::make_shared<WSOutputType>(max_batch_size_));
+    auto tensor_out = std::make_shared<WSOutputType>(batch_size);
+    MakeContiguous(tensor_out);
+    ws_.AddOutput(tensor_out);
   }
 
   ws_.SetBatchSizes(batch_size);
@@ -276,7 +314,7 @@ std::vector<std::shared_ptr<TensorList<OutBackend>>> EagerOperator<Backend>::Run
   op_->Run(ws_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    outputs.push_back(AsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i)));
+    outputs[i] = AsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
   }
 
   for (size_t i = 0; i < outputs.size(); ++i) {

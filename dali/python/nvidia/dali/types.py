@@ -409,7 +409,8 @@ def to_dali_type(framework_type):
 def _is_compatible_array_type(value):
     return _is_numpy_array(value) or _is_mxnet_array(value) or _is_torch_tensor(value)
 
-def ConstantNode(device, value, dtype, shape, layout, **kwargs):
+
+def _preprocess_constant(value, dtype=None, shape=None):
     data = value
     if _is_mxnet_array(value):
         # mxnet ndarray is not directly compatible with numpy.ndarray, but provides conversion
@@ -465,6 +466,12 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         actual_type = _type_from_value_or_list(value)
         if dtype is None:
             dtype = actual_type
+
+    return data, dtype, actual_type, shape
+
+
+def ConstantNode(device, value, dtype, shape, layout, **kwargs):
+    data, dtype, actual_type, shape = _preprocess_constant(value, dtype, shape)
 
     import nvidia.dali.ops as ops
 
@@ -527,7 +534,7 @@ shape: list or tuple of int, optional
     as to fill the requested shape. Otherwise, the number of elements in
     `value` must match the volume of the shape.
 layout: string, optional
-    A string descirbing the layout of the constant tensor, e.g. "HWC"
+    A string describing the layout of the constant tensor, e.g. "HWC"
 device: string, optional, "cpu" or "gpu"
     The device to place the constant tensor in. If specified, it forces
     the value to become a constant tensor node on given device,

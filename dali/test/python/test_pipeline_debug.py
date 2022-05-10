@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
+import os
+from nose.plugins.attrib import attr
 
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nvidia.dali.pipeline.experimental import pipeline_def
 from test_utils import compare_pipelines, get_dali_extra_path
-
-import numpy as np
-import os
 from nose_utils import raises
-from nose.plugins.attrib import attr
 
 file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
 

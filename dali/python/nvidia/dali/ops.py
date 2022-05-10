@@ -719,23 +719,6 @@ def python_op_factory(name, schema_name = None):
     return Operator
 
 
-def _prep_input_sets(op, inputs):
-    from nvidia.dali._debug_mode import _transform_data_to_tensorlist
-    import nvidia.dali.tensors as tensors
-
-    inputs = list(inputs)
-
-    for i, input in enumerate(inputs):
-        # Transforming any convertable datatype to TensorList (DataNodeDebugs are already unpacked).
-        # Additionally accepting input sets, but only as list of TensorList.
-        if not isinstance(input, (tensors.TensorListCPU, tensors.TensorListGPU)) and \
-                not (isinstance(input, list) and
-                     all([isinstance(elem, (tensors.TensorListCPU, tensors.TensorListGPU)) for elem in input])):
-            inputs[i] = _transform_data_to_tensorlist(input, len(input))
-
-    return op._build_input_sets(inputs)
-
-
 def _process_op_name(op_schema_name, make_hidden=False):
     namespace_delim = "__"  # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
     op_full_name = op_schema_name.replace(namespace_delim, '.')

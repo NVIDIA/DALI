@@ -21,9 +21,9 @@ import nvidia.dali.ops as _ops
 import nvidia.dali.pipeline as _pipeline
 import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
+from nvidia.dali._utils.eager_util import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
-from nvidia.dali.external_source import _prep_data_for_feed_input
 from nvidia.dali._utils.external_source_impl import \
     get_callback_from_source as _get_callback_from_source, \
     accepted_arg_count as _accepted_arg_count
@@ -137,18 +137,6 @@ class DataNodeDebug(_DataNode):
     _aritm_op_name = _to_snake_case(_ops.ArithmeticGenericOp.__name__)
 
 
-def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
-    data = _prep_data_for_feed_input(data, batch_size, layout, device_id)
-
-    if isinstance(data, list):
-        if isinstance(data[0], _tensors.TensorGPU):
-            data = _tensors.TensorListGPU(data, layout or "")
-        else:
-            data = _tensors.TensorListCPU(data, layout or "")
-
-    return data
-
-
 class _ExternalSourceDebug:
     """Debug mode version of ExternalSource operator."""
 
@@ -246,73 +234,6 @@ class _ExternalSourceDebug:
             return [to_data_node_debug(data) for data in raw_data]
 
         return to_data_node_debug(raw_data)
-
-
-class _Classification:
-    """Classification of data's device and if it is a batch.
-
-    Based on data type determines if data should be treated as a batch and with which device.
-    If the type can be recognized as a batch without being falsely categorized as such, it is.
-    This includes lists of supported tensor-like objects e.g. numpy arrays (the only list not
-    treated as a batch is a list of objects of primitive types), :class:`DataNodeDebug` and
-    TensorLists.
-    """
-
-    def __init__(self, data, type_name):
-        self.is_batch, self.device, self.data = self._classify_data(data, type_name)
-
-    @staticmethod
-    def _classify_data(data, type_name):
-        """Returns tuple (is_batch, device, unpacked data). """
-
-        def is_primitive_type(x):
-            return isinstance(x, (int, float, bool, str))
-
-        if isinstance(data, list):
-            if len(data) == 0 or any([is_primitive_type(d) for d in data]):
-                return False, 'cpu', data
-
-            is_batch_list = []
-            device_list = []
-            data_list = []
-
-            for d in data:
-                is_batch, device, val = _Classification._classify_data(d, type_name)
-                is_batch_list.append(is_batch)
-                device_list.append(device)
-                data_list.append(val)
-
-            if any([device != device_list[0] for device in device_list]):
-                raise RuntimeError(f'{type_name} has batches of data on CPU and on GPU. '
-                                   'Which is not supported.')
-
-            if all(is_batch_list):
-                # Input set.
-                return is_batch_list, device_list[0], data_list
-            if not any(is_batch_list):
-                # Converting to TensorList.
-                return True, device_list[0], _transform_data_to_tensorlist(data_list, len(data_list))
-            else:
-                raise RuntimeError(f'{type_name} has inconsistent batch classification.')
-
-        else:
-            if isinstance(data, DataNodeDebug):
-                return True, data.device, data.get()
-            if isinstance(data, _tensors.TensorListCPU):
-                return True, 'cpu', data
-            if isinstance(data, _tensors.TensorListGPU):
-                return True, 'gpu', data
-            if is_primitive_type(data) or _types._is_numpy_array(data) or \
-                    isinstance(data, _tensors.TensorCPU):
-                return False, 'cpu', data
-            if _types._is_torch_tensor(data):
-                return False, 'gpu' if data.is_cuda else 'cpu', data
-            if _types._is_mxnet_array(data):
-                return False, 'gpu' if 'gpu' in str(data.context) else 'cpu', data
-            if hasattr(data, '__cuda_array_interface__') or isinstance(data, _tensors.TensorGPU):
-                return False, 'gpu', data
-
-        return False, 'cpu', data
 
 
 class _IterBatchInfo:
@@ -473,6 +394,19 @@ class _OperatorManager:
             self._pipe._cur_iter_batch_info.check_input(
                 len(classification.data), self._source_context, self._op_name, input_idx)
 
+    def _prep_input_sets(self, inputs):
+        inputs = list(inputs)
+
+        for i, input in enumerate(inputs):
+            # Transforming any convertable datatype to TensorList (DataNodeDebugs are already unpacked).
+            # Additionally accepting input sets, but only as list of TensorList.
+            if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)) and \
+                    not (isinstance(input, list) and
+                         all([isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU)) for elem in input])):
+                inputs[i] = _transform_data_to_tensorlist(input, len(input))
+
+        return self.op_helper._build_input_sets(inputs)
+
     def run(self, inputs, kwargs):
         """Checks correctness of inputs and kwargs and runs the backend operator."""
         self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
@@ -499,7 +433,7 @@ class _OperatorManager:
 
             inputs[i] = classification.data
 
-        input_sets = _ops._prep_input_sets(self.op_helper, inputs)
+        input_sets = self._prep_input_sets(inputs)
 
         # Check kwargs classification as batches and setup call args.
         for key, value in kwargs.items():
