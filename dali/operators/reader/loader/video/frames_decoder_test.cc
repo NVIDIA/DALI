@@ -148,9 +148,19 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateHevc) {
+  FramesDecoder decoder(cfr_hevc_videos_paths_[0]);
+  RunTest(decoder, cfr_videos_[0]);
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   FramesDecoder decoder(vfr_videos_paths_[1]);
   RunTest(decoder, vfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevc) {
+  FramesDecoder decoder(vfr_hevc_videos_paths_[0]);
+  RunTest(decoder, vfr_hevc_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
