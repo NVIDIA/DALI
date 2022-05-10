@@ -369,9 +369,9 @@ void unfold_outer_dims(const TensorList<Backend> &batch, TensorList<Backend> &ex
   TensorLayout layout = expanded_batch.GetLayout();
   const auto &shape = batch.shape();
   expanded_batch.ShareData(batch);
+  expanded_batch.SetLayout(std::move(layout));
   auto expanded_shape = unfold_outer_dims(shape, ndims_to_unfold);
   expanded_batch.Resize(expanded_shape, batch.type());
-  expanded_batch.SetLayout(std::move(layout));
 }
 
 inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
