@@ -29,7 +29,6 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
-#include "dali/core/geom/vec.h"
 
 namespace dali {
 namespace kernels {
@@ -55,7 +54,11 @@ inline float32x4_t vsetq_f32(float x0, float x1, float x2, float x3) {
 #endif
 
 struct ResamplingWindow {
-  inline DALI_HOST_DEV ivec<2> input_range(float x) const {
+  struct InputRange {
+    int i0, i1;
+  };
+
+  inline DALI_HOST_DEV InputRange input_range(float x) const {
     int xc = std::ceil(x);
     int i0 = xc - lobes;
     int i1 = xc + lobes;
@@ -222,8 +225,8 @@ struct Resampler {
       const float *__restrict__ in_block_ptr = in + in_block_i;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
         auto irange = window.input_range(in_pos);
-        int i0 = irange[0];
-        int i1 = irange[1];
+        int i0 = irange.i0;
+        int i1 = irange.i1;
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i > n_in)
@@ -285,8 +288,8 @@ struct Resampler {
       const float *__restrict__ in_block_ptr = in + in_block_i * num_channels;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
         auto irange = window.input_range(in_pos);
-        int i0 = irange[0];
-        int i1 = irange[1];
+        int i0 = irange.i0;
+        int i1 = irange.i1;
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i > n_in)
