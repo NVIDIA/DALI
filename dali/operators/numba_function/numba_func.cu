@@ -19,7 +19,6 @@ namespace dali {
 
 template <typename GPUBackend>
 NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
-  // run_fn_cuda_ = spec.GetArgument<void*>("run_fn_cuda");
   run_fn_ = spec.GetArgument<uint64_t>("run_fn");
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
   batch_processing_ = spec.GetArgument<bool>("batch_processing");
@@ -115,26 +114,10 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in.raw_tensor(i));
     }
   }
-
-  // const auto &input_ref = ws.template Input<GPUBackend>(0);
-  // auto &output_ref = ws.template Output<GPUBackend>(0);
-  // output_ref.SetLayout(input_ref.GetLayout());
-  // auto input = view<const float, 2>(input_ref);
-  // auto output = view<float, 2>(output_ref);
-  // void* p_v = static_cast<void*>(out_ptrs.data());
-  std::vector<void*> out_ptrs_v {NULL};
   void** data = NULL;
-  dim3 block(10, 10);
-  dim3 grid(1, 1);
-  // auto fun = *reinterpret_cast<void**>(run_fn_);
-  cudaError_t result = cudaLaunchKernel(reinterpret_cast<void*>(run_fn_), grid, block, data, 0, ws.stream());
-  // cudaError_t result = cudaLaunchKernel(run_fn_cuda_, grid, block, data, 0, ws.stream());
+  CUfunction cufunc = (CUfunction) run_fn_;
+  CUresult result = cuLaunchKernel(cufunc, 1, 1, 1, 1, 1, 1, 0, ws.stream(), data, NULL);
   printf("Result: %d \n", result);
-  // CUresult result = cuLaunchKernel(static_cast<CUfunction>(run_fn_), 1, 1, 1, 1, 1, 1, 0, 0, (void**)(out_ptrs_v.data()), NULL);
-  // if (result != 0) {
-    // const char *msg = cudaGetErrorString(result);
-    // printf("error: %s failed with error %s\n", result, msg);
-  // }
 }
 
 DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<GPUBackend>, GPU);

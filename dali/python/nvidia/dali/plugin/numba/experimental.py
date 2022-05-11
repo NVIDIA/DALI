@@ -347,7 +347,6 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
                        "Python Operators do not support Multiple Input Sets.")
                       .format(type(inp).__name__))
         op_instance = ops._OperatorInstance(inputs, self, **kwargs)
-        # op_instance.spec.AddArg("run_fn_cuda", self.run_fn_cuda)
         op_instance.spec.AddArg("run_fn", self.run_fn)
         if self.setup_fn != None:
             op_instance.spec.AddArg("setup_fn", self.setup_fn)
@@ -416,9 +415,9 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
         lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
                                             True, nvvm_options,
                                             filename, linenum)
+        handle = lib.get_cufunc().handle
 
-        # self.run_fn_cuda = lib.get_cufunc().handle
-        self.run_fn = lib.get_cufunc().handle.value
+        self.run_fn = handle.value
         self.setup_fn = None
         self.out_types = out_types
         self.in_types = in_types
