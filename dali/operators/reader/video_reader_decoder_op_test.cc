@@ -360,7 +360,7 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
 
       frame_buffer.resize(frame_size);
 
-      // ARM implementations of decoding work slightyl different, so we need to adjust the eps
+      // ARM implementations of decoding work slightly different, so we need to adjust the eps
       double eps = 1.2;
 
       for (int i = 0; i < sequence_length; ++i) {
