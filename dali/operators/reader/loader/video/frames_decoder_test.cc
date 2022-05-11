@@ -194,6 +194,16 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   }
 }
 
+TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidCodec) {
+  std::string path = testing::dali_extra_path() + "/db/video/vp9/vp9_0.mp4";
+
+  try {
+    FramesDecoder file(path);
+  } catch (const DALIException &e) {
+    EXPECT_TRUE(strstr(e.what(), make_string("Unsupported video codec: vp9 in file: ", path).c_str()));
+  }
+}
+
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   RunTest(decoder, cfr_videos_[0]);

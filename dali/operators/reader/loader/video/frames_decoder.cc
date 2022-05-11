@@ -30,6 +30,11 @@ std::string av_error_string(int ret) {
 
 using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
+const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = { 
+  AVCodecID::AV_CODEC_ID_H264,
+  AVCodecID::AV_CODEC_ID_HEVC
+};
+
 void FramesDecoder::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
   DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
@@ -51,6 +56,15 @@ void FramesDecoder::InitAvState() {
   DALI_ENFORCE(av_state_->packet_, "Could not allocate av packet");
 }
 
+bool FramesDecoder::CheckCodecSupport() {
+  for (auto &supported_codec : SupportedCodecs) {
+    if (av_state_->codec_->id == supported_codec) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void FramesDecoder::FindVideoStream() {
   for (size_t i = 0; i < av_state_->ctx_->nb_streams; ++i) {
     av_state_->codec_params_ = av_state_->ctx_->streams[i]->codecpar;
@@ -61,8 +75,8 @@ void FramesDecoder::FindVideoStream() {
     }
 
     if (av_state_->codec_->type == AVMEDIA_TYPE_VIDEO) {
-        av_state_->stream_id_ = i;
-        return;
+      av_state_->stream_id_ = i;
+      return;
     }
   }
 
@@ -82,6 +96,9 @@ FramesDecoder::FramesDecoder(const std::string &filename)
                                      detail::av_error_string(ret)));
 
   FindVideoStream();
+  DALI_ENFORCE(
+    CheckCodecSupport(),
+    make_string("Unsupported video codec: ", av_state_->codec_->name, " in file: ", filename));
   InitAvState();
   BuildIndex();
 }
