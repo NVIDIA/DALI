@@ -78,7 +78,7 @@ class WorkerThread {
   }
 
   inline ~WorkerThread() {
-    Shutdown(false);
+    Shutdown();
 #if NVML_ENABLED
     nvml::Shutdown();
 #endif
@@ -89,10 +89,10 @@ class WorkerThread {
    * When the destructor is called other things that work() is using may have been gone long
    * before causing a hang. Now when Shutdown is called we are sure that all things around still exist.
    */
-  inline void Shutdown(bool rethrow_worker_errors = true) {
+  inline void Shutdown() {
     // Wait for work to find errors
     if (running_) {
-      WaitForWork(rethrow_worker_errors);
+      WaitForWork(false);
 
       // Mark the thread as not running
       {
