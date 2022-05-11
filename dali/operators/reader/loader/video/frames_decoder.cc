@@ -30,7 +30,7 @@ std::string av_error_string(int ret) {
 
 using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
-const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = { 
+const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
   AVCodecID::AV_CODEC_ID_H264,
   AVCodecID::AV_CODEC_ID_HEVC
 };

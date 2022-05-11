@@ -200,7 +200,9 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidCodec) {
   try {
     FramesDecoder file(path);
   } catch (const DALIException &e) {
-    EXPECT_TRUE(strstr(e.what(), make_string("Unsupported video codec: vp9 in file: ", path).c_str()));
+    EXPECT_TRUE(
+      strstr(e.what(),
+      make_string("Unsupported video codec: vp9 in file: ", path).c_str()));
   }
 }
 
