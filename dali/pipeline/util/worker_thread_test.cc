@@ -14,6 +14,8 @@
 
 #include <gtest/gtest.h>
 #include <atomic>
+#include <chrono>
+#include <thread>
 
 #include "dali/pipeline/util/worker_thread.h"
 
