@@ -18,60 +18,49 @@
 #include "dali/kernels/signal/resampling_gpu.h"
 #include "dali/kernels/signal/resampling_test.h"
 
-
 namespace dali {
 namespace kernels {
 namespace signal {
 namespace resampling {
+namespace test {
 
 class ResamplingGPUTest : public ResamplingTest {
  public:
-  void RunResampling(span<const float> in_rates, span<const float> out_rates,
-                     bool downmix) override {
+  void RunResampling(span<const float> in_rates, span<const float> out_rates) override {
     ResamplerGPU<float> R;
     R.Initialize(16);
 
     KernelContext ctx;
     ctx.gpu.stream = 0;
 
-    auto req = R.Setup(ctx, ttl_in_.gpu(), in_rates, out_rates, downmix);
+    auto req = R.Setup(ctx, ttl_in_.gpu(), in_rates, out_rates);
     auto outref_sh = ttl_outref_.cpu().shape;
     auto in_batch_sh = ttl_in_.cpu().shape;
     for (int s = 0; s < outref_sh.size(); s++) {
       auto sh = req.output_shapes[0].tensor_shape_span(s);
       auto expected_sh = outref_sh.tensor_shape_span(s);
-      auto in_sh = in_batch_sh.tensor_shape_span(s);
-      ASSERT_EQ(sh.size(), in_sh.size());
-      if (downmix) {
-        ASSERT_EQ(sh[1], 1);
-      } else {
-        if (sh.size() > 1)
-          ASSERT_EQ(sh[1], in_sh[1]);
-      }
+      ASSERT_EQ(sh, expected_sh);
     }
 
-    R.Run(ctx, ttl_out_.gpu(), ttl_in_.gpu(), in_rates, out_rates, downmix);
+    R.Run(ctx, ttl_out_.gpu(), ttl_in_.gpu(), in_rates, out_rates);
 
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
   }
 };
 
 TEST_F(ResamplingGPUTest, SingleChannel) {
-  this->RunTest(8, 1, false);
+  this->RunTest(8, 1);
 }
 
 TEST_F(ResamplingGPUTest, TwoChannel) {
-  this->RunTest(3, 2, false);
+  this->RunTest(3, 2);
 }
 
 TEST_F(ResamplingGPUTest, EightChannel) {
-  this->RunTest(3, 8, false);
+  this->RunTest(3, 8);
 }
 
-TEST_F(ResamplingGPUTest, ThreeChannelDownmix) {
-  this->RunTest(3, 3, true);
-}
-
+}  // namespace test
 }  // namespace resampling
 }  // namespace signal
 }  // namespace kernels

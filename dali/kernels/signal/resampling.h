@@ -253,9 +253,8 @@ struct Resampler {
    * To reuse memory and still simulate chunk processing, adjust the in/out pointers.
    *
    * @tparam static_channels   number of channels, if known at compile time, or -1
-   * @tparam downmix           whether to downmix all channels in the output
    */
-  template <int static_channels, bool downmix, typename Out>
+  template <int static_channels, typename Out>
   void Resample(
         Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *__restrict__ in, int64_t n_in, double in_rate,
@@ -308,16 +307,8 @@ struct Resampler {
           }
         }
         assert(out_pos >= out_begin && out_pos < out_end);
-        if (downmix) {
-          float out_val = 0;
-          for (int c = 0; c < num_channels; c++)
-            out_val += tmp[c];
-          out_val /= num_channels;
-          out[out_pos] = ConvertSatNorm<Out>(out_val);
-        } else {
-          for (int c = 0; c < num_channels; c++)
-            out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
-        }
+        for (int c = 0; c < num_channels; c++)
+          out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
       }
     }
   }
@@ -333,14 +324,12 @@ struct Resampler {
   void Resample(
         Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *__restrict__ in, int64_t n_in, double in_rate,
-        int num_channels, bool downmix = false) {
-    BOOL_SWITCH(downmix, Downmix, (
-      VALUE_SWITCH(num_channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8),
-        (Resample<static_channels, Downmix, Out>(out, out_begin, out_end, out_rate,
-          in, n_in, in_rate, static_channels);),
-        (Resample<-1, Downmix, Out>(out, out_begin, out_end, out_rate,
-          in, n_in, in_rate, num_channels)));
-    ));  // NOLINT
+        int num_channels) {
+    VALUE_SWITCH(num_channels, static_channels, (1, 2, 3, 4, 5, 6, 7, 8),
+      (Resample<static_channels, Out>(out, out_begin, out_end, out_rate,
+        in, n_in, in_rate, static_channels);),
+      (Resample<-1, Out>(out, out_begin, out_end, out_rate,
+        in, n_in, in_rate, num_channels)));
   }
 };
 

@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_KERNELS_SIGNAL_RESAMPLING_TEST_H_
+#define DALI_KERNELS_SIGNAL_RESAMPLING_TEST_H_
+
 #include <gtest/gtest.h>
 #include <vector>
 #include <numeric>
@@ -23,13 +26,9 @@ namespace dali {
 namespace kernels {
 namespace signal {
 namespace resampling {
+namespace test {
 
-namespace {
-
-double HannWindow(int i, int n) {
-  assert(n > 0);
-  return Hann(2.0*i / n - 1);
-}
+double HannWindow(int i, int n);
 
 template <typename T>
 void TestWave(T *out, int n, int stride, float freq) {
@@ -39,8 +38,6 @@ void TestWave(T *out, int n, int stride, float freq) {
   }
 }
 
-}  // namespace
-
 class ResamplingTest : public ::testing::Test {
  public:
   void PrepareData(int nsamples, int nchannels,
@@ -48,11 +45,11 @@ class ResamplingTest : public ::testing::Test {
 
   virtual float eps() const { return 2e-3; }
   virtual float max_avg_err() const { return 1e-3; }
-  void Verify(bool downmix);
+  void Verify();
 
-  virtual void RunResampling(span<const float> in_rates, span<const float> out_rates, bool downmix) = 0;
+  virtual void RunResampling(span<const float> in_rates, span<const float> out_rates) = 0;
 
-  void RunTest(int nsamples, int nchannels, bool downmix);
+  void RunTest(int nsamples, int nchannels);
 
 
   TestTensorList<float> ttl_in_;
@@ -61,7 +58,10 @@ class ResamplingTest : public ::testing::Test {
 };
 
 
+}  // namespace test
 }  // namespace resampling
 }  // namespace signal
 }  // namespace kernels
 }  // namespace dali
+
+#endif  // DALI_KERNELS_SIGNAL_RESAMPLING_TEST_H_

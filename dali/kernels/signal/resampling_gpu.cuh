@@ -35,11 +35,11 @@ struct SampleDesc {
 };
 
 /**
- * @brief Resamples 1D signal (single or multi-channel), optionally downmixing and converting to a different data type.
+ * @brief Resamples 1D signal (single or multi-channel), optionally converting to a different data type.
  *
  * @param samples sample descriptors
  */
-template <typename Out, typename In, bool SingleChannel = false, bool Downmix = false>
+template <typename Out, typename In, bool SingleChannel = false>
 __global__ void ResampleGPUKernel(const SampleDesc *samples) {
   auto sample = samples[blockIdx.y];
   double scale = sample.scale;
@@ -80,6 +80,7 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
       }
       out[out_pos] = ConvertSatNorm<Out>(out_val);
     } else {  // multiple channels
+      assert(nchannels <= 32);
       float tmp[32];  // more than enough
       for (int c = 0; c < nchannels; c++) {
         tmp[c] = 0;
@@ -94,16 +95,8 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
         }
       }
 
-      if (Downmix) {
-        for (int c = 0; c < nchannels; c++) {
-          out_val += tmp[c];
-        }
-        out_val /= nchannels;
-        out[out_pos] = ConvertSatNorm<Out>(out_val);
-      } else {
-        for (int c = 0; c < nchannels; c++) {
-          out[out_pos * nchannels + c] = ConvertSatNorm<Out>(tmp[c]);
-        }
+      for (int c = 0; c < nchannels; c++) {
+        out[out_pos * nchannels + c] = ConvertSatNorm<Out>(tmp[c]);
       }
     }
   }
