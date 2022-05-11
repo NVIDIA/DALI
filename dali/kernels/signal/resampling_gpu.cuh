@@ -63,8 +63,8 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
        out_pos += grid_stride, in_pos_start += fscale * grid_stride) {
     float in_pos = in_pos_start + fscale * threadIdx.x;
     auto i_range = window.input_range(in_pos);
-    int i0 = i_range[0];
-    int i1 = i_range[1];
+    int i0 = i_range.i0;
+    int i1 = i_range.i1;
     if (i0 + in_block_i < 0)
       i0 = -in_block_i;
     if (i1 + in_block_i > sample.in_len)
