@@ -57,12 +57,10 @@ void FramesDecoder::InitAvState() {
 }
 
 bool FramesDecoder::CheckCodecSupport() {
-  for (auto &supported_codec : SupportedCodecs) {
-    if (av_state_->codec_->id == supported_codec) {
-      return true;
-    }
-  }
-  return false;
+  return std::find(
+    SupportedCodecs.begin(),
+    SupportedCodecs.end(),
+    av_state_->codec_->id) != SupportedCodecs.end();
 }
 
 void FramesDecoder::FindVideoStream() {

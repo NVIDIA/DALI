@@ -92,6 +92,17 @@ class FramesDecoderTestBase : public VideoTestBase {
     }
   }
 
+  void RunFailureTest(std::function<void()> body, std::string expected_error) {
+    try {
+      body();
+    } catch (const DALIException &e) {
+      EXPECT_TRUE(
+        strstr(e.what(), expected_error.c_str()));
+      return;
+    }
+    FAIL();
+  }
+
   virtual void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) = 0;
 
   virtual uint8_t *FrameData() = 0;
@@ -109,6 +120,12 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
 
   uint8_t *FrameData() override {
     return frame_buffer_.data();
+  }
+
+  void RunConstructorFailureTest(std::string path, std::string expected_error) {
+    RunFailureTest([&]() -> void {
+      FramesDecoder decoder(path);},
+      expected_error);
   }
 
  private:
@@ -166,44 +183,33 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevc) {
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
   std::string path = "invalid_path.mp4";
 
-  try {
-    FramesDecoder file(path);
-  } catch (const DALIException &e) {
-    EXPECT_TRUE(strstr(e.what(), make_string("Failed to open video file at path ", path).c_str()));
-  }
+  RunConstructorFailureTest(
+    path,
+    make_string("Failed to open video file at path ", path));
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, NoVideoStream) {
   std::string path = testing::dali_extra_path() + "/db/audio/wav/dziendobry.wav";
 
-  try {
-    FramesDecoder file(path);
-  } catch (const DALIException &e) {
-    EXPECT_TRUE(strstr(
-        e.what(), make_string("Could not find a valid video stream in a file ", path).c_str()));
-  }
+  RunConstructorFailureTest(
+    path,
+    make_string("Could not find a valid video stream in a file ", path));
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
-  FramesDecoder file(cfr_videos_paths_[0]);
+  FramesDecoder decoder(cfr_videos_paths_[0]);
 
-  try {
-    file.SeekFrame(60);
-  } catch (const DALIException &e) {
-    EXPECT_TRUE(strstr(e.what(), "Invalid seek frame id. frame_id = 60, num_frames = 50"));
-  }
+  RunFailureTest([&]() -> void {
+    decoder.SeekFrame(60);},
+    "Invalid seek frame id. frame_id = 60, num_frames = 50");
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidCodec) {
   std::string path = testing::dali_extra_path() + "/db/video/vp9/vp9_0.mp4";
 
-  try {
-    FramesDecoder file(path);
-  } catch (const DALIException &e) {
-    EXPECT_TRUE(
-      strstr(e.what(),
-      make_string("Unsupported video codec: vp9 in file: ", path).c_str()));
-  }
+  RunConstructorFailureTest(
+    path,
+    make_string("Unsupported video codec: vp9 in file: ", path));
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
