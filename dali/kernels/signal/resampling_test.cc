@@ -22,6 +22,12 @@ namespace dali {
 namespace kernels {
 namespace signal {
 namespace resampling {
+namespace test {
+
+double HannWindow(int i, int n) {
+  assert(n > 0);
+  return Hann(2.0*i / n - 1);
+}
 
 void ResamplingTest::PrepareData(int nsamples, int nchannels, span<const float> in_rates,
                                  span<const float> out_rates) {
@@ -58,7 +64,7 @@ void ResamplingTest::PrepareData(int nsamples, int nchannels, span<const float> 
   }
 }
 
-void ResamplingTest::Verify(bool downmix) {
+void ResamplingTest::Verify() {
   auto in_sh = ttl_in_.cpu().shape;
   auto out_sh = ttl_outref_.cpu().shape;
   int nsamples = in_sh.num_samples();
@@ -70,19 +76,9 @@ void ResamplingTest::Verify(bool downmix) {
     int n_out = out_sh.tensor_shape_span(s)[0];
     int nchannels = out_sh.sample_dim() == 1 ? 1 : out_sh.tensor_shape_span(s)[1];
     for (int i = 0; i < n_out; i++) {
-      float ref_val = 0;
-      if (downmix) {
-        for (int c = 0; c < nchannels; c++) {
-          ref_val += out_ref[i * nchannels + c];
-        }
-        ref_val /= nchannels;
-      } else {
-        ref_val = out_ref[i];
-      }
-
-      ASSERT_NEAR(out_data[i], ref_val, eps())
+      ASSERT_NEAR(out_data[i], out_ref[i], eps())
           << "Sample error too big @ sample=" << s << " pos=" << i << std::endl;
-      float diff = std::abs(out_data[i] - ref_val);
+      float diff = std::abs(out_data[i] - out_ref[i]);
       if (diff > max_diff)
         max_diff = diff;
       err += diff * diff;
@@ -96,7 +92,7 @@ void ResamplingTest::Verify(bool downmix) {
   }
 }
 
-void ResamplingTest::RunTest(int nsamples, int nchannels, bool downmix) {
+void ResamplingTest::RunTest(int nsamples, int nchannels) {
   std::vector<float> in_rates_v;
   for (int i = 0; i < nsamples; i++) {
     if (i % 2 == 0)
@@ -111,14 +107,14 @@ void ResamplingTest::RunTest(int nsamples, int nchannels, bool downmix) {
 
   PrepareData(nsamples, nchannels, in_rates, out_rates);
 
-  RunResampling(in_rates, out_rates, downmix);
+  RunResampling(in_rates, out_rates);
 
-  Verify(downmix);
+  Verify();
 }
 
 class ResamplingCPUTest : public ResamplingTest {
  public:
-  void RunResampling(span<const float> in_rates, span<const float> out_rates, bool downmix) override {
+  void RunResampling(span<const float> in_rates, span<const float> out_rates) override {
     Resampler R;
     R.Initialize(16);
 
@@ -134,27 +130,24 @@ class ResamplingCPUTest : public ResamplingTest {
       int n_in = in_sh[0];
       int nchannels = in_sh.sample_dim() > 1 ? in_sh[1] : 1;
       R.Resample(out_view[s].data, 0, n_out, out_rates[s], in_view[s].data, n_in, in_rates[s],
-                 nchannels, downmix);
+                 nchannels);
     }
   }
 };
 
 TEST_F(ResamplingCPUTest, SingleChannel) {
-  this->RunTest(1, 1, false);
+  this->RunTest(1, 1);
 }
 
 TEST_F(ResamplingCPUTest, TwoChannel) {
-  this->RunTest(1, 2, false);
+  this->RunTest(1, 2);
 }
 
 TEST_F(ResamplingCPUTest, EightChannel) {
-  this->RunTest(1, 8, false);
+  this->RunTest(1, 8);
 }
 
-TEST_F(ResamplingCPUTest, ThreeChannelDownmix) {
-  this->RunTest(1, 3, true);
-}
-
+}  // namespace test
 }  // namespace resampling
 }  // namespace signal
 }  // namespace kernels

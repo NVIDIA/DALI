@@ -41,23 +41,21 @@ class ResamplerGPU {
   }
 
   KernelRequirements Setup(KernelContext &context, const InListGPU<InputType> &in,
-                           span<const float> in_rate, span<const float> out_rate, bool downmix) {
+                           span<const float> in_rate, span<const float> out_rate) {
     KernelRequirements req;
     auto out_shape = in.shape;
     for (int i = 0; i < in.num_samples(); i++) {
       auto in_sh = in.shape.tensor_shape_span(i);
       auto out_sh = out_shape.tensor_shape_span(i);
       out_sh[0] = resampled_length(in_sh[0], in_rate[i], out_rate[i]);
-      if (downmix)
-        out_sh[1] = 1;
     }
     req.output_shapes = {out_shape};
     return req;
   }
 
   void Run(KernelContext &context, const OutListGPU<OutputType> &out,
-           const InListGPU<InputType> &in, span<const float> in_rates, span<const float> out_rates,
-           bool downmix) {
+           const InListGPU<InputType> &in, span<const float> in_rates,
+           span<const float> out_rates) {
     if (window_gpu_storage_.empty())
       Initialize();
 
@@ -92,11 +90,9 @@ class ResamplerGPU {
     int blocks_per_sample = std::max(32, 1024 / nsamples);
     dim3 grid(blocks_per_sample, nsamples);
 
-    BOOL_SWITCH(downmix && any_multichannel, Downmix, (
-      BOOL_SWITCH(!any_multichannel, SingleChannel, (
-        ResampleGPUKernel<OutputType, InputType, SingleChannel, Downmix>
-          <<<grid, block, 0, context.gpu.stream>>>(samples_gpu);
-      ));  // NOLINT
+    BOOL_SWITCH(!any_multichannel, SingleChannel, (
+      ResampleGPUKernel<OutputType, InputType, SingleChannel>
+        <<<grid, block, 0, context.gpu.stream>>>(samples_gpu);
     ));  // NOLINT
     CUDA_CALL(cudaGetLastError());
   }
