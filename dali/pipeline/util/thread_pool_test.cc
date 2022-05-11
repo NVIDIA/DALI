@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include <gtest/gtest.h>
 #include <atomic>
-#include "dali/pipeline/util/worker_thread.h"
 
 namespace dali {
 
@@ -66,11 +65,6 @@ TEST(ThreadPool, AddWorkWithPriority) {
 
   tp.RunAll();
   ASSERT_EQ(((1+1) << 3) + 1, count);
-}
-
-TEST(WorkerThread, Destructing) {
-  WorkerThread wt(0, false);
-  // check destruction of a running worker thread
 }
 
 }  // namespace test
