@@ -360,6 +360,9 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
 
       frame_buffer.resize(frame_size);
 
+      // ARM implementations of decoding work slightyl different, so we need to adjust the eps
+      double eps = 1.2;
+
       for (int i = 0; i < sequence_length; ++i) {
         frame_buffer.clear();
         MemCopy(
@@ -370,7 +373,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
         dali::CompareFrameAvgError(
           cpu_sample + i * frame_size,
           frame_buffer.data(),
-          frame_size);
+          frame_size,
+          eps);
 
         frame_buffer.clear();
         MemCopy(
@@ -381,7 +385,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
         dali::CompareFrameAvgError(
           cpu_sample + i * frame_size,
           frame_buffer.data(),
-          frame_size);
+          frame_size,
+          eps);
       }
     }
   }
