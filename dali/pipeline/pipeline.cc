@@ -545,17 +545,14 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   built_ = true;
 }
 
-void Pipeline::SetOutputNames(const vector<std::pair<string, string>> &output_names) {
-  DALI_ENFORCE(output_descs_.empty() || output_descs_.size() == output_names.size());
-  if (output_descs_.empty()) {
-    output_descs_ = {output_names.begin(), output_names.end()};
-  } else {
-    assert(output_descs_.size() == output_names.size());
-    for (size_t i = 0; i < output_names.size(); i++) {
-      output_descs_[i].name = output_names[i].first;
-      output_descs_[i].device = output_names[i].second;
-    }
-  }
+
+void Pipeline::SetOutputDescs(const vector<std::pair<string, string>> &output_names) {
+  DALI_ENFORCE(output_descs_.empty(), "Resetting output_descs_ is forbidden.");
+  output_descs_ = {output_names.begin(), output_names.end()};
+}
+
+void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
+  output_descs_ = std::move(output_descs);
 }
 
 void Pipeline::RunCPU() {
@@ -761,11 +758,6 @@ string Pipeline::SerializeToProtobuf() const {
   pipe.set_device_id(this->device_id_);
   string output = pipe.SerializeAsString();
 
-#ifndef NDEBUG
-  // print out debug string
-  printf("%s\n", pipe.DebugString().c_str());
-#endif
-
   return output;
 }
 
@@ -887,6 +879,10 @@ int Pipeline::num_inputs() const {
 int Pipeline::num_outputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_outputs()\".");
   return output_descs_.size();
+}
+
+std::vector<PipelineOutputDesc> Pipeline::output_descs() const {
+  return output_descs_;
 }
 
 void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,

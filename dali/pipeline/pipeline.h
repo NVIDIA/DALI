@@ -338,11 +338,19 @@ class DLL_PUBLIC Pipeline {
     prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
   }
 
-  /*
-   * @brief Set name output_names of the pipeline. Used to update the graph without
-   * running the executor.
+  ///@{
+  /**
+   * @brief Set descriptors of the outputs of the pipeline. Used to update the graph without
+   * running the executor and for pipeline serialization.
    */
-  void SetOutputNames(const vector<std::pair<string, string>> &output_names);
+  void SetOutputDescs(std::vector<PipelineOutputDesc> output_descs);
+  /**
+   * Convenience overload. Set only the name and device of an output, since the dtype and ndim
+   * are not always necessary. This function can't reset the output descriptors. If they were already
+   * set, the function will fail.
+   */
+  void SetOutputDescs(const vector<std::pair<string /* name */, string /* device */>> &out_names);
+  ///@}
 
   /**
    * @brief Run the cpu portion of the pipeline.
@@ -478,6 +486,11 @@ class DLL_PUBLIC Pipeline {
    * @brief Returns number of dimensions in the output specified by given id.
    */
   DLL_PUBLIC int output_ndim(int id) const;
+
+  /**
+   * @brief Returns output descriptors for all outputs.
+   */
+  DLL_PUBLIC std::vector<PipelineOutputDesc> output_descs() const;
 
   /**
    * Checks, if a provided pipeline can be deserialized, according to the Pipeline protobuf

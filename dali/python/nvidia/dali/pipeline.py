@@ -239,8 +239,9 @@ Parameters
         # Assign and validate output_dtype
         if type(output_dtype) is list:
             for dtype in output_dtype:
-                assert type(dtype) is types.DALIDataType or dtype is None, \
-                    f"`output_dtype` must be either: a type from nvidia.dali.types module, a list of these or None. Found type {type(dtype)} in the list."
+                if type(dtype) is not types.DALIDataType and dtype is not None:
+                    raise TypeError(
+                        f"`output_dtype` must be either: a type from nvidia.dali.types module, a list of these or None. Found type {type(dtype)} in the list.")
         elif type(output_dtype) is not types.DALIDataType and output_dtype is not None:
             raise TypeError(
                 f"`output_dtype` must be either: a type from nvidia.dali.types module, a list of these or None. Found type: {type(output_dtype)}.")
@@ -249,9 +250,12 @@ Parameters
         # Assign and validate output_ndim
         if type(output_ndim) is list:
             for ndim in output_ndim:
-                assert type(ndim) is int or ndim is None, \
-                    f"`output_ndim` must be either: an int, a list of ints or None. Found type {type(ndim)} in the list."
-                assert ndim is None or ndim >= 0, f"`output_ndim` must be non-negative. Found value {ndim} in the list."
+                if type(ndim) is not int and ndim is not None:
+                    raise TypeError(
+                        f"`output_ndim` must be either: an int, a list of ints or None. Found type {type(ndim)} in the list.")
+                if ndim is not None and ndim < 0:
+                    raise ValueError(
+                        f"`output_ndim` must be non-negative. Found value {ndim} in the list.")
         elif type(output_ndim) is not int and output_ndim is not None:
             raise TypeError(
                 f"`output_ndim` must be either: an int, a list of ints or None. Found type: {type(output_ndim)}.")
@@ -345,15 +349,13 @@ Parameters
         """The number of iterations processed ahead by the GPU stage."""
         return self._gpu_queue_size
 
-    @property
-    def output_ndim(self):
-        """Number of dimensions expected at the given output."""
-        return self._output_ndim
+    def output_dtype(self) -> list:
+        """Data types expected at the outputs."""
+        return self._pipe.output_dtype()
 
-    @property
-    def output_dtype(self):
-        """Data type expected at the given output."""
-        return self._output_dtype
+    def output_ndim(self) -> list:
+        """Number of dimensions expected at the outputs."""
+        return self._pipe.output_ndim()
 
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
@@ -1088,7 +1090,8 @@ Parameters
             self._build_graph(define_graph)
         if not self._backend_prepared:
             self._init_pipeline_backend()
-            self._pipe.SetOutputNames(self._names_and_devices)
+            self._pipe.SetOutputDescs(
+                self._generate_build_args(self._output_dtype, self._output_ndim))
         ret = self._pipe.SerializeToProtobuf()
         if filename is not None:
             with open(filename, 'wb') as pipeline_file:
@@ -1265,8 +1268,8 @@ Parameters
                 f"Inconsistent output description. Length of provided output descriptions do not match. \n"
                 f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={output_dtype}\noutput_ndim={output_ndim}")
 
-        for nd, dtype, ndim in zip(self._names_and_devices, output_dtype, output_ndim):
-            ret.append((nd[0], nd[1], types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim))
+        for (name, dev), dtype, ndim in zip(self._names_and_devices, output_dtype, output_ndim):
+            ret.append((name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim))
         return ret
 
 

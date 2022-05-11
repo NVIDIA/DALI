@@ -33,7 +33,7 @@ struct PipelineOutputDesc {
 
   PipelineOutputDesc() = default;
 
-  PipelineOutputDesc(std::string name, std::string device, DALIDataType dtype, int ndim)
+  PipelineOutputDesc(std::string name, std::string device, DALIDataType dtype,int ndim )
       : name(std::move(name)), device(std::move(device)), dtype(dtype), ndim(ndim) {}
 
   PipelineOutputDesc(const std::pair<std::string, std::string> &name_and_device)  // NOLINT
