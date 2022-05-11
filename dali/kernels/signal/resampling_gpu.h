@@ -89,10 +89,11 @@ class ResamplerGPU {
     dim3 block(256, 1);
     int blocks_per_sample = std::max(32, 1024 / nsamples);
     dim3 grid(blocks_per_sample, nsamples);
+    size_t shm_size = window_gpu_storage_.size() * sizeof(float);
 
     BOOL_SWITCH(!any_multichannel, SingleChannel, (
       ResampleGPUKernel<OutputType, InputType, SingleChannel>
-        <<<grid, block, 0, context.gpu.stream>>>(samples_gpu);
+        <<<grid, block, shm_size, context.gpu.stream>>>(samples_gpu);
     ));  // NOLINT
     CUDA_CALL(cudaGetLastError());
   }
