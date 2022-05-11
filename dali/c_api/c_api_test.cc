@@ -1046,6 +1046,8 @@ TEST(CApiTest, GetESDetailsTest) {
   EXPECT_EQ(daliGetExternalInputLayout(&handle, "INPUT3"), std::string("HWC"));
   EXPECT_EQ(daliGetExternalInputNdim(&handle, "INPUT3"), 3);
   EXPECT_EQ(daliGetExternalInputType(&handle, "INPUT3"), DALI_FLOAT16);
+
+  daliDeletePipeline(&handle);
 }
 
 }  // namespace dali
