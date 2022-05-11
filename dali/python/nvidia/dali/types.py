@@ -410,8 +410,7 @@ def _is_compatible_array_type(value):
     return _is_numpy_array(value) or _is_mxnet_array(value) or _is_torch_tensor(value)
 
 
-def _preprocess_constant(value, dtype=None, shape=None):
-    data = value
+def _preprocess_constant_array_type(value, dtype=None, shape=None):
     if _is_mxnet_array(value):
         # mxnet ndarray is not directly compatible with numpy.ndarray, but provides conversion
         value = value.asnumpy()
@@ -426,15 +425,22 @@ def _preprocess_constant(value, dtype=None, shape=None):
         if value.dtype == np.uint64:
             value = value.astype(np.uint32)
 
-    if _is_numpy_array(value) or _is_torch_tensor(value):
-        # torch tensor and numpy array have very similar API
-        actual_type = to_dali_type(value.dtype)
-        if dtype is None:
-            dtype = actual_type
-        if shape is not None:
-            value = value.reshape(shape)
-        else:
-            shape = list(value.shape)  # torch uses torch.Size instead of list
+    # At this point value is a numpy array or a torch tensor. They have very similar API
+    actual_type = to_dali_type(value.dtype)
+    if dtype is None:
+        dtype = actual_type
+    if shape is not None:
+        value = value.reshape(shape)
+    else:
+        shape = list(value.shape)  # torch uses torch.Size instead of list
+
+    return value, dtype, actual_type, shape
+
+
+def ConstantNode(device, value, dtype, shape, layout, **kwargs):
+    data = value
+    if _is_compatible_array_type(value):
+        data, dtype, actual_type, shape = _preprocess_constant_array_type(value, dtype, shape)
         data = value.flatten().tolist()
     else:
         def _type_from_value_or_list(v):
@@ -466,12 +472,6 @@ def _preprocess_constant(value, dtype=None, shape=None):
         actual_type = _type_from_value_or_list(value)
         if dtype is None:
             dtype = actual_type
-
-    return data, dtype, actual_type, shape
-
-
-def ConstantNode(device, value, dtype, shape, layout, **kwargs):
-    data, dtype, actual_type, shape = _preprocess_constant(value, dtype, shape)
 
     import nvidia.dali.ops as ops
 

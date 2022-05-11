@@ -287,6 +287,7 @@ class _OperatorManager:
     def __init__(self, op_class, op_name, pipe, source_context, next_logical_id, batch_size, seed, inputs, kwargs):
         """Creates direct operator."""
 
+        self._batch_size = batch_size
         self._separate_kwargs(kwargs)
 
         if op_name == 'arithmetic_generic_op':
@@ -314,7 +315,6 @@ class _OperatorManager:
         if 'seed' not in self._init_args:
             self._init_args['seed'] = seed
 
-        self._batch_size = batch_size
         self._device = self._init_args.get('device', 'cpu')
         self._expected_inputs_size = len(inputs)
         self.op_helper = op_class(**self._init_args)
@@ -337,7 +337,7 @@ class _OperatorManager:
         self._kwargs_classification = {}
 
         for key, value in kwargs.items():
-            classification = _Classification(value, f'Argument {key}', to_constant=True)
+            classification = _Classification(value, f'Argument {key}', arg_batch_size=self._batch_size)
             if classification.is_batch:
                 self._call_args[key] = classification.data
             else:
@@ -437,7 +437,7 @@ class _OperatorManager:
 
         # Check kwargs classification as batches and setup call args.
         for key, value in kwargs.items():
-            classification = _Classification(value, f'Argument {key}', to_constant=True)
+            classification = _Classification(value, f'Argument {key}', arg_batch_size=self._batch_size)
 
             self._check_batch_classification(
                 self._kwargs_classification[key].is_batch, classification.is_batch, 'Argument', key)

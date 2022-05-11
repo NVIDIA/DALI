@@ -41,32 +41,46 @@ class _Classification:
     Args:
         data: Data to be classified.
         type_name (str): Representation of argument type (input or keyward).
-        to_constant (bool): If array types (e.g. numpy array) should be treated as constants.
+        arg_batch_size (int): Size of batch to which constant value should be scaled up. Only
+            applicable for argument inputs that are array types (e.g. numpy array). If -1 does not
+            modify the data.
     """
 
-    def __init__(self, data, type_name, to_constant=False):
-        self.is_batch, self.device, self.data = self._classify_data(data, type_name, to_constant)
+    def __init__(self, data, type_name, arg_batch_size=-1):
+        self.is_batch, self.device, self.data = self._classify_data(data, type_name, arg_batch_size)
 
     @staticmethod
-    def _classify_data(data, type_name, to_constant):
+    def _classify_data(data, type_name, arg_batch_size):
         from nvidia.dali._debug_mode import DataNodeDebug
         """Returns tuple (is_batch, device, unpacked data). """
 
         def is_primitive_type(x):
             return isinstance(x, (int, float, bool, str))
 
-        def classify_array_type(data, to_constant):
+        def classify_array_type(data):
             if _types._is_numpy_array(data):
                 device = 'cpu'
             elif _types._is_torch_tensor(data):
                 device = 'gpu' if data.is_cuda else 'cpu'
+                
+                # Data needs to be on CPU for batch argument inputs.
+                if device == 'gpu' and arg_batch_size > 0:
+                    data = data.cpu().numpy()
             elif _types._is_mxnet_array(data):
+                import mxnet as mx
+
                 device = 'gpu' if 'gpu' in str(data.context) else 'cpu'
+
+                # For batch copy to CPU.
+                if device == 'gpu' and arg_batch_size > 0:
+                    data = data.copyto(mx.cpu())
             else:
                 raise RuntimeError(f"Unsupported array type '{type(data)}'.")
-
-            if to_constant:
-                data = _types._preprocess_constant(data)[0]
+            
+            data = _types._preprocess_constant_array_type(data)[0]
+            if arg_batch_size > 0:
+                data = _tensors.TensorListCPU([_tensors.TensorCPU(data)] * arg_batch_size)
+                return True, 'cpu', data
 
             return False, device, data
 
@@ -80,14 +94,14 @@ class _Classification:
 
             for d in data:
                 is_batch, device, val = _Classification._classify_data(
-                    d, type_name, to_constant=False)
+                    d, type_name, arg_batch_size=False)
                 is_batch_list.append(is_batch)
                 device_list.append(device)
                 data_list.append(val)
 
             if any([device != device_list[0] for device in device_list]):
-                raise RuntimeError(f'{type_name} has batches of data on CPU and on GPU. '
-                                   'Which is not supported.')
+                raise RuntimeError(f'{type_name} has batches of data on CPU and on GPU, '
+                                   'which is not supported.')
 
             if all(is_batch_list):
                 # Input set.
@@ -108,7 +122,7 @@ class _Classification:
             if is_primitive_type(data) or isinstance(data, _tensors.TensorCPU):
                 return False, 'cpu', data
             if _types._is_compatible_array_type(data):
-                return classify_array_type(data, to_constant)
+                return classify_array_type(data)
             if hasattr(data, '__cuda_array_interface__') or isinstance(data, _tensors.TensorGPU):
                 return False, 'gpu', data
 

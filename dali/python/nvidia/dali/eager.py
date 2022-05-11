@@ -37,7 +37,7 @@ _statefull_operators = {
 }
 
 
-_generator_opeartors = {
+_generator_operators = {
     'readers__COCO',
     'readers__Caffe',
     'readers__Caffe2',
@@ -175,9 +175,9 @@ def _prep_inputs(inputs, batch_size):
     
     return inputs
 
-def _prep_kwargs(kwargs):
+def _prep_kwargs(kwargs, batch_size):
     for key, value in kwargs.items():
-        kwargs[key] = _Classification(value, f'Argument {key}', to_constant=True).data
+        kwargs[key] = _Classification(value, f'Argument {key}', arg_batch_size=batch_size).data
 
     return kwargs
 
@@ -187,9 +187,9 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
         _disqualify_arguments(wrapper_name, kwargs, _wrap_stateless.disqualified_arguments)
 
         # Preprocess kwargs to get batch_size.
-        kwargs = _prep_kwargs(kwargs)
-        init_args, call_args = _ops._separate_kwargs(kwargs, _tensors.TensorListCPU)
         batch_size = _choose_batch_size(inputs, kwargs.pop('batch_size', -1))
+        kwargs = _prep_kwargs(kwargs, batch_size)
+        init_args, call_args = _ops._separate_kwargs(kwargs, _tensors.TensorListCPU)
 
         # Preprocess inputs, try to convert each input to TensorList.
         inputs = _prep_inputs(inputs, batch_size)
@@ -219,7 +219,7 @@ _wrap_stateless.disqualified_arguments = {
 def _wrap_eager_op(op_class, submodule, wrapper_name, wrapper_doc):
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
-    if op_schema.IsDeprecated() or op_name in _statefull_operators or op_name in _generator_opeartors:
+    if op_schema.IsDeprecated() or op_name in _statefull_operators or op_name in _generator_operators:
         # TODO(ksztenderski): For now only exposing stateless operators.
         return
     else:
