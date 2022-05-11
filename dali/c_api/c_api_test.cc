@@ -1048,4 +1048,18 @@ TEST(CApiTest, GetESDetailsTest) {
   EXPECT_EQ(daliGetExternalInputType(&handle, "INPUT3"), DALI_FLOAT16);
 }
 
+TEST(CApiTest, GetMaxBatchSizeTest) {
+  const int BS = 13;
+  dali::Pipeline pipe(BS, 1, 0);
+  pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
+  pipe.SetOutputNames({{"INPUT", "cpu"}});
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+
+  EXPECT_EQ(daliGetMaxBatchSize(&handle), BS);
+
+  daliDeletePipeline(&handle);
+}
+
 }  // namespace dali

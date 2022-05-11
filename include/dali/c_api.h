@@ -169,6 +169,14 @@ enum {
 };
 
 /**
+ * @brief Get the max batch size of a given pipeline.
+ *
+ * @param pipe_handle Pointer to pipeline handle
+ * @return Max batch size
+ */
+DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle);
+
+/**
  * @brief Set the batch size for the upcoming call to `daliSetExternalInput*(...)`
  *
  * @param pipe_handle Pointer to pipeline handle
