@@ -49,7 +49,7 @@ TEST(WorkerThread, ShutdownErrorHandling) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     throw std::runtime_error("Worker thread exception message 2");
   });
-  wt.Shutdown(); // assure it does not deadlock
+  wt.Shutdown();  // assure it does not deadlock
 }
 
 }  // namespace test
