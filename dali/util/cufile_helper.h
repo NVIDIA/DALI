@@ -33,25 +33,6 @@
 // is only opened once per thread. It is not thread safe, coordination outside
 namespace cufile {
 
-class DLL_PUBLIC CUFileDriverHandle {
- public:
-  CUFileDriverHandle() {
-    CUDA_CALL(cuFileDriverOpen());
-  }
-
-  ~CUFileDriverHandle() {
-    CUDA_CALL(cuFileDriverClose());
-  }
-
-  /**
-   * @brief Returns a shared pointer to a CUFile driver handle.
-   *
-   * Returns a shared pointer to a global instance of the CUFile driver handle.
-   * If there's already a handle, it's just returned and shared; otherwise, a new handle is created.
-   */
-  static std::shared_ptr<CUFileDriverHandle> Get();
-};
-
 // wrapper struct to conveniently store the fd's as well
 class DLL_PUBLIC CUFileHandle{
  public:

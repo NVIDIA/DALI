@@ -32,7 +32,6 @@
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/utils.h"
 #include "dali/util/cufile.h"
-#include "dali/util/cufile_helper.h"
 
 namespace dali {
 
@@ -42,8 +41,6 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
   explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = {},
                         bool shuffle_after_epoch = false)
       : FileLoader<GPUBackend, Target, CUFileStream>(spec) {
-
-    d_ = cufile::CUFileDriverHandle::Get();
   }
 
   ~CUFileLoader() {
@@ -60,7 +57,6 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
   }
 
  private:
-  std::shared_ptr<cufile::CUFileDriverHandle> d_;
 };
 
 }  // namespace dali

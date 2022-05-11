@@ -17,13 +17,13 @@
 #include <utility>
 #include <vector>
 #include "dali/operators/reader/gds_mem.h"
+#include "dali/util/cufile_helper.h"
 #include "dali/core/math_util.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/mm/pool_resource.h"
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/composite_resource.h"
-#include "dali/util/cufile_helper.h"
 #include <cufile.h>
 
 namespace dali {
@@ -66,12 +66,6 @@ void UnregisterChunks(void *start, int chunks, size_t chunk_size) {
 // GDSRegisteredResource
 
 class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device> {
- public:
-  GDSRegisteredResource(int device_id) {
-    cufile_driver_ = cufile::CUFileDriverHandle::Get();
-  }
-
- private:
   void adjust_params(size_t &size, size_t &alignment) {
     if (alignment < chunk_size_) {
       alignment = chunk_size_;
@@ -118,7 +112,6 @@ class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device
     size_t size;
   };
   std::map<void *, alloc_info> allocs_;
-  std::shared_ptr<cufile::CUFileDriverHandle> cufile_driver_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -126,7 +119,7 @@ class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device
 
 class GDSMemoryPool : public mm::memory_resource<mm::memory_kind::device> {
  public:
-  GDSMemoryPool(int device_id) : upstream_(device_id), pool_(&upstream_, pool_opts()) {
+  GDSMemoryPool() : pool_(&upstream_, pool_opts()) {
   }
  private:
   void *do_allocate(size_t bytes, size_t alignment) override {
@@ -153,13 +146,11 @@ class GDSMemoryPool : public mm::memory_resource<mm::memory_kind::device> {
 ///////////////////////////////////////////////////////////////////////////////
 // GDSAllocator
 
-GDSAllocator::GDSAllocator(int device_id) {
-  if (device_id < 0)
-    CUDA_CALL(cudaGetDevice(&device_id));
+GDSAllocator::GDSAllocator() {
   // Currently, GPUDirect Storage can work only with memory allocated with cudaMalloc and
   // cuMemAlloc. Since DALI is transitioning to CUDA Virtual Memory Management for memory
   // allocation, we need a special allocator that's compatible with GDS.
-  rsrc_ = std::make_unique<GDSMemoryPool>(device_id);
+  rsrc_ = std::make_unique<GDSMemoryPool>();
 }
 
 struct GDSAllocatorInstance {
@@ -171,7 +162,7 @@ struct GDSAllocatorInstance {
     alloc = alloc_.lock();
     if (alloc)
       return alloc;
-    alloc = std::make_shared<GDSAllocator>(device_id);
+    alloc = std::make_shared<GDSAllocator>();
     alloc_ = alloc;
     return alloc;
   }

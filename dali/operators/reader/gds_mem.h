@@ -35,7 +35,7 @@ DLL_PUBLIC size_t GetGDSChunkSize();
 
 class DLL_PUBLIC GDSAllocator {
  public:
-  explicit GDSAllocator(int device_id = -1);
+  explicit GDSAllocator();
 
   mm::memory_resource<mm::memory_kind::device> *resource() const {
     return rsrc_.get();

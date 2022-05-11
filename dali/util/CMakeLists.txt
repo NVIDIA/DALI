@@ -40,7 +40,6 @@ if (BUILD_CUFILE)
 
   set(DALI_SRCS ${DALI_SRCS}
     "${CMAKE_CURRENT_SOURCE_DIR}/cufile.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/cufile_helper.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/std_cufile.cc")
 endif()
 
