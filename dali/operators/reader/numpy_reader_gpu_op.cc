@@ -114,10 +114,8 @@ void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
   while (read_bytes > 0) {
     ssize_t this_chunk = std::min<ssize_t>(read_bytes, chunk_size_);
     thread_pool_.AddWork([this, &load_target, dst_ptr, file_offset, this_chunk](int tid) {
-      unsigned ptr_alignment = reinterpret_cast<uintptr_t>(dst_ptr) & (gds::kGDSAlignment-1);
-      unsigned file_alignment = file_offset & (gds::kGDSAlignment-1);
       auto buffer = staging_.get_staging_buffer();
-      load_target.ReadChunk(buffer.at(0), this_chunk, 0, file_offset);
+      load_target.ReadRawChunk(buffer.at(0), this_chunk, 0, file_offset);
       ssize_t copy_start = std::max(file_offset, load_target.data_offset);
       ssize_t copy_skip = copy_start - file_offset;
       ssize_t copy_end = file_offset + this_chunk;

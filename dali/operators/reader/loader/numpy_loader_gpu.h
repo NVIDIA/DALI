@@ -55,7 +55,7 @@ struct NumpyFileWrapperGPU {
 
   void ReadHeader(detail::NumpyHeaderCache &cache);
 
-  void ReadChunk(void* buffer, size_t bytes, Index buffer_offset, Index offset);
+  void ReadRawChunk(void* buffer, size_t bytes, Index buffer_offset, Index offset);
 
   void Reopen();
 
