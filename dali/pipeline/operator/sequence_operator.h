@@ -687,8 +687,8 @@ class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Bac
   void UnfoldOuterDims(const TensorVector<DataBackend> &batch,
                        TensorVector<DataBackend> &expanded_batch, const ExpandDesc &expand_desc) {
     auto ndims_to_unfold = expand_desc.NumDimsToExpand();
-    assert(expand_desc.NumSamples() == data.num_samples());
-    assert(batch.shape.first(ndims_to_unfold).num_elements() == expand_desc.NumExpanded());
+    assert(expand_desc.NumSamples() == batch.num_samples());
+    assert(batch.shape().first(ndims_to_unfold).num_elements() == expand_desc.NumExpanded());
     sequence_utils::unfold_outer_dims(batch, expanded_batch, expand_desc.NumDimsToExpand(),
                                       expand_desc.NumExpanded());
   }
