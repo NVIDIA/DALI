@@ -27,17 +27,16 @@ TEST(WorkerThread, Destructing) {
 }
 
 TEST(WorkerThread, WaitForWorkErrorHandling) {
-  std::string err = "Worker thread exception message";
   WorkerThread wt(0, false);
   ASSERT_TRUE(wt.WaitForInit());
-  wt.DoWork([&err]() {
+  wt.DoWork([]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    throw std::runtime_error(err);
+    throw std::runtime_error("Asdf");
   });
   try {
     wt.WaitForWork();
   } catch (const std::runtime_error &e) {
-    EXPECT_EQ(e.what(), err);
+    EXPECT_EQ(e.what(), std::string("Error in worker thread: Asdf"));
     return;
   }
   FAIL() << "Expected an exception";

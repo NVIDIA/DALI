@@ -121,7 +121,7 @@ class WorkerThread {
 
   inline void WaitForWork(bool rethrow_worker_errors = true) {
     std::unique_lock<std::mutex> lock(mutex_);
-    while (!work_complete_) {
+    while (!work_complete_ && running_) {
       completed_.wait(lock);
     }
 
@@ -170,12 +170,12 @@ class WorkerThread {
 #endif
       }
     } catch (std::exception &e) {
-      errors_.push(e.what());
       std::lock_guard<std::mutex> lock(mutex_);
+      errors_.push(e.what());
       running_ = false;
     } catch (...) {
-      errors_.push("Unknown exception");
       std::lock_guard<std::mutex> lock(mutex_);
+      errors_.push("Unknown exception");
       running_ = false;
     }
 
@@ -203,6 +203,7 @@ class WorkerThread {
         lock.lock();
         errors_.push(e.what());
         running_ = false;
+        completed_.notify_one();
         lock.unlock();
         break;
       } catch (...) {
@@ -210,6 +211,7 @@ class WorkerThread {
         lock.lock();
         errors_.push("Caught unknown exception in thread.");
         running_ = false;
+        completed_.notify_one();
         lock.unlock();
         break;
       }
