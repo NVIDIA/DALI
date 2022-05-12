@@ -30,14 +30,14 @@ double HannWindow(int i, int n) {
 }
 
 void ResamplingTest::PrepareData(int nsamples, int nchannels, span<const float> in_rates,
-                                 span<const float> out_rates) {
+                                 span<const float> out_rates, int nsec) {
   TensorListShape<> in_sh(nsamples, nchannels > 1 ? 2 : 1);
   TensorListShape<> out_sh(nsamples, nchannels > 1 ? 2 : 1);
   for (int s = 0; s < nsamples; s++) {
     double in_rate = in_rates[s];
     double out_rate = out_rates[s];
     double scale = static_cast<double>(in_rate) / out_rate;
-    int n_in = in_rate + 12345 * s;  // different lengths
+    int n_in = nsec * in_rate + 12345 * s;  // different lengths
     int n_out = std::ceil(n_in / scale);
     in_sh.tensor_shape_span(s)[0] = n_in;
     out_sh.tensor_shape_span(s)[0] = n_out;

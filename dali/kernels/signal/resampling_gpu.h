@@ -59,9 +59,7 @@ class ResamplerGPU {
     if (window_gpu_storage_.empty())
       Initialize();
 
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(context.gpu.stream));
-    if (!context.scratchpad)
-      context.scratchpad = &dyn_scratchpad;
+    assert(context.scratchpad);
     auto &scratch = *context.scratchpad;
 
     int nsamples = in.num_samples();

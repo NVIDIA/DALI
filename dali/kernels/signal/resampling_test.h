@@ -41,7 +41,7 @@ void TestWave(T *out, int n, int stride, float freq) {
 class ResamplingTest : public ::testing::Test {
  public:
   void PrepareData(int nsamples, int nchannels,
-                   span<const float> in_rates, span<const float> out_rates);
+                   span<const float> in_rates, span<const float> out_rates, int nsec = 1);
 
   virtual float eps() const { return 2e-3; }
   virtual float max_avg_err() const { return 1e-3; }
