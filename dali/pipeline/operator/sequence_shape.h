@@ -225,7 +225,7 @@ std::shared_ptr<Type> expanded_like(const Type &batch) {
  */
 template <typename Backend>
 struct TensorVectorBuilder {
-  TensorVectorBuilder(TensorVector<Backend> &tv) : tv_{tv} {}
+  TensorVectorBuilder(TensorVector<Backend> &tv) : tv_{tv} {}  // NOLINT
 
   void SetNext(const SliceView &view) {
     std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter

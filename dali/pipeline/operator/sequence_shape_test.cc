@@ -179,8 +179,9 @@ class SequenceShapeUnfoldTest : public ::testing::Test {
       auto base_ptr = static_cast<const uint8_t *>(batch.raw_tensor(sample_idx));
       size_t stride = type_size * volume(slice_shapes[sample_idx]);
       for (int i = 0; i < volume(unfolded_extents[sample_idx]); i++) {
-        auto ptr = static_cast<uint8_t *>(unfolded_batch.raw_mutable_tensor(slice_idx++));
+        auto ptr = static_cast<uint8_t *>(unfolded_batch.raw_mutable_tensor(slice_idx));
         EXPECT_EQ(ptr, base_ptr + stride * i);
+        EXPECT_EQ(slice_shapes[sample_idx], unfolded_batch.tensor_shape(slice_idx++));
       }
     }
   }
@@ -199,10 +200,10 @@ class SequenceShapeUnfoldTest : public ::testing::Test {
   }
 };
 
-using Backends = ::testing::Types<TensorVector<CPUBackend>, TensorVector<GPUBackend>,
-                                  TensorList<CPUBackend>, TensorList<GPUBackend>>;
+using Containers = ::testing::Types<TensorVector<CPUBackend>, TensorVector<GPUBackend>,
+                                    TensorList<CPUBackend>, TensorList<GPUBackend>>;
 
-TYPED_TEST_SUITE(SequenceShapeUnfoldTest, Backends);
+TYPED_TEST_SUITE(SequenceShapeUnfoldTest, Containers);
 
 TYPED_TEST(SequenceShapeUnfoldTest, Unfold0Extents) {
   auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT32);
@@ -254,6 +255,76 @@ TYPED_TEST(SequenceShapeUnfoldTest, Unfold2ExtentsEmptyLayout) {
 TYPED_TEST(SequenceShapeUnfoldTest, Unfold3Extents) {
   auto [batch, expanded_batch] = this->CreateTestBatch(DALI_FLOAT);
   this->TestUnfolding(batch, *expanded_batch, 3);
+}
+
+template <typename Backend>
+class SequenceShapeTVBroadcastTest : public ::testing::Test {
+ protected:
+  std::tuple<TensorVector<Backend>, std::shared_ptr<TensorVector<Backend>>> CreateTestBatch(
+      DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
+      TensorListShape<> shape = {{3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
+    TensorVector<Backend> batch;
+    constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
+    batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
+    batch.set_pinned(is_pinned);
+    batch.Resize(shape, dtype);
+    if (!layout.empty()) {
+      batch.SetLayout(layout);
+    }
+    return {std::move(batch), expanded_like(batch)};
+  }
+
+  void TestBroadcasting(const TensorVector<Backend> &batch, TensorVector<Backend> &expanded_batch,
+                        const TensorListShape<> &expand_extents) {
+    const auto &shape = batch.shape();
+    auto expanded_batch_size = expand_extents.num_elements();
+    broadcast_samples(batch, expanded_batch, expanded_batch_size, expand_extents);
+    check_batch_props(batch, expanded_batch, expanded_batch_size, 0);
+    for (int sample_idx = 0, elem_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+      const auto &sample_shape = shape[sample_idx];
+      auto base_ptr = static_cast<const uint8_t *>(batch.raw_tensor(sample_idx));
+      for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
+        auto ptr = static_cast<uint8_t *>(expanded_batch.raw_mutable_tensor(elem_idx));
+        EXPECT_EQ(ptr, base_ptr);
+        EXPECT_EQ(sample_shape, expanded_batch.tensor_shape(elem_idx++));
+      }
+    }
+  }
+};
+
+using Backends = ::testing::Types<CPUBackend, GPUBackend>;
+
+TYPED_TEST_SUITE(SequenceShapeTVBroadcastTest, Backends);
+
+TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast0Extents) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT32);
+  this->TestBroadcasting(batch, *expanded_batch, {{}, {}, {}});
+}
+
+TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast1Extent) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT16);
+  this->TestBroadcasting(batch, *expanded_batch, {{1}, {1}, {1}});
+}
+
+TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast2Extents) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8);
+  this->TestBroadcasting(batch, *expanded_batch, {{5}, {3}, {1}});
+}
+
+TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast2ExtentsPinned) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, true);
+  this->TestBroadcasting(batch, *expanded_batch, {{1, 1}, {7, 0}, {12, 4}});
+}
+
+TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast2Extents3Iters) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "XYZ");
+  this->TestBroadcasting(batch, *expanded_batch, {{1, 1}, {7, 0}, {12, 4}});
+  batch.Resize({{2, 2, 6}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("XYZ");
+  this->TestBroadcasting(batch, *expanded_batch, {{5}, {1}});
+  batch.Resize({{2, 2, 6}, {13, 4, 11}, {13, 4, 11}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("XYZ");
+  this->TestBroadcasting(batch, *expanded_batch, {{}, {}, {}, {}});
 }
 
 }  // namespace sequence_utils_test
