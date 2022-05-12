@@ -1659,12 +1659,7 @@ def test_invoke_serialize_error_handling_not_string():
 def check_dtype_ndim(dali_pipeline, output_dtype, output_ndim, n_outputs):
     def ndim_dtype_matches(test_value, ref_value):
         ref_value = ref_value if isinstance(ref_value, (list, tuple)) else [ref_value] * n_outputs
-        if len(ref_value) != len(test_value):
-            return False
-        for tv, ref in zip(test_value, ref_value):
-            if tv != ref:
-                return False
-        return True
+        return ref_value == test_value
 
     import tempfile
     with tempfile.NamedTemporaryFile() as f:

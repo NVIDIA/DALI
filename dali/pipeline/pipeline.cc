@@ -425,6 +425,10 @@ void Pipeline::PropagateMemoryHint(OpNode &node) {
   }
 }
 
+void Pipeline::Build() {
+  Build(this->output_descs_);
+}
+
 void Pipeline::Build(const vector<std::pair<string, string>>& output_names) {
   std::vector<PipelineOutputDesc> output_descs = {output_names.begin(), output_names.end()};
   this->Build(output_descs);

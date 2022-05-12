@@ -273,9 +273,7 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Build a pipeline from deserialized output (name, device) pairs
    */
-  DLL_PUBLIC void Build() {
-    Build(this->output_descs_);
-  }
+  DLL_PUBLIC void Build();
 
   /**
    * @brief Set execution characteristics for this Pipeline
