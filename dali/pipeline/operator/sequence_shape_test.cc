@@ -12,16 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operator/sequence_shape.h"
 #include <gtest/gtest.h>
 #include <string>
+#include <tuple>
+
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/operator/sequence_shape.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 
 namespace sequence_utils_test {
+
+template <typename BatchType>
+struct BatchBackend;
+
+template <template <typename> class BatchContainer, typename Backend>
+struct BatchBackend<BatchContainer<Backend>> {
+  using Type = Backend;
+};
+
+template <typename BatchType>
+using batch_backend_t =
+    typename BatchBackend<std::remove_cv_t<std::remove_reference_t<BatchType>>>::Type;
 
 constexpr cudaStream_t cuda_stream = 0;
 
@@ -122,7 +136,7 @@ TEST(SequenceShapeTest, Unfold3Extents) {
 }
 
 template <typename ContainerT>
-void check_batch_props(ContainerT &batch, ContainerT &unfolded_batch, int num_slices,
+void check_batch_props(const ContainerT &batch, const ContainerT &unfolded_batch, int num_slices,
                        int ndims_to_unfold) {
   ASSERT_EQ(batch.is_pinned(), unfolded_batch.is_pinned());
   ASSERT_EQ(batch.order(), unfolded_batch.order());
@@ -135,38 +149,34 @@ void check_batch_props(ContainerT &batch, ContainerT &unfolded_batch, int num_sl
   }
 }
 
-template <typename Backend>
-class SequenceShapeUnfoldTVTest : public ::testing::Test {
+template <typename Container>
+class SequenceShapeUnfoldTest : public ::testing::Test {
  protected:
-  TensorVector<Backend> CreateTestBatch(DALIDataType dtype, bool is_pinned = false,
-                                        bool is_contigious = false, TensorLayout layout = "ABC",
-                                        TensorListShape<> shape = {
-                                            {3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
-    TensorVector<Backend> batch;
-    constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
+  std::tuple<Container, std::shared_ptr<Container>> CreateTestBatch(
+      DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
+      TensorListShape<> shape = {{3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
+    Container batch;
+    constexpr bool is_device = std::is_same_v<batch_backend_t<Container>, GPUBackend>;
     batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
-    batch.SetContiguous(is_contigious);
     batch.set_pinned(is_pinned);
     batch.Resize(shape, dtype);
     if (!layout.empty()) {
       batch.SetLayout(layout);
     }
-    return batch;
+    return {std::move(batch), expanded_like(batch)};
   }
 
-  void TestUnfolding(TensorVector<Backend> &batch, int ndims_to_unfold) {
+  void TestUnfolding(const Container &batch, Container &unfolded_batch, int ndims_to_unfold) {
     const auto &shape = batch.shape();
     auto unfolded_extents = shape.first(ndims_to_unfold);
     auto slice_shapes = shape.last(shape.sample_dim() - ndims_to_unfold);
-    auto unfolded_batch_handle = expanded_like(batch, ndims_to_unfold);
-    auto &unfolded_batch = *unfolded_batch_handle;
     auto unfolded_batch_size = unfolded_extents.num_elements();
-    unfold_outer_dims(batch, unfolded_batch, ndims_to_unfold, unfolded_batch_size);
+    UnfoldExtents(batch, unfolded_batch, unfolded_extents);
     check_batch_props(batch, unfolded_batch, unfolded_batch_size, ndims_to_unfold);
     int slice_idx = 0;
     size_t type_size = batch.type_info().size();
     for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-      auto base_ptr = static_cast<uint8_t *>(batch.raw_mutable_tensor(sample_idx));
+      auto base_ptr = static_cast<const uint8_t *>(batch.raw_tensor(sample_idx));
       size_t stride = type_size * volume(slice_shapes[sample_idx]);
       for (int i = 0; i < volume(unfolded_extents[sample_idx]); i++) {
         auto ptr = static_cast<uint8_t *>(unfolded_batch.raw_mutable_tensor(slice_idx++));
@@ -174,112 +184,76 @@ class SequenceShapeUnfoldTVTest : public ::testing::Test {
       }
     }
   }
-};
 
-using Backends = ::testing::Types<CPUBackend, GPUBackend>;
-
-TYPED_TEST_SUITE(SequenceShapeUnfoldTVTest, Backends);
-
-TYPED_TEST(SequenceShapeUnfoldTVTest, Unfold0Extents) {
-  auto batch = this->CreateTestBatch(DALI_UINT32);
-  this->TestUnfolding(batch, 0);
-}
-
-TYPED_TEST(SequenceShapeUnfoldTVTest, Unfold1Extent) {
-  auto batch = this->CreateTestBatch(DALI_UINT16);
-  this->TestUnfolding(batch, 1);
-}
-
-TYPED_TEST(SequenceShapeUnfoldTVTest, Unfold2Extents) {
-  auto batch = this->CreateTestBatch(DALI_UINT8);
-  this->TestUnfolding(batch, 2);
-}
-
-TYPED_TEST(SequenceShapeUnfoldTVTest, Unfold2ExtentsPinned) {
-  auto batch = this->CreateTestBatch(DALI_UINT8, true, true);
-  this->TestUnfolding(batch, 2);
-}
-
-TYPED_TEST(SequenceShapeUnfoldTVTest, Unfold2ExtentsEmptyLayout) {
-  auto batch = this->CreateTestBatch(DALI_UINT8, false, false, "");
-  this->TestUnfolding(batch, 2);
-}
-
-TYPED_TEST(SequenceShapeUnfoldTVTest, Unfold3Extents) {
-  auto batch = this->CreateTestBatch(DALI_FLOAT);
-  this->TestUnfolding(batch, 3);
-}
-
-template <typename Backend>
-class SequenceShapeUnfoldTLTest : public ::testing::Test {
- protected:
-  TensorList<Backend> CreateTestBatch(DALIDataType dtype, bool is_pinned = false,
-                                      TensorLayout layout = "ABC",
-                                      TensorListShape<> shape = {
-                                          {3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
-    TensorList<Backend> batch;
-    constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
-    batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
-    batch.set_pinned(is_pinned);
-    batch.Resize(shape, dtype);
-    if (!layout.empty()) {
-      batch.SetLayout(layout);
-    }
-    return batch;
+  template <typename Backend>
+  void UnfoldExtents(const TensorVector<Backend> &batch, TensorVector<Backend> &unfolded_batch,
+                     TensorListShape<> unfolded_extents) {
+    unfold_outer_dims(batch, unfolded_batch, unfolded_extents.sample_dim(),
+                      unfolded_extents.num_elements());
   }
 
-  void TestUnfolding(TensorList<Backend> &batch, int ndims_to_unfold) {
-    const auto &shape = batch.shape();
-    auto groups = shape.first(ndims_to_unfold);
-    auto slice_shapes = shape.last(shape.sample_dim() - ndims_to_unfold);
-    auto num_slices = groups.num_elements();
-    auto unfolded_batch_handle = expanded_like(batch, ndims_to_unfold);
-    auto &unfolded_batch = *unfolded_batch_handle;
-    unfold_outer_dims(batch, unfolded_batch, ndims_to_unfold);
-    check_batch_props(batch, unfolded_batch, num_slices, ndims_to_unfold);
-    int slice_idx = 0;
-    size_t type_size = batch.type_info().size();
-    for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-      auto base_ptr = static_cast<uint8_t *>(batch.raw_mutable_tensor(sample_idx));
-      size_t stride = type_size * volume(slice_shapes[sample_idx]);
-      for (int i = 0; i < volume(groups[sample_idx]); i++) {
-        auto ptr = static_cast<uint8_t *>(unfolded_batch.raw_mutable_tensor(slice_idx++));
-        EXPECT_EQ(ptr, base_ptr + stride * i);
-      }
-    }
+  template <typename Backend>
+  void UnfoldExtents(const TensorList<Backend> &batch, TensorList<Backend> &unfolded_batch,
+                     TensorListShape<> unfolded_extents) {
+    unfold_outer_dims(batch, unfolded_batch, unfolded_extents.sample_dim());
   }
 };
 
-TYPED_TEST_SUITE(SequenceShapeUnfoldTLTest, Backends);
+using Backends = ::testing::Types<TensorVector<CPUBackend>, TensorVector<GPUBackend>,
+                                  TensorList<CPUBackend>, TensorList<GPUBackend>>;
 
-TYPED_TEST(SequenceShapeUnfoldTLTest, Unfold0Extents) {
-  auto batch = this->CreateTestBatch(DALI_FLOAT);
-  this->TestUnfolding(batch, 0);
+TYPED_TEST_SUITE(SequenceShapeUnfoldTest, Backends);
+
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold0Extents) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT32);
+  this->TestUnfolding(batch, *expanded_batch, 0);
 }
 
-TYPED_TEST(SequenceShapeUnfoldTLTest, Unfold1Extent) {
-  auto batch = this->CreateTestBatch(DALI_UINT8);
-  this->TestUnfolding(batch, 1);
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold1Extent) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT16);
+  this->TestUnfolding(batch, *expanded_batch, 1);
 }
 
-TYPED_TEST(SequenceShapeUnfoldTLTest, Unfold2Extents) {
-  auto batch = this->CreateTestBatch(DALI_UINT32);
-  this->TestUnfolding(batch, 2);
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold2Extents) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8);
+  this->TestUnfolding(batch, *expanded_batch, 2);
 }
 
-TYPED_TEST(SequenceShapeUnfoldTLTest, Unfold2ExtentsPinned) {
-  auto batch = this->CreateTestBatch(DALI_UINT32, true);
-  this->TestUnfolding(batch, 2);
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold2ExtentsPinned) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, true);
+  this->TestUnfolding(batch, *expanded_batch, 2);
 }
 
-TYPED_TEST(SequenceShapeUnfoldTLTest, Unfold2ExtentsEmptyLayout) {
-  auto batch = this->CreateTestBatch(DALI_UINT32, false, "");
-  this->TestUnfolding(batch, 2);
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold2Extents3Iters) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "XYZ");
+  this->TestUnfolding(batch, *expanded_batch, 2);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("XYZ");
+  this->TestUnfolding(batch, *expanded_batch, 2);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}, {13, 4, 11}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("XYZ");
+  this->TestUnfolding(batch, *expanded_batch, 2);
 }
 
-TYPED_TEST(SequenceShapeUnfoldTLTest, Unfold3Extents) {
-  auto batch = this->CreateTestBatch(DALI_UINT8);
-  this->TestUnfolding(batch, 3);
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold2Extents3ItersNoLayout) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "");
+  this->TestUnfolding(batch, *expanded_batch, 2);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("");
+  this->TestUnfolding(batch, *expanded_batch, 2);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}, {13, 4, 11}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("");
+  this->TestUnfolding(batch, *expanded_batch, 2);
+}
+
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold2ExtentsEmptyLayout) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "");
+  this->TestUnfolding(batch, *expanded_batch, 2);
+}
+
+TYPED_TEST(SequenceShapeUnfoldTest, Unfold3Extents) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_FLOAT);
+  this->TestUnfolding(batch, *expanded_batch, 3);
 }
 
 }  // namespace sequence_utils_test
