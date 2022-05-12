@@ -31,7 +31,7 @@ struct SampleDesc {
   ResamplingWindow window;
   int64_t in_len;  // num samples in input
   int64_t out_len;  // num samples in output
-  int64_t nchannels;  // number of channels
+  int nchannels;  // number of channels
   double scale;  // in_sampling_rate / out_sampling_rate
 };
 
@@ -41,14 +41,17 @@ struct SampleDesc {
  * @param samples sample descriptors
  */
 template <typename Out, typename In, bool SingleChannel = false>
-__global__ void ResampleGPUKernel(const SampleDesc *samples) {
+__global__ void ResampleGPUKernel(const SampleDesc *samples, int max_nchannels) {
   auto sample = samples[blockIdx.y];
   double scale = sample.scale;
   float fscale = scale;
   int nchannels = SingleChannel ? 1 : sample.nchannels;
   auto& window = sample.window;
 
-  extern __shared__ float window_coeffs_sh[];
+  extern __shared__ float sh_mem[];
+  float *window_coeffs_sh = sh_mem;
+  float *tmp = sh_mem + window.lookup_size +
+               threadIdx.x * max_nchannels;  // used to accummulate per-channel out values
   for (int k = threadIdx.x; k < window.lookup_size; k += blockDim.x) {
     window_coeffs_sh[k] = window.lookup[k];
   }
@@ -58,22 +61,17 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
   Out* out = reinterpret_cast<Out*>(sample.out);
   const In* in = reinterpret_cast<const In*>(sample.in);
 
-  int blocks = div_ceil(sample.out_len, static_cast<int64_t>(blockDim.x));
-  int64_t start_block_idx = blockIdx.x * blocks / gridDim.x;
-  int64_t end_block_idx = (blockIdx.x + 1) * blocks / gridDim.x;
-  int64_t out_stride = blockDim.x;
-  float in_stride = fscale * blockDim.x;
-  int64_t out_block_start = start_block_idx * blockDim.x;
-  int64_t out_block_end = cuda_min(end_block_idx * blockDim.x, sample.out_len);
+  int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blockDim.x;
+  int64_t out_block_start = static_cast<int64_t>(blockIdx.x) * blockDim.x;
 
-  double in_block_f = out_block_start * scale;
-  int64_t in_block_i = std::floor(in_block_f);
-  float in_pos_start = in_block_f - in_block_i;
-  const In* in_blk_ptr = in + in_block_i * nchannels;
-
-  for (int64_t out_pos = out_block_start + threadIdx.x; out_pos < out_block_end;
-       out_pos += out_stride, in_pos_start += in_stride) {
+  for (int64_t out_pos = out_block_start + threadIdx.x; out_pos < sample.out_len;
+       out_block_start += grid_stride, out_pos += grid_stride) {
+    double in_block_f = out_block_start * scale;
+    int64_t in_block_i = std::floor(in_block_f);
+    float in_pos_start = in_block_f - in_block_i;
+    const In* in_blk_ptr = in + in_block_i * nchannels;
     float in_pos = in_pos_start + fscale * threadIdx.x;
+
     auto i_range = window.input_range(in_pos);
     int i0 = i_range.i0;
     int i1 = i_range.i1;
@@ -92,8 +90,6 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
       }
       out[out_pos] = ConvertSatNorm<Out>(out_val);
     } else {  // multiple channels
-      assert(nchannels <= 32);
-      float tmp[32];  // more than enough
       for (int c = 0; c < nchannels; c++) {
         tmp[c] = 0;
       }
