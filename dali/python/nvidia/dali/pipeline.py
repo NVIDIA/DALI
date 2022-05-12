@@ -1262,7 +1262,6 @@ Parameters
         pass
 
     def _generate_build_args(self):
-        # ret = []
         num_outputs = len(self._names_and_devices)
         dtypes = [self._output_dtype] * num_outputs if type(
             self._output_dtype) is not list else self._output_dtype
@@ -1273,9 +1272,6 @@ Parameters
                 f"Lengths of provided output descriptions do not match. \n"
                 f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={dtypes}\noutput_ndim={ndims}")
 
-        # for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims):
-        #     ret.append((name, dev, types.NO_TYPE if dtype is None else dtype,
-        #                 -1 if ndim is None else ndim))
         return [(name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
                 for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)]
 
