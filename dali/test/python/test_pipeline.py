@@ -1717,9 +1717,8 @@ def test_one_output_dtype_ndim():
     correct_dtypes_but_too_many = create_test_package(output_dtype=[types.UINT8, types.UINT8])
     correct_ndims_but_too_many = create_test_package(output_ndim=[3, 3])
     all_wildcards = create_test_package()
-    all_backend_wildcards = create_test_package(output_dtype=types.NO_TYPE, output_ndim=None)
     correct_test_packages = [both_correct, ndim_correct_dtype_wildcard, dtype_correct_ndim_wildcard,
-                             both_correct_one_list, all_wildcards, all_backend_wildcards]
+                             both_correct_one_list, all_wildcards]
     test_ndim_packages_with_raise = [ndim_incorrect]
     test_dtype_packages_with_raise = [dtype_incorrect]
     test_packages_length_mismatch = [too_many_dtypes, correct_dtypes_but_too_many,
@@ -1781,5 +1780,6 @@ def test_double_output_dtype_ndim():
         create_test_package(output_ndim=-1)
         create_test_package(output_ndim=-2137)
     with assert_raises(TypeError, glob="*must be either*"):
-        create_test_package(output_dtype=types.NO_TYPE)
         create_test_package(output_dtype=int)
+    with assert_raises(ValueError, glob="*types.NO_TYPE*"):
+        create_test_package(output_dtype=types.NO_TYPE)
