@@ -31,25 +31,27 @@ namespace test {
 double HannWindow(int i, int n);
 
 template <typename T>
-void TestWave(T *out, int n, int stride, float freq) {
-  for (int i = 0; i < n; i++) {
-    float f = std::sin(i* freq) * HannWindow(i, n);
-    out[i*stride] = ConvertSatNorm<T>(f);
+void TestWave(T *out, int n, int stride, float freq, int i_start = 0, int i_end = -1) {
+  if (i_end <= 0) i_end = n;
+  assert(i_start >= 0 && i_start <= n);
+  assert(i_end >= 0 && i_end <= n);
+  for (int i = i_start; i < i_end; i++) {
+    float f = std::sin(i * freq) * HannWindow(i, n);
+    out[(i - i_start) * stride] = ConvertSatNorm<T>(f);
   }
 }
 
 class ResamplingTest : public ::testing::Test {
  public:
-  void PrepareData(int nsamples, int nchannels,
-                   span<const float> in_rates, span<const float> out_rates, int nsec = 1);
+  void PrepareData(int nsamples, int nchannels, span<const Args> args, int nsec = 1);
 
   virtual float eps() const { return 2e-3; }
   virtual float max_avg_err() const { return 1e-3; }
-  void Verify();
+  void Verify(span<const Args> args);
 
-  virtual void RunResampling(span<const float> in_rates, span<const float> out_rates) = 0;
+  virtual void RunResampling(span<const Args> args) = 0;
 
-  void RunTest(int nsamples, int nchannels);
+  void RunTest(int nsamples, int nchannels, bool use_roi = false);
 
 
   TestTensorList<float> ttl_in_;

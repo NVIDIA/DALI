@@ -36,6 +36,11 @@ namespace signal {
 
 namespace resampling {
 
+struct Args {
+  double in_rate = 1, out_rate = 1;
+  int64_t out_begin = 0, out_end = -1;  // default values result in the whole range
+};
+
 inline double Hann(double x) {
   return 0.5 * (1 + std::cos(x * M_PI));
 }
@@ -241,7 +246,8 @@ struct Resampler {
           f += in_block_ptr[i] * w;
         }
         assert(out_pos >= out_begin && out_pos < out_end);
-        out[out_pos] = ConvertSatNorm<Out>(f);
+        auto rel_pos = out_pos - out_begin;
+        out[rel_pos] = ConvertSatNorm<Out>(f);
       }
     }
   }
@@ -310,8 +316,9 @@ struct Resampler {
           }
         }
         assert(out_pos >= out_begin && out_pos < out_end);
+        auto rel_pos = out_pos - out_begin;
         for (int c = 0; c < num_channels; c++)
-          out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
+          out[rel_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
       }
     }
   }
