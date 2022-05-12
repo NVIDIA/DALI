@@ -27,7 +27,7 @@ namespace test {
 
 class ResamplingGPUTest : public ResamplingTest {
  public:
-  void RunResampling(span<const float> in_rates, span<const float> out_rates) override {
+  void RunResampling(span<const Args> args) override {
     ResamplerGPU<float> R;
     R.Initialize(16);
 
@@ -36,7 +36,7 @@ class ResamplingGPUTest : public ResamplingTest {
     DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
-    auto req = R.Setup(ctx, ttl_in_.gpu(), in_rates, out_rates);
+    auto req = R.Setup(ctx, ttl_in_.gpu(), args);
     auto outref_sh = ttl_outref_.cpu().shape;
     auto in_batch_sh = ttl_in_.cpu().shape;
     for (int s = 0; s < outref_sh.size(); s++) {
@@ -45,26 +45,24 @@ class ResamplingGPUTest : public ResamplingTest {
       ASSERT_EQ(sh, expected_sh);
     }
 
-    R.Run(ctx, ttl_out_.gpu(), ttl_in_.gpu(), in_rates, out_rates);
+    R.Run(ctx, ttl_out_.gpu(), ttl_in_.gpu(), args);
 
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
   }
 
   void RunPerfTest(int batch_size, int nchannels, int n_iters = 1000) {
-    std::vector<float> in_rates_v(batch_size, 22050.0f);
-    auto in_rates = make_cspan(in_rates_v);
-    std::vector<float> out_rates_v(batch_size, 16000.0f);
-    auto out_rates = make_cspan(out_rates_v);
+    std::vector<Args> args_v(batch_size, {22050.0f, 16000.0f});
+    auto args = make_cspan(args_v);
     int nsec = 30;
 
-    this->PrepareData(batch_size, nchannels, in_rates, out_rates, nsec);
+    this->PrepareData(batch_size, nchannels, args, nsec);
 
     ResamplerGPU<float> R;
     R.Initialize(16);
 
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    auto req = R.Setup(ctx, ttl_in_.gpu(), in_rates, out_rates);
+    auto req = R.Setup(ctx, ttl_in_.gpu(), args);
     ASSERT_EQ(ttl_out_.cpu().shape, req.output_shapes[0]);
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
@@ -84,7 +82,7 @@ class ResamplingGPUTest : public ResamplingTest {
       ctx.scratchpad = &dyn_scratchpad;
 
       CUDA_CALL(cudaEventRecord(start));
-      R.Run(ctx, ttl_out_.gpu(), ttl_in_.gpu(), in_rates, out_rates);
+      R.Run(ctx, ttl_out_.gpu(), ttl_in_.gpu(), args);
       CUDA_CALL(cudaEventRecord(end));
       CUDA_CALL(cudaDeviceSynchronize());
       float time_ms;
@@ -108,7 +106,19 @@ TEST_F(ResamplingGPUTest, EightChannel) {
   this->RunTest(3, 8);
 }
 
-TEST_F(ResamplingGPUTest, PerfTest) {
+TEST_F(ResamplingGPUTest, HundredChannel) {
+  this->RunTest(3, 100);
+}
+
+TEST_F(ResamplingGPUTest, OutBeginEnd) {
+  this->RunTest(3, 1, true);
+}
+
+TEST_F(ResamplingGPUTest, EightChannelOutBeginEnd) {
+  this->RunTest(3, 8, true);
+}
+
+TEST_F(ResamplingGPUTest, DISABLED_PerfTest) {
   this->RunPerfTest(64, 1, 1000);
 }
 
