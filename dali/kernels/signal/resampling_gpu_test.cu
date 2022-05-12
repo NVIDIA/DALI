@@ -64,7 +64,7 @@ class ResamplingGPUTest : public ResamplingTest {
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
-    double avg_time = 0;
+    double total_time = 0;
     int64_t in_elems = ttl_in_.cpu().shape.num_elements();
     int64_t in_bytes = in_elems * sizeof(float);
     std::cout << "Resampling GPU Perf test.\n"
@@ -80,10 +80,9 @@ class ResamplingGPUTest : public ResamplingTest {
       CUDA_CALL(cudaDeviceSynchronize());
       float time;
       CUDA_CALL(cudaEventElapsedTime(&time, start, end));
-
-      avg_time += time;
+      total_time += time;
     }
-    std::cout << "Processed " << in_bytes / avg_time << " bytes/sec" << std::endl;
+    std::cout << "Processed " << n_iters * in_bytes / (total_time * 1e6) << " MBs/sec" << std::endl;
   }
 };
 
