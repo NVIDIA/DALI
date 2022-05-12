@@ -241,12 +241,12 @@ Parameters
             for dtype in output_dtype:
                 if not(isinstance(dtype, (types.DALIDataType, type(None)))):
                     raise TypeError(
-                        f"`output_dtype` must be either: a type from nvidia.dali.types.DALIDataType, a list of these or None. Found type {type(dtype)} in the list.")
+                        f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type {type(dtype)} in the list.")
                 if dtype is not None and dtype == types.NO_TYPE:
                     raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found {dtype} in the list.")
         elif not(isinstance(output_dtype, (types.DALIDataType, type(None)))):
             raise TypeError(
-                f"`output_dtype` must be either: a type from nvidia.dali.types.DALIDataType, a list of these or None. Found type: {type(output_dtype)}.")
+                f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type: {type(output_dtype)}.")
         elif output_dtype is not None and output_dtype == types.NO_TYPE:
             raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found value: {output_dtype}")
         self._output_dtype = output_dtype
