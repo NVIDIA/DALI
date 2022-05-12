@@ -89,10 +89,10 @@ class WorkerThread {
    * When the destructor is called other things that work() is using may have been gone long
    * before causing a hang. Now when Shutdown is called we are sure that all things around still exist.
    */
-  inline void Shutdown(void) {
+  inline void Shutdown() {
     // Wait for work to find errors
     if (running_) {
-      WaitForWork();
+      WaitForWork(false);
 
       // Mark the thread as not running
       {
@@ -119,14 +119,14 @@ class WorkerThread {
     cv_.notify_one();
   }
 
-  inline void WaitForWork() {
+  inline void WaitForWork(bool rethrow_worker_errors = true) {
     std::unique_lock<std::mutex> lock(mutex_);
-    while (!work_complete_) {
+    while (!work_complete_ && running_) {
       completed_.wait(lock);
     }
 
     // Check for errors
-    if (!errors_.empty()) {
+    if (rethrow_worker_errors && !errors_.empty()) {
       string error = "Error in worker thread: " +
         errors_.front();
       errors_.pop();
@@ -170,12 +170,12 @@ class WorkerThread {
 #endif
       }
     } catch (std::exception &e) {
-      errors_.push(e.what());
       std::lock_guard<std::mutex> lock(mutex_);
+      errors_.push(e.what());
       running_ = false;
     } catch (...) {
-      errors_.push("Unknown exception");
       std::lock_guard<std::mutex> lock(mutex_);
+      errors_.push("Unknown exception");
       running_ = false;
     }
 
@@ -203,6 +203,7 @@ class WorkerThread {
         lock.lock();
         errors_.push(e.what());
         running_ = false;
+        completed_.notify_one();
         lock.unlock();
         break;
       } catch (...) {
@@ -210,6 +211,7 @@ class WorkerThread {
         lock.lock();
         errors_.push("Caught unknown exception in thread.");
         running_ = false;
+        completed_.notify_one();
         lock.unlock();
         break;
       }
