@@ -97,6 +97,7 @@ class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device
       throw std::invalid_argument("The pointer was not allocated by this resource "
                                   "or has been deleted.");
     alloc_info alloc = it->second;
+    allocs_.erase(it);
     ul.unlock();
     assert(alloc.size == size);
     size_t padding = static_cast<char*>(ptr) - alloc.base_ptr;
