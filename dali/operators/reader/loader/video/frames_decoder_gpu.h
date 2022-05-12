@@ -93,6 +93,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   void SendLastPacket(bool flush = false);
 
   BufferedFrame& FindEmptySlot();
+
+  void InitBitStreamFilter();
 };
 
 }  // namespace dali

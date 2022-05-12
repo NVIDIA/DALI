@@ -40,17 +40,36 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 }
 }  // namespace detail
 
+
+void FramesDecoderGpu::InitBitStreamFilter() {
+  const AVBitStreamFilter *bsf = nullptr;
+
+  switch (av_state_->codec_->id) {
+  case AVCodecID::AV_CODEC_ID_H264:
+    bsf = av_bsf_get_by_name("h264_mp4toannexb");
+    break;
+  case AVCodecID::AV_CODEC_ID_HEVC:
+    bsf = av_bsf_get_by_name("hevc_mp4toannexb");
+    break;
+  default:
+    DALI_FAIL(make_string(
+      "Could not find suitable bit stream filter for codec: ",
+      av_state_->codec_->name));
+  }
+
+  DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0);
+  DALI_ENFORCE(avcodec_parameters_copy(
+    bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0);
+  DALI_ENFORCE(av_bsf_init(bsfc_) >= 0);
+}
+
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
     FramesDecoder(filename),
     frame_buffer_(num_decode_surfaces_),
     stream_(stream) {
     nvdecode_state_ = std::make_unique<NvDecodeState>();
 
-    const AVBitStreamFilter *bsf = av_bsf_get_by_name("h264_mp4toannexb");
-    DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0);
-    DALI_ENFORCE(avcodec_parameters_copy(
-      bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0);
-    DALI_ENFORCE(av_bsf_init(bsfc_) >= 0);
+    InitBitStreamFilter();
 
     filtered_packet_ = av_packet_alloc();
     DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
