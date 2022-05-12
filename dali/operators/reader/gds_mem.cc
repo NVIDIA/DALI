@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <map>
 #include <memory>
 #include <mutex>
 #include <utility>
@@ -24,7 +25,6 @@
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/composite_resource.h"
-#include <cufile.h>
 
 namespace dali {
 namespace gds {

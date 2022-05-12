@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <utility>
 #include "dali/operators/reader/gds_mem.h"
 #include "dali/core/cuda_stream.h"
 

@@ -152,7 +152,7 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
 
 def test_types_and_shapes():
     cache_header_information = False
-    for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         for fortran_order in [False, True, None]:
             for type in all_numpy_types - unsupported_numpy_types:
                 for ndim in [0, 1, 2, random.choice([3, 4])]:
@@ -172,7 +172,7 @@ def test_unsupported_types():
     shapes = test_shapes[ndim]
     num_threads = 3
     batch_size = 3
-    for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         for type in unsupported_numpy_types:
             with assert_raises(RuntimeError, glob="Unknown Numpy type string"):
                 _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order, file_arg_type, cache_header_information)
@@ -186,7 +186,7 @@ def test_cache_headers():
     cache_header_information = True
     fortran_order = False
     file_arg_type = 'files'
-    for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         yield _testimpl_types_and_shapes, device, shapes, type, batch_size, num_threads, fortran_order, file_arg_type, cache_header_information
 
 def check_dim_mismatch(device, test_data_root, names):
@@ -209,7 +209,7 @@ def test_dim_mismatch():
         create_numpy_file(paths[0], [3,4], np.float32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
 
-        for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_dim_mismatch, device, test_data_root, names
 
 def check_type_mismatch(device, test_data_root, names):
@@ -234,7 +234,7 @@ def test_type_mismatch():
         create_numpy_file(paths[0], [1,2,5], np.int32, False)
         create_numpy_file(paths[1], [2,3,4], np.float32, False)
 
-        for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_type_mismatch, device, test_data_root, names
 
 
@@ -272,7 +272,7 @@ def test_numpy_reader_alias():
             create_numpy_file(filename, (5, 2, 8), np.float32, False)
             arr_np_list.append(np.load(filename))
 
-        for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_numpy_reader_alias, test_data_root, device
 
 
@@ -393,7 +393,7 @@ def test_numpy_reader_roi():
                 actual_fortran_order=fortran_order if fortran_order is not None else random.choice([False, True])
                 create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
-            for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+            for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
                 for roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy in roi_args:
                     fill_value = random.choice([None, 10.0])
                     yield _testimpl_numpy_reader_roi, test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter, \
@@ -452,7 +452,7 @@ def test_numpy_reader_roi_error():
             filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
             create_numpy_file(filename, sh, dtype, fortran_order=fortran_order)
 
-        for device in ["gpu"] if is_gds_supported() else ["cpu"]:
+        for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             for roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy in roi_args:
                 fill_value = random.choice([None, 10.0])
                 yield _testimpl_numpy_reader_roi_error, test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter, \

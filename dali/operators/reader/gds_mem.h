@@ -20,6 +20,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_set>
+#include <vector>
 #include "dali/core/mm/memory.h"
 #include "dali/core/int_literals.h"
 #include "dali/core/spinlock.h"
@@ -35,7 +36,7 @@ DLL_PUBLIC size_t GetGDSChunkSize();
 
 class DLL_PUBLIC GDSAllocator {
  public:
-  explicit GDSAllocator();
+  GDSAllocator();
 
   mm::memory_resource<mm::memory_kind::device> *resource() const {
     return rsrc_.get();
@@ -94,6 +95,7 @@ class GDSStagingBuffer {
   ~GDSStagingBuffer() {
     assert(!base && "A staging buffer must be returned to the staging engine");
   }
+
  private:
   explicit GDSStagingBuffer(void *base) : base(base) {}
   void *release() {
@@ -108,7 +110,7 @@ class GDSStagingBuffer {
 
 class DLL_PUBLIC GDSStagingEngine {
  public:
-  GDSStagingEngine(int device_id = -1, int max_buffers = 64, int commit_after = 32);
+  explicit GDSStagingEngine(int device_id = -1, int max_buffers = 64, int commit_after = 32);
   void set_stream(cudaStream_t stream);
   GDSStagingBuffer get_staging_buffer(void *hint = nullptr);
 
@@ -160,7 +162,6 @@ class DLL_PUBLIC GDSStagingEngine {
   std::vector<void *> unscheduled_;
   std::vector<void *> scheduled_;
   CUDAEvent ready_;
-
 };
 
 }  // namespace gds
