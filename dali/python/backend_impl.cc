@@ -1661,7 +1661,7 @@ PYBIND11_MODULE(backend_impl, m) {
          [](Pipeline *p) {
              auto descs = p->output_descs();
              std::vector<DALIDataType> ret(descs.size());
-             for (int i=0;i<descs.size();i++) {
+             for (size_t i = 0; i < descs.size(); i++) {
                ret[i] = descs[i].dtype;
              }
              return ret;
@@ -1669,11 +1669,11 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("output_ndim",
          [](Pipeline *p) {
            auto descs = p->output_descs();
-           std::vector<int> ret(descs.size());
-           for (int i=0;i<descs.size();i++) {
-             ret[i] = descs[i].ndim;
-           }
-           return ret;
+             std::vector<int> ret(descs.size());
+             for (size_t i = 0; i < descs.size(); i++) {
+               ret[i] = descs[i].ndim;
+             }
+             return ret;
          })
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
