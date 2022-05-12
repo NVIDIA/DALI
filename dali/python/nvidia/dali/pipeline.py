@@ -239,28 +239,28 @@ Parameters
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
             for dtype in output_dtype:
-                if not(isinstance(dtype, (types.DALIDataType, type(None)))):
+                if not isinstance(dtype, (types.DALIDataType, type(None))):
                     raise TypeError(
                         f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type {type(dtype)} in the list.")
-                if dtype is not None and dtype == types.NO_TYPE:
+                if dtype == types.NO_TYPE:
                     raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found {dtype} in the list.")
-        elif not(isinstance(output_dtype, (types.DALIDataType, type(None)))):
+        elif not isinstance(output_dtype, (types.DALIDataType, type(None))):
             raise TypeError(
                 f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type: {type(output_dtype)}.")
-        elif output_dtype is not None and output_dtype == types.NO_TYPE:
+        elif output_dtype == types.NO_TYPE:
             raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found value: {output_dtype}")
         self._output_dtype = output_dtype
 
         # Assign and validate output_ndim
         if isinstance(output_ndim, (list, tuple)):
             for ndim in output_ndim:
-                if not(isinstance(ndim, (int, type(None)))):
+                if not isinstance(ndim, (int, type(None))):
                     raise TypeError(
                         f"`output_ndim` must be either: an int, a list of ints or None. Found type {type(ndim)} in the list.")
                 if ndim is not None and ndim < 0:
                     raise ValueError(
                         f"`output_ndim` must be non-negative. Found value {ndim} in the list.")
-        elif not(isinstance(output_ndim, (int, type(None)))):
+        elif not isinstance(output_ndim, (int, type(None))):
             raise TypeError(
                 f"`output_ndim` must be either: an int, a list of ints or None. Found type: {type(output_ndim)}.")
         elif output_ndim is not None and output_ndim < 0:
