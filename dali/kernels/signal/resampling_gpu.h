@@ -69,6 +69,7 @@ class ResamplerGPU {
         make_span(scratch.Allocate<mm::memory_kind::pinned, SampleDesc>(nsamples), nsamples);
 
     bool any_multichannel = false;
+    int max_nchannels = 0;
     for (int i = 0; i < nsamples; i++) {
       auto &desc = samples_cpu[i];
       desc.in = in[i].data;
@@ -80,6 +81,7 @@ class ResamplerGPU {
       desc.out_len = resampled_length(in_sh[0], in_rates[i], out_rates[i]);
       assert(desc.out_len == out_sh[0]);
       desc.nchannels = in[i].shape.sample_dim() > 1 ? in_sh[1] : 1;
+      max_nchannels = std::max(desc.nchannels, max_nchannels);
       desc.scale = static_cast<double>(in_rates[i]) / out_rates[i];
       any_multichannel |= desc.nchannels > 1;
     }
@@ -89,11 +91,13 @@ class ResamplerGPU {
     dim3 block(256, 1);
     int blocks_per_sample = std::max(32, 1024 / nsamples);
     dim3 grid(blocks_per_sample, nsamples);
-    size_t shm_size = window_gpu_storage_.size() * sizeof(float);
+
+    // window coefficients and temporary per channel out values
+    size_t shm_size = (window_gpu_storage_.size() + max_nchannels * block.x) * sizeof(float);
 
     BOOL_SWITCH(!any_multichannel, SingleChannel, (
       ResampleGPUKernel<OutputType, InputType, SingleChannel>
-        <<<grid, block, shm_size, context.gpu.stream>>>(samples_gpu);
+        <<<grid, block, shm_size, context.gpu.stream>>>(samples_gpu, max_nchannels);
     ));  // NOLINT
     CUDA_CALL(cudaGetLastError());
   }
