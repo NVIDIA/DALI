@@ -432,7 +432,7 @@ void Pipeline::Build(const vector<std::pair<string, string>>& output_names) {
 
 void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   DeviceGuard d(device_id_);
-  output_descs_ = std::move(output_descs);
+  SetOutputDescs(std::move(output_descs));
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   auto num_outputs = output_descs_.size();
   DALI_ENFORCE(num_outputs > 0,
@@ -572,21 +572,18 @@ void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
 }
 
 bool Pipeline::ValidateOutputs(const DeviceWorkspace &ws) const {
-  DALI_ENFORCE(
-      ws.NumOutput() == static_cast<int>(output_descs_.size()),
-      make_string("Inconsistent output description. Number of outputs does not match. Expected: ",
-                  output_descs_.size(), ". Received: ", ws.NumOutput(), "."));
+  DALI_ENFORCE(ws.NumOutput() == static_cast<int>(output_descs_.size()),
+               make_string("Number of outputs does not match. Expected: ", output_descs_.size(),
+                           ". Received: ", ws.NumOutput(), "."));
   for (int i = 0; i < ws.NumOutput(); i++) {
-    DALI_ENFORCE(
-        ws.GetOutputDim(i) == output_descs_[i].ndim || output_descs_[i].ndim == -1,
-        make_string("Inconsistent output description. Number of dimensions in the output_idx=", i,
-                    " does not match. Expected: ", output_descs_[i].ndim,
-                    ". Received: ", ws.GetOutputDim(i), "."));
+    DALI_ENFORCE(ws.GetOutputDim(i) == output_descs_[i].ndim || output_descs_[i].ndim == -1,
+                 make_string("Number of dimensions in the output_idx=", i,
+                             " does not match. Expected: ", output_descs_[i].ndim,
+                             ". Received: ", ws.GetOutputDim(i), "."));
     DALI_ENFORCE(
         ws.GetOutputDataType(i) == output_descs_[i].dtype || output_descs_[i].dtype == DALI_NO_TYPE,
-        make_string("Inconsistent output description. Data type of int the output_idx=", i,
-                    " does not match. Expected: ", output_descs_[i].dtype,
-                    ". Received: ", ws.GetOutputDataType(i), "."));
+        make_string("Data type in the output_idx=", i, " does not match. Expected: ",
+                    output_descs_[i].dtype, ". Received: ", ws.GetOutputDataType(i), "."));
   }
   return true;
 }

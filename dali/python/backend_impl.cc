@@ -1577,10 +1577,6 @@ PYBIND11_MODULE(backend_impl, m) {
                                       (&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
-         [](Pipeline *p, const std::vector<std::pair<string, string>> &outputs) {
-             p->Build(outputs);
-         })
-    .def("Build",
          [](Pipeline *p, const std::vector<OutputDesc> &outputs) {
              std::vector<PipelineOutputDesc> build_args;
              for (auto& out : outputs) {

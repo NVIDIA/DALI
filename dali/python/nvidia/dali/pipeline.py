@@ -237,26 +237,30 @@ Parameters
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
 
         # Assign and validate output_dtype
-        if type(output_dtype) is list:
+        if isinstance(output_dtype, (list, tuple)):
             for dtype in output_dtype:
-                if type(dtype) is not types.DALIDataType and dtype is not None:
+                if not(isinstance(dtype, (types.DALIDataType, type(None)))):
                     raise TypeError(
                         f"`output_dtype` must be either: a type from nvidia.dali.types.DALIDataType, a list of these or None. Found type {type(dtype)} in the list.")
-        elif type(output_dtype) is not types.DALIDataType and output_dtype is not None:
+                if dtype is not None and dtype == types.NO_TYPE:
+                    raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found {dtype} in the list.")
+        elif not(isinstance(output_dtype, (types.DALIDataType, type(None)))):
             raise TypeError(
                 f"`output_dtype` must be either: a type from nvidia.dali.types.DALIDataType, a list of these or None. Found type: {type(output_dtype)}.")
+        elif output_dtype is not None and output_dtype == types.NO_TYPE:
+            raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found value: {output_dtype}")
         self._output_dtype = output_dtype
 
         # Assign and validate output_ndim
-        if type(output_ndim) is list:
+        if isinstance(output_ndim, (list, tuple)):
             for ndim in output_ndim:
-                if type(ndim) is not int and ndim is not None:
+                if not(isinstance(ndim, (int, type(None)))):
                     raise TypeError(
                         f"`output_ndim` must be either: an int, a list of ints or None. Found type {type(ndim)} in the list.")
                 if ndim is not None and ndim < 0:
                     raise ValueError(
                         f"`output_ndim` must be non-negative. Found value {ndim} in the list.")
-        elif type(output_ndim) is not int and output_ndim is not None:
+        elif not(isinstance(output_ndim, (int, type(None)))):
             raise TypeError(
                 f"`output_ndim` must be either: an int, a list of ints or None. Found type: {type(output_ndim)}.")
         elif output_ndim is not None and output_ndim < 0:
@@ -351,11 +355,11 @@ Parameters
 
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""
-        return self._pipe.output_dtype()
+        return [elem if elem != types.NO_TYPE else None for elem in self._pipe.output_dtype()]
 
     def output_ndim(self) -> list:
         """Number of dimensions expected at the outputs."""
-        return self._pipe.output_ndim()
+        return [elem if elem != -1 else None for elem in self._pipe.output_ndim()]
 
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
@@ -1258,19 +1262,22 @@ Parameters
         pass
 
     def _generate_build_args(self):
-        ret = []
+        # ret = []
         num_outputs = len(self._names_and_devices)
-        dtype = [self._output_dtype] * num_outputs if type(
+        dtypes = [self._output_dtype] * num_outputs if type(
             self._output_dtype) is not list else self._output_dtype
-        ndim = [self._output_ndim] * num_outputs if type(self._output_ndim) is not list else self._output_ndim
-        if not (len(dtype) == len(ndim) == num_outputs):
+        ndims = [self._output_ndim] * num_outputs if type(
+            self._output_ndim) is not list else self._output_ndim
+        if not (len(dtypes) == len(ndims) == num_outputs):
             raise RuntimeError(
-                f"Inconsistent output description. Length of provided output descriptions do not match. \n"
-                f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={dtype}\noutput_ndim={ndim}")
+                f"Lengths of provided output descriptions do not match. \n"
+                f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={dtypes}\noutput_ndim={ndims}")
 
-        for (name, dev), dt, nd in zip(self._names_and_devices, dtype, ndim):
-            ret.append((name, dev, types.NO_TYPE if dt is None else dt, -1 if nd is None else nd))
-        return ret
+        # for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims):
+        #     ret.append((name, dev, types.NO_TYPE if dtype is None else dtype,
+        #                 -1 if ndim is None else ndim))
+        return [(name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
+                for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)]
 
 
 

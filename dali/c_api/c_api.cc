@@ -512,6 +512,16 @@ size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {
   }
 }
 
+size_t daliGetDeclaredOutputNdim(daliPipelineHandle *pipe_handle, int n) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return pipeline->output_ndim(n);
+}
+
+dali_data_type_t daliGetDeclaredOutputDtype(daliPipelineHandle *pipe_handle, int n) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return static_cast<dali_data_type_t>(static_cast<int>(pipeline->output_dtype(n)));
+}
+
 unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   return pipeline->num_outputs();
