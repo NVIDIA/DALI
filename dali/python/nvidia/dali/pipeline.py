@@ -152,9 +152,9 @@ Parameters
     by decorating them with `@dali.pickling.pickle_by_value`. It may be especially useful when
     working with Jupyter notebook to work around the issue of worker process being unable to import
     the callback defined as a global function inside the notebook.
-`output_dtype` : nvidia.dali.types or list of those, default = None
+`output_dtype` : ``nvidia.dali.types.DALIDataType`` or list of those, default = None
     With this argument, you may declare, what data type you expect in the given output. You shall
-    pass a list of values from module:`nvidia.dali.types`, each element in the list corresponding to
+    pass a list of mod:`types.DALIDataType`, each element in the list corresponding to
     one output from the pipeline. Additionally, you can pass ``None`` as a wildcard. The outputs,
     after each iteration, will be validated against the types you passed to this argument. If any
     output does not match the provided type, RuntimeError will be raised.
@@ -241,10 +241,10 @@ Parameters
             for dtype in output_dtype:
                 if type(dtype) is not types.DALIDataType and dtype is not None:
                     raise TypeError(
-                        f"`output_dtype` must be either: a type from nvidia.dali.types module, a list of these or None. Found type {type(dtype)} in the list.")
+                        f"`output_dtype` must be either: a type from nvidia.dali.types.DALIDataType, a list of these or None. Found type {type(dtype)} in the list.")
         elif type(output_dtype) is not types.DALIDataType and output_dtype is not None:
             raise TypeError(
-                f"`output_dtype` must be either: a type from nvidia.dali.types module, a list of these or None. Found type: {type(output_dtype)}.")
+                f"`output_dtype` must be either: a type from nvidia.dali.types.DALIDataType, a list of these or None. Found type: {type(output_dtype)}.")
         self._output_dtype = output_dtype
 
         # Assign and validate output_ndim
@@ -752,7 +752,7 @@ Parameters
             self._init_pipeline_backend()
         self._setup_pipe_pool_dependency()
 
-        self._pipe.Build(self._generate_build_args(self._output_dtype, self._output_ndim))
+        self._pipe.Build(self._generate_build_args())
         self._built = True
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
@@ -1091,7 +1091,7 @@ Parameters
         if not self._backend_prepared:
             self._init_pipeline_backend()
             self._pipe.SetOutputDescs(
-                self._generate_build_args(self._output_dtype, self._output_ndim))
+                self._generate_build_args())
         ret = self._pipe.SerializeToProtobuf()
         if filename is not None:
             with open(filename, 'wb') as pipeline_file:
@@ -1257,19 +1257,19 @@ Parameters
         data from NumPy arrays."""
         pass
 
-    def _generate_build_args(self, output_dtype, output_ndim):
+    def _generate_build_args(self):
         ret = []
         num_outputs = len(self._names_and_devices)
-        output_dtype = [output_dtype] * num_outputs if type(
-            output_dtype) is not list else output_dtype
-        output_ndim = [output_ndim] * num_outputs if type(output_ndim) is not list else output_ndim
-        if not (len(output_dtype) == len(output_ndim) == num_outputs):
+        dtype = [self._output_dtype] * num_outputs if type(
+            self._output_dtype) is not list else self._output_dtype
+        ndim = [self._output_ndim] * num_outputs if type(self._output_ndim) is not list else self._output_ndim
+        if not (len(dtype) == len(ndim) == num_outputs):
             raise RuntimeError(
                 f"Inconsistent output description. Length of provided output descriptions do not match. \n"
-                f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={output_dtype}\noutput_ndim={output_ndim}")
+                f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={dtype}\noutput_ndim={ndim}")
 
-        for (name, dev), dtype, ndim in zip(self._names_and_devices, output_dtype, output_ndim):
-            ret.append((name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim))
+        for (name, dev), dt, nd in zip(self._names_and_devices, dtype, ndim):
+            ret.append((name, dev, types.NO_TYPE if dt is None else dt, -1 if nd is None else nd))
         return ret
 
 
