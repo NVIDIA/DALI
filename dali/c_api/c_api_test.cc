@@ -1054,12 +1054,29 @@ TEST(CApiTest, GetMaxBatchSizeTest) {
   const int BS = 13;
   dali::Pipeline pipe(BS, 1, 0);
   pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
-  pipe.SetOutputNames({{"INPUT", "cpu"}});
+  pipe.SetOutputDescs({{"INPUT", "cpu"}});
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
 
   EXPECT_EQ(daliGetMaxBatchSize(&handle), BS);
+
+  daliDeletePipeline(&handle);
+}
+
+TEST(CApiTest, GetDeclaredOutputDtypeNdimTest) {
+  const DALIDataType dtype = DALIDataType::DALI_UINT8;
+  const dali_data_type_t ref_dtype = dali_data_type_t::DALI_UINT8;
+  const int ndim = 2;
+  dali::Pipeline pipe(13, 1, 0);
+  pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
+  pipe.SetOutputDescs({{"INPUT", "cpu", dtype, ndim}});
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+
+  EXPECT_EQ(daliGetDeclaredOutputDtype(&handle, 0), ref_dtype);
+  EXPECT_EQ(daliGetDeclaredOutputNdim(&handle, 0), ndim);
 
   daliDeletePipeline(&handle);
 }
