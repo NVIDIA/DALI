@@ -231,6 +231,12 @@ int daliIsDeserializable(const char* serialized_pipeline, int length) {
 }
 
 
+int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle) {
+  dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
+  return pipeline->max_batch_size();
+}
+
+
 void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
   for (int i = 0; i < queue_depth; ++i) {
