@@ -330,8 +330,9 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     Returns a pair of dictionaries of kwargs - the first for __init__, the second for __call__.
 
     Args:
-        kwargs: Keyward arguments.
-        arg_input_type: operator's input type, DataNode for pipeline mode, TensorListCPU for eager mode.
+        kwargs: Keyword arguments.
+        arg_input_type: operator's argument input type, DataNode for pipeline mode, TensorListCPU
+            for eager mode.
     """
     def is_arg_input_type(x):
         return isinstance(x, arg_input_type)

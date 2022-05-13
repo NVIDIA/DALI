@@ -40,49 +40,51 @@ class _Classification:
 
     Args:
         data: Data to be classified.
-        type_name (str): Representation of argument type (input or keyward).
-        arg_batch_size (int): Size of batch to which constant value should be scaled up. Only
-            applicable for argument inputs that are array types (e.g. numpy array). If -1 does not
-            modify the data.
+        type_name (str): Representation of argument type (input or keyword).
+        arg_constant_len (int): Only applicable for argument inputs that are of array type
+            (e.g. numpy array). If -1 does not modify the data. For positive value treats works
+            like `:class:ops.Constant`, repeats the data `arg_constant_len` times.
     """
 
-    def __init__(self, data, type_name, arg_batch_size=-1):
-        self.is_batch, self.device, self.data = self._classify_data(data, type_name, arg_batch_size)
+    def __init__(self, data, type_name, arg_constant_len=-1):
+        self.is_batch, self.device, self.data = self._classify_data(
+            data, type_name, arg_constant_len)
 
     @staticmethod
-    def _classify_data(data, type_name, arg_batch_size):
+    def _classify_data(data, type_name, arg_constant_len):
         from nvidia.dali._debug_mode import DataNodeDebug
         """Returns tuple (is_batch, device, unpacked data). """
 
         def is_primitive_type(x):
             return isinstance(x, (int, float, bool, str))
 
-        def classify_array_type(data):
-            if _types._is_numpy_array(data):
+        def classify_array_input(arr):
+            if _types._is_numpy_array(arr):
                 device = 'cpu'
-            elif _types._is_torch_tensor(data):
-                device = 'gpu' if data.is_cuda else 'cpu'
-                
-                # Data needs to be on CPU for batch argument inputs.
-                if device == 'gpu' and arg_batch_size > 0:
-                    data = data.cpu().numpy()
-            elif _types._is_mxnet_array(data):
+            elif _types._is_torch_tensor(arr):
+                device = 'gpu' if arr.is_cuda else 'cpu'
+            elif _types._is_mxnet_array(arr):
+                device = 'gpu' if 'gpu' in str(arr.context) else 'cpu'
+            else:
+                raise RuntimeError(f"Unsupported array type '{type(arr)}'.")
+
+            return False, device, arr
+
+        def classify_array_kwarg(arr):
+            if _types._is_torch_tensor(arr):
+                if arr.is_cuda:
+                    arr = arr.cpu().numpy()
+            elif _types._is_mxnet_array(arr):
                 import mxnet as mx
 
-                device = 'gpu' if 'gpu' in str(data.context) else 'cpu'
+                if 'gpu' in str(arr.context):
+                    arr = arr.copyto(mx.cpu())
+            elif not _types._is_numpy_array(arr):
+                raise RuntimeError(f"Unsupported array type '{type(arr)}'.")
 
-                # For batch copy to CPU.
-                if device == 'gpu' and arg_batch_size > 0:
-                    data = data.copyto(mx.cpu())
-            else:
-                raise RuntimeError(f"Unsupported array type '{type(data)}'.")
-            
-            data = _types._preprocess_constant_array_type(data)[0]
-            if arg_batch_size > 0:
-                data = _tensors.TensorListCPU([_tensors.TensorCPU(data)] * arg_batch_size)
-                return True, 'cpu', data
-
-            return False, device, data
+            arr = _types._preprocess_constant_array_type(arr)
+            arr = _tensors.TensorListCPU([_tensors.TensorCPU(arr)] * arg_constant_len)
+            return True, 'cpu', arr
 
         if isinstance(data, list):
             if len(data) == 0 or any([is_primitive_type(d) for d in data]):
@@ -93,8 +95,7 @@ class _Classification:
             data_list = []
 
             for d in data:
-                is_batch, device, val = _Classification._classify_data(
-                    d, type_name, arg_batch_size=False)
+                is_batch, device, val = _Classification._classify_data(d, type_name, -1)
                 is_batch_list.append(is_batch)
                 device_list.append(device)
                 data_list.append(val)
@@ -122,7 +123,12 @@ class _Classification:
             if is_primitive_type(data) or isinstance(data, _tensors.TensorCPU):
                 return False, 'cpu', data
             if _types._is_compatible_array_type(data):
-                return classify_array_type(data)
+                if arg_constant_len > 0:
+                    # For call argument input repeats data `arg_constant_len` times to match
+                    # the ContantOp behavior.
+                    return classify_array_kwarg(data)
+                else:
+                    return classify_array_input(data)
             if hasattr(data, '__cuda_array_interface__') or isinstance(data, _tensors.TensorGPU):
                 return False, 'gpu', data
 
