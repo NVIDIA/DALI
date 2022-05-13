@@ -57,6 +57,7 @@ If set to True, the first character of the layout is replaced with ``F``.)code",
                           false);
 
 
-DALI_REGISTER_OPERATOR(PerFrame, PerFrame, CPU);
+DALI_REGISTER_OPERATOR(PerFrame, PerFrame<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(PerFrame, PerFrame<GPUBackend>, GPU);
 
 }  // namespace dali
