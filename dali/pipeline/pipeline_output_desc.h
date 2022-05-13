@@ -36,12 +36,29 @@ struct PipelineOutputDesc {
   PipelineOutputDesc(std::string name, std::string device, DALIDataType dtype, int ndim)
       : name(std::move(name)), device(std::move(device)), dtype(dtype), ndim(ndim) {}
 
-  PipelineOutputDesc(const std::pair<std::string, std::string> &name_and_device)  // NOLINT
+  PipelineOutputDesc(const std::pair<std::string, std::string>& name_and_device)  // NOLINT
       : name(name_and_device.first),
         device(name_and_device.second),
         dtype(DALI_NO_TYPE),
         ndim(-1) {}
+
+  bool operator==(const PipelineOutputDesc& other) const {
+    return name == other.name && device == other.device && dtype == other.dtype &&
+           ndim == other.ndim;
+  }
 };
+
+inline std::ostream& operator<<(std::ostream& os, const PipelineOutputDesc& pod) {
+  return os << "[Name: " << pod.name << "\tDevice: " << pod.device << "\tDtype: " << pod.dtype
+            << "\tNdim: " << pod.ndim << "]";
+}
+
+inline std::ostream& operator<<(std::ostream& os, const std::vector<PipelineOutputDesc>& pod) {
+  for (size_t i = 0; i < pod.size(); i++) {
+    os << "Output " << i << ": " << pod[i];
+  }
+  return os;
+}
 
 }  // namespace dali
 

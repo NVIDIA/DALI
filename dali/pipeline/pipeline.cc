@@ -550,11 +550,18 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
 
 
 void Pipeline::SetOutputDescs(const vector<std::pair<string, string>> &output_names) {
-  DALI_ENFORCE(output_descs_.empty(), "Resetting output_descs_ is forbidden.");
+  DALI_ENFORCE(
+      output_descs_.empty(),
+      "Resetting output_descs_ providing only name and device is forbidden. If you want to reset "
+      "the output_descs_, please use the `SetOutputDescs(vector<PipelineOutputDesc>)`.");
   output_descs_ = {output_names.begin(), output_names.end()};
 }
 
 void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
+  DALI_ENFORCE(output_descs_.empty() || output_descs_ == output_descs,
+               make_string("Once set, changing values of `output_descs_` is forbidden. "
+                           "`SetOutputDescs` may be invoked multiple times, with the argument "
+                           "equal to existing `output_descs_`.\nReceived:\n", output_descs));
   output_descs_ = std::move(output_descs);
 }
 
