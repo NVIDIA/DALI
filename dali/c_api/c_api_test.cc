@@ -1026,7 +1026,7 @@ TEST(CApiTest, GetESDetailsTest) {
   pipe.AddExternalInput("INPUT1", "gpu", DALI_UINT32, -1, "NHWC");
   pipe.AddExternalInput("INPUT2", "cpu");
 
-  pipe.SetOutputNames({{"INPUT3", "cpu"}, {"INPUT1", "gpu"}, {"INPUT2", "cpu"}});
+  pipe.SetOutputDescs({{"INPUT3", "cpu"}, {"INPUT1", "gpu"}, {"INPUT2", "cpu"}});
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
