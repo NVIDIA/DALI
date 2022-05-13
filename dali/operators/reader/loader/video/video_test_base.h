@@ -105,12 +105,17 @@ class VideoTestBase : public ::testing::Test {
  protected:
   static std::vector<std::string> cfr_videos_frames_paths_;
   static std::vector<std::string> vfr_videos_frames_paths_;
+  static std::vector<std::string> vfr_hevc_videos_frames_paths_;
 
   static std::vector<std::string> cfr_videos_paths_;
   static std::vector<std::string> vfr_videos_paths_;
 
+  static std::vector<std::string> cfr_hevc_videos_paths_;
+  static std::vector<std::string> vfr_hevc_videos_paths_;
+
   static std::vector<TestVideo> cfr_videos_;
   static std::vector<TestVideo> vfr_videos_;
+  static std::vector<TestVideo> vfr_hevc_videos_;
 
   static void SetUpTestSuite();
 };

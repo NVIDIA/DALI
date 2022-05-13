@@ -76,6 +76,8 @@ struct AvState {
  */
 class DLL_PUBLIC FramesDecoder {
  public:
+  static const std::vector<AVCodecID> SupportedCodecs;
+
   /**
    * @brief Construct a new FramesDecoder object.
    * 
@@ -198,6 +200,8 @@ class DLL_PUBLIC FramesDecoder {
   void FindVideoStream();
 
   void LazyInitSwContext();
+
+  bool CheckCodecSupport();
 
   int channels_ = 3;
   bool flush_state_ = false;
