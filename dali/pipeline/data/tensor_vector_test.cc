@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/tensor_vector.h"
 #include <gtest/gtest.h>
 #include <string>
+
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/tensor_vector.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
 
