@@ -18,6 +18,7 @@
 
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/operator/sequence_shape.h"
 #include "dali/test/tensor_test_utils.h"
 
@@ -257,9 +258,14 @@ TYPED_TEST(SequenceShapeUnfoldTest, Unfold3Extents) {
   this->TestUnfolding(batch, *expanded_batch, 3);
 }
 
+
 template <typename Backend>
-class SequenceShapeTVBroadcastTest : public ::testing::Test {
+class SequenceShapeBroadcastTest;
+
+template <typename Backend>
+class SequenceShapeBroadcastTest<TensorVector<Backend>> : public ::testing::Test {
  protected:
+  template <typename Dummy>
   std::tuple<TensorVector<Backend>, std::shared_ptr<TensorVector<Backend>>> CreateTestBatch(
       DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
       TensorListShape<> shape = {{3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
@@ -274,12 +280,14 @@ class SequenceShapeTVBroadcastTest : public ::testing::Test {
     return {std::move(batch), expanded_like(batch)};
   }
 
+  template <typename Dummy>
   void TestBroadcasting(const TensorVector<Backend> &batch, TensorVector<Backend> &expanded_batch,
                         const TensorListShape<> &expand_extents) {
     const auto &shape = batch.shape();
     auto expanded_batch_size = expand_extents.num_elements();
     broadcast_samples(batch, expanded_batch, expanded_batch_size, expand_extents);
     check_batch_props(batch, expanded_batch, expanded_batch_size, 0);
+    ASSERT_EQ(expanded_batch_size, expanded_batch.num_samples());
     for (int sample_idx = 0, elem_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
       const auto &sample_shape = shape[sample_idx];
       auto base_ptr = static_cast<const uint8_t *>(batch.raw_tensor(sample_idx));
@@ -290,41 +298,141 @@ class SequenceShapeTVBroadcastTest : public ::testing::Test {
       }
     }
   }
+
+  template <typename Dummy>
+  void FillBatch(TensorVector<Backend> &, Dummy = 42) {
+    // TensorVector shares data so we only compare pointers, no need to write any actual data
+  }
 };
 
-using Backends = ::testing::Types<CPUBackend, GPUBackend>;
+template <typename Backend>
+class TensorListBroadcastTestBase;
 
-TYPED_TEST_SUITE(SequenceShapeTVBroadcastTest, Backends);
+template <>
+class TensorListBroadcastTestBase<CPUBackend> {
+ protected:
+  template <typename T>
+  void FillBatch(TensorList<CPUBackend> &batch, T start = 42) {
+    SequentialFill(view<T>(batch), 42);
+  }
 
-TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast0Extents) {
-  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT32);
-  this->TestBroadcasting(batch, *expanded_batch, {{}, {}, {}});
+  template <typename T>
+  auto GetViews(const TensorList<CPUBackend> &batch, TensorList<CPUBackend> &expanded_batch) {
+    return std::make_tuple(view<const T>(batch), view<T>(expanded_batch));
+  }
+
+  void BroadcastSamples(const TensorList<CPUBackend> &batch, TensorList<CPUBackend> &expanded_batch,
+                        const TensorListShape<> &expand_extents) {
+    broadcast_samples(batch, expanded_batch, expand_extents.num_elements(), expand_extents);
+  }
+};
+
+template <>
+class TensorListBroadcastTestBase<GPUBackend> {
+ protected:
+  template <typename T>
+  void FillBatch(TensorList<GPUBackend> &batch, T start = 42) {
+    batch_.Resize(batch.shape(), batch.type());
+    batch_.SetLayout(batch.GetLayout());
+    SequentialFill(view<T>(batch_), start);
+    batch.Copy(batch_);
+  }
+
+  template <typename T>
+  auto GetViews(const TensorList<GPUBackend> &batch, TensorList<GPUBackend> &expanded_batch) {
+    expanded_batch_.Copy(expanded_batch);
+    return std::make_tuple(view<const T>(batch_), view<T>(expanded_batch_));
+  }
+
+  void BroadcastSamples(const TensorList<GPUBackend> &batch, TensorList<GPUBackend> &expanded_batch,
+                        const TensorListShape<> &expand_extents) {
+    broadcast_samples(batch, expanded_batch, expand_extents.num_elements(), expand_extents,
+                      scatter_gather_, batch.order().get());
+  }
+
+  kernels::ScatterGatherGPU scatter_gather_;
+  TensorList<CPUBackend> batch_;
+  TensorList<CPUBackend> expanded_batch_;
+};
+
+
+template <typename Backend>
+class SequenceShapeBroadcastTest<TensorList<Backend>>
+    : public ::testing::Test, public TensorListBroadcastTestBase<Backend> {
+ protected:
+  template <typename T>
+  std::tuple<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>> CreateTestBatch(
+      DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
+      TensorListShape<> shape = {{3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
+    TensorList<Backend> batch;
+    constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
+    batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
+    batch.set_pinned(is_pinned);
+    batch.Resize(shape, dtype);
+    if (!layout.empty()) {
+      batch.SetLayout(layout);
+    }
+    this->template FillBatch<T>(batch);
+    return {std::move(batch), expanded_like(batch)};
+  }
+
+  template <typename T>
+  void TestBroadcasting(const TensorList<Backend> &batch, TensorList<Backend> &expanded_batch,
+                        const TensorListShape<> &expand_extents) {
+    this->BroadcastSamples(batch, expanded_batch, expand_extents);
+    check_batch_props(batch, expanded_batch, expand_extents.num_elements(), 0);
+    auto [batch_view, expanded_view] = this->template GetViews<T>(batch, expanded_batch);
+    ASSERT_EQ(batch.shape(), batch_view.shape);
+    ASSERT_EQ(expanded_batch.shape(), expanded_view.shape);
+    ASSERT_EQ(expand_extents.num_elements(), expanded_batch.num_samples());
+    for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
+      const auto &sample_shape = batch_view[sample_idx].shape;
+      auto *sample_data = batch_view.tensor_data(sample_idx);
+      for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
+        const auto &elem_shape = expanded_view[elem_idx].shape;
+        ASSERT_EQ(sample_shape, elem_shape);
+        auto *elem_data = expanded_view.tensor_data(elem_idx++);
+        for (int j = 0; j < volume(sample_shape); j++) {
+          EXPECT_EQ(sample_data[j], elem_data[j]);
+        }
+      }
+    }
+  }
+};
+
+TYPED_TEST_SUITE(SequenceShapeBroadcastTest, Containers);
+
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast0Extents) {
+  auto [batch, expanded_batch] = this->template CreateTestBatch<uint32_t>(DALI_UINT32);
+  this->template TestBroadcasting<uint32_t>(batch, *expanded_batch, {{}, {}, {}});
 }
 
-TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast1Extent) {
-  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT16);
-  this->TestBroadcasting(batch, *expanded_batch, {{1}, {1}, {1}});
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast1Extent) {
+  auto [batch, expanded_batch] = this->template CreateTestBatch<uint16_t>(DALI_UINT16);
+  this->template TestBroadcasting<uint16_t>(batch, *expanded_batch, {{1}, {1}, {1}});
 }
 
-TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast2Extents) {
-  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8);
-  this->TestBroadcasting(batch, *expanded_batch, {{5}, {3}, {1}});
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2Extents) {
+  auto [batch, expanded_batch] = this->template CreateTestBatch<uint8_t>(DALI_UINT8);
+  this->template TestBroadcasting<uint8_t>(batch, *expanded_batch, {{5}, {3}, {1}});
 }
 
-TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast2ExtentsPinned) {
-  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, true);
-  this->TestBroadcasting(batch, *expanded_batch, {{1, 1}, {7, 0}, {12, 4}});
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2ExtentsPinned) {
+  auto [batch, expanded_batch] = this->template CreateTestBatch<uint8_t>(DALI_UINT8, true);
+  this->template TestBroadcasting<uint8_t>(batch, *expanded_batch, {{1, 1}, {7, 0}, {12, 4}});
 }
 
-TYPED_TEST(SequenceShapeTVBroadcastTest, Broadcast2Extents3Iters) {
-  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "XYZ");
-  this->TestBroadcasting(batch, *expanded_batch, {{1, 1}, {7, 0}, {12, 4}});
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2Extents3Iters) {
+  auto [batch, expanded_batch] = this->template CreateTestBatch<float>(DALI_FLOAT, true, "XYZ");
+  this->template TestBroadcasting<float>(batch, *expanded_batch, {{1, 1}, {7, 0}, {12, 4}});
   batch.Resize({{2, 2, 6}, {13, 4, 11}}, DALI_FLOAT);
   batch.SetLayout("XYZ");
-  this->TestBroadcasting(batch, *expanded_batch, {{5}, {1}});
+  this->template FillBatch<float>(batch, 101);
+  this->template TestBroadcasting<float>(batch, *expanded_batch, {{5}, {1}});
   batch.Resize({{2, 2, 6}, {13, 4, 11}, {13, 4, 11}, {13, 4, 11}}, DALI_FLOAT);
   batch.SetLayout("XYZ");
-  this->TestBroadcasting(batch, *expanded_batch, {{}, {}, {}, {}});
+  this->template FillBatch<float>(batch, 7);
+  this->template TestBroadcasting<float>(batch, *expanded_batch, {{}, {}, {}, {}});
 }
 
 }  // namespace sequence_utils_test
