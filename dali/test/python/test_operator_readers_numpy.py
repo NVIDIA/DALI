@@ -244,7 +244,8 @@ batch_size_alias_test=64
 def numpy_reader_pipe(numpy_op, path, device="cpu", file_filter="*.npy"):
     data = numpy_op(device=device,
                     file_root=path,
-                    file_filter=file_filter)
+                    file_filter=file_filter,
+                    seed=1234)
     return data
 
 

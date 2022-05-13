@@ -106,28 +106,33 @@ void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
   // TODO(michalz): add nbytes and num_elements to SampleView.
   size_t data_bytes = out_sample.shape().num_elements() *
                       TypeTable::GetTypeInfo(out_sample.type()).size();
+  if (!data_bytes)
+    return;  // empty array - short-circuit
 
-  uint8_t* dst_ptr = static_cast<uint8_t*>(out_sample.raw_mutable_data());
+  uint8_t *base_ptr = static_cast<uint8_t*>(out_sample.raw_mutable_data());
+  uint8_t *dst_ptr = base_ptr;
   ssize_t read_start = load_target.data_offset & -gds::kGDSAlignment;  // align _down_
   ssize_t file_offset = read_start;
   ssize_t read_bytes = data_bytes + load_target.data_offset - read_start;
   while (read_bytes > 0) {
-    ssize_t this_chunk = std::min<ssize_t>(read_bytes, chunk_size_);
-    thread_pool_.AddWork([this, &load_target, dst_ptr, file_offset, this_chunk](int tid) {
+    ssize_t chunk_read_length = std::min<ssize_t>(read_bytes, chunk_size_);
+    ssize_t copy_start = std::max(file_offset, load_target.data_offset);
+    ssize_t copy_skip = copy_start - file_offset;
+    ssize_t copy_end = file_offset + chunk_read_length;
+    ssize_t chunk_copy_length = copy_end - copy_start;
+    thread_pool_.AddWork([=, &load_target](int tid) {
       auto buffer = staging_.get_staging_buffer();
-      load_target.ReadRawChunk(buffer.at(0), this_chunk, 0, file_offset);
-      ssize_t copy_start = std::max(file_offset, load_target.data_offset);
-      ssize_t copy_skip = copy_start - file_offset;
-      ssize_t copy_end = file_offset + this_chunk;
-      ssize_t copy_length = copy_end - copy_start;
-      staging_.copy_to_client(dst_ptr, copy_length, std::move(buffer), copy_skip);
+      load_target.ReadRawChunk(buffer.at(0), chunk_read_length, 0, file_offset);
+      assert(dst_ptr >= base_ptr && dst_ptr + chunk_copy_length <= base_ptr + data_bytes);
+      staging_.copy_to_client(dst_ptr, chunk_copy_length, std::move(buffer), copy_skip);
     });
 
     // update addresses
-    dst_ptr += this_chunk;
-    file_offset += this_chunk;
-    read_bytes -= this_chunk;
+    dst_ptr += chunk_copy_length;
+    file_offset += chunk_read_length;
+    read_bytes -= chunk_read_length;
   }
+  assert(dst_ptr == base_ptr + data_bytes);
 }
 
 DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReaderGPU, GPU);

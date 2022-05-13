@@ -215,8 +215,10 @@ int GDSStagingEngine::allocate_buffers() {
 
 void GDSStagingEngine::wait_buffers(std::unique_lock<std::mutex> &lock) {
   if (scheduled_.empty() && !unscheduled_.empty())
-    commit();
+    commit_no_lock();
+  lock.unlock();
   CUDA_CALL(cudaEventSynchronize(ready_));
+  lock.lock();
   for (void *ptr : scheduled_)
     ready_buffers_.insert(ptr);
   scheduled_.clear();

@@ -14,8 +14,13 @@
 
 #include <gtest/gtest.h>
 #include <utility>
+#include <vector>
+#include <thread>
 #include "dali/operators/reader/gds_mem.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/cuda_stream_pool.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/test/device_test.h"
 
 namespace dali {
 namespace gds {
@@ -64,6 +69,71 @@ TEST(GDSMem, StagingEngine) {
   for (size_t i = chunk; i < 2*chunk; i++)
     ASSERT_EQ(host[i], 0xbb);
 }
+
+namespace {
+__global__ void fill_kernel(int *target, int size, int start) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size)
+    target[idx] = idx + start;
+}
+
+void fill(int *target, int size, int start, cudaStream_t stream) {
+  int block = std::min(512, size);
+  int grid = div_ceil(size, block);
+  fill_kernel<<<grid, block, 0, stream>>>(target, size, start);
+}
+
+}  // namespace
+
+
+DEFINE_TEST_KERNEL(GDSMem, StagingEngineBigTest, const int *target, int size, int start) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size)
+    DEV_ASSERT_EQ(target[idx], idx + start);
+}
+
+TEST(GDSMem, StagingEngineBigTest) {
+  CUDAStream stream = CUDAStream::Create(true);
+  GDSStagingEngine engn;
+  engn.set_stream(stream);
+  const int num_threads = 50;
+  std::vector<std::thread> threads;
+  int elems_per_thread = 50000000;
+  const int chunk = engn.chunk_size();
+  const int elems_per_chunk = chunk / sizeof(int);
+
+  DeviceBuffer<int> out[num_threads];
+
+  for (int t = 0; t < num_threads; t++)
+    out[t].resize(elems_per_thread);
+
+  for (int t = 0; t < num_threads; t++) {
+    threads.emplace_back([&, t]() {
+      CUDAStreamLease fill_stream = CUDAStreamPool::instance().Get();
+      int elems_written = 0;
+      int *prev = nullptr;
+      while (elems_written < elems_per_thread) {
+        auto buf = engn.get_staging_buffer(prev + elems_per_chunk);
+        int n = std::min(elems_per_chunk, elems_per_thread - elems_written);
+        fill(static_cast<int*>(buf.at(0)), n, elems_written, fill_stream);
+        CUDA_CALL(cudaStreamSynchronize(fill_stream));
+        engn.copy_to_client(out[t].data() + elems_written, n * sizeof(int), std::move(buf), 0);
+        elems_written += n;
+      }
+    });
+  }
+  for (auto &t : threads)
+    t.join();
+  engn.commit();
+  CUDA_CALL(cudaStreamSynchronize(stream));
+  for (int t = 0; t < num_threads; t++) {
+    dim3 block(1024);
+    dim3 grid(div_ceil(elems_per_thread, block.x));
+    DEVICE_TEST_CASE_BODY(GDSMem, StagingEngineBigTest, grid, block,
+                          out[t].data(), 0, elems_per_thread);
+  }
+}
+
 
 }  // namespace gds
 }  // namespace dali
