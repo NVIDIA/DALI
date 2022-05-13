@@ -27,12 +27,13 @@
 #include <vector>
 
 #include "dali/core/common.h"
-#include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/graph/op_graph.h"
+#include "dali/pipeline/pipeline_output_desc.h"
+#include "dali/pipeline/operator/builtin/external_source.h"
 
 
 namespace dali {
@@ -259,19 +260,20 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
 
+  ///@{
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution. The input
    * vector specifies the name and device of the desired outputs of the pipeline.
    */
-  DLL_PUBLIC void Build(vector<std::pair<string, string>> output_names);
+  DLL_PUBLIC void Build(const std::vector<std::pair<string, string>>& output_names);
+  DLL_PUBLIC void Build(std::vector<PipelineOutputDesc> output_descs);
+  ///@}
 
   /**
    * @brief Build a pipeline from deserialized output (name, device) pairs
    */
-  DLL_PUBLIC void Build() {
-    Build(this->output_names_);
-  }
+  DLL_PUBLIC void Build();
 
   /**
    * @brief Set execution characteristics for this Pipeline
@@ -307,7 +309,7 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() {
     if (executor_) {
-      return  executor_->GetExecutorMeta();
+      return executor_->GetExecutorMeta();
     } else {
       return {};
     }
@@ -331,11 +333,19 @@ class DLL_PUBLIC Pipeline {
     prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
   }
 
-  /*
-   * @brief Set name output_names of the pipeline. Used to update the graph without
-   * running the executor.
+  ///@{
+  /**
+   * @brief Set descriptors of the outputs of the pipeline. Used to update the graph without
+   * running the executor and for pipeline serialization.
    */
-  void SetOutputNames(const vector<std::pair<string, string>> &output_names);
+  void SetOutputDescs(std::vector<PipelineOutputDesc> output_descs);
+  /**
+   * Convenience overload. Set only the name and device of an output, since the dtype and ndim
+   * are not always necessary. This function can't reset the output descriptors. If they were already
+   * set, the function will fail.
+   */
+  void SetOutputDescs(const vector<std::pair<string /* name */, string /* device */>> &out_names);
+  ///@}
 
   /**
    * @brief Run the cpu portion of the pipeline.
@@ -463,13 +473,28 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC const std::string &output_device(int id) const;
 
   /**
+   * @brief Returns data type of the output specified by given id.
+   */
+  DLL_PUBLIC DALIDataType output_dtype(int id) const;
+
+  /**
+   * @brief Returns number of dimensions in the output specified by given id.
+   */
+  DLL_PUBLIC int output_ndim(int id) const;
+
+  /**
+   * @brief Returns output descriptors for all outputs.
+   */
+  DLL_PUBLIC std::vector<PipelineOutputDesc> output_descs() const;
+
+  /**
    * Checks, if a provided pipeline can be deserialized, according to the Pipeline protobuf
    * definition.
    *
    * @param serialized_pipeline
    * @return True, if the pipeline is serializable. False otherwise.
    */
-  static bool IsDeserializable(const std::string& serialized_pipeline);
+  static bool IsDeserializable(const std::string &serialized_pipeline);
 
   // For testing
   template <typename T>
@@ -531,6 +556,12 @@ class DLL_PUBLIC Pipeline {
   int GetNextLogicalId();
   int GetNextInternalLogicalId();
 
+  /**
+   * Validate, that the outputs from the Pipeline match the criteria.
+   * @return True, if the outputs passed the validation test.
+   */
+  bool ValidateOutputs(const DeviceWorkspace &ws) const;
+
   const int MAX_SEEDS = 1024;
 
   bool built_;
@@ -561,11 +592,12 @@ class DLL_PUBLIC Pipeline {
     int logical_id;
   };
 
-  vector<OpDefinition> op_specs_;
-  vector<OpDefinition> op_specs_for_serialization_;
-  vector<std::pair<string, string>> output_names_;
+  std::vector<OpDefinition> op_specs_;
+  std::vector<OpDefinition> op_specs_for_serialization_;
 
-  // Mapping between logical id and index in op_spces_;
+  std::vector<PipelineOutputDesc> output_descs_;
+
+  // Mapping between logical id and index in op_specs_
   std::map<int, std::vector<size_t>> logical_ids_;
   std::map<int, int64_t> logical_id_to_seed_;
 

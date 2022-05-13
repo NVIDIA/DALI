@@ -283,6 +283,14 @@ void ExposeTensorLayout(py::module &m) {
 // Placeholder enum for defining __call__ on dtype member of Tensor (to be deprecated).
 enum DALIDataTypePlaceholder {};
 
+/**
+ * Pipeline output descriptor.
+ */
+using OutputDesc = std::tuple<std::string  /* name */,
+                              std::string  /* device */,
+                              DALIDataType /* dtype */,
+                              int          /* ndim */>;
+
 void ExposeTensor(py::module &m) {
   m.def("CheckDLPackCapsule",
         [](py::object &p) {
@@ -1569,13 +1577,14 @@ PYBIND11_MODULE(backend_impl, m) {
                                       (&Pipeline::AddOperator))
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
-        [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
-          p->Build(outputs);
-          })
-    .def("Build",
-        [](Pipeline *p) {
-          p->Build();
-          })
+         [](Pipeline *p, const std::vector<OutputDesc> &outputs) {
+             std::vector<PipelineOutputDesc> build_args;
+             for (auto& out : outputs) {
+               build_args.emplace_back(to_struct<PipelineOutputDesc>(out));
+             }
+             p->Build(build_args);
+         })
+    .def("Build", [](Pipeline *p) { p->Build(); } )
     .def("SetExecutionTypes",
         [](Pipeline *p, bool exec_pipelined, bool exec_separated, bool exec_async) {
           p->SetExecutionTypes(exec_pipelined, exec_separated, exec_async);
@@ -1597,10 +1606,14 @@ PYBIND11_MODULE(backend_impl, m) {
         [](Pipeline *p, int cpu_size, int gpu_size) {
           p->SetQueueSizes(cpu_size, gpu_size);
         })
-    .def("SetOutputNames",
-        [](Pipeline *p, const std::vector<std::pair<string, string>>& outputs) {
-          p->SetOutputNames(outputs);
-          })
+    .def("SetOutputDescs",
+        [](Pipeline *p, const std::vector<OutputDesc>& outputs) {
+          std::vector<PipelineOutputDesc> out_desc;
+          for (auto& out : outputs) {
+            out_desc.emplace_back(to_struct<PipelineOutputDesc>(out));
+          }
+          p->SetOutputDescs(out_desc);
+        })
     .def("RunCPU", &Pipeline::RunCPU, py::call_guard<py::gil_scoped_release>())
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
@@ -1640,6 +1653,24 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("batch_size", &Pipeline::batch_size)
     .def("num_threads", &Pipeline::num_threads)
     .def("device_id", &Pipeline::device_id)
+    .def("output_dtype",
+         [](Pipeline *p) {
+             auto descs = p->output_descs();
+             std::vector<DALIDataType> ret(descs.size());
+             for (size_t i = 0; i < descs.size(); i++) {
+               ret[i] = descs[i].dtype;
+             }
+             return ret;
+         })
+    .def("output_ndim",
+         [](Pipeline *p) {
+           auto descs = p->output_descs();
+             std::vector<int> ret(descs.size());
+             for (size_t i = 0; i < descs.size(); i++) {
+               ret[i] = descs[i].ndim;
+             }
+             return ret;
+         })
     .def("SetExternalTLInput",
         [](Pipeline *p, const string &name, const TensorList<CPUBackend> &tl,
            py::object /*cuda_stream*/, bool /*use_copy_kernel*/) {
@@ -1888,7 +1919,7 @@ PYBIND11_MODULE(backend_impl, m) {
         return new TFFeature(converted_type, converted_default_value, partial_shape);
       });
 #endif  // DALI_BUILD_PROTO3
-}
+}  // NOLINT(readability/fn_size)
 
 }  // namespace python
 }  // namespace dali

@@ -231,5 +231,36 @@ static DLMTensorPtr DLMTensorPtrFromCapsule(py::capsule &capsule) {
   return {DLMTensorRawPtrFromCapsule(capsule), DLMTensorPtrDeleter};
 }
 
+
+/**
+ * @see to_struct
+ */
+template <typename Struct, std::size_t... Idx, typename Tuple>
+Struct to_struct_helper(std::index_sequence<Idx...>, Tuple &&tuple) {
+  return {std::get<Idx>(std::forward<Tuple>(tuple))...};
+}
+
+
+/**
+ * Converts Tuple to Struct by calling a Struct's brace-initializer
+ * with every Tuple's argument, retaining its order. E.g.
+ *
+ *
+ * tuple<int, string, float> tt;
+ * struct Foo {
+ *     int a; string b; float c;
+ * }
+ *
+ * auto f = to_struct<Foo>(tt)  <=>  Foo f = {get<0>(tt), get<1>(tt), get<2>(tt)}
+ *
+ * @return
+ */
+template <typename Struct, typename Tuple>
+Struct to_struct(Tuple &&tuple) {
+  using T = std::remove_reference_t<Tuple>;
+  return to_struct_helper<Struct>(std::make_index_sequence<std::tuple_size<T>{}>{},
+                                  std::forward<Tuple>(tuple));
+}
+
 }  // namespace dali
 #endif  // DALI_UTIL_PYBIND_H_
