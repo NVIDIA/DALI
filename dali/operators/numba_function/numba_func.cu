@@ -53,6 +53,24 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
       "All dimensions should be non negative. Value specified in "
       "`ins_ndim` at index ", i, " is negative."));
   }
+
+  blocks_ = spec.GetRepeatedArgument<int>("blocks");
+  DALI_ENFORCE(blocks_.size() == 3, make_string(
+    "`blocks` array should contain 3 numbers."));
+  for (size_t i = 0; i < blocks_.size(); i++) {
+    DALI_ENFORCE(blocks_[i] >= 0, make_string(
+      "All dimensions should be positive. Value specified in "
+      "`blocks` at index ", i, " is nonpositive."));
+  }
+
+  threads_per_block_ = spec.GetRepeatedArgument<int>("threads_per_block");
+  DALI_ENFORCE(threads_per_block_.size() == 3, make_string(
+    "`blocks` array should contain 3 numbers."));
+  for (size_t i = 0; i < threads_per_block_.size(); i++) {
+    DALI_ENFORCE(threads_per_block_[i] >= 0, make_string(
+      "All dimensions should be positive. Value specified in "
+      "`blocks` at index ", i, " is nonpositive."));
+  }
 }
 
 template <>
@@ -114,9 +132,19 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       in_ptrs[N * in_id + i] = reinterpret_cast<uint64_t>(in.raw_tensor(i));
     }
   }
-  void** data = NULL;
+
+  void** args = NULL;
+
   CUfunction cufunc = (CUfunction) run_fn_;
-  CUresult result = cuLaunchKernel(cufunc, 1, 1, 1, 1, 1, 1, 0, ws.stream(), data, NULL);
+  CUresult result = cuLaunchKernel(
+    cufunc, 
+    blocks_[0], blocks_[1], blocks_[2], 
+    threads_per_block_[0], threads_per_block_[1], threads_per_block_[2], 
+    0, 
+    ws.stream(), 
+    args, 
+    NULL
+  );
   printf("Result: %d \n", result);
 }
 

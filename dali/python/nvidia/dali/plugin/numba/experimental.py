@@ -354,6 +354,8 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
         op_instance.spec.AddArg("in_types", self.in_types)
         op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
         op_instance.spec.AddArg("ins_ndim", self.ins_ndim)
+        op_instance.spec.AddArg("blocks", self.blocks)
+        op_instance.spec.AddArg("threads_per_block", self.threads_per_block)
         op_instance.spec.AddArg("device", self.device)
         op_instance.spec.AddArg("batch_processing", self.batch_processing)
 
@@ -376,9 +378,11 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, **kwargs):
+    def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn=None, device='cpu', batch_processing=False, **kwargs):
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
+        assert len(blocks) == 3, "`blocks` should be an array of 3 numbers."
+        assert len(threads_per_block) == 3, "`threads_per_block` should be an array of 3 numbers."
         if not isinstance(outs_ndim, list):
             outs_ndim = [outs_ndim]
         if not isinstance(ins_ndim, list):
@@ -426,6 +430,8 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
         self.num_outputs = len(out_types)
         self.batch_processing = batch_processing
         self._preserve = True
+        self.blocks = blocks
+        self.threads_per_block = threads_per_block
 
 
 ops._wrap_op(NumbaFunctionCuda, "fn.experimental", "nvidia.dali.plugin.numba")

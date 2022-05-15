@@ -40,15 +40,15 @@ def get_data(shapes, dtype):
 
 
 @pipeline_def
-def numba_func_cuda_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, setup_fn=None, batch_processing=None):
+def numba_func_cuda_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None, ins_ndim=None, blocks=None, threads_per_block=None, setup_fn=None, batch_processing=None):
     data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device = "gpu")
-    return numba_function_cuda(data, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, setup_fn=setup_fn, batch_processing=batch_processing, device='gpu')
+    return numba_function_cuda(data, run_fn=run_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, blocks=blocks, threads_per_block=threads_per_block, setup_fn=setup_fn, batch_processing=batch_processing, device='gpu')
 
 
-def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out):
+def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out):
     batch_size = len(shapes)
     pipe = numba_func_cuda_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, dtype=dtype,
-        run_fn=run_fn, setup_fn=setup_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, batch_processing=batch_processing)
+        run_fn=run_fn, setup_fn=setup_fn, out_types=out_types, in_types=in_types, outs_ndim=outs_ndim, ins_ndim=ins_ndim, blocks=blocks, threads_per_block=threads_per_block, batch_processing=batch_processing)
     pipe.build()
     for _ in range(3):
         outs = pipe.run()
@@ -59,12 +59,12 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
 def test_numba_func():
     # shape, dtype, run_fn, out_types, in_types, out_ndim, in_ndim, setup_fn, batch_processing, expected_out
     args = [
-        ([(10, 10)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [2], [2], None, True, [np.full((10, 10), 255, dtype=np.uint8)]),
+        ([(10, 10, 10)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [3], [3], [1, 1, 1], [10, 10, 10], None, True, [np.full((10, 10, 10), 255, dtype=np.uint8)]),
     ]
 
-    for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out in args:
+    for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out in args:
         # yield _testimpl_numba_func, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out
-        _testimpl_numba_func(shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out)
+        _testimpl_numba_func(shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out)
 
 test_numba_func()
 # next(gen)
