@@ -49,6 +49,9 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
       step_ = stride_ * sequence_len_;
     }
     has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
+    DALI_ENFORCE(!has_labels_ || labels_.size() == filenames_.size(),
+                 make_string("Number of provided files and lables should match. Provided ",
+                             filenames_.size(), " files and ", labels_.size(),  " labels."));
   }
 
   void ReadSample(VideoSampleGpu &sample) override;
