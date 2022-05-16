@@ -70,6 +70,10 @@ struct ResamplingWindow {
     return {i0, i1};
   }
 
+  /**
+   * @brief Calculates the window coefficient at an arbitrary floating point position
+   *        by interpolating between two samples.
+   */
   inline DALI_HOST_DEV float operator()(float x) const {
     float fi = x * scale + center;
     float floori = std::floor(fi);

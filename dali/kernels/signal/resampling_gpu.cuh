@@ -83,6 +83,9 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
 
   for (int64_t out_pos = out_block_start + threadIdx.x; out_pos < sample.out_end;
        out_block_start += grid_stride, out_pos += grid_stride) {
+    // A floating point distance `in_pos_start` is calculated from an arbitrary relative
+    // position, keeping the floats small in order to keep precision. `in_block_f`, used to
+    // calculate the reference for distance (in_block_i) needs to be calculated in double precision.
     double in_block_f = out_block_start * scale;
     int64_t in_block_i = std::floor(in_block_f);
     float in_pos_start = in_block_f - in_block_i;
