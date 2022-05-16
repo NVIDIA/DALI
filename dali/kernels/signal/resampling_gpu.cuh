@@ -87,7 +87,7 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
     // position, keeping the floats small in order to keep precision. `in_block_f`, used to
     // calculate the reference for distance (in_block_i) needs to be calculated in double precision.
     double in_block_f = out_block_start * scale;
-    int64_t in_block_i = floorf(in_block_f);
+    int64_t in_block_i = floor(in_block_f);
     float in_pos_start = in_block_f - in_block_i;
     const In* in_blk_ptr = in + in_block_i * nchannels;
     float in_pos = in_pos_start + fscale * threadIdx.x;
@@ -110,6 +110,7 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
       }
       out[out_pos - sample.out_begin] = ConvertSatNorm<Out>(out_val);
     } else {  // multiple channels
+      Out *out_ptr = out + (out_pos - sample.out_begin) * nchannels;
       for (int c0 = 0; c0 < nchannels; c0 += SHM_NCHANNELS) {
         int nc = cuda_min(SHM_NCHANNELS, nchannels - c0);
         for (int c = 0; c < nc; c++) {
@@ -119,14 +120,15 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
         for (int i = i0; i < i1; i++) {
           float x = i - in_pos;
           float w = window(x);
+          const In *in_ptr = in_blk_ptr + i * nchannels + c0;
           for (int c = 0; c < nc; c++) {
-            float in_val = ConvertInput<Out, In>(in_blk_ptr[i * nchannels + c]);
+            float in_val = ConvertInput<Out, In>(in_ptr[c]);
             tmp[c] = fma(in_val, w, tmp[c]);
           }
         }
-        Out *out_ptr = out + (out_pos - sample.out_begin) * nchannels;
+
         for (int c = 0; c < nc; c++) {
-          out_ptr[c + c0] = ConvertSatNorm<Out>(tmp[c]);
+          out_ptr[c0 + c] = ConvertSatNorm<Out>(tmp[c]);
         }
       }
     }

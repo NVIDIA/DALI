@@ -222,7 +222,7 @@ struct Resampler {
         Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *__restrict__ in, int64_t n_in, double in_rate) const {
     assert(out_rate > 0 && in_rate > 0 && "Sampling rate must be positive");
-    int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
+    int64_t block = 1 << 8;  // still leaves 15 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
 
@@ -285,7 +285,7 @@ struct Resampler {
     const int num_channels = static_channels < 0 ? dynamic_num_channels : static_channels;
     assert(num_channels > 0);
 
-    int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
+    int64_t block = 1 << 8;  // still leaves 15 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
     SmallVector<float, (static_channels < 0 ? 16 : static_channels)> tmp;

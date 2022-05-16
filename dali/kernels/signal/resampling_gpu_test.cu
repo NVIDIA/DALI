@@ -27,6 +27,10 @@ namespace test {
 
 class ResamplingGPUTest : public ResamplingTest {
  public:
+  ResamplingGPUTest() {
+    this->nsamples_ = 8;
+  }
+
   void RunResampling(span<const Args> args) override {
     ResamplerGPU<float> R;
     R.Initialize(16);
@@ -50,12 +54,11 @@ class ResamplingGPUTest : public ResamplingTest {
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
   }
 
-  void RunPerfTest(int batch_size, int nchannels, int n_iters = 1000) {
-    std::vector<Args> args_v(batch_size, {22050.0f, 16000.0f});
+  void RunPerfTest(int n_iters = 1000) {
+    std::vector<Args> args_v(nsamples_, {22050.0f, 16000.0f});
     auto args = make_cspan(args_v);
-    int nsec = 30;
-
-    this->PrepareData(batch_size, nchannels, args, nsec);
+    this->nsec_ = 30;
+    this->PrepareData(args);
 
     ResamplerGPU<float> R;
     R.Initialize(16);
@@ -95,31 +98,57 @@ class ResamplingGPUTest : public ResamplingTest {
 };
 
 TEST_F(ResamplingGPUTest, SingleChannel) {
-  this->RunTest(8, 1);
+  this->nchannels_ = 1;
+  this->RunTest();
 }
 
 TEST_F(ResamplingGPUTest, TwoChannel) {
-  this->RunTest(3, 2);
+  this->nchannels_ = 2;
+  this->RunTest();
 }
 
 TEST_F(ResamplingGPUTest, EightChannel) {
-  this->RunTest(3, 8);
+  this->nchannels_ = 8;
+  this->RunTest();
 }
 
-TEST_F(ResamplingGPUTest, HundredChannel) {
-  this->RunTest(3, 100);
+TEST_F(ResamplingGPUTest, ThirtyChannel) {
+  this->nchannels_ = 30;
+  this->RunTest();
 }
 
 TEST_F(ResamplingGPUTest, OutBeginEnd) {
-  this->RunTest(3, 1, true);
+  this->roi_start_ = 100;
+  this->roi_end_ = 8000;
+  this->RunTest();
 }
 
 TEST_F(ResamplingGPUTest, EightChannelOutBeginEnd) {
-  this->RunTest(3, 8, true);
+  this->roi_start_ = 100;
+  this->roi_end_ = 8000;
+  this->nchannels_ = 8;
+  this->RunTest();
 }
 
-TEST_F(ResamplingGPUTest, DISABLED_PerfTest) {
-  this->RunPerfTest(64, 1, 1000);
+TEST_F(ResamplingGPUTest, PerfTest) {
+  this->RunPerfTest(1000);
+}
+
+TEST_F(ResamplingGPUTest, SingleChannelNeedHighPrecision) {
+  this->default_freq_in_ = 0.49;
+  this->nsec_ = 400;
+  this->roi_start_ = 4000000;  // enough to look long into the signal
+  this->roi_end_ = 4010000;
+  this->RunTest();
+}
+
+TEST_F(ResamplingGPUTest, ThreeChannelNeedHighPrecision) {
+  this->default_freq_in_ = 0.49;
+  this->nsec_ = 400;
+  this->nchannels_ = 3;
+  this->roi_start_ = 4000000;  // enough to look long into the signal
+  this->roi_end_ = 4010000;
+  this->RunTest();
 }
 
 }  // namespace test
