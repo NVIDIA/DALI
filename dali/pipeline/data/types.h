@@ -87,6 +87,11 @@ inline Copier GetCopier() {
 /**
  * @brief Enum identifiers for the different data types that
  * the pipeline can output.
+ *
+ * IMPORTANT: This enum is used for serialization of DALI Pipeline. Therefore, any change made to
+ * this enum must retain backward compatibility. If the backward compatibility is broken
+ * (e.g. values of enumerations are shuffled), the already serialized pipelines
+ * around the globe will stop working correctly.
  */
 enum DALIDataType : int {
   DALI_NO_TYPE           = -1,

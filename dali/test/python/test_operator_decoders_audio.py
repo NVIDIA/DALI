@@ -50,16 +50,19 @@ create_test_files()
 rate1 = 16000
 rate2 = 12999
 
+
 class DecoderPipeline(Pipeline):
   def __init__(self):
-    super(DecoderPipeline, self).__init__(batch_size=8, num_threads=3, device_id=0,
-                                          exec_async=True, exec_pipelined=True)
+    super().__init__(batch_size=8, num_threads=3, device_id=0, exec_async=True, exec_pipelined=True,
+                     output_dtype=[types.INT16, types.INT16, types.INT16, types.FLOAT,
+                                   types.FLOAT, types.FLOAT, types.FLOAT, types.FLOAT],
+                     output_ndim=[2, 2, 1, 1, 0, 0, 0, 0])
     self.file_source = ops.ExternalSource()
-    self.plain_decoder = ops.decoders.Audio(dtype = types.INT16)
-    self.resampling_decoder = ops.decoders.Audio(sample_rate=rate1, dtype = types.INT16)
-    self.downmixing_decoder = ops.decoders.Audio(downmix=True, dtype = types.INT16)
+    self.plain_decoder = ops.decoders.Audio(dtype=types.INT16)
+    self.resampling_decoder = ops.decoders.Audio(sample_rate=rate1, dtype=types.INT16)
+    self.downmixing_decoder = ops.decoders.Audio(downmix=True, dtype=types.INT16)
     self.resampling_downmixing_decoder = ops.decoders.Audio(sample_rate=rate2, downmix=True,
-                                                            quality=50, dtype = types.FLOAT)
+                                                            quality=50, dtype=types.FLOAT)
 
   def define_graph(self):
     self.raw_file = self.file_source()

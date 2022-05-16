@@ -122,7 +122,7 @@ std::unique_ptr<Pipeline> GetTestPipeline(bool is_file_reader, const std::string
 
   std::vector<std::pair<std::string, std::string>> outputs = {{output_name, output_device}};
 
-  pipe.SetOutputNames(outputs);
+  pipe.SetOutputDescs(outputs);
   return pipe_ptr;
 }
 
@@ -149,7 +149,7 @@ std::unique_ptr<Pipeline> GetExternalSourcePipeline(bool no_copy, const std::str
 
   std::vector<std::pair<std::string, std::string>> outputs = {{output_name, device}};
 
-  pipe.SetOutputNames(outputs);
+  pipe.SetOutputDescs(outputs);
   return pipe_ptr;
 }
 
@@ -239,7 +239,7 @@ TYPED_TEST(CApiTest, GetOutputNameTest) {
   std::vector<std::pair<std::string, std::string>> outputs = {{output0_name, "cpu"},
                                                               {output1_name, "cpu"}};
 
-  pipe.SetOutputNames(outputs);
+  pipe.SetOutputDescs(outputs);
 
   auto serialized = pipe.SerializeToProtobuf();
 
@@ -989,7 +989,7 @@ TEST(CApiTest, CpuOnlyTest) {
   dali::Pipeline pipe(1, 1, dali::CPU_ONLY_DEVICE_ID);
   pipe.AddExternalInput("dummy");
   std::vector<std::pair<std::string, std::string>> outputs = {{"dummy", "cpu"}};
-  pipe.SetOutputNames(outputs);
+  pipe.SetOutputDescs(outputs);
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
@@ -1010,7 +1010,7 @@ TEST(CApiTest, GetBackendTest) {
                           .AddOutput(cont_name, "gpu"), cont_name);
   std::vector<std::pair<std::string, std::string>> outputs = {{es_gpu_name, "gpu"},
                                                               {cont_name, "gpu"}};
-  pipe.SetOutputNames(outputs);
+  pipe.SetOutputDescs(outputs);
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
@@ -1026,7 +1026,7 @@ TEST(CApiTest, GetESDetailsTest) {
   pipe.AddExternalInput("INPUT1", "gpu", DALI_UINT32, -1, "NHWC");
   pipe.AddExternalInput("INPUT2", "cpu");
 
-  pipe.SetOutputNames({{"INPUT3", "cpu"}, {"INPUT1", "gpu"}, {"INPUT2", "cpu"}});
+  pipe.SetOutputDescs({{"INPUT3", "cpu"}, {"INPUT1", "gpu"}, {"INPUT2", "cpu"}});
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
@@ -1054,12 +1054,29 @@ TEST(CApiTest, GetMaxBatchSizeTest) {
   const int BS = 13;
   dali::Pipeline pipe(BS, 1, 0);
   pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
-  pipe.SetOutputNames({{"INPUT", "cpu"}});
+  pipe.SetOutputDescs({{"INPUT", "cpu"}});
   std::string ser = pipe.SerializeToProtobuf();
   daliPipelineHandle handle;
   daliDeserializeDefault(&handle, ser.c_str(), ser.size());
 
   EXPECT_EQ(daliGetMaxBatchSize(&handle), BS);
+
+  daliDeletePipeline(&handle);
+}
+
+TEST(CApiTest, GetDeclaredOutputDtypeNdimTest) {
+  const DALIDataType dtype = DALIDataType::DALI_UINT8;
+  const dali_data_type_t ref_dtype = dali_data_type_t::DALI_UINT8;
+  const int ndim = 2;
+  dali::Pipeline pipe(13, 1, 0);
+  pipe.AddExternalInput("INPUT", "cpu", DALI_FLOAT16, 3, "HWC");
+  pipe.SetOutputDescs({{"INPUT", "cpu", dtype, ndim}});
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+
+  EXPECT_EQ(daliGetDeclaredOutputDtype(&handle, 0), ref_dtype);
+  EXPECT_EQ(daliGetDeclaredOutputNdim(&handle, 0), ndim);
 
   daliDeletePipeline(&handle);
 }

@@ -432,6 +432,26 @@ DLL_PUBLIC size_t daliTensorSize(daliPipelineHandle *pipe_handle, int n);
 DLL_PUBLIC size_t daliMaxDimTensors(daliPipelineHandle *pipe_handle, int n);
 
 /**
+ * @brief Check, what is the declared number of dimensions in the given output.
+ *
+ * Declared number of dimensions is a number, which user can optionally provide
+ * at the pipeline definition stage.
+ *
+ * @param n Index of the output, at which the check is performed.
+ */
+DLL_PUBLIC size_t daliGetDeclaredOutputNdim(daliPipelineHandle *pipe_handle, int n);
+
+/**
+ * @brief Check, what is the declared data type in the given output.
+ *
+ * Declared data type is a type, which user can optionally provide
+ * at the pipeline definition stage.
+ *
+ * @param n Index of the output, at which the check is performed.
+ */
+DLL_PUBLIC dali_data_type_t daliGetDeclaredOutputDtype(daliPipelineHandle *pipe_handle, int n);
+
+/**
  * @brief Returns number of DALI pipeline outputs
  */
 DLL_PUBLIC unsigned daliGetNumOutput(daliPipelineHandle *pipe_handle);
