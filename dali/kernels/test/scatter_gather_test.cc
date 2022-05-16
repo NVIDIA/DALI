@@ -88,79 +88,86 @@ class ScatterGatherTest : public testing::Test {
       CUDA_CALL(cudaMemset(dst, c, size));
     }
   }
+
+  void CopyTestImpl(size_t total_size, size_t max_l, size_t max_block) {
+    std::vector<char> in(total_size);
+    std::vector<char> out(total_size);
+    unsigned seed = 42;
+
+    using kind = std::conditional_t<std::is_same<T, ScatterGatherCPU>::value,
+                                    mm::memory_kind::host, mm::memory_kind::device>;
+
+    auto in_ptr = mm::alloc_raw_unique<char, kind>(in.size());
+    auto out_ptr = mm::alloc_raw_unique<char, kind>(out.size());
+
+    std::vector<detail::CopyRange> ranges;
+    std::vector<detail::CopyRange> back_ranges;
+
+    size_t i = 0, j = 0;
+    for (;;) {
+      detail::CopyRange r;
+
+      if ((rand_r(&seed)&3) == 0) {
+        i += rand_r(&seed) % max_l;
+        j += rand_r(&seed) % max_l;
+      }
+
+      size_t l = rand_r(&seed) % max_l + 1;
+      if (i + l > in.size() || j + l > out.size())
+        break;
+
+      for (size_t x = i; x < i + l; x++)
+          in[x] = rand_r(&seed);
+
+
+      r.src = in_ptr.get() + i;
+      r.dst = out_ptr.get() + j;
+      r.size = l;
+      ranges.push_back(r);
+      r.dst = in_ptr.get() + i;
+      r.src = out_ptr.get() + j;
+      back_ranges.push_back(r);
+
+      i += l;
+      j += l;
+    }
+
+    std::random_shuffle(ranges.begin(), ranges.end());
+    std::random_shuffle(back_ranges.begin(), back_ranges.end());
+
+    this->template Memcpy<kind>(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice);
+    this->template Memset<kind>(out_ptr.get(), 0, out.size());
+
+    T sg(max_block);
+    ThreadPool tp(4, 0, false);
+    // copy
+    for (auto &r : ranges)
+      sg.AddCopy(r.dst, r.src, r.size);
+    this->Run(sg, 0, true, T::Method::Kernel, tp);
+
+    // copy back
+    this->template Memset<kind>(in_ptr.get(), 0, out.size());
+    for (auto &r : back_ranges)
+      sg.AddCopy(r.dst, r.src, r.size);
+    this->Run(sg, 0, true, T::Method::Memcpy, tp);
+
+    this->template Memcpy<kind>(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost);
+
+    EXPECT_EQ(in, out);
+  }
 };
 
 TYPED_TEST_SUITE_P(ScatterGatherTest);
 
-TYPED_TEST_P(ScatterGatherTest, Copy) {
-  const size_t max_l = 1024;
-  std::vector<char> in(1<<20);
-  std::vector<char> out(1<<20);
-  unsigned seed = 42;
-
-  using kind = std::conditional_t<std::is_same<TypeParam, ScatterGatherCPU>::value,
-                                  mm::memory_kind::host, mm::memory_kind::device>;
-
-  auto in_ptr = mm::alloc_raw_unique<char, kind>(in.size());
-  auto out_ptr = mm::alloc_raw_unique<char, kind>(out.size());
-
-  std::vector<detail::CopyRange> ranges;
-  std::vector<detail::CopyRange> back_ranges;
-
-  size_t i = 0, j = 0;
-  for (;;) {
-    detail::CopyRange r;
-
-    if ((rand_r(&seed)&3) == 0) {
-      i += rand_r(&seed) % max_l;
-      j += rand_r(&seed) % max_l;
-    }
-
-    size_t l = rand_r(&seed) % max_l + 1;
-    if (i + l > in.size() || j + l > out.size())
-      break;
-
-    for (size_t x = i; x < i + l; x++)
-        in[x] = rand_r(&seed);
-
-
-    r.src = in_ptr.get() + i;
-    r.dst = out_ptr.get() + j;
-    r.size = l;
-    ranges.push_back(r);
-    r.dst = in_ptr.get() + i;
-    r.src = out_ptr.get() + j;
-    back_ranges.push_back(r);
-
-    i += l;
-    j += l;
-  }
-
-  std::random_shuffle(ranges.begin(), ranges.end());
-  std::random_shuffle(back_ranges.begin(), back_ranges.end());
-
-  this->template Memcpy<kind>(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice);
-  this->template Memset<kind>(out_ptr.get(), 0, out.size());
-
-  TypeParam sg(64);
-  ThreadPool tp(4, 0, false);
-  // copy
-  for (auto &r : ranges)
-    sg.AddCopy(r.dst, r.src, r.size);
-  this->Run(sg, 0, true, TypeParam::Method::Kernel, tp);
-
-  // copy back
-  this->template Memset<kind>(in_ptr.get(), 0, out.size());
-  for (auto &r : back_ranges)
-    sg.AddCopy(r.dst, r.src, r.size);
-  this->Run(sg, 0, true, TypeParam::Method::Memcpy, tp);
-
-  this->template Memcpy<kind>(out.data(), in_ptr.get(), in.size(), cudaMemcpyDeviceToHost);
-
-  EXPECT_EQ(in, out);
+TYPED_TEST_P(ScatterGatherTest, CopyLargeChunks) {
+  this->CopyTestImpl(1 << 20, 65536, 65536);
 }
 
-REGISTER_TYPED_TEST_SUITE_P(ScatterGatherTest, Copy);
+TYPED_TEST_P(ScatterGatherTest, CopySmallChunks) {
+  this->CopyTestImpl(1 << 20, 1024, 1024);
+}
+
+REGISTER_TYPED_TEST_SUITE_P(ScatterGatherTest, CopyLargeChunks, CopySmallChunks);
 
 using ScatterGatherTypes = ::testing::Types<ScatterGatherCPU, ScatterGatherGPU>;
 INSTANTIATE_TYPED_TEST_SUITE_P(ScatterGatherSuite, ScatterGatherTest, ScatterGatherTypes);

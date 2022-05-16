@@ -46,7 +46,7 @@ ScatterGatherPool& ScatterGatherPoolInstance() {
 
 void ScatterGatherCopy(void **dsts, const void **srcs, const Index *sizes, int n, int element_size,
                        cudaStream_t stream) {
-  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock, n);
+  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock);
   for (int i = 0; i < n; i++) {
     sc->AddCopy(dsts[i], srcs[i], sizes[i] * element_size);
   }
@@ -55,7 +55,7 @@ void ScatterGatherCopy(void **dsts, const void **srcs, const Index *sizes, int n
 
 void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, int element_size,
                        cudaStream_t stream) {
-  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock, n);
+  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock);
   auto *sample_dst = reinterpret_cast<uint8_t*>(dst);
   for (int i = 0; i < n; i++) {
     auto nbytes = sizes[i] * element_size;
@@ -67,7 +67,7 @@ void ScatterGatherCopy(void *dst, const void **srcs, const Index *sizes, int n, 
 
 void ScatterGatherCopy(void **dsts, const void *src, const Index *sizes, int n, int element_size,
                        cudaStream_t stream) {
-  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock, n);
+  auto sc = ScatterGatherPoolInstance().Get(stream, kMaxSizePerBlock);
   auto *sample_src = reinterpret_cast<const uint8_t*>(src);
   for (int i = 0; i < n; i++) {
     auto nbytes = sizes[i] * element_size;
