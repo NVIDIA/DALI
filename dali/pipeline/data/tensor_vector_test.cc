@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
+
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/tensor_vector.h"
@@ -40,6 +41,8 @@ class TensorVectorSuite : public ::testing::Test {
 };
 
 typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
+
+constexpr cudaStream_t cuda_stream = 0;
 
 TYPED_TEST_SUITE(TensorVectorSuite, Backends);
 
@@ -181,6 +184,49 @@ TYPED_TEST(TensorVectorSuite, EmptyShareNonContiguous) {
   }
 }
 
+template <typename Backend, typename F>
+void test_moving_props(const bool is_pinned, const TensorLayout layout,
+                       const TensorListShape<> shape, const int sample_dim, const DALIDataType type,
+                       F &&mover) {
+  constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
+  const auto order = is_device ? AccessOrder(cuda_stream) : AccessOrder::host();
+  TensorVector<Backend> tv;
+  tv.set_pinned(is_pinned);
+  tv.set_order(order);
+  tv.set_sample_dim(sample_dim);
+  tv.Resize(shape, type);
+  tv.SetLayout(layout);
+
+  const auto check = [&](auto &moved) {
+    EXPECT_EQ(moved.order(), order);
+    EXPECT_EQ(moved.GetLayout(), layout);
+    EXPECT_EQ(moved.sample_dim(), sample_dim);
+    EXPECT_EQ(moved.shape(), shape);
+    EXPECT_EQ(moved.type(), type);
+    EXPECT_EQ(moved.is_pinned(), is_pinned);
+  };
+  mover(check, tv);
+}
+
+TYPED_TEST(TensorVectorSuite, MoveConstructorMetaData) {
+  test_moving_props<TypeParam>(true, "XYZ",
+                               {{42, 1, 2}, {1, 2, 42}, {2, 42, 1}, {1, 42, 1}, {2, 42, 2}}, 3,
+                               DALI_UINT16, [](auto &&check, auto &tv) {
+                                 TensorVector<TypeParam> moved{std::move(tv)};
+                                 check(moved);
+                               });
+}
+
+TYPED_TEST(TensorVectorSuite, MoveAssignmentMetaData) {
+  test_moving_props<TypeParam>(true, "XYZ",
+                               {{42, 1, 2}, {1, 2, 42}, {2, 42, 1}, {1, 42, 1}, {2, 42, 2}}, 3,
+                               DALI_UINT16, [](auto &&check, auto &tv) {
+                                 TensorVector<TypeParam> moved(2);
+                                 moved = std::move(tv);
+                                 check(moved);
+                               });
+}
+
 namespace {
 
 /**
@@ -208,8 +254,8 @@ template <typename T, typename U>
           << make_string("[Testing: ", testing_values, "] Inconsistent shapes");
     }
     auto vol = volume(rhs.tensor_shape(tensor_idx));
-    auto lptr = reinterpret_cast<const char*>(lhs.raw_tensor(tensor_idx));
-    auto rptr = reinterpret_cast<const char*>(rhs.raw_tensor(tensor_idx));
+    auto lptr = reinterpret_cast<const char *>(lhs.raw_tensor(tensor_idx));
+    auto rptr = reinterpret_cast<const char *>(rhs.raw_tensor(tensor_idx));
     for (int i = 0; i < vol; i++) {
       if (rptr[i] != lptr[i]) {
         return ::testing::AssertionFailure()
