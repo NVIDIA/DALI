@@ -64,7 +64,7 @@ struct ResamplingWindow {
   };
 
   inline DALI_HOST_DEV InputRange input_range(float x) const {
-    int xc = std::ceil(x);
+    int xc = ceilf(x);
     int i0 = xc - lobes;
     int i1 = xc + lobes;
     return {i0, i1};
@@ -76,7 +76,7 @@ struct ResamplingWindow {
    */
   inline DALI_HOST_DEV float operator()(float x) const {
     float fi = x * scale + center;
-    float floori = std::floor(fi);
+    float floori = floorf(fi);
     float di = fi - floori;
     int i = floori;
     assert(i >= 0 && i < lookup_size);
