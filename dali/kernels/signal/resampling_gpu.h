@@ -48,11 +48,17 @@ class ResamplerGPU {
       auto in_sh = in.shape.tensor_shape_span(i);
       auto out_sh = out_shape.tensor_shape_span(i);
       auto &arg = args[i];
-      if (arg.out_begin > 0 || arg.out_end > 0) {
-        out_sh[0] = arg.out_end - arg.out_begin;
-      } else {
-        out_sh[0] = resampled_length(in_sh[0], arg.in_rate, arg.out_rate);
-      }
+      auto out_len = resampled_length(in_sh[0], arg.in_rate, arg.out_rate);
+      auto out_begin = arg.out_begin > 0 ? arg.out_begin : 0;
+      auto out_end = arg.out_end > 0 ? arg.out_end : out_len;
+      if (out_end < out_begin)
+        throw std::invalid_argument(
+            make_string("out_begin can't be larger than out_end. Got out_begin=", out_begin,
+                        ", out_end=", out_end));
+      if (out_end > out_len)
+        throw std::invalid_argument(make_string(
+            "out_end can't be outside of the range of the output signal: [0, ", out_len, ")"));
+      out_sh[0] = out_end - out_begin;
     }
     req.output_shapes = {out_shape};
     return req;
