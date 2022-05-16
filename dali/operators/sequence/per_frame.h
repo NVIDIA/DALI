@@ -25,10 +25,11 @@
 
 namespace dali {
 
-class PerFrame : public Operator<CPUBackend> {
+template <typename Backend>
+class PerFrame : public Operator<Backend> {
  public:
   inline explicit PerFrame(const OpSpec &spec)
-      : Operator<CPUBackend>(spec), replace_(spec.GetArgument<bool>("replace")) {}
+      : Operator<Backend>(spec), replace_(spec.GetArgument<bool>("replace")) {}
 
  protected:
   bool CanInferOutputs() const override {
@@ -37,17 +38,17 @@ class PerFrame : public Operator<CPUBackend> {
     return false;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
-    const auto &input = ws.template Input<CPUBackend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    const auto &input = ws.template Input<Backend>(0);
     output_desc.resize(1);
     output_desc[0].type = input.type_info().id();
     output_desc[0].shape = input.shape();
     return false;
   }
 
-  void RunImpl(HostWorkspace &ws) override {
-    auto &in = ws.Input<CPUBackend>(0);
-    auto &out = ws.Output<CPUBackend>(0);
+  void RunImpl(workspace_t<Backend> &ws) override {
+    auto &in = ws.template Input<Backend>(0);
+    auto &out = ws.template Output<Backend>(0);
     out.ShareData(in);
     auto layout = in.GetLayout();
     auto sample_dim = in.sample_dim();
