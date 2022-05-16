@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,11 +62,11 @@ class ReshapePipeline(Pipeline):
         return [images+0, reshaped]
 
 def CollapseChannels(image):
-  new_shape = np.array([ image.shape[0], image.shape[1] * image.shape[2] ]).astype(np.int)
+  new_shape = np.array([ image.shape[0], image.shape[1] * image.shape[2] ]).astype(np.int32)
   return new_shape
 
 def CollapseChannelsWildcard(image):
-  new_shape = np.array([ image.shape[0], -1 ]).astype(np.int)
+  new_shape = np.array([ image.shape[0], -1 ]).astype(np.int32)
   return new_shape
 
 class ReshapeWithInput(Pipeline):
@@ -94,7 +94,7 @@ def MakeTallFunc(relative, wildcard):
         return np.array([ -1 if wildcard else 2, 0.5, 1]).astype(np.float32)
     else:
         h, w, c = image.shape
-        return np.array([ -1 if wildcard else 2*h, w/2, c]).astype(np.int)
+        return np.array([ -1 if wildcard else 2*h, w/2, c]).astype(np.int32)
   return func
 
 class ReshapeWithArgInput(Pipeline):

@@ -85,7 +85,7 @@ def layout_str(dim, channel_first):
 def resize2D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample):
     if channel_first:
         input = input.transpose([1,2,0])
-    size = list(reversed(size.astype(np.int).tolist()))
+    size = list(reversed(size.astype(np.int32).tolist()))
     roi_start = reversed(roi_start.tolist())
     roi_end = reversed(roi_end.tolist())
 
