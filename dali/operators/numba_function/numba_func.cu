@@ -56,20 +56,20 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 
   blocks_ = spec.GetRepeatedArgument<int>("blocks");
   DALI_ENFORCE(blocks_.size() == 3, make_string(
-    "`blocks` array should contain 3 numbers."));
+    "`blocks` array should contain 3 numbers, while received: ", blocks_.size()));
   for (size_t i = 0; i < blocks_.size(); i++) {
     DALI_ENFORCE(blocks_[i] >= 0, make_string(
       "All dimensions should be positive. Value specified in "
-      "`blocks` at index ", i, " is nonpositive."));
+      "`blocks` at index ", i, " is nonpositive: ", blocks_[i]));
   }
 
   threads_per_block_ = spec.GetRepeatedArgument<int>("threads_per_block");
   DALI_ENFORCE(threads_per_block_.size() == 3, make_string(
-    "`blocks` array should contain 3 numbers."));
+    "`threads_per_block` array should contain 3 numbers, while received: ", threads_per_block_.size()));
   for (size_t i = 0; i < threads_per_block_.size(); i++) {
     DALI_ENFORCE(threads_per_block_[i] >= 0, make_string(
       "All dimensions should be positive. Value specified in "
-      "`blocks` at index ", i, " is nonpositive."));
+      "`blocks` at index ", i, " is nonpositive: ", threads_per_block_[i]));
   }
 }
 
