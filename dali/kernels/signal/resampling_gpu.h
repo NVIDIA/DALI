@@ -17,12 +17,8 @@
 
 #include <cuda_runtime.h>
 #include "dali/kernels/signal/resampling.h"
-#include "dali/kernels/signal/resampling_gpu.cuh"
 #include "dali/kernels/kernel.h"
-#include "dali/kernels/dynamic_scratchpad.h"
-#include "dali/core/mm/memory.h"
 #include "dali/core/dev_buffer.h"
-#include "dali/core/static_switch.h"
 
 namespace dali {
 namespace kernels {
@@ -30,92 +26,41 @@ namespace signal {
 
 namespace resampling {
 
-template <typename OutputType = float, typename InputType = OutputType>
-class ResamplerGPU {
+template <typename Out = float, typename In = Out>
+class DLL_PUBLIC ResamplerGPU {
  public:
-  void Initialize(int lobes = 16, int lookup_size = 2048) {
-    windowed_sinc(window_cpu_, lookup_size, lobes);
-    window_gpu_storage_.from_host(window_cpu_.storage);
-    window_gpu_ = window_cpu_;
-    window_gpu_.lookup = window_gpu_storage_.data();
-  }
+  void Initialize(int lobes = 16, int lookup_size = 2048);
 
-  KernelRequirements Setup(KernelContext &context, const InListGPU<InputType> &in,
-                           span<const Args> args) {
-    KernelRequirements req;
-    auto out_shape = in.shape;
-    for (int i = 0; i < in.num_samples(); i++) {
-      auto in_sh = in.shape.tensor_shape_span(i);
-      auto out_sh = out_shape.tensor_shape_span(i);
-      auto &arg = args[i];
-      auto out_len = resampled_length(in_sh[0], arg.in_rate, arg.out_rate);
-      auto out_begin = arg.out_begin > 0 ? arg.out_begin : 0;
-      auto out_end = arg.out_end > 0 ? arg.out_end : out_len;
-      if (out_end < out_begin)
-        throw std::invalid_argument(
-            make_string("out_begin can't be larger than out_end. Got out_begin=", out_begin,
-                        ", out_end=", out_end));
-      if (out_end > out_len)
-        throw std::invalid_argument(make_string(
-            "out_end can't be outside of the range of the output signal: [0, ", out_len, ")"));
-      out_sh[0] = out_end - out_begin;
-    }
-    req.output_shapes = {out_shape};
-    return req;
-  }
+  KernelRequirements Setup(KernelContext &context, const InListGPU<In> &in, span<const Args> args);
 
-  void Run(KernelContext &context, const OutListGPU<OutputType> &out,
-           const InListGPU<InputType> &in, span<const Args> args) {
-    if (window_gpu_storage_.empty())
-      Initialize();
-
-    assert(context.scratchpad);
-    auto &scratch = *context.scratchpad;
-
-    int nsamples = in.num_samples();
-    auto samples_cpu =
-        make_span(scratch.Allocate<mm::memory_kind::pinned, SampleDesc>(nsamples), nsamples);
-
-    bool any_multichannel = false;
-    for (int i = 0; i < nsamples; i++) {
-      auto &desc = samples_cpu[i];
-      desc.in = in[i].data;
-      desc.out = out[i].data;
-      desc.window = window_gpu_;
-      const auto &in_sh = in[i].shape;
-      const auto &out_sh = out[i].shape;
-      desc.in_len = in_sh[0];
-      auto &arg = args[i];
-      desc.out_begin = arg.out_begin > 0 ? arg.out_begin : 0;
-      desc.out_end = arg.out_end > 0 ? arg.out_end :
-                                       resampled_length(in_sh[0], arg.in_rate, arg.out_rate);
-      assert((desc.out_end - desc.out_begin) == out_sh[0]);
-      desc.nchannels = in[i].shape.sample_dim() > 1 ? in_sh[1] : 1;
-      desc.scale = arg.in_rate / arg.out_rate;
-      any_multichannel |= desc.nchannels > 1;
-    }
-
-    auto samples_gpu = scratch.ToGPU(context.gpu.stream, samples_cpu);
-
-    dim3 block(256, 1);
-    int blocks_per_sample = std::max(32, 1024 / nsamples);
-    dim3 grid(blocks_per_sample, nsamples);
-
-    // window coefficients and temporary per channel out values
-    size_t shm_size = (window_gpu_storage_.size() + (SHM_NCHANNELS + 1) * block.x) * sizeof(float);
-
-    BOOL_SWITCH(!any_multichannel, SingleChannel, (
-      ResampleGPUKernel<OutputType, InputType, SingleChannel>
-        <<<grid, block, shm_size, context.gpu.stream>>>(samples_gpu);
-    ));  // NOLINT
-    CUDA_CALL(cudaGetLastError());
-  }
+  void Run(KernelContext &context, const OutListGPU<Out> &out,
+           const InListGPU<In> &in, span<const Args> args);
 
  private:
   ResamplingWindowCPU window_cpu_;
   ResamplingWindow window_gpu_;
   DeviceBuffer<float> window_gpu_storage_;
 };
+
+#define DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, Out)\
+  linkage template class ResamplerGPU<Out, float>; \
+  linkage template class ResamplerGPU<Out, int8_t>; \
+  linkage template class ResamplerGPU<Out, uint8_t>; \
+  linkage template class ResamplerGPU<Out, int16_t>; \
+  linkage template class ResamplerGPU<Out, uint16_t>; \
+  linkage template class ResamplerGPU<Out, int32_t>; \
+  linkage template class ResamplerGPU<Out, uint32_t>; \
+
+#define DALI_INSTANTIATE_RESAMPLER_GPU(linkage) \
+  DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, float) \
+  DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, int8_t) \
+  DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, uint8_t) \
+  DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, int16_t) \
+  DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, uint16_t) \
+  DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, int32_t) \
+  DALI_INSTANTIATE_RESAMPLER_GPU_OUT(linkage, uint32_t)
+
+DALI_INSTANTIATE_RESAMPLER_GPU(extern)
 
 }  // namespace resampling
 }  // namespace signal

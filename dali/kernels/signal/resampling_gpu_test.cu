@@ -17,6 +17,7 @@
 #include <numeric>
 #include "dali/kernels/signal/resampling_gpu.h"
 #include "dali/kernels/signal/resampling_test.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/core/cuda_event.h"
 
 namespace dali {
