@@ -36,6 +36,11 @@ namespace signal {
 
 namespace resampling {
 
+struct Args {
+  double in_rate = 1, out_rate = 1;
+  int64_t out_begin = 0, out_end = -1;  // default values result in the whole range
+};
+
 inline double Hann(double x) {
   return 0.5 * (1 + std::cos(x * M_PI));
 }
@@ -54,19 +59,27 @@ inline float32x4_t vsetq_f32(float x0, float x1, float x2, float x3) {
 #endif
 
 struct ResamplingWindow {
-  inline std::pair<int, int> input_range(float x) const {
-    int xc = std::ceil(x);
+  struct InputRange {
+    int i0, i1;
+  };
+
+  inline DALI_HOST_DEV InputRange input_range(float x) const {
+    int xc = ceilf(x);
     int i0 = xc - lobes;
     int i1 = xc + lobes;
     return {i0, i1};
   }
 
-  inline float operator()(float x) const {
+  /**
+   * @brief Calculates the window coefficient at an arbitrary floating point position
+   *        by interpolating between two samples.
+   */
+  inline DALI_HOST_DEV float operator()(float x) const {
     float fi = x * scale + center;
-    float floori = std::floor(fi);
+    float floori = floorf(fi);
     float di = fi - floori;
     int i = floori;
-    assert(i >= 0 && i < static_cast<int>(lookup.size()));
+    assert(i >= 0 && i < lookup_size);
     return lookup[i] + di * (lookup[i + 1] - lookup[i]);
   }
 
@@ -112,25 +125,32 @@ struct ResamplingWindow {
 
   float scale = 1, center = 1;
   int lobes = 0, coeffs = 0;
-  std::vector<float> lookup;
+  int lookup_size = 0;
+  const float *lookup = nullptr;
 };
 
-inline void windowed_sinc(ResamplingWindow &window,
+struct ResamplingWindowCPU : ResamplingWindow {
+  std::vector<float> storage;
+};
+
+inline void windowed_sinc(ResamplingWindowCPU &window,
     int coeffs, int lobes, std::function<double(double)> envelope = Hann) {
   assert(coeffs > 1 && lobes > 0 && "Degenerate parameters specified.");
   float scale = 2.0f * lobes / (coeffs - 1);
   float scale_envelope = 2.0f / coeffs;
   window.coeffs = coeffs;
   window.lobes = lobes;
-  window.lookup.clear();
-  window.lookup.resize(coeffs + 5);  // add zeros and a full 4-lane vector
+  window.storage.clear();
+  window.storage.resize(coeffs + 5);  // add zeros and a full 4-lane vector
   int center = (coeffs - 1) * 0.5f;
   for (int i = 0; i < coeffs; i++) {
     float x = (i - center) * scale;
     float y = (i - center) * scale_envelope;
     float w = sinc(x) * envelope(y);
-    window.lookup[i + 1] = w;
+    window.storage[i + 1] = w;
   }
+  window.lookup = window.storage.data();
+  window.lookup_size = window.storage.size();
   window.center = center + 1;  // allow for leading zero
   window.scale = 1 / scale;
 }
@@ -141,7 +161,7 @@ inline int64_t resampled_length(int64_t in_length, double in_rate, double out_ra
 }
 
 struct Resampler {
-  ResamplingWindow window;
+  ResamplingWindowCPU window;
 
   void Initialize(int lobes = 16, int lookup_size = 2048) {
     windowed_sinc(window, lookup_size, lobes);
@@ -202,7 +222,7 @@ struct Resampler {
         Out *__restrict__ out, int64_t out_begin, int64_t out_end, double out_rate,
         const float *__restrict__ in, int64_t n_in, double in_rate) const {
     assert(out_rate > 0 && in_rate > 0 && "Sampling rate must be positive");
-    int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
+    int64_t block = 1 << 8;  // still leaves 15 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
 
@@ -213,8 +233,9 @@ struct Resampler {
       float in_pos = in_block_f - in_block_i;
       const float *__restrict__ in_block_ptr = in + in_block_i;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
-        int i0, i1;
-        std::tie(i0, i1) = window.input_range(in_pos);
+        auto irange = window.input_range(in_pos);
+        int i0 = irange.i0;
+        int i1 = irange.i1;
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i > n_in)
@@ -229,7 +250,8 @@ struct Resampler {
           f += in_block_ptr[i] * w;
         }
         assert(out_pos >= out_begin && out_pos < out_end);
-        out[out_pos] = ConvertSatNorm<Out>(f);
+        auto rel_pos = out_pos - out_begin;
+        out[rel_pos] = ConvertSatNorm<Out>(f);
       }
     }
   }
@@ -263,7 +285,7 @@ struct Resampler {
     const int num_channels = static_channels < 0 ? dynamic_num_channels : static_channels;
     assert(num_channels > 0);
 
-    int64_t block = 1 << 10;  // still leaves 13 significant bits for fractional part
+    int64_t block = 1 << 8;  // still leaves 15 significant bits for fractional part
     double scale = in_rate / out_rate;
     float fscale = scale;
     SmallVector<float, (static_channels < 0 ? 16 : static_channels)> tmp;
@@ -275,8 +297,9 @@ struct Resampler {
       float in_pos = in_block_f - in_block_i;
       const float *__restrict__ in_block_ptr = in + in_block_i * num_channels;
       for (int64_t out_pos = out_block; out_pos < block_end; out_pos++, in_pos += fscale) {
-        int i0, i1;
-        std::tie(i0, i1) = window.input_range(in_pos);
+        auto irange = window.input_range(in_pos);
+        int i0 = irange.i0;
+        int i1 = irange.i1;
         if (i0 + in_block_i < 0)
           i0 = -in_block_i;
         if (i1 + in_block_i > n_in)
@@ -297,8 +320,9 @@ struct Resampler {
           }
         }
         assert(out_pos >= out_begin && out_pos < out_end);
+        auto rel_pos = out_pos - out_begin;
         for (int c = 0; c < num_channels; c++)
-          out[out_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
+          out[rel_pos * num_channels + c] = ConvertSatNorm<Out>(tmp[c]);
       }
     }
   }
