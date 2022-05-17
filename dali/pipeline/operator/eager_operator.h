@@ -36,12 +36,12 @@
 namespace dali {
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(const std::shared_ptr<TensorList<Backend>> in) {
+std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Backend>> in) {
   return in;
 }
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(const std::shared_ptr<TensorVector<Backend>> in) {
+std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<Backend>> in) {
   if (in->IsContiguous()) {
     // Filled contiguous TensorVector, we can return TensorList directly.
     auto tl = in->AsTensorList(false);
@@ -72,6 +72,7 @@ struct Backend2Types<CPUBackend> {
   using OutBackend = CPUBackend;
   using WSInputType = TensorVector<CPUBackend>;
   using WSOutputType = TensorVector<CPUBackend>;
+  static const std::string name;
 };
 
 template <>
@@ -80,6 +81,7 @@ struct Backend2Types<GPUBackend> {
   using OutBackend = GPUBackend;
   using WSInputType = TensorList<GPUBackend>;
   using WSOutputType = TensorList<GPUBackend>;
+  static const std::string name;
 };
 
 template <>
@@ -88,7 +90,12 @@ struct Backend2Types<MixedBackend> {
   using OutBackend = GPUBackend;
   using WSInputType = TensorVector<CPUBackend>;
   using WSOutputType = TensorList<GPUBackend>;
+  static const std::string name;
 };
+
+const std::string Backend2Types<CPUBackend>::name = "CPU";
+const std::string Backend2Types<GPUBackend>::name = "GPU";
+const std::string Backend2Types<MixedBackend>::name = "Mixed";
 
 /**
  * @brief Direct operator providing eager execution of an operator in Run.
@@ -120,25 +127,19 @@ class DLL_PUBLIC EagerOperator {
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-      int batch_size = -1) {
-    DALI_FAIL("Unsupported backends in EagerOperator.Run().");
-  }
+      int batch_size = -1);
 
   // Runs operator using specified thread pool.
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-      ThreadPool *tp, int batch_size = -1) {
-    DALI_FAIL("Unsupported backends in EagerOperator.Run() with thread pool.");
-  }
+      ThreadPool *tp, int batch_size = -1);
 
   // Runs operator using specified CUDA stream.
   DLL_PUBLIC std::vector<std::shared_ptr<TensorList<OutBackend>>> Run(
       const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-      CUDAStreamLease &cuda_stream, int batch_size = -1) {
-    DALI_FAIL("Unsupported backends in EagerOperator.Run() with CUDA stream");
-  }
+      CUDAStreamLease &cuda_stream, int batch_size = -1);
 
   // Update shared thread pool used for all direct operators.
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
@@ -180,54 +181,13 @@ class DLL_PUBLIC EagerOperator {
   static std::unique_ptr<ThreadPool> shared_thread_pool;
 };
 
-template <>
-std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::Run(
-    const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+template <typename Backend>
+std::vector<std::shared_ptr<TensorList<typename EagerOperator<Backend>::OutBackend>>>
+EagerOperator<Backend>::Run(
+    const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-    ThreadPool *thread_pool, int batch_size) {
-  try {
-    DomainTimeRange tr("[DALI][CPU op] " + name_, DomainTimeRange::kBlue1);
-    ws_.Clear();
-    ws_.SetThreadPool(thread_pool);
-
-    return RunImpl(inputs, kwargs, batch_size);
-  } catch (std::exception &e) {
-    throw std::runtime_error(ExtendErrorMsg("CPU", e.what()));
-  }
-}
-
-template <>
-std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<GPUBackend>::Run(
-    const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
-    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-    CUDAStreamLease &cuda_stream, int batch_size) {
-  try {
-    DomainTimeRange tr("[DALI][GPU op] " + name_, DomainTimeRange::knvGreen);
-    ws_.Clear();
-    ws_.set_stream(cuda_stream);
-    auto output = RunImpl(inputs, kwargs, batch_size);
-    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
-    return output;
-  } catch (std::exception &e) {
-    throw std::runtime_error(ExtendErrorMsg("GPU", e.what()));
-  }
-}
-
-template <>
-std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<MixedBackend>::Run(
-    const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
-    const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-    CUDAStreamLease &cuda_stream, int batch_size) {
-  try {
-    DomainTimeRange tr("[DALI][Mixed op] " + name_, DomainTimeRange::kOrange);
-    ws_.Clear();
-    ws_.set_stream(cuda_stream);
-    auto output = RunImpl(inputs, kwargs, batch_size);
-    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
-    return output;
-  } catch (std::exception &e) {
-    throw std::runtime_error(ExtendErrorMsg("Mixed", e.what()));
-  }
+    int batch_size) {
+  return Run(inputs, kwargs, shared_cuda_stream, batch_size);
 }
 
 template <>
@@ -238,20 +198,41 @@ std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::
   return Run(inputs, kwargs, shared_thread_pool.get(), batch_size);
 }
 
-template <>
-std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<GPUBackend>::Run(
-    const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
+template <typename Backend>
+std::vector<std::shared_ptr<TensorList<typename EagerOperator<Backend>::OutBackend>>>
+EagerOperator<Backend>::Run(
+    const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-    int batch_size) {
-  return Run(inputs, kwargs, shared_cuda_stream, batch_size);
+    ThreadPool *thread_pool, int batch_size) {
+  try {
+    DomainTimeRange tr("[DALI][" + Backend2Types<Backend>::name + " op] " + name_,
+                       DomainTimeRange::kBlue1);
+    ws_.Clear();
+    ws_.SetThreadPool(thread_pool);
+
+    return RunImpl(inputs, kwargs, batch_size);
+  } catch (std::exception &e) {
+    throw std::runtime_error(ExtendErrorMsg(Backend2Types<Backend>::name, e.what()));
+  }
 }
 
-template <>
-std::vector<std::shared_ptr<TensorList<GPUBackend>>> EagerOperator<MixedBackend>::Run(
-    const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
+template <typename Backend>
+std::vector<std::shared_ptr<TensorList<typename EagerOperator<Backend>::OutBackend>>>
+EagerOperator<Backend>::Run(
+    const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
-    int batch_size) {
-  return Run(inputs, kwargs, shared_cuda_stream, batch_size);
+    CUDAStreamLease &cuda_stream, int batch_size) {
+  try {
+    DomainTimeRange tr("[DALI][" + Backend2Types<Backend>::name + " op] " + name_,
+                       DomainTimeRange::knvGreen);
+    ws_.Clear();
+    ws_.set_stream(cuda_stream);
+    auto output = RunImpl(inputs, kwargs, batch_size);
+    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    return output;
+  } catch (std::exception &e) {
+    throw std::runtime_error(ExtendErrorMsg("GPU", e.what()));
+  }
 }
 
 template <typename Backend>

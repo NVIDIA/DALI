@@ -310,7 +310,7 @@ def kwargs_len_change():
     return fn.cat(*inputs, **kwargs)
 
 
-@raises(RuntimeError, glob='Trying to use operator * with different number of keyward arguments than when it was built.')
+@raises(RuntimeError, glob='Trying to use operator * with different number of keyword arguments than when it was built.')
 def test_kwargs_len_change():
     kwargs_len_change.change = True
     pipe = kwargs_len_change()

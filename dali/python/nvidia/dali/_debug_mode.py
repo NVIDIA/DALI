@@ -411,7 +411,7 @@ class _OperatorManager:
     def run(self, inputs, kwargs):
         """Checks correctness of inputs and kwargs and runs the backend operator."""
         self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
-        self._check_arg_len(len(self._kwargs_classification), len(kwargs), 'keyward arguments')
+        self._check_arg_len(len(self._kwargs_classification), len(kwargs), 'keyword arguments')
 
         call_args = {}
         inputs = list(inputs)

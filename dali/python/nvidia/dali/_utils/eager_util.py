@@ -42,8 +42,8 @@ class _Classification:
         data: Data to be classified.
         type_name (str): Representation of argument type (input or keyword).
         arg_constant_len (int): Only applicable for argument inputs that are of array type
-            (e.g. numpy array). If -1 does not modify the data. For positive value treats works
-            like `:class:ops.Constant`, repeats the data `arg_constant_len` times.
+            (e.g. numpy array). If -1 does not modify the data. For positive value works like
+            `:class:ops.Constant`, repeats the data `arg_constant_len` times.
     """
 
     def __init__(self, data, type_name, arg_constant_len=-1):

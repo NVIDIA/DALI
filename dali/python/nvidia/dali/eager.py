@@ -21,7 +21,7 @@ import nvidia.dali.tensors as _tensors
 from nvidia.dali._utils.eager_util import _Classification, _transform_data_to_tensorlist
 
 
-_statefull_operators = {
+_stateful_operators = {
     'decoders__ImageRandomCrop',
     'noise__Gaussian',
     'noise__SaltAndPepper',
@@ -184,7 +184,17 @@ def _prep_kwargs(kwargs, batch_size):
     return kwargs
 
 
+def _desc_call_args(inputs, args):
+    """Returns string description of call arguments (inputs and input arguments) to use as part of
+    the caching key."""
+    return str([(inp.dtype, inp.layout(), inp.shape()) for inp in inputs]) + str(sorted(
+        [(key, value.dtype, value.layout(), value.shape()) for key, value in args.items()]))
+
+
 def _wrap_stateless(op_class, op_name, wrapper_name):
+    """Wraps stateless Eager Operator in a function. Callable the same way as functions in fn API,
+    but directly with TensorLists.
+    """
     def wrapper(*inputs, **kwargs):
         _disqualify_arguments(wrapper_name, kwargs, _wrap_stateless.disqualified_arguments)
 
@@ -199,8 +209,10 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
         init_args['max_batch_size'] = batch_size
         init_args['device'], init_args['device_id'] = _choose_device(
             op_name, wrapper_name, inputs, kwargs.get('device'))
-
-        key = op_name + str(sorted(init_args.items()))
+        
+        # Creating cache key consisting of operator name, description of inputs, input arguments
+        # and init args. Each call arg is described by dtype, layout and shape.
+        key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
 
         if key not in _stateless_operators_cache:
             _stateless_operators_cache[key] = _stateless_op_factory(
@@ -219,12 +231,23 @@ _wrap_stateless.disqualified_arguments = {
 
 
 def _wrap_eager_op(op_class, submodule, wrapper_name, wrapper_doc):
+    """Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
+    Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
+    eager operators.
+
+    Args:
+        op_class: Op class to wrap.
+        submodule: Additional submodule (scope).
+        wrapper_name: Wrapper name (the same as in fn API).
+        wrapper_doc (str): Documentation of the wrapper function.
+    """
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
-    if op_schema.IsDeprecated() or op_name in _statefull_operators or op_name in _generator_operators:
+    if op_schema.IsDeprecated() or op_name in _stateful_operators or op_name in _generator_operators:
         # TODO(ksztenderski): For now only exposing stateless operators.
         return
     else:
+        # If operator is not stateful or a generator expose it as stateless.
         wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
     # Exposing to eager.experimental module.
