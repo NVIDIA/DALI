@@ -30,13 +30,29 @@ namespace dali {
 namespace gds {
 
 static size_t GetGDSChunkSizeEnv() {
-  if (char *env = getenv("DALI_GDS_CHUNK_SIZE")) {
+  char *env = getenv("DALI_GDS_CHUNK_SIZE");
+  int len = 0;
+  if (env && (len = strlen(env))) {
+    for (int i = 0; i < len; i++) {
+      bool valid = std::isdigit(env[i]) || (i == len - 1 && (env[i] == 'k' || env[i] == 'M'));
+      if (!valid) {
+        DALI_FAIL(make_string(
+          "DALI_GDS_CHUNK_SIZE must be a number, optionally followed by 'k' or 'M', got: ",
+          env));
+      }
+    }
     size_t s = atoll(env);
-    DALI_ENFORCE(!is_pow2(s), "GDS chunk size must be a power of 2");
+    if (env[len-1] == 'k')
+      s <<= 10;
+    else if (env[len-1] == 'M')
+      s <<= 20;
+    DALI_ENFORCE(is_pow2(s), make_string("GDS chunk size must be a power of two, got ", s));
     DALI_ENFORCE(s >= kGDSAlignment && s <= (16 << 20),
-      make_string("GDS chunk size must be a power of two between ", kGDSAlignment, " and 16 M"));
+      make_string("GDS chunk size must be a power of two between ",
+                  kGDSAlignment, " and 16 M, got: ", s));
     return s;
   } else {
+    // not set or empty
     return 2 << 20;  // default - 2 MiB
   }
 }
