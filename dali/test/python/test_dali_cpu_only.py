@@ -611,7 +611,7 @@ def test_nemo_asr_reader_cpu():
                                             read_sample_rate=True, read_text=True, seed=fixed_seed)
 
 def test_video_reader():
-    check_no_input(fn.experimental.readers.video, filenames=video_files, labels=list(range(len(video_files))), sequence_length=10)
+    check_no_input(fn.experimental.readers.video, filenames=video_files, labels=[0, 1], sequence_length=10)
 
 def test_copy_cpu():
     check_single_input(fn.copy)
