@@ -20,44 +20,17 @@
 
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/operators/reader/loader/video/video_loader_decoder_base.h"
+
 
 namespace dali {
-class VideoSampleDesc {
- public:
-  explicit VideoSampleDesc(int start, int end, int stride, int video_idx) :
-    start_(start), end_(end), stride_(stride), video_idx_(video_idx) {}
-
-  int start_ = -1;
-  int end_ = -1;
-  int stride_ = -1;
-  int video_idx_ = -1;
-};
-
-template <typename Backend>
-class VideoSample {
- public:
-  Tensor<Backend> data_;
-  int label_;
-};
-
 using VideoSampleCpu = VideoSample<CPUBackend>;
 
-class VideoLoaderDecoderCpu : public Loader<CPUBackend, VideoSampleCpu> {
+class VideoLoaderDecoderCpu : public Loader<CPUBackend, VideoSampleCpu>, VideoLoaderDecoderBase {
  public:
   explicit inline VideoLoaderDecoderCpu(const OpSpec &spec) :
     Loader<CPUBackend, VideoSampleCpu>(spec),
-    filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
-    sequence_len_(spec.GetArgument<int>("sequence_length")),
-    stride_(spec.GetArgument<int>("stride")),
-    step_(spec.GetArgument<int>("step")) {
-    if (step_ <= 0) {
-      step_ = stride_ * sequence_len_;
-    }
-    has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
-    DALI_ENFORCE(!has_labels_ || labels_.size() == filenames_.size(),
-                 make_string("Number of provided files and lables should match. Provided ",
-                             filenames_.size(), " files and ", labels_.size(),  " labels."));
-  }
+    VideoLoaderDecoderBase(spec) { }
 
   void ReadSample(VideoSampleCpu &sample) override;
 
@@ -71,17 +44,7 @@ class VideoLoaderDecoderCpu : public Loader<CPUBackend, VideoSampleCpu> {
  private:
   void Reset(bool wrap_to_shard) override;
 
-  std::vector<std::string> filenames_;
-  std::vector<int> labels_;
-  bool has_labels_ = false;
   std::vector<FramesDecoder> video_files_;
-  std::vector<VideoSampleDesc> sample_spans_;
-
-  Index current_index_ = 0;
-
-  int sequence_len_;
-  int stride_;
-  int step_;
 };
 
 }  // namespace dali
