@@ -5,7 +5,7 @@ a build environment
 
 To change build configuration please export appropriate env variables (for exact meaning please check the README):
 PYVER=[default 3.6, required only by Run image]
-CUDA_VERSION=[default 11.7, accepts also 10.2, 11.0 and 11.1, 11.2, 11.3, 11.4, 11.5, 11.7]
+CUDA_VERSION=[default 11.7, accepts also 10.2, 11.0 and 11.1, 11.2, 11.3, 11.4, 11.5, 11.6]
 NVIDIA_BUILD_ID=[default 12345]
 CREATE_WHL=[default YES]
 CREATE_RUNNER=[default NO]
