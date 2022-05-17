@@ -90,7 +90,7 @@ class PermuteBatch<GPUBackend> : public PermuteBatchBase<GPUBackend> {
  public:
   explicit PermuteBatch(const OpSpec &spec)
   : PermuteBatchBase<GPUBackend>(spec)
-  , sg_(1<<18, spec.GetArgument<int>("max_batch_size")) {}
+  , sg_(1<<18) {}
 
 
   void RunImpl(DeviceWorkspace &ws) override;
