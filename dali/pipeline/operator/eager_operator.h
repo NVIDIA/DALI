@@ -311,7 +311,7 @@ EagerOperator<Backend>::RunImpl(
 template <typename Backend>
 std::unique_ptr<ThreadPool> EagerOperator<Backend>::shared_thread_pool =
     std::make_unique<ThreadPool>(EagerOperator<Backend>::GetDefaultNumThreads(), CPU_ONLY_DEVICE_ID,
-                                 false);
+                                 false, "EagerOperator");
 
 template <typename Backend>
 CUDAStreamLease EagerOperator<Backend>::shared_cuda_stream{};

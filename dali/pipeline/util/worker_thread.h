@@ -29,6 +29,7 @@
 #include "dali/util/nvml.h"
 #endif
 #include "dali/core/device_guard.h"
+#include "dali/core/nvtx.h"
 
 namespace dali {
 
@@ -66,7 +67,7 @@ class WorkerThread {
  public:
   typedef std::function<void(void)> Work;
 
-  inline WorkerThread(int device_id, bool set_affinity) :
+  inline WorkerThread(int device_id, bool set_affinity, const std::string name) :
     running_(true), work_complete_(true), barrier_(2) {
 #if NVML_ENABLED
     if (device_id != CPU_ONLY_DEVICE_ID) {
@@ -74,7 +75,7 @@ class WorkerThread {
     }
 #endif
     thread_ = std::thread(&WorkerThread::ThreadMain,
-        this, device_id, set_affinity);
+        this, device_id, set_affinity, make_string("[DALI][WT]", name));
   }
 
   inline ~WorkerThread() {
@@ -161,7 +162,8 @@ class WorkerThread {
   }
 
  private:
-  void ThreadMain(int device_id, bool set_affinity) {
+  void ThreadMain(int device_id, bool set_affinity, const std::string &name) {
+    SetThreadName(name.c_str());
     DeviceGuard g(device_id);
     try {
       if (set_affinity) {

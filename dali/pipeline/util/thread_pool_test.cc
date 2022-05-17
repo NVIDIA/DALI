@@ -21,7 +21,7 @@ namespace dali {
 namespace test {
 
 TEST(ThreadPool, AddWork) {
-  ThreadPool tp(16, 0, false);
+  ThreadPool tp(16, 0, false, "ThreadPool test");
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
   for (int i = 0; i < 64; i++) {
@@ -33,7 +33,7 @@ TEST(ThreadPool, AddWork) {
 }
 
 TEST(ThreadPool, AddWorkImmediateStart) {
-  ThreadPool tp(16, 0, false);
+  ThreadPool tp(16, 0, false, "ThreadPool test");
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
   for (int i = 0; i < 64; i++) {
@@ -44,7 +44,8 @@ TEST(ThreadPool, AddWorkImmediateStart) {
 }
 
 TEST(ThreadPool, AddWorkWithPriority) {
-  ThreadPool tp(1, 0, false);  // only one thread to ensure deterministic behavior
+  // only one thread to ensure deterministic behavior
+  ThreadPool tp(1, 0, false, "ThreadPool test");
   std::atomic<int> count{0};
   auto set_to_1 = [&count](int thread_id) {
     count = 1;

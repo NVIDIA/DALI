@@ -24,12 +24,12 @@ namespace dali {
 namespace test {
 
 TEST(WorkerThread, Destructing) {
-  WorkerThread wt(0, false);
+  WorkerThread wt(0, false, "WorkerThread test");
   // check destruction of a running worker thread
 }
 
 TEST(WorkerThread, WaitForWorkErrorHandling) {
-  WorkerThread wt(0, false);
+  WorkerThread wt(0, false, "WorkerThread test");
   ASSERT_TRUE(wt.WaitForInit());
   wt.DoWork([]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -45,7 +45,7 @@ TEST(WorkerThread, WaitForWorkErrorHandling) {
 }
 
 TEST(WorkerThread, ShutdownErrorHandling) {
-  WorkerThread wt(0, false);
+  WorkerThread wt(0, false, "WorkerThread test");
   ASSERT_TRUE(wt.WaitForInit());
   wt.DoWork([]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));

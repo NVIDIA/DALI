@@ -44,7 +44,8 @@ class FalseGPUOperator : public Operator<GPUBackend> {
   explicit FalseGPUOperator(const OpSpec &spec)
       : Operator<GPUBackend>(spec),
         cpu_impl_(spec),
-        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), true) {
+        thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), true,
+                     "FalseGPUOperator " + spec.name()) {
     cpu_ws_.SetThreadPool(&thread_pool_);
   }
   ~FalseGPUOperator() override = default;
