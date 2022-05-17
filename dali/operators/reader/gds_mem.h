@@ -108,17 +108,34 @@ class GDSStagingBuffer {
   void *base = nullptr;
 };
 
+/**
+ * @brief Manages copies from GDS-registered staging buffers to user-provided target buffers.
+ */
 class DLL_PUBLIC GDSStagingEngine {
  public:
   explicit GDSStagingEngine(int device_id = -1, int max_buffers = 64, int commit_after = 32);
+
+  /**
+   * @brief Sets the stream used for copying from staging buffers to client buffers.
+   */
   void set_stream(cudaStream_t stream);
+
+  /**
+   * @brief Obtains a single-chunk buffer that's aligned to meet GDS requirements.
+   *
+   * If the pool of buffers is depleted, the function waits for the pending commits to complete.
+   *
+   * @param hint Preferred starting address of the buffer - useful when trying to obtain sequential
+   *             buffers for coalescing.
+   */
   GDSStagingBuffer get_staging_buffer(void *hint = nullptr);
 
   /**
    * @brief Enqueues a copy from a staging buffer to a client-provided destination buffer.
    *
    * Enqueues a copy from a staging buffer to a client buffer. The copy is enqueued, but not
-   * scheduled for execution until either a call to `commit` or a
+   * scheduled for execution until either a call to `commit` or the number of copies reached
+   * the value specified in `commit_after`.
    *
    *
    * @param client_buffer   the destination buffer, to which the contents of the staging buffer
@@ -135,6 +152,9 @@ class DLL_PUBLIC GDSStagingEngine {
    */
   void return_unused(GDSStagingBuffer &&buf);
 
+  /**
+   * @brief Schedules the enqueued copies on the stream.
+   */
   void commit();
 
   size_t chunk_size() const { return chunk_size_; }
