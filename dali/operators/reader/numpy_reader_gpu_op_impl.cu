@@ -36,7 +36,7 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   const auto &dtype = TypeTable::GetTypeInfo<T>();
 
 
-  CUDA_CALL(cudaStreamWaitEvent(ws.stream(), staging_ready_));
+  CUDA_CALL(cudaStreamWaitEvent(ws.stream(), staging_ready_, 0));
 
   // Permuted dims, to use for the transposition
   std::array<int, Dims> perm;
