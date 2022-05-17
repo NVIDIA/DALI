@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,12 @@
 
 #include <algorithm>
 #include <cassert>
+#include <utility>
 #include <vector>
 
 #include "dali/core/cuda_error.h"
 #include "dali/kernels/common/scatter_gather.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -63,8 +65,8 @@ size_t Coalesce(span<CopyRange> ranges) {
 
 }  // namespace detail
 
-size_t ScatterGatherBase::MakeBlocks(std::vector<CopyRange> &blocks,
-                                     const std::vector<CopyRange> &ranges) {
+std::pair<size_t, size_t>
+ScatterGatherBase::BlockCountAndSize(const std::vector<CopyRange> &ranges) const {
   size_t max_size = 0;
 
   for (auto &r : ranges) {
@@ -76,21 +78,26 @@ size_t ScatterGatherBase::MakeBlocks(std::vector<CopyRange> &blocks,
 
   size_t num_blocks = 0;
   for (auto &r : ranges)
-    num_blocks += (r.size + size_per_block - 1) / size_per_block;
+    num_blocks += div_ceil(r.size, size_per_block);
 
-  blocks.clear();
-  blocks.reserve(num_blocks);
-  for (auto &r : ranges) {
-    for (size_t ofs = 0; ofs < r.size; ofs += size_per_block) {
-      blocks.push_back({ r.src + ofs, r.dst + ofs, std::min(r.size - ofs, size_per_block) });
-    }
-  }
-  assert(blocks.size() == num_blocks);
-  return size_per_block;
+  return { num_blocks, size_per_block };
 }
 
-void ScatterGatherGPU::MakeBlocks() {
-  size_per_block_ = ScatterGatherBase::MakeBlocks(blocks_, ranges_);
+
+template <typename BlockCollection>
+void ScatterGatherBase::MakeBlocks(BlockCollection &blocks,
+                                   const std::vector<CopyRange> &ranges,
+                                   size_t size_per_block) {
+  auto nblocks = dali::size(blocks);
+  decltype(nblocks) b = 0;
+
+  for (auto &r : ranges) {
+    for (size_t ofs = 0; ofs < r.size; ofs += size_per_block) {
+      assert(b < nblocks);
+      blocks[b++] = { r.src + ofs, r.dst + ofs, std::min(r.size - ofs, size_per_block) };
+    }
+  }
+  assert(b == nblocks);
 }
 
 void ScatterGatherCPU::MakeBlocks(size_t blocks_lower_limit) {
@@ -122,12 +129,28 @@ void ScatterGatherCPU::MakeBlocks(size_t blocks_lower_limit) {
     std::push_heap(heap_.begin(), heap_.end(), cmp);
   }
 
-  ScatterGatherBase::MakeBlocks(blocks_, heap_);
+  size_t num_blocks, size_per_block;
+  std::tie(num_blocks, size_per_block) = BlockCountAndSize(heap_);
+  blocks_.resize(num_blocks);
+  ScatterGatherBase::MakeBlocks(blocks_, heap_, size_per_block);
 }
-
 
 __global__ void BatchCopy(const ScatterGatherBase::CopyRange *ranges) {
   auto range = ranges[blockIdx.x];
+
+  for (size_t i = threadIdx.x; i < range.size; i += blockDim.x) {
+    range.dst[i] = range.src[i];
+  }
+}
+
+constexpr int kMaxRangesByVal = 2048 / sizeof(ScatterGatherBase::CopyRange);
+
+struct CopyRanges {
+  ScatterGatherBase::CopyRange ranges[kMaxRangesByVal];
+};
+
+__global__ void BatchCopy(CopyRanges ranges) {
+  auto range = ranges.ranges[blockIdx.x];
 
   for (size_t i = threadIdx.x; i < range.size; i += blockDim.x) {
     range.dst[i] = range.src[i];
@@ -148,12 +171,27 @@ void ScatterGatherGPU::Run(cudaStream_t stream, bool reset, ScatterGatherGPU::Me
       CUDA_CALL(cudaMemcpyAsync(r.dst, r.src, r.size, memcpyKind, stream));
     }
   } else {
-    MakeBlocks();
-    blocks_dev_.from_host(blocks_, stream);
+    size_t num_blocks, size_per_block;
+    std::tie(num_blocks, size_per_block) = BlockCountAndSize(ranges_);
+    if (num_blocks > kMaxRangesByVal) {
+      kernels::DynamicScratchpad scratchpad({}, stream);
+      auto *blocks_pinned = scratchpad.Allocate<mm::memory_kind::pinned, CopyRange>(num_blocks);
+      auto blocks = make_span(blocks_pinned, num_blocks);
+      ScatterGatherBase::MakeBlocks(blocks, ranges_, size_per_block);
+      auto *blocks_dev = scratchpad.ToGPU(stream, blocks);
 
-    dim3 grid(blocks_.size());
-    dim3 block(std::min<size_t>(size_per_block_, 1024));
-    BatchCopy<<<grid, block, 0, stream>>>(blocks_dev_.data());
+      dim3 grid(blocks.size());
+      dim3 block(std::min<size_t>(size_per_block, 1024));
+      BatchCopy<<<grid, block, 0, stream>>>(blocks_dev);
+    } else {
+      CopyRanges ranges = {};
+      auto blocks = make_span(ranges.ranges, num_blocks);
+      ScatterGatherBase::MakeBlocks(blocks, ranges_, size_per_block);
+
+      dim3 grid(blocks.size());
+      dim3 block(std::min<size_t>(size_per_block, 1024));
+      BatchCopy<<<grid, block, 0, stream>>>(ranges);
+    }
     CUDA_CALL(cudaGetLastError());
   }
 

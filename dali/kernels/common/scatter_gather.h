@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,9 +21,10 @@
 #include <limits>
 #include <queue>
 #include <vector>
+#include <utility>
 #include "dali/core/api_helper.h"
-#include "dali/core/dev_buffer.h"
 #include "dali/core/span.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 namespace kernels {
@@ -93,14 +94,18 @@ class DLL_PUBLIC ScatterGatherBase {
     ranges_.resize(n);
   }
 
+  std::pair<size_t, size_t> BlockCountAndSize(const std::vector<CopyRange> &ranges) const;
+
   /**
    * @brief Divides ranges so they don't exceed `max_block_size_`
    */
-  size_t MakeBlocks(std::vector<CopyRange> &blocks, const std::vector<CopyRange> &ranges);
+  template <typename BlockCollection>
+  void MakeBlocks(BlockCollection &blocks,
+                  const std::vector<CopyRange> &ranges,
+                  size_t size_per_block);
 
   size_t max_size_per_block_ = kDefaultBlockSize;
 };
-
 
 /**
  * Implements a device-to-device batch copy of multiple sources to multiple destinations
@@ -111,17 +116,7 @@ class DLL_PUBLIC ScatterGatherGPU : public ScatterGatherBase {
 
   ScatterGatherGPU() = default;
 
-  ScatterGatherGPU(size_t max_size_per_block, size_t estimated_num_blocks)
-      : ScatterGatherBase(max_size_per_block) {
-    blocks_.reserve(estimated_num_blocks);
-    blocks_dev_.reserve(estimated_num_blocks);
-  }
-
   explicit ScatterGatherGPU(size_t max_size_per_block) : ScatterGatherBase(max_size_per_block) {}
-
-  ScatterGatherGPU(size_t max_size_per_block, size_t total_size, size_t num_ranges)
-      : ScatterGatherGPU(max_size_per_block, (total_size + num_ranges * (max_size_per_block - 1)) /
-                                                 max_size_per_block) {}
 
   /**
    * @brief Executes the copies
@@ -139,21 +134,9 @@ class DLL_PUBLIC ScatterGatherGPU : public ScatterGatherBase {
    */
   void Reset() {
     ScatterGatherBase::Reset();
-    blocks_.clear();
-    blocks_dev_.clear();
   }
 
   using CopyRange = detail::CopyRange;
-
- private:
-  /**
-   * @brief Divides ranges so they don't exceed `max_block_size_`
-   */
-  void MakeBlocks();
-
-  std::vector<CopyRange> blocks_;
-  DeviceBuffer<CopyRange> blocks_dev_;
-  size_t size_per_block_ = 0;
 };
 
 
@@ -164,17 +147,7 @@ class DLL_PUBLIC ScatterGatherCPU : public ScatterGatherBase {
  public:
   ScatterGatherCPU() = default;
 
-  ScatterGatherCPU(size_t max_size_per_block, size_t estimated_num_blocks)
-      : ScatterGatherBase(max_size_per_block) {
-    heap_.resize(estimated_num_blocks);
-    blocks_.resize(estimated_num_blocks);
-  }
-
   explicit ScatterGatherCPU(size_t max_size_per_block) : ScatterGatherBase(max_size_per_block) {}
-
-  ScatterGatherCPU(size_t max_size_per_block, size_t total_size, size_t num_ranges)
-      : ScatterGatherCPU(max_size_per_block, (total_size + num_ranges * (max_size_per_block - 1)) /
-                                                 max_size_per_block) {}
 
   /**
    * @brief Executes the copies

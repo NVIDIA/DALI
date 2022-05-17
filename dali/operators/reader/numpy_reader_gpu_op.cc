@@ -25,7 +25,7 @@ namespace dali {
 NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
     : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),
       thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
-      sg_(1 << 18, spec.GetArgument<int>("max_batch_size")) {
+      sg_(1 << 18) {
   prefetched_batch_tensors_.resize(prefetch_queue_depth_);
 
   for (auto &t : prefetched_batch_tensors_)

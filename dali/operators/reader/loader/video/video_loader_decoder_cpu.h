@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021 - 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,9 @@ class VideoLoaderDecoderCpu : public Loader<CPUBackend, VideoSampleCpu> {
       step_ = stride_ * sequence_len_;
     }
     has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
+    DALI_ENFORCE(!has_labels_ || labels_.size() == filenames_.size(),
+                 make_string("Number of provided files and lables should match. Provided ",
+                             filenames_.size(), " files and ", labels_.size(),  " labels."));
   }
 
   void ReadSample(VideoSampleCpu &sample) override;
