@@ -72,7 +72,7 @@ struct Backend2Types<CPUBackend> {
   using OutBackend = CPUBackend;
   using WSInputType = TensorVector<CPUBackend>;
   using WSOutputType = TensorVector<CPUBackend>;
-  static const std::string name;
+  static const char name[8];
 };
 
 template <>
@@ -81,7 +81,7 @@ struct Backend2Types<GPUBackend> {
   using OutBackend = GPUBackend;
   using WSInputType = TensorList<GPUBackend>;
   using WSOutputType = TensorList<GPUBackend>;
-  static const std::string name;
+  static const char name[8];
 };
 
 template <>
@@ -90,12 +90,12 @@ struct Backend2Types<MixedBackend> {
   using OutBackend = GPUBackend;
   using WSInputType = TensorVector<CPUBackend>;
   using WSOutputType = TensorList<GPUBackend>;
-  static const std::string name;
+  static const char name[8];
 };
 
-const std::string Backend2Types<CPUBackend>::name = "CPU";
-const std::string Backend2Types<GPUBackend>::name = "GPU";
-const std::string Backend2Types<MixedBackend>::name = "Mixed";
+const char Backend2Types<CPUBackend>::name[] = "CPU";
+const char Backend2Types<GPUBackend>::name[] = "GPU";
+const char Backend2Types<MixedBackend>::name[] = "Mixed";
 
 /**
  * @brief Direct operator providing eager execution of an operator in Run.
@@ -205,7 +205,7 @@ EagerOperator<Backend>::Run(
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     ThreadPool *thread_pool, int batch_size) {
   try {
-    DomainTimeRange tr("[DALI][" + Backend2Types<Backend>::name + " op] " + name_,
+    DomainTimeRange tr("[DALI][" + std::string(Backend2Types<Backend>::name) + " op] " + name_,
                        DomainTimeRange::kBlue1);
     ws_.Clear();
     ws_.SetThreadPool(thread_pool);
@@ -223,7 +223,7 @@ EagerOperator<Backend>::Run(
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     CUDAStreamLease &cuda_stream, int batch_size) {
   try {
-    DomainTimeRange tr("[DALI][" + Backend2Types<Backend>::name + " op] " + name_,
+    DomainTimeRange tr("[DALI][" + std::string(Backend2Types<Backend>::name) + " op] " + name_,
                        DomainTimeRange::knvGreen);
     ws_.Clear();
     ws_.set_stream(cuda_stream);
@@ -231,7 +231,7 @@ EagerOperator<Backend>::Run(
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     return output;
   } catch (std::exception &e) {
-    throw std::runtime_error(ExtendErrorMsg("GPU", e.what()));
+    throw std::runtime_error(ExtendErrorMsg(Backend2Types<Backend>::name, e.what()));
   }
 }
 
