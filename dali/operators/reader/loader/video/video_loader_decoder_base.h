@@ -49,7 +49,7 @@ class VideoLoaderDecoderBase {
     DALI_ENFORCE(
         !has_labels_ || labels_.size() == filenames_.size(),
         make_string(
-            "Number of provided files and lables should match. Provided ",
+            "Number of provided files and labels should match. Provided ",
             filenames_.size(), " files and ", labels_.size(), " labels."));
     if (step_ <= 0) {
       step_ = stride_ * sequence_len_;
