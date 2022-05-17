@@ -64,7 +64,8 @@ def _test_standalone_vs_fused(device):
     for _ in range(2):
         outs = pipe.run()
         # two sampling rates - should be bit-exact
-        check_batch(outs[0], outs[1], eps=0, max_allowed_error=1e-4 if is_gpu else 0)
+        check_batch(outs[0], outs[1], eps=1e-6 if is_gpu else 0,
+                    max_allowed_error=1e-4 if is_gpu else 0)
         # numerical round-off error in rate
         check_batch(outs[0], outs[2], eps=1e-6, max_allowed_error=1e-4)
         # here, the sampling rate is slightly different, so we can tolerate larger errors
@@ -74,7 +75,7 @@ def test_standalone_vs_fused():
     for device in ('gpu', 'cpu'):
       yield _test_standalone_vs_fused, device
 
-def _test_type_conversion(device, src_type, in_values, dst_type, out_values, rtol=1e-6, atol=None):
+def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps):
   src_nptype = dali_type_to_np(src_type)
   dst_nptype = dali_type_to_np(dst_type)
   assert len(out_values) == len(in_values)
@@ -93,11 +94,7 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, rto
     for i in range(len(out_values)):
       ref = np.full_like(in_data[i], out_values[i], dst_nptype)
       out_arr = as_array(out[i])
-      if atol is not None:
-        ok = np.allclose(out_arr, ref, rtol, atol)
-      else:
-        ok = np.allclose(out_arr, ref, rtol)
-      if not ok:
+      if not np.allclose(out_arr, ref, 1e-6, eps):
         print("Actual: ", out_arr)
         print(out_arr.dtype, out_arr.shape)
         print("Reference: ", ref)
@@ -113,8 +110,8 @@ def test_dynamic_ranges():
                             (types.INT16,  [-32768, -32767, -100, -1, 0, 1, 100, 32767], 0),
                             (types.UINT32,  [0, 1, 0x7fffffff, 0x80000000, 0xfffffffe, 0xffffffff], 128),
                             (types.INT32,  [-0x80000000, -0x7fffffff, -100, -1, 0, 1, 0x7fffffff], 128)]:
-    yield _test_type_conversion, 'gpu', type, values, type, values, 2e-5, eps
-    yield _test_type_conversion, 'cpu', type, values, type, values, 1e-6, eps
+    for device in ('cpu', 'gpu'):
+      yield _test_type_conversion, device, type, values, type, values, eps
 
 def test_type_conversion():
   type_ranges = [(types.FLOAT,  [-1, 1]),
@@ -151,5 +148,5 @@ def test_type_conversion():
       if eps < 1 and (o_lo != -o_hi or (i_hi != i_lo and dst_type != types.FLOAT)):
         eps = 1
 
-      yield _test_type_conversion, 'gpu', src_type, in_values, dst_type, out_values, 2e-5, eps
-      yield _test_type_conversion, 'cpu', src_type, in_values, dst_type, out_values, 1e-6, eps
+      for device in ('cpu', 'gpu'):
+        yield _test_type_conversion, device, src_type, in_values, dst_type, out_values, eps
