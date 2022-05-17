@@ -106,7 +106,7 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     wrapper_name = _to_snake_case(op_class.__name__)
 
     # Add operator to eager API.
-    _wrap_eager_op(op_class, submodule, wrapper_name, wrapper_doc)
+    _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc)
 
     if parent_module is None:
         fn_module = sys.modules[__name__]

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import sys
+from math import ceil
 
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
@@ -34,10 +35,14 @@ _stateful_operators = {
     'RandomBBoxCrop',
     'RandomResizedCrop',
     'ResizeCropMirror',
+    'random__CoinFlip',
+    'random__Normal',
+    'random__Uniform',
+    'BatchPermutation',
 }
 
 
-_generator_operators = {
+_iterator_operators = {
     'readers__COCO',
     'readers__Caffe',
     'readers__Caffe2',
@@ -50,10 +55,6 @@ _generator_operators = {
     'readers__Video',
     'readers__VideoResize',
     'readers__Webdataset',
-    'random__CoinFlip',
-    'random__Normal',
-    'random__Uniform',
-    'BatchPermutation',
 }
 
 
@@ -97,6 +98,52 @@ def _stateless_op_factory(op_class, op_name, num_inputs, call_args_names):
                 return output[0]
 
             return output
+
+    return EagerOperator
+
+
+def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
+    class EagerOperator(_eager_op_base_factory(op_class, op_name, num_inputs, call_args_names)):
+        def __init__(self, call_args, *, max_batch_size, **kwargs):
+            pad_last_batch = kwargs.get('pad_last_batch', False)
+            kwargs['pad_last_batch'] = True
+
+            super().__init__(max_batch_size=max_batch_size, **kwargs)
+
+            self._call_args = call_args
+            self._iter = 0
+
+            epoch_size = self._backend_op.reader_meta()['epoch_size']
+            self._num_iters = ceil(epoch_size / max_batch_size)
+
+            if pad_last_batch:
+                self._last_batch_size = max_batch_size
+            else:
+                self._last_batch_size = epoch_size % max_batch_size
+
+            assert isinstance(self._last_batch_size, int)
+
+        def __next__(self):
+            if self._iter < self._num_iters:
+                self._iter += 1
+                outputs = self._backend_op([], self._call_args)
+
+                if self._iter == self._num_iters:
+                    outputs = [type(tl_output)(
+                        [tl_output[i] for i in range(self._last_batch_size)]) for tl_output in outputs]
+
+                if len(outputs) == 1:
+                    outputs = outputs[0]
+
+                return outputs
+            else:
+                raise StopIteration
+
+        def __iter__(self):
+            return self
+
+        def __len__(self):
+            return self._num_iters
 
     return EagerOperator
 
@@ -167,21 +214,37 @@ def _choose_batch_size(inputs, batch_size):
     return batch_size
 
 
-def _prep_inputs(inputs, batch_size):
-    inputs = list(inputs)
+def _prep_args(inputs, kwargs, op_name, wrapper_name, disqualified_arguments):
+    def _prep_inputs(inputs, batch_size):
+        inputs = list(inputs)
 
-    for i, input in enumerate(inputs):
-        if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
-            inputs[i] = _transform_data_to_tensorlist(input, batch_size)
+        for i, input in enumerate(inputs):
+            if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
+                inputs[i] = _transform_data_to_tensorlist(input, batch_size)
 
-    return inputs
+        return inputs
 
+    def _prep_kwargs(kwargs):
+        for key, value in kwargs.items():
+            kwargs[key] = _Classification(value, f'Argument {key}', to_constant=True).data
 
-def _prep_kwargs(kwargs, batch_size):
-    for key, value in kwargs.items():
-        kwargs[key] = _Classification(value, f'Argument {key}', arg_constant_len=batch_size).data
+        return kwargs
 
-    return kwargs
+    _disqualify_arguments(wrapper_name, kwargs, disqualified_arguments)
+
+    # Preprocess kwargs to get batch_size.
+    kwargs = _prep_kwargs(kwargs)
+    batch_size = _choose_batch_size(inputs, kwargs.pop('batch_size', -1))
+    init_args, call_args = _ops._separate_kwargs(kwargs, _tensors.TensorListCPU)
+
+    # Preprocess inputs, try to convert each input to TensorList.
+    inputs = _prep_inputs(inputs, batch_size)
+
+    init_args['max_batch_size'] = batch_size
+    init_args['device'], init_args['device_id'] = _choose_device(
+        op_name, wrapper_name, inputs, kwargs.get('device'))
+
+    return inputs, init_args, call_args
 
 
 def _desc_call_args(inputs, args):
@@ -196,19 +259,8 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
     but directly with TensorLists.
     """
     def wrapper(*inputs, **kwargs):
-        _disqualify_arguments(wrapper_name, kwargs, _wrap_stateless.disqualified_arguments)
-
-        # Preprocess kwargs to get batch_size.
-        batch_size = _choose_batch_size(inputs, kwargs.pop('batch_size', -1))
-        kwargs = _prep_kwargs(kwargs, batch_size)
-        init_args, call_args = _ops._separate_kwargs(kwargs, _tensors.TensorListCPU)
-
-        # Preprocess inputs, try to convert each input to TensorList.
-        inputs = _prep_inputs(inputs, batch_size)
-
-        init_args['max_batch_size'] = batch_size
-        init_args['device'], init_args['device_id'] = _choose_device(
-            op_name, wrapper_name, inputs, kwargs.get('device'))
+        inputs, init_args, call_args = _prep_args(
+            inputs, kwargs, op_name, wrapper_name, _wrap_stateless.disqualified_arguments)
 
         # Creating cache key consisting of operator name, description of inputs, input arguments
         # and init args. Each call arg is described by dtype, layout and dim.
@@ -230,7 +282,29 @@ _wrap_stateless.disqualified_arguments = {
 }
 
 
-def _wrap_eager_op(op_class, submodule, wrapper_name, wrapper_doc):
+def _wrap_iterator(op_class, op_name, wrapper_name):
+    def wrapper(*inputs, **kwargs):
+        if len(inputs) > 0:
+            raise ValueError("Iterator type eager operators should not receive any inputs.")
+
+        inputs, init_args, call_args = _prep_args(
+            inputs, kwargs, op_name, wrapper_name, _wrap_iterator.disqualified_arguments)
+
+        op = _iterator_op_factory(op_class, wrapper_name, len(inputs),
+                                  call_args.keys())(call_args, **init_args)
+
+        return op
+
+    return wrapper
+
+
+_wrap_iterator.disqualified_arguments = {
+    'bytes_per_sample_hint',
+    'preserve',
+}
+
+
+def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc):
     """Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
     Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
     eager operators.
@@ -243,15 +317,22 @@ def _wrap_eager_op(op_class, submodule, wrapper_name, wrapper_doc):
     """
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
-    if op_schema.IsDeprecated() or op_name in _stateful_operators or op_name in _generator_operators:
-        # TODO(ksztenderski): For now only exposing stateless operators.
+    if op_schema.IsDeprecated() or op_name in _stateful_operators:
+        # TODO(ksztenderski): For now only exposing stateless and iterator operators.
         return
+    elif op_name in _iterator_operators:
+        wrapper = _wrap_iterator(op_class, op_name, wrapper_name)
     else:
         # If operator is not stateful or a generator expose it as stateless.
         wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
-    # Exposing to eager.experimental module.
-    eager_module = _internal.get_submodule(sys.modules[__name__], 'experimental')
+    if parent_module is None:
+        # Exposing to eager.experimental module.
+        eager_module = _internal.get_submodule(sys.modules[__name__], 'experimental')
+    else:
+        # Exposing to eager.experimental submodule of the specified parent module.
+        eager_module = _internal.get_submodule(sys.modules[parent_module], 'eager.experimental')
+
     op_module = _internal.get_submodule(eager_module, submodule)
 
     if not hasattr(op_module, wrapper_name):
