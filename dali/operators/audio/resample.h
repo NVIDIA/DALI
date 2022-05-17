@@ -31,15 +31,16 @@ class ResampleBase : public Operator<Backend> {
  public:
   explicit ResampleBase(const OpSpec &spec) : Operator<Backend>(spec) {
     DALI_ENFORCE(in_rate_.HasValue() == out_rate_.HasValue(),
-      "The parameters ``in_rate`` and ``out_rate`` must be specified together.");
+                 "The parameters ``in_rate`` and ``out_rate`` must be specified together.");
     if (in_rate_.HasValue() + scale_.HasValue() + out_length_.HasValue() > 1)
       DALI_FAIL("The sampling rates, ``scale`` and ``out_length`` cannot be used together.");
     if (!in_rate_.HasValue() && !scale_.HasValue() && !out_length_.HasValue())
-      DALI_FAIL("No resampling factor specified! Please supply either the scale, "
-        "the output length or the input and output sampling rates.");
+      DALI_FAIL(
+          "No resampling factor specified! Please supply either the scale, "
+          "the output length or the input and output sampling rates.");
     quality_ = spec_.template GetArgument<float>("quality");
-    DALI_ENFORCE(quality_ >= 0 && quality_ <= 100, make_string("``quality`` out of range: ",
-      quality_, "\nValid range is [0..100]."));
+    DALI_ENFORCE(quality_ >= 0 && quality_ <= 100,
+                 make_string("``quality`` out of range: ", quality_, "\nValid range is [0..100]."));
     if (spec_.TryGetArgument(dtype_, "dtype")) {
       // silence useless warning -----------------------------vvvvvvvvvvvvvvvv
       TYPE_SWITCH(dtype_, type2id, T, (AUDIO_RESAMPLE_TYPES), (T x; (void)x;),
@@ -58,12 +59,12 @@ class ResampleBase : public Operator<Backend> {
       dtype_ = ws.template Input<Backend>(0).type();
 
     outputs[0].type = dtype_;
-    CalculateScaleAndShape(outputs[0].shape, ws);
+    CalculateShapeAndArgs(outputs[0].shape, ws);
 
     return true;
   }
 
-  void CalculateScaleAndShape(TensorListShape<> &out_shape, const workspace_t<Backend> &ws) {
+  void CalculateShapeAndArgs(TensorListShape<> &out_shape, const workspace_t<Backend> &ws) {
     const auto &input = ws.template Input<Backend>(0);
     const TensorListShape<> &shape = input.shape();
     DALI_ENFORCE(shape.sample_dim() == 1 || shape.sample_dim() == 2,
@@ -71,7 +72,7 @@ class ResampleBase : public Operator<Backend> {
       "channel dimension.");
     out_shape = shape;
     int N = shape.num_samples();
-    scales_.resize(N);
+    args_.resize(N);
     if (in_rate_.HasValue()) {
       assert(out_rate_.HasValue());
       in_rate_.Acquire(spec_, ws, N);
@@ -93,7 +94,8 @@ class ResampleBase : public Operator<Backend> {
             error << " for sample " << s;
           DALI_FAIL(error.str());
         }
-        scales_[s] = out_rate / in_rate;
+        args_[s].in_rate = in_rate;
+        args_[s].out_rate = out_rate;
         int64_t in_length = shape.tensor_shape_span(s)[0];
         int64_t out_length =
           kernels::signal::resampling::resampled_length(in_length, in_rate, out_rate);
@@ -110,7 +112,8 @@ class ResampleBase : public Operator<Backend> {
             error << " for sample " << s;
           DALI_FAIL(error.str());
         }
-        scales_[s] = scale;
+        args_[s].in_rate = 1.0;
+        args_[s].out_rate = scale;
         int64_t in_length = shape.tensor_shape_span(s)[0];
         int64_t out_length =
           kernels::signal::resampling::resampled_length(in_length, 1, scale);
@@ -125,7 +128,8 @@ class ResampleBase : public Operator<Backend> {
           DALI_FAIL(make_string("Cannot produce a non-empty signal from an empty input.\n"
             "Error at sample ", s));
         }
-        scales_[s] = in_length ? 1.0 * out_length / in_length : 0.0;
+        args_[s].in_rate = 1.0;
+        args_[s].out_rate = in_length ? 1.0 * out_length / in_length : 0.0;
         out_shape.tensor_shape_span(s)[0] = out_length;
       }
     } else {
@@ -144,7 +148,8 @@ class ResampleBase : public Operator<Backend> {
   ArgValue<float> scale_{"scale", spec_};
   ArgValue<int64_t> out_length_{"out_length", spec_};
 
-  std::vector<double> scales_;
+  using Args = kernels::signal::resampling::Args;
+  SmallVector<Args, 128> args_;
 };
 
 }  // namespace audio
