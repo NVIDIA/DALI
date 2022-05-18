@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,18 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import nose
-import nose.case
-import nose.inspector
-import nose.loader
-import nose.suite
-import collections
-if not hasattr(collections, "Callable"):
-    nose.case.collections = collections.abc
-    nose.inspector.collections = collections.abc
-    nose.loader.collections = collections.abc
-    nose.suite.collections = collections.abc
 
 import nose.tools as tools
 import re
