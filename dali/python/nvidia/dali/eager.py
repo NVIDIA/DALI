@@ -187,8 +187,8 @@ def _prep_kwargs(kwargs, batch_size):
 def _desc_call_args(inputs, args):
     """Returns string description of call arguments (inputs and input arguments) to use as part of
     the caching key."""
-    return str([(inp.dtype, inp.layout(), inp.shape()) for inp in inputs]) + str(sorted(
-        [(key, value.dtype, value.layout(), value.shape()) for key, value in args.items()]))
+    return str([(inp.dtype, inp.layout(), len(inp[0].shape())) for inp in inputs]) + str(sorted(
+        [(key, value.dtype, value.layout(), len(value[0].shape())) for key, value in args.items()]))
 
 
 def _wrap_stateless(op_class, op_name, wrapper_name):
@@ -211,7 +211,7 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
             op_name, wrapper_name, inputs, kwargs.get('device'))
         
         # Creating cache key consisting of operator name, description of inputs, input arguments
-        # and init args. Each call arg is described by dtype, layout and shape.
+        # and init args. Each call arg is described by dtype, layout and dim.
         key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
 
         if key not in _stateless_operators_cache:
