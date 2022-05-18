@@ -30,7 +30,7 @@ def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None)
 
 
 class _Classification:
-    """Classification of data's device and if it is a batch.
+    """Classification of data's device and whether it is a batch.
 
     Based on data type determines if data should be treated as a batch and with which device.
     If the type can be recognized as a batch without being falsely categorized as such, it is.
