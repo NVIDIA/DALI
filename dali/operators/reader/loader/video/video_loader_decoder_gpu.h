@@ -20,6 +20,7 @@
 
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/video/video_loader_decoder_base.h"
 #include "dali/operators/reader/loader/video/video_loader_decoder_cpu.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
@@ -36,22 +37,12 @@ class VideoSampleGpu {
 };
 
 
-class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
+class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu>, VideoLoaderDecoderBase {
  public:
   explicit inline VideoLoaderDecoderGpu(const OpSpec &spec) :
     Loader<GPUBackend, VideoSampleGpu>(spec),
-    filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
-    sequence_len_(spec.GetArgument<int>("sequence_length")),
-    stride_(spec.GetArgument<int>("stride")),
-    step_(spec.GetArgument<int>("step")) {
+    VideoLoaderDecoderBase(spec) {
     InitCudaStream();
-    if (step_ <= 0) {
-      step_ = stride_ * sequence_len_;
-    }
-    has_labels_ = spec.TryGetRepeatedArgument(labels_, "labels");
-    DALI_ENFORCE(!has_labels_ || labels_.size() == filenames_.size(),
-                 make_string("Number of provided files and lables should match. Provided ",
-                             filenames_.size(), " files and ", labels_.size(),  " labels."));
   }
 
   void ReadSample(VideoSampleGpu &sample) override;
@@ -68,17 +59,7 @@ class VideoLoaderDecoderGpu : public Loader<GPUBackend, VideoSampleGpu> {
 
   void InitCudaStream();
 
-  std::vector<std::string> filenames_;
-  std::vector<int> labels_;
-  bool has_labels_ = false;
   std::vector<FramesDecoderGpu> video_files_;
-  std::vector<VideoSampleDesc> sample_spans_;
-
-  Index current_index_ = 0;
-
-  int sequence_len_;
-  int stride_;
-  int step_;
 
   CUDAStreamLease cuda_stream_;
 };
