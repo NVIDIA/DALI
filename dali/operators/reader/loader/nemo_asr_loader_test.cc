@@ -283,7 +283,7 @@ TEST(NemoAsrLoaderTest, ReadSample) {
     std::vector<float> downsampled(downsampled_len, 0.0f);
     constexpr double q = 50.0;
     int lobes = std::round(0.007 * q * q - 0.09 * q + 3);
-    kernels::signal::resampling::Resampler resampler;
+    kernels::signal::resampling::ResamplerCPU resampler;
     resampler.Initialize(lobes, lobes * 64 + 1);
     resampler.Resample(downsampled.data(), 0, downsampled_len, sr_out, downmixed.data(),
                        downmixed.size(), sr_in, 1);

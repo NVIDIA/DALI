@@ -17,8 +17,8 @@ from nvidia.dali import fn, pipeline_def, types
 
 import numpy as np
 import scipy.io.wavfile
-from test_audio_decoder_utils import generate_waveforms
-from test_utils import check_batch, dali_type_to_np, as_array
+from test_audio_decoder_utils import generate_waveforms, rosa_resample
+from test_utils import compare_pipelines, get_files, check_batch, dali_type_to_np
 
 names = [
   "/tmp/dali_test_1C.wav",
@@ -34,73 +34,64 @@ freqs = [
 rates = [ 16000, 22050, 12347 ]
 lengths = [ 10000, 54321, 12345 ]
 
-def create_files():
+def create_test_files():
   for i in range(len(names)):
     wave = generate_waveforms(lengths[i], freqs[i])
     wave = (wave * 32767).round().astype(np.int16)
     scipy.io.wavfile.write(names[i], rates[i], wave)
 
 
-create_files()
+create_test_files()
 
 
 @pipeline_def
-def audio_decoder_pipe(device):
+def audio_decoder_pipe():
     encoded, _ = fn.readers.file(files=names)
     audio0, sr0 = fn.decoders.audio(encoded, dtype=types.FLOAT)
     out_sr = 15000
     audio1, sr1 = fn.decoders.audio(encoded, dtype=types.FLOAT, sample_rate=out_sr)
-    if device == 'gpu':
-      audio0 = audio0.gpu()
     audio2 = fn.experimental.audio_resample(audio0, in_rate=sr0, out_rate=out_sr)
     audio3 = fn.experimental.audio_resample(audio0, scale=out_sr/sr0)
     audio4 = fn.experimental.audio_resample(audio0, out_length=fn.shapes(audio1)[0])
     return audio1, audio2, audio3, audio4
 
-def _test_standalone_vs_fused(device):
-    pipe = audio_decoder_pipe(device=device, batch_size=2, num_threads=1, device_id=0)
+def test_standalone_vs_fused():
+    pipe = audio_decoder_pipe(batch_size=2, num_threads=1, device_id=0)
     pipe.build()
-    is_gpu = device == 'gpu'
     for _ in range(2):
         outs = pipe.run()
         # two sampling rates - should be bit-exact
-        check_batch(outs[0], outs[1], eps=1e-6 if is_gpu else 0,
-                    max_allowed_error=1e-4 if is_gpu else 0)
+        check_batch(outs[0], outs[1], eps=0, max_allowed_error=0)
         # numerical round-off error in rate
         check_batch(outs[0], outs[2], eps=1e-6, max_allowed_error=1e-4)
         # here, the sampling rate is slightly different, so we can tolerate larger errors
         check_batch(outs[0], outs[3], eps=1e-4, max_allowed_error=1)
 
-def test_standalone_vs_fused():
-    for device in ('gpu', 'cpu'):
-      yield _test_standalone_vs_fused, device
-
-def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps):
+def _test_type_conversion(src_type, in_values, dst_type, out_values, eps):
   src_nptype = dali_type_to_np(src_type)
   dst_nptype = dali_type_to_np(dst_type)
   assert len(out_values) == len(in_values)
   in_data = [np.full((100 + 10 * i,), x, src_nptype) for i, x in enumerate(in_values)]
   @pipeline_def(batch_size=len(in_values))
-  def test_pipe(device):
-    input = fn.external_source(in_data, batch=False, cycle='quiet', device=device)
+  def test_pipe():
+    input = fn.external_source(in_data, batch = False, cycle = 'quiet')
     return fn.experimental.audio_resample(input, dtype=dst_type, scale=1, quality=0)
-  pipe = test_pipe(device, device_id=0, num_threads=4)
+  pipe = test_pipe(device_id=0, num_threads=4)
   pipe.build()
-  is_gpu = device == 'gpu'
   for _ in range(2):
     out, = pipe.run()
     assert len(out) == len(out_values)
     assert out.dtype == dst_type
     for i in range(len(out_values)):
       ref = np.full_like(in_data[i], out_values[i], dst_nptype)
-      out_arr = as_array(out[i])
-      if not np.allclose(out_arr, ref, 1e-6, eps):
-        print("Actual: ", out_arr)
-        print(out_arr.dtype, out_arr.shape)
+      if not np.allclose(out.at(i), ref, 1e-6, eps):
+        print("Actual: ", out.at(i))
+        print(out.at(i).dtype, out.at(i).shape)
         print("Reference: ", ref)
         print(ref.dtype, ref.shape)
-        print("Diff: ", out_arr.astype(np.float) - ref)
-        assert False
+        print("Diff: ", out.at(i).astype(np.float) - ref)
+        assert np.allclose(out.at(i), ref, 1e-6, eps)
+
 
 def test_dynamic_ranges():
   for type, values, eps in [(types.FLOAT,  [-1.e30, -1-1.e-6, -1, -0.5, -1.e-30, 0, 1.e-30, 0.5, 1, 1+1.e-6, 1e30], 0),
@@ -110,8 +101,7 @@ def test_dynamic_ranges():
                             (types.INT16,  [-32768, -32767, -100, -1, 0, 1, 100, 32767], 0),
                             (types.UINT32,  [0, 1, 0x7fffffff, 0x80000000, 0xfffffffe, 0xffffffff], 128),
                             (types.INT32,  [-0x80000000, -0x7fffffff, -100, -1, 0, 1, 0x7fffffff], 128)]:
-    for device in ('cpu', 'gpu'):
-      yield _test_type_conversion, device, type, values, type, values, eps
+    yield _test_type_conversion, type, values, type, values, eps
 
 def test_type_conversion():
   type_ranges = [(types.FLOAT,  [-1, 1]),
@@ -148,5 +138,4 @@ def test_type_conversion():
       if eps < 1 and (o_lo != -o_hi or (i_hi != i_lo and dst_type != types.FLOAT)):
         eps = 1
 
-      for device in ('cpu', 'gpu'):
-        yield _test_type_conversion, device, src_type, in_values, dst_type, out_values, eps
+      yield _test_type_conversion, src_type, in_values, dst_type, out_values, eps
