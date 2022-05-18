@@ -225,6 +225,14 @@ TEST_F(VideoReaderDecoderCpuTest, VariableFrameRate_CpuOnlyTests) {
   RunTest<dali::CPUBackend>(vfr_videos_paths_, vfr_videos_);
 }
 
+TEST_F(VideoReaderDecoderCpuTest, LabelMismatch_CpuOnlyTests) {
+  std::vector<std::string> paths {cfr_hevc_videos_paths_[0]};
+
+  RunFailureTest([&]() -> void {
+    RunTest<dali::CPUBackend>(paths, cfr_videos_);},
+    "Current pipeline object is no longer valid.");
+}
+
 TEST_F(VideoReaderDecoderGpuTest, ConstantFrameRate) {
   RunTest<dali::GPUBackend>(cfr_videos_paths_, cfr_videos_);
 }
