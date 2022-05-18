@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include "dali/kernels/signal/resampling.h"
 #include "dali/core/util.h"
+#include "dali/core/convert.h"
 
 #define SHM_NCHANNELS 16
 
