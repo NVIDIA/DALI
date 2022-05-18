@@ -324,19 +324,24 @@ def _instantiate_constant_node(device, constant):
     return _Constant(device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape)
 
 
-def _separate_kwargs(kwargs):
+def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     """Separates arguments into ones that should go to operator's __init__ and to __call__.
 
     Returns a pair of dictionaries of kwargs - the first for __init__, the second for __call__.
+
+    Args:
+        kwargs: Keyword arguments.
+        arg_input_type: operator's argument input type, DataNode for pipeline mode, TensorListCPU
+            for eager mode.
     """
-    def is_data_node(x):
-        return isinstance(x, _DataNode)
+    def is_arg_input_type(x):
+        return isinstance(x, arg_input_type)
     def is_call_arg(name, value):
         if name == "device":
             return False
         if name == "ndim":
             return False
-        if name == "name" or is_data_node(value):
+        if name == "name" or is_arg_input_type(value):
             return True
         if isinstance(value, (str, list, tuple, nvidia.dali.types.ScalarConstant)):
             return False
@@ -715,23 +720,6 @@ def python_op_factory(name, schema_name = None):
     Operator.schema_name = schema_name or Operator.__name__
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
     return Operator
-
-
-def _prep_input_sets(op, inputs):
-    from nvidia.dali._debug_mode import _transform_data_to_tensorlist
-    import nvidia.dali.tensors as tensors
-
-    inputs = list(inputs)
-
-    for i, input in enumerate(inputs):
-        # Transforming any convertable datatype to TensorList (DataNodeDebugs are already unpacked).
-        # Additionally accepting input sets, but only as list of TensorList.
-        if not isinstance(input, (tensors.TensorListCPU, tensors.TensorListGPU)) and \
-                not (isinstance(input, list) and
-                     all([isinstance(elem, (tensors.TensorListCPU, tensors.TensorListGPU)) for elem in input])):
-            inputs[i] = _transform_data_to_tensorlist(input, len(input))
-
-    return op._build_input_sets(inputs)
 
 
 def _process_op_name(op_schema_name, make_hidden=False):

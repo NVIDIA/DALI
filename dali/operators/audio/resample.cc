@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/audio/resample.h"
 #include <map>
 #include <vector>
-#include "dali/operators/audio/resample.h"
-#include "dali/operators/audio/resampling_params.h"
+#include "dali/core/convert.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/signal/resampling_cpu.h"
-#include "dali/core/convert.h"
+#include "dali/operators/audio/resampling_params.h"
 
 namespace dali {
 
