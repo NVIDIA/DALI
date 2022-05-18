@@ -46,7 +46,9 @@ webdataset_dir = os.path.join(data_root, 'db', 'webdataset')
 coco_dir = os.path.join(data_root, 'db', 'coco', 'images')
 coco_annotation = os.path.join(data_root, 'db', 'coco', 'instances.json')
 sequence_dir = os.path.join(data_root, 'db', 'sequence', 'frames')
-video_files = get_files(os.path.join('db', 'video', 'vfr'), 'mp4')
+video_files = [
+    os.path.join(get_dali_extra_path(), 'db', 'video', 'vfr', 'test_1.mp4'),
+    os.path.join(get_dali_extra_path(), 'db', 'video', 'vfr', 'test_2.mp4')]
 
 batch_size = 2
 test_data_shape = [10, 20, 3]
@@ -609,7 +611,7 @@ def test_nemo_asr_reader_cpu():
                                             read_sample_rate=True, read_text=True, seed=fixed_seed)
 
 def test_video_reader():
-    check_no_input(fn.experimental.readers.video, filenames=video_files, labels=list(range(len(video_files))), sequence_length=10)
+    check_no_input(fn.experimental.readers.video, filenames=video_files, labels=[0, 1], sequence_length=10)
 
 def test_copy_cpu():
     check_single_input(fn.copy)

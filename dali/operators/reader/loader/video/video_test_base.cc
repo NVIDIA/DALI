@@ -144,4 +144,15 @@ void VideoTestBase::SaveFrame(
   testing::SaveImage(full_path.c_str(), tv);
 }
 
+void VideoTestBase::RunFailureTest(std::function<void()> body, std::string expected_error) {
+  try {
+    body();
+
+    FAIL();   // If we reached this point body did not throw an exception.
+  } catch (const std::exception &e) {
+    EXPECT_TRUE(
+      strstr(e.what(), expected_error.c_str()));
+  }
+}
+
 }  // namespace dali

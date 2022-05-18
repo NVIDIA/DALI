@@ -92,17 +92,6 @@ class FramesDecoderTestBase : public VideoTestBase {
     }
   }
 
-  void RunFailureTest(std::function<void()> body, std::string expected_error) {
-    try {
-      body();
-
-      FAIL();   // If we reached this point body did not throw an exception.
-    } catch (const DALIException &e) {
-      EXPECT_TRUE(
-        strstr(e.what(), expected_error.c_str()));
-    }
-  }
-
   virtual void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) = 0;
 
   virtual uint8_t *FrameData() = 0;
