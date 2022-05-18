@@ -149,7 +149,7 @@ class ResampleBase : public Operator<Backend> {
   ArgValue<int64_t> out_length_{"out_length", spec_};
 
   using Args = kernels::signal::resampling::Args;
-  SmallVector<Args, 128> args_;
+  std::vector<Args> args_;
 };
 
 }  // namespace audio

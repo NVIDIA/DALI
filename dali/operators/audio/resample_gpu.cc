@@ -48,11 +48,7 @@ class ResampleGPU : public ResampleBase<GPUBackend> {
           make_string("Unsupported input type: ", in.type(), "\nSupported types are : ",
                       ListTypeNames<AUDIO_RESAMPLE_TYPES>()));
       ));  // NOLINT
-    ), (  // NOLINT
-      DALI_FAIL(
-        make_string("Unsupported output type: ", dtype_, "\nSupported types are : ",
-                    ListTypeNames<AUDIO_RESAMPLE_TYPES>()));
-    ));  // NOLINT
+    ), (assert(!"Unreachable code.")));  // NOLINT
   }
 
   template <typename Out, typename In>

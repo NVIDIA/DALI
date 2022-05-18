@@ -77,13 +77,12 @@ void ResamplerGPU<Out, In>::Run(KernelContext &context, const OutListGPU<Out> &o
     desc.out = out_sample.data;
     desc.window = window_gpu_;
     const auto &in_sh = in_sample.shape;
-    const auto &out_sh = out_sample.shape;
     desc.in_len = in_sh[0];
     auto &arg = args[i];
     desc.out_begin = arg.out_begin > 0 ? arg.out_begin : 0;
     desc.out_end =
         arg.out_end > 0 ? arg.out_end : resampled_length(in_sh[0], arg.in_rate, arg.out_rate);
-    assert((desc.out_end - desc.out_begin) == out_sh[0]);
+    assert((desc.out_end - desc.out_begin) == out_sample.shape[0]);
     desc.nchannels = in_sh.sample_dim() > 1 ? in_sh[1] : 1;
     desc.scale = arg.in_rate / arg.out_rate;
     any_multichannel |= desc.nchannels > 1;
