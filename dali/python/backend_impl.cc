@@ -601,7 +601,7 @@ void ExposeEagerOperator(py::module &m) {
            [](EagerOperator<CPUBackend> &op,
               const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
               const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run<CPUBackend, CPUBackend>(inputs, kwargs); });
+                  &kwargs) { return op.Run(inputs, kwargs); });
 
   py::class_<EagerOperator<GPUBackend>>(m, "EagerOperatorGPU")
       .def(py::init([](const OpSpec &op_spec) {
@@ -612,7 +612,7 @@ void ExposeEagerOperator(py::module &m) {
            [](EagerOperator<GPUBackend> &op,
               const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
               const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run<GPUBackend, GPUBackend>(inputs, kwargs); });
+                  &kwargs) { return op.Run(inputs, kwargs); });
 
   py::class_<EagerOperator<MixedBackend>>(m, "EagerOperatorMixed")
       .def(py::init([](const OpSpec &op_spec) {
@@ -623,7 +623,7 @@ void ExposeEagerOperator(py::module &m) {
            [](EagerOperator<MixedBackend> &op,
               const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
               const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run<CPUBackend, GPUBackend>(inputs, kwargs); });
+                  &kwargs) { return op.Run(inputs, kwargs); });
 }
 
 void ExposePipelineDebug(py::module &m) {
@@ -633,9 +633,9 @@ void ExposePipelineDebug(py::module &m) {
       }))
       .def("AddOperator", &PipelineDebug::AddOperator)
       .def("AddMultipleOperators", &PipelineDebug::AddMultipleOperators)
-      .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend, CPUBackend>)
-      .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend, GPUBackend>)
-      .def("RunOperatorMixed", &PipelineDebug::RunOperator<CPUBackend, GPUBackend>);
+      .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend>)
+      .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend>)
+      .def("RunOperatorMixed", &PipelineDebug::RunOperator<MixedBackend>);
 }
 
 template <typename Backend>
