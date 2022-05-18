@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <numeric>
-#include "dali/kernels/signal/resampling.h"
+#include "dali/kernels/signal/resampling_cpu.h"
 #include "dali/kernels/signal/resampling_test.h"
 
 namespace dali {
@@ -121,7 +121,7 @@ void ResamplingTest::RunTest() {
 class ResamplingCPUTest : public ResamplingTest {
  public:
   void RunResampling(span<const Args> args) override {
-    Resampler R;
+    ResamplerCPU R;
     R.Initialize(16);
 
     ASSERT_EQ(args.size(), nsamples_);

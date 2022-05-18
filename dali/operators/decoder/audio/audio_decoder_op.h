@@ -26,7 +26,7 @@
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/host_workspace.h"
-#include "dali/kernels/signal/resampling.h"
+#include "dali/kernels/signal/resampling_cpu.h"
 #include "dali/kernels/signal/downmixing.h"
 #include "dali/core/tensor_view.h"
 
@@ -83,7 +83,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   }
 
   std::vector<float> target_sample_rates_;
-  kernels::signal::resampling::Resampler resampler_;
+  kernels::signal::resampling::ResamplerCPU resampler_;
   DALIDataType output_type_ = DALI_NO_TYPE, decode_type_ = DALI_NO_TYPE;
   const bool downmix_ = false, use_resampling_ = false;
   const float quality_ = 50.0f;
