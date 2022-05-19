@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,13 +30,13 @@ If another transform matrix is passed as an input, the operator applies scaling 
     R"code(The scale factor, per dimension.
 
 The number of dimensions of the transform is inferred from this argument.)code",
-    DALI_FLOAT_VEC, true)
+    DALI_FLOAT_VEC, true, true)
   .AddOptionalArg<std::vector<float>>(
     "center",
     R"code(The center of the scale operation.
 
 If provided, the number of elements should match the one of ``scale`` argument.)code",
-    nullptr, true)
+    nullptr, true, true)
   .AddOptionalArg<int>(
     "ndim",
     R"code(Number of dimensions.

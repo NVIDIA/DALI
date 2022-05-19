@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/operator/arg_helper.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 #define TRANSFORM_INPUT_TYPES (float)
@@ -45,11 +46,11 @@ using affine_mat_t = mat<mat_dim, mat_dim, T>;
  * As with any CRTP-based system, any non-private method can be shadowed by the TransformImpl class.
  */
 template <typename Backend, typename TransformImpl>
-class TransformBaseOp : public Operator<Backend> {
+class TransformBaseOp : public SequenceOperator<Backend, true> {
+ using Base = SequenceOperator<Backend, true>;
  public:
   explicit TransformBaseOp(const OpSpec &spec) :
-      Operator<Backend>(spec),
-      reverse_order_(spec.GetArgument<bool>("reverse_order")) {
+      Base(spec), reverse_order_(spec.GetArgument<bool>("reverse_order")) {
     matrix_data_.set_pinned(false);
     matrix_data_.set_type(dtype_);
   }
@@ -142,6 +143,18 @@ class TransformBaseOp : public Operator<Backend> {
       using SupportedDims = typename TransformImpl::SupportedDims;
       RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+  }
+
+  void PostprocessOutputs(workspace_t<Backend> &ws) override {
+    if (this->IsExpanding()) {
+      auto &out = ws.template Output<Backend>(0);
+      int sample_dim = out.sample_dim();
+      assert(sample_dim > 0);
+      TensorLayout layout;
+      layout.resize(sample_dim, '*');
+      layout[0] = 'F';
+      out.SetLayout(layout);
+    }
   }
 
   int input_transform_ndim(const workspace_t<Backend> &ws) const {
