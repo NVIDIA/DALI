@@ -16,6 +16,7 @@ import os
 import random
 import numpy as np
 from typing import List, Union, Callable
+from dataclasses import dataclass
 
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
@@ -30,29 +31,28 @@ vid_file = os.path.join(data_root, 'db', 'video',
                         'sintel', 'sintel_trailer-720p.mp4')
 
 
+@dataclass
 class SampleDesc:
+    """Context that the argument provider callback receives when prompted for parameter"""
+    rng: random.Random
+    frame_idx: int
+    sample_idx: int
+    batch_idx: int
+    sample: np.ndarray
 
-    def __init__(self, rng: random.Random, frame_idx: int, sample_idx: int, batch_idx: int, sample: np.ndarray):
-        self.rng = rng
-        self.frame_idx = frame_idx
-        self.sample_idx = sample_idx
-        self.batch_idx = batch_idx
-        self.sample = sample
 
-
+@dataclass
 class ArgDesc:
-    def __init__(self, name : Union[str, int], is_per_frame : bool, dest_device: str):
-        self.name = name
-        self.is_per_frame = is_per_frame
-        self.dest_device = dest_device
-        assert self.is_positional_arg or dest_device == "cpu", "Named arguments on GPU are not supported"
+    name: Union[str, int]
+    is_per_frame: bool
+    dest_device: str
+
+    def __post_init__(self):
+        assert self.is_positional_arg or self.dest_device == "cpu", "Named arguments on GPU are not supported"
 
     @property
     def is_positional_arg(self):
         return isinstance(self.name, int)
-
-    def __repr__(self):
-        return "ArgDesc{}".format((self.name, self.is_per_frame, self.dest_device),)
 
 
 class ArgCb:
@@ -64,17 +64,18 @@ class ArgCb:
         return "ArgCb{}".format((self.cb, self.desc))
 
 
+@dataclass
 class ArgData:
-    def __init__(self, arg_desc : ArgDesc, data):
-        self.desc = arg_desc
-        self.data = data
+    desc: ArgDesc
+    data: List[List[np.ndarray]]
 
 
 class ParamsProviderBase:
     """
     Computes data to be passed as argument inputs in sequence processing tests, the `compute_params` params
-    should return a lists of ArgData; the `arg_desc.data` dimensionality must match `arg_data.desc.is_per_frame`.
-    The `expand_params` should return corressponding unfolded/expanded ArgData to be used in the
+    should return a lists of ArgData; number of dimensions in the `arg_desc.data` must reflect
+    `arg_data.desc.is_per_frame` argument.
+    The `expand_params` should return corresponding unfolded/expanded ArgData to be used in the
     baseline pipeline.
     """
 
@@ -131,7 +132,7 @@ class ParamsProvider(ParamsProviderBase):
         return self.expanded_params_data
 
 
-def arg_data_node(arg_data : ArgData):
+def arg_data_node(arg_data: ArgData):
     node = fn.external_source(dummy_source(arg_data.data))
     if arg_data.desc.dest_device == "gpu":
         node = node.gpu()
@@ -213,20 +214,23 @@ def _test_seq_input(device, num_iters, expandable_extents, operator_fn, fixed_pa
                     input_layout, input_data, rng):
 
     @pipeline_def
-    def pipeline(input_data, input_layout, args_data : List[ArgData]):
+    def pipeline(input_data, input_layout, args_data: List[ArgData]):
         input = fn.external_source(
             source=dummy_source(input_data), layout=input_layout)
         if device == "gpu":
             input = input.gpu()
-        pos_args = [arg_data for arg_data in args_data if arg_data.desc.is_positional_arg]
+        pos_args = [
+            arg_data for arg_data in args_data if arg_data.desc.is_positional_arg]
         pos_nodes = [None] * (len(pos_args) + 1)
         for arg_data in pos_args:
             assert 0 <= arg_data.desc.name < len(pos_nodes)
             assert pos_nodes[arg_data.desc.name] is None
             pos_nodes[arg_data.desc.name] = arg_data_node(arg_data)
-        [input_idx] = [i for i, pos_input in enumerate(pos_nodes) if pos_input is None] # there should be exactly one
+        [input_idx] = [i for i, pos_input in enumerate(
+            pos_nodes) if pos_input is None]  # there should be exactly one
         pos_nodes[input_idx] = input
-        named_args = [arg_data for arg_data in args_data if not arg_data.desc.is_positional_arg]
+        named_args = [
+            arg_data for arg_data in args_data if not arg_data.desc.is_positional_arg]
         arg_nodes = {
             arg_data.desc.name: arg_data_node(arg_data)
             for arg_data in named_args}
@@ -396,7 +400,7 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
 
     For testing operator with different input than the video, consider using `sequence_suite_helper` directly.
     ----------
-    `ops_test_cases` : List[Tuple[Operator, Dict[str, Any], ParamProviderBase|List[Tuple[str, SampleDesc -> np.array, bool]]]]
+    `ops_test_cases` : List[Tuple[Operator, Dict[str, Any], ParamProviderBase|List[ArgCb]]]
         List of operators and their parameters that should be tested.
         Each element is expected to be a triple of the form:
         [(fn.operator, {fixed_param_name: fixed_param_value}, [ArgCb(tensor_arg_name, single_arg_cb, is_per_frame, dest_device)])]
