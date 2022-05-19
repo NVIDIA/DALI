@@ -23,8 +23,6 @@
 
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/util/backend2workspace_map.h"
-#include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 

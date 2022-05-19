@@ -26,8 +26,6 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/data/types.h"
 
 
 #ifdef __CUDA_ARCH__
