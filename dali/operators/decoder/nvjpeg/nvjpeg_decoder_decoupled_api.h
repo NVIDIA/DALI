@@ -86,6 +86,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
                      spec.GetArgument<int>("device_id"),
                      spec.GetArgument<bool>("affine"),
                      "image decoder nvJPEG2k") {
+    // TODO(ktokarski) TODO(jlisiecki) For now it is unused,
+    // adjust NVJPEG to (full capacity of) H100
+    (void) num_hw_engines_;
 #if IS_HW_DECODER_COMPATIBLE
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
     bool try_init_hw_decoder = false;
@@ -115,6 +118,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
         LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
         CUDA_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
+        if (nvjpegIsSymbolAvailable("nvjpegGetHardwareDecoderInfo")) {
+          nvjpegGetHardwareDecoderInfo(handle_, &num_hw_engines_, &num_hw_cores_per_engine_);
+          // ToDo adjust hw_decoder_load_ based on num_hw_engines_ and num_hw_cores_per_engine_
+        } else {
+          // assume pre H100 so the defaults are as follow
+          num_hw_engines_ = 1;
+          num_hw_cores_per_engine_ = 5;
+        }
         if (!RestrictPinnedMemUsage()) {
           hw_decoder_images_staging_.set_pinned(true);
           // assume close the worst case size 300kb per image
@@ -1135,10 +1146,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     if (hw_decoder_load == 0.f) return 0;
     auto hw_batch_size = static_cast<int>(std::round(hw_decoder_load * curr_batch_size));
 
-    constexpr int kNumHwDecoders = 5;
-    int tail = hw_batch_size % kNumHwDecoders;
+    int tail = hw_batch_size % num_hw_cores_per_engine_;
     if (tail > 0) {
-      hw_batch_size = hw_batch_size + kNumHwDecoders - tail;
+      hw_batch_size = hw_batch_size + num_hw_cores_per_engine_ - tail;
     }
     if (hw_batch_size > curr_batch_size) {
       hw_batch_size = curr_batch_size;
@@ -1166,6 +1176,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
   // Used to ensure the work in the thread pool is picked FIFO
   int64_t task_priority_seq_ = 0;
+  unsigned int num_hw_engines_ = 1;
+  unsigned int num_hw_cores_per_engine_ = 1;
 };
 
 }  // namespace dali
