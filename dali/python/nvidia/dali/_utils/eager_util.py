@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.tensors as _tensors
-import nvidia.dali.types as _types
+from nvidia.dali import tensors as _tensors
+from nvidia.dali import types as _types
 from nvidia.dali.external_source import _prep_data_for_feed_input
 
 
