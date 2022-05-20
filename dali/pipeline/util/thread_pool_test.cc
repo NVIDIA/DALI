@@ -73,7 +73,7 @@ TEST(ThreadPool, CheckName) {
   char given_thread_pool_name[] = "ThreadPool test";
   char full_thread_pool_name[] = "[DALI][TP0]ThreadPool test";
   // max len supported by pthread_getname_np is 16
-  char read_thread_pool_name[16] = {0,};
+  char read_thread_pool_name[16] = {0, };
   // only one thread to ensure deterministic behavior
   ThreadPool tp(1, 0, false, given_thread_pool_name);
   auto set_name = [&read_thread_pool_name](int thread_id) {
@@ -83,9 +83,8 @@ TEST(ThreadPool, CheckName) {
 
   tp.RunAll();
   // skip terminating \0 character
-  ASSERT_TRUE(0 == memcmp(read_thread_pool_name, full_thread_pool_name,
-                          std::min(sizeof(full_thread_pool_name),
-                                   sizeof(read_thread_pool_name)) - 1));
+  ASSERT_EQ(0, memcmp(read_thread_pool_name, full_thread_pool_name,
+                      std::min(sizeof(full_thread_pool_name), sizeof(read_thread_pool_name)) - 1));
 }
 
 }  // namespace test
