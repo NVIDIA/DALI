@@ -54,6 +54,22 @@ TEST(WorkerThread, ShutdownErrorHandling) {
   wt.Shutdown();  // assure it does not deadlock
 }
 
+TEST(WorkerThread, CheckName) {
+  char given_thread_name[] = "WorkerThread test";
+  char full_thread_name[] = "[DALI][WT]WorkerThread test";
+  // max len supported by pthread_getname_np is 16
+  char read_thread_name[16] = {0,};
+  WorkerThread wt(0, false, given_thread_name);
+  ASSERT_TRUE(wt.WaitForInit());
+  wt.DoWork([&read_thread_name]() {
+    pthread_getname_np(pthread_self(), read_thread_name, sizeof(read_thread_name));
+  });
+  wt.Shutdown();  // assure it does not deadlock
+  // skip terminating \0 character
+  ASSERT_TRUE(0 == memcmp(read_thread_name, full_thread_name,
+                          std::min(sizeof(full_thread_name), sizeof(read_thread_name)) - 1));
+}
+
 }  // namespace test
 
 }  // namespace dali
