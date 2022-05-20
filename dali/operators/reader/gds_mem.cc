@@ -84,6 +84,8 @@ void UnregisterChunks(void *start, int chunks, size_t chunk_size) {
 class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device> {
   void adjust_params(size_t &size, size_t &alignment) {
     if (alignment < chunk_size_) {
+      // Both chunk size and alignment are powers of 2, so if chunk_size_ is larger than
+      // the required alignment, it's also a multiple of it.
       alignment = chunk_size_;
     }
     size += alignment;  // we could go with alignment - 256, but that would risk having adjacent

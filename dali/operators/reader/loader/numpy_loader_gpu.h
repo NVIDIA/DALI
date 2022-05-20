@@ -79,8 +79,6 @@ class NumpyLoaderGPU : public CUFileLoader<NumpyFileWrapperGPU> {
 
   void PrepareEmpty(NumpyFileWrapperGPU& tensor) override;
   void ReadSample(NumpyFileWrapperGPU& tensor) override;
-
- protected:
 };
 
 }  // namespace dali
