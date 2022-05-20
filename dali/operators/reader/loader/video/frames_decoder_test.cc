@@ -36,6 +36,7 @@ class FramesDecoderTestBase : public VideoTestBase {
     ASSERT_EQ(decoder.Width(), ground_truth.Width());
     ASSERT_EQ(decoder.Channels(), ground_truth.NumChannels());
     ASSERT_EQ(decoder.NumFrames(), ground_truth.NumFrames());
+    ASSERT_EQ(decoder.IsVfr(), ground_truth.IsVfr());
 
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {

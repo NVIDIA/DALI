@@ -99,6 +99,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
     make_string("Unsupported video codec: ", av_state_->codec_->name, " in file: ", filename));
   InitAvState();
   BuildIndex();
+  DetectVfr();
 }
 
 void FramesDecoder::BuildIndex() {
@@ -128,6 +129,24 @@ void FramesDecoder::BuildIndex() {
     index_.push_back(entry);
   }
   Reset();
+}
+
+void FramesDecoder::DetectVfr() {
+  if (NumFrames() < 3) {
+    is_vfr_ = false;
+    return;
+  }
+
+  int pts_step = index_[1].pts - index_[0].pts;
+  for (int frame_id = 2; frame_id < NumFrames(); ++frame_id) {
+    if ((index_[frame_id].pts - index_[frame_id - 1].pts) != pts_step) {
+      is_vfr_ = true;
+      return;
+    }
+  }
+
+  is_vfr_ = false;
+  return;
 }
 
 void FramesDecoder::CopyToOutput(uint8_t *data) {
