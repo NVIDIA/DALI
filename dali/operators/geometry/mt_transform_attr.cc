@@ -35,14 +35,14 @@ If a scalar value is provided, ``M`` is assumed to be a square matrix with that 
 diagonal. The size of the matrix is then assumed to match the number of components in the
 input vectors.)",
     nullptr,  // no default value
-    true)
+    true, true)
   .AddOptionalArg<vector<float>>("T", R"(The translation vector.
 
 If left unspecified, no translation is applied unless MT argument is used.
 
 The number of components of this vector must match the number of rows in matrix ``M``.
 If a scalar value is provided, that value is broadcast to all components of ``T`` and the number
-of components is chosen to match the number of rows in ``M``.)", nullptr, true)
+of components is chosen to match the number of rows in ``M``.)", nullptr, true, true)
   .AddOptionalArg<vector<float>>("MT", R"(A block matrix [M T] which combines the arguments
 ``M`` and ``T``.
 
@@ -51,8 +51,7 @@ M and leaving T unspecified.
 
 The number of columns must be one more than the number of components in the input.
 This argument is mutually exclusive with ``M`` and ``T``.)",
-    nullptr,
-    true);
+    nullptr, true, true);
 
 void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspace &ws, int N) {
   bool is_fused = HasFusedMT();
