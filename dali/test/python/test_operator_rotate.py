@@ -23,7 +23,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from test_utils import compare_pipelines
-from sequences_test_utils import get_video_input_cases, ParamsProvider, sequence_suite_helper
+from sequences_test_utils import ArgData, ArgDesc, get_video_input_cases, ParamsProvider, sequence_suite_helper, ArgCb
 
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -271,21 +271,20 @@ class RotatePerFrameParamsProvider(ParamsProvider):
   def expand_params(self):
     assert(self.num_expand == 1)
     expanded_params = super().expand_params()
-    params_dict = dict(expanded_params)
-    (_, expanded_angles) = next(filter(lambda param : param[0] == 'angle', expanded_params), None)
+    params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
     expanded_angles = params_dict.get('angle')
     expanded_axis = params_dict.get('axis')
-    assert(expanded_angles is not None and 'size' not in self.fixed_params and 'size' not in params_dict)
+    assert expanded_angles is not None and 'size' not in self.fixed_params and 'size' not in params_dict
     sequence_extents = [
       [sample.shape[0] for sample in input_batch]
       for input_batch in self.input_data]
-    output_size_params = (sequence_extents, self.unfolded_input, expanded_angles)
+    output_size_params = (sequence_extents, self.unfolded_input, expanded_angles.data)
     if expanded_axis is not None:
-      output_size_params += (expanded_axis,)
+      output_size_params += (expanded_axis.data,)
     output_sizes = [
         sequence_batch_output_size(*args)
         for args in zip(*output_size_params)]
-    expanded_params.append(('size', output_sizes))
+    expanded_params.append(ArgData(ArgDesc("size", False, "cpu"), output_sizes))
     return expanded_params
 
   def __repr__(self):
@@ -293,22 +292,22 @@ class RotatePerFrameParamsProvider(ParamsProvider):
 
 
 def test_video():
-    def small_angle(rng):
-      return np.array(rng.uniform(-44., 44.), dtype=np.float32)
+    def small_angle(sample_desc):
+      return np.array(sample_desc.rng.uniform(-44., 44.), dtype=np.float32)
 
-    def random_angle(rng):
-      return np.array(rng.uniform(-180., 180.), dtype=np.float32)
+    def random_angle(sample_desc):
+      return np.array(sample_desc.rng.uniform(-180., 180.), dtype=np.float32)
 
-    def random_output(rng):
-      return np.array([rng.randint(300, 400), rng.randint(300, 400)])
+    def random_output(sample_desc):
+      return np.array([sample_desc.rng.randint(300, 400), rng.randint(300, 400)])
 
     video_test_cases = [
         (dali.fn.rotate, {'angle': 45.}, []),
-        (dali.fn.rotate, {}, [("angle", small_angle, False)]),
-        (dali.fn.rotate, {}, [("angle", random_angle, False)]),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", small_angle, True)])),
-        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", random_angle, True)])),
-        (dali.fn.rotate, {}, [("angle", small_angle, True), ("size", random_output, False)]),
+        (dali.fn.rotate, {}, [ArgCb("angle", small_angle, False)]),
+        (dali.fn.rotate, {}, [ArgCb("angle", random_angle, False)]),
+        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", small_angle, True)])),
+        (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True)])),
+        (dali.fn.rotate, {}, [ArgCb("angle", small_angle, True), ArgCb("size", random_output, False)]),
     ]
 
     rng = random.Random(42)
@@ -335,15 +334,15 @@ def test_3d_sequence():
 
   input_cases = [(input_layout, [get_random_batch() for _ in range(num_batches)])]
 
-  def random_angle(rng):
-    return np.array(rng.uniform(-180., 180.), dtype=np.float32)
+  def random_angle(sample_desc):
+    return np.array(sample_desc.rng.uniform(-180., 180.), dtype=np.float32)
 
-  def random_axis(rng):
-    return np.array([rng.uniform(-1, 1) for _ in range(3)], dtype=np.float32)
+  def random_axis(sample_desc):
+    return np.array([sample_desc.rng.uniform(-1, 1) for _ in range(3)], dtype=np.float32)
 
   test_cases = [
     (dali.fn.rotate, {'angle': 45., 'axis': np.array([1, 0, 0], dtype=np.float32)}, []),
-    (dali.fn.rotate, {'size': (50, 30, 20)}, [("angle", random_angle, True), ("axis", random_axis, True)]),
-    (dali.fn.rotate, {}, RotatePerFrameParamsProvider([("angle", random_angle, True), ("axis", random_axis, True)])),
+    (dali.fn.rotate, {'size': (50, 30, 20)}, [ArgCb("angle", random_angle, True), ArgCb("axis", random_axis, True)]),
+    (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True), ArgCb("axis", random_axis, True)])),
   ]
   yield from sequence_suite_helper(rng, "F", input_cases, test_cases)
