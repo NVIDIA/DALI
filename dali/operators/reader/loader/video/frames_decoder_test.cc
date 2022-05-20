@@ -220,4 +220,9 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
+  FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
+  RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
 }  // namespace dali
