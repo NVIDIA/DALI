@@ -75,9 +75,15 @@ class _DaliBaseIterator(object):
                 samples that iterator needs to deal with. It allows `last_batch_policy` to be
                 PARTIAL or DROP, if FILL is used it is changed to PARTIAL. Sets `last_batch_padded`
                 accordingly to the reader's configuration (`pad_last_batch` reader argument)
-    auto_reset : bool, optional, default = False
-                Whether the iterator resets itself for the next epoch
-                or it requires reset() to be called separately.
+    auto_reset : string or bool, optional, default = False
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+
+                It can be one of the following values:
+
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
@@ -140,7 +146,14 @@ class _DaliBaseIterator(object):
                 "All pipelines should have the same batch size set"
 
         self._size = int(size)
-        self._auto_reset = auto_reset
+        if auto_reset == False or auto_reset is None or auto_reset == "no":
+            self._auto_reset = "no"
+        elif auto_reset == True or auto_reset == "yes":
+            self._auto_reset = "yes"
+        elif auto_reset == "silent":
+            self._auto_reset = "silent"
+        else:
+            raise ValueError(f"Unsupported value for `auto_reset` {auto_reset}")
         self._prepare_first_batch = prepare_first_batch
 
         if fill_last_batch is not None:
@@ -261,9 +274,10 @@ class _DaliBaseIterator(object):
                     outputs.append(p.share_outputs())
         except StopIteration as e:
             # in case ExternalSource returns StopIteration
-            if self._size < 0 and self._auto_reset:
+            if self._size < 0 and (self._auto_reset == "yes" or self._auto_reset == "silent"):
                 self.reset()
-            raise e
+            if self._auto_reset != "silent":
+                raise e
         self._check_batch_size(outputs)
         return outputs
 
@@ -279,9 +293,10 @@ class _DaliBaseIterator(object):
                         "provided or iterator size is set explicitly"
 
     def _end_iteration(self):
-        if self._auto_reset:
+        if self._auto_reset == "yes" or self._auto_reset == "silent":
             self.reset()
-        raise StopIteration
+        if self._auto_reset != "silent":
+            raise StopIteration
 
     def _schedule_runs(self, release_outputs=True):
         """

@@ -152,9 +152,15 @@ class DALIGenericIterator(_DaliBaseIterator):
                 samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
                 PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
-    auto_reset : bool, optional, default = False
-                 Whether the iterator resets itself for the next epoch
-                 or it requires reset() to be called separately.
+    auto_reset : string or bool, optional, default = False
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+
+                It can be one of the following values:
+
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
@@ -392,9 +398,15 @@ class DALIClassificationIterator(DALIGenericIterator):
                 samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
                 PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
-    auto_reset : bool, optional, default = False
-                 Whether the iterator resets itself for the next epoch
-                 or it requires reset() to be called separately.
+    auto_reset : string or bool, optional, default = False
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+
+                It can be one of the following values:
+
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None

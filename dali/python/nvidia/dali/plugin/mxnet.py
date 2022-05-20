@@ -168,9 +168,15 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 the reader's configuration
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
-    auto_reset : bool, optional, default = False
-                 Whether the iterator resets itself for the next epoch
-                 or it requires reset() to be called separately.
+    auto_reset : string or bool, optional, default = False
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+
+                It can be one of the following values:
+
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+
     squeeze_labels: (DEPRECATED) bool, optional, default = False
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
@@ -439,9 +445,15 @@ class DALIClassificationIterator(DALIGenericIterator):
                  Label name for provided symbols.
     data_layout : str, optional, default = 'NCHW'
                   Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
-    auto_reset : bool, optional, default = False
-                 Whether the iterator resets itself for the next epoch
-                 or it requires reset() to be called separately.
+    auto_reset : string or bool, optional, default = False
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+
+                It can be one of the following values:
+
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+
     squeeze_labels: (DEPRECATED) bool, optional, default = True
                  Whether the iterator should squeeze the labels before
                  copying them to the ndarray.
@@ -562,9 +574,15 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             or DALIGluonIterator.SPARSE_TAG.
             Length of output_types must match the number of output of the pipeline(s).
             If not set, all outputs are considered to be marked with DALIGluonIterator.DENSE_TAG.
-    auto_reset : bool, optional, default = False
-            Whether the iterator resets itself for the next epoch
-            or it requires reset() to be called separately.
+    auto_reset : string or bool, optional, default = False
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+
+                It can be one of the following values:
+
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
 
