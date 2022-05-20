@@ -146,7 +146,9 @@ class Scratchpad {
   if_iterable<Collection, T*>
   ToHost(const Collection &c) {
     T *ptr = AllocateHost<T>(dali::size(c));
-    std::copy(begin(c), end(c), ptr);
+    T *it = ptr;
+    for (const auto &x : c)
+      new(it++)T(x);
     return ptr;
   }
 
@@ -154,7 +156,9 @@ class Scratchpad {
   if_iterable<Collection, T*>
   ToPinned(const Collection &c) {
     T *ptr = AllocatePinned<T>(dali::size(c));
-    std::copy(begin(c), end(c), ptr);
+    T *it = ptr;
+    for (const auto &x : c)
+      new(it++)T(x);
     return ptr;
   }
 
@@ -162,7 +166,9 @@ class Scratchpad {
   if_iterable<Collection, T*>
   ToManaged(const Collection &c) {
     T *ptr = AllocateManaged<T>(dali::size(c));
-    std::copy(begin(c), end(c), ptr);
+    T *it = ptr;
+    for (const auto &x : c)
+      new(it++)T(x);
     return ptr;
   }
 
