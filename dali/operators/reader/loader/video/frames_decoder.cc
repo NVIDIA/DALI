@@ -146,7 +146,6 @@ void FramesDecoder::DetectVfr() {
   }
 
   is_vfr_ = false;
-  return;
 }
 
 void FramesDecoder::CopyToOutput(uint8_t *data) {
