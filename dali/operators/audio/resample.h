@@ -129,7 +129,7 @@ class ResampleBase : public Operator<Backend> {
             "Error at sample ", s));
         }
         args_[s].in_rate  = in_length  ? in_length  : 1;  // avoid division by 0
-        args_[s].out_rate = out_length ? out_length : 1; // avoid division by 0
+        args_[s].out_rate = out_length ? out_length : 1;  // avoid division by 0
         out_shape.tensor_shape_span(s)[0] = out_length;
       }
     } else {

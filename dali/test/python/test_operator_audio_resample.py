@@ -100,7 +100,7 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
         print("Reference: ", ref)
         print(ref.dtype, ref.shape)
         print("Diff: ", out_arr.astype(np.float) - ref)
-        assert False
+        assert np.allclose(out_arr, ref, 1e-6, eps)
 
 def test_dynamic_ranges():
   for type, values, eps in [(types.FLOAT,  [-1.e30, -1-1.e-6, -1, -0.5, -1.e-30, 0, 1.e-30, 0.5, 1, 1+1.e-6, 1e30], 0),
