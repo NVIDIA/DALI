@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import torch
 import math
 import random
 import os
-from nose.tools import nottest
 
 audio_files = get_files('db/audio/wav', 'wav')
 audio_files = [file for file in audio_files if '237-134500' in file]  # Filtering librispeech samples
@@ -248,7 +247,7 @@ def dali_frame_splicing_graph(x, nfeatures, x_len, stacking=1, subsampling=1):
     if stacking > 1:
         seq = [x]
         for n in range(1, stacking):
-            f = fn.slice(x, n, x_len, axes=(1,), out_of_bounds_policy='pad', fill_values=0)
+            f = fn.slice(x, start=n, shape=x_len, axes=(1,), out_of_bounds_policy='pad', fill_values=0)
             seq.append(f)
         x = fn.cat(*seq, axis=0)
         nfeatures = nfeatures * stacking
@@ -277,10 +276,10 @@ def dali_reflect_pad_graph(x, x_len, pad_amount):
         x = fn.flip(x, vertical=1)
         x = fn.reshape(x, shape=(-1,), layout="t")
         return x
-    pad_start = fn.slice(x, 1, pad_amount, axes=(0,))
+    pad_start = fn.slice(x, start=1, shape=pad_amount, axes=(0,))
     pad_start = flip_1d(pad_start)
 
-    pad_end = fn.slice(x, x_len-pad_amount-1, pad_amount, axes=(0,))
+    pad_end = fn.slice(x, start=(x_len-pad_amount-1), shape=pad_amount, axes=(0,))
     pad_end = flip_1d(pad_end)
     x = fn.cat(pad_start, x, pad_end, axis=0)
     return x
@@ -289,9 +288,7 @@ def dali_reflect_pad_graph(x, x_len, pad_amount):
 def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
                     window_size=.02, window_stride=.01, window="hann", nfeatures=64, nfft=512,
                     frame_splicing_stack=1, frame_splicing_subsample=1,
-                    lowfreq=0.0, highfreq=None, normalize_type='per_feature',
-                    speed_perturb=False, silence_trim=False,
-                    device='cpu'):
+                    lowfreq=0.0, highfreq=None, normalize_type='per_feature', device='cpu'):
     assert normalize_type == 'per_feature' or normalize_type == 'all_features'
     norm_axes = [1] if normalize_type == 'per_feature' else [0, 1]
     win_len, win_hop = win_args(sample_rate, window_size, window_stride)
@@ -301,48 +298,30 @@ def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
     data, _ = fn.readers.file(files=files, device="cpu", random_shuffle=False, shard_id=0, num_shards=1)
     audio, _ = fn.decoders.audio(data, dtype=types.FLOAT, downmix=True)
 
-    # splicing with subsampling doesn't work if audio_len is a GPU data node
-    if device == 'gpu' and frame_splicing_subsample == 1:
-        audio = audio.gpu()
-
-    # Speed perturbation 0.85x - 1.15x
-    if speed_perturb:
-        target_sr_factor = fn.random.uniform(device="cpu", range=(1/1.15, 1/0.85))
-        audio = fn.experimental.audio_resample(audio, scale=target_sr_factor)
-
-    # Silence trimming
-    if silence_trim:
-        begin, length = fn.nonsilent_region(audio, cutoff_db=-80)
-        audio = fn.slice(audio, begin, length, axes=[0])
-
     audio_shape = fn.shapes(audio, dtype=types.INT32)
     orig_audio_len = fn.slice(audio_shape, 0, 1, axes=(0,))
 
-    # If we couldn't move to GPU earlier, do it now
-    if device == 'gpu' and frame_splicing_subsample > 1:
+    if pad_amount > 0:
+        audio_len = orig_audio_len + 2 * pad_amount
+    else:
+        audio_len = orig_audio_len
+
+    spec_len = audio_len // win_hop + 1
+
+    if device == 'gpu':
         audio = audio.gpu()
 
     if pad_amount > 0:
-        audio_len = orig_audio_len + 2 * pad_amount
         padded_audio = dali_reflect_pad_graph(audio, orig_audio_len, pad_amount)
     else:
-        audio_len = orig_audio_len
         padded_audio = audio
 
-    # Preemphasis filter
     preemph_audio = fn.preemphasis_filter(padded_audio, preemph_coeff=preemph_coeff, border='zero')
-
-    # Spectrogram
-    spec_len = audio_len // win_hop + 1
     spec = fn.spectrogram(preemph_audio, nfft=nfft, window_fn=window_fn_arg, window_length=win_len, window_step=win_hop,
                           center_windows=True, reflect_padding=True)
-    # Mel spectrogram
     mel_spec = fn.mel_filter_bank(spec, sample_rate=sample_rate, nfilter=nfeatures, freq_low=lowfreq, freq_high=highfreq)
-
-    # Log
     log_features = fn.to_decibels(mel_spec + 1e-20, multiplier=np.log(10), reference=1.0, cutoff_db=-80)
 
-    # Frame splicing
     if frame_splicing_stack > 1 or frame_splicing_subsample > 1:
         log_features_spliced = dali_frame_splicing_graph(log_features, nfeatures, spec_len,
                                                          stacking=frame_splicing_stack,
@@ -350,7 +329,6 @@ def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
     else:
         log_features_spliced = log_features
 
-    # Normalization
     if normalize_type:
         norm_log_features = fn.normalize(log_features_spliced, axes=norm_axes, device=device, epsilon=4e-5, ddof=1)
     else:
@@ -374,8 +352,6 @@ def _testimpl_rnnt_data_pipeline(device, pad_amount=0, preemph_coeff=.97, window
                                  window="hann", nfeatures=64, n_fft=512, frame_splicing_stack=1, frame_splicing_subsample=1,
                                  lowfreq=0.0, highfreq=None, normalize_type='per_feature', batch_size=32):
     sample_rate = npy_files_sr
-    speed_perturb = False
-    silence_trim = False
 
     ref_pipeline = FilterbankFeatures(
         sample_rate=sample_rate, window_size=window_size, window_stride=window_stride, window=window, normalize=normalize_type,
@@ -393,8 +369,8 @@ def _testimpl_rnnt_data_pipeline(device, pad_amount=0, preemph_coeff=.97, window
 
     pipe = rnnt_train_pipe(
         audio_files, sample_rate, pad_amount, preemph_coeff, window_size, window_stride, window, nfeatures,
-        n_fft, frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type,
-        speed_perturb, silence_trim, device, seed=42, batch_size=batch_size
+        n_fft, frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type, device,
+        seed=42, batch_size=batch_size
     )
     pipe.build()
     nbatches = (nrecordings + batch_size - 1) // batch_size
@@ -469,28 +445,3 @@ def test_rnnt_data_pipeline():
                 yield _testimpl_rnnt_data_pipeline, device, \
                     pad_amount, preemph_coeff, window_size, window_stride, window, nfeatures, n_fft, \
                     frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type
-
-@nottest  # To be run manually to check perf
-def test_rnnt_data_pipeline_throughput(pad_amount=0, preemph_coeff=.97, window_size=.02, window_stride=.01,
-                                       window="hann", nfeatures=64, n_fft=512, frame_splicing_stack=1, frame_splicing_subsample=1,
-                                       speed_perturb=True, silence_trim=True, lowfreq=0.0, highfreq=None, normalize_type='per_feature', batch_size=32):
-    sample_rate = npy_files_sr
-    device = 'gpu'
-    pipe = rnnt_train_pipe(
-        audio_files, sample_rate, pad_amount, preemph_coeff, window_size, window_stride, window, nfeatures,
-        n_fft, frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq,
-        normalize_type, speed_perturb, silence_trim, device, seed=42, batch_size=batch_size
-    )
-    pipe.build()
-
-    import time
-    from test_utils import AverageMeter
-    end = time.time()
-    data_time = AverageMeter()
-    iters = 1000
-    for j in range(iters):
-        pipe.run()
-        data_time.update(time.time() - end)
-        if j % 100 == 0:
-            print(f"run {j+1}/ {iters}, avg time: {data_time.avg} [s], worst time: {data_time.max_val} [s], speed: {batch_size / data_time.avg} [recordings/s]")
-        end = time.time()
