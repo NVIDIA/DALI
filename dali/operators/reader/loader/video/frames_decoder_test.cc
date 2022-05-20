@@ -130,7 +130,7 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   }
 
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) {
-    MemCopy(frame_cpu_buffer_.data(), frame, ground_truth.FrameSize());
+    MemCopy(FrameDataCpu(), frame, ground_truth.FrameSize());
     ground_truth.CompareFrameAvgError(index, frame_cpu_buffer_.data());
   }
 
@@ -141,6 +141,10 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
 
   uint8_t *FrameData() override {
     return frame_gpu_buffer_.data();
+  }
+
+  uint8_t *FrameDataCpu() {
+    return frame_cpu_buffer_.data();
   }
 
  private:

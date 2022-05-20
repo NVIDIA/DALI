@@ -63,6 +63,20 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   DALI_ENFORCE(av_bsf_init(bsfc_) >= 0);
 }
 
+cudaVideoCodec FramesDecoderGpu::FindCodecType() {
+  switch (av_state_->codec_->id) {
+  case AV_CODEC_ID_H264:
+    return cudaVideoCodec_H264;
+  case AV_CODEC_ID_HEVC:
+    return cudaVideoCodec_HEVC;
+  default:
+    DALI_FAIL(make_string(
+      "Unsupported codec: ",
+      av_state_->codec_->name));
+  }
+  return cudaVideoCodec_HEVC;
+}
+
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
     FramesDecoder(filename),
     frame_buffer_(num_decode_surfaces_),
@@ -74,13 +88,15 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     filtered_packet_ = av_packet_alloc();
     DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
 
+    auto codec_type = FindCodecType();
+
     // Create nv decoder
     CUVIDDECODECREATEINFO decoder_info;
     memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
 
     decoder_info.bitDepthMinus8 = 0;
     decoder_info.ChromaFormat = cudaVideoChromaFormat_420;
-    decoder_info.CodecType = cudaVideoCodec_H264;
+    decoder_info.CodecType = codec_type;
     decoder_info.ulHeight = Height();
     decoder_info.ulWidth = Width();
     decoder_info.ulMaxHeight = Height();
@@ -95,7 +111,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     // Create nv parser
     CUVIDPARSERPARAMS parser_info;
     memset(&parser_info, 0, sizeof(CUVIDPARSERPARAMS));
-    parser_info.CodecType = cudaVideoCodec_H264;
+    parser_info.CodecType = codec_type;
     parser_info.ulMaxNumDecodeSurfaces = num_decode_surfaces_;
     parser_info.ulMaxDisplayDelay = 0;
     parser_info.pUserData = this;
