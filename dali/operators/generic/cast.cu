@@ -58,8 +58,13 @@ bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorksp
 void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
-  std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
-  auto collapsed_shape = collapse_dims<1>(input.shape(), collapse_groups);
+  TensorListShape<1> collapsed_shape;
+  if (input.sample_dim() > 0) {
+    std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
+    collapsed_shape = collapse_dims<1>(input_shape, collapse_groups);
+  } else {
+    collapsed_shape = uniform_list_shape(input_shape.num_samples(), TensorShape<1>{1});
+  }
 
   block_setup_.SetupBlocks(collapsed_shape, true);
 }
