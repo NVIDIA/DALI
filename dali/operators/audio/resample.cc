@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/audio/resample.h"
 #include <map>
 #include <vector>
-#include "dali/kernels/signal/resampling_cpu.h"
-#include "dali/operators/audio/resample.h"
-#include "dali/operators/audio/resampling_params.h"
-#include "dali/kernels/kernel_params.h"
 #include "dali/core/convert.h"
+#include "dali/kernels/kernel_params.h"
+#include "dali/kernels/signal/resampling_cpu.h"
+#include "dali/operators/audio/resampling_params.h"
 
 namespace dali {
 
@@ -117,7 +117,7 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
     const auto &in_shape = in.shape();
     out.SetLayout(in.GetLayout());
     int N = in.num_samples();
-    assert(N == static_cast<int>(scales_.size()));
+    assert(N == static_cast<int>(args_.size()));
     assert(out.type() == dtype_);
 
     auto &tp = ws.GetThreadPool();
@@ -131,7 +131,7 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
               make_string("Unsupported output type: ", dtype_,
                           "\nSupported types are : ", ListTypeNames<AUDIO_RESAMPLE_TYPES>()));));
         TYPE_SWITCH(dtype_, type2id, T, (AUDIO_RESAMPLE_TYPES),
-          (ResampleTyped<T>(view<T>(out[s]), in_view, scales_[s]);),
+          (ResampleTyped<T>(view<T>(out[s]), in_view, args_[s]);),
           (assert(!"Unreachable code.")));
       });
     }
@@ -139,9 +139,9 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
   }
 
   template <typename T>
-  void ResampleTyped(const OutTensorCPU<T> &out, const InTensorCPU<float> &in, double scale) {
+  void ResampleTyped(const OutTensorCPU<T> &out, const InTensorCPU<float> &in, const Args& args) {
     int ch = out.shape.sample_dim() > 1 ? out.shape[1] : 1;
-    R.Resample(out.data, 0, out.shape[0], scale, in.data, in.shape[0], 1, ch);
+    R.Resample(out.data, 0, out.shape[0], args.out_rate, in.data, in.shape[0], args.in_rate, ch);
   }
 
   template <typename T>
