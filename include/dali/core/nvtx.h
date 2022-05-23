@@ -100,6 +100,11 @@ struct DomainTimeRange : RangeBase {
 #endif
 };
 
+
+/*
+ * Sets thread name in nsys profiles (no length limit) and in the process list
+ * (only first 15 characters is used)
+ */
 void SetThreadName(const char *name);
 
 }  // namespace dali
