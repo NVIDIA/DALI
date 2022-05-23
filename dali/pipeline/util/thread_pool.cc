@@ -27,7 +27,7 @@ namespace dali {
 
 ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const std::string name)
     : threads_(num_thread), running_(true), work_complete_(true), started_(false)
-    , active_threads_(0) {
+    , active_threads_(0), name_(name) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
   // only for the CPU pipeline
@@ -37,8 +37,7 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const s
 #endif
   // Start the threads in the main loop
   for (int i = 0; i < num_thread; ++i) {
-    threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i, device_id, set_affinity,
-                                        make_string("[DALI][TP", i, "]", name)));
+    threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i, device_id, set_affinity));
   }
   tl_errors_.resize(num_thread);
 }
@@ -118,9 +117,8 @@ std::vector<std::thread::id> ThreadPool::GetThreadIds() const {
 }
 
 
-void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
-                            const std::string &name) {
-  SetThreadName(name.c_str());
+void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity) {
+  SetThreadName(make_string("[DALI][TP", thread_id, "]", name_).c_str());
   DeviceGuard g(device_id);
   try {
 #if NVML_ENABLED
