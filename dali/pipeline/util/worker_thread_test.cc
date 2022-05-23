@@ -55,8 +55,8 @@ TEST(WorkerThread, ShutdownErrorHandling) {
 }
 
 TEST(WorkerThread, CheckName) {
-  char given_thread_name[] = "WorkerThread test";
-  char full_thread_name[] = "[DALI][WT]WorkerThread test";
+  const char given_thread_name[] = "WorkerThread test";
+  const char full_thread_name[] = "[DALI][WT]WorkerThread test";
   // max len supported by pthread_getname_np is 16
   char read_thread_name[16] = {0, };
   WorkerThread wt(0, false, given_thread_name);

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <sys/syscall.h>
+#include <sys/types.h>
 #include <pthread.h>
 #include <memory>
 #include "dali/core/nvtx.h"
@@ -71,7 +71,7 @@ DLL_PUBLIC DomainTimeRange::~DomainTimeRange() {
 
 
 DLL_PUBLIC void SetThreadName(const char *name) {
-  nvtxNameOsThreadA(syscall(SYS_gettid), name);
+  nvtxNameOsThreadA(gettid(), name);
   SetThreadNameInternal(name);
 }
 

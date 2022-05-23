@@ -70,8 +70,8 @@ TEST(ThreadPool, AddWorkWithPriority) {
 
 
 TEST(ThreadPool, CheckName) {
-  char given_thread_pool_name[] = "ThreadPool test";
-  char full_thread_pool_name[] = "[DALI][TP0]ThreadPool test";
+  const char given_thread_pool_name[] = "ThreadPool test";
+  const char full_thread_pool_name[] = "[DALI][TP0]ThreadPool test";
   // max len supported by pthread_getname_np is 16
   char read_thread_pool_name[16] = {0, };
   // only one thread to ensure deterministic behavior
