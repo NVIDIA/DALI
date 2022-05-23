@@ -23,6 +23,7 @@
 #include <vector>
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/operator/common.h"
@@ -37,19 +38,6 @@ inline bool is_per_frame(const TensorVector<CPUBackend> &arg_input) {
   const auto &layout = arg_input.GetLayout();
   return layout.size() > 0 && layout[0] == 'F';
 }
-
-template <typename BatchType>
-struct BatchBackend;
-
-template <template <typename> class BatchContainer, typename Backend>
-struct BatchBackend<BatchContainer<Backend>> {
-  using Type = Backend;
-};
-
-template <typename BatchType>
-using batch_backend_t =
-    typename BatchBackend<std::remove_cv_t<std::remove_reference_t<BatchType>>>::Type;
-
 }  // namespace detail
 
 
@@ -291,7 +279,7 @@ class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Bac
     int num_expand_dims = input_desc.NumDimsToExpand();
     if (num_expand_dims == 0) {
       ProcessInput(ws, input_idx, [&](const auto &input) {
-        auto &expanded_input = ExpandedInput<detail::batch_backend_t<decltype(input)>>(input_idx);
+        auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
         BroadcastBatch(input, expanded_input, ref_expand_desc);
       });
     } else {
@@ -299,7 +287,7 @@ class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Bac
         VerifyExpansionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
       ProcessInput(ws, input_idx, [&](const auto &input) {
-        auto &expanded_input = ExpandedInput<detail::batch_backend_t<decltype(input)>>(input_idx);
+        auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
         UnfoldBatch(input, expanded_input, ref_expand_desc);
       });
     }
@@ -319,7 +307,7 @@ class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Bac
   virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
     ProcessOutput(ws, output_idx, [&](const auto &output) {
-      auto &expanded_output = ExpandedOutput<detail::batch_backend_t<decltype(output)>>(output_idx);
+      auto &expanded_output = ExpandedOutput<batch_backend_t<decltype(output)>>(output_idx);
       UnfoldBatch(output, expanded_output, expand_desc);
     });
   }
