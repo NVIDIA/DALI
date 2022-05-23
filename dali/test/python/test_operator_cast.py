@@ -12,46 +12,106 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+from math import nextafter
+import nose_utils
+from nvidia.dali import pipeline_def
+import nvidia.dali as dali
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
+from nose.tools import nottest
 
-from test_utils import compare_pipelines
-from test_utils import RandomlyShapedDataIterator
+from test_utils import check_batch, np_type_to_dali
 
-class CastPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, cast_dtypes, num_threads=1, device_id=0):
-        super(CastPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.layout = "HWC"
-        self.device = device
-        self.iterator = iterator
-        self.inputs = ops.ExternalSource()
-        self.cast = [ops.Cast(device=device, dtype=dtype) for dtype in cast_dtypes]
 
-    def define_graph(self):
-        self.data = self.inputs()
-        out = self.data.gpu() if self.device == 'gpu' else self.data
-        for k in range(len(self.cast)):
-            out = self.cast[k](out)
-        return out
+def ref_cast(x, dtype):
+    if np.issubdtype(dtype, np.integer):
+        lo = np.iinfo(dtype).min
+        hi = np.iinfo(dtype).max
+        if np.issubdtype(x.dtype, np.floating):
+            x = np.round(x)
+        else:
+            x
+        return x.clip(lo, hi).astype(dtype)
+    else:
+        return x.astype(dtype)
 
-    def iter_setup(self):
-        data = self.iterator.next()
-        self.feed_input(self.data, data, layout=self.layout)
+def random_shape(rng, ndim:int, max_size:int):
+    if ndim == 0:
+        return []
+    max_size = int(max_size ** (1/ndim))
+    return list(rng.integers(0, max_size, [ndim]))
 
-def check_cast_operator_float16(device, batch_size, in_type, out_type):
-    input_shape=(300, 400, 3)
-    eii1 = RandomlyShapedDataIterator(batch_size, max_shape=input_shape, dtype=in_type)
-    eii2 = RandomlyShapedDataIterator(batch_size, max_shape=input_shape, dtype=in_type)
-    compare_pipelines(
-        CastPipeline(device, batch_size, iter(eii1), [types.FLOAT16, out_type]),
-        CastPipeline(device, batch_size, iter(eii2), [out_type]),
-        batch_size=batch_size, N_iterations=5)
+def generate(rng, ndim:int, batch_size:int, in_dtype:np.dtype, out_dtype:np.dtype):
+    lo, hi = -1000, 1000
+    if np.issubdtype(out_dtype, np.integer):
+        lo = np.iinfo(out_dtype).min
+        hi = np.iinfo(out_dtype).max
+        if hi < np.iinfo(np.int64).max:
+            r = hi - lo
+            hi += r // 2
+            lo -= r // 2
+        if np.issubdtype(in_dtype, np.integer):
+            lo = max(np.iinfo(in_dtype).min, lo)
+            hi = min(np.iinfo(in_dtype).max, hi)
+        else:
+            lo = max(-np.finfo(in_dtype).max, lo)
+            hi = min(np.finfo(in_dtype).max, hi)
 
-def test_cast_operator_float16():
+    max_size = 100000 // batch_size
+    out = [rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype) for _ in range(batch_size)]
+    if np.issubdtype(in_dtype, np.floating) and np.issubdtype(out_dtype, np.integer):
+        for x in out:
+            # avoid exactly halfway numbers - rounding is different for CPU and GPU
+            halfway = x[x - np.floor(x) == 0.5]
+            x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.Infinity)
+    return out
+
+rng = np.random.default_rng(1234)
+
+@nottest
+def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
+    src = lambda: generate(rng, ndim, batch_size, in_dtype, out_dtype)
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
+    def cast_pipe():
+        inp = fn.external_source(src)
+        inp_dev = inp.gpu() if device == 'gpu' else inp
+        return inp, fn.cast(inp_dev, dtype=np_type_to_dali(out_dtype))
+
+    pipe = cast_pipe()
+    pipe.build()
+    for _ in range(10):
+        inp, out = pipe.run()
+        if device=='gpu':
+            out = out.as_cpu()
+        ref = [ref_cast(np.array(x), out_dtype) for x in inp]
+
+        # workaround a bug in numpy - it can't make a float16 scalar - it is promoted to double, somehow :(
+        eps = 0 if np.issubdtype(out_dtype, np.integer) else (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
+
+        for i in range(batch_size):
+            if not np.allclose(out[i], ref[i], eps):
+                print("At sample", i)
+                I = np.array(inp[i])
+                O = np.array(out[i])
+                R = ref[i]
+                print(I)
+                print(R)
+                print(O)
+                mask = np.logical_not(np.isclose(O, R, eps))
+                print("Differences at", mask)
+                print(I[mask])
+                print(R[mask])
+                print(O[mask])
+                print(np.count_nonzero(mask), "wrong values out of", mask.size)
+                assert np.array_equal(out[i], ref[i])
+
+
+def test_operator_cast():
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float16, np.float32]
     for device in ['cpu', 'gpu']:
-        for batch_size in [3]:
-            for in_type in [np.uint8, np.int64]:
-                for out_type in [types.FLOAT, types.INT8]:
-                    yield check_cast_operator_float16, device, batch_size, in_type, out_type
+        for in_type in types:
+            for out_type in types:
+                ndim = rng.integers(0, 4)
+                batch_size = rng.integers(1, 11)
+                yield _test_operator_cast, ndim, batch_size, in_type, out_type, device
