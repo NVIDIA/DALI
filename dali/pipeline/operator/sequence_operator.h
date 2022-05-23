@@ -98,7 +98,7 @@ class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
  * resize the outputs.
  */
 template <typename Backend>
-class SequenceOperator : public Operator<Backend>, public SampleBroadcasting<Backend> {
+class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<Backend> {
  public:
   inline explicit SequenceOperator(const OpSpec &spec) : Operator<Backend>{spec} {}
 
