@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <unistd.h>
+#include <sys/syscall.h>
 #include <pthread.h>
 #include <memory>
 #include "dali/core/nvtx.h"
@@ -77,7 +77,7 @@ void SetThreadNameInternal(const char *name) {
 
 DLL_PUBLIC void SetThreadName(const char *name) {
   #if NVTX_ENABLED
-    nvtxNameOsThreadA(gettid(), name);
+    nvtxNameOsThreadA(syscall(SYS_gettid), name);
   #endif  // NVTX_ENABLED
   SetThreadNameInternal(name);
 }
