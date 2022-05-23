@@ -267,16 +267,16 @@ UnfoldedSliceRange unfolded_slice_range(const TensorVector<Backend> &data, int s
   return {{base_ptr, shape[sample_idx], type_size}, ndims_to_unfold};
 }
 
-inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int ndims_to_unfold) {
-  if (ndims_to_unfold == 0) {
-    return shape;
-  } else if (ndims_to_unfold == 1) {
-    return unfold_outer_dim(shape);
-  } else {
-    auto data_shape = collapse_dims(shape, {{0, ndims_to_unfold}});
-    return unfold_outer_dim(data_shape);
-  }
-}
+/** @defgroup broadcast_samples Utilities to broadcast `batch/shape` according to `expand_extents`.
+ * The functions assume that the number of samples in the source `batch` is equal to number of samples
+ * in the `expand_extents`. Then, the i-th sample of the source batch is repeated
+ * `volume(expand_extents[i])` times in the destination batch. As a result, the destination batch
+ * ends up with `expand_extents.num_elements()` samples.
+ *
+ * The TensorVector specialization is implemented in terms of pointers - the underlying data is not copied.
+ * The TensorList specializations do copy data - due to the contiguity requirements.
+ * @{
+ */
 
 inline TensorListShape<> broadcast_sample_shapes(const TensorListShape<> &shape,
                                                  int num_expanded_samples,
@@ -351,6 +351,30 @@ inline void broadcast_samples(TensorList<CPUBackend> &expanded_batch,
   }
 }
 
+/** @} */  // end of broadcast_samples
+
+/** @defgroup unfold_outer_dims Utilities to unfold leading extents of the batch.
+ * The `ndims_to_unfold` must not exceed the batch's sample_dim.
+ * The unfolding may be implemented as a nested for loop:
+ * first over samples in the batch and the inner one iterating over the leading extents where each slice becomes
+ * a separate sample in the result batch.
+ * The resulting batch consists of `batch.shape().first(ndims_to_unfold).num_elements()` samples.
+ * The underlying data is not copied, the operation is done in terms of pointers and it is the caller
+ * responsibility to make sure the source memory is kept alive for the lifespan of `expanded_batch`.
+ * @{
+ */
+
+inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int ndims_to_unfold) {
+  if (ndims_to_unfold == 0) {
+    return shape;
+  } else if (ndims_to_unfold == 1) {
+    return unfold_outer_dim(shape);
+  } else {
+    auto data_shape = collapse_dims(shape, {{0, ndims_to_unfold}});
+    return unfold_outer_dim(data_shape);
+  }
+}
+
 template <typename Backend>
 void unfold_outer_dims(TensorVector<Backend> &expanded_batch, const TensorVector<Backend> &batch,
                        int ndims_to_unfold, int num_expanded_samples) {
@@ -376,6 +400,8 @@ void unfold_outer_dims(TensorList<Backend> &expanded_batch, const TensorList<Bac
   expanded_batch.SetLayout(unfolded_sample_layout(batch, ndims_to_unfold));
   expanded_batch.Resize(expanded_shape, batch.type());
 }
+
+/** @} */  // end of unfold_outer_dims
 
 inline TensorListShape<> fold_outermost_like(const TensorListShape<> &shape,
                                              const TensorListShape<> &unfolded_extents) {
