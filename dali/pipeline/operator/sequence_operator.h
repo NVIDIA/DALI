@@ -288,7 +288,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
       }
       ProcessInput(ws, input_idx, [&](const auto &input) {
         auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
-        UnfoldBatch(input, expanded_input, ref_expand_desc);
+        UnfoldBatch(input, expanded_input, input_desc);
       });
     }
   }
