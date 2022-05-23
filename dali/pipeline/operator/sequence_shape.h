@@ -198,23 +198,23 @@ class UnfoldedSliceRange {
   size_t slice_stride_;
 };
 
-template <typename Type>
-TensorLayout unfolded_sample_layout(const Type &batch, int ndims_to_unfold) {
+template <typename BatchType>
+TensorLayout unfolded_sample_layout(const BatchType &batch, int ndims_to_unfold) {
   assert(batch.sample_dim() >= ndims_to_unfold);
   auto sample_dim = batch.sample_dim() - ndims_to_unfold;
   const auto &initial_layout = batch.GetLayout();
   return initial_layout.empty() ? "" : initial_layout.last(sample_dim);
 }
 
-template <typename Type>
-void setup_expanded_like(const Type &batch, Type &expanded_batch) {
+template <typename BatchType>
+void setup_expanded_like(const BatchType &batch, BatchType &expanded_batch) {
   expanded_batch.set_pinned(batch.is_pinned());
   expanded_batch.set_order(batch.order());
 }
 
-template <typename Type>
-std::shared_ptr<Type> expanded_like(const Type &batch) {
-  auto expanded_handle = std::make_shared<Type>();
+template <typename BatchType>
+std::shared_ptr<BatchType> expanded_like(const BatchType &batch) {
+  auto expanded_handle = std::make_shared<BatchType>();
   setup_expanded_like(batch, *expanded_handle);
   return expanded_handle;
 }
@@ -228,18 +228,19 @@ struct TensorVectorBuilder {
   TensorVectorBuilder(TensorVector<Backend> &tv) : tv_{tv} {}  // NOLINT
 
   void SetNext(const SliceView &view) {
+    assert(NextSampleIdx() < tv_.num_samples());
     std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter
-    tv_.UnsafeSetSample(size++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
+    tv_.UnsafeSetSample(next_++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
                         view.shape, tv_.type(), tv_.order(), tv_.GetLayout());
   }
 
-  int Size() {
-    return size;
+  int NextSampleIdx() const {
+    return next_;
   }
 
  private:
   TensorVector<Backend> &tv_;
-  int size = 0;
+  int next_ = 0;
 };
 
 template <typename Backend>
@@ -277,8 +278,9 @@ inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int n
   }
 }
 
-inline TensorListShape<> broadcast_samples(const TensorListShape<> &shape, int num_expanded_samples,
-                                           const TensorListShape<> &expand_extents) {
+inline TensorListShape<> broadcast_sample_shapes(const TensorListShape<> &shape,
+                                                 int num_expanded_samples,
+                                                 const TensorListShape<> &expand_extents) {
   assert(num_expanded_samples == expand_extents.num_elements());
   assert(expand_extents.num_samples() == shape.num_samples());
   TensorListShape<> broadcast(num_expanded_samples, shape.sample_dim());
@@ -308,7 +310,7 @@ void broadcast_samples(const TensorVector<Backend> &batch, TensorVector<Backend>
       expanded_builder.SetNext({ptr, slice_shape, type_info.size()});
     }
   }
-  assert(expanded_builder.Size() == expanded_batch.num_samples());
+  assert(expanded_builder.NextSampleIdx() == expanded_batch.num_samples());
 }
 
 inline void broadcast_samples(const TensorList<GPUBackend> &batch,
@@ -317,7 +319,7 @@ inline void broadcast_samples(const TensorList<GPUBackend> &batch,
                               kernels::ScatterGatherGPU &sg, cudaStream_t stream) {
   assert(expand_extents.num_samples() == batch.num_samples());
   const auto &shape = batch.shape();
-  auto broadcast_shape = broadcast_samples(shape, num_expanded_samples, expand_extents);
+  auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
   expanded_batch.SetLayout(batch.GetLayout());
   expanded_batch.Resize(broadcast_shape, batch.type());
   auto type_size = batch.type_info().size();
@@ -336,7 +338,7 @@ inline void broadcast_samples(const TensorList<CPUBackend> &batch,
                               const TensorListShape<> &expand_extents) {
   assert(expand_extents.num_samples() == batch.num_samples());
   const auto &shape = batch.shape();
-  auto broadcast_shape = broadcast_samples(shape, num_expanded_samples, expand_extents);
+  auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
   expanded_batch.SetLayout(batch.GetLayout());
   expanded_batch.Resize(broadcast_shape, batch.type());
   auto type_size = batch.type_info().size();
@@ -360,7 +362,7 @@ void unfold_outer_dims(const TensorVector<Backend> &batch, TensorVector<Backend>
       expanded_builder.SetNext(slice);
     }
   }
-  assert(expanded_builder.Size() == expanded_batch.num_samples());
+  assert(expanded_builder.NextSampleIdx() == expanded_batch.num_samples());
 }
 
 // TODO(ktokarski) TODO(klecki)

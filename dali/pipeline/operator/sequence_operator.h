@@ -123,9 +123,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");
-      if (!is_expanded_set_up_) {
-        SetupExpandedWorkspace(ws);
-        is_expanded_set_up_ = true;
+      if (!is_expanded_ws_initialized_) {
+        InitializeExpandedWorkspace(ws);
+        is_expanded_ws_initialized_ = true;
       }
       ExpandInputs(ws);
       ExpandArguments(ws);
@@ -223,8 +223,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return GetReferenceInputIdx();
   }
 
-  virtual void SetupExpandedArgument(const workspace_t<Backend> &ws, const std::string &arg_name,
-                                     const TensorVector<CPUBackend> &arg_input) {
+  virtual void InitializeExpandedArgument(const workspace_t<Backend> &ws,
+                                          const std::string &arg_name,
+                                          const TensorVector<CPUBackend> &arg_input) {
     expanded_.AddArgumentInput(arg_name, sequence_utils::expanded_like(arg_input));
   }
 
@@ -249,7 +250,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     ExpandArgumentLikeInput(arg_input, ExpandedArg(arg_name), arg_name, input_idx);
   }
 
-  virtual void SetupExpandedInput(const workspace_t<Backend> &ws, int input_idx) {
+  virtual void InitializeExpandedInput(const workspace_t<Backend> &ws, int input_idx) {
     ProcessInput(ws, input_idx, [&](const auto &batch) {
       expanded_.AddInput(sequence_utils::expanded_like(batch));
     });
@@ -293,7 +294,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     }
   }
 
-  virtual void SetupExpandedOutput(const workspace_t<Backend> &ws, int output_idx) {
+  virtual void InitializeExpandedOutput(const workspace_t<Backend> &ws, int output_idx) {
     ProcessOutput(ws, output_idx, [&](const auto &batch) {
       expanded_.AddOutput(sequence_utils::expanded_like(batch));
     });
@@ -485,44 +486,44 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     }
   }
 
-  void SetupExpandedInputs(const workspace_t<Backend> &ws) {
+  void InitializeExpandedInputs(const workspace_t<Backend> &ws) {
     assert(expanded_.NumInput() == 0);
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-      SetupExpandedInput(ws, input_idx);
+      InitializeExpandedInput(ws, input_idx);
     }
     assert(expanded_.NumInput() == ws.NumInput());
   }
 
-  void SetupExpandedOutputs(const workspace_t<Backend> &ws) {
+  void InitializeExpandedOutputs(const workspace_t<Backend> &ws) {
     assert(expanded_.NumOutput() == 0);
     for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
-      SetupExpandedOutput(ws, output_idx);
+      InitializeExpandedOutput(ws, output_idx);
     }
     assert(expanded_.NumOutput() == ws.NumOutput());
   }
 
-  void SetupExpandedArguments(const workspace_t<Backend> &ws) {
+  void InitializeExpandedArguments(const workspace_t<Backend> &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
-      SetupExpandedArgument(ws, arg_input.first, *shared_tvec);
+      InitializeExpandedArgument(ws, arg_input.first, *shared_tvec);
     }
   }
 
-  void SetupExpandedWorkspace(const workspace_t<Backend> &ws) {
-    SetupExpandedWorkspace(expanded_, ws);
-    SetupExpandedInputs(ws);
-    SetupExpandedArguments(ws);
-    SetupExpandedOutputs(ws);
+  void InitializeExpandedWorkspace(const workspace_t<Backend> &ws) {
+    InitializeExpandedWorkspace(expanded_, ws);
+    InitializeExpandedInputs(ws);
+    InitializeExpandedArguments(ws);
+    InitializeExpandedOutputs(ws);
   }
 
-  void SetupExpandedWorkspace(workspace_t<CPUBackend> &expanded,
-                              const workspace_t<CPUBackend> &ws) {
+  void InitializeExpandedWorkspace(workspace_t<CPUBackend> &expanded,
+                                   const workspace_t<CPUBackend> &ws) {
     expanded.SetThreadPool(&ws.GetThreadPool());
   }
 
-  void SetupExpandedWorkspace(workspace_t<GPUBackend> &expanded,
-                              const workspace_t<GPUBackend> &ws) {
+  void InitializeExpandedWorkspace(workspace_t<GPUBackend> &expanded,
+                                   const workspace_t<GPUBackend> &ws) {
     if (ws.has_stream()) {
       expanded.set_stream(ws.stream());
     }
@@ -560,8 +561,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return expanded_.UnsafeMutableArgumentInput(arg_name);
   }
 
-  template <typename Type>
-  void UnfoldBatch(const Type &batch, Type &expanded_batch, const ExpandDesc &expand_desc) {
+  template <typename BatchType>
+  void UnfoldBatch(const BatchType &batch, BatchType &expanded_batch,
+                   const ExpandDesc &expand_desc) {
     auto sample_dim = batch.shape().sample_dim();
     auto num_expand_dims = expand_desc.NumDimsToExpand();
     DALI_ENFORCE(
@@ -574,8 +576,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     UnfoldOuterDims(batch, expanded_batch, expand_desc);
   }
 
-  template <typename Type>
-  void BroadcastBatch(const Type &batch, Type &expanded_batch, const ExpandDesc &expand_desc) {
+  template <typename BatchType>
+  void BroadcastBatch(const BatchType &batch, BatchType &expanded_batch,
+                      const ExpandDesc &expand_desc) {
     VerifyExpandedBatchSizeNumericLimit(expand_desc);
     BroadcastSamples(batch, expanded_batch, expand_desc, expanded_);
   }
@@ -654,7 +657,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
         }
       }
     }
-    assert(tv_builder.Size() == expanded_arg.num_samples());
+    assert(tv_builder.NextSampleIdx() == expanded_arg.num_samples());
   }
 
   template <typename DataBackend>
@@ -679,7 +682,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
  private:
   int expand_like_idx_ = -1;
   bool is_expanding_ = false;
-  bool is_expanded_set_up_ = false;
+  bool is_expanded_ws_initialized_ = false;
   workspace_t<Backend> expanded_;
 };
 
