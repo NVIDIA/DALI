@@ -67,7 +67,7 @@ class WorkerThread {
  public:
   typedef std::function<void(void)> Work;
 
-  inline WorkerThread(int device_id, bool set_affinity, const std::string name) :
+  inline WorkerThread(int device_id, bool set_affinity, const std::string &name) :
     running_(true), work_complete_(true), barrier_(2) {
 #if NVML_ENABLED
     if (device_id != CPU_ONLY_DEVICE_ID) {

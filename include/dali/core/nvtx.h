@@ -100,10 +100,9 @@ struct DomainTimeRange : RangeBase {
 #endif
 };
 
-
 /*
- * @brief Sets thread name in nsys profiles and in the process list.
- * @remarks The name in the process list is truncated to 15 characters.
+ * Sets thread name in nsys profiles (no length limit) and in the process list
+ * (only first 15 characters is used)
  */
 void SetThreadName(const char *name);
 

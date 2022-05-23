@@ -19,17 +19,6 @@
 
 namespace dali {
 
-static void SetThreadNameInternal(const char *name) {
-  char tmp_name[16];
-  int i = 0;
-  while (name[i] != '\0' && i < 15) {
-    tmp_name[i] = name[i];
-    ++i;
-  }
-  tmp_name[i] = '\0';
-  pthread_setname_np(pthread_self(), tmp_name);
-}
-
 #if NVTX_ENABLED
 
 class DomainTimeRangeImpl : RangeBase {
@@ -69,18 +58,29 @@ DLL_PUBLIC DomainTimeRange::~DomainTimeRange() {
   DomainTimeRangeImpl::GetInstance().Stop();
 }
 
+#endif  // NVTX_ENABLED
+
+namespace {
+
+void SetThreadNameInternal(const char *name) {
+  char tmp_name[16];
+  int i = 0;
+  while (name[i] != '\0' && i < 15) {
+    tmp_name[i] = name[i];
+    ++i;
+  }
+  tmp_name[i] = '\0';
+  pthread_setname_np(pthread_self(), tmp_name);
+}
+
+}  // namespace
 
 DLL_PUBLIC void SetThreadName(const char *name) {
-  nvtxNameOsThreadA(gettid(), name);
+  #if NVTX_ENABLED
+    nvtxNameOsThreadA(gettid(), name);
+  #endif  // NVTX_ENABLED
   SetThreadNameInternal(name);
 }
 
-#else
-
-void SetThreadName(const char *name) {
-  SetThreadNameInternal(name);
-}
-
-#endif  // NVTX_ENABLED
 
 }  // namespace dali

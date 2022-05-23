@@ -35,7 +35,7 @@ class DLL_PUBLIC ThreadPool {
   typedef std::function<void(int)> Work;
 
   DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity,
-                        const std::string name);
+                        const std::string &name);
 
   DLL_PUBLIC ~ThreadPool();
 
@@ -68,7 +68,8 @@ class DLL_PUBLIC ThreadPool {
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 
  private:
-  DLL_PUBLIC void ThreadMain(int thread_id, int device_id, bool set_affinity);
+  DLL_PUBLIC void ThreadMain(int thread_id, int device_id, bool set_affinity,
+                             const std::string &name);
 
   vector<std::thread> threads_;
 
@@ -84,7 +85,6 @@ class DLL_PUBLIC ThreadPool {
   bool work_complete_;
   bool started_;
   int active_threads_;
-  std::string name_;
   std::mutex mutex_;
   std::condition_variable condition_;
   std::condition_variable completed_;
