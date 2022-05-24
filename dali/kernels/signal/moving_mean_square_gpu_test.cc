@@ -15,6 +15,7 @@
 #include "dali/kernels/signal/moving_mean_square_gpu.h"
 #include <gtest/gtest.h>
 #include <vector>
+#include "dali/core/cuda_event.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
@@ -49,8 +50,8 @@ class MovingMeanSquareGPU : public ::testing::Test {
   void RunTest() {
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    DynamicScratchpad scratch;
-    ctx.scratchpad = &scratch;
+    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
 
     int window_size = 8;
     MovingMeanSquareArgs args{window_size};
@@ -92,6 +93,72 @@ TYPED_TEST_SUITE(MovingMeanSquareGPU, TestTypes);
 
 TYPED_TEST(MovingMeanSquareGPU, RunTest) {
   this->RunTest();
+}
+
+
+TEST(MovingMeanSquareGPU, Benchmark) {
+  using In = float;
+  using Out = float;
+  int nsamples = 64;
+  int window_size = 2048;
+  int n_iters = 1000;
+
+  TensorListShape<> sh(nsamples, 1);
+  for (int s = 0; s < nsamples; s++) {
+    if (s % 4 == 0)
+      sh.tensor_shape_span(s)[0] = 16000 * 4;
+    else if (s % 4 == 1)
+      sh.tensor_shape_span(s)[0] = 16000 * 16;
+    else if (s % 4 == 2)
+      sh.tensor_shape_span(s)[0] = 16000 * 1;
+    else if (s % 4 == 3)
+      sh.tensor_shape_span(s)[0] = 16000 * 35;
+  }
+
+  TestTensorList<In> in_data;
+  in_data.reshape(sh);
+
+  TestTensorList<Out> out_data;
+  out_data.reshape(sh);
+
+  std::mt19937 rng;
+  UniformRandomFill(in_data.cpu(), rng, 0.0, 1.0);
+
+  CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+  CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+  double total_time_ms = 0;
+  int64_t in_elems = in_data.cpu().shape.num_elements();
+  int64_t out_elems = out_data.cpu().shape.num_elements();
+  int64_t out_bytes = out_elems * sizeof(Out);
+  std::cout << "Resampling GPU Perf test.\n"
+            << "Input contains " << in_elems << " elements.\n";
+
+  KernelContext ctx;
+  ctx.gpu.stream = 0;
+
+  MovingMeanSquareArgs args{window_size};
+
+  auto out = out_data.gpu().to_static<1>();
+  auto in = in_data.gpu().to_static<1>();
+
+  MovingMeanSquareGpu<In> kernel;
+
+  for (int i = 0; i < n_iters; ++i) {
+    CUDA_CALL(cudaDeviceSynchronize());
+
+    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
+
+    CUDA_CALL(cudaEventRecord(start));
+    kernel.Run(ctx, out, in, args);
+    CUDA_CALL(cudaEventRecord(end));
+    CUDA_CALL(cudaDeviceSynchronize());
+    float time_ms;
+    CUDA_CALL(cudaEventElapsedTime(&time_ms, start, end));
+    total_time_ms += time_ms;
+  }
+  std::cout << "Processed " << n_iters * out_bytes / (total_time_ms * 1e6) << " GBs/sec"
+            << std::endl;
 }
 
 }  // namespace test
