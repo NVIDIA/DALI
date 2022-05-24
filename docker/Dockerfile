@@ -108,6 +108,9 @@ RUN mkdir /wheelhouse && chmod 0777 /wheelhouse
 FROM builder
 COPY . .
 
+# Tool for Python linting
+RUN pip install flake8
+
 ARG DALI_BUILD_DIR=build-docker-release
 WORKDIR /opt/dali/${DALI_BUILD_DIR}
 
