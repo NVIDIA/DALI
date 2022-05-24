@@ -99,14 +99,14 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
             otherwise in a specified parent module.
         wrapper_doc (str): Documentation of the wrapper function
     """
-    from nvidia.dali.eager import _wrap_eager_op
+    from nvidia.dali.experimental.eager import _wrap_eager_op
 
     schema = _b.TryGetSchema(op_class.__name__)
     make_hidden = schema.IsDocHidden() if schema else False
     wrapper_name = _to_snake_case(op_class.__name__)
 
     # Add operator to eager API.
-    _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc)
+    _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden)
 
     if parent_module is None:
         fn_module = sys.modules[__name__]

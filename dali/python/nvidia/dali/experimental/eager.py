@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import sys
-from math import ceil
+import math
 
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
@@ -43,6 +43,7 @@ _stateful_operators = {
 
 
 _iterator_operators = {
+    'experimental__readers__Video',
     'readers__COCO',
     'readers__Caffe',
     'readers__Caffe2',
@@ -57,6 +58,13 @@ _iterator_operators = {
     'readers__Webdataset',
 }
 
+
+_excluded_operators = {
+    'readers__TFRecord',
+    'TFRecordReader',
+    'PythonFunction',
+    'DLTensorPythonFunction',
+}
 
 _stateless_operators_cache = {}
 
@@ -114,12 +122,14 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
             self._iter = 0
 
             epoch_size = self._backend_op.reader_meta()['epoch_size']
-            self._num_iters = ceil(epoch_size / max_batch_size)
+            self._num_iters = math.ceil(epoch_size / max_batch_size)
 
             if pad_last_batch:
                 self._last_batch_size = max_batch_size
             else:
                 self._last_batch_size = epoch_size % max_batch_size
+                if self._last_batch_size == 0:
+                    self._last_batch_size = max_batch_size
 
             assert isinstance(self._last_batch_size, int)
 
@@ -224,17 +234,17 @@ def _prep_args(inputs, kwargs, op_name, wrapper_name, disqualified_arguments):
 
         return inputs
 
-    def _prep_kwargs(kwargs):
+    def _prep_kwargs(kwargs, batch_size):
         for key, value in kwargs.items():
-            kwargs[key] = _Classification(value, f'Argument {key}', to_constant=True).data
+            kwargs[key] = _Classification(value, f'Argument {key}', arg_constant_len=batch_size).data
 
         return kwargs
 
     _disqualify_arguments(wrapper_name, kwargs, disqualified_arguments)
 
     # Preprocess kwargs to get batch_size.
-    kwargs = _prep_kwargs(kwargs)
     batch_size = _choose_batch_size(inputs, kwargs.pop('batch_size', -1))
+    kwargs = _prep_kwargs(kwargs, batch_size)
     init_args, call_args = _ops._separate_kwargs(kwargs, _tensors.TensorListCPU)
 
     # Preprocess inputs, try to convert each input to TensorList.
@@ -283,6 +293,13 @@ _wrap_stateless.disqualified_arguments = {
 
 
 def _wrap_iterator(op_class, op_name, wrapper_name):
+    """Wraps reader Eager Operator in a Python iterator.
+    
+    Example:
+        >>> for file, label in eager.readers.file(file_root=file_path, batch_size=8):
+        ...     # file and label are batches of size 8 (TensorLists).
+        ...     print(file)
+    """
     def wrapper(*inputs, **kwargs):
         if len(inputs) > 0:
             raise ValueError("Iterator type eager operators should not receive any inputs.")
@@ -303,8 +320,7 @@ _wrap_iterator.disqualified_arguments = {
     'preserve',
 }
 
-
-def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc):
+def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden):
     """Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
     Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
     eager operators.
@@ -312,12 +328,15 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
     Args:
         op_class: Op class to wrap.
         submodule: Additional submodule (scope).
+        parent_module (str): If set to None, the wrapper is placed in nvidia.dali.experimental.eager
+            module, otherwise in a specified parent module.
         wrapper_name: Wrapper name (the same as in fn API).
         wrapper_doc (str): Documentation of the wrapper function.
+        make_hidden (bool): If operator is hidden, we should extract it from hidden submodule.
     """
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
-    if op_schema.IsDeprecated() or op_name in _stateful_operators:
+    if op_schema.IsDeprecated() or op_name in _excluded_operators or op_name in _stateful_operators:
         # TODO(ksztenderski): For now only exposing stateless and iterator operators.
         return
     elif op_name in _iterator_operators:
@@ -327,18 +346,22 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
         wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
     if parent_module is None:
-        # Exposing to eager.experimental module.
-        eager_module = _internal.get_submodule(sys.modules[__name__], 'experimental')
+        # Exposing to experimental.eager module.
+        parent_module = sys.modules[__name__]
     else:
-        # Exposing to eager.experimental submodule of the specified parent module.
-        eager_module = _internal.get_submodule(sys.modules[parent_module], 'eager.experimental')
+        # Exposing to experimental.eager submodule of the specified parent module.
+        parent_module =  _internal.get_submodule(sys.modules[parent_module], 'experimental.eager')
 
-    op_module = _internal.get_submodule(eager_module, submodule)
+    if make_hidden:
+        op_module = _internal.get_submodule(parent_module, submodule[:-1])
+    else:
+        op_module = _internal.get_submodule(parent_module, submodule)
 
     if not hasattr(op_module, wrapper_name):
         wrapper.__name__ = wrapper_name
         wrapper.__qualname__ = wrapper_name
         wrapper.__doc__ = wrapper_doc
+        wrapper._schema_name = op_schema
 
         if submodule:
             wrapper.__module__ = op_module.__name__

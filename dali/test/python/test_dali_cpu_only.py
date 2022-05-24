@@ -691,12 +691,12 @@ def test_box_encoder_cpu():
         out = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     test_lables_shape = [20, 1]
-    def get_lables():
+    def get_labels():
         out = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
         return out
     boxes = fn.external_source(source=get_boxes)
-    lables = fn.external_source(source=get_lables)
-    processed, _ = fn.box_encoder(boxes, lables, anchors=coco_anchors())
+    labels = fn.external_source(source=get_labels)
+    processed, _ = fn.box_encoder(boxes, labels, anchors=coco_anchors())
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
@@ -1117,7 +1117,6 @@ tested_methods = [
     "slice",
     "segmentation.random_mask_pixel",
     "transpose",
-    "paste",
     "mfcc",
     "lookup_table",
     "element_extract",
@@ -1171,12 +1170,13 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
-    "jitter",               # not supported for CPU
-    "video_reader",         # not supported for CPU
-    "video_reader_resize",  # not supported for CPU
-    "readers.video",        # not supported for CPU
-    "readers.video_resize", # not supported for CPU
-    "optical_flow",         # not supported for CPU
+    "jitter",                # not supported for CPU
+    "video_reader",          # not supported for CPU
+    "video_reader_resize",   # not supported for CPU
+    "readers.video",         # not supported for CPU
+    "readers.video_resize",  # not supported for CPU
+    "optical_flow",          # not supported for CPU
+    "paste",                 # not supported for CPU
 ]
 
 def test_coverage():
