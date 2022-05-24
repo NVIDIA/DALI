@@ -114,6 +114,7 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
       buffer[shm_pos_bi] += t;
     }
   }
+  __syncthreads();
 }
 
 /**
@@ -130,12 +131,11 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
  * @tparam SharedMemPos Shared memory access pattern. Default is choosen to avoid bank conflicts
  * @param samples Sample descriptors
  * @param logical_block Logical block size
- * @param window
- * @param pow2
- * @param pre
- * @param post
- * @param shm_pos
- * @return __global__
+ * @param window Window size
+ * @param pow2 next power of two of `window + logical_block`
+ * @param pre Preprocessing step
+ * @param post Postprocessing step
+ * @param shm_pos shared memory access pattern
  */
 template <typename Out, typename In, typename Preprocessor = dali::identity,
           typename Postprocessor = dali::identity, typename SharedMemPos = conflict_free_pos>
@@ -177,10 +177,9 @@ __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, i
       temp[shm_pos(pos)] = pre(value);
     }
 
-    // Step 2: Calculate prefix sum of the extended block, in place
-    // (note: __syncthreads already happens inside)
+    // // Step 2: Calculate prefix sum of the extended block, in place
+    // // (note: __syncthreads already happens inside)
     PrefixSumSharedMem(temp, pow2, shm_pos);
-    __syncthreads();
 
     // Step 3: Compute the output, the sum in window, by subtracting two values of the prefix sum
     // and adding the input value at the current position.
@@ -219,26 +218,42 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   auto *sample_descs_gpu =
       ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
 
+  conflict_free_pos shm_pos;
+
   int window_len = args.window_size;
+
+  constexpr int kMaxShmBytes = 40 * 1024;
+  constexpr int kMaxShmElements = kMaxShmBytes / sizeof(acc_t<InputType>);
+
+  // Get a power of two that doesn't exceed the desired maximum shared memory size
+  int pow2 = prev_pow2(kMaxShmElements * SHARED_MEMORY_BANKS / (SHARED_MEMORY_BANKS + 1));
+
   // If reset interval is given, selects the logical block so that is close to it
   // effectively clearing accummulation error every `reset_interval` samples.
-  // If no reset_interval is provided, choose a multiple of the block size.
-  // The smaller the logical block, the more overlapped the blocks are (redundant computations)
-  int logical_block = needs_reset<InputType>::value && args.reset_interval > 0 ?
-                          next_pow2(args.reset_interval) :
-                          4 * window_len;
-  int pow2 = next_pow2(window_len + logical_block);
+  if (needs_reset<InputType>::value && args.reset_interval > 0 && args.reset_interval < pow2) {
+    pow2 = prev_pow2(args.reset_interval);
+  }
+
+  int shm_sz = shm_pos(pow2) * sizeof(acc_t<InputType>);
+  int logical_block = pow2 - window_len;
+
+  // Note: logical_block==1 is very wasteful, but better than failing
+  assert(logical_block > 0);
+
+  // At the very least we should be able to fit a window plus one element in shared mem
+  if (shm_sz > kMaxShmBytes) {
+    throw std::runtime_error(
+      "Can't compute the requested running sum, due to shared memory restrictions");
+  }
 
   dim3 grid(std::min<int64_t>(1024, div_ceil(max_len, 32)), nsamples, 1);
   int block_sz = 256;
-  int64_t shm_sz = 2 * pow2 * sizeof(double);
-
   // To achieve moving mean square we square as a pre-step and divide by the window length at the
   // end
   square pre;
   divide post(window_len);
   SlidingWindowSum<float, InputType><<<grid, block_sz, shm_sz, ctx.gpu.stream>>>(
-      sample_descs_gpu, logical_block, window_len, pow2, pre, post);
+      sample_descs_gpu, logical_block, window_len, pow2, pre, post, shm_pos);
 
   CUDA_CALL(cudaGetLastError());
 }
