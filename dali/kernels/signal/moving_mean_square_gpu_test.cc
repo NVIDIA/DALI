@@ -106,13 +106,13 @@ TEST(MovingMeanSquareGPU, Benchmark) {
   TensorListShape<> sh(nsamples, 1);
   for (int s = 0; s < nsamples; s++) {
     if (s % 4 == 0)
-      sh.tensor_shape_span(s)[0] = 16000 * 4;
+      sh.tensor_shape_span(s)[0] = 16000 * 60;
     else if (s % 4 == 1)
-      sh.tensor_shape_span(s)[0] = 16000 * 16;
+      sh.tensor_shape_span(s)[0] = 16000 * 120;
     else if (s % 4 == 2)
-      sh.tensor_shape_span(s)[0] = 16000 * 1;
+      sh.tensor_shape_span(s)[0] = 16000 * 30;
     else if (s % 4 == 3)
-      sh.tensor_shape_span(s)[0] = 16000 * 35;
+      sh.tensor_shape_span(s)[0] = 16000 * 90;
   }
 
   TestTensorList<In> in_data;
@@ -129,7 +129,7 @@ TEST(MovingMeanSquareGPU, Benchmark) {
   double total_time_ms = 0;
   int64_t in_elems = in_data.cpu().shape.num_elements();
   int64_t out_elems = out_data.cpu().shape.num_elements();
-  int64_t out_bytes = out_elems * sizeof(Out);
+  int64_t in_bytes = in_elems * sizeof(In);
   std::cout << "Resampling GPU Perf test.\n"
             << "Input contains " << in_elems << " elements.\n";
 
@@ -157,7 +157,7 @@ TEST(MovingMeanSquareGPU, Benchmark) {
     CUDA_CALL(cudaEventElapsedTime(&time_ms, start, end));
     total_time_ms += time_ms;
   }
-  std::cout << "Processed " << n_iters * out_bytes / (total_time_ms * 1e6) << " GBs/sec"
+  std::cout << "Processed " << n_iters * in_bytes / (total_time_ms * 1e6) << " GBs/sec"
             << std::endl;
 }
 
