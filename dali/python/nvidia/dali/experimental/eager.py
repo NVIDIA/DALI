@@ -22,6 +22,11 @@ from nvidia.dali import tensors as _tensors
 from nvidia.dali._utils.eager_util import _Classification, _transform_data_to_tensorlist
 
 
+# Classification of eager operators. Operators not assigned to any class are exposed as stateless.
+# If you created a new operator and it is not stateless you should add it to the appropriate set.
+# You should also add a coverage test for it in `nvidia.dali.test.python.test_eager_cpu_only`.
+
+# Stateful operators - rely on the internal state (return different outputs across iterations).
 _stateful_operators = {
     'decoders__ImageRandomCrop',
     'noise__Gaussian',
@@ -42,6 +47,7 @@ _stateful_operators = {
 }
 
 
+# Iterator operators - Python iterators of readers.
 _iterator_operators = {
     'experimental__readers__Video',
     'readers__COCO',
@@ -59,11 +65,14 @@ _iterator_operators = {
 }
 
 
+# Operators not exposed in the eager mode.
 _excluded_operators = {
     'readers__TFRecord',
     'TFRecordReader',
     'PythonFunction',
     'DLTensorPythonFunction',
+    'TorchPythonFunction',
+    'NumbaFunction',
 }
 
 _stateless_operators_cache = {}
@@ -236,7 +245,8 @@ def _prep_args(inputs, kwargs, op_name, wrapper_name, disqualified_arguments):
 
     def _prep_kwargs(kwargs, batch_size):
         for key, value in kwargs.items():
-            kwargs[key] = _Classification(value, f'Argument {key}', arg_constant_len=batch_size).data
+            kwargs[key] = _Classification(
+                value, f'Argument {key}', arg_constant_len=batch_size).data
 
         return kwargs
 
@@ -320,6 +330,7 @@ _wrap_iterator.disqualified_arguments = {
     'preserve',
 }
 
+
 def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden):
     """Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
     Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
@@ -350,7 +361,7 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
         parent_module = sys.modules[__name__]
     else:
         # Exposing to experimental.eager submodule of the specified parent module.
-        parent_module =  _internal.get_submodule(sys.modules[parent_module], 'experimental.eager')
+        parent_module = _internal.get_submodule(sys.modules[parent_module], 'experimental.eager')
 
     if make_hidden:
         op_module = _internal.get_submodule(parent_module, submodule[:-1])

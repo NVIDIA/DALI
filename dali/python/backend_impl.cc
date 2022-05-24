@@ -1864,7 +1864,7 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeEagerOperator<CPUBackend>(m, "EagerOperatorCPU");
   ExposeEagerOperator<GPUBackend>(m, "EagerOperatorGPU");
   ExposeEagerOperator<MixedBackend>(m, "EagerOperatorMixed");
-  
+
   ExposePipelineDebug(m);
 
   types_m.attr("NHWC") = "HWC";

@@ -1017,8 +1017,14 @@ excluded_methods = [
 
 
 def test_coverage():
-    # TODO(ksztenderski): Add coverage for math module.
+    """ Checks coverage of eager operators (almost every operator is also exposed in eager mode).
+    If you added a new operator, you should also add a test for it here and add the operator name
+    to the ``tested_methods`` list. You should also add eager classification for your operator in
+    `nvidia.dali.experimental.eager`.
+    """
+
     methods = module_functions(eager, remove_prefix="nvidia.dali.experimental.eager")
+    # TODO(ksztenderski): Add coverage for math module.
     exclude = "|".join(
         ["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)" for x in excluded_methods])
     exclude = re.compile(exclude)
