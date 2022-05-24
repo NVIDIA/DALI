@@ -30,12 +30,20 @@ namespace dali {
 namespace kernels {
 namespace signal {
 
+/**
+ * @brief Sample descriptor
+ */
 struct SampleDesc {
   void *out;
   const void *in;
   int64_t len;
 };
 
+/**
+ * @brief Shared memory access pattern to avoid bank conflicts.
+ * @remarks See Example 39-4 from
+ *  https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
+ */
 struct conflict_free_pos {
   DALI_HOST_DEV DALI_FORCEINLINE int operator()(int pos) const noexcept {
     return pos + CONFLICT_FREE_OFFSET(pos);
@@ -62,11 +70,23 @@ struct divide {
 };
 
 
+/**
+ * @brief Computes the prefix sum (exclusive scan algorithm) in-place on shared memory
+ * @remarks Work-efficient algorithm from
+ *  https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
+ *
+ * @tparam T Data type
+ * @tparam SharedMemPos shared memory access pattern (Example 39-3 in the above link)
+ * @param buffer Input/Output buffer
+ * @param pow2 Size of the buffer (must be a power of 2)
+ * @param shm_pos Shared memory access pattern
+ */
 template <typename T, typename SharedMemPos = conflict_free_pos>
 __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {}) {
   int offset = 1;
   int tid = threadIdx.x;
-  for (int d = pow2 >> 1; d > 0; d >>= 1) {  // build sum in place up the tree
+  // build sum in place up the tree
+  for (int d = pow2 >> 1; d > 0; d >>= 1) {
     __syncthreads();
     if (tid < d) {
       int ai = offset * (2 * tid + 1) - 1;
@@ -76,12 +96,14 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
     offset <<= 1;
   }
 
+  // clear the last element
   if (tid == 0) {
     int last = pow2 - 1;
-    buffer[shm_pos(last)] = 0;  // clear the last element
+    buffer[shm_pos(last)] = 0;
   }
 
-  for (int d = 1; d < pow2; d <<= 1) {  // traverse down tree & build scan
+  // traverse down tree & build scan
+  for (int d = 1; d < pow2; d <<= 1) {
     offset >>= 1;
     __syncthreads();
     if (tid < d) {
@@ -94,6 +116,27 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
   }
 }
 
+/**
+ * @brief Calculates a running sum of a 1D signal using a sliding window of an arbitrary size.
+ *
+ * The implementation computes the output on a shared memory buffer of size `logical_block + window`
+ * which corresponds to an output region of `logical_block` size. We need to load `window` extra samples
+ * to be able to compute the first elements of the output.
+ *
+ * @tparam Out Output data type
+ * @tparam In Input data type
+ * @tparam Preprocessor Optional preprocessor step (e.g. square)
+ * @tparam Postprocessor Optional postprocessing step (e.g. division by window to get running average)
+ * @tparam SharedMemPos Shared memory access pattern. Default is choosen to avoid bank conflicts
+ * @param samples Sample descriptors
+ * @param logical_block Logical block size
+ * @param window
+ * @param pow2
+ * @param pre
+ * @param post
+ * @param shm_pos
+ * @return __global__
+ */
 template <typename Out, typename In, typename Preprocessor = dali::identity,
           typename Postprocessor = dali::identity, typename SharedMemPos = conflict_free_pos>
 __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, int window, int pow2,
@@ -110,6 +153,8 @@ __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, i
   int64_t sample_len = sample.len;
   int64_t grid_stride = gridDim.x * blockDim.x;
 
+  // Each CUDA block calculates the output for `logical_block` samples, where `logical_block` is
+  // typically larger than the CUDA block.
   for (int64_t logical_block_start = logical_block * blockIdx.x; logical_block_start < sample_len;
        logical_block_start += grid_stride) {
     int n = cuda_min(static_cast<int>(sample.len - logical_block_start), logical_block);
@@ -121,7 +166,8 @@ __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, i
     const In *extended_blk_end = logical_block_in_ptr + cuda_min(logical_block, n);
     int extended_blk_sz = logical_block + window;
 
-    // Step 1: Load extended block to shared mem
+    // Step 1: Load extended logical block to shared mem.
+    // Out of bounds values are assumed to be 0.
     for (int pos = threadIdx.x; pos < extended_blk_sz; pos += blockDim.x) {
       acc_t<In> value(0);
       auto extended_blk_ptr = extended_blk_start + pos;
@@ -137,6 +183,7 @@ __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, i
     __syncthreads();
 
     // Step 3: Compute the output, the sum in window, by subtracting two values of the prefix sum
+    // and adding the input value at the current position.
     for (int pos = threadIdx.x; pos < logical_block; pos += blockDim.x) {
       acc_t<In> out_val = pre(logical_block_in_ptr[shm_pos(pos)]) + temp[shm_pos(window + pos)] -
                           temp[shm_pos(pos)];
@@ -173,6 +220,10 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
       ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
 
   int window_len = args.window_size;
+  // If reset interval is given, selects the logical block so that is close to it
+  // effectively clearing accummulation error every `reset_interval` samples.
+  // If no reset_interval is provided, choose a multiple of the block size.
+  // The smaller the logical block, the more overlapped the blocks are (redundant computations)
   int logical_block = needs_reset<InputType>::value && args.reset_interval > 0 ?
                           next_pow2(args.reset_interval) :
                           4 * window_len;
@@ -182,6 +233,8 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   int block_sz = 256;
   int64_t shm_sz = 2 * pow2 * sizeof(double);
 
+  // To achieve moving mean square we square as a pre-step and divide by the window length at the
+  // end
   square pre;
   divide post(window_len);
   SlidingWindowSum<float, InputType><<<grid, block_sz, shm_sz, ctx.gpu.stream>>>(
