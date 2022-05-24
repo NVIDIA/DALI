@@ -247,9 +247,8 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   }
 
   dim3 grid(std::min<int64_t>(1024, div_ceil(max_len, 32)), nsamples, 1);
-  int block_sz = 256;
-  // To achieve moving mean square we square as a pre-step and divide by the window length at the
-  // end
+  int block_sz = 1024;
+  // For mean square we square as a pre-step and divide by the window length at the end
   square pre;
   divide post(window_len);
   SlidingWindowSum<float, InputType><<<grid, block_sz, shm_sz, ctx.gpu.stream>>>(
