@@ -63,18 +63,12 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   DALI_ENFORCE(av_bsf_init(bsfc_) >= 0);
 }
 
-cudaVideoCodec FramesDecoderGpu::FindCodecType() {
-  switch (av_state_->codec_->id) {
-  case AV_CODEC_ID_H264:
-    return cudaVideoCodec_H264;
-  case AV_CODEC_ID_HEVC:
+cudaVideoCodec FramesDecoderGpu::GetCodecType() {
+  if (av_state_->codec_->id == AV_CODEC_ID_HEVC) {
     return cudaVideoCodec_HEVC;
-  default:
-    DALI_FAIL(make_string(
-      "Unsupported codec: ",
-      av_state_->codec_->name));
   }
-  return cudaVideoCodec_HEVC;
+  
+  return cudaVideoCodec_H264;
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
@@ -88,7 +82,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     filtered_packet_ = av_packet_alloc();
     DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
 
-    auto codec_type = FindCodecType();
+    auto codec_type = GetCodecType();
 
     // Create nv decoder
     CUVIDDECODECREATEINFO decoder_info;

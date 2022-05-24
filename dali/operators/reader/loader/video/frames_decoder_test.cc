@@ -202,7 +202,9 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidCodec) {
 
   RunConstructorFailureTest(
     path,
-    make_string("Unsupported video codec: vp9 in file: ", path));
+    make_string(
+      "Unsupported video codec: vp9 in file: ", path,
+      " Supported codecs: h264, HEVC."));
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
