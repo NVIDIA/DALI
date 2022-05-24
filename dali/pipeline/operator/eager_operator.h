@@ -111,7 +111,7 @@ class DLL_PUBLIC EagerOperator {
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec) : EagerOperator(spec, spec.name()) {}
 
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name)
-      : EagerOperator(spec, std::move(name), shared_thread_pool->NumThreads()) {}
+      : EagerOperator(spec, std::move(name), GetSharedThreadPool()->NumThreads()) {}
 
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name, int num_threads)
       : max_batch_size_(spec.GetArgument<int>("max_batch_size")),
@@ -165,9 +165,16 @@ class DLL_PUBLIC EagerOperator {
                        ", instance name: \"", name_, "\", encountered:\n", what);
   }
 
-  static inline int GetDefaultNumThreads() {
-    int num_cores = std::thread::hardware_concurrency();
-    return num_cores < 6 ? num_cores : 6;
+  static inline std::shared_ptr<ThreadPool> GetSharedThreadPool() {
+    if (!shared_thread_pool) {
+      int num_cores = std::thread::hardware_concurrency();
+      num_cores = num_cores < 6 ? num_cores : 6;
+
+      shared_thread_pool =
+          std::make_unique<ThreadPool>(num_cores, CPU_ONLY_DEVICE_ID, false, "EagerOperator");
+    }
+
+    return shared_thread_pool;
   }
 
   int max_batch_size_;
@@ -178,7 +185,7 @@ class DLL_PUBLIC EagerOperator {
   std::unique_ptr<OperatorBase> op_;
 
   static CUDAStreamLease shared_cuda_stream;
-  static std::unique_ptr<ThreadPool> shared_thread_pool;
+  static std::shared_ptr<ThreadPool> shared_thread_pool;
 };
 
 template <typename Backend>
@@ -195,7 +202,7 @@ std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run(inputs, kwargs, shared_thread_pool.get(), batch_size);
+  return Run(inputs, kwargs, GetSharedThreadPool().get(), batch_size);
 }
 
 template <typename Backend>
@@ -309,9 +316,7 @@ EagerOperator<Backend>::RunImpl(
 }
 
 template <typename Backend>
-std::unique_ptr<ThreadPool> EagerOperator<Backend>::shared_thread_pool =
-    std::make_unique<ThreadPool>(EagerOperator<Backend>::GetDefaultNumThreads(), CPU_ONLY_DEVICE_ID,
-                                 false, "EagerOperator");
+std::shared_ptr<ThreadPool> EagerOperator<Backend>::shared_thread_pool{};
 
 template <typename Backend>
 CUDAStreamLease EagerOperator<Backend>::shared_cuda_stream{};
