@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,23 +31,33 @@
 #include <mutex>
 
 #include "dali/core/common.h"
+#include "dali/core/cuda_event.h"
+#include "dali/core/cuda_stream_pool.h"
+#include "dali/core/mm/memory.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/operators/reader/loader/cufile_loader.h"
 #include "dali/operators/reader/loader/numpy_loader.h"
 #include "dali/util/cufile.h"
+#include "dali/operators/reader/gds_mem.h"
 
 namespace dali {
 
 struct NumpyFileWrapperGPU {
   std::string filename;
-  bool fortran_order;
+  bool fortran_order = false;
+  int64_t data_offset = 0;
   TensorShape<> shape;
   DALIDataType type;
   DALIMeta meta;
 
-  std::function<void(void)> read_meta_f;
-  std::function<void(void* buffer, Index offset, size_t total_size)> read_sample_f;
   std::unique_ptr<CUFileStream> file_stream;
+  bool read_ahead = false;
+
+  void ReadHeader(detail::NumpyHeaderCache &cache);
+
+  void ReadRawChunk(void* buffer, size_t bytes, Index buffer_offset, Index offset);
+
+  void Reopen();
 
   const TensorShape<>& get_shape() const {
     return shape;
@@ -62,44 +72,13 @@ struct NumpyFileWrapperGPU {
   }
 };
 
+
 class NumpyLoaderGPU : public CUFileLoader<NumpyFileWrapperGPU> {
  public:
-  explicit inline NumpyLoaderGPU(const OpSpec& spec, vector<std::string> files = {},
-                                 bool shuffle_after_epoch = false)
-      : CUFileLoader(spec, files, shuffle_after_epoch),
-        register_buffers_(false),
-        header_cache_(spec.GetArgument<bool>("cache_header_information")) {}
-
-  ~NumpyLoaderGPU() override {
-    // set device
-    DeviceGuard g(device_id_);
-
-    // clean up buffers
-    for (auto it = reg_buff_.begin(); it != reg_buff_.end(); ++it) {
-      cuFileBufDeregister(it->first);
-    }
-    reg_buff_.clear();
-  }
+  using CUFileLoader<NumpyFileWrapperGPU>::CUFileLoader;
 
   void PrepareEmpty(NumpyFileWrapperGPU& tensor) override;
   void ReadSample(NumpyFileWrapperGPU& tensor) override;
-
- protected:
-  // register input tensor
-  void RegisterBuffer(void *buffer, size_t total_size);
-
-  // read the full sample
-  void ReadSampleHelper(CUFileStream *file,
-                        void *buffer, Index offset, size_t total_size);
-
-  // do we want to register device buffers:
-  bool register_buffers_;
-
-  // registered buffer addresses
-  std::mutex reg_mutex_;
-  std::map<uint8_t*, size_t> reg_buff_;
-
-  detail::NumpyHeaderCache header_cache_;
 };
 
 }  // namespace dali

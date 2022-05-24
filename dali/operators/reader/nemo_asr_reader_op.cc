@@ -131,7 +131,7 @@ NemoAsrReader::NemoAsrReader(const OpSpec& spec)
       read_idxs_(spec.GetArgument<bool>("read_idxs")),
       dtype_(spec.GetArgument<DALIDataType>("dtype")),
       num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))),
-      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false) {
+      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "NemoAsrReader") {
   loader_ = InitLoader<NemoAsrLoader>(spec);
 
   prefetched_decoded_audio_.resize(prefetch_queue_depth_);

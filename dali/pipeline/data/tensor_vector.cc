@@ -50,6 +50,7 @@ template <typename Backend>
 TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
   state_ = other.state_;
   pinned_ = other.pinned_;
+  order_ = other.order_;
   curr_num_tensors_ = other.curr_num_tensors_;
   tl_ = std::move(other.tl_);
   type_ = std::move(other.type_);
@@ -556,6 +557,7 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
   if (&other != this) {
     state_ = other.state_;
     pinned_ = other.pinned_;
+    order_ = other.order_;
     curr_num_tensors_ = other.curr_num_tensors_;
     tl_ = std::move(other.tl_);
     type_ = other.type_;

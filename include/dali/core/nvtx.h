@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -99,6 +99,12 @@ struct DomainTimeRange : RangeBase {
   ~DomainTimeRange() {}
 #endif
 };
+
+/*
+ * Sets thread name in nsys profiles (no length limit) and in the process list
+ * (only first 15 characters is used)
+ */
+void SetThreadName(const char *name);
 
 }  // namespace dali
 

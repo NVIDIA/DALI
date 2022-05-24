@@ -95,9 +95,9 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                    bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                    int default_cuda_stream_priority, int64_t seed)
-        : built_(false), separated_execution_(false) {
-    dali_proto::PipelineDef def;
-    DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
+    : built_(false), separated_execution_(false) {
+  dali_proto::PipelineDef def;
+  DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
     // If not given, take parameters from the serialized pipeline
     this->max_batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
@@ -143,10 +143,11 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                         op_def.logical_id() == -1 ? GetNextLogicalId() : op_def.logical_id());
     }
     // output names
-    for (auto& output : def.pipe_outputs()) {
-      this->output_names_.emplace_back(output.name(), output.device());
+    for (auto &output : def.pipe_outputs()) {
+      this->output_descs_.emplace_back(output.name(), output.device(),
+                                       static_cast<DALIDataType>(output.dtype()), output.ndim());
     }
-  }
+}
 
 Pipeline::~Pipeline() {
   DeviceGuard dg(device_id_);
@@ -424,11 +425,22 @@ void Pipeline::PropagateMemoryHint(OpNode &node) {
   }
 }
 
-void Pipeline::Build(vector<std::pair<string, string>> output_names) {
+void Pipeline::Build() {
+  Build(this->output_descs_);
+}
+
+void Pipeline::Build(const vector<std::pair<string, string>>& output_names) {
+  std::vector<PipelineOutputDesc> output_descs = {output_names.begin(), output_names.end()};
+  this->Build(output_descs);
+}
+
+void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   DeviceGuard d(device_id_);
-  output_names_ = output_names;
+  SetOutputDescs(std::move(output_descs));
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
-  DALI_ENFORCE(output_names.size() > 0, "User specified zero outputs.");
+  auto num_outputs = output_descs_.size();
+  DALI_ENFORCE(num_outputs > 0,
+               make_string("User specified incorrect number of outputs (", num_outputs, ")."));
 
   executor_ =
       GetExecutor(pipelined_execution_, separated_execution_, async_execution_, max_batch_size_,
@@ -472,9 +484,9 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
 
   // Validate the output tensors names
   vector<string> outputs;
-  for (const auto &name_pair : output_names) {
-    string name = name_pair.first;
-    string device = name_pair.second;
+  for (const auto &out_desc : output_descs_) {
+    string name = out_desc.name;
+    string device = out_desc.device;
     auto it = edge_names_.find(name);
     DALI_ENFORCE(it != edge_names_.end(), "Requested output name '" +
         name + "' is not known to the pipeline.");
@@ -536,8 +548,21 @@ void Pipeline::Build(vector<std::pair<string, string>> output_names) {
   built_ = true;
 }
 
-void Pipeline::SetOutputNames(const vector<std::pair<string, string>> &output_names) {
-  output_names_ = output_names;
+
+void Pipeline::SetOutputDescs(const vector<std::pair<string, string>> &output_names) {
+  DALI_ENFORCE(
+      output_descs_.empty(),
+      "Resetting output_descs_ providing only name and device is forbidden. If you want to reset "
+      "the output_descs_, please use the `SetOutputDescs(vector<PipelineOutputDesc>)`.");
+  output_descs_ = {output_names.begin(), output_names.end()};
+}
+
+void Pipeline::SetOutputDescs(std::vector<PipelineOutputDesc> output_descs) {
+  DALI_ENFORCE(output_descs_.empty() || output_descs_ == output_descs,
+               make_string("Once set, changing values of `output_descs_` is forbidden. "
+                           "`SetOutputDescs` may be invoked multiple times, with the argument "
+                           "equal to existing `output_descs_`.\nReceived:\n", output_descs));
+  output_descs_ = std::move(output_descs);
 }
 
 void Pipeline::RunCPU() {
@@ -557,32 +582,49 @@ void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
   executor_->SetCompletionCallback(std::move(cb));
 }
 
+bool Pipeline::ValidateOutputs(const DeviceWorkspace &ws) const {
+  DALI_ENFORCE(ws.NumOutput() == static_cast<int>(output_descs_.size()),
+               make_string("Number of outputs does not match. Expected: ", output_descs_.size(),
+                           ". Received: ", ws.NumOutput(), "."));
+  for (int i = 0; i < ws.NumOutput(); i++) {
+    DALI_ENFORCE(ws.GetOutputDim(i) == output_descs_[i].ndim || output_descs_[i].ndim == -1,
+                 make_string("Number of dimensions in the output_idx=", i,
+                             " does not match. Expected: ", output_descs_[i].ndim,
+                             ". Received: ", ws.GetOutputDim(i), "."));
+    DALI_ENFORCE(
+        ws.GetOutputDataType(i) == output_descs_[i].dtype || output_descs_[i].dtype == DALI_NO_TYPE,
+        make_string("Data type in the output_idx=", i, " does not match. Expected: ",
+                    output_descs_[i].dtype, ". Received: ", ws.GetOutputDataType(i), "."));
+  }
+  return true;
+}
+
 void Pipeline::Outputs(DeviceWorkspace *ws) {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to executing the pipeline.");
-    try {
-      executor_->Outputs(ws);
-    } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline:\n"
-          + std::string(e.what())
-          + "\nCurrent pipeline object is no longer valid.");
-    } catch (...) {
-      throw std::runtime_error("Unknown critical error in pipeline.");
-    }
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
+  try {
+    executor_->Outputs(ws);
+  } catch (std::exception &e) {
+    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
+                                         "\nCurrent pipeline object is no longer valid."));
+  } catch (...) {
+    throw std::runtime_error("Unknown critical error in pipeline.");
+  }
+
+  ValidateOutputs(*ws);
 }
 
 void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
-  DALI_ENFORCE(built_,
-      "\"Build()\" must be called prior to executing the pipeline.");
-    try {
-      executor_->ShareOutputs(ws);
-    } catch (std::exception &e) {
-      throw std::runtime_error("Critical error in pipeline:\n"
-          + std::string(e.what())
-          + "\nCurrent pipeline object is no longer valid.");
-    } catch (...) {
-      throw std::runtime_error("Unknown critical error in pipeline.");
-    }
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
+  try {
+    executor_->ShareOutputs(ws);
+  } catch (std::exception &e) {
+    throw std::runtime_error(make_string("Critical error in pipeline:\n", std::string(e.what()),
+                                         "\nCurrent pipeline object is no longer valid."));
+  } catch (...) {
+    throw std::runtime_error("Unknown critical error in pipeline.");
+  }
+
+  ValidateOutputs(*ws);
 }
 
 void Pipeline::ReleaseOutputs() {
@@ -711,20 +753,17 @@ string Pipeline::SerializeToProtobuf() const {
   }
 
   // loop over outputs used to create the graph
-  for (auto& output : output_names_) {
+  for (auto& output : output_descs_) {
     dali_proto::InputOutput *out = pipe.add_pipe_outputs();
 
-    out->set_name(output.first);
-    out->set_device(output.second);
+    out->set_name(output.name);
+    out->set_device(output.device);
     out->set_is_argument_input(false);
+    out->set_dtype(output.dtype);
+    out->set_ndim(output.ndim);
   }
   pipe.set_device_id(this->device_id_);
   string output = pipe.SerializeAsString();
-
-#ifndef NDEBUG
-  // print out debug string
-  printf("%s\n", pipe.DebugString().c_str());
-#endif
 
   return output;
 }
@@ -818,14 +857,26 @@ const std::string &Pipeline::input_name(int n) const {
 
 const std::string &Pipeline::output_name(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_name()\".");
-  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
-  return output_names_[id].first;
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].name;
 }
 
 const std::string &Pipeline::output_device(int id) const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_device()\".");
-  DALI_ENFORCE_VALID_INDEX(id, output_names_.size());
-  return output_names_[id].second;
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].device;
+}
+
+DALIDataType Pipeline::output_dtype(int id) const {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_dtype()\".");
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].dtype;
+}
+
+int Pipeline::output_ndim(int id) const {
+  DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"output_ndim()\".");
+  DALI_ENFORCE_VALID_INDEX(id, output_descs_.size());
+  return output_descs_[id].ndim;
 }
 
 int Pipeline::num_inputs() const {
@@ -834,7 +885,11 @@ int Pipeline::num_inputs() const {
 
 int Pipeline::num_outputs() const {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to calling \"num_outputs()\".");
-  return output_names_.size();
+  return output_descs_.size();
+}
+
+std::vector<PipelineOutputDesc> Pipeline::output_descs() const {
+  return output_descs_;
 }
 
 void Pipeline::SaveGraphToDotFile(const std::string &filename, bool show_tensors, bool show_ids,

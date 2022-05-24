@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,9 +39,9 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
       : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint,
                                    set_affinity, max_num_stream, default_cuda_stream_priority,
                                    prefetch_queue_depth),
-        cpu_thread_(device_id, set_affinity),
-        mixed_thread_(device_id, set_affinity),
-        gpu_thread_(device_id, set_affinity) {}
+        cpu_thread_(device_id, set_affinity, "CPU executor"),
+        mixed_thread_(device_id, set_affinity, "Mixed executor"),
+        gpu_thread_(device_id, set_affinity, "GPU executor") {}
 
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
     Shutdown();

@@ -152,6 +152,24 @@ Parameters
     by decorating them with `@dali.pickling.pickle_by_value`. It may be especially useful when
     working with Jupyter notebook to work around the issue of worker process being unable to import
     the callback defined as a global function inside the notebook.
+`output_dtype` : ``nvidia.dali.types.DALIDataType`` or list of those, default = None
+    With this argument, you may declare, what data type you expect in the given output. You shall
+    pass a list of mod:`types.DALIDataType`, each element in the list corresponding to
+    one output from the pipeline. Additionally, you can pass ``None`` as a wildcard. The outputs,
+    after each iteration, will be validated against the types you passed to this argument. If any
+    output does not match the provided type, RuntimeError will be raised.
+
+    If the ``output_dtype`` value is a single value (not a list), it will be broadcast to the
+    number of outputs from the pipeline.
+`output_ndim` : int or list of ints, default = None
+    With this argument, you may declare, how many dimensions you expect in the given output. You shall
+    pass a list of integers, each element in the list corresponding to one output from the pipeline.
+    Additionally, you can pass ``None`` as a wildcard. The outputs, after each iteration, will be
+    validated against the numbers of dimensions you passed to this argument. If the dimensionality
+    of any output does not match the provided ``ndim``, RuntimeError will be raised.
+
+    If the ``output_ndim`` value is a single value (not a list), it will be broadcast to the
+    number of outputs from the pipeline.
 """
     def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
                  exec_pipelined=True, prefetch_queue_depth=2,
@@ -159,7 +177,7 @@ Parameters
                  set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
                  *,
                  enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
-                 py_callback_pickler=None):
+                 py_callback_pickler=None, output_dtype=None, output_ndim=None):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -217,6 +235,37 @@ Parameters
             self._gpu_queue_size = prefetch_queue_depth
         else:
             raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
+
+        # Assign and validate output_dtype
+        if isinstance(output_dtype, (list, tuple)):
+            for dtype in output_dtype:
+                if not isinstance(dtype, (types.DALIDataType, type(None))):
+                    raise TypeError(
+                        f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type {type(dtype)} in the list.")
+                if dtype == types.NO_TYPE:
+                    raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found {dtype} in the list.")
+        elif not isinstance(output_dtype, (types.DALIDataType, type(None))):
+            raise TypeError(
+                f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type: {type(output_dtype)}.")
+        elif output_dtype == types.NO_TYPE:
+            raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found value: {output_dtype}")
+        self._output_dtype = output_dtype
+
+        # Assign and validate output_ndim
+        if isinstance(output_ndim, (list, tuple)):
+            for ndim in output_ndim:
+                if not isinstance(ndim, (int, type(None))):
+                    raise TypeError(
+                        f"`output_ndim` must be either: an int, a list of ints or None. Found type {type(ndim)} in the list.")
+                if ndim is not None and ndim < 0:
+                    raise ValueError(
+                        f"`output_ndim` must be non-negative. Found value {ndim} in the list.")
+        elif not isinstance(output_ndim, (int, type(None))):
+            raise TypeError(
+                f"`output_ndim` must be either: an int, a list of ints or None. Found type: {type(output_ndim)}.")
+        elif output_ndim is not None and output_ndim < 0:
+            raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
+        self._output_ndim = output_ndim
 
     @property
     def batch_size(self):
@@ -303,6 +352,14 @@ Parameters
     def gpu_queue_size(self):
         """The number of iterations processed ahead by the GPU stage."""
         return self._gpu_queue_size
+
+    def output_dtype(self) -> list:
+        """Data types expected at the outputs."""
+        return [elem if elem != types.NO_TYPE else None for elem in self._pipe.output_dtype()]
+
+    def output_ndim(self) -> list:
+        """Number of dimensions expected at the outputs."""
+        return [elem if elem != -1 else None for elem in self._pipe.output_ndim()]
 
     def epoch_size(self, name = None):
         """Epoch size of a pipeline.
@@ -699,7 +756,7 @@ Parameters
             self._init_pipeline_backend()
         self._setup_pipe_pool_dependency()
 
-        self._pipe.Build(self._names_and_devices)
+        self._pipe.Build(self._generate_build_args())
         self._built = True
 
     def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
@@ -1037,7 +1094,8 @@ Parameters
             self._build_graph(define_graph)
         if not self._backend_prepared:
             self._init_pipeline_backend()
-            self._pipe.SetOutputNames(self._names_and_devices)
+            self._pipe.SetOutputDescs(
+                self._generate_build_args())
         ret = self._pipe.SerializeToProtobuf()
         if filename is not None:
             with open(filename, 'wb') as pipeline_file:
@@ -1202,6 +1260,21 @@ Parameters
         For example, one can use this function to feed the input
         data from NumPy arrays."""
         pass
+
+    def _generate_build_args(self):
+        num_outputs = len(self._names_and_devices)
+        dtypes = [self._output_dtype] * num_outputs if type(
+            self._output_dtype) is not list else self._output_dtype
+        ndims = [self._output_ndim] * num_outputs if type(
+            self._output_ndim) is not list else self._output_ndim
+        if not (len(dtypes) == len(ndims) == num_outputs):
+            raise RuntimeError(
+                f"Lengths of provided output descriptions do not match. \n"
+                f"Expected num_outputs={num_outputs}.\nReceived:\noutput_dtype={dtypes}\noutput_ndim={ndims}")
+
+        return [(name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
+                for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)]
+
 
 
 def _discriminate_args(func, **func_kwargs):

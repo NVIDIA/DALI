@@ -16,7 +16,6 @@ import numpy as np
 
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
-from nvidia.dali import types
 
 from test_utils import check_batch
 from nose_utils import raises
@@ -31,15 +30,16 @@ def input_batch(num_dim):
         yield [rng.random(rng.integers(low=0, high=50, size=num_dim)) for _ in range(batch_size)]
 
 
-def run_pipeline(num_dim, replace=False, layout=None):
+def run_pipeline(device, num_dim, replace=False, layout=None):
 
     @pipeline_def
     def pipeline():
         arg = fn.external_source(input_batch(num_dim), layout=layout)
-        return fn.per_frame(arg, replace=replace)
+        if device == "gpu":
+            arg = arg.gpu()
+        return fn.per_frame(arg, replace=replace, device=device)
 
-    pipe = pipeline(num_threads=4, batch_size=max_batch_size,
-                    device_id=types.CPU_ONLY_DEVICE_ID)
+    pipe = pipeline(num_threads=4, batch_size=max_batch_size, device_id=0)
     pipe.build()
     expected_layout = "F" + "*" * (num_dim - 1) if layout is None else "F" + layout[1:]
     for baseline in input_batch(num_dim):
@@ -48,30 +48,34 @@ def run_pipeline(num_dim, replace=False, layout=None):
 
 
 def test_set_layout():
-    for num_dim in (1, 2, 3):
-        yield run_pipeline, num_dim
+    for device in ["cpu", "gpu"]:
+        for num_dim in (1, 2, 3):
+            yield run_pipeline, device, num_dim
 
 
 def test_replace_layout():
-    for num_dim in (1, 2, 3):
-        yield run_pipeline, num_dim, True, "XYZ"[:num_dim]
+    for device in ["cpu", "gpu"]:
+        for num_dim in (1, 2, 3):
+            yield run_pipeline, device, num_dim, True, "XYZ"[:num_dim]
 
 
 def test_verify_layout():
-    for num_dim in (1, 2, 3):
-        yield run_pipeline, num_dim, False, "FYZ"[:num_dim]
+    for device in ["cpu", "gpu"]:
+        for num_dim in (1, 2, 3):
+            yield run_pipeline, device, num_dim, False, "FYZ"[:num_dim]
 
 
-@raises(RuntimeError, "Cannot mark zero-dimensional input as a sequence")
 def test_zero_dim_not_allowed():
-    run_pipeline(num_dim=0)
+    for device in ["cpu", "gpu"]:
+        yield raises(RuntimeError, "Cannot mark zero-dimensional input as a sequence")(run_pipeline), device, 0
 
 
 @raises(RuntimeError, " Per-frame argument input must be a sequence. The input layout should start with 'F'")
-def _test_not_a_sequence_layout(num_dim, layout):
-    run_pipeline(num_dim=num_dim, layout=layout)
+def _test_not_a_sequence_layout(device, num_dim, layout):
+    run_pipeline(device, num_dim=num_dim, layout=layout)
 
 
 def test_not_a_sequence_layout():
-    for num_dim in (1, 2, 3):
-        yield _test_not_a_sequence_layout, num_dim, "XYZ"[:num_dim]
+    for device in ["cpu", "gpu"]:
+        for num_dim in (1, 2, 3):
+            yield _test_not_a_sequence_layout, device, num_dim, "XYZ"[:num_dim]

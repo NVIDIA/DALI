@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,8 @@ message InputOutput {
   required string device = 2;
   required bool is_argument_input = 3 [default = false];
   optional string arg_name = 4;
+  optional int32 dtype = 5 [default = -1];  // @ref DALIDataType
+  optional int32 ndim = 6 [default = -1];
 }
 
 // stores info about a single operator

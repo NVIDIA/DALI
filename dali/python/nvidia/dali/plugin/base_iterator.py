@@ -175,8 +175,8 @@ class _DaliBaseIterator(object):
         self._ever_scheduled = False
 
     def _calculate_shard_sizes(self, shard_nums):
-        shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int)
-        shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num).astype(np.int)
+        shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int64)
+        shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num).astype(np.int64)
         return shards_end - shards_beg
 
     def _extract_from_reader_and_validate(self):
@@ -202,7 +202,7 @@ class _DaliBaseIterator(object):
             self._last_batch_padded = check_all_or_none_and_get(readers_meta, "pad_last_batch", "`pad_last_batch` argument set")
             self._is_stick_to_shard = check_all_or_none_and_get(readers_meta, "stick_to_shard", "`stick_to_shard` argument set")
 
-            self._shards_id = np.array([meta["shard_id"] for meta in readers_meta], dtype=np.int)
+            self._shards_id = np.array([meta["shard_id"] for meta in readers_meta], dtype=np.int64)
 
             if self._last_batch_policy == LastBatchPolicy.DROP:
                 # when DROP policy is used round down the shard size
@@ -216,7 +216,7 @@ class _DaliBaseIterator(object):
 
             # count where we starts inside each GPU shard in given epoch,
             # if shards are uneven this will differ epoch2epoch
-            self._counter_per_gpu = np.zeros(self._shards_num, dtype=np.long)
+            self._counter_per_gpu = np.zeros(self._shards_num, dtype=np.int64)
             self._shard_sizes_per_gpu = self._calculate_shard_sizes(np.arange(0, self._shards_num))
 
             # to avoid recalculation of shard sizes when iterator moves across the shards
@@ -351,7 +351,7 @@ class _DaliBaseIterator(object):
                     if self._size == 0:
                         # it means that self._shard_sizes_per_gpu == self._counter_per_gpu, so we can
                         # jump to the next epoch and zero self._counter_per_gpu
-                        self._counter_per_gpu = np.zeros(self._shards_num, dtype=np.long)
+                        self._counter_per_gpu = np.zeros(self._shards_num, dtype=np.int64)
                         # self._counter = min(self._counter_per_gpu), but just set 0 to make it simpler
                         self._counter = 0
                         # roll once again

@@ -118,6 +118,8 @@ class VideoTestBase : public ::testing::Test {
   static std::vector<TestVideo> vfr_hevc_videos_;
 
   static void SetUpTestSuite();
+
+  void RunFailureTest(std::function<void()> body, std::string expected_error);
 };
 }  // namespace dali
 

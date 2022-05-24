@@ -119,8 +119,8 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
 
 namespace detail {
 
-void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
-  target.shape.clear();
+void ParseHeaderMetadata(NumpyHeaderMeta& target, const std::string &header) {
+  target.shape = {};
   const char* hdr = header.c_str();
   SkipSpaces(hdr);
   Skip(hdr, "{");
@@ -148,7 +148,7 @@ void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
   SkipSpaces(hdr);
   while (*hdr != ')') {
     // ParseInteger already skips the leading spaces (strtol does).
-    target.shape.push_back(ParseInteger<int64_t>(hdr));
+    target.shape.shape.push_back(ParseInteger<int64_t>(hdr));
     SkipSpaces(hdr);
     DALI_ENFORCE(TrySkip(hdr, ",") || target.shape.size() > 1,
                  "The first number in a tuple must be followed by a comma.");
@@ -159,7 +159,7 @@ void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header) {
   }
 }
 
-void ParseHeader(FileStream *file, NumpyParseTarget& target) {
+void ParseHeader(FileStream *file, NumpyHeaderMeta& parsed_header) {
   // check if the file is actually a numpy file
   std::vector<uint8_t> token(11);
   int64_t nread = file->Read(token.data(), 10);
@@ -190,13 +190,13 @@ void ParseHeader(FileStream *file, NumpyParseTarget& target) {
   header = std::string(reinterpret_cast<const char*>(token.data()));
   DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
   offset += header_len;
-  file->Seek(offset);  // prepare file for later reads
+  file->Seek(offset);  // michalz: Why isn't it done when actually reading the payload?
 
-  ParseHeaderMetadata(target, header);
-  target.data_offset = offset;
+  ParseHeaderMetadata(parsed_header, header);
+  parsed_header.data_offset = offset;
 }
 
-bool NumpyHeaderCache::GetFromCache(const string &file_name, NumpyParseTarget &target) {
+bool NumpyHeaderCache::GetFromCache(const string &file_name, NumpyHeaderMeta &header) {
   if (!cache_headers_) {
     return false;
   }
@@ -205,12 +205,12 @@ bool NumpyHeaderCache::GetFromCache(const string &file_name, NumpyParseTarget &t
   if (it == header_cache_.end()) {
     return false;
   } else {
-    target = it->second;
+    header = it->second;
     return true;
   }
 }
 
-void NumpyHeaderCache::UpdateCache(const string &file_name, const NumpyParseTarget &value) {
+void NumpyHeaderCache::UpdateCache(const string &file_name, const NumpyHeaderMeta &value) {
   if (cache_headers_) {
     std::unique_lock<std::mutex> cache_lock(cache_mutex_);
     header_cache_[file_name] = value;
@@ -240,29 +240,30 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     return;
   }
 
-  auto current_file = FileStream::Open(file_root_ + "/" + filename, read_ahead_, !copy_read_data_);
+  auto path = filesystem::join_path(file_root_, filename);
+  auto current_file = FileStream::Open(path, read_ahead_, !copy_read_data_);
 
   // read the header
-  NumpyParseTarget parse_target;
-  auto ret = header_cache_.GetFromCache(filename, parse_target);
+  NumpyHeaderMeta header;
+  auto ret = header_cache_.GetFromCache(filename, header);
   try {
     if (ret) {
-      current_file->Seek(parse_target.data_offset);
+      current_file->Seek(header.data_offset);
     } else {
-      detail::ParseHeader(current_file.get(), parse_target);
-      header_cache_.UpdateCache(filename, parse_target);
+      detail::ParseHeader(current_file.get(), header);
+      header_cache_.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
     DALI_FAIL(e.what() + ". File: " + filename);
   }
 
-  Index nbytes = parse_target.nbytes();
+  Index nbytes = header.nbytes();
 
   if (copy_read_data_) {
     if (target.data.shares_data()) {
       target.data.Reset();
     }
-    target.data.Resize(parse_target.shape, parse_target.type());
+    target.data.Resize(header.shape, header.type());
     // copy the image
     Index ret = current_file->Read(static_cast<uint8_t*>(target.data.raw_mutable_data()),
                                     nbytes);
@@ -271,8 +272,8 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     auto p = current_file->Get(nbytes);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
     // Wrap the raw data in the Tensor object.
-    target.data.ShareData(p, nbytes, false, {nbytes}, parse_target.type());
-    target.data.Resize(parse_target.shape, parse_target.type());
+    target.data.ShareData(p, nbytes, false, {nbytes}, header.type());
+    target.data.Resize(header.shape, header.type());
   }
 
   // close the file handle
@@ -282,10 +283,10 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   target.data.SetMeta(meta);
 
   // set file path
-  target.filename = file_root_ + "/" + filename;
+  target.filename = std::move(path);
 
   // set meta
-  target.fortran_order = parse_target.fortran_order;
+  target.fortran_order = header.fortran_order;
 }
 
 }  // namespace dali

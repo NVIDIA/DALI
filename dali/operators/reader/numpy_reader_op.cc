@@ -117,6 +117,11 @@ This operator can be used in the following modes:
   The ``gpu`` backend requires cuFile/GDS support (418.x driver family or newer). which is
   shipped with the CUDA toolkit starting from CUDA 11.4. Please check the GDS documentation
   for more details.
+
+  The ``gpu`` reader reads the files in chunks. The size of the chunk can be controlled
+  process-wide with an environment variable ``DALI_GDS_CHUNK_SIZE``. Valid values are powers of 2
+  between 4096 and 16M, with the default being 2M. For convenience, the value can be specified
+  with a k or M suffix, applying a multiplier of 1024 and 2^20, respectively.
 )")
   .NumInput(0)
   .NumOutput(1)  // (Arrays)

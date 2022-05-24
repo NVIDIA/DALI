@@ -24,15 +24,16 @@ namespace dali {
 
 NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
     : NumpyReader<GPUBackend, NumpyFileWrapperGPU>(spec),
-      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false),
-      sg_(1 << 18, spec.GetArgument<int>("max_batch_size")) {
+      thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "NumpyReaderGPU"),
+      sg_(1 << 18),
+      header_cache_(spec.GetArgument<bool>("cache_header_information")) {
   prefetched_batch_tensors_.resize(prefetch_queue_depth_);
-
-  for (auto &t : prefetched_batch_tensors_)
-    t.set_alloc_func(gds_alloc);
-
-  // set a device guard
+  // make the device current
   DeviceGuard g(device_id_);
+
+  staging_stream_ = CUDAStreamPool::instance().Get();
+  staging_ready_ = CUDAEventPool::instance().Get();
+  staging_.set_stream(staging_stream_);
 
   // init loader
   bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
@@ -51,8 +52,9 @@ void NumpyReaderGPU::Prefetch() {
 
   // get shapes
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
-    thread_pool_.AddWork([&curr_batch, data_idx](int tid) {
-        curr_batch[data_idx]->read_meta_f();
+    thread_pool_.AddWork([this, &curr_batch, data_idx](int tid) {
+        curr_batch[data_idx]->Reopen();
+        curr_batch[data_idx]->ReadHeader(header_cache_);
       });
   }
   thread_pool_.RunAll();
@@ -80,54 +82,57 @@ void NumpyReaderGPU::Prefetch() {
     tmp_shapes.set_tensor_shape(data_idx, sample->get_shape());
   }
 
-  // Check if the curr_tensor_list has the proper allocator.
-  // Some buffers allocated with a different method can slip in because output buffers
-  // are swapped with ones in prefetched_batch_tensors_ when all samples can be returned
-  // without any changes.
-  // See the line `std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);`
-  // in numpy_reader_gpu_op_impl.cu
-  if (!dynamic_cast<mm::cuda_malloc_memory_resource*>(mm::GetDefaultDeviceResource())) {
-    auto *tgt = curr_tensor_list.alloc_func().target<shared_ptr<uint8_t>(*)(size_t)>();
-    if (!tgt || *tgt != &gds_alloc) {
-      curr_tensor_list.Reset();
-      curr_tensor_list.set_alloc_func(gds_alloc);
-    }
-  }
   curr_tensor_list.Resize(tmp_shapes, ref_type);
-
-  const size_t kGDSChunkGranularity = 1<<20;
-
-  size_t chunk_size = align_up(div_ceil(static_cast<uint64_t>(curr_tensor_list.nbytes()),
-                                        static_cast<uint64_t>(thread_pool_.NumThreads())),
-                               kGDSChunkGranularity);
-  chunk_size = std::min(chunk_size, curr_tensor_list.nbytes());
-
 
   // read the data
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
-    curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->get_meta());
-    size_t image_bytes = static_cast<size_t>(volume(curr_tensor_list.tensor_shape(data_idx))
-                                             * curr_tensor_list.type_info().size());
-    uint8_t* dst_ptr = static_cast<uint8_t*>(curr_tensor_list.raw_mutable_tensor(data_idx));
-    size_t file_offset = 0;
-    while (image_bytes > 0) {
-      size_t read_bytes = std::min(image_bytes, chunk_size);
-      void* buffer = static_cast<void*>(dst_ptr);
-      thread_pool_.AddWork([&curr_batch, data_idx, buffer, file_offset, read_bytes](int tid) {
-        curr_batch[data_idx]->read_sample_f(buffer, file_offset, read_bytes);
-      });
-
-      // update addresses
-      dst_ptr += read_bytes;
-      file_offset += read_bytes;
-      image_bytes -= read_bytes;
-    }
+    curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->meta);
+    SampleView<GPUBackend> sample(curr_tensor_list.raw_mutable_tensor(data_idx),
+                                  curr_tensor_list.tensor_shape(data_idx),
+                                  curr_tensor_list.type());
+    ScheduleChunkedRead(sample, *curr_batch[data_idx]);
   }
   thread_pool_.RunAll();
+  staging_.commit();
+  CUDA_CALL(cudaEventRecord(staging_ready_, staging_stream_));
 
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_batch[data_idx]->file_stream->Close();
   }
+}
+
+void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
+                                         NumpyFileWrapperGPU &load_target) {
+  // TODO(michalz): add nbytes and num_elements to SampleView.
+  size_t data_bytes = out_sample.shape().num_elements() *
+                      TypeTable::GetTypeInfo(out_sample.type()).size();
+  if (!data_bytes)
+    return;  // empty array - short-circuit
+
+  uint8_t *base_ptr = static_cast<uint8_t*>(out_sample.raw_mutable_data());
+  uint8_t *dst_ptr = base_ptr;
+  ssize_t read_start = load_target.data_offset & -gds::kGDSAlignment;  // align _down_
+  ssize_t file_offset = read_start;
+  ssize_t read_bytes = data_bytes + load_target.data_offset - read_start;
+  while (read_bytes > 0) {
+    ssize_t chunk_read_length = std::min<ssize_t>(read_bytes, chunk_size_);
+    ssize_t copy_start = std::max(file_offset, load_target.data_offset);
+    ssize_t copy_skip = copy_start - file_offset;
+    ssize_t copy_end = file_offset + chunk_read_length;
+    ssize_t chunk_copy_length = copy_end - copy_start;
+    thread_pool_.AddWork([=, &load_target](int tid) {
+      auto buffer = staging_.get_staging_buffer();
+      load_target.ReadRawChunk(buffer.at(0), chunk_read_length, 0, file_offset);
+      assert(dst_ptr >= base_ptr && dst_ptr + chunk_copy_length <= base_ptr + data_bytes);
+      staging_.copy_to_client(dst_ptr, chunk_copy_length, std::move(buffer), copy_skip);
+    });
+
+    // update addresses
+    dst_ptr += chunk_copy_length;
+    file_offset += chunk_read_length;
+    read_bytes -= chunk_read_length;
+  }
+  assert(dst_ptr == base_ptr + data_bytes);
 }
 
 DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReaderGPU, GPU);

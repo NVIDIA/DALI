@@ -247,6 +247,21 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
   /**
+   * @return Type of the data in the output with given index.
+   */
+  DALIDataType GetOutputDataType(int output_idx) const {
+    DALI_ENFORCE(NumOutput() > 0, "No outputs found");
+    DALI_ENFORCE(
+        output_idx >= 0 && output_idx < NumOutput(),
+        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumOutput()));
+    if (OutputIsType<GPUBackend>(output_idx)) {
+      return Output<GPUBackend>(output_idx).type();
+    } else {
+      return Output<CPUBackend>(output_idx).type();
+    }
+  }
+
+  /**
    * Returns batch size for a given input
    */
   int GetInputBatchSize(int input_idx) const {
@@ -271,6 +286,21 @@ class WorkspaceBase : public ArgumentWorkspace {
       return Input<GPUBackend>(input_idx).sample_dim();
     } else {
       return Input<CPUBackend>(input_idx).sample_dim();
+    }
+  }
+
+  /**
+   * Returns number of dimensions for a given output
+   */
+  int GetOutputDim(int output_idx) const {
+    DALI_ENFORCE(NumOutput() > 0, "No outputs found");
+    DALI_ENFORCE(
+        output_idx >= 0 && output_idx < NumOutput(),
+        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumOutput()));
+    if (OutputIsType<GPUBackend>(output_idx)) {
+      return Output<GPUBackend>(output_idx).sample_dim();
+    } else {
+      return Output<CPUBackend>(output_idx).sample_dim();
     }
   }
 

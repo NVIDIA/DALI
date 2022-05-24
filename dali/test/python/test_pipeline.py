@@ -1654,3 +1654,127 @@ def test_invoke_serialize_error_handling_string():
 @raises(TypeError, "*define_graph*callable*")
 def test_invoke_serialize_error_handling_not_string():
     _identity_pipe().serialize(42)
+
+
+def check_dtype_ndim(dali_pipeline, output_dtype, output_ndim, n_outputs):
+    def ndim_dtype_matches(test_value, ref_value):
+        ref_value = ref_value if isinstance(ref_value, (list, tuple)) else [ref_value] * n_outputs
+        return ref_value == test_value
+
+    import tempfile
+    with tempfile.NamedTemporaryFile() as f:
+        dali_pipeline.serialize(filename=f.name)
+        deserialized_pipeline = Pipeline.deserialize(filename=f.name)
+        deserialized_pipeline.build()
+        assert ndim_dtype_matches(deserialized_pipeline.output_ndim(),
+                                  output_ndim), f"`output_ndim` is not serialized properly. {deserialized_pipeline.output_ndim()} vs {output_ndim}."
+        assert ndim_dtype_matches(deserialized_pipeline.output_dtype(),
+                                  output_dtype), f"`output_dtype` is not serialized properly. {deserialized_pipeline.output_dtype()} vs {output_dtype}."
+        deserialized_pipeline.run()
+    dali_pipeline.build()
+    dali_pipeline.run()
+
+
+@raises(RuntimeError, glob="Data type * does not match*")
+def check_dtype_with_raise(dali_pipeline, output_dtype, output_ndim, n_outputs):
+    check_dtype_ndim(dali_pipeline, output_dtype, output_ndim, n_outputs)
+
+
+@raises(RuntimeError, glob="Number of dimensions * does not match*")
+def check_ndim_with_raise(dali_pipeline, output_dtype, output_ndim, n_outputs):
+    check_dtype_ndim(dali_pipeline, output_dtype, output_ndim, n_outputs)
+
+
+@raises(RuntimeError, glob="Lengths * do not match*")
+def check_length_error(dali_pipeline, output_dtype, output_ndim, n_outputs):
+    check_dtype_ndim(dali_pipeline, output_dtype, output_ndim, n_outputs)
+
+
+def test_one_output_dtype_ndim():
+    @pipeline_def
+    def pipe():
+        inputs, labels = fn.readers.file(
+            file_root=os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg'), name="Reader")
+        decoded = fn.decoders.image(inputs, device="mixed", output_type=types.RGB)
+        return decoded
+
+    def create_test_package(output_dtype=None, output_ndim=None):
+        return pipe(batch_size=1, num_threads=1, device_id=0, output_dtype=output_dtype,
+                    output_ndim=output_ndim), output_dtype, output_ndim
+
+    both_correct = create_test_package(output_dtype=[types.UINT8], output_ndim=[3])
+    ndim_correct_dtype_wildcard = create_test_package(output_dtype=[None], output_ndim=[3])
+    dtype_correct_ndim_wildcard = create_test_package(output_dtype=types.UINT8)
+    dtype_incorrect = create_test_package(output_dtype=[types.FLOAT], output_ndim=[3])
+    ndim_incorrect = create_test_package(output_dtype=types.UINT8, output_ndim=0)
+    both_correct_one_list = create_test_package(output_dtype=types.UINT8, output_ndim=[3])
+    too_many_dtypes = create_test_package(output_dtype=[types.UINT8, types.FLOAT])
+    correct_dtypes_but_too_many = create_test_package(output_dtype=[types.UINT8, types.UINT8])
+    correct_ndims_but_too_many = create_test_package(output_ndim=[3, 3])
+    all_wildcards = create_test_package()
+    correct_test_packages = [both_correct, ndim_correct_dtype_wildcard, dtype_correct_ndim_wildcard,
+                             both_correct_one_list, all_wildcards]
+    test_ndim_packages_with_raise = [ndim_incorrect]
+    test_dtype_packages_with_raise = [dtype_incorrect]
+    test_packages_length_mismatch = [too_many_dtypes, correct_dtypes_but_too_many,
+                                     correct_ndims_but_too_many]
+
+    for pipe_under_test, dtype, ndim in correct_test_packages:
+        yield check_dtype_ndim, pipe_under_test, dtype, ndim, 1
+    for pipe_under_test, dtype, ndim in test_ndim_packages_with_raise:
+        yield check_ndim_with_raise, pipe_under_test, dtype, ndim, 1
+    for pipe_under_test, dtype, ndim in test_dtype_packages_with_raise:
+        yield check_dtype_with_raise, pipe_under_test, dtype, ndim, 1
+    for pipe_under_test, dtype, ndim in test_packages_length_mismatch:
+        yield check_length_error, pipe_under_test, dtype, ndim, 1
+
+
+def test_double_output_dtype_ndim():
+    @pipeline_def
+    def pipe(cast_labels):
+        inputs, labels = fn.readers.file(
+            file_root=os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg'), name="Reader")
+        decoded = fn.decoders.image(inputs, device="mixed", output_type=types.RGB)
+        labels_casted = fn.cast(labels, dtype=types.UINT8)
+        return decoded, labels_casted if cast_labels else labels
+
+    def create_test_package(output_dtype=None, output_ndim=None, cast_labels=False):
+        return pipe(batch_size=1, num_threads=1, device_id=0, output_dtype=output_dtype,
+                    output_ndim=output_ndim, cast_labels=cast_labels), output_dtype, output_ndim
+
+    both_correct = create_test_package(output_dtype=[types.UINT8, types.INT32], output_ndim=[3, 1])
+    ndim_correct_dtype_wildcard = create_test_package(output_dtype=[None, None], output_ndim=[3, 1])
+    dtype_correct_ndim_wildcard = create_test_package(output_dtype=[types.UINT8, types.UINT8],
+                                                      cast_labels=True)
+    dtype_incorrect = create_test_package(output_dtype=[types.UINT8, types.FLOAT])
+    ndim_incorrect = create_test_package(output_ndim=[3, 3])
+    dtype_broadcast = create_test_package(output_dtype=types.UINT8, cast_labels=True)
+    wildcard_in_dtype = create_test_package(output_dtype=[types.UINT8, None])
+    wildcard_in_ndim = create_test_package(output_ndim=[3, None])
+    not_enough_dtypes = create_test_package(output_dtype=[types.UINT8])
+    not_enough_ndim = create_test_package(output_ndim=[1])
+    all_wildcards = create_test_package()
+    all_wildcards_but_shapes_dont_match = create_test_package(output_dtype=[None, None],
+                                                              output_ndim=[None])
+    correct_test_packages = [both_correct, ndim_correct_dtype_wildcard, dtype_correct_ndim_wildcard,
+                             dtype_broadcast, wildcard_in_dtype, wildcard_in_ndim, all_wildcards]
+    test_ndim_packages_with_raise = [ndim_incorrect]
+    test_dtype_packages_with_raise = [dtype_incorrect]
+    test_packages_length_mismatch = [not_enough_ndim, not_enough_dtypes,
+                                     all_wildcards_but_shapes_dont_match]
+
+    for pipe_under_test, dtype, ndim in correct_test_packages:
+        yield check_dtype_ndim, pipe_under_test, dtype, ndim, 2
+    for pipe_under_test, dtype, ndim in test_ndim_packages_with_raise:
+        yield check_ndim_with_raise, pipe_under_test, dtype, ndim, 2
+    for pipe_under_test, dtype, ndim in test_dtype_packages_with_raise:
+        yield check_dtype_with_raise, pipe_under_test, dtype, ndim, 2
+    for pipe_under_test, dtype, ndim in test_packages_length_mismatch:
+        yield check_length_error, pipe_under_test, dtype, ndim, 2
+    with assert_raises(ValueError, glob="*must be non-negative*"):
+        create_test_package(output_ndim=-1)
+        create_test_package(output_ndim=-2137)
+    with assert_raises(TypeError, glob="*must be either*"):
+        create_test_package(output_dtype=int)
+    with assert_raises(ValueError, glob="*types.NO_TYPE*"):
+        create_test_package(output_dtype=types.NO_TYPE)
