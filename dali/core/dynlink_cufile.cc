@@ -35,7 +35,8 @@ CUFILE loadCufileLibrary() {
     ret = dlopen(__CufileLibName, RTLD_NOW);
 
     if (!ret) {
-      fprintf(stderr, "dlopen libcufile.so failed!. Please install libcufile");
+      fprintf(stderr, "dlopen libcufile.so failed with error %s!. Please install libcufile.\n",
+              dlerror());
     }
   }
   return ret;

@@ -80,10 +80,12 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
-                 spec.GetArgument<bool>("affine") /* pin threads */),
+                 spec.GetArgument<bool>("affine") /* pin threads */,
+                 "image decoder nvJPEG"),
     nvjpeg2k_thread_(1,
                      spec.GetArgument<int>("device_id"),
-                     spec.GetArgument<bool>("affine")) {
+                     spec.GetArgument<bool>("affine"),
+                     "image decoder nvJPEG2k") {
 #if IS_HW_DECODER_COMPATIBLE
     // if hw_decoder_load is not present in the schema (crop/sliceDecoder) then it is not supported
     bool try_init_hw_decoder = false;

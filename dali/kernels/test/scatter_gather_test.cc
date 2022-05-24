@@ -139,7 +139,7 @@ class ScatterGatherTest : public testing::Test {
     this->template Memset<kind>(out_ptr.get(), 0, out.size());
 
     T sg(max_block);
-    ThreadPool tp(4, 0, false);
+    ThreadPool tp(4, 0, false, "test TP");
     // copy
     for (auto &r : ranges)
       sg.AddCopy(r.dst, r.src, r.size);

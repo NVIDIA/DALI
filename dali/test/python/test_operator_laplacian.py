@@ -23,7 +23,7 @@ import os
 from nose_utils import assert_raises
 from nose.plugins.attrib import attr
 
-from sequences_test_utils import video_suite_helper
+from sequences_test_utils import video_suite_helper, ArgCb
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator
 
 
@@ -633,34 +633,34 @@ def test_fail_laplacian():
 
 
 def test_per_frame():
-    def window_size(rng):
-        return np.array(2 * rng.randint(1, 15) + 1, dtype=np.int32)
+    def window_size(sample_desc):
+        return np.array(2 * sample_desc.rng.randint(1, 15) + 1, dtype=np.int32)
 
-    def per_axis_window_size(rng):
-        return np.array([window_size(rng) for _ in range(2)])
+    def per_axis_window_size(sample_desc):
+        return np.array([window_size(sample_desc) for _ in range(2)])
 
-    def per_axis_smoothing_size(rng):
-        return np.array([2 * rng.randint(0, 15) + 1 for _ in range(2)], dtype=np.int32)
+    def per_axis_smoothing_size(sample_desc):
+        return np.array([2 * sample_desc.rng.randint(0, 15) + 1 for _ in range(2)], dtype=np.int32)
 
-    def per_axis_scale(rng):
-        def scale(rng):
-            k = 2 * rng.randint(0, 15) + 1
+    def per_axis_scale(sample_desc):
+        def scale(sample_desc):
+            k = 2 * sample_desc.rng.randint(0, 15) + 1
             return np.array(2. ** -k, dtype=np.float32)
-        return np.array([scale(rng) for _ in range(2)])
+        return np.array([scale(sample_desc) for _ in range(2)])
 
     video_test_cases = [
         (fn.laplacian, {}, []),
-        (fn.laplacian, {}, [("window_size", window_size, True)]),
-        (fn.laplacian, {}, [("window_size", per_axis_window_size, True)]),
+        (fn.laplacian, {}, [ArgCb("window_size", window_size, True)]),
+        (fn.laplacian, {}, [ArgCb("window_size", per_axis_window_size, True)]),
         (fn.laplacian, {'dtype': types.FLOAT},
-         [("scale", per_axis_scale, True)]),
+         [ArgCb("scale", per_axis_scale, True)]),
         (fn.laplacian, {}, [
-            ("window_size", per_axis_window_size, True),
-            ("smoothing_size", per_axis_smoothing_size, True)]),
+            ArgCb("window_size", per_axis_window_size, True),
+            ArgCb("smoothing_size", per_axis_smoothing_size, True)]),
         (fn.laplacian, {}, [
-            ("window_size", per_axis_window_size, True),
-            ("smoothing_size", per_axis_smoothing_size, True),
-            ("scale", per_axis_scale, True)]),
+            ArgCb("window_size", per_axis_window_size, True),
+            ArgCb("smoothing_size", per_axis_smoothing_size, True),
+            ArgCb("scale", per_axis_scale, True)]),
     ]
 
     yield from video_suite_helper(video_test_cases, expand_channels=True)

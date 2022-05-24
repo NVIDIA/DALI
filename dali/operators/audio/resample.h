@@ -128,8 +128,8 @@ class ResampleBase : public Operator<Backend> {
           DALI_FAIL(make_string("Cannot produce a non-empty signal from an empty input.\n"
             "Error at sample ", s));
         }
-        args_[s].in_rate = 1.0;
-        args_[s].out_rate = in_length ? 1.0 * out_length / in_length : 0.0;
+        args_[s].in_rate  = in_length  ? in_length  : 1;  // avoid division by 0
+        args_[s].out_rate = out_length ? out_length : 1;  // avoid division by 0
         out_shape.tensor_shape_span(s)[0] = out_length;
       }
     } else {

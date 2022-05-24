@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ def is_gds_supported(device_id=0):
         compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         compute_cap = compute_cap[0] + compute_cap[1] / 10.
     except ModuleNotFoundError:
-        pass
+        print("Python bindings for NVML not found")
 
     is_gds_supported_var = platform.processor() == "x86_64" and compute_cap >= 6.0
     return is_gds_supported_var
@@ -244,7 +244,8 @@ batch_size_alias_test=64
 def numpy_reader_pipe(numpy_op, path, device="cpu", file_filter="*.npy"):
     data = numpy_op(device=device,
                     file_root=path,
-                    file_filter=file_filter)
+                    file_filter=file_filter,
+                    seed=1234)
     return data
 
 

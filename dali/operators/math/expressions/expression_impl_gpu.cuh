@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,11 @@
 
 #include <vector>
 
-#include "dali/pipeline/data/types.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 #include "dali/operators/math/expressions/expression_impl_factory.h"
 #include "dali/operators/math/expressions/expression_tree.h"
-#include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/util/backend2workspace_map.h"
-#include "dali/pipeline/workspace/workspace.h"
+#include "dali/kernels/dynamic_scratchpad.h"
+
 namespace dali {
 
 /**
@@ -205,17 +203,18 @@ class ExprImplGPUInvoke : public ExprImplBase {
  public:
   void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
                TileRange range) override {
-    tiles_.Copy(tiles, ctx.stream);
+    kernels::DynamicScratchpad s({}, ctx.stream);
+    auto *tiles_pinned = s.ToPinned(make_span(tiles));
+    auto *tiles_gpu = s.ToGPU(ctx.stream, make_span(tiles_pinned, tiles.size()));
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
-    Invoker::Invoke(tiles_.data<ExtendedTileDesc>(), grid, block, ctx.stream);
+    Invoker::Invoke(tiles_gpu, grid, block, ctx.stream);
   }
 
  private:
   // Use BinaryArithmeticOpGpuPerfTest for tuning
   static constexpr int kThreadNum = 256;
   static constexpr int kBlocksX = 64;
-  Tensor<GPUBackend> tiles_;
 };
 
 template <ArithmeticOp op, typename Result, typename Input>

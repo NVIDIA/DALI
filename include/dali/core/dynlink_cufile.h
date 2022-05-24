@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@
 
 namespace dali {
 
-class CufileError : public std::runtime_error {
+class CUFileError : public std::runtime_error {
  public:
-  explicit CufileError(CUfileError_t result, const char *details = nullptr)
+  explicit CUFileError(CUfileError_t result, const char *details = nullptr)
   : std::runtime_error(Message(result, details))
   , result_(result) {}
 
@@ -124,7 +124,7 @@ inline void cudaResultCheck<CUfileError_t>(CUfileError_t status) {
   case CU_FILE_SUCCESS:
     return;
   default:
-    throw dali::CufileError(status);
+    throw dali::CUFileError(status);
   }
 }
 

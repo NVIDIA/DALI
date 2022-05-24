@@ -225,7 +225,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
         layout_(),
-        sync_worker_(device_id_, false) {
+        sync_worker_(device_id_, false, "ExternalSource syncworker") {
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
                    "). Use positive values for tensors or 0 for scalars."));
