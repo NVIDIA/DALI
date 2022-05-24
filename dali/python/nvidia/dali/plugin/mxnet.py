@@ -175,7 +175,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
-                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+                * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
 
     squeeze_labels: (DEPRECATED) bool, optional, default = False
                  Whether the iterator should squeeze the labels before
@@ -452,7 +452,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
-                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+                * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
 
     squeeze_labels: (DEPRECATED) bool, optional, default = True
                  Whether the iterator should squeeze the labels before
@@ -581,7 +581,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
-                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+                * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
 
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead

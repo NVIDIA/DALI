@@ -575,19 +575,6 @@ def test_gluon_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
         yield check_gluon_iterator_pass_reader_name, 3, 1, 3, False, True, 3, LastBatchPolicy.DROP, auto_reset
 
-def test_gluon_autoreset_silent():
-    @pipeline_def
-    def BoringPipeline():
-        return fn.random.coin_flip(shape=32)
-    pipeline = BoringPipeline(batch_size=2, device_id=0, num_threads=1)
-
-    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
-
-    size = 3
-    loader = GluonIterator(pipeline,size=size, auto_reset="silent")
-    for i, _ in enumerate(loader):
-        if i > size + 2:
-            break
 
 def test_pytorch_iterator_last_batch_no_pad_last_batch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -1571,38 +1558,38 @@ def test_gluon_wrong_last_batch_policy_type():
                                glob="Wrong type for `last_batch_policy`.",
                                output_types=[GluonIterator.DENSE_TAG], last_batch_policy='FILL')
 
-def check_autoreset_silent(fw_iterator):
+def check_autoreset_quiet (fw_iterator):
     @pipeline_def
     def BoringPipeline():
         return fn.random.coin_flip(shape=32)
     pipeline = BoringPipeline(batch_size=2, device_id=0, num_threads=1)
 
     size = 3
-    loader = fw_iterator(pipeline, size=size, auto_reset="silent")
+    loader = fw_iterator(pipeline, size=size, auto_reset="quiet")
     for i, _ in enumerate(loader):
         if i > size + 2:
             break
 
-def test_mxnet_autoreset_silent():
+def test_mxnet_autoreset_quiet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: MXNetIterator(pipeline, [("random", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
-    check_autoreset_silent(fw_iterator)
+    check_autoreset_quiet(fw_iterator)
 
-def test_gluon_autoreset_silent():
+def test_gluon_autoreset_quiet():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: GluonIterator(pipeline, size=size, auto_reset=auto_reset)
-    check_autoreset_silent(fw_iterator)
+    check_autoreset_quiet(fw_iterator)
 
-def test_pytorch_autoreset_silent():
+def test_pytorch_autoreset_quiet():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: PyTorchIterator(pipeline, output_map=["random"], size=size, auto_reset=auto_reset)
-    check_autoreset_silent(fw_iterator)
+    check_autoreset_quiet(fw_iterator)
 
-def test_paddle_autoreset_silent():
+def test_paddle_autoreset_quiet():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: PaddleIterator(pipeline, output_map=["random"], size=size, auto_reset=auto_reset)
-    check_autoreset_silent(fw_iterator)
+    check_autoreset_quiet(fw_iterator)

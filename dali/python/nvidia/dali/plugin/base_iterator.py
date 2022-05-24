@@ -82,7 +82,7 @@ class _DaliBaseIterator(object):
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
-                * ``"silent"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
+                * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
 
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
@@ -150,8 +150,8 @@ class _DaliBaseIterator(object):
             self._auto_reset = "no"
         elif auto_reset == True or auto_reset == "yes":
             self._auto_reset = "yes"
-        elif auto_reset == "silent":
-            self._auto_reset = "silent"
+        elif auto_reset == "quiet":
+            self._auto_reset = "quiet"
         else:
             raise ValueError(f"Unsupported value for `auto_reset` {auto_reset}")
         self._prepare_first_batch = prepare_first_batch
@@ -274,9 +274,9 @@ class _DaliBaseIterator(object):
                     outputs.append(p.share_outputs())
         except StopIteration as e:
             # in case ExternalSource returns StopIteration
-            if self._size < 0 and (self._auto_reset == "yes" or self._auto_reset == "silent"):
+            if self._size < 0 and (self._auto_reset == "yes" or self._auto_reset == "quiet"):
                 self.reset()
-            if self._auto_reset != "silent":
+            if self._auto_reset != "quiet":
                 raise e
         self._check_batch_size(outputs)
         return outputs
@@ -293,9 +293,9 @@ class _DaliBaseIterator(object):
                         "provided or iterator size is set explicitly"
 
     def _end_iteration(self):
-        if self._auto_reset == "yes" or self._auto_reset == "silent":
+        if self._auto_reset == "yes" or self._auto_reset == "quiet":
             self.reset()
-        if self._auto_reset != "silent":
+        if self._auto_reset != "quiet":
             raise StopIteration
 
     def _schedule_runs(self, release_outputs=True):
