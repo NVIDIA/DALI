@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from math import nextafter
 import nose_utils
 from nvidia.dali import pipeline_def
 import nvidia.dali as dali
@@ -64,10 +63,27 @@ def generate(rng, ndim:int, batch_size:int, in_dtype:np.dtype, out_dtype:np.dtyp
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU
             halfway = x[x - np.floor(x) == 0.5]
-            x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.Infinity)
+            x[x - np.floor(x) == 0.5] += 0.5
     return out
 
 rng = np.random.default_rng(1234)
+
+# For compatibiltiy with Python older than 3.9
+def _nextafter(x, towards):
+    """Calculates the next number representable in the type of x
+    """
+    base = x
+    t = np.array(x).dtype.type
+    y = t(x + np.copysign(x, towards - x))
+    prev = y
+    while y != x:
+        prev = y
+        y = t((x + y) * 0.5)
+        if y == prev:
+            break  # we tried to move halfway, but failed - this the value then!
+    # we've either reached x (so the previous value was the next after x) or
+    # we can't move any closer to x (therefore current == previous is the right one)
+    return prev
 
 @nottest
 def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
@@ -86,8 +102,7 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
             out = out.as_cpu()
         ref = [ref_cast(np.array(x), out_dtype) for x in inp]
 
-        # workaround a bug in numpy - it can't make a float16 scalar - it is promoted to double, somehow :(
-        eps = 0 if np.issubdtype(out_dtype, np.integer) else (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
+        eps = 0 if np.issubdtype(out_dtype, np.integer) else (_nextafter(out_dtype([1]), 2) - 1.0)[0]
 
         for i in range(batch_size):
             if not np.allclose(out[i], ref[i], eps):
