@@ -57,17 +57,22 @@ void FramesDecoderGpu::InitBitStreamFilter() {
       av_state_->codec_->name));
   }
 
-  DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0);
-  DALI_ENFORCE(avcodec_parameters_copy(
-    bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0);
-  DALI_ENFORCE(av_bsf_init(bsfc_) >= 0);
+  DALI_ENFORCE(
+    av_bsf_alloc(bsf, &bsfc_) >= 0,
+    "Unable to allocate bit stream filter");
+  DALI_ENFORCE(
+    avcodec_parameters_copy(bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0,
+    "Unable to copy bit stream filter parameters");
+  DALI_ENFORCE(
+    av_bsf_init(bsfc_) >= 0,
+    "Unable to initialize bit stream filter");
 }
 
 cudaVideoCodec FramesDecoderGpu::GetCodecType() {
   if (av_state_->codec_->id == AV_CODEC_ID_HEVC) {
     return cudaVideoCodec_HEVC;
   }
-  
+
   return cudaVideoCodec_H264;
 }
 
