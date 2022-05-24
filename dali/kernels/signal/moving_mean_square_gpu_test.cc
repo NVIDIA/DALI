@@ -96,7 +96,7 @@ TYPED_TEST(MovingMeanSquareGPU, RunTest) {
 }
 
 
-TEST(MovingMeanSquareGPU, Benchmark) {
+TEST(MovingMeanSquareGPU, DISABLED_Benchmark) {
   using In = float;
   using Out = float;
   int nsamples = 64;
@@ -130,6 +130,7 @@ TEST(MovingMeanSquareGPU, Benchmark) {
   int64_t in_elems = in_data.cpu().shape.num_elements();
   int64_t out_elems = out_data.cpu().shape.num_elements();
   int64_t in_bytes = in_elems * sizeof(In);
+  int64_t out_bytes = out_elems * sizeof(Out);
   std::cout << "Resampling GPU Perf test.\n"
             << "Input contains " << in_elems << " elements.\n";
 
@@ -157,7 +158,7 @@ TEST(MovingMeanSquareGPU, Benchmark) {
     CUDA_CALL(cudaEventElapsedTime(&time_ms, start, end));
     total_time_ms += time_ms;
   }
-  std::cout << "Processed " << n_iters * in_bytes / (total_time_ms * 1e6) << " GBs/sec"
+  std::cout << "Bandwidth: " << n_iters * (in_bytes + out_bytes) / (total_time_ms * 1e6) << " GBs/sec"
             << std::endl;
 }
 
