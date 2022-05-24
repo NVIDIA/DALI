@@ -1558,15 +1558,28 @@ def test_gluon_wrong_last_batch_policy_type():
                                glob="Wrong type for `last_batch_policy`.",
                                output_types=[GluonIterator.DENSE_TAG], last_batch_policy='FILL')
 
-def check_autoreset_quiet (fw_iterator):
+def check_autoreset_quiet(fw_iterator, extract_data):
+    size = 3
+    batch_size = 2
+
+    def data_source(sample_info):
+        if sample_info.idx_in_epoch >= size * batch_size:
+            raise StopIteration
+        return np.array([sample_info.idx_in_epoch, sample_info.epoch_idx])
+
     @pipeline_def
     def BoringPipeline():
-        return fn.random.coin_flip(shape=32)
-    pipeline = BoringPipeline(batch_size=2, device_id=0, num_threads=1)
+        return fn.external_source(data_source, batch=False)
+    pipeline = BoringPipeline(batch_size=batch_size, device_id=0, num_threads=1)
 
-    size = 3
     loader = fw_iterator(pipeline, size=size, auto_reset="quiet")
-    for i, _ in enumerate(loader):
+    current_epoch = -1
+    for i, data in enumerate(loader):
+        if i % size == 0:
+            current_epoch += 1
+        for j, d in enumerate(extract_data(data[0])):
+            assert d[0] == (i * batch_size + j) % (size * batch_size), f"{d[0]} { (i * batch_size + j) % (size * batch_size)}"
+            assert d[1] == current_epoch, f"{d[1]} { (current_epoch)}"
         if i > size + 2:
             break
 
@@ -1574,22 +1587,26 @@ def test_mxnet_autoreset_quiet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: MXNetIterator(pipeline, [("random", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
-    check_autoreset_quiet(fw_iterator)
+    extract_data = lambda x: x.data[0].asnumpy()
+    check_autoreset_quiet(fw_iterator, extract_data)
 
 def test_gluon_autoreset_quiet():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: GluonIterator(pipeline, size=size, auto_reset=auto_reset)
-    check_autoreset_quiet(fw_iterator)
+    extract_data = lambda x: x[0].asnumpy()
+    check_autoreset_quiet(fw_iterator, extract_data)
 
 def test_pytorch_autoreset_quiet():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: PyTorchIterator(pipeline, output_map=["random"], size=size, auto_reset=auto_reset)
-    check_autoreset_quiet(fw_iterator)
+    extract_data = lambda x : x["random"].numpy()
+    check_autoreset_quiet(fw_iterator, extract_data)
 
 def test_paddle_autoreset_quiet():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
     fw_iterator = lambda pipeline, size, auto_reset: PaddleIterator(pipeline, output_map=["random"], size=size, auto_reset=auto_reset)
-    check_autoreset_quiet(fw_iterator)
+    extract_data = lambda x : np.array(x["random"])
+    check_autoreset_quiet(fw_iterator, extract_data)

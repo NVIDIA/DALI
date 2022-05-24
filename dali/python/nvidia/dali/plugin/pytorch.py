@@ -80,18 +80,18 @@ class DALIGenericIterator(_DaliBaseIterator):
     pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     output_map : list of str
-                 List of strings which maps consecutive outputs
-                 of DALI pipelines to user specified name.
-                 Outputs will be returned from iterator as dictionary
-                 of those names.
-                 Each name should be distinct
+                List of strings which maps consecutive outputs
+                of DALI pipelines to user specified name.
+                Outputs will be returned from iterator as dictionary
+                of those names.
+                Each name should be distinct
     size : int, default = -1
-           Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
-           Providing -1 means that the iterator will work until StopIteration is raised
-           from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-           `auto_reset` don't work in such case. It works with only one pipeline inside
-           the iterator.
-           Mutually exclusive with `reader_name` argument
+                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+                Providing -1 means that the iterator will work until StopIteration is raised
+                from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
+                don't work in such case. It works with only one pipeline inside
+                the iterator.
+                Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
@@ -302,12 +302,12 @@ class DALIClassificationIterator(DALIGenericIterator):
     pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
-           Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
-           Providing -1 means that the iterator will work until StopIteration is raised
-           from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-           `auto_reset` don't work in such case. It works with only one pipeline inside
-           the iterator.
-           Mutually exclusive with `reader_name` argument
+                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+                Providing -1 means that the iterator will work until StopIteration is raised
+                from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
+                don't work in such case. It works with only one pipeline inside
+                the iterator.
+                Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded

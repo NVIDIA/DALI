@@ -142,8 +142,8 @@ class DALIGenericIterator(_DaliBaseIterator):
     size : int, default = -1
            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
            Providing -1 means that the iterator will work until StopIteration is raised
-           from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-           `auto_reset` don't work in such case. It works with only one pipeline inside
+           from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
+           don't work in such case. It works with only one pipeline inside
            the iterator.
            Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
@@ -388,8 +388,8 @@ class DALIClassificationIterator(DALIGenericIterator):
     size : int, default = -1
            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
            Providing -1 means that the iterator will work until StopIteration is raised
-           from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-           `auto_reset` don't work in such case. It works with only one pipeline inside
+           from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
+           don't work in such case. It works with only one pipeline inside
            the iterator.
            Mutually exclusive with `reader_name` argument
     reader_name : str, default = None

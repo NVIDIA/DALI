@@ -146,20 +146,20 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     output_map : list of (str, str)
-                 List of pairs (output_name, tag) which maps consecutive
-                 outputs of DALI pipelines to proper field in MXNet's
-                 DataBatch.
-                 tag is one of DALIGenericIterator.DATA_TAG
-                 and DALIGenericIterator.LABEL_TAG mapping given output
-                 for data or label correspondingly.
-                 output_names should be distinct.
+                List of pairs (output_name, tag) which maps consecutive
+                outputs of DALI pipelines to proper field in MXNet's
+                DataBatch.
+                tag is one of DALIGenericIterator.DATA_TAG
+                and DALIGenericIterator.LABEL_TAG mapping given output
+                for data or label correspondingly.
+                output_names should be distinct.
     size : int, default = -1
-          Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
-          Providing -1 means that the iterator will work until StopIteration is raised
-          from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-          `auto_reset` don't work in such case. It works with only one pipeline inside
-          the iterator.
-          Mutually exclusive with `reader_name` argument
+                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+                Providing -1 means that the iterator will work until StopIteration is raised
+                from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
+                don't work in such case. It works with only one pipeline inside
+                the iterator.
+                Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
@@ -167,7 +167,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
     data_layout : str, optional, default = 'NCHW'
-                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
+                Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
 
@@ -178,9 +178,9 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
 
     squeeze_labels: (DEPRECATED) bool, optional, default = False
-                 Whether the iterator should squeeze the labels before
-                 copying them to the ndarray.
-                 This argument is deprecated and will be removed from future releases.
+                Whether the iterator should squeeze the labels before
+                copying them to the ndarray.
+                This argument is deprecated and will be removed from future releases.
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
@@ -427,12 +427,12 @@ class DALIClassificationIterator(DALIGenericIterator):
     pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
-           Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
-           Providing -1 means that the iterator will work until StopIteration is raised
-           from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-           `auto_reset` don't work in such case. It works with only one pipeline inside
-           the iterator.
-           Mutually exclusive with `reader_name` argument
+                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+                Providing -1 means that the iterator will work until StopIteration is raised
+                from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
+                don't work in such case. It works with only one pipeline inside
+                the iterator.
+                Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
@@ -442,9 +442,9 @@ class DALIClassificationIterator(DALIGenericIterator):
     data_name : str, optional, default = 'data'
                 Data name for provided symbols.
     label_name : str, optional, default = 'softmax_label'
-                 Label name for provided symbols.
+                Label name for provided symbols.
     data_layout : str, optional, default = 'NCHW'
-                  Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
+                Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
 
@@ -455,9 +455,9 @@ class DALIClassificationIterator(DALIGenericIterator):
                 * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
 
     squeeze_labels: (DEPRECATED) bool, optional, default = True
-                 Whether the iterator should squeeze the labels before
-                 copying them to the ndarray.
-                 This argument is deprecated and will be removed from future releases.
+                Whether the iterator should squeeze the labels before
+                copying them to the ndarray.
+                This argument is deprecated and will be removed from future releases.
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
     fill_last_batch : bool, optional, default = None
@@ -551,14 +551,14 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
     Parameters
     ----------
     pipelines : list of nvidia.dali.Pipeline
-            List of pipelines to use
+                List of pipelines to use
     size : int, default = -1
-            Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
-            Providing -1 means that the iterator will work until StopIteration is raised
-            from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-            `auto_reset` don't work in such case. It works with only one pipeline inside
-            the iterator.
-            Mutually exclusive with `reader_name` argument
+                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+                Providing -1 means that the iterator will work until StopIteration is raised
+                from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
+                don't work in such case. It works with only one pipeline inside
+                the iterator.
+                Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
@@ -566,14 +566,14 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
     output_types : list of str, optional, default = None
-            List of tags indicating whether the pipeline(s) output batch is
-            uniform (all the samples have the same size) or not. Batch output marked
-            as the former will be returned as a single NDArray, the latter
-            will be returned as a list of NDArray.
-            Must be either DALIGluonIterator.DENSE_TAG
-            or DALIGluonIterator.SPARSE_TAG.
-            Length of output_types must match the number of output of the pipeline(s).
-            If not set, all outputs are considered to be marked with DALIGluonIterator.DENSE_TAG.
+                List of tags indicating whether the pipeline(s) output batch is
+                uniform (all the samples have the same size) or not. Batch output marked
+                as the former will be returned as a single NDArray, the latter
+                will be returned as a list of NDArray.
+                Must be either DALIGluonIterator.DENSE_TAG
+                or DALIGluonIterator.SPARSE_TAG.
+                Length of output_types must match the number of output of the pipeline(s).
+                If not set, all outputs are considered to be marked with DALIGluonIterator.DENSE_TAG.
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
 
