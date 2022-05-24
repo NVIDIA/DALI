@@ -112,9 +112,41 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   return true;
 }
 
+
+std::vector<void*> prepare_args(const dali::TensorList<dali::GPUBackend> &in, uint64_t *ptr, uint64_t shape_ptr) {
+  void** meminfo = new void*;
+  void** parent = new void*;
+  *meminfo = NULL;
+  *parent = NULL;
+  ssize_t item_size = dali::TypeTable::GetTypeInfo(in.type()).size();
+
+  vector<void*> args;
+  args.push_back((void*)meminfo);
+  args.push_back((void*)parent);
+  args.push_back((void*)new ssize_t(item_size));
+  args.push_back((void*)ptr);
+
+  size_t nitems = 1;
+  uint64_t* shapes = (uint64_t*)shape_ptr;
+  for (int i = 0; i < in.shape().ndim; i++) {
+    args.push_back((void*)(new ssize_t(shapes[i])));
+    nitems *= shapes[i];
+  }
+  
+  args.insert(args.begin()+2, (void*)new ssize_t(nitems));
+  ssize_t s1 = item_size;  // in_type size
+  ssize_t s2 = (ssize_t)(shapes)[1] * s1; // next row
+  args.push_back((void*)new ssize_t(s1));
+  args.push_back((void*)new ssize_t(s2));
+
+  return args;
+}
+
+
 template <>
 void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   auto N = ws.Input<GPUBackend>(0).shape().num_samples();
+  int ninputs = ws.NumInput();
 
   std::vector<uint64_t> out_ptrs;
   std::vector<uint64_t> in_ptrs;
@@ -133,19 +165,55 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     }
   }
 
-  void** args = NULL;
 
-  CUfunction cufunc = (CUfunction) run_fn_;
+  // Store computed sizes for every input and output in order to 
+  // correctly free allocated memory
+  vector<ssize_t> io_sizes;
+  vector<void*> args;
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    auto& in = ws.Input<GPUBackend>(in_id);
+    vector<void*> args_local = prepare_args(in, &in_ptrs[in_id], input_shape_ptrs_[in_id]);
+    io_sizes.push_back(args_local.size());
+    args.insert(
+      args.end(),
+      std::make_move_iterator(args_local.begin()),
+      std::make_move_iterator(args_local.end())
+    );
+  }
+
+  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+    auto& out = ws.Output<GPUBackend>(out_id);
+    vector<void*> args_local = prepare_args(out, &out_ptrs[out_id], input_shape_ptrs_[out_id]);
+    io_sizes.push_back(args_local.size());
+    args.insert(
+      args.end(),
+      std::make_move_iterator(args_local.begin()),
+      std::make_move_iterator(args_local.end())
+    );
+  }
+
+  CUfunction cufunc = (CUfunction)run_fn_;
   CUresult result = cuLaunchKernel(
     cufunc, 
     blocks_[0], blocks_[1], blocks_[2], 
     threads_per_block_[0], threads_per_block_[1], threads_per_block_[2], 
     0, 
     ws.stream(), 
-    args, 
+    (void**)args.data(), 
     NULL
   );
-  printf("Result: %d \n", result);
+
+  size_t parsed_args = 0;
+  for(size_t i = 0; i < io_sizes.size(); i++) {
+    delete (void**)args[parsed_args];
+    delete (void**)args[parsed_args+1];
+    delete (ssize_t*)args[parsed_args+2];
+    delete (ssize_t*)args[parsed_args+3];
+    for(size_t size_i = 5; size_i < io_sizes[i]; size_i++) {
+      delete (ssize_t*)args[parsed_args + size_i];
+    }
+    parsed_args += io_sizes[i];
+  }
 }
 
 DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<GPUBackend>, GPU);

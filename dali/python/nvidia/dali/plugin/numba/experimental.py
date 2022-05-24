@@ -38,6 +38,20 @@ _to_numpy = {
     dali_types.FLOAT64 : "float64",
 }
 
+_to_numba = {
+    dali_types.UINT8 : numba_types.uint8,
+    dali_types.UINT16 : numba_types.uint16,
+    dali_types.UINT32 : numba_types.uint32,
+    dali_types.UINT64 : numba_types.uint64,
+    dali_types.INT8 : numba_types.int8,
+    dali_types.INT16 : numba_types.int16,
+    dali_types.INT32 : numba_types.int32,
+    dali_types.INT64 : numba_types.int64,
+    dali_types.FLOAT16 : numba_types.float16,
+    dali_types.FLOAT : numba_types.float32,
+    dali_types.FLOAT64 : numba_types.float64,
+}
+
 
 @nb.extending.intrinsic
 def address_as_void_pointer(typingctx, src):
@@ -416,8 +430,11 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
             'opt': 3
         }
 
-        # cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, [numba_types.Array(numba_types.int8, 2, 'C')])
-        cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, [])
+        cuda_arguments = []
+        for dali_type, ndim in zip(in_types + out_types, ins_ndim + outs_ndim):
+            cuda_arguments.append(numba_types.Array(_to_numba[dali_type], ndim, 'C'))
+
+        cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments)
         tgt_ctx = cres.target_context
         code = run_fn.__code__
         filename = code.co_filename
