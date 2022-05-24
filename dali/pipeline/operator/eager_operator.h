@@ -143,7 +143,7 @@ class DLL_PUBLIC EagerOperator {
 
   // Update shared thread pool used for all direct operators.
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
-    shared_thread_pool = std::make_unique<ThreadPool>(num_threads, CPU_ONLY_DEVICE_ID, false);
+    shared_thread_pool = std::make_shared<ThreadPool>(num_threads, CPU_ONLY_DEVICE_ID, false);
   }
 
   // Update shared CUDA stream used for all direct operators.
@@ -171,7 +171,7 @@ class DLL_PUBLIC EagerOperator {
       num_cores = num_cores < 6 ? num_cores : 6;
 
       shared_thread_pool =
-          std::make_unique<ThreadPool>(num_cores, CPU_ONLY_DEVICE_ID, false, "EagerOperator");
+          std::make_shared<ThreadPool>(num_cores, CPU_ONLY_DEVICE_ID, false, "EagerOperator");
     }
 
     return shared_thread_pool;
