@@ -69,6 +69,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
 }
 
 cudaVideoCodec FramesDecoderGpu::GetCodecType() {
+  // Code assumes av_state_->codec_->id in FramesDecoder::SupportedCodecs
   if (av_state_->codec_->id == AV_CODEC_ID_HEVC) {
     return cudaVideoCodec_HEVC;
   }
