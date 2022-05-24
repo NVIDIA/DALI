@@ -14,6 +14,7 @@
 
 import numpy as np
 import os
+import re
 from functools import reduce
 
 from nvidia.dali import pipeline_def
@@ -24,11 +25,14 @@ import nvidia.dali.types as types
 from nvidia.dali._utils.eager_utils import _slice_tensorlist
 from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,
                                       setup_test_numpy_reader_cpu)
-from test_utils import check_batch, get_dali_extra_path, get_files
+from test_detection_pipeline import coco_anchors
+from test_utils import check_batch, get_dali_extra_path, get_files, module_functions
+from segmentation_test_utils import make_batch_select_masks
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+audio_files = get_files(os.path.join('db', 'audio', 'wav'), 'wav')
 caffe_dir = os.path.join(data_root, 'db', 'lmdb')
 caffe2_dir = os.path.join(data_root, 'db', 'c2lmdb')
 recordio_dir = os.path.join(data_root, 'db', 'recordio')
@@ -46,6 +50,12 @@ sample_shape = [20, 20, 3]
 data = [[rng.integers(0, 255, size=sample_shape, dtype=np.uint8)
          for _ in range(batch_size)] for _ in range(data_size)]
 
+audio_data = [[rng.random(size=[200]).astype(dtype=np.float32)
+               for _ in range(batch_size)] for _ in range(data_size)]
+
+flat_data = [[rng.integers(0, 255, size=[200], dtype=np.uint8)
+              for _ in range(batch_size)] for _ in range(data_size)]
+
 
 def get_tl(data, layout='HWC'):
     layout = '' if layout is None or (data.ndim != 4 and layout == 'HWC') else layout
@@ -58,6 +68,36 @@ def get_data(i):
 
 def get_data_eager(i, layout='HWC'):
     return get_tl(np.array(get_data(i)), layout)
+
+
+def get_multi_data_eager(n):
+    def get(i, _):
+        return tuple(get_data_eager(i) for _ in range(n))
+
+    return get
+
+
+class PipelineInput:
+    def __init__(self, pipe_fun, *args, **kwargs) -> None:
+        if kwargs:
+            self.pipe = pipe_fun(*args, kwargs)
+        else:
+            self.pipe = pipe_fun(*args)
+        self.pipe.build()
+
+    def __call__(self, *_):
+        return self.pipe.run()
+
+
+class GetData:
+    def __init__(self, data) -> None:
+        self.data = data
+
+    def fn_source(self, i):
+        return self.data[i]
+
+    def eager_source(self, i, layout='HWC'):
+        return get_tl(np.array(self.fn_source(i)), layout)
 
 
 def get_ops(op_path, fn_op=None, eager_op=None):
@@ -83,14 +123,16 @@ def compare_eager_with_pipeline(pipe, eager_op, *, eager_source=get_data_eager, 
         if not isinstance(out_eager, (tuple, list)):
             out_eager = (out_eager,)
 
-        for o_fn, o_eager in zip(out_fn, out_eager):
-            assert type(o_fn) == type(o_eager)
+        assert len(out_fn) == len(out_eager)
 
-            if o_fn.dtype == types.BOOL:
-                for t_fn, t_eager in zip(o_fn, o_eager):
+        for tensor_out_fn, tensor_out_eager in zip(out_fn, out_eager):
+            assert type(tensor_out_fn) == type(tensor_out_eager)
+
+            if tensor_out_fn.dtype == types.BOOL:
+                for t_fn, t_eager in zip(tensor_out_fn, tensor_out_eager):
                     assert np.array_equal(t_fn, t_eager)
             else:
-                check_batch(o_fn, o_eager, batch_size)
+                check_batch(tensor_out_fn, tensor_out_eager, batch_size)
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -110,6 +152,33 @@ def check_single_input(op_path, *, pipe_fun=single_op_pipeline, fn_source=get_da
     pipe = pipe_fun(fn_op, kwargs, source=fn_source, layout=layout)
 
     compare_eager_with_pipeline(pipe, eager_op, eager_source=eager_source, layout=layout, **kwargs)
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def no_input_pipeline(op, kwargs):
+    out = op(**kwargs)
+    if isinstance(out, list):
+        out = tuple(out)
+    return out
+
+
+def check_no_input(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5, **kwargs):
+    fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
+    pipe = no_input_pipeline(fn_op, kwargs)
+    pipe.build()
+
+    for _ in range(N_iterations):
+        out_fn = pipe.run()
+        out_eager = eager_op(batch_size=batch_size, **kwargs)
+
+        if not isinstance(out_eager, (tuple, list)):
+            out_eager = (out_eager,)
+
+        assert len(out_fn) == len(out_eager)
+
+        for tensor_out_fn, tensor_out_eager in zip(out_fn, out_eager):
+            assert type(tensor_out_fn) == type(tensor_out_eager)
+            check_batch(tensor_out_fn, tensor_out_eager, batch_size)
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -143,6 +212,28 @@ def check_reader(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size,
 
                 assert type(tensor_out_fn) == type(tensor_out_eager)
                 check_batch(tensor_out_fn, tensor_out_eager, len(tensor_out_eager))
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def file_reader_pipeline(kwargs):
+    data, _ = fn.readers.file(**kwargs)
+    return data
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def reader_op_pipeline(op, kwargs, source=None, layout=None):
+    if source is None:
+        raise RuntimeError('No source for file reader.')
+    data, _ = fn.readers.file(file_root=source)
+    out = op(data, **kwargs)
+    if isinstance(out, list):
+        out = tuple(out)
+    return out
+
+
+def test_image_decoder_cpu():
+    check_single_input('decoders.image', pipe_fun=reader_op_pipeline, fn_source=images_dir,
+                       eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir), output_type=types.RGB)
 
 
 def test_rotate_cpu():
@@ -221,6 +312,12 @@ def test_jpeg_compression_distortion_cpu():
     check_single_input('jpeg_compression_distortion', quality=10)
 
 
+def test_image_decoder_crop_device():
+    check_single_input('decoders.image_crop', pipe_fun=reader_op_pipeline, fn_source=images_dir,
+                       eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+                       output_type=types.RGB, crop=(10, 10))
+
+
 def test_reshape_cpu():
     new_shape = sample_shape.copy()
     new_shape[0] //= 2
@@ -262,6 +359,206 @@ def test_grid_mask_cpu():
 
 def test_multi_paste_cpu():
     check_single_input('multi_paste', in_ids=np.array([0, 1]), output_size=sample_shape)
+
+
+def test_nonsilent_region_cpu():
+    data = [[rng.integers(0, 255, size=[200], dtype=np.uint8)
+             for _ in range(batch_size)]] * data_size
+    data[0][0][0] = 0
+    data[0][1][0] = 0
+    data[0][1][1] = 0
+    get_data = GetData(data)
+
+    check_single_input('nonsilent_region', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout='')
+
+
+def test_preemphasis_filter_cpu():
+    get_data = GetData(audio_data)
+    check_single_input('preemphasis_filter', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None)
+
+
+def test_power_spectrum_cpu():
+    get_data = GetData(audio_data)
+    check_single_input('power_spectrum', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None)
+
+
+def test_spectrogram_cpu():
+    get_data = GetData(audio_data)
+    check_single_input('spectrogram', fn_source=get_data.fn_source, eager_source=get_data.eager_source,
+                       layout=None, nfft=60, window_length=50, window_step=25)
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def mel_filter_pipeline(source):
+    data = fn.external_source(source=source)
+    spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
+    processed = fn.mel_filter_bank(spectrum)
+    return processed
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def mel_filter_input_pipeline(source):
+    data = fn.external_source(source=source)
+    spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
+    return spectrum
+
+
+def test_mel_filter_bank_cpu():
+    compare_eager_with_pipeline(mel_filter_pipeline(audio_data), eager.mel_filter_bank,
+                                eager_source=PipelineInput(mel_filter_input_pipeline, audio_data))
+
+
+def test_to_decibels_cpu():
+    get_data = GetData(audio_data)
+    check_single_input('to_decibels', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None)
+
+
+def test_audio_resample():
+    get_data = GetData(audio_data)
+    check_single_input('experimental.audio_resample', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None, scale=1.25)
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def mfcc_pipeline(source):
+    data = fn.external_source(source=source)
+    spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
+    mel = fn.mel_filter_bank(spectrum)
+    dec = fn.to_decibels(mel)
+    processed = fn.mfcc(dec)
+
+    return processed
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def mfcc_input_pipeline(source):
+    data = fn.external_source(source=source)
+    spectrum = fn.spectrogram(data, nfft=60, window_length=50, window_step=25)
+    mel = fn.mel_filter_bank(spectrum)
+    dec = fn.to_decibels(mel)
+
+    return dec
+
+
+def test_mfcc_cpu():
+    compare_eager_with_pipeline(mfcc_pipeline(audio_data), eager.mfcc,
+                                eager_source=PipelineInput(mfcc_input_pipeline, audio_data))
+
+
+def test_one_hot_cpu():
+    get_data = GetData(flat_data)
+    check_single_input('one_hot', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, num_classes=256, layout=None)
+
+
+def test_transpose_cpu():
+    check_single_input('transpose', perm=[2, 0, 1])
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def audio_decoder_pipeline():
+    data, _ = fn.readers.file(files=audio_files)
+    out = fn.decoders.audio(data)
+    return tuple(out)
+
+
+def test_audio_decoder_cpu():
+    compare_eager_with_pipeline(audio_decoder_pipeline(), eager.decoders.audio,
+                                eager_source=PipelineInput(file_reader_pipeline, files=audio_files))
+
+
+def test_coord_flip_cpu():
+    get_data = GetData([[(rng.integers(0, 255, size=[200, 2], dtype=np.uint8) /
+                       255).astype(dtype=np.float32)for _ in range(batch_size)] for _ in range(data_size)])
+
+    check_single_input('coord_flip', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None)
+
+
+def test_bb_flip_cpu():
+    get_data = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) /
+                       255).astype(dtype=np.float32)for _ in range(batch_size)] for _ in range(data_size)])
+
+    check_single_input('bb_flip', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None)
+
+
+def test_warp_affine_cpu():
+    check_single_input('warp_affine', matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
+
+
+def test_normalize_cpu():
+    check_single_input('normalize', batch=True)
+
+
+def test_lookup_table_cpu():
+    get_data = GetData([[rng.integers(0, 5, size=[100], dtype=np.uint8)
+                       for _ in range(batch_size)] for _ in range(data_size)])
+
+    check_single_input('lookup_table', keys=[1, 3], values=[
+                       10, 50], fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None)
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def slice_pipeline(get_anchor, get_shape):
+    data = fn.external_source(source=get_data, layout='HWC')
+    anchors = fn.external_source(source=get_anchor)
+    shape = fn.external_source(source=get_shape)
+    processed = fn.slice(data, anchors, shape, out_of_bounds_policy='pad')
+
+    return processed
+
+
+def test_slice_cpu():
+    get_anchors = GetData([[(rng.integers(1, 256, size=[2], dtype=np.uint8) /
+                             255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+    get_shapes = GetData([[(rng.integers(1, 256, size=[2], dtype=np.uint8) /
+                            255).astype(dtype=np.float32) for _ in range(batch_size)]for _ in range(data_size)])
+
+    def eager_source(i, _):
+        return get_data_eager(i), get_anchors.eager_source(i), get_shapes.eager_source(i)
+
+    pipe = slice_pipeline(get_anchors.fn_source, get_shapes.fn_source)
+    compare_eager_with_pipeline(pipe, eager.slice, eager_source=eager_source,
+                                out_of_bounds_policy='pad')
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def image_decoder_slice_pipeline(get_anchors, get_shape):
+    input, _ = fn.readers.file(file_root=images_dir)
+    anchors = fn.external_source(source=get_anchors)
+    shape = fn.external_source(source=get_shape)
+    processed = fn.decoders.image_slice(input, anchors, shape)
+
+    return processed
+
+
+def test_image_decoder_slice_cpu():
+    get_anchors = GetData([[(rng.integers(1, 128, size=[2], dtype=np.uint8) /
+                             255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+    get_shapes = GetData([[(rng.integers(1, 128, size=[2], dtype=np.uint8) /
+                            255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+
+    eager_input = file_reader_pipeline({'file_root': images_dir})
+    eager_input.build()
+
+    def eager_source(i, _):
+        return eager_input.run()[0], get_anchors.eager_source(i, None), get_shapes.eager_source(i, None)
+
+    pipe = image_decoder_slice_pipeline(get_anchors.fn_source, get_shapes.fn_source)
+    compare_eager_with_pipeline(pipe, eager.decoders.image_slice, eager_source=eager_source)
+
+
+def test_pad_cpu():
+    get_data = GetData([[rng.integers(0, 255, size=[5, 4, 3], dtype=np.uint8)
+                         for _ in range(batch_size)] for _ in range(data_size)])
+
+    check_single_input('pad', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, fill_value=-1, axes=(0,), shape=(10,))
 
 
 def test_file_reader_cpu():
@@ -309,14 +606,249 @@ def test_video_reader():
                  labels=[0, 1], sequence_length=10)
 
 
+def test_copy_cpu():
+    check_single_input('copy')
+
+
+def test_element_extract_cpu():
+    check_single_input('element_extract', element_map=[0, 3], layout=None)
+
+
+def test_bbox_paste_cpu():
+    get_data = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) /
+                          255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+    check_single_input('bbox_paste', fn_source=get_data.fn_source, eager_source=get_data.eager_source,
+                       layout=None, paste_x=0.25, paste_y=0.25, ratio=1.5)
+
+
+def test_sequence_rearrange_cpu():
+    get_data = GetData([[rng.integers(0, 255, size=[5, 10, 20, 3], dtype=np.uint8)
+                       for _ in range(batch_size)] for _ in range(data_size)])
+
+    check_single_input('sequence_rearrange', new_order=[0, 4, 1, 3, 2], fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout='FHWC')
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def box_encoder_pipeline(get_boxes, get_labels):
+    boxes = fn.external_source(source=get_boxes)
+    labels = fn.external_source(source=get_labels)
+    out = fn.box_encoder(boxes, labels, anchors=coco_anchors())
+    return tuple(out)
+
+
+def test_box_encoder_cpu():
+    get_boxes = GetData([[(rng.integers(0, 255, size=[20, 4], dtype=np.uint8) / 255).astype(dtype=np.float32)
+                          for _ in range(batch_size)] for _ in range(data_size)])
+    get_labels = GetData([[rng.integers(0, 255, size=[20, 1], dtype=np.int32)
+                         for _ in range(batch_size)] for _ in range(data_size)])
+
+    def eager_source(i, _):
+        return get_boxes.eager_source(i), get_labels.eager_source(i)
+
+    pipe = box_encoder_pipeline(get_boxes.fn_source, get_labels.fn_source)
+    compare_eager_with_pipeline(pipe, eager.box_encoder,
+                                eager_source=eager_source, anchors=coco_anchors())
+
+
 def test_numpy_reader_cpu():
     with setup_test_numpy_reader_cpu() as test_data_root:
         check_reader('readers.numpy', file_root=test_data_root)
 
 
+def test_constant_cpu():
+    check_no_input('constant', fdata=(1.25, 2.5, 3))
+
+
+def test_dump_image_cpu():
+    check_single_input('dump_image')
+
+
 def test_sequence_reader_cpu():
     check_reader('readers.sequence', file_root=sequence_dir,
                  sequence_length=2, shard_id=0, num_shards=1)
+
+
+def test_affine_translate_cpu():
+    check_no_input('transforms.translation', offset=(2, 3))
+
+
+def test_affine_scale_cpu():
+    check_no_input('transforms.scale', scale=(2, 3))
+
+
+def test_affine_rotate_cpu():
+    check_no_input('transforms.rotation', angle=30.0)
+
+
+def test_affine_shear_cpu():
+    check_no_input('transforms.shear', shear=(2., 1.))
+
+
+def test_affine_crop_cpu():
+    check_no_input('transforms.crop', from_start=(0.1, 0.2), from_end=(1., 1.2),
+                   to_start=(0.2, 0.3), to_end=(0.5, 0.6))
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def combine_transforms_pipeline():
+    t = fn.transforms.translation(offset=(1, 2))
+    r = fn.transforms.rotation(angle=30.0)
+    s = fn.transforms.scale(scale=(2, 3))
+    out = fn.transforms.combine(t, r, s)
+
+    return out
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def combine_transforms_input_pipeline():
+    t = fn.transforms.translation(offset=(1, 2))
+    r = fn.transforms.rotation(angle=30.0)
+    s = fn.transforms.scale(scale=(2, 3))
+
+    return t, r, s
+
+
+def test_combine_transforms_cpu():
+    compare_eager_with_pipeline(combine_transforms_pipeline(), eager.transforms.combine,
+                                eager_source=PipelineInput(combine_transforms_input_pipeline))
+
+
+def test_reduce_min_cpu():
+    check_single_input('reductions.min')
+
+
+def test_reduce_max_cpu():
+    check_single_input('reductions.max')
+
+
+def test_reduce_sum_cpu():
+    check_single_input('reductions.sum')
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def segmentation_select_masks_pipeline(source):
+    polygons, vertices, selected_masks = fn.external_source(
+        source=source, num_outputs=3, device='cpu')
+    out_polygons, out_vertices = fn.segmentation.select_masks(
+        selected_masks, polygons, vertices, reindex_masks=False)
+
+    return out_polygons, out_vertices
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def segmentation_select_masks_input_pipeline(source):
+    polygons, vertices, selected_masks = fn.external_source(
+        source=source, num_outputs=3, device='cpu')
+
+    return selected_masks, polygons, vertices
+
+
+def test_segmentation_select_masks():
+    data = [make_batch_select_masks(batch_size, vertex_ndim=2, npolygons_range=(1, 5),
+                                    nvertices_range=(3, 10)) for _ in range(data_size)]
+
+    pipe = segmentation_select_masks_pipeline(data)
+    compare_eager_with_pipeline(pipe, eager.segmentation.select_masks, eager_source=PipelineInput(
+        segmentation_select_masks_input_pipeline, data))
+
+
+def test_reduce_mean_cpu():
+    check_single_input('reductions.mean')
+
+
+def test_reduce_mean_square_cpu():
+    check_single_input('reductions.mean_square')
+
+
+def test_reduce_root_mean_square_cpu():
+    check_single_input('reductions.rms')
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def reduce_pipeline(op):
+    data = fn.external_source(source=get_data)
+    mean = fn.reductions.mean(data)
+    out = op(data, mean)
+
+    return out
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def reduce_input_pipeline():
+    data = fn.external_source(source=get_data)
+    mean = fn.reductions.mean(data)
+
+    return data, mean
+
+
+def test_reduce_std_cpu():
+    pipe = reduce_pipeline(fn.reductions.std_dev)
+    compare_eager_with_pipeline(pipe, eager_op=eager.reductions.std_dev,
+                                eager_source=PipelineInput(reduce_input_pipeline))
+
+
+def test_reduce_variance_cpu():
+    pipe = reduce_pipeline(fn.reductions.variance)
+    compare_eager_with_pipeline(pipe, eager_op=eager.reductions.variance,
+                                eager_source=PipelineInput(reduce_input_pipeline))
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def multi_input_pipeline(op, n):
+    data = [fn.external_source(source=get_data, layout='HWC') for _ in range(n)]
+    out = op(*data)
+
+    return out
+
+
+def test_cat_cpu():
+    num_inputs = 3
+    compare_eager_with_pipeline(multi_input_pipeline(fn.cat, num_inputs), eager_op=eager.cat,
+                                eager_source=get_multi_data_eager(num_inputs))
+
+
+def test_stack_cpu():
+    num_inputs = 3
+    compare_eager_with_pipeline(multi_input_pipeline(fn.stack, num_inputs), eager_op=eager.stack,
+                                eager_source=get_multi_data_eager(num_inputs))
+
+
+def test_batch_permute_cpu():
+    check_single_input('permute_batch', indices=rng.permutation(batch_size).tolist())
+
+
+def test_squeeze_cpu():
+    get_data = GetData([[np.zeros(shape=[10, 20, 3, 1, 1], dtype=np.uint8)
+                       for _ in range(batch_size)]]*data_size)
+    check_single_input('squeeze', fn_source=get_data.fn_source, eager_source=get_data.eager_source,
+                       axis_names='YZ', layout='HWCYZ')
+
+
+def test_peek_image_shape_cpu():
+    check_single_input('peek_image_shape', pipe_fun=reader_op_pipeline, fn_source=images_dir,
+                       eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir))
+
+
+def test_subscript_dim_check():
+    check_single_input('subscript_dim_check', num_subscripts=3)
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def get_property_pipeline(files):
+    data, _ = fn.readers.file(files=files)
+    out = fn.get_property(data, key='source_info')
+
+    return out
+
+
+def test_get_property():
+    root_path = os.path.join(data_root, 'db', 'single', 'png', '0')
+    files = [os.path.join(root_path, i) for i in os.listdir(root_path)]
+
+    pipe = get_property_pipeline(files)
+    compare_eager_with_pipeline(pipe, eager.get_property, eager_source=PipelineInput(
+        file_reader_pipeline, files=files), key='source_info')
 
 
 def test_tensor_subscript():
@@ -371,8 +903,131 @@ def eager_arithm_ops(data):
             eager.math.atanh(data))
 
 
-def test_arithm_ops_cpu():
+def test_arithm_ops():
     with eager.arithmetic():
         pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size,
                                        num_threads=4, device_id=None)
         compare_eager_with_pipeline(pipe, eager_op=eager_arithm_ops)
+
+
+tested_methods = [
+    'decoders.image',
+    'rotate',
+    'brightness_contrast',
+    'hue',
+    'brightness',
+    'contrast',
+    'hsv',
+    'color_twist',
+    'saturation',
+    'shapes',
+    'crop',
+    'color_space_conversion',
+    'cast',
+    'resize',
+    'per_frame',
+    'gaussian_blur',
+    'laplacian',
+    'crop_mirror_normalize',
+    'flip',
+    'jpeg_compression_distortion',
+    'decoders.image_crop',
+    'reshape',
+    'reinterpret',
+    'water',
+    'sphere',
+    'erase',
+    'expand_dims',
+    'coord_transform',
+    'grid_mask',
+    'multi_paste',
+    'nonsilent_region',
+    'preemphasis_filter',
+    'power_spectrum',
+    'spectrogram',
+    'mel_filter_bank',
+    'to_decibels',
+    'experimental.audio_resample',
+    'mfcc',
+    'one_hot',
+    'transpose',
+    'decoders.audio',
+    'coord_flip',
+    'bb_flip',
+    'warp_affine',
+    'normalize',
+    'lookup_table',
+    'slice',
+    'decoders.image_slice',
+    'pad',
+    'readers.file',
+    'readers.mxnet',
+    'readers.webdataset',
+    'readers.coco',
+    'readers.caffe',
+    'readers.caffe2',
+    'readers.nemo_asr',
+    'experimental.readers.video',
+    'copy',
+    'element_extract',
+    'bbox_paste',
+    'sequence_rearrange',
+    'box_encoder',
+    'readers.numpy',
+    'constant',
+    'dump_image',
+    'readers.sequence',
+    'transforms.translation',
+    'transforms.scale',
+    'transforms.rotation',
+    'transforms.shear',
+    'transforms.crop',
+    'transforms.combine',
+    'reductions.min',
+    'reductions.max',
+    'reductions.sum',
+    'segmentation.select_masks',
+    'reductions.mean',
+    'reductions.mean_square',
+    'reductions.rms',
+    'reductions.std_dev',
+    'reductions.variance',
+    'cat',
+    'stack',
+    'permute_batch',
+    'squeeze',
+    'peek_image_shape',
+    'subscript_dim_check',
+    'get_property',
+]
+
+excluded_methods = [
+    'hidden.*',
+    'jitter',                 # not supported for CPU
+    'video_reader',           # not supported for CPU
+    'video_reader_resize',    # not supported for CPU
+    'readers.video',          # not supported for CPU
+    'readers.video_resize',   # not supported for CPU
+    'optical_flow',           # not supported for CPU
+    'paste',                  # not supported for CPU
+    'arithmetic_generic_op',  # TODO(ksztenderski): Add arithm ops in eager mode.
+    'tensor_subscript',       # TODO(ksztenderski): Add slicing in eager mode.
+]
+
+
+def test_coverage():
+    """ Checks coverage of eager operators (almost every operator is also exposed in eager mode).
+    If you added a new operator, you should also add a test for it here and add the operator name
+    to the ``tested_methods`` list. You should also add eager classification for your operator in
+    `nvidia.dali.experimental.eager`.
+    """
+
+    methods = module_functions(eager, remove_prefix="nvidia.dali.experimental.eager")
+    # TODO(ksztenderski): Add coverage for math module.
+    exclude = "|".join(
+        ["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)" for x in excluded_methods])
+    exclude = re.compile(exclude)
+    methods = [x for x in methods if not exclude.match(x)]
+
+    assert set(methods).difference(set(tested_methods)) == set(
+    ), "Test doesn't cover:\n {}".format(set(methods) - set(tested_methods))
