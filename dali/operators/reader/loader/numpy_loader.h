@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,9 +38,9 @@ namespace dali {
 
 const TypeInfo &TypeFromNumpyStr(const std::string &format);
 
-class NumpyParseTarget{
+class NumpyHeaderMeta {
  public:
-  std::vector<int64_t> shape;
+  TensorShape<> shape;
   const TypeInfo *type_info = nullptr;
   bool fortran_order        = false;
   int64_t data_offset       = 0;
@@ -61,7 +61,7 @@ class NumpyParseTarget{
 struct NumpyFileWrapper {
   Tensor<CPUBackend> data;
   std::string filename;
-  bool fortran_order;
+  bool fortran_order = false;
 
   DALIDataType get_type() const {
     return data.type();
@@ -78,22 +78,22 @@ struct NumpyFileWrapper {
 
 namespace detail {
 
-DLL_PUBLIC void ParseHeaderMetadata(NumpyParseTarget& target, const std::string &header);
+DLL_PUBLIC void ParseHeaderMetadata(NumpyHeaderMeta& target, const std::string &header);
 
 // parser function, only for internal use
-void ParseHeader(FileStream *file, NumpyParseTarget& target);
+void ParseHeader(FileStream *file, NumpyHeaderMeta& target);
 
 class NumpyHeaderCache {
  public:
   explicit NumpyHeaderCache(bool cache_headers) : cache_headers_(cache_headers) {}
-  bool GetFromCache(const string &file_name, NumpyParseTarget &target);
-  void UpdateCache(const string &file_name, const NumpyParseTarget &value);
+  bool GetFromCache(const string &file_name, NumpyHeaderMeta &target);
+  void UpdateCache(const string &file_name, const NumpyHeaderMeta &value);
 
  private:
   // helper for header caching
   std::mutex cache_mutex_;
   bool cache_headers_;
-  std::map<string, NumpyParseTarget> header_cache_;
+  std::map<string, NumpyHeaderMeta> header_cache_;
 };
 
 }  // namespace detail

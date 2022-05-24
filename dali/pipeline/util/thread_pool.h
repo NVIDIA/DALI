@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ class DLL_PUBLIC ThreadPool {
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
 
-  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity);
+  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity,
+                        const std::string &name);
 
   DLL_PUBLIC ~ThreadPool();
 
@@ -67,7 +68,8 @@ class DLL_PUBLIC ThreadPool {
   DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
 
  private:
-  DLL_PUBLIC void ThreadMain(int thread_id, int device_id, bool set_affinity);
+  DLL_PUBLIC void ThreadMain(int thread_id, int device_id, bool set_affinity,
+                             const std::string &name);
 
   vector<std::thread> threads_;
 

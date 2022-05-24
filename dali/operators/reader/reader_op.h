@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -93,6 +93,7 @@ class DataReader : public Operator<Backend> {
 
   // Main prefetch work loop
   void PrefetchWorker() {
+    SetThreadName(make_string("PrefetchWorker ", spec_.name()).c_str());
     DeviceGuard g(device_id_);
     ProducerWait();
     while (!finished_) {

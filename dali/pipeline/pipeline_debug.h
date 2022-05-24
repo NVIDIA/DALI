@@ -42,7 +42,7 @@ class DLL_PUBLIC PipelineDebug {
       : max_batch_size_(max_batch_size),
         device_id_(device_id),
         num_threads_(num_threads),
-        thread_pool_(num_threads, device_id, set_affinity) {
+        thread_pool_(num_threads, device_id, set_affinity, "Debug pipeline") {
     if (device_id != CPU_ONLY_DEVICE_ID) {
       DeviceGuard g(device_id);
       cuda_stream_ = CUDAStreamPool::instance().Get(device_id);

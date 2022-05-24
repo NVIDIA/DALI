@@ -24,12 +24,12 @@ namespace dali {
 namespace test {
 
 TEST(WorkerThread, Destructing) {
-  WorkerThread wt(0, false);
+  WorkerThread wt(0, false, "WorkerThread test");
   // check destruction of a running worker thread
 }
 
 TEST(WorkerThread, WaitForWorkErrorHandling) {
-  WorkerThread wt(0, false);
+  WorkerThread wt(0, false, "WorkerThread test");
   ASSERT_TRUE(wt.WaitForInit());
   wt.DoWork([]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -45,13 +45,29 @@ TEST(WorkerThread, WaitForWorkErrorHandling) {
 }
 
 TEST(WorkerThread, ShutdownErrorHandling) {
-  WorkerThread wt(0, false);
+  WorkerThread wt(0, false, "WorkerThread test");
   ASSERT_TRUE(wt.WaitForInit());
   wt.DoWork([]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
     throw std::runtime_error("Worker thread exception message 2");
   });
   wt.Shutdown();  // assure it does not deadlock
+}
+
+TEST(WorkerThread, CheckName) {
+  const char given_thread_name[] = "WorkerThread test";
+  const char full_thread_name[] = "[DALI][WT]WorkerThread test";
+  // max len supported by pthread_getname_np is 16
+  char read_thread_name[16] = {0, };
+  WorkerThread wt(0, false, given_thread_name);
+  ASSERT_TRUE(wt.WaitForInit());
+  wt.DoWork([&read_thread_name]() {
+    pthread_getname_np(pthread_self(), read_thread_name, sizeof(read_thread_name));
+  });
+  wt.Shutdown();  // assure it does not deadlock
+  // skip terminating \0 character
+  ASSERT_EQ(0, memcmp(read_thread_name, full_thread_name,
+                      std::min(sizeof(full_thread_name), sizeof(read_thread_name)) - 1));
 }
 
 }  // namespace test

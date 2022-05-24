@@ -14,10 +14,10 @@
 
 import sys
 
-import nvidia.dali.backend as _b
-import nvidia.dali.internal as _internal
-import nvidia.dali.ops as _ops
-import nvidia.dali.tensors as _tensors
+from nvidia.dali import backend as _b
+from nvidia.dali import internal as _internal
+from nvidia.dali import ops as _ops
+from nvidia.dali import tensors as _tensors
 from nvidia.dali._utils.eager_util import _Classification, _transform_data_to_tensorlist
 
 
@@ -209,7 +209,7 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
         init_args['max_batch_size'] = batch_size
         init_args['device'], init_args['device_id'] = _choose_device(
             op_name, wrapper_name, inputs, kwargs.get('device'))
-        
+
         # Creating cache key consisting of operator name, description of inputs, input arguments
         # and init args. Each call arg is described by dtype, layout and dim.
         key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))

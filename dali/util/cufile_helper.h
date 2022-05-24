@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,20 +33,8 @@
 // is only opened once per thread. It is not thread safe, coordination outside
 namespace cufile {
 
-class CUFileDriverHandle{
- public:
-  explicit CUFileDriverHandle(const int& device = 0) {
-    dali::DeviceGuard g(device);
-    CUDA_CALL(cuFileDriverOpen());
-  }
-
-  ~CUFileDriverHandle() {
-    CUDA_CALL(cuFileDriverClose());
-  }
-};
-
 // wrapper struct to conveniently store the fd's as well
-class CUFileHandle{
+class DLL_PUBLIC CUFileHandle{
  public:
   CUFileHandle() {
     fd = -1;

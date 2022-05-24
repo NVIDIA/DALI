@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <sys/syscall.h>
+#include <pthread.h>
 #include <memory>
 #include "dali/core/nvtx.h"
 
@@ -57,5 +59,28 @@ DLL_PUBLIC DomainTimeRange::~DomainTimeRange() {
 }
 
 #endif  // NVTX_ENABLED
+
+namespace {
+
+void SetThreadNameInternal(const char *name) {
+  char tmp_name[16];
+  int i = 0;
+  while (name[i] != '\0' && i < 15) {
+    tmp_name[i] = name[i];
+    ++i;
+  }
+  tmp_name[i] = '\0';
+  pthread_setname_np(pthread_self(), tmp_name);
+}
+
+}  // namespace
+
+DLL_PUBLIC void SetThreadName(const char *name) {
+  #if NVTX_ENABLED
+    nvtxNameOsThreadA(syscall(SYS_gettid), name);
+  #endif  // NVTX_ENABLED
+  SetThreadNameInternal(name);
+}
+
 
 }  // namespace dali

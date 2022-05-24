@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include "dali/core/cuda_event_pool.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/kernels/transpose/transpose_gpu.h"
@@ -71,6 +73,14 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
   kernels::KernelManager kmgr_slice_;
   TensorListShape<> tmp_buf_sh_;
   TensorList<GPUBackend> tmp_buf_;
+
+  void ScheduleChunkedRead(SampleView<GPUBackend> &out_sample, NumpyFileWrapperGPU &target);
+
+  size_t chunk_size_ = gds::GetGDSChunkSize();
+  detail::NumpyHeaderCache header_cache_;
+  gds::GDSStagingEngine staging_;
+  CUDAStreamLease staging_stream_;
+  CUDAEvent staging_ready_;
 };
 
 }  // namespace dali
