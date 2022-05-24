@@ -348,9 +348,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     if (had_empty_layout) empty_layout_in_idxs.push_back(i);
   }
 
+  bool ret = false;
   {
-    DomainTimeRange tr("Setup");
-    if (op.Setup(output_desc, ws)) {
+    DomainTimeRange tr("[DALI][Executor] Setup");
+    ret = op.Setup(output_desc, ws);
+  }
+  {
+    DomainTimeRange tr("[DALI][Executor] Allocate outputs");
+    if (ret) {
       DALI_ENFORCE(
           static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
           "Operator::Setup returned shape and type information for mismatched number of outputs");
@@ -374,7 +379,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     }
   }
   {
-    DomainTimeRange tr("Run");
+    DomainTimeRange tr("[DALI][Executor] Run");
     op.Run(ws);
   }
 
