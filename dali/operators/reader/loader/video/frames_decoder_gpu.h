@@ -82,7 +82,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   AVBSFContext *bsfc_ = nullptr;
   AVPacket *filtered_packet_ = nullptr;
 
-  const int num_decode_surfaces_ = 5;
+  // TODO(awolant): This value is an approximation. Make it set dynamically
+  const int num_decode_surfaces_ = 8;
 
   std::vector<BufferedFrame> frame_buffer_;
 
@@ -95,6 +96,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   BufferedFrame& FindEmptySlot();
 
   void InitBitStreamFilter();
+
+  cudaVideoCodec FindCodecType();
 };
 
 }  // namespace dali
