@@ -29,19 +29,17 @@ def ref_cast(x, dtype):
         hi = np.iinfo(dtype).max
         if np.issubdtype(x.dtype, np.floating):
             x = np.round(x)
-        else:
-            x
         return x.clip(lo, hi).astype(dtype)
     else:
         return x.astype(dtype)
 
-def random_shape(rng, ndim:int, max_size:int):
+def random_shape(rng, ndim: int, max_size: int):
     if ndim == 0:
         return []
     max_size = int(max_size ** (1/ndim))
     return list(rng.integers(0, max_size, [ndim]))
 
-def generate(rng, ndim:int, batch_size:int, in_dtype:np.dtype, out_dtype:np.dtype):
+def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.dtype):
     lo, hi = -1000, 1000
     if np.issubdtype(out_dtype, np.integer):
         lo = np.iinfo(out_dtype).min
@@ -63,27 +61,10 @@ def generate(rng, ndim:int, batch_size:int, in_dtype:np.dtype, out_dtype:np.dtyp
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU
             halfway = x[x - np.floor(x) == 0.5]
-            x[x - np.floor(x) == 0.5] += 0.5
+            x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.Infinity)
     return out
 
 rng = np.random.default_rng(1234)
-
-# For compatibiltiy with Python older than 3.9
-def _nextafter(x, towards):
-    """Calculates the next number representable in the type of x
-    """
-    base = x
-    t = np.array(x).dtype.type
-    y = t(x + np.copysign(x, towards - x))
-    prev = y
-    while y != x:
-        prev = y
-        y = t((x + y) * 0.5)
-        if y == prev:
-            break  # we tried to move halfway, but failed - this the value then!
-    # we've either reached x (so the previous value was the next after x) or
-    # we can't move any closer to x (therefore current == previous is the right one)
-    return prev
 
 @nottest
 def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
@@ -102,7 +83,10 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
             out = out.as_cpu()
         ref = [ref_cast(np.array(x), out_dtype) for x in inp]
 
-        eps = 0 if np.issubdtype(out_dtype, np.integer) else (_nextafter(out_dtype([1]), 2) - 1.0)[0]
+        # work around a bug in numpy: when the argument is a scalar fp32 or fp16, nextafter
+        # promotes it to fp64, resulting in insufficient epsilon - we want an epsilon of the
+        # type specified in out_dtype
+        eps = 0 if np.issubdtype(out_dtype, np.integer) else (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
 
         for i in range(batch_size):
             if not np.allclose(out[i], ref[i], eps):
