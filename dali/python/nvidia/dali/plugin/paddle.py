@@ -153,7 +153,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
 
                 It can be one of the following values:
 
@@ -399,7 +399,7 @@ class DALIClassificationIterator(DALIGenericIterator):
                 PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
 
                 It can be one of the following values:
 

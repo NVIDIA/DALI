@@ -76,7 +76,7 @@ class _DaliBaseIterator(object):
                 PARTIAL or DROP, if FILL is used it is changed to PARTIAL. Sets `last_batch_padded`
                 accordingly to the reader's configuration (`pad_last_batch` reader argument)
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
 
                 It can be one of the following values:
 
@@ -251,7 +251,7 @@ class _DaliBaseIterator(object):
         if_drop = False
         left = -1
         if self._last_batch_policy == LastBatchPolicy.PARTIAL:
-            # calculate each shard size for each id, and check how many samples are left by substracting
+            # calculate each shard size for each id, and check how many samples are left by subtracting
             # from iterator counter the shard size, then go though all GPUs and check how much data needs to be dropped
             left = self.batch_size - (self._counter - self._shard_sizes_per_gpu_initial[self._shards_id])
             if_drop = np.less(left, self.batch_size)

@@ -169,7 +169,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
     data_layout : str, optional, default = 'NCHW'
                 Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
 
                 It can be one of the following values:
 
@@ -446,7 +446,7 @@ class DALIClassificationIterator(DALIGenericIterator):
     data_layout : str, optional, default = 'NCHW'
                 Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
 
                 It can be one of the following values:
 
@@ -575,7 +575,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 Length of output_types must match the number of output of the pipeline(s).
                 If not set, all outputs are considered to be marked with DALIGluonIterator.DENSE_TAG.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called separately.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
 
                 It can be one of the following values:
 
