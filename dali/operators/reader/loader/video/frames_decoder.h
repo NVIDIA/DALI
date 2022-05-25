@@ -126,7 +126,7 @@ class DLL_PUBLIC FramesDecoder {
   }
 
     /**
-   * @brief Is video rate variable
+   * @brief Is video variable frame rate
    * 
    */
   bool IsVfr() const {
