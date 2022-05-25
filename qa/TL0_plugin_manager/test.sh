@@ -9,7 +9,7 @@ prolog=(: enable_conda)
 epilog=(: disable_conda)
 
 test_body() {
-    nosetests --verbose test_plugin_manager.py
+    ${python_test_runner} ${python_test_args} test_plugin_manager.py
 }
 
 pushd ../..

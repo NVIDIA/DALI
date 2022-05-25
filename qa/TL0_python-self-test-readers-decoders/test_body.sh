@@ -15,7 +15,7 @@ test_nose() {
       test_pool.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py \
       test_external_source_parallel_large_sample.py \
       | sed "/$FILTER_PATTERN/d"); do
-        nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
+        ${python_test_runner} ${python_test_args} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
     done
 }
 

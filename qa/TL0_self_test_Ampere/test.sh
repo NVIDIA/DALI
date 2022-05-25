@@ -30,7 +30,7 @@ test_body() {
   done
 
   # test decoders on A100 as well
-  nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy,!numba' test_operator_decoders_image.py
+  ${python_test_runner} ${python_test_args} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' test_operator_decoders_image.py
 }
 
 pushd ../..

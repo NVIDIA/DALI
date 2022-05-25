@@ -19,9 +19,9 @@ test_body() {
                 --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
         done
     fi
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators_detection.py
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators.py
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*gluon*' test_fw_iterators.py
+    ${python_test_runner} ${python_test_args} -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators_detection.py
+    ${python_test_runner} ${python_test_args} -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators.py
+    ${python_test_runner} ${python_test_args} -m '(?:^|[\b_\./-])[Tt]est.*gluon*' test_fw_iterators.py
 }
 
 pushd ../..

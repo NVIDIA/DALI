@@ -47,8 +47,8 @@ test_body() {
     python video_label_example.py
 
     echo $(pwd)
-    nosetests --verbose ../../../../dali/test/python/test_video_pipeline.py
-    nosetests --verbose ../../../../dali/test/python/test_video_reader_resize.py
+    ${python_test_runner} ${python_test_args} ../../../../dali/test/python/test_video_pipeline.py
+    ${python_test_runner} ${python_test_args} ../../../../dali/test/python/test_video_reader_resize.py
 }
 
 pushd ../..

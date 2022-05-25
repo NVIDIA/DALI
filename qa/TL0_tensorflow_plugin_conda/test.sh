@@ -10,15 +10,15 @@ prolog=(enable_conda)
 epilog=(disable_conda)
 
 test_body() {
-    nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
+    ${python_test_runner} ${python_test_args} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 
     # DALI TF run
-    nosetests --verbose test_dali_tf_plugin_run.py
+    ${python_test_runner} ${python_test_args} test_dali_tf_plugin_run.py
 
     # DALI TF DATASET run
-    nosetests --verbose test_dali_tf_dataset.py
+    ${python_test_runner} ${python_test_args} test_dali_tf_dataset.py
 
-    nosetests --verbose test_dali_tf_dataset_shape.py
+    ${python_test_runner} ${python_test_args} test_dali_tf_dataset_shape.py
 }
 
 pushd ../..

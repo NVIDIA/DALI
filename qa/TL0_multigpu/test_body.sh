@@ -37,11 +37,11 @@ test_gtest() {
 }
 
 test_cupy() {
-    nosetests --verbose --attr 'multigpu' test_external_source_cupy.py
+    ${python_test_runner} ${python_test_args} --attr 'multigpu' test_external_source_cupy.py
 }
 
 test_pytorch() {
-    nosetests --verbose --attr 'multigpu' test_external_source_pytorch_gpu.py
+    ${python_test_runner} ${python_test_args} --attr 'multigpu' test_external_source_pytorch_gpu.py
 }
 
 test_no_fw() {

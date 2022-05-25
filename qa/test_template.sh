@@ -12,6 +12,10 @@ source $topdir/qa/setup_test_common.sh
 pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
+# Set runner for python tests
+python_test_runner="python -m nose"
+python_test_args="--verbose -s"
+
 install_pip_pkg() {
     install_cmd="$@"
     # if no package was found in our download dir, so install it from index

@@ -18,9 +18,9 @@ test_body() {
             python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
                 --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
         done
-        nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators_detection.py
+        ${python_test_runner} ${python_test_args} -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators_detection.py
     fi
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators.py
+    ${python_test_runner} ${python_test_args} -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators.py
 }
 
 pushd ../..
