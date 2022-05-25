@@ -22,10 +22,6 @@
 #include "dali/kernels/signal/moving_mean_square.h"
 #include "dali/kernels/signal/moving_mean_square_gpu.h"
 
-#define SHARED_MEMORY_BANKS 32
-#define LOG_MEM_BANKS 5
-#define CONFLICT_FREE_OFFSET(n) ((n) >> LOG_MEM_BANKS)
-
 namespace dali {
 namespace kernels {
 namespace signal {
@@ -33,9 +29,10 @@ namespace signal {
 /**
  * @brief Sample descriptor
  */
+template <typename Out, typename In>
 struct SampleDesc {
-  void *out;
-  const void *in;
+  Out *out;
+  const In *in;
   int64_t len;
 };
 
@@ -44,9 +41,18 @@ struct SampleDesc {
  * @remarks See Example 39-4 from
  *  https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
  */
+enum : int {
+  SHARED_MEMORY_BANKS = 32,
+  LOG_MEM_BANKS = 5,
+};
+
+DALI_HOST_DEV constexpr int conflict_free_offset(int n) {
+  return n >> LOG_MEM_BANKS;
+}
+
 struct conflict_free_pos {
   DALI_HOST_DEV DALI_FORCEINLINE int operator()(int pos) const noexcept {
-    return pos + CONFLICT_FREE_OFFSET(pos);
+    return pos + conflict_free_offset(pos);
   }
 };
 
@@ -58,15 +64,17 @@ struct square {
 };
 
 struct divide {
-  explicit divide(float divisor) {
-    factor_ = 1.0 / divisor;
+  divide() = default;
+
+  constexpr DALI_HOST_DEV explicit divide(float divisor) {
+    factor = 1.0f / divisor;
   }
 
   DALI_HOST_DEV DALI_FORCEINLINE float operator()(float x) const noexcept {
-    return x * factor_;
+    return x * factor;
   }
 
-  float factor_;
+  float factor = 1.0f;
 };
 
 
@@ -139,8 +147,8 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
  */
 template <typename Out, typename In, typename Preprocessor = dali::identity,
           typename Postprocessor = dali::identity, typename SharedMemPos = conflict_free_pos>
-__global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, int window, int pow2,
-                                 Preprocessor pre = {}, Postprocessor post = {},
+__global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int logical_block, int window,
+                                 int pow2, Preprocessor pre = {}, Postprocessor post = {},
                                  SharedMemPos shm_pos = {}) {
   extern __shared__ char shm[];  // allocated on invocation
   auto *temp = reinterpret_cast<acc_t<In> *>(shm);
@@ -148,8 +156,8 @@ __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, i
   int sample_idx = blockIdx.y;
 
   auto &sample = samples[sample_idx];
-  Out *output = reinterpret_cast<Out *>(sample.out);
-  const In *input = reinterpret_cast<const In *>(sample.in);
+  Out *output = sample.out;
+  const In *input = sample.in;
   int64_t sample_len = sample.len;
   int64_t grid_stride = gridDim.x * blockDim.x;
 
@@ -161,14 +169,15 @@ __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, i
 
     const In *logical_block_in_ptr = input + logical_block_start;
     Out *logical_block_out_ptr = output + logical_block_start;
+    int64_t logical_block_sz =
+        cuda_min(static_cast<int64_t>(logical_block), sample_len - logical_block_start);
 
     const In *extended_blk_start = logical_block_in_ptr - window;
-    const In *extended_blk_end = logical_block_in_ptr + cuda_min(logical_block, n);
-    int extended_blk_sz = logical_block + window;
+    const In *extended_blk_end = logical_block_in_ptr + logical_block_sz;
 
     // Step 1: Load extended logical block to shared mem.
     // Out of bounds values are assumed to be 0.
-    for (int pos = threadIdx.x; pos < extended_blk_sz; pos += blockDim.x) {
+    for (int pos = threadIdx.x; pos < pow2; pos += blockDim.x) {
       acc_t<In> value(0);
       auto extended_blk_ptr = extended_blk_start + pos;
       if (extended_blk_ptr >= input && extended_blk_ptr < extended_blk_end) {
@@ -183,8 +192,8 @@ __global__ void SlidingWindowSum(const SampleDesc *samples, int logical_block, i
 
     // Step 3: Compute the output, the sum in window, by subtracting two values of the prefix sum
     // and adding the input value at the current position.
-    for (int pos = threadIdx.x; pos < logical_block; pos += blockDim.x) {
-      acc_t<In> out_val = pre(logical_block_in_ptr[shm_pos(pos)]) + temp[shm_pos(window + pos)] -
+    for (int pos = threadIdx.x; pos < logical_block_sz; pos += blockDim.x) {
+      acc_t<In> out_val = pre(logical_block_in_ptr[pos]) + temp[shm_pos(window + pos)] -
                           temp[shm_pos(pos)];
       logical_block_out_ptr[pos] = ConvertSat<Out>(post(out_val));
     }
@@ -205,7 +214,7 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
                                          const InListGPU<InputType, 1> &in,
                                          const MovingMeanSquareArgs &args) {
   int nsamples = in.shape.num_samples();
-  auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc>(nsamples);
+  auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc<float, InputType>>(nsamples);
 
   int64_t max_len;
   for (int i = 0; i < nsamples; i++) {
@@ -246,7 +255,7 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
       "Can't compute the requested running sum, due to shared memory restrictions");
   }
 
-  dim3 grid(std::min<int64_t>(1024, div_ceil(max_len, 32)), nsamples, 1);
+  dim3 grid(std::min<int64_t>(1024, div_ceil(max_len, 32)), nsamples);
   int block_sz = 1024;
   // For mean square we square as a pre-step and divide by the window length at the end
   square pre;
