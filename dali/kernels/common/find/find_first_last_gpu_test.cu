@@ -29,7 +29,7 @@ namespace test {
 template <typename T>
 struct threshold {
   T value_;
-  explicit threshold(T value) : value_(value) {}
+  explicit threshold(T value = 0) : value_(value) {}
 
   DALI_HOST_DEV DALI_FORCEINLINE bool operator()(T x) const noexcept {
     return x >= value_;
@@ -59,7 +59,9 @@ class FindFirstLastTestGPU : public ::testing::Test {
   TestTensorList<int64_t> ref_begin_;
   TestTensorList<int64_t> ref_length_;
 
-  threshold<T> thresh{3};
+  using Predicate = threshold<T>;
+  Predicate thresh{3};
+  span<Predicate> predicates{&thresh, 1};
 
   void SetUp() final {
     int nsamples = 4;
@@ -110,7 +112,8 @@ class FindFirstLastTestGPU : public ::testing::Test {
     auto in = in_.gpu().to_static<1>();
 
     FindFirstLastGPU kernel;
-    kernel.template Run<T, threshold<T>>(ctx, out_begin, out_length, in, thresh);
+    kernel.template Run<T, Predicate>(ctx, out_begin, out_length, in, predicates);
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
     int nsamples = in.size();
     for (int s = 0; s < nsamples; s++) {
@@ -168,8 +171,6 @@ class FindFirstLastTestGPU : public ::testing::Test {
     auto in = in_data.gpu().to_static<1>();
 
     FindFirstLastGPU kernel;
-    threshold<T> thresh{3};
-
     for (int i = 0; i < n_iters; ++i) {
       CUDA_CALL(cudaDeviceSynchronize());
 
@@ -178,7 +179,7 @@ class FindFirstLastTestGPU : public ::testing::Test {
 
       CUDA_CALL(cudaEventRecord(start));
 
-      kernel.template Run<T, threshold<T>>(ctx, out_begin, out_length, in, thresh);
+      kernel.template Run<T, Predicate>(ctx, out_begin, out_length, in, predicates);
 
       CUDA_CALL(cudaEventRecord(end));
       CUDA_CALL(cudaDeviceSynchronize());
@@ -186,8 +187,8 @@ class FindFirstLastTestGPU : public ::testing::Test {
       CUDA_CALL(cudaEventElapsedTime(&time_ms, start, end));
       total_time_ms += time_ms;
     }
-    std::cout << "Bandwidth: " << n_iters * (in_bytes + out_bytes) / (total_time_ms * 1e6) << " GBs/sec"
-              << std::endl;
+    std::cout << "Bandwidth: " << n_iters * (in_bytes + out_bytes) / (total_time_ms * 1e6)
+              << " GBs/sec" << std::endl;
   }
 };
 

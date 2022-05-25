@@ -29,38 +29,63 @@ namespace {
 /**
  * @brief Sample descriptor
  */
+template <typename Predicate>
 struct SampleDesc {
   int64_t *a_ptr, *b_ptr;  // represents (first, last), (begin, end), or (begin, length) depending
                            // on the OutputProcessor
+  Predicate predicate;
   const void *in;
   int64_t len;
 };
 
+/**
+ * @brief Represents first, last (or other range representations) coordinates
+ */
 struct pair_i64 {
     int64_t a = 0;
     int64_t b = 0;
 };
 
+/**
+ * @brief First and last position
+ */
 struct first_last {
   DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
     return x;
   }
 };
 
+/**
+ * @brief Begin (inclusive) and End (exclusive) of the region
+ */
 struct begin_end {
   DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
     return {x.a, x.b + 1};
   }
 };
 
+/**
+ * @brief Begin (inclusive) and Length of the region
+ */
 struct begin_length {
   DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
     return {x.a, x.b - x.a + 1};
   }
 };
 
+/**
+ * @brief Extract the position of the first and last position that satisfies a predicate
+ *
+ * @remarks Calculates a double reduction (min, max) in one go
+ *
+ * @tparam T Input data type
+ * @tparam Predicate Predicate that must be satisfied
+ * @tparam OutFormat Optional Transformation to first, last coordinates
+ * @param samples Sample descriptors, including a per-sample predicate
+ * @param format Optional output coordinate transformation
+ */
 template <typename T, typename Predicate, typename OutFormat = first_last>
-__global__ void FindFirstLastImpl(SampleDesc *samples, Predicate predicate = {}, OutFormat format = {}) {
+__global__ void FindFirstLastImpl(SampleDesc<Predicate> *samples, OutFormat format = {}) {
   const int64_t blk_size = blockDim.x;
   const int64_t grid_size = gridDim.x * blk_size;
 
@@ -68,9 +93,8 @@ __global__ void FindFirstLastImpl(SampleDesc *samples, Predicate predicate = {},
   auto &sample = samples[sample_idx];
   const T *input = reinterpret_cast<const T *>(sample.in);
   int64_t sample_len = sample.len;
-
+  auto &predicate = sample.predicate;
   int tid = threadIdx.x;
-  int64_t idx = blockIdx.x * blk_size + tid;
 
   reductions::min first_reduction;
   reductions::max last_reduction;
@@ -80,6 +104,9 @@ __global__ void FindFirstLastImpl(SampleDesc *samples, Predicate predicate = {},
   int64_t first = first_neutral;
   int64_t last = last_neutral;
 
+  // similar concept as in reduction kernels
+
+  int64_t idx = blockIdx.x * blk_size + tid;
   for (; idx < sample_len; idx += grid_size) {
     int64_t tmp_idx = predicate(input[idx]) ? idx : -1;
     int64_t first_candidate = tmp_idx < 0 ? first_reduction.template neutral<int64_t>() : tmp_idx;
@@ -105,6 +132,9 @@ __global__ void FindFirstLastImpl(SampleDesc *samples, Predicate predicate = {},
 
 }  // namespace
 
+/**
+ * @brief Extract the position of the first and last position that satisfies a predicate
+ */
 class FindFirstLastGPU {
  public:
   template <typename T>
@@ -112,7 +142,7 @@ class FindFirstLastGPU {
     KernelRequirements req;
     int nsamples = in.size();
     TensorListShape<0> out_sh(nsamples);
-    req.output_shapes = {out_sh, out_sh};
+    req.output_shapes = {out_sh, out_sh};  // begin, length outputs
     return req;
   }
 
@@ -121,9 +151,9 @@ class FindFirstLastGPU {
            const OutListGPU<int64_t, 0> &begin,
            const OutListGPU<int64_t, 0> &length,
            const InListGPU<T, 1> &in,
-           Predicate predicate = {}) {
+           span<Predicate> predicates = {}) {
     int nsamples = in.shape.num_samples();
-    auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc>(nsamples);
+    auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc<Predicate>>(nsamples);
 
     int64_t max_len;
     for (int i = 0; i < nsamples; i++) {
@@ -132,17 +162,19 @@ class FindFirstLastGPU {
       sample.b_ptr = length[i].data;
       sample.in = in[i].data;
       sample.len = in[i].shape.num_elements();
+      // Allowing a default or a single predicate for the whole batch
+      sample.predicate = predicates.empty()     ? Predicate{} :
+                         predicates.size() == 1 ? predicates[0] :
+                                                  predicates[i];
       max_len = std::max(sample.len, max_len);
     }
     auto *sample_descs_gpu =
         ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
 
-    dim3 grid(std::min<int64_t>(1024, div_ceil(max_len, 32)), nsamples, 1);
-    int block_sz = 1024;
-
-    const int shm_size = 0x8000;  // 32 kB shared mem
+    dim3 grid(1, nsamples);  // 1 output bin per sample (reduction to scalar)
+    dim3 block(32, 32);      // expected by BlockReduce
     FindFirstLastImpl<T, Predicate, begin_length>
-        <<<grid, block_sz, shm_size, ctx.gpu.stream>>>(sample_descs_gpu, predicate);
+        <<<grid, block, 0, ctx.gpu.stream>>>(sample_descs_gpu);
     CUDA_CALL(cudaGetLastError());
   }
 };
