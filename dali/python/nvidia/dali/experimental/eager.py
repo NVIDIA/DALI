@@ -133,21 +133,23 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
             epoch_size = self._backend_op.reader_meta()['epoch_size']
             self._num_iters = math.ceil(epoch_size / max_batch_size)
 
-            if pad_last_batch:
+            # Size of the last batch in an epoch.
+            if pad_last_batch or epoch_size % max_batch_size == 0:
                 self._last_batch_size = max_batch_size
             else:
                 self._last_batch_size = epoch_size % max_batch_size
-                if self._last_batch_size == 0:
-                    self._last_batch_size = max_batch_size
 
             assert isinstance(self._last_batch_size, int)
 
         def __next__(self):
+            """ Iterates over dataset once per epoch (last batch may not be full). """
+
             if self._iter < self._num_iters:
                 self._iter += 1
                 outputs = self._backend_op([], self._call_args)
 
                 if self._iter == self._num_iters:
+                    # Return potentially partial batch at the end of an epoch.
                     outputs = [type(tl_output)(
                         [tl_output[i] for i in range(self._last_batch_size)]) for tl_output in outputs]
 
@@ -156,6 +158,7 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
 
                 return outputs
             else:
+                self._iter = 0
                 raise StopIteration
 
         def __iter__(self):
