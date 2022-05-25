@@ -29,12 +29,12 @@ namespace {
 /**
  * @brief Sample descriptor
  */
-template <typename Predicate>
+template <typename T, typename Predicate>
 struct SampleDesc {
   int64_t *a_ptr, *b_ptr;  // represents (first, last), (begin, end), or (begin, length) depending
                            // on the OutputProcessor
   Predicate predicate;
-  const void *in;
+  const T *in;
   int64_t len;
 };
 
@@ -85,10 +85,10 @@ struct begin_length {
  * @param format Optional output coordinate transformation
  */
 template <typename T, typename Predicate, typename OutFormat = first_last>
-__global__ void FindFirstLastImpl(SampleDesc<Predicate> *samples, OutFormat format = {}) {
+__global__ void FindFirstLastImpl(SampleDesc<T, Predicate> *samples, OutFormat format = {}) {
   int sample_idx = blockIdx.y;
   auto &sample = samples[sample_idx];
-  const T *input = reinterpret_cast<const T *>(sample.in);
+  const T *input = sample.in;
   int64_t sample_len = sample.len;
   auto &predicate = sample.predicate;
 
@@ -146,14 +146,15 @@ class FindFirstLastGPU {
     return req;
   }
 
-  template <typename T, typename Predicate>
+  template <typename T, typename Predicate, typename OutputFormat = first_last>
   void Run(KernelContext &ctx,
            const OutListGPU<int64_t, 0> &begin,
            const OutListGPU<int64_t, 0> &length,
            const InListGPU<T, 1> &in,
-           span<Predicate> predicates = {}) {
+           span<Predicate> predicates = {},
+           OutputFormat format = {}) {
     int nsamples = in.shape.num_samples();
-    auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc<Predicate>>(nsamples);
+    auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc<T, Predicate>>(nsamples);
 
     int64_t max_len;
     for (int i = 0; i < nsamples; i++) {
@@ -173,8 +174,8 @@ class FindFirstLastGPU {
 
     dim3 grid(1, nsamples);  // 1 output bin per sample (reduction to scalar)
     dim3 block(32, 32);      // expected by BlockReduce
-    FindFirstLastImpl<T, Predicate, begin_length>
-        <<<grid, block, 0, ctx.gpu.stream>>>(sample_descs_gpu);
+    FindFirstLastImpl<T, Predicate, OutputFormat>
+        <<<grid, block, 0, ctx.gpu.stream>>>(sample_descs_gpu, format);
     CUDA_CALL(cudaGetLastError());
   }
 };

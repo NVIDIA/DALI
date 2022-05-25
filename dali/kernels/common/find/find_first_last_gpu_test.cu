@@ -117,7 +117,7 @@ class FindFirstLastTestGPU : public ::testing::Test {
     auto in = in_.gpu().to_static<1>();
 
     FindFirstLastGPU kernel;
-    kernel.template Run<T, Predicate>(ctx, out_begin, out_length, in, predicates);
+    kernel.template Run<T, Predicate, begin_length>(ctx, out_begin, out_length, in, predicates);
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
     int nsamples = in.size();

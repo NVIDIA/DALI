@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,9 @@ DALI_FORCEINLINE __device__ void WarpReduce(Acc &val, Reduction reduce) {
  * Finally, the thread (0, 0) stores thre result at given index.
  *
  * @remarks blockDim must be (32, pow2), where pow2 is <= 32
+ * @remarks Note: blockDim is expected to be 2D, but that doesn't mean the data must be 2D.
+ *          Users of BlockReduce would typically use a flat thread id to access the data.
+ * @see     ReduceAllKernel for a usage example
  */
 template <typename Acc, typename Reduction>
 __device__ bool BlockReduce(Acc &val, Reduction reduce) {
