@@ -58,8 +58,13 @@ bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorksp
 void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
-  std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
-  auto collapsed_shape = collapse_dims<1>(input.shape(), collapse_groups);
+  TensorListShape<1> collapsed_shape;
+  if (input.sample_dim() > 0) {
+    std::array<std::pair<int, int>, 1> collapse_groups = {{{0, input_shape.sample_dim()}}};
+    collapsed_shape = collapse_dims<1>(input_shape, collapse_groups);
+  } else {
+    collapsed_shape = uniform_list_shape(input_shape.num_samples(), TensorShape<1>{1});
+  }
 
   block_setup_.SetupBlocks(collapsed_shape, true);
 }
@@ -84,6 +89,24 @@ void CastGPU::RunImpl(DeviceWorkspace &ws) {
   }
 
   auto blocks = block_setup_.Blocks();
+
+  kernels::BlockDesc<1> *blocks_dev;
+  kernels::CastSampleDesc *samples_dev;
+  std::tie(blocks_dev, samples_dev) = scratchpad.ToContiguousGPU(ws.stream(),
+                                                                 blocks, samples_);
+
+  DALIDataType itype = input.type();
+  dim3 grid_dim = block_setup_.GridDim();
+  dim3 block_dim = block_setup_.BlockDim();
+  TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
+    TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
+      kernels::BatchedCastKernel<OType, IType>
+          <<<grid_dim, block_dim, 0, ws.stream()>>>(samples_dev, blocks_dev);
+    ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
+
+  /*
+  TODO(michalz): Fix the kernel!
   // Calculate id of the earliest block that should process given sample
   for (int block_id = 0, sample_id = -1; block_id < blocks.size(); block_id++) {
     if (blocks[block_id].sample_idx != sample_id) {
@@ -107,6 +130,7 @@ void CastGPU::RunImpl(DeviceWorkspace &ws) {
             num_samples, block_volume_scale);
     ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
   ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
+  */
 }
 
 DALI_REGISTER_OPERATOR(Cast, CastGPU, GPU);

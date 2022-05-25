@@ -96,7 +96,11 @@ FramesDecoder::FramesDecoder(const std::string &filename)
   FindVideoStream();
   DALI_ENFORCE(
     CheckCodecSupport(),
-    make_string("Unsupported video codec: ", av_state_->codec_->name, " in file: ", filename));
+    make_string(
+      "Unsupported video codec: ",
+      av_state_->codec_->name,
+      " in file: ", filename,
+      " Supported codecs: h264, HEVC."));
   InitAvState();
   BuildIndex();
   DetectVfr();

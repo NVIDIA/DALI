@@ -39,9 +39,9 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
                                            QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : PipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, set_affinity,
                           max_num_stream, default_cuda_stream_priority, prefetch_queue_depth),
-        cpu_thread_(device_id, set_affinity),
-        mixed_thread_(device_id, set_affinity),
-        gpu_thread_(device_id, set_affinity) {}
+        cpu_thread_(device_id, set_affinity, "CPU executor"),
+        mixed_thread_(device_id, set_affinity, "Mixed executor"),
+        gpu_thread_(device_id, set_affinity, "GPU executor") {}
 
   DLL_PUBLIC ~AsyncPipelinedExecutor() override {
     Shutdown();

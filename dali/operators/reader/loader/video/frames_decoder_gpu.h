@@ -97,7 +97,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   void InitBitStreamFilter();
 
-  cudaVideoCodec FindCodecType();
+  cudaVideoCodec GetCodecType();
 };
 
 }  // namespace dali

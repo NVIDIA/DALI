@@ -23,7 +23,7 @@ import os
 from nose_utils import assert_raises
 from nose.plugins.attrib import attr
 
-from sequences_test_utils import video_suite_helper
+from sequences_test_utils import video_suite_helper, ArgCb
 from test_utils import get_dali_extra_path, check_batch, compare_pipelines, RandomlyShapedDataIterator, dali_type
 
 data_root = get_dali_extra_path()
@@ -340,29 +340,29 @@ def test_fail_gaussian_blur():
 
 
 def test_per_frame():
-    def window_size(rng):
-        return np.array(2 * rng.randint(1, 15) + 1, dtype=np.int32)
+    def window_size(sample_desc):
+        return np.array(2 * sample_desc.rng.randint(1, 15) + 1, dtype=np.int32)
 
-    def per_axis_window_size(rng):
-        return np.array([window_size(rng) for _ in range(2)])
+    def per_axis_window_size(sample_desc):
+        return np.array([window_size(sample_desc) for _ in range(2)])
 
-    def sigma(rng):
-        return np.array((rng.random() + 1) * 3., dtype=np.float32)
+    def sigma(sample_desc):
+        return np.array((sample_desc.rng.random() + 1) * 3., dtype=np.float32)
 
-    def per_axis_sigma(rng):
-        return np.array([sigma(rng) for _ in range(2)])
+    def per_axis_sigma(sample_desc):
+        return np.array([sigma(sample_desc) for _ in range(2)])
 
     video_test_cases = [
         (fn.gaussian_blur, {'window_size': 3}, []),
-        (fn.gaussian_blur, {}, [("window_size", window_size, True)]),
-        (fn.gaussian_blur, {}, [("window_size", per_axis_window_size, True)]),
-        (fn.gaussian_blur, {}, [("sigma", sigma, True)]),
+        (fn.gaussian_blur, {}, [ArgCb("window_size", window_size, True)]),
+        (fn.gaussian_blur, {}, [ArgCb("window_size", per_axis_window_size, True)]),
+        (fn.gaussian_blur, {}, [ArgCb("sigma", sigma, True)]),
         (fn.gaussian_blur, {}, [
-            ("window_size", per_axis_window_size, True),
-            ("sigma", per_axis_sigma, True)]),
+            ArgCb("window_size", per_axis_window_size, True),
+            ArgCb("sigma", per_axis_sigma, True)]),
         (fn.gaussian_blur, {'dtype': types.FLOAT}, [
-            ("window_size", per_axis_window_size, False),
-            ("sigma", per_axis_sigma, True)]),
+            ArgCb("window_size", per_axis_window_size, False),
+            ArgCb("sigma", per_axis_sigma, True)]),
     ]
 
     yield from video_suite_helper(video_test_cases, expand_channels=True)

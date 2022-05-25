@@ -95,14 +95,14 @@ Highlights
 DALI Roadmap
 ------------
 
-|dali-roadmap-link|_ a high-level overview of our 2021 plan. You should be aware that this
+|dali-roadmap-link|_ a high-level overview of our 2022 plan. You should be aware that this
 roadmap may change at any time and the order below does not reflect any type of priority.
 
 We strongly encourage you to comment on our roadmap and provide us feedback on the mentioned
 GitHub issue.
 
 .. |dali-roadmap-link| replace:: The following issue represents
-.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/2978
+.. _dali-roadmap-link: https://github.com/NVIDIA/DALI/issues/3774
 
 ----
 

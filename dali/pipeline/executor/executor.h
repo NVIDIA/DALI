@@ -110,7 +110,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
         bytes_per_sample_hint_(bytes_per_sample_hint),
         callback_(nullptr),
         event_pool_(),
-        thread_pool_(num_thread, device_id, set_affinity),
+        thread_pool_(num_thread, device_id, set_affinity, "Executor"),
         exec_error_(false),
         queue_sizes_(prefetch_queue_depth),
         enable_memory_stats_(false) {
