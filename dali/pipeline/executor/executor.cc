@@ -348,30 +348,40 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     if (had_empty_layout) empty_layout_in_idxs.push_back(i);
   }
 
-  if (op.Setup(output_desc, ws)) {
-    DALI_ENFORCE(
-        static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
-        "Operator::Setup returned shape and type information for mismatched number of outputs");
-    DALI_ENFORCE(op.CanInferOutputs(),
-                 "Operator::Setup returned true indicating that it successfully calculated shape "
-                 "and type information for Operator outputs. In that case CanInferOutputs should "
-                 "always return true.");
-    for (int i = 0; i < ws.NumOutput(); i++) {
-      auto &desc = output_desc[i];
-      if (ws.template OutputIsType<CPUBackend>(i)) {
-        ws.template Output<CPUBackend>(i).Resize(desc.shape, desc.type);
-      } else {
-        ws.template Output<GPUBackend>(i).Resize(desc.shape, desc.type);
-      }
-    }
-  } else {
-    DALI_ENFORCE(!op.CanInferOutputs(),
-                 "Operator::Setup returned false indicating that it cannot calculate shape and "
-                 "type information for Operator outputs. In that case CanInferOutputs should "
-                 "always return false.");
+  bool should_allocate = false;
+  {
+    DomainTimeRange tr("[DALI][Executor] Setup");
+    should_allocate = op.Setup(output_desc, ws);
   }
-
-  op.Run(ws);
+  {
+    DomainTimeRange tr("[DALI][Executor] Allocate outputs");
+    if (should_allocate) {
+      DALI_ENFORCE(
+          static_cast<size_t>(ws.NumOutput()) == output_desc.size(),
+          "Operator::Setup returned shape and type information for mismatched number of outputs");
+      DALI_ENFORCE(op.CanInferOutputs(),
+                    "Operator::Setup returned true indicating that it successfully calculated "
+                    "shape and type information for Operator outputs. In that case "
+                    "CanInferOutputs should always return true.");
+      for (int i = 0; i < ws.NumOutput(); i++) {
+        auto &desc = output_desc[i];
+        if (ws.template OutputIsType<CPUBackend>(i)) {
+          ws.template Output<CPUBackend>(i).Resize(desc.shape, desc.type);
+        } else {
+          ws.template Output<GPUBackend>(i).Resize(desc.shape, desc.type);
+        }
+      }
+    } else {
+      DALI_ENFORCE(!op.CanInferOutputs(),
+                    "Operator::Setup returned false indicating that it cannot calculate shape and "
+                    "type information for Operator outputs. In that case CanInferOutputs should "
+                    "always return false.");
+    }
+  }
+  {
+    DomainTimeRange tr("[DALI][Executor] Run");
+    op.Run(ws);
+  }
 
   for (int i : empty_layout_in_idxs) {
     if (ws.template InputIsType<CPUBackend>(i)) {
