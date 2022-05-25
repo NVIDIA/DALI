@@ -22,7 +22,6 @@ from numba import types as numba_types
 from numba import njit, cfunc, carray, cuda
 import numpy as np
 import numba as nb
-from ctypes import addressof
 
 _to_numpy = {
     dali_types.UINT8 : "uint8",

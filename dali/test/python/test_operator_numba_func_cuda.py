@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 def set_all_values_to_255_sample(in_arr, out_arr):
     x, y = cuda.grid(2)
-    if x < in_arr.shape[0] and y < in_arr.shape[1] and x < out_arr.shape[0] and y < in_arr.shape[1]:
+    if x < in_arr.shape[0] and y < in_arr.shape[1] and x < out_arr.shape[0] and y < out_arr.shape[1]:
         out_arr[x][y] = in_arr[x][y] + 5
 
 
@@ -57,7 +57,7 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
 def test_numba_func():
     # shape, dtype, run_fn, out_types, in_types, out_ndim, in_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
     args = [
-        ([(10, 5)], np.float32, set_all_values_to_255_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 6, dtype=np.uint8)]),
+        ([(10, 5)], np.float32, set_all_values_to_255_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 6, dtype=np.float32)]),
     ]
 
     for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out in args:

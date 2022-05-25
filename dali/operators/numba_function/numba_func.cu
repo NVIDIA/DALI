@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,45 @@
 #include "dali/operators/numba_function/numba_func.h"
 
 namespace dali {
+
+vector<ssize_t> calc_sizes(DALIDataType type, int ndim, uint64_t shape_ptr) {
+  ssize_t item_size = TypeTable::GetTypeInfo(type).size();
+
+  vector<ssize_t> args;
+  args.push_back(item_size);
+
+  size_t nitems = 1;
+  uint64_t* shapes = (uint64_t*)shape_ptr;
+  for (int i = 0; i < ndim; i++) {
+    ssize_t shape = shapes[i];
+    args.push_back(shapes[i]);
+    nitems *= shape;
+  }
+  args.insert(args.begin(), nitems);
+  ssize_t s1 = item_size;  // in_type size
+  ssize_t s2 = (ssize_t)(shapes)[1] * s1; // next row
+  args.push_back(s1);
+  args.push_back(s2);
+
+  return args;
+}
+
+
+vector<void*> prepare_args(const vector<void*> &memory_ptrs, const vector<ssize_t> &sizes, uint64_t *ptr) {
+  // The order and structure of arguments is specified in the numba source code:
+  // https://github.com/numba/numba/blob/b1be2f12c83c01f57fe34fab9a9d77334f9baa1d/numba/cuda/dispatcher.py#L325
+  vector<void*> args;
+  for(size_t i = 0; i < memory_ptrs.size(); i++) {
+    args.push_back((void*)&memory_ptrs[i]);
+  }  
+
+  for(size_t i = 0; i < sizes.size(); i++) {
+    args.push_back((void*)&sizes[i]);
+  }
+  args.insert(args.begin()+4, (void*)ptr);
+  return args;
+}
+
 
 template <typename GPUBackend>
 NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
@@ -40,10 +79,10 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
       "All dimensions should be non negative. Value specified in `outs_ndim` at index ",
         i, " is negative."));
   }
-  if (!setup_fn_) {
-    DALI_ENFORCE(out_types_.size() == in_types_.size(),
-      "Size of `out_types` should match size of `in_types` when `setup_fn` isn't provided.");
-  }
+
+  DALI_ENFORCE(out_types_.size() == in_types_.size(),
+    "Size of `out_types` should match size of `in_types`."
+    "Currently different sizes of `out_types` and `in_types` aren't supported.");
 
   ins_ndim_ = spec.GetRepeatedArgument<int>("ins_ndim");
   DALI_ENFORCE(ins_ndim_.size() == in_types_.size(), make_string(
@@ -105,41 +144,30 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     }
   }
 
+  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+    vector<ssize_t> sizes = calc_sizes(in_types_[in_id], ins_ndim_[in_id], input_shape_ptrs_[in_id]);
+    in_sizes_.push_back(sizes);
+    void* meminfo = nullptr;
+    void* parent = nullptr;
+    vector<void*> memory_ptrs = {meminfo, parent};
+    in_memory_ptrs_.push_back(memory_ptrs);
+  }
+
+  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+    // For now we assume that inputs and outputs have the same shapes and types
+    vector<ssize_t> sizes = calc_sizes(in_types_[out_id], ins_ndim_[out_id], input_shape_ptrs_[out_id]);
+    out_sizes_.push_back(sizes);
+    void* meminfo = nullptr;
+    void* parent = nullptr;
+    vector<void*> memory_ptrs = {meminfo, parent};
+    out_memory_ptrs_.push_back(memory_ptrs);
+  }
+
   for (int i = 0; i < noutputs; i++) {
     const auto &in = ws.Input<GPUBackend>(i);
     output_desc[i] = {in.shape(), in.type()};
   }
   return true;
-}
-
-
-std::vector<void*> prepare_args(const dali::TensorList<dali::GPUBackend> &in, uint64_t *ptr, uint64_t shape_ptr) {
-  void** meminfo = new void*;
-  void** parent = new void*;
-  *meminfo = NULL;
-  *parent = NULL;
-  ssize_t item_size = dali::TypeTable::GetTypeInfo(in.type()).size();
-
-  vector<void*> args;
-  args.push_back((void*)meminfo);
-  args.push_back((void*)parent);
-  args.push_back((void*)new ssize_t(item_size));
-  args.push_back((void*)ptr);
-
-  size_t nitems = 1;
-  uint64_t* shapes = (uint64_t*)shape_ptr;
-  for (int i = 0; i < in.shape().ndim; i++) {
-    args.push_back((void*)(new ssize_t(shapes[i])));
-    nitems *= shapes[i];
-  }
-  
-  args.insert(args.begin()+2, (void*)new ssize_t(nitems));
-  ssize_t s1 = item_size;  // in_type size
-  ssize_t s2 = (ssize_t)(shapes)[1] * s1; // next row
-  args.push_back((void*)new ssize_t(s1));
-  args.push_back((void*)new ssize_t(s2));
-
-  return args;
 }
 
 
@@ -165,30 +193,22 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     }
   }
 
-
-  // Store computed sizes for every input and output in order to 
-  // correctly free allocated memory
-  vector<ssize_t> io_sizes;
   vector<void*> args;
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    auto& in = ws.Input<GPUBackend>(in_id);
-    vector<void*> args_local = prepare_args(in, &in_ptrs[in_id], input_shape_ptrs_[in_id]);
-    io_sizes.push_back(args_local.size());
+    vector<void*> args_local = prepare_args(in_memory_ptrs_[in_id], in_sizes_[in_id], &in_ptrs[in_id]);
     args.insert(
       args.end(),
-      std::make_move_iterator(args_local.begin()),
-      std::make_move_iterator(args_local.end())
+      make_move_iterator(args_local.begin()),
+      make_move_iterator(args_local.end())
     );
   }
 
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-    auto& out = ws.Output<GPUBackend>(out_id);
-    vector<void*> args_local = prepare_args(out, &out_ptrs[out_id], input_shape_ptrs_[out_id]);
-    io_sizes.push_back(args_local.size());
+    vector<void*> args_local = prepare_args(out_memory_ptrs_[out_id], out_sizes_[out_id], &out_ptrs[out_id]);
     args.insert(
       args.end(),
-      std::make_move_iterator(args_local.begin()),
-      std::make_move_iterator(args_local.end())
+      make_move_iterator(args_local.begin()),
+      make_move_iterator(args_local.end())
     );
   }
 
@@ -202,18 +222,6 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     (void**)args.data(), 
     NULL
   );
-
-  size_t parsed_args = 0;
-  for(size_t i = 0; i < io_sizes.size(); i++) {
-    delete (void**)args[parsed_args];
-    delete (void**)args[parsed_args+1];
-    delete (ssize_t*)args[parsed_args+2];
-    delete (ssize_t*)args[parsed_args+3];
-    for(size_t size_i = 5; size_i < io_sizes[i]; size_i++) {
-      delete (ssize_t*)args[parsed_args + size_i];
-    }
-    parsed_args += io_sizes[i];
-  }
 }
 
 DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<GPUBackend>, GPU);
