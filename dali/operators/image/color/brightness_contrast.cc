@@ -31,12 +31,12 @@ This operator can also change the type of data.)code")
     .NumOutput(1)
     .AddOptionalArg("brightness",
                     "Brightness mutliplier.",
-                    kDefaultBrightness, true)
+                    kDefaultBrightness, true, true)
     .AddOptionalArg("brightness_shift", R"code(The brightness shift.
 
 For signed types, 1.0 represents the maximum positive value that can be represented by
 the type.)code",
-                    kDefaultBrightnessShift, true)
+                    kDefaultBrightnessShift, true, true)
     .AddOptionalTypeArg("dtype",
                     R"code(Output data type.
 
@@ -57,12 +57,12 @@ This operator can also change the type of data.)code")
     .NumOutput(1)
     .AddOptionalArg("contrast", R"code(The contrast multiplier, where 0.0 produces
 the uniform grey.)code",
-                    kDefaultContrast, true)
+                    kDefaultContrast, true, true)
     .AddOptionalArg("contrast_center", R"code(The intensity level that is unaffected by contrast.
 
 This is the value that all pixels assume when the contrast is zero. When not set,
 the half of the input type's positive range (or 0.5 for ``float``) is used.)code",
-                    brightness_contrast::HalfRange<float>(), true)
+                    brightness_contrast::HalfRange<float>(), true, true)
     .AddOptionalTypeArg("dtype",
                     R"code(Output data type.
 

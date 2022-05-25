@@ -25,6 +25,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 
 #define BRIGHTNESS_CONTRAST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float)
 
@@ -53,7 +54,7 @@ const float kDefaultBrightnessShift = 0;
 const float kDefaultContrast = 1.f;
 
 template <typename Backend>
-class BrightnessContrastOp : public Operator<Backend> {
+class BrightnessContrastOp : public SequenceOperator<Backend> {
  public:
   ~BrightnessContrastOp() override = default;
 
@@ -61,7 +62,7 @@ class BrightnessContrastOp : public Operator<Backend> {
 
  protected:
   explicit BrightnessContrastOp(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : SequenceOperator<Backend>(spec),
         output_type_(DALI_NO_TYPE),
         input_type_(DALI_NO_TYPE) {
     spec.TryGetArgument(output_type_arg_, "dtype");
@@ -132,7 +133,6 @@ class BrightnessContrastOp : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template Input<Backend>(0);
-    const auto &output = ws.template Output<Backend>(0);
     AcquireArguments(ws);
 
     auto sh = input.shape();
@@ -161,7 +161,7 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
    * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
    */
-  using Operator<CPUBackend>::RunImpl;
+  using SequenceOperator<CPUBackend>::RunImpl;
 
   ~BrightnessContrastCpu() override = default;
 
