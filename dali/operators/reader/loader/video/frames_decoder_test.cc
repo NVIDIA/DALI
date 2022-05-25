@@ -130,7 +130,7 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   }
 
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) {
-    MemCopy(frame_cpu_buffer_.data(), frame, ground_truth.FrameSize());
+    MemCopy(FrameDataCpu(), frame, ground_truth.FrameSize());
     ground_truth.CompareFrameAvgError(index, frame_cpu_buffer_.data());
   }
 
@@ -141,6 +141,10 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
 
   uint8_t *FrameData() override {
     return frame_gpu_buffer_.data();
+  }
+
+  uint8_t *FrameDataCpu() {
+    return frame_cpu_buffer_.data();
   }
 
  private:
@@ -198,7 +202,9 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidCodec) {
 
   RunConstructorFailureTest(
     path,
-    make_string("Unsupported video codec: vp9 in file: ", path));
+    make_string(
+      "Unsupported video codec: vp9 in file: ", path,
+      " Supported codecs: h264, HEVC."));
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
@@ -209,6 +215,16 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
 TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
   FramesDecoderGpu decoder(vfr_videos_paths_[1]);
   RunTest(decoder, vfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
+  FramesDecoderGpu decoder(cfr_hevc_videos_paths_[0]);
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
+  FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
+  RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
 }  // namespace dali
