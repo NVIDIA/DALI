@@ -39,12 +39,27 @@ class MovingMeanSquareGPU : public ::testing::Test {
   void SetUp() final {
     int nsamples = 4;
 
-    TensorListShape<> sh = {{30, }, {1000, }, {40, }, {50, }};
+    TensorListShape<> sh = {{30, }, {1000, }, {50, }, {40, }};
     in_.reshape(sh);
     out_.reshape(sh);
 
     std::mt19937 rng;
     UniformRandomFill(in_.cpu(), rng, 0.0, 1.0);
+  }
+
+  /**
+   * @brief Naive calculation. Square and sum over a region
+   */
+  Out mean_squared(In *start, In *pos, int window_size) {
+    In *ptr = pos - window_size;
+    if (ptr < start)
+      ptr = start;
+    Out sum = 0;
+    for (; ptr <= pos; ++ptr) {
+      auto x = *ptr;
+      sum += (x * x);
+    }
+    return sum / window_size;
   }
 
   void RunTest() {
@@ -56,29 +71,18 @@ class MovingMeanSquareGPU : public ::testing::Test {
     int window_size = 8;
     MovingMeanSquareArgs args{window_size};
 
-    auto out = out_.gpu().to_static<1>();
-    auto in = in_.gpu().to_static<1>();
+    auto out_batch = out_.gpu().to_static<1>();
+    auto in_batch = in_.gpu().to_static<1>();
+    int nsamples = in_batch.size();
     MovingMeanSquareGpu<In> kernel;
-    kernel.Run(ctx, out, in, args);
+    kernel.Run(ctx, out_batch, in_batch, args);
+    CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
-    int nsamples = in.size();
     for (int s = 0; s < nsamples; s++) {
       auto in = in_.cpu()[s].data;
       auto out = out_.cpu()[s].data;
       int64_t len = in_.cpu()[s].shape.num_elements();
       assert(len == out_.cpu()[s].shape.num_elements());
-
-      auto mean_squared = [](int *start, int *pos, int window_size) {
-        int *ptr = pos - window_size;
-        if (ptr < start)
-          ptr = start;
-        float sum = 0;
-        for (; ptr <= pos; ++ptr) {
-          auto x = *ptr;
-          sum += (x * x);
-        }
-        return sum / window_size;
-      };
 
       for (int64_t i = 0; i < len; i++) {
         ASSERT_NEAR(mean_squared(&in[0], &in[i], window_size), out[i], 1e-5) << "Failed @ " << i;
@@ -158,8 +162,8 @@ TEST(MovingMeanSquareGPU, DISABLED_Benchmark) {
     CUDA_CALL(cudaEventElapsedTime(&time_ms, start, end));
     total_time_ms += time_ms;
   }
-  std::cout << "Bandwidth: " << n_iters * (in_bytes + out_bytes) / (total_time_ms * 1e6) << " GBs/sec"
-            << std::endl;
+  std::cout << "Bandwidth: " << n_iters * (in_bytes + out_bytes) / (total_time_ms * 1e6)
+            << " GBs/sec" << std::endl;
 }
 
 }  // namespace test
