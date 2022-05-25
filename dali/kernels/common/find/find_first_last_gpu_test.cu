@@ -64,9 +64,9 @@ class FindFirstLastTestGPU : public ::testing::Test {
   span<Predicate> predicates{&thresh, 1};
 
   void SetUp() final {
-    int nsamples = 4;
+    int nsamples = 5;
 
-    TensorListShape<> sh = {{5, }, {10, }, {9, }, {7, }};
+    TensorListShape<> sh = {{5, }, {10, }, {9, }, {7, }, {1000, }};
     TensorListShape<0> out_sh(nsamples);
     in_.reshape(sh);
     out_begin_.reshape(out_sh);
@@ -88,6 +88,8 @@ class FindFirstLastTestGPU : public ::testing::Test {
     //                 ^   ^
     // Input 3:  0 1 2 3 2 1 0
     //                 ^^
+    // Input 4:  0 1 2 3 4 5 ... 994 995 996 997 998 999
+    //                 ^                 ^
     ref_begin_.cpu()[0].data[0] = 0;
     ref_length_.cpu()[0].data[0] = 0;
 
@@ -99,6 +101,9 @@ class FindFirstLastTestGPU : public ::testing::Test {
 
     ref_begin_.cpu()[3].data[0] = 3;
     ref_length_.cpu()[3].data[0] = 1;
+
+    ref_begin_.cpu()[4].data[0] = 3;
+    ref_length_.cpu()[4].data[0] = 994;
   }
 
   void RunTest() {

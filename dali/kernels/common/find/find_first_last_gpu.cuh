@@ -86,15 +86,15 @@ struct begin_length {
  */
 template <typename T, typename Predicate, typename OutFormat = first_last>
 __global__ void FindFirstLastImpl(SampleDesc<Predicate> *samples, OutFormat format = {}) {
-  const int64_t blk_size = blockDim.x;
-  const int64_t grid_size = gridDim.x * blk_size;
-
   int sample_idx = blockIdx.y;
   auto &sample = samples[sample_idx];
   const T *input = reinterpret_cast<const T *>(sample.in);
   int64_t sample_len = sample.len;
   auto &predicate = sample.predicate;
-  int tid = threadIdx.x;
+
+  const int64_t blk_size = blockDim.x * blockDim.y;
+  const int64_t grid_size = gridDim.x * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
 
   reductions::min first_reduction;
   reductions::max last_reduction;
@@ -106,7 +106,7 @@ __global__ void FindFirstLastImpl(SampleDesc<Predicate> *samples, OutFormat form
 
   // similar concept as in reduction kernels
 
-  int64_t idx = blockIdx.x * blk_size + tid;
+  int64_t idx = blockIdx.x * blk_size + flat_tid;
   for (; idx < sample_len; idx += grid_size) {
     int64_t tmp_idx = predicate(input[idx]) ? idx : -1;
     int64_t first_candidate = tmp_idx < 0 ? first_reduction.template neutral<int64_t>() : tmp_idx;
@@ -118,7 +118,7 @@ __global__ void FindFirstLastImpl(SampleDesc<Predicate> *samples, OutFormat form
 
   BlockReduce(first, first_reduction);
   BlockReduce(last, last_reduction);
-  if (tid == 0) {
+  if (flat_tid == 0) {
     if (first == first_neutral || last == last_neutral) {
       *sample.a_ptr = 0;
       *sample.b_ptr = 0;
