@@ -62,7 +62,7 @@ the uniform grey.)code",
 
 This is the value that all pixels assume when the contrast is zero. When not set,
 the half of the input type's positive range (or 0.5 for ``float``) is used.)code",
-                    brightness_contrast::HalfRange<float>(), false)
+                    brightness_contrast::HalfRange<float>(), true)
     .AddOptionalTypeArg("dtype",
                     R"code(Output data type.
 
@@ -104,6 +104,7 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   TensorListShape<> sh = input.shape();
   auto num_dims = sh.sample_dim();
   int num_samples = input.shape().num_samples();
+  const auto &contrast_center = GetContrastCenter<InputType>(ws, num_samples);
 
   using Kernel = kernels::MultiplyAddCpu<OutputType, InputType, 3>;
   kernel_manager_.Initialize<Kernel>();
@@ -112,10 +113,9 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
     auto sample_shape = out_shape.tensor_shape_span(sample_id);
     auto vol = volume(sample_shape.begin() + num_dims - 3, sample_shape.end());
     float add, mul;
-    OpArgsToKernelArgs<OutputType, InputType>(add, mul,
-                                              brightness_[sample_id],
-                                              brightness_shift_[sample_id],
-                                              contrast_[sample_id]);
+    OpArgsToKernelArgs<OutputType, InputType>(add, mul, brightness_[sample_id],
+                                              brightness_shift_[sample_id], contrast_[sample_id],
+                                              contrast_center[sample_id]);
     if (num_dims == 4) {
       int num_frames = sample_shape[0];
       for (int frame_id = 0; frame_id < num_frames; frame_id++) {

@@ -16,7 +16,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
 import numpy as np
-from test_utils import compare_pipelines
+from test_utils import compare_pipelines, python_function
 from test_utils import RandomDataIterator
 import random
 
@@ -62,18 +62,17 @@ def bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, o
     return convert_sat(output, out_dtype)
 
 
-def ref_operator(contrast_center, out_dtype):
-    return lambda input, brightness, brightness_shift, contrast: bricon_ref(
-        input, brightness, brightness_shift, contrast, contrast_center, out_dtype)
-
-
 def contrast_param():
     return fn.random.uniform(range=[-1.0, 1.0], seed=123)
 
 
+def contrast_center_param():
+    return fn.random.uniform(range=[0., 1.0], seed=123)
+
+
 def brightness_params():
     return fn.random.uniform(range=[0.0, 5.0], seed=123), \
-           fn.random.uniform(range=[-1.0, 1.0], seed=123)
+        fn.random.uniform(range=[-1.0, 1.0], seed=123)
 
 
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
@@ -88,6 +87,8 @@ def bri_pipe(data_iterator, dtype, dev='cpu'):
 @pipeline_def(num_threads=4, device_id=0, seed=1234)
 def con_pipe(data_iterator, contrast_center, dtype, dev='cpu'):
     contrast = contrast_param()
+    if contrast_center is None:
+        contrast_center = contrast_center_param()
     inp = fn.external_source(source=data_iterator)
     if dev == 'gpu':
         inp = inp.gpu()
@@ -100,6 +101,8 @@ def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev='cpu'):
         brightness, brightness_shift = brightness_params()
     if con:
         contrast = contrast_param()
+    if contrast_center is None:
+        contrast_center = contrast_center_param()
     inp = fn.external_source(source=data_iterator)
     if dev == 'gpu':
         inp = inp.gpu()
@@ -119,20 +122,23 @@ def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev='cpu'):
 def bricon_ref_pipe(data_iterator, contrast_center, dtype, has_3_dims=False):
     brightness, brightness_shift = brightness_params()
     contrast = contrast_param()
+    if contrast_center is None:
+        contrast_center = contrast_center_param()
     inp = fn.external_source(source=data_iterator)
     layout = "FHWC" if has_3_dims else "HWC"
-    return fn.python_function(inp, brightness, brightness_shift, contrast,
-                              function=ref_operator(contrast_center, dali_type_to_np(dtype)),
-                              output_layouts=layout)
+    return python_function(inp, brightness, brightness_shift, contrast, contrast_center, dali_type_to_np(dtype),
+                           function=bricon_ref, output_layouts=layout)
 
 
-def check_equivalence(device, inp_dtype, out_dtype, op, has_3_dims):
+def check_equivalence(device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center):
     batch_size = 32
     n_iters = 16
     shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
     ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
     ri2 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
-    contrast_center = 0.4 * max_range(dali_type_to_np(inp_dtype))
+    contrast_center = None if not use_const_contr_center else 0.4 * \
+        max_range(dali_type_to_np(inp_dtype))
+
     if op == 'brightness':
         pipe1 = bri_pipe(ri1, out_dtype, device, batch_size=batch_size)
     else:
@@ -148,23 +154,26 @@ def check_equivalence(device, inp_dtype, out_dtype, op, has_3_dims):
 
 
 def test_equivalence():
+    rng = random.Random(42)
     for device in ['cpu', 'gpu']:
         for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
             for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
                 for op in ['brightness', 'contrast']:
-                    has_3_dims = random.choice([True, False])
-                    yield check_equivalence, device, inp_dtype, out_dtype, op, has_3_dims
+                    for (has_3_dims, use_const_contr_center) in rng.sample([
+                            (b1, b2) for b1 in [True, False] for b2 in [True, False]], 2):
+                        yield check_equivalence, device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center
 
 
-def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims):
+def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center):
     batch_size = 32
     n_iters = 8
     shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
     ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
     ri2 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
-    contrast_center = 0.4 * max_range(dali_type_to_np(inp_dtype))
-    pipe1 = bricon_ref_pipe(ri1, contrast_center, out_dtype, has_3_dims=has_3_dims,
-                            batch_size=batch_size)
+    contrast_center = None if not use_const_contr_center else 0.4 * \
+        max_range(dali_type_to_np(inp_dtype))
+    pipe1 = bricon_ref_pipe(ri1, contrast_center, out_dtype,
+                            has_3_dims=has_3_dims, batch_size=batch_size)
     pipe2 = bricon_pipe(ri2, contrast_center, True, True, out_dtype, device, batch_size=batch_size)
     if out_dtype in [np.half, np.single, np.double]:
         eps = 1e-4
@@ -174,8 +183,10 @@ def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims):
 
 
 def test_vs_ref():
+    rng = random.Random(42)
     for device in ['cpu', 'gpu']:
         for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
             for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
-                has_3_dims = random.choice([True, False])
-                yield check_vs_ref, device, inp_dtype, out_dtype, has_3_dims
+                for (has_3_dims, use_const_contr_center) in rng.sample([
+                        (b1, b2) for b1 in [True, False] for b2 in [True, False]], 2):
+                    yield check_vs_ref, device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center

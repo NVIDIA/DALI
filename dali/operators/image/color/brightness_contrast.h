@@ -19,12 +19,12 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "dali/core/format.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/core/format.h"
 
 #define BRIGHTNESS_CONTRAST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float)
 
@@ -65,9 +65,6 @@ class BrightnessContrastOp : public Operator<Backend> {
         output_type_(DALI_NO_TYPE),
         input_type_(DALI_NO_TYPE) {
     spec.TryGetArgument(output_type_arg_, "dtype");
-    if (spec.HasArgument("contrast_center"))
-      contrast_center_ = spec.GetArgument<float>("contrast_center");
-
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1);
     } else {
@@ -80,11 +77,9 @@ class BrightnessContrastOp : public Operator<Backend> {
   }
 
   template <typename OutputType, typename InputType>
-  void OpArgsToKernelArgs(float &addend, float &multiplier,
-    float brightness, float brightness_shift, float contrast) {
-    float contrast_center = std::isnan(contrast_center_)
-      ? brightness_contrast::HalfRange<InputType>()
-      : contrast_center_;
+  void OpArgsToKernelArgs(float &addend, float &multiplier, float brightness,
+                          float brightness_shift, float contrast,
+                          float contrast_center) {
     float brightness_range = brightness_contrast::FullRange<OutputType>();
     // The formula is:
     // out = brightness_shift * brightness_range +
@@ -123,8 +118,19 @@ class BrightnessContrastOp : public Operator<Backend> {
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : input_type_;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
+  template <typename InputType>
+  const vector<float> &GetContrastCenter(const workspace_t<Backend> &ws, int num_samples) {
+    if (this->spec_.ArgumentDefined("contrast_center")) {
+      this->GetPerSampleArgument(contrast_center_, "contrast_center", ws, num_samples);
+    } else {
+      // argument cannot stop being defined in a built pipeline,
+      // so just fill in missing samples if needed
+      contrast_center_.resize(num_samples, brightness_contrast::HalfRange<InputType>());
+    }
+    return contrast_center_;
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template Input<Backend>(0);
     const auto &output = ws.template Output<Backend>(0);
     AcquireArguments(ws);
@@ -138,11 +144,10 @@ class BrightnessContrastOp : public Operator<Backend> {
   }
 
   USE_OPERATOR_MEMBERS();
-  std::vector<float> brightness_, brightness_shift_, contrast_;
+  std::vector<float> brightness_, brightness_shift_, contrast_, contrast_center_;
   DALIDataType output_type_arg_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
   DALIDataType input_type_ = DALI_NO_TYPE;
-  float contrast_center_ = std::nanf("");
   kernels::KernelManager kernel_manager_;
 };
 

@@ -635,3 +635,16 @@ def generator_random_axes_for_3d_input(batch_size, use_negative=False, use_empty
 def as_array(tensor):
     import_numpy()
     return np.array(tensor.as_cpu() if isinstance(tensor, TensorGPU) else tensor)
+
+
+def python_function(*inputs, function, **kwargs):
+    node_inputs = [inp for inp in inputs if isinstance(inp, dali.data_node.DataNode)]
+    const_inputs = [inp for inp in inputs if not isinstance(inp, dali.data_node.DataNode)]
+    def wrapper(*exec_inputs):
+        iter_exec_inputs = (inp for inp in exec_inputs)
+        iter_const_inputs = (inp for inp in const_inputs)
+        iteration_inputs = [
+            next(iter_exec_inputs if isinstance(inp, dali.data_node.DataNode) else iter_const_inputs)
+            for inp in inputs]
+        return function(*iteration_inputs)
+    return dali.fn.python_function(*node_inputs, function=wrapper, **kwargs)
