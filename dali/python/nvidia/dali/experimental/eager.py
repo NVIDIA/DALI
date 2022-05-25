@@ -19,7 +19,7 @@ from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
 from nvidia.dali import ops as _ops
 from nvidia.dali import tensors as _tensors
-from nvidia.dali._utils.eager_util import _Classification, _transform_data_to_tensorlist
+from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 
 
 # Classification of eager operators. Operators not assigned to any class are exposed as stateless.
