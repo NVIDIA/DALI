@@ -157,7 +157,7 @@ __global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int logical
   Out *output = sample.out;
   const In *input = sample.in;
   int64_t sample_len = sample.len;
-  int64_t grid_stride = gridDim.x * blockDim.x;
+  int64_t grid_stride = gridDim.x * logical_block;
 
   // Each CUDA block calculates the output for `logical_block` samples, where `logical_block` is
   // typically larger than the CUDA block.
