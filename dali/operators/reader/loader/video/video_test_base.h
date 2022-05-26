@@ -60,6 +60,8 @@ class TestVideo {
 
   void CompareFrameAvgError(int frame_id, const uint8_t *frame, double eps = 1.0);
 
+  bool IsVfr() { return is_vfr_; }
+
   std::vector<cv::Mat> frames_;
   bool is_vfr_ = false;
 };
