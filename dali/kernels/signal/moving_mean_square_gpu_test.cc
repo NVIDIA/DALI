@@ -50,7 +50,7 @@ class MovingMeanSquareGPU : public ::testing::Test {
   /**
    * @brief Naive calculation. Square and sum over a region
    */
-  Out mean_squared(In *start, In *pos, int window_size) {
+  Out naive_moving_mean_square(In *start, In *pos, int window_size) {
     In *ptr = pos - window_size;
     if (ptr < start)
       ptr = start;
@@ -85,7 +85,8 @@ class MovingMeanSquareGPU : public ::testing::Test {
       assert(len == out_.cpu()[s].shape.num_elements());
 
       for (int64_t i = 0; i < len; i++) {
-        ASSERT_NEAR(mean_squared(&in[0], &in[i], window_size), out[i], 1e-5) << "Failed @ " << i;
+        ASSERT_NEAR(naive_moving_mean_square(&in[0], &in[i], window_size), out[i], 1e-5)
+            << "Failed @ " << i;
       }
     }
   }
