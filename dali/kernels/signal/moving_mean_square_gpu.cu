@@ -66,15 +66,13 @@ struct square {
 struct divide {
   divide() = default;
 
-  constexpr DALI_HOST_DEV explicit divide(float divisor) {
-    factor = 1.0f / divisor;
-  }
+  constexpr DALI_HOST_DEV explicit divide(float divisor) : factor(1.0f / divisor) {}
 
   DALI_HOST_DEV DALI_FORCEINLINE float operator()(float x) const noexcept {
     return x * factor;
   }
 
-  float factor = 1.0f;
+  float factor;  // not-initialized in purpose so that it stays trivially constructible.
 };
 
 
