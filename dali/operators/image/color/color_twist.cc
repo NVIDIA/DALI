@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "dali/operators/image/color/color_twist.h"
-#include "dali/pipeline/operator/sequence_utils.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
+#include "dali/pipeline/operator/sequence_utils.h"
 
 namespace dali {
 
@@ -156,12 +156,13 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
     auto planes_range = sequence_utils::unfolded_views_range<ndim - 3>(out_view, in_view);
     const auto &in_range = planes_range.template get<1>();
     for (auto &&views : planes_range) {
-      tp.AddWork([&, i, views](int thread_id) {
-          kernels::KernelContext ctx;
-          auto &[tvout, tvin] = views;
-          kernel_manager_.Run<Kernel>(i, ctx, tvout, tvin,
-                                      tmatrices_[i], toffsets_[i]);
-        }, in_range.SliceSize());
+      tp.AddWork(
+          [&, i, views](int thread_id) {
+            kernels::KernelContext ctx;
+            auto &[tvout, tvin] = views;
+            kernel_manager_.Run<Kernel>(i, ctx, tvout, tvin, tmatrices_[i], toffsets_[i]);
+          },
+          in_range.SliceSize());
     }
   }
   tp.RunAll();
@@ -175,7 +176,7 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
       {
         RunImplHelper<OutputType, InputType, NDim>(ws);
       }
-      ), DALI_FAIL(make_string("Unsupported sample dimensionality: ", input.sample_dim())))
+      ), DALI_FAIL(make_string("Unsupported sample dimensionality: ", input.sample_dim())))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }

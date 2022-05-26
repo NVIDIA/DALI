@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #include "dali/operators/image/color/brightness_contrast.h"
-#include "dali/pipeline/operator/sequence_utils.h"
 #include "dali/kernels/imgproc/pointwise/multiply_add.h"
+#include "dali/pipeline/operator/sequence_utils.h"
 
 namespace dali {
 
@@ -135,7 +135,7 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
       {
         RunImplHelper<OutputType, InputType, NDim>(ws);
       }
-      ), DALI_FAIL(make_string("Unsupported sample dimensionality: ", input.sample_dim())))
+      ), DALI_FAIL(make_string("Unsupported sample dimensionality: ", input.sample_dim())))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }
