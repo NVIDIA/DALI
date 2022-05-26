@@ -18,6 +18,7 @@
 #include <numeric>
 #include <vector>
 #include "dali/core/convert.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/util.h"
 #include "dali/kernels/signal/moving_mean_square.h"
 #include "dali/kernels/signal/moving_mean_square_gpu.h"
@@ -229,8 +230,8 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
 
   int window_len = args.window_size;
 
-  constexpr int kMaxShmBytes = 40 * 1024;
-  constexpr int kMaxShmElements = kMaxShmBytes / sizeof(acc_t<InputType>);
+  int kMaxShmBytes = GetSharedMemPerBlock();
+  int kMaxShmElements = kMaxShmBytes / sizeof(acc_t<InputType>);
 
   // Get a power of two that doesn't exceed the desired maximum shared memory size
   int pow2 = prev_pow2(kMaxShmElements * SHARED_MEMORY_BANKS / (SHARED_MEMORY_BANKS + 1));
@@ -243,7 +244,6 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
 
   int shm_sz = shm_pos(pow2) * sizeof(acc_t<InputType>);
   int logical_block = pow2 - window_len;
-
   // Note: logical_block==1 is very wasteful, but better than failing
   assert(logical_block > 0);
 
