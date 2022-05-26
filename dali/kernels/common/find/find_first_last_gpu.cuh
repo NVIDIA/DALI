@@ -53,6 +53,10 @@ struct first_last {
   DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
     return x;
   }
+
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_i64 neutral() const noexcept {
+    return {-1, -1};
+  }
 };
 
 /**
@@ -61,6 +65,10 @@ struct first_last {
 struct begin_end {
   DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
     return {x.a, x.b + 1};
+  }
+
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_i64 neutral() const noexcept {
+    return {0, 0};  // empty range
   }
 };
 
@@ -71,10 +79,15 @@ struct begin_length {
   DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
     return {x.a, x.b - x.a + 1};
   }
+
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_i64 neutral() const noexcept {
+    return {0, 0};  // empty range
+  }
 };
 
 /**
- * @brief Extract the position of the first and last position that satisfies a predicate
+ * @brief Extract the position of the first and last position (or a derived representation) that
+ * satisfies a predicate
  *
  * @remarks Calculates a double reduction (min, max) in one go
  *
@@ -119,14 +132,10 @@ __global__ void FindFirstLastImpl(SampleDesc<T, Predicate> *samples, OutFormat f
   BlockReduce(first, first_reduction);
   BlockReduce(last, last_reduction);
   if (flat_tid == 0) {
-    if (first == first_neutral || last == last_neutral) {
-      *sample.a_ptr = 0;
-      *sample.b_ptr = 0;
-    } else {
-      auto tmp = format(pair_i64{first, last});
-      *sample.a_ptr = tmp.a;
-      *sample.b_ptr = tmp.b;
-    }
+    auto tmp =
+        (first == first_neutral || last == last_neutral) ? format.neutral() : format({first, last});
+    *sample.a_ptr = tmp.a;
+    *sample.b_ptr = tmp.b;
   }
 }
 
@@ -156,7 +165,6 @@ class FindFirstLastGPU {
     int nsamples = in.shape.num_samples();
     auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc<T, Predicate>>(nsamples);
 
-    int64_t max_len;
     for (int i = 0; i < nsamples; i++) {
       auto &sample = sample_descs_cpu[i];
       sample.a_ptr = begin[i].data;
@@ -167,7 +175,6 @@ class FindFirstLastGPU {
       sample.predicate = predicates.empty()     ? Predicate{} :
                          predicates.size() == 1 ? predicates[0] :
                                                   predicates[i];
-      max_len = std::max(sample.len, max_len);
     }
     auto *sample_descs_gpu =
         ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));

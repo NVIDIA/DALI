@@ -66,7 +66,8 @@ class FindFirstLastTestGPU : public ::testing::Test {
   void SetUp() final {
     int nsamples = 5;
 
-    TensorListShape<> sh = {{5, }, {10, }, {9, }, {7, }, {1000, }};
+    // 1500 chosen so that it doesn't fit one CUDA block (32*32)
+    TensorListShape<> sh = {{5, }, {10, }, {9, }, {7, }, {1500, }};
     TensorListShape<0> out_sh(nsamples);
     in_.reshape(sh);
     out_begin_.reshape(out_sh);
@@ -88,8 +89,8 @@ class FindFirstLastTestGPU : public ::testing::Test {
     //                 ^   ^
     // Input 3:  0 1 2 3 2 1 0
     //                 ^^
-    // Input 4:  0 1 2 3 4 5 ... 994 995 996 997 998 999
-    //                 ^                 ^
+    // Input 4:  0 1 2 3 4 5 ... 1494 1495 1496 1497 1498 1499
+    //                 ^                   ^
     ref_begin_.cpu()[0].data[0] = 0;
     ref_length_.cpu()[0].data[0] = 0;
 
@@ -103,7 +104,7 @@ class FindFirstLastTestGPU : public ::testing::Test {
     ref_length_.cpu()[3].data[0] = 1;
 
     ref_begin_.cpu()[4].data[0] = 3;
-    ref_length_.cpu()[4].data[0] = 994;
+    ref_length_.cpu()[4].data[0] = 1494;
   }
 
   void RunTest() {
