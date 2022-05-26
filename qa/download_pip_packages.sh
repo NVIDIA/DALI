@@ -10,7 +10,7 @@ do
     # check all test files inside
     for test_file in $(ls -f *.sh);
     do
-        export pip_packages=''
+        export pip_packages=""
         echo "Checking file: " ${test_file}
         source ${test_file}
         echo "PIPs to install: " ${pip_packages}
