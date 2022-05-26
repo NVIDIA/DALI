@@ -74,7 +74,7 @@ struct divide {
     return x * factor;
   }
 
-  float factor = 1.0f;
+  float factor;  // not-initialized in purpose so that it stays trivially constructible.
 };
 
 
