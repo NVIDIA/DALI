@@ -212,7 +212,7 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
  protected:
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
-  template <typename OutputType, typename InputType>
+  template <typename OutputType, typename InputType, int ndim>
   void RunImplHelper(workspace_t<CPUBackend> &ws);
 };
 

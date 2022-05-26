@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/image/color/color_twist.h"
+#include "dali/pipeline/operator/sequence_utils.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
 
 namespace dali {
@@ -139,8 +140,7 @@ DALI_REGISTER_OPERATOR(Hue, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
 
-
-template <typename OutputType, typename InputType>
+template <typename OutputType, typename InputType, int ndim>
 void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
@@ -148,33 +148,20 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
   using Kernel = kernels::LinearTransformationCpu<OutputType, InputType, 3, 3, 3>;
-  TensorListShape<> sh = input.shape();
-  auto num_dims = sh.sample_dim();
-  assert(num_dims == 3 || num_dims == 4);
-  int num_samples = input.shape().num_samples();
+  int num_samples = input.num_samples();
   kernel_manager_.template Resize<Kernel>(num_samples);
   for (int i = 0; i < num_samples; i++) {
-    auto sample_shape = out_shape.tensor_shape_span(i);
-    auto vol = volume(sample_shape.begin() + num_dims - 3, sample_shape.end());
-    if (num_dims == 4) {
-      int num_frames = sample_shape[0];
-      for (int frame_id = 0; frame_id < num_frames; frame_id++) {
-        tp.AddWork([&, i, frame_id](int thread_id) {
+    auto in_view = view<const InputType, ndim>(input[i]);
+    auto out_view = view<OutputType, ndim>(output[i]);
+    auto planes_range = sequence_utils::unfolded_views_range<ndim - 3>(out_view, in_view);
+    const auto &in_range = planes_range.template get<1>();
+    for (auto &&views : planes_range) {
+      tp.AddWork([&, i, views](int thread_id) {
           kernels::KernelContext ctx;
-          auto tvin = subtensor(view<const InputType, 4>(input[i]), frame_id);
-          auto tvout = subtensor(view<OutputType, 4>(output[i]), frame_id);
+          auto &[tvout, tvin] = views;
           kernel_manager_.Run<Kernel>(i, ctx, tvout, tvin,
                                       tmatrices_[i], toffsets_[i]);
-        }, vol);
-      }
-    } else {
-      tp.AddWork([&, i](int thread_id) {
-        kernels::KernelContext ctx;
-        auto tvin = view<const InputType, 3>(input[i]);
-        auto tvout = view<OutputType, 3>(output[i]);
-        kernel_manager_.Run<Kernel>(i, ctx, tvout, tvin,
-                                    tmatrices_[i], toffsets_[i]);
-      }, vol);
+        }, in_range.SliceSize());
     }
   }
   tp.RunAll();
@@ -184,9 +171,11 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
+      VALUE_SWITCH(input.sample_dim(), NDim, (3, 4), (
       {
-        RunImplHelper<OutputType, InputType>(ws);
+        RunImplHelper<OutputType, InputType, NDim>(ws);
       }
+      ), DALI_FAIL(make_string("Unsupported sample dimensionality: ", input.sample_dim())))
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }
