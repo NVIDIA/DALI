@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='nose numpy'
+pip_packages='${python_test_runner_package} numpy'
 target_dir=./dali/test/python
 
 # populate epilog and prolog with variants to enable/disable conda

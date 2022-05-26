@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='nose tensorflow-gpu'
+pip_packages='${python_test_runner_package} tensorflow-gpu'
 target_dir=./dali/test/python
 
 test_body() {

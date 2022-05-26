@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages='nose numpy'
+pip_packages='${python_test_runner_package} numpy'
 target_dir=./docs/examples/sequence_processing/video
 
 do_once() {
