@@ -26,6 +26,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 
 #define COLOR_TWIST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float, float16)
 
@@ -85,7 +86,7 @@ inline mat3 sat_mat(float saturation) {
 
 
 template <typename Backend>
-class ColorTwistBase : public Operator<Backend> {
+class ColorTwistBase : public SequenceOperator<Backend> {
  public:
   ~ColorTwistBase() override = default;
 
@@ -93,18 +94,20 @@ class ColorTwistBase : public Operator<Backend> {
 
  protected:
   explicit ColorTwistBase(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : SequenceOperator<Backend>(spec),
         output_type_(DALI_NO_TYPE) {
     spec.TryGetArgument(output_type_arg_, color::kOutputType);
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1);
-    } else {
-      kernel_manager_.Resize(max_batch_size_);
-    }
   }
 
   bool CanInferOutputs() const override {
     return true;
+  }
+
+  // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
+  // the number of samples and parameters unnecessarily for FHWC when there are no
+  // per-frame parameters provided.
+  bool ShouldExpand(const workspace_t<Backend> &ws) override {
+    return SequenceOperator<Backend>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
   }
 
   void AcquireArguments(const workspace_t<Backend> &ws) {
@@ -171,7 +174,6 @@ class ColorTwistBase : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
                  const workspace_t<Backend> &ws) override {
     const auto &input = ws.template Input<Backend>(0);
-    const auto &output = ws.template Output<Backend>(0);
     DetermineTransformation(ws);
     auto sh = input.shape();
     assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
@@ -201,7 +203,7 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl`
    * is only partially overridden in class `dali::ColorTwistCpu`"
    */
-  using Operator<CPUBackend>::RunImpl;
+  using SequenceOperator<CPUBackend>::RunImpl;
 
   ~ColorTwistCpu() override = default;
 

@@ -54,7 +54,7 @@ void BrightnessContrastGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   using Kernel = kernels::MultiplyAddGpu<OutputType, InputType, 3>;
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
-  kernel_manager_.Initialize<Kernel>();
+  kernel_manager_.template Resize<Kernel>(1);
 
   kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
   kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, addends_, multipliers_);

@@ -37,13 +37,13 @@ and restored to the original color space.)code")
 
 The hue component can be interpreted as an angle and values outside 0-360 range wrap around, as
 they would in case of rotation.)code",
-                    0.0f, true)
+                    0.0f, true, true)
     .AddOptionalArg(color::kSaturation,
                     R"code(The saturation multiplier.)code",
-                    1.0f, true)
+                    1.0f, true, true)
     .AddOptionalArg(color::kValue,
                     R"code(The value multiplier.)code",
-                    1.0f, true)
+                    1.0f, true, true)
     .AddOptionalTypeArg(color::kOutputType, R"code(The output data type.
 
 If a value is not set, the input type is used.)code",
@@ -66,8 +66,7 @@ DALI_SCHEMA(Hue)
     .DocStr(R"code(Changes the hue level of the image.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("hue",
-        R"code(The hue change in degrees.)code", 0.f, true)
+    .AddOptionalArg("hue", R"code(The hue change in degrees.)code", 0.f, true, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
@@ -86,7 +85,7 @@ Example values:
 
 - `0` - Completely desaturated image.
 - `1` - No change to image's saturation.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
@@ -96,8 +95,7 @@ DALI_SCHEMA(ColorTwist)
     .DocStr(R"code(Adjusts hue, saturation, brightness and contrast of the image.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("hue",
-        R"code(Hue change, in degrees.)code", 0.f, true)
+    .AddOptionalArg("hue", R"code(Hue change, in degrees.)code", 0.f, true, true)
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
 
@@ -107,7 +105,7 @@ Example values:
 
 - `0` - Completely desaturated image.
 - `1` - No change to image's saturation.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
@@ -118,7 +116,7 @@ Example values:
 * `0` - Uniform grey image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
 
@@ -129,7 +127,7 @@ Example values:
 * `0` - Black image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
@@ -150,11 +148,11 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
   using Kernel = kernels::LinearTransformationCpu<OutputType, InputType, 3, 3, 3>;
-  kernel_manager_.Initialize<Kernel>();
   TensorListShape<> sh = input.shape();
   auto num_dims = sh.sample_dim();
   assert(num_dims == 3 || num_dims == 4);
   int num_samples = input.shape().num_samples();
+  kernel_manager_.template Resize<Kernel>(num_samples);
   for (int i = 0; i < num_samples; i++) {
     auto sample_shape = out_shape.tensor_shape_span(i);
     auto vol = volume(sample_shape.begin() + num_dims - 3, sample_shape.end());

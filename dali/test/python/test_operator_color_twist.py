@@ -19,6 +19,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
 from test_utils import RandomDataIterator
+from sequences_test_utils import ArgCb, video_suite_helper
 import random
 
 
@@ -141,3 +142,35 @@ def test_color_twist():
         for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
             has_3_dims = random.choice([False, True])
             yield check_ref, inp_dtype, out_dtype, has_3_dims
+
+
+def test_video():
+    def hue(sample_desc):
+        return np.float32(360 * sample_desc.rng.random())
+
+    def saturation(sample_desc):
+        return np.float32(sample_desc.rng.random())
+
+    def value(sample_desc):
+        return np.float32(sample_desc.rng.random())
+
+    def contrast(sample_desc):
+        return np.float32(2 * sample_desc.rng.random())
+
+    def brightness(sample_desc):
+        return np.float32(2 * sample_desc.rng.random())
+
+    video_test_cases = [
+        (fn.hue, {}, [ArgCb("hue", hue, True)]),
+        (fn.saturation, {}, [ArgCb("saturation", saturation, True)]),
+        (fn.hsv, {}, [ArgCb("hue", hue, True), ArgCb(
+            "saturation", saturation, True), ArgCb("value", value, True)]),
+        (fn.hsv, {}, [ArgCb("hue", hue, False), ArgCb(
+            "saturation", saturation, True), ArgCb("value", value, False)]),
+        (fn.color_twist, {}, [ArgCb("brightness", brightness, True), ArgCb("hue", hue, True), ArgCb(
+            "saturation", saturation, True), ArgCb("contrast", contrast, True), ]),
+        (fn.color_twist, {}, [
+         ArgCb("brightness", brightness, True), ArgCb("hue", hue, False)]),
+    ]
+
+    yield from video_suite_helper(video_test_cases, test_channel_first=False)

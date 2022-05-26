@@ -66,15 +66,17 @@ class BrightnessContrastOp : public SequenceOperator<Backend> {
         output_type_(DALI_NO_TYPE),
         input_type_(DALI_NO_TYPE) {
     spec.TryGetArgument(output_type_arg_, "dtype");
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1);
-    } else {
-      kernel_manager_.Resize(max_batch_size_);
-    }
   }
 
   bool CanInferOutputs() const override {
     return true;
+  }
+
+  // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
+  // the number of samples and parameters unnecessarily for FHWC when there are no
+  // per-frame parameters provided.
+  bool ShouldExpand(const workspace_t<Backend> &ws) override {
+    return SequenceOperator<Backend>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
   }
 
   template <typename OutputType, typename InputType>

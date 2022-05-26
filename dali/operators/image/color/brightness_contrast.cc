@@ -107,7 +107,7 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   const auto &contrast_center = GetContrastCenter<InputType>(ws, num_samples);
 
   using Kernel = kernels::MultiplyAddCpu<OutputType, InputType, 3>;
-  kernel_manager_.Initialize<Kernel>();
+  kernel_manager_.template Resize<Kernel>(1);
 
   for (int sample_id = 0; sample_id < num_samples; sample_id++) {
     auto sample_shape = out_shape.tensor_shape_span(sample_id);
