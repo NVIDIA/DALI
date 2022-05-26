@@ -435,13 +435,13 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                         "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
                         { "100" : [
-                              PckgVer("1.15.5", python_max_ver="3.7"),
-                              PckgVer("2.3.4", python_max_ver="3.8")],
+                              PckgVer("1.15.5", python_max_ver="3.7", dependencies=["protobuf<4"]),
+                              PckgVer("2.3.4", python_max_ver="3.8", dependencies=["protobuf<4"])],
                           "110" : [
-                              PckgVer("1.15.5", python_max_ver="3.7"),
-                              PckgVer("2.8.1", python_min_ver="3.7"),
-                              PckgVer("2.9.0", python_min_ver="3.7"),
-                              PckgVer("1.15.5+nv22.03", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow")]
+                              PckgVer("1.15.5", python_max_ver="3.7", dependencies=["protobuf<4"]),
+                              PckgVer("2.8.1", python_min_ver="3.7", dependencies=["protobuf<4"]),
+                              PckgVer("2.9.0", python_min_ver="3.7", dependencies=["protobuf<4"]),
+                              PckgVer("1.15.5+nv22.03", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow", dependencies=["protobuf<4"])]
                         }),
                 CudaPackageExtraIndex("torch",
                         { "101" : ["1.8.0"],
