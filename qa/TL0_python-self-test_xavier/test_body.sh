@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-test_nose() {
+test_py_with_framework() {
     # we are not able to easily install this packages in xavier for aarch64 so filter it out
     # also there is no nvJPEG on xavier so don't run any test with the ImageDecoder having
     # the device explicitly set
@@ -30,7 +30,7 @@ test_py() {
 }
 
 test_no_fw() {
-    test_nose
+    test_py_with_framework
     test_py
 }
 

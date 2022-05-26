@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-test_nose() {
+test_py_with_framework() {
     # Note that we do not filter '!numba' below as it is installed as dependency
     for test_script in $(ls test_pipeline*.py \
                             test_triton_autoserialize.py \
@@ -25,7 +25,7 @@ test_pytorch() {
 }
 
 test_no_fw() {
-    test_nose
+    test_py_with_framework
     test_py
 }
 

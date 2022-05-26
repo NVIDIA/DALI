@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-test_nose() {
+test_py_with_framework() {
     # numpy seems to be extremly slow with sanitizers to dissable it
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
           FILTER_PATTERN="test_operator_readers_numpy.py\|test_external_source_parallel.py\|test_external_source_parallel_custom_serialization\|test_external_source_parallel_garbage_collection_order"
@@ -20,7 +20,7 @@ test_nose() {
 }
 
 test_no_fw() {
-    test_nose
+    test_py_with_framework
 }
 
 run_all() {

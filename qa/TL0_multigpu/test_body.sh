@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-test_nose() {
+test_py_with_framework() {
   # placeholder function
   :
 }
@@ -45,7 +45,7 @@ test_pytorch() {
 }
 
 test_no_fw() {
-    test_nose
+    test_py_with_framework
     test_py
     test_gtest
 }

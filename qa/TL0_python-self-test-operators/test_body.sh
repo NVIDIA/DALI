@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-test_nose() {
+test_py_with_framework() {
     # readers and decoders are tested in the TL0_python-self-test-core
     FILTER_PATTERN="test_operator_readers_.*\.py\|test_operator_decoders_.*\.py"
 
@@ -10,7 +10,7 @@ test_nose() {
 }
 
 test_no_fw() {
-    test_nose
+    test_py_with_framework
 }
 
 run_all() {
