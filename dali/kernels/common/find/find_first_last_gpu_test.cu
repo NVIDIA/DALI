@@ -52,12 +52,13 @@ void SequentialFillBothEnds(T* data, int64_t data_len, T start_value) {
 class FindFirstLastTestGPU : public ::testing::Test {
  public:
   using T = float;
+  using Idx = int64_t;
   TestTensorList<T> in_;
-  TestTensorList<int64_t> out_begin_;
-  TestTensorList<int64_t> out_length_;
+  TestTensorList<Idx> out_begin_;
+  TestTensorList<Idx> out_length_;
 
-  TestTensorList<int64_t> ref_begin_;
-  TestTensorList<int64_t> ref_length_;
+  TestTensorList<Idx> ref_begin_;
+  TestTensorList<Idx> ref_length_;
 
   using Predicate = threshold<T>;
   Predicate thresh{3};
@@ -118,7 +119,8 @@ class FindFirstLastTestGPU : public ::testing::Test {
     auto in = in_.gpu().to_static<1>();
 
     FindFirstLastGPU kernel;
-    kernel.template Run<T, Predicate, begin_length>(ctx, out_begin, out_length, in, predicates);
+    kernel.template Run<T, Idx, Predicate, begin_length<Idx>>(ctx, out_begin, out_length, in,
+                                                              predicates);
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
     int nsamples = in.size();
@@ -133,6 +135,7 @@ class FindFirstLastTestGPU : public ::testing::Test {
 
   void RunPerf() {
     using T = float;
+    using Idx = int64_t;
     int nsamples = 64;
     int n_iters = 1000;
 
@@ -152,7 +155,7 @@ class FindFirstLastTestGPU : public ::testing::Test {
     TestTensorList<T> in_data;
     in_data.reshape(sh);
 
-    TestTensorList<int64_t> out_begin_, out_length_;
+    TestTensorList<Idx> out_begin_, out_length_;
     out_begin_.reshape(out_sh);
     out_length_.reshape(out_sh);
 
@@ -185,7 +188,8 @@ class FindFirstLastTestGPU : public ::testing::Test {
 
       CUDA_CALL(cudaEventRecord(start));
 
-      kernel.template Run<T, Predicate>(ctx, out_begin, out_length, in, predicates);
+      kernel.template Run<T, Idx, Predicate, begin_length<Idx>>(ctx, out_begin, out_length, in,
+                                                                predicates);
 
       CUDA_CALL(cudaEventRecord(end));
       CUDA_CALL(cudaDeviceSynchronize());
