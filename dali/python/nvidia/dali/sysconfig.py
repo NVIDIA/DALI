@@ -14,15 +14,18 @@
 
 import os
 
+
 def get_include_dir():
     """Get the path to the directory containing C++ header files.
 
     Returns:
         String representing the path to the include directory
     """
-    # Import inside the function to avoid circular import as dali imports sysconfig
+    # Import inside the function to avoid circular import as dali imports
+    # sysconfig
     import nvidia.dali as dali
     return os.path.join(os.path.dirname(dali.__file__), 'include')
+
 
 def get_lib_dir():
     """Get the path to the directory containing DALI library.
@@ -32,6 +35,7 @@ def get_lib_dir():
     """
     import nvidia.dali as dali
     return os.path.dirname(dali.__file__)
+
 
 def get_include_flags():
     """Get the include flags for custom operators
@@ -44,6 +48,7 @@ def get_include_flags():
     flags.append('-I%s' % get_include_dir())
     return flags
 
+
 def get_compile_flags():
     """Get the compilation flags for custom operators
 
@@ -53,8 +58,9 @@ def get_compile_flags():
     import nvidia.dali.backend as b
     flags = []
     flags.append('-I%s' % get_include_dir())
-    flags.append('-D_GLIBCXX_USE_CXX11_ABI=%d' % b.GetCxx11AbiFlag() )
+    flags.append('-D_GLIBCXX_USE_CXX11_ABI=%d' % b.GetCxx11AbiFlag())
     return flags
+
 
 def get_link_flags():
     """Get the link flags for custom operators

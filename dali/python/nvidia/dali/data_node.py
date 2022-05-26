@@ -18,6 +18,7 @@ import sys
 from . import _utils
 from ._utils import hacks
 
+
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
     # Fully circular imports don't work. We need to import _arithm_op late and
@@ -25,8 +26,9 @@ def _arithm_op(*args, **kwargs):
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
     return nvidia.dali.ops._arithm_op(*args, **kwargs)
 
+
 class _NewAxis:
-    def __init__(self, name = None):
+    def __init__(self, name=None):
         if name is not None:
             if not isinstance(name, str):
                 raise TypeError("Axis name must be a single-character string")
@@ -38,10 +40,12 @@ class _NewAxis:
     def name(self):
         return self._name
 
-    def __call__(self, name = None):
+    def __call__(self, name=None):
         return _NewAxis(name)
 
+
 newaxis = _NewAxis()
+
 
 class DataNode(object):
     """This class is a symbolic representation of a TensorList and is used at graph definition
@@ -52,6 +56,7 @@ class DataNode(object):
     arguments) but they also provide arithmetic operations which implicitly create appropriate
     operators that perform the expressions.
     """
+
     def __init__(self, name, device="cpu", source=None):
         self.name = name
         self.device = device
@@ -70,31 +75,37 @@ class DataNode(object):
 
     def __add__(self, other):
         return _arithm_op("add", self, other)
+
     def __radd__(self, other):
         return _arithm_op("add", other, self)
 
     def __sub__(self, other):
         return _arithm_op("sub", self, other)
+
     def __rsub__(self, other):
         return _arithm_op("sub", other, self)
 
     def __mul__(self, other):
         return _arithm_op("mul", self, other)
+
     def __rmul__(self, other):
         return _arithm_op("mul", other, self)
 
     def __pow__(self, other):
         return _arithm_op("pow", self, other)
+
     def __rpow__(self, other):
         return _arithm_op("pow", other, self)
 
     def __truediv__(self, other):
         return _arithm_op("fdiv", self, other)
+
     def __rtruediv__(self, other):
         return _arithm_op("fdiv", other, self)
 
     def __floordiv__(self, other):
         return _arithm_op("div", self, other)
+
     def __rfloordiv__(self, other):
         return _arithm_op("div", other, self)
 
@@ -125,26 +136,30 @@ class DataNode(object):
 
     def __and__(self, other):
         return _arithm_op("bitand", self, other)
+
     def __rand__(self, other):
         return _arithm_op("bitand", other, self)
 
     def __or__(self, other):
         return _arithm_op("bitor", self, other)
+
     def __ror__(self, other):
         return _arithm_op("bitor", other, self)
 
     def __xor__(self, other):
         return _arithm_op("bitxor", self, other)
+
     def __rxor__(self, other):
         return _arithm_op("bitxor", other, self)
 
     def __bool__(self):
-        raise TypeError(("\"DataNode\" is a symbolic representation of TensorList used for defining"
-                " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
-                " in regular Python context. Bool conversion in Pipeline can be achieved"
-                " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
-                " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
-                " section of DALI documentation."))
+        raise TypeError(
+            ("\"DataNode\" is a symbolic representation of TensorList used for defining"
+             " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
+             " in regular Python context. Bool conversion in Pipeline can be achieved"
+             " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
+             " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
+             " section of DALI documentation."))
 
     def __getitem__(self, val):
         idxs = []
@@ -158,7 +173,8 @@ class DataNode(object):
                 return True
             elif isinstance(idx, slice):
                 if idx.step is not None and idx.step != 1:
-                    raise NotImplementedError("Slicing with non-unit step is not implemented.")
+                    raise NotImplementedError(
+                        "Slicing with non-unit step is not implemented.")
                 idxs.append((None, idx.start, idx.stop, None))
                 return True
             elif isinstance(idx, _NewAxis):
@@ -167,7 +183,8 @@ class DataNode(object):
                     new_axis_names.append(idx.name)
                 return True
             elif idx is Ellipsis:
-                raise NotImplementedError("Ellipsis in indexing is not implemented")
+                raise NotImplementedError(
+                    "Ellipsis in indexing is not implemented")
             elif isinstance(idx, (float, str)):
                 raise TypeError("Invalid type for an index: ", type)
             else:
@@ -183,17 +200,22 @@ class DataNode(object):
 
         if len(new_axis_names) != 0:
             if len(new_axis_names) != len(new_axes):
-                raise ValueError("New axis name must be specified for all axes or none.");
+                raise ValueError(
+                    "New axis name must be specified for all axes or none.")
             new_axis_names = "".join(new_axis_names)
         else:
             new_axis_names = None
 
         slice_args = {}
         for i, (at, lo, hi, step) in enumerate(idxs):
-            if at   is not None: slice_args["at_%i"%i] = at
-            if lo   is not None: slice_args["lo_%i"%i] = lo
-            if hi   is not None: slice_args["hi_%i"%i] = hi
-            if step is not None: slice_args["step_%i"%i] = step
+            if at is not None:
+                slice_args["at_%i" % i] = at
+            if lo is not None:
+                slice_args["lo_%i" % i] = lo
+            if hi is not None:
+                slice_args["hi_%i" % i] = hi
+            if step is not None:
+                slice_args["step_%i" % i] = step
 
         import nvidia.dali.fn
         if len(slice_args) == 0:
@@ -205,18 +227,24 @@ class DataNode(object):
             if len(new_axes) > 0 and isinstance(val[-1], _NewAxis):
                 sliced = self  # no check needed, ExpandDims will do the trick
             else:
-                sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
+                sliced = nvidia.dali.fn.subscript_dim_check(
+                    self, num_subscripts=len(idxs))
         else:
-            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
+            sliced = nvidia.dali.fn.tensor_subscript(
+                self, **slice_args, num_subscripts=len(idxs))
         if len(new_axes) == 0:
             return sliced
         else:
-            return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
+            return nvidia.dali.fn.expand_dims(
+                sliced, axes=new_axes, new_axis_names=new_axis_names)
+
 
 _utils.hacks.not_iterable(DataNode)
 
+
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
-        raise TypeError(("Expected outputs of type compatible with \"DataNode\"."
-                " Received output type with name \"{}\" that does not match.")
-                .format(type(maybe_node).__name__))
+        raise TypeError(
+            ("Expected outputs of type compatible with \"DataNode\"."
+             " Received output type with name \"{}\" that does not match.") .format(
+                type(maybe_node).__name__))

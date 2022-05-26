@@ -13,20 +13,23 @@
 # limitations under the License.
 
 #pylint: disable=no-member
+from nvidia.dali.external_source import external_source
 import sys
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
 
 _special_case_mapping = {
-    "b_box" : "bbox",
-    "mx_net" : "mxnet",
-    "tf_record" : "tfrecord"
+    "b_box": "bbox",
+    "mx_net": "mxnet",
+    "tf_record": "tfrecord"
 }
+
 
 def _handle_special_case(s):
     for artifact, desired in _special_case_mapping.items():
         s = s.replace(artifact, desired)
     return s
+
 
 def _to_snake_case(pascal):
     out = ""
@@ -44,13 +47,13 @@ def _to_snake_case(pascal):
                 if len(out) > 0:
                     out += '_'
                 if nupper > 1:
-                    out += pascal[start:i-1].lower() + '_'
-                out += pascal[i-1].lower()
+                    out += pascal[start:i - 1].lower() + '_'
+                out += pascal[i - 1].lower()
                 out += c
                 nupper = 0
-            start = i+1
+            start = i + 1
         else:
-            out += pascal[start:i+1].lower()
+            out += pascal[start:i + 1].lower()
             start = i + 1
             nupper = 0
 
@@ -61,6 +64,7 @@ def _to_snake_case(pascal):
     out = _handle_special_case(out)
     return out
 
+
 def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def op_wrapper(*inputs, **kwargs):
         import nvidia.dali.ops
@@ -68,7 +72,8 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
 
         default_dev = nvidia.dali.ops._choose_device(inputs)
         if default_dev == "gpu" and init_args.get("device") == "cpu":
-            raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
+            raise ValueError(
+                "An operator with device='cpu' cannot accept GPU inputs.")
 
         if "device" not in init_args:
             init_args["device"] = default_dev
@@ -79,7 +84,8 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
         from nvidia.dali._debug_mode import _PipelineDebug
         current_pipeline = _PipelineDebug.current()
         if getattr(current_pipeline, '_debug_on', False):
-            return current_pipeline._wrap_op_call(op_class, wrapper_name, *inputs, **kwargs)
+            return current_pipeline._wrap_op_call(
+                op_class, wrapper_name, *inputs, **kwargs)
         else:
             return op_wrapper(*inputs, **kwargs)
 
@@ -88,6 +94,7 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     fn_wrapper.__doc__ = wrapper_doc
     fn_wrapper._schema_name = op_class.schema_name
     return fn_wrapper
+
 
 def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     """Wrap the DALI Operator with fn API and insert the function into appropriate module.
@@ -123,6 +130,5 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
             setattr(parent_module, wrapper_name, wrap_func)
 
 
-from nvidia.dali.external_source import external_source
 external_source.__module__ = __name__
 external_source._schema_name = "ExternalSource"

@@ -69,7 +69,7 @@ def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
             self._spec.AddArg('max_batch_size', max_batch_size)
 
             for i in range(num_inputs):
-                self._spec.AddInput(op_name+f'[{i}]', self._device)
+                self._spec.AddInput(op_name + f'[{i}]', self._device)
 
             for arg_name in call_args_names:
                 self._spec.AddArgumentInput(arg_name, '')
@@ -88,7 +88,12 @@ def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
 
 
 def _stateless_op_factory(op_class, op_name, num_inputs, call_args_names):
-    class EagerOperator(_eager_op_base_factory(op_class, op_name, num_inputs, call_args_names)):
+    class EagerOperator(
+        _eager_op_base_factory(
+            op_class,
+            op_name,
+            num_inputs,
+            call_args_names)):
         def __call__(self, inputs, kwargs):
             # Here all kwargs are supposed to be TensorLists.
             output = self._backend_op(inputs, kwargs)
@@ -127,7 +132,8 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         device_id = 0
 
     if device == 'cpu' and input_device == 'gpu':
-        raise ValueError("An operator with device='cpu' cannot accept GPU inputs.")
+        raise ValueError(
+            "An operator with device='cpu' cannot accept GPU inputs.")
 
     if device != 'cpu' and device != 'gpu':
         raise ValueError(f"Incorrect device type '{device}'.")
@@ -136,7 +142,8 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
         if op_name in _ops._mixed_ops:
             device = 'mixed'
         else:
-            raise ValueError(f"Operator '{wrapper_name}' not registered for mixed.")
+            raise ValueError(
+                f"Operator '{wrapper_name}' not registered for mixed.")
 
     return device, device_id
 
@@ -144,7 +151,8 @@ def _choose_device(op_name, wrapper_name, inputs, device_param):
 def _disqualify_arguments(op_name, kwargs, disqualified_args):
     for key in disqualified_args:
         if key in kwargs:
-            raise RuntimeError(f"Argument '{key}' is not supported by eager operator '{op_name}'.")
+            raise RuntimeError(
+                f"Argument '{key}' is not supported by eager operator '{op_name}'.")
 
 
 def _choose_batch_size(inputs, batch_size):
@@ -171,7 +179,10 @@ def _prep_inputs(inputs, batch_size):
     inputs = list(inputs)
 
     for i, input in enumerate(inputs):
-        if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
+        if not isinstance(
+            input,
+            (_tensors.TensorListCPU,
+             _tensors.TensorListGPU)):
             inputs[i] = _transform_data_to_tensorlist(input, batch_size)
 
     return inputs
@@ -179,7 +190,8 @@ def _prep_inputs(inputs, batch_size):
 
 def _prep_kwargs(kwargs, batch_size):
     for key, value in kwargs.items():
-        kwargs[key] = _Classification(value, f'Argument {key}', arg_constant_len=batch_size).data
+        kwargs[key] = _Classification(
+            value, f'Argument {key}', arg_constant_len=batch_size).data
 
     return kwargs
 
@@ -187,8 +199,13 @@ def _prep_kwargs(kwargs, batch_size):
 def _desc_call_args(inputs, args):
     """Returns string description of call arguments (inputs and input arguments) to use as part of
     the caching key."""
-    return str([(inp.dtype, inp.layout(), len(inp[0].shape())) for inp in inputs]) + str(sorted(
-        [(key, value.dtype, value.layout(), len(value[0].shape())) for key, value in args.items()]))
+    return str([(inp.dtype,
+                 inp.layout(),
+                 len(inp[0].shape())) for inp in inputs]) + str(sorted([(key,
+                                                                         value.dtype,
+                                                                         value.layout(),
+                                                                         len(value[0].shape())) for key,
+                                                                        value in args.items()]))
 
 
 def _wrap_stateless(op_class, op_name, wrapper_name):
@@ -196,12 +213,16 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
     but directly with TensorLists.
     """
     def wrapper(*inputs, **kwargs):
-        _disqualify_arguments(wrapper_name, kwargs, _wrap_stateless.disqualified_arguments)
+        _disqualify_arguments(
+            wrapper_name,
+            kwargs,
+            _wrap_stateless.disqualified_arguments)
 
         # Preprocess kwargs to get batch_size.
         batch_size = _choose_batch_size(inputs, kwargs.pop('batch_size', -1))
         kwargs = _prep_kwargs(kwargs, batch_size)
-        init_args, call_args = _ops._separate_kwargs(kwargs, _tensors.TensorListCPU)
+        init_args, call_args = _ops._separate_kwargs(
+            kwargs, _tensors.TensorListCPU)
 
         # Preprocess inputs, try to convert each input to TensorList.
         inputs = _prep_inputs(inputs, batch_size)
@@ -212,7 +233,8 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
 
         # Creating cache key consisting of operator name, description of inputs, input arguments
         # and init args. Each call arg is described by dtype, layout and dim.
-        key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
+        key = op_name + _desc_call_args(inputs,
+                                        call_args) + str(sorted(init_args.items()))
 
         if key not in _stateless_operators_cache:
             _stateless_operators_cache[key] = _stateless_op_factory(
@@ -243,7 +265,8 @@ def _wrap_eager_op(op_class, submodule, wrapper_name, wrapper_doc):
     """
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
-    if op_schema.IsDeprecated() or op_name in _stateful_operators or op_name in _generator_operators:
+    if op_schema.IsDeprecated(
+    ) or op_name in _stateful_operators or op_name in _generator_operators:
         # TODO(ksztenderski): For now only exposing stateless operators.
         return
     else:
@@ -251,7 +274,8 @@ def _wrap_eager_op(op_class, submodule, wrapper_name, wrapper_doc):
         wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
     # Exposing to eager.experimental module.
-    eager_module = _internal.get_submodule(sys.modules[__name__], 'experimental')
+    eager_module = _internal.get_submodule(
+        sys.modules[__name__], 'experimental')
     op_module = _internal.get_submodule(eager_module, submodule)
 
     if not hasattr(op_module, wrapper_name):

@@ -1,6 +1,7 @@
 import sys
 import types
 
+
 def get_submodule(root, path):
     """Gets or creates sumbodule(s) of `root`.
 If the module path contains multiple parts, multiple modules are traversed or created
@@ -31,7 +32,8 @@ Parameters
             m = sys.modules[module_name] = types.ModuleType(module_name)
             setattr(root, part, m)
         elif not isinstance(m, types.ModuleType):
-            raise RuntimeError("The module {} already contains an attribute \"{}\", which is not a module, but {}".format(
-                root, part, m))
+            raise RuntimeError(
+                "The module {} already contains an attribute \"{}\", which is not a module, but {}".format(
+                    root, part, m))
         root = m
     return root

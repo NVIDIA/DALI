@@ -19,9 +19,9 @@ from nvidia.dali import types as _types
 from nvidia.dali._multiproc.messages import TaskArgs as _TaskArgs, SampleRange as _SampleRange
 import nvidia.dali.types
 from nvidia.dali._utils.external_source_impl import \
-        get_callback_from_source as _get_callback_from_source, \
-        accepted_arg_count as _accepted_arg_count, \
-        SourceKind as _SourceKind
+    get_callback_from_source as _get_callback_from_source, \
+    accepted_arg_count as _accepted_arg_count, \
+    SourceKind as _SourceKind
 
 
 def _get_batch_shape(data):
@@ -38,23 +38,28 @@ def _get_batch_shape(data):
             shape = data.shape()
         return [shape[1:]] * shape[0], True
 
+
 def _check_data_batch(data, batch_size, layout):
     shape, uniform = _get_batch_shape(data)
     if len(shape) > batch_size:
-        raise RuntimeError("The external source callback returned an unexpected batch "
-                           "size. Expected batch_size <= {}, actual: {}".format(batch_size,
-                                                                                len(shape)))
+        raise RuntimeError(
+            "The external source callback returned an unexpected batch "
+            "size. Expected batch_size <= {}, actual: {}".format(
+                batch_size, len(shape)))
 
     if len(shape) > 0:
         dim = len(shape[0])
         if not uniform:
             for ts in shape:
                 if len(ts) != dim:
-                    raise RuntimeError("All tensors in a batch must have the same number of dimensions")
+                    raise RuntimeError(
+                        "All tensors in a batch must have the same number of dimensions")
         if layout is not None and layout != "" and dim != len(layout):
-            raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
+            raise RuntimeError(
+                "The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
-def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
+
+def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
     def to_numpy(x):
         if _types._is_mxnet_array(x):
             return x.asnumpy()
@@ -65,7 +70,8 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
 
     # __cuda_array_interface__ doesn't provide any way to pass the information about the device
     # where the memory is located. It is assumed that the current device is the one that the memory belongs to,
-    # unless the user sets the device explicitly creating TensorGPU/TensorListGPU
+    # unless the user sets the device explicitly creating
+    # TensorGPU/TensorListGPU
     if isinstance(data, (_tensors.TensorListCPU, _tensors.TensorListGPU)):
         if layout is not None:
             _check_data_batch(data, batch_size, layout)
@@ -79,7 +85,8 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
                 _check_data_batch(data, batch_size, layout)
                 checked = True
             if isinstance(datum, (_tensors.TensorCPU, _tensors.TensorGPU)):
-                inp = type(datum)(datum, layout=layout) if layout is not None else datum
+                inp = type(datum)(
+                    datum, layout=layout) if layout is not None else datum
             elif is_dlpack:
                 if is_gpu_data:
                     inp = _tensors.TensorGPU(datum, layout or "")
@@ -127,6 +134,7 @@ class _ExternalDataBatch:
     def feed(self):
         self._group.feed(self._pipepline, self._data, self._batch_size)
 
+
 class _ExternalSourceGroup(object):
     def __init__(
             self, callback, source_desc, is_multioutput, instances=[], *,
@@ -150,13 +158,14 @@ class _ExternalSourceGroup(object):
         if callback is not None:
             arg_count = _accepted_arg_count(callback)
             if arg_count not in [0, 1]:
-                raise TypeError("External source callback must be a callable with 0 or 1 argument")
+                raise TypeError(
+                    "External source callback must be a callable with 0 or 1 argument")
             self.accepts_arg = arg_count > 0
 
     def append(self, instance):
         self.instances.append(instance)
 
-    def callback_args(self, idx_in_batch, epoch_idx, batch_size = 0, lead = 0):
+    def callback_args(self, idx_in_batch, epoch_idx, batch_size=0, lead=0):
         """Generate information to be passed to ES callback.
 
         Args:
@@ -188,8 +197,8 @@ class _ExternalSourceGroup(object):
         # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
         # entires in the pipeline are zero-copy and cannot be overwritten.
         context = pool.contexts[context_i]
-        while context.scheduled_ahead < self.prefetch_queue_depth and \
-            self.schedule_batch(pool, context_i, context.scheduled_ahead, batch_size, epoch_idx):
+        while context.scheduled_ahead < self.prefetch_queue_depth and self.schedule_batch(
+                pool, context_i, context.scheduled_ahead, batch_size, epoch_idx):
             pass
 
     def schedule_batch(self, pool, context_i, lead, batch_size, epoch_idx):
@@ -201,11 +210,21 @@ class _ExternalSourceGroup(object):
             sample_range_start = self.current_sample + batch_size * lead
             sample_range_end = sample_range_start + batch_size
             iteration = self.current_iter + lead
-            sample_range = _SampleRange(sample_range_start, sample_range_end, iteration, epoch_idx)
+            sample_range = _SampleRange(
+                sample_range_start,
+                sample_range_end,
+                iteration,
+                epoch_idx)
             work_batch = _TaskArgs.make_sample(sample_range)
             return pool.schedule_batch(context_i, work_batch)
 
-    def schedule_and_receive(self, pipeline, pool, context_i, batch_size, epoch_idx):
+    def schedule_and_receive(
+            self,
+            pipeline,
+            pool,
+            context_i,
+            batch_size,
+            epoch_idx):
         """Obtain the computed results of calling source callback in parallel pool and feed
         the results to the ExternalSource nodes in `pipeline`.
         Schedule the execution of the source callback in the pool to compute next batch.
@@ -229,9 +248,15 @@ class _ExternalSourceGroup(object):
         Used for the sequential ExternalSource variant."""
         try:
             if self.batch:
-                callback_out = self.callback(*self.callback_args(None, epoch_idx))
+                callback_out = self.callback(
+                    *self.callback_args(None, epoch_idx))
             else:
-                callback_out = [self.callback(*self.callback_args(i, epoch_idx)) for i in range(batch_size)]
+                callback_out = [
+                    self.callback(
+                        *
+                        self.callback_args(
+                            i,
+                            epoch_idx)) for i in range(batch_size)]
             self.current_sample += batch_size
             self.current_iter += 1
         except StopIteration:
@@ -248,12 +273,23 @@ class _ExternalSourceGroup(object):
                     data = callback_out[op._output_index]
                 else:
                     # extract a single output
-                    data = [callback_out[i][op._output_index] for i in range(batch_size)]
-                pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+                    data = [callback_out[i][op._output_index]
+                            for i in range(batch_size)]
+                pipeline._feed_input(
+                    op._name,
+                    data,
+                    op._layout,
+                    self._cuda_stream,
+                    self.use_copy_kernel)
         else:
             data = callback_out
             op = self.instances[0]
-            pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+            pipeline._feed_input(
+                op._name,
+                data,
+                op._layout,
+                self._cuda_stream,
+                self.use_copy_kernel)
 
 
 class ExternalSource():
@@ -496,9 +532,24 @@ Keyword Args
 """
 
     def __init__(
-            self, source=None, num_outputs=None, *, cycle=None, layout=None, dtype=None, ndim=None, name=None,
-            device="cpu", cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None,
-            no_copy=None, prefetch_queue_depth=None, batch_info=None, **kwargs):
+            self,
+            source=None,
+            num_outputs=None,
+            *,
+            cycle=None,
+            layout=None,
+            dtype=None,
+            ndim=None,
+            name=None,
+            device="cpu",
+            cuda_stream=None,
+            use_copy_kernel=None,
+            batch=None,
+            parallel=None,
+            no_copy=None,
+            prefetch_queue_depth=None,
+            batch_info=None,
+            **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
@@ -511,10 +562,12 @@ Keyword Args
         import nvidia.dali.ops
         kwargs, self._call_args = nvidia.dali.ops._separate_kwargs(kwargs)
 
-        callback, source_desc = _get_callback_from_source(source, cycle, batch_info or False)
+        callback, source_desc = _get_callback_from_source(
+            source, cycle, batch_info or False)
 
         if name is not None and num_outputs is not None:
-            raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
+            raise ValueError(
+                "`num_outputs` is not compatible with named `ExternalSource`")
 
         self._name = name
         self._num_outputs = num_outputs
@@ -547,9 +600,22 @@ Keyword Args
         return False
 
     def __call__(
-            self, *, source=None, cycle=None, name=None, layout=None, dtype=None, ndim=None, cuda_stream=None,
-            use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
-            prefetch_queue_depth=None, batch_info=None, **kwargs):
+            self,
+            *,
+            source=None,
+            cycle=None,
+            name=None,
+            layout=None,
+            dtype=None,
+            ndim=None,
+            cuda_stream=None,
+            use_copy_kernel=None,
+            batch=None,
+            parallel=None,
+            no_copy=None,
+            prefetch_queue_depth=None,
+            batch_info=None,
+            **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
         if batch_info is None:
@@ -561,18 +627,22 @@ Keyword Args
         if source is None:
             if cycle is not None:
                 if self._callback:
-                    raise ValueError("The argument ``cycle`` can only be specified if ``source`` is an iterable object "
+                    raise ValueError(
+                        "The argument ``cycle`` can only be specified if ``source`` is an iterable object "
                         "or a generator function specified in this call. To cycle through an iterable specified in "
                         "``__init__``, set ``cycle`` there.")
                 else:
-                    raise ValueError("The argument ``cycle`` can only be specified if ``source`` is a "
-                                     "reusable iterable or a generator function.")
+                    raise ValueError(
+                        "The argument ``cycle`` can only be specified if ``source`` is a "
+                        "reusable iterable or a generator function.")
             callback = self._callback
             source_desc = self._source_desc
         else:
             if self._callback is not None:
-                raise RuntimeError("``source`` already specified in constructor.")
-            callback, source_desc = _get_callback_from_source(source, cycle, self._batch_info)
+                raise RuntimeError(
+                    "``source`` already specified in constructor.")
+            callback, source_desc = _get_callback_from_source(
+                source, cycle, self._batch_info)
 
             # Keep the metadata for Pipeline inspection
             self._source_desc = source_desc
@@ -580,12 +650,14 @@ Keyword Args
         if parallel is None:
             parallel = self._parallel or False
         elif self._parallel is not None:
-            raise ValueError("The argument ``parallel`` already specified in constructor.")
+            raise ValueError(
+                "The argument ``parallel`` already specified in constructor.")
 
         if batch is None:
             batch = self._batch
         elif self._batch is not None:
-            raise ValueError("The argument ``batch`` already specified in constructor.")
+            raise ValueError(
+                "The argument ``batch`` already specified in constructor.")
 
         # By default parallel is False, so batch will be True
         if batch is None:
@@ -600,7 +672,8 @@ Keyword Args
         if no_copy is None:
             no_copy = self._no_copy
         elif self._no_copy is not None:
-            raise ValueError("The argument ``no_copy`` already specified in constructor.")
+            raise ValueError(
+                "The argument ``no_copy`` already specified in constructor.")
 
         if parallel:
             if prefetch_queue_depth is None:
@@ -608,7 +681,8 @@ Keyword Args
             if no_copy is None:
                 no_copy = True
             if not no_copy:
-                raise ValueError("The argument ``no_copy`` cannot be specified to False " +
+                raise ValueError(
+                    "The argument ``no_copy`` cannot be specified to False " +
                     " when used with ``parallel=True``.")
             if prefetch_queue_depth < 1:
                 raise ValueError(
@@ -616,48 +690,56 @@ Keyword Args
                         prefetch_queue_depth))
             if source_desc.kind == _SourceKind.CALLABLE:
                 if not source_desc.has_inputs:
-                    raise TypeError(("Callable passed to External Source in parallel mode (when `parallel=True`) "
-                            "must accept exactly one argument: `nvidia.dali.types.SampleInfo` "
-                            "if run with `batch=False` or either `nvidia.dali.types.BatchInfo` or integer that "
-                            "represents the index of the batch within the epoch if `batch=True`. "
-                            "Got a callable that does not accept arguments instead."))
+                    raise TypeError(
+                        ("Callable passed to External Source in parallel mode (when `parallel=True`) "
+                         "must accept exactly one argument: `nvidia.dali.types.SampleInfo` "
+                         "if run with `batch=False` or either `nvidia.dali.types.BatchInfo` or integer that "
+                         "represents the index of the batch within the epoch if `batch=True`. "
+                         "Got a callable that does not accept arguments instead."))
             elif not batch:
                 what = "an iterable" if source_desc.kind == _SourceKind.ITERABLE else "a generator function"
-                raise TypeError("Parallel external source with {} must be run in a batch mode "
-                        "(specify `batch=True` in the external source definition and make sure "
-                        "your source returns batches)".format(what))
+                raise TypeError(
+                    "Parallel external source with {} must be run in a batch mode "
+                    "(specify `batch=True` in the external source definition and make sure "
+                    "your source returns batches)".format(what))
         else:
             if prefetch_queue_depth is not None:
-                raise ValueError("The argument `prefetch_queue_depth` is valid only for " +
+                raise ValueError(
+                    "The argument `prefetch_queue_depth` is valid only for " +
                     "parallel external sources (when ``parallel`` is True).")
 
         if self._layout is not None:
             if layout is not None:
-                raise RuntimeError("``layout`` already specified in constructor.")
+                raise RuntimeError(
+                    "``layout`` already specified in constructor.")
             else:
                 layout = self._layout
 
         if self._dtype is not None:
             if dtype is not None:
-                raise RuntimeError("``dtype`` already specified in constructor.")
+                raise RuntimeError(
+                    "``dtype`` already specified in constructor.")
             else:
                 dtype = self._dtype
 
         if self._ndim is not None:
             if ndim is not None:
-                raise RuntimeError("``ndim`` already specified in constructor.")
+                raise RuntimeError(
+                    "``ndim`` already specified in constructor.")
             else:
                 ndim = self._ndim
 
         if self._cuda_stream is not None:
             if cuda_stream is not None:
-                raise RuntimeError("``cuda_stream`` already specified in constructor.")
+                raise RuntimeError(
+                    "``cuda_stream`` already specified in constructor.")
             else:
                 cuda_stream = self._cuda_stream
 
         if self._use_copy_kernel is not None:
             if use_copy_kernel is not None:
-                raise RuntimeError("``use_copy_kernel`` already specified in constructor.")
+                raise RuntimeError(
+                    "``use_copy_kernel`` already specified in constructor.")
             else:
                 use_copy_kernel = self._use_copy_kernel
 
@@ -667,7 +749,8 @@ Keyword Args
             self._name = name
 
         if name is not None and self._num_outputs is not None:
-            raise RuntimeError("``num_outputs`` is not compatible with named ``ExternalSource``.")
+            raise RuntimeError(
+                "``num_outputs`` is not compatible with named ``ExternalSource``.")
 
         group_common_kwargs = {
             'cuda_stream': cuda_stream,
@@ -681,11 +764,13 @@ Keyword Args
         if self._num_outputs is not None:
             outputs = []
             kwargs = {"no_copy": no_copy}
-            group = _ExternalSourceGroup(callback, source_desc, True, **group_common_kwargs)
+            group = _ExternalSourceGroup(
+                callback, source_desc, True, **group_common_kwargs)
             for i in range(self._num_outputs):
                 if dtype is not None:
                     if isinstance(dtype, (list, tuple)):
-                        kwargs['dtype'] = dtype[i] if i < len(dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
+                        kwargs['dtype'] = dtype[i] if i < len(
+                            dtype) else nvidia.dali.types.DALIDataType.NO_TYPE
                     else:
                         kwargs['dtype'] = dtype
                 if ndim is not None:
@@ -738,7 +823,9 @@ Keyword Args
 
 
 def _is_external_source_with_callback(op_instance):
-    return isinstance(op_instance._op, ExternalSource) and op_instance._callback is not None
+    return isinstance(
+        op_instance._op,
+        ExternalSource) and op_instance._callback is not None
 
 
 def _is_external_source(op_instance):
@@ -754,8 +841,20 @@ def _has_external_source(pipeline):
     return False
 
 
-def external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu", layout=None,
-                    dtype=None, ndim=None, cuda_stream=None, use_copy_kernel=None, batch=True, **kwargs):
+def external_source(
+        source=None,
+        num_outputs=None,
+        *,
+        cycle=None,
+        name=None,
+        device="cpu",
+        layout=None,
+        dtype=None,
+        ndim=None,
+        cuda_stream=None,
+        use_copy_kernel=None,
+        batch=True,
+        **kwargs):
     """Creates a data node which is populated with data from a Python source.
 The data can be provided by the ``source`` function or iterable, or it can be provided by
 ``pipeline.feed_input(name, data, layout, cuda_stream)`` inside ``pipeline.iter_setup``.
@@ -777,30 +876,69 @@ provided memory is copied to the internal buffer.
 
     from nvidia.dali._debug_mode import _PipelineDebug
 
-    def _external_source(source=None, num_outputs=None, *, cycle=None, name=None, device="cpu", layout=None,
-                         dtype=None, ndim=None, cuda_stream=None, use_copy_kernel=None, batch=True, **kwargs):
+    def _external_source(
+            source=None,
+            num_outputs=None,
+            *,
+            cycle=None,
+            name=None,
+            device="cpu",
+            layout=None,
+            dtype=None,
+            ndim=None,
+            cuda_stream=None,
+            use_copy_kernel=None,
+            batch=True,
+            **kwargs):
         if batch is None:
             batch = True
 
         if num_outputs is not None:
             if source is None:
-                raise ValueError("The parameter ``num_outputs`` is only valid when using ``source`` to "
+                raise ValueError(
+                    "The parameter ``num_outputs`` is only valid when using ``source`` to "
                     "provide data. To feed multiple external sources in ``feed_input``, use multiple "
                     "``external_source`` nodes.")
 
-        op = ExternalSource(device=device, num_outputs=num_outputs, source=source,
-                            cycle=cycle, layout=layout, dtype=dtype, ndim=ndim, cuda_stream=cuda_stream,
-                            use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
-        return op(name = name)
+        op = ExternalSource(
+            device=device,
+            num_outputs=num_outputs,
+            source=source,
+            cycle=cycle,
+            layout=layout,
+            dtype=dtype,
+            ndim=ndim,
+            cuda_stream=cuda_stream,
+            use_copy_kernel=use_copy_kernel,
+            batch=batch,
+            **kwargs)
+        return op(name=name)
 
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, '_debug_on', False):
-        return current_pipeline._external_source(source=source, num_outputs=num_outputs, cycle=cycle, name=name,
-                                                 layout=layout, batch=batch, **kwargs)
+        return current_pipeline._external_source(
+            source=source,
+            num_outputs=num_outputs,
+            cycle=cycle,
+            name=name,
+            layout=layout,
+            batch=batch,
+            **kwargs)
     else:
-        return _external_source(source, num_outputs, cycle=cycle, name=name, device=device, layout=layout, dtype=dtype,
-                                ndim=ndim, cuda_stream=cuda_stream, use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
+        return _external_source(
+            source,
+            num_outputs,
+            cycle=cycle,
+            name=name,
+            device=device,
+            layout=layout,
+            dtype=dtype,
+            ndim=ndim,
+            cuda_stream=cuda_stream,
+            use_copy_kernel=use_copy_kernel,
+            batch=batch,
+            **kwargs)
 
 
 external_source.__doc__ += ExternalSource._args_doc

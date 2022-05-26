@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # pylint: disable=no-member
+from .data_node import DataNode
 from collections import deque
 from nvidia.dali import backend as b
 from nvidia.dali import types
@@ -30,7 +31,6 @@ import sys
 
 pipeline_tls = tls()
 
-from .data_node import DataNode
 
 DataNode.__module__ = __name__  # move to pipeline
 
@@ -39,8 +39,12 @@ def _show_deprecation_warning(deprecated, in_favor_of):
     # show only this warning
     with warnings.catch_warnings():
         warnings.simplefilter("default")
-        warnings.warn("{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
-                      Warning, stacklevel=2)
+        warnings.warn(
+            "{} is deprecated, please use {} instead".format(
+                deprecated,
+                in_favor_of),
+            Warning,
+            stacklevel=2)
 
 
 class Pipeline(object):
@@ -171,13 +175,27 @@ Parameters
     If the ``output_ndim`` value is a single value (not a list), it will be broadcast to the
     number of outputs from the pipeline.
 """
-    def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
-                 exec_pipelined=True, prefetch_queue_depth=2,
-                 exec_async=True, bytes_per_sample=0,
-                 set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
-                 *,
-                 enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
-                 py_callback_pickler=None, output_dtype=None, output_ndim=None):
+
+    def __init__(
+            self,
+            batch_size=-1,
+            num_threads=-1,
+            device_id=-1,
+            seed=-1,
+            exec_pipelined=True,
+            prefetch_queue_depth=2,
+            exec_async=True,
+            bytes_per_sample=0,
+            set_affinity=False,
+            max_streams=-1,
+            default_cuda_stream_priority=0,
+            *,
+            enable_memory_stats=False,
+            py_num_workers=1,
+            py_start_method="fork",
+            py_callback_pickler=None,
+            output_dtype=None,
+            output_ndim=None):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads
@@ -189,7 +207,8 @@ Parameters
         # * Start the Python workers pool (_start_py_workers())
         # * Construct the C++ Pipeline backend and pass the graph to it (_init_pipeline_backend())
         # * Build the pieline. (_pipe.Build())
-        # In case of deserialized pipeline, only _backend_prepared and _built will be True
+        # In case of deserialized pipeline, only _backend_prepared and _built
+        # will be True
         self._py_graph_built = False
         self._py_pool_started = False
         self._backend_prepared = False
@@ -210,9 +229,10 @@ Parameters
         self._py_num_workers = py_num_workers
         self._py_start_method = py_start_method
         if py_callback_pickler is not None and py_start_method == "fork":
-            raise ValueError("``py_callback_pickler`` should not be set when 'fork' start method is used.")
+            raise ValueError(
+                "``py_callback_pickler`` should not be set when 'fork' start method is used.")
         if py_callback_pickler is None and py_start_method == "spawn":
-           py_callback_pickler = dali_pickle._DaliPickle
+            py_callback_pickler = dali_pickle._DaliPickle
         self._py_callback_pickler = py_callback_pickler
         self._api_type = None
         self._skip_api_check = False
@@ -225,16 +245,17 @@ Parameters
         self._seq_input_callbacks = None
         self._enable_memory_stats = enable_memory_stats
         self._prefetch_queue_depth = prefetch_queue_depth
-        if type(prefetch_queue_depth) is dict:
+        if isinstance(prefetch_queue_depth, dict):
             self._exec_separated = True
             self._cpu_queue_size = prefetch_queue_depth["cpu_size"]
             self._gpu_queue_size = prefetch_queue_depth["gpu_size"]
-        elif type(prefetch_queue_depth) is int:
+        elif isinstance(prefetch_queue_depth, int):
             self._exec_separated = False
             self._cpu_queue_size = prefetch_queue_depth
             self._gpu_queue_size = prefetch_queue_depth
         else:
-            raise TypeError("Expected prefetch_queue_depth to be either int or Dict[int, int]")
+            raise TypeError(
+                "Expected prefetch_queue_depth to be either int or Dict[int, int]")
 
         # Assign and validate output_dtype
         if isinstance(output_dtype, (list, tuple)):
@@ -243,12 +264,14 @@ Parameters
                     raise TypeError(
                         f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type {type(dtype)} in the list.")
                 if dtype == types.NO_TYPE:
-                    raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found {dtype} in the list.")
+                    raise ValueError(
+                        f"`output_dtype` can't be a types.NO_TYPE. Found {dtype} in the list.")
         elif not isinstance(output_dtype, (types.DALIDataType, type(None))):
             raise TypeError(
                 f"`output_dtype` must be either: a value from nvidia.dali.types.DALIDataType, a list of these or None. Found type: {type(output_dtype)}.")
         elif output_dtype == types.NO_TYPE:
-            raise ValueError(f"`output_dtype` can't be a types.NO_TYPE. Found value: {output_dtype}")
+            raise ValueError(
+                f"`output_dtype` can't be a types.NO_TYPE. Found value: {output_dtype}")
         self._output_dtype = output_dtype
 
         # Assign and validate output_ndim
@@ -264,7 +287,8 @@ Parameters
             raise TypeError(
                 f"`output_ndim` must be either: an int, a list of ints or None. Found type: {type(output_ndim)}.")
         elif output_ndim is not None and output_ndim < 0:
-            raise ValueError(f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
+            raise ValueError(
+                f"`output_ndim` must be non-negative. Found value: {output_ndim}.")
         self._output_ndim = output_ndim
 
     @property
@@ -355,13 +379,16 @@ Parameters
 
     def output_dtype(self) -> list:
         """Data types expected at the outputs."""
-        return [elem if elem != types.NO_TYPE else None for elem in self._pipe.output_dtype()]
+        return [elem if elem !=
+                types.NO_TYPE else None for elem in self._pipe.output_dtype()]
 
     def output_ndim(self) -> list:
         """Number of dimensions expected at the outputs."""
-        return [elem if elem != -1 else None for elem in self._pipe.output_ndim()]
+        return [
+            elem if elem != -
+            1 else None for elem in self._pipe.output_ndim()]
 
-    def epoch_size(self, name = None):
+    def epoch_size(self, name=None):
         """Epoch size of a pipeline.
 
         If the `name` parameter is `None`, returns a dictionary of pairs
@@ -380,7 +407,7 @@ Parameters
         if name is not None:
             return self._pipe.reader_meta(name)["epoch_size_padded"]
         meta = self._pipe.reader_meta()
-        return {k : v["epoch_size_padded"] for k, v in meta.items()}
+        return {k: v["epoch_size_padded"] for k, v in meta.items()}
 
     def executor_statistics(self):
         """Returns provided pipeline executor statistics metadata as a dictionary.
@@ -404,7 +431,7 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.executor_statistics()
 
-    def reader_meta(self, name = None):
+    def reader_meta(self, name=None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides
         a dictionary with data for all readers as {reader_name : meta}
 
@@ -440,8 +467,10 @@ Parameters
 
     @staticmethod
     def _raise_pipeline_required(op_name):
-        raise RuntimeError("Current Pipeline not set!\n" +
-            op_name + " operator must be used inside `define_graph` or "
+        raise RuntimeError(
+            "Current Pipeline not set!\n" +
+            op_name +
+            " operator must be used inside `define_graph` or "
             "current pipeline must be explicitly set using context manager (`with my_pipeline:`) "
             "or with a call to `Pipeline.push_current(my_pipeline)`.")
 
@@ -496,24 +525,24 @@ Parameters
         """Safely restores previous pipeline."""
         Pipeline.pop_current()
 
-
     def add_sink(self, edge):
         """Allows to manual add of graph edges to the pipeline which are not connected to the output and all pruned
         """
         self._sinks.append(edge)
 
     def _set_api_type(self, type):
-        if not type in types.PipelineAPIType:
-            raise RuntimeError("Wrong pipeline API set!"
-                               "check available values in :meth:`nvidia.dali.types.PipelineAPIType`")
+        if type not in types.PipelineAPIType:
+            raise RuntimeError(
+                "Wrong pipeline API set!"
+                "check available values in :meth:`nvidia.dali.types.PipelineAPIType`")
         self._api_type = type
 
     def _check_api_type(self, type):
         if self._api_type is None:
             self._set_api_type(type)
         if type != self._api_type:
-            raise RuntimeError("Mixing pipeline API type. Currently used: " + str(self._api_type) +
-                          ", but trying to use: " + str(type))
+            raise RuntimeError("Mixing pipeline API type. Currently used: " +
+                               str(self._api_type) + ", but trying to use: " + str(type))
 
     def enable_api_check(self, enable):
         """Allows to enable or disable API check in the runtime
@@ -542,11 +571,13 @@ Parameters
 
         return api_checker(self)
 
-    # Graph is constructed by backtracking from the output edges and the edges marked as sinks
+    # Graph is constructed by backtracking from the output edges and the edges
+    # marked as sinks
     def _build_graph(self, define_graph=None):
         if define_graph is not None:
             if self._graph_out is not None:
-                raise RuntimeError("Duplicate graph definition - `define_graph` argument "
+                raise RuntimeError(
+                    "Duplicate graph definition - `define_graph` argument "
                     "should not be specified when graph was defined with a call to `set_outputs`.")
         else:
             define_graph = self.define_graph
@@ -571,23 +602,28 @@ Parameters
             return False
 
         def contains_nested_datanode(nested):
-            return is_nested(nested, lambda x: isinstance(x, DataNode), (list, tuple))
+            return is_nested(
+                nested, lambda x: isinstance(
+                    x, DataNode), (list, tuple))
 
         for i in range(len(outputs)):
             if isinstance(outputs[i], types.ScalarConstant):
                 import nvidia.dali.ops
-                outputs[i] = nvidia.dali.ops._instantiate_constant_node("cpu", outputs[i])
+                outputs[i] = nvidia.dali.ops._instantiate_constant_node(
+                    "cpu", outputs[i])
             elif contains_nested_datanode(outputs[i]):
-                raise TypeError(f"Illegal pipeline output type. The output {i} contains a nested "
-                                "`DataNode`. Missing list/tuple expansion (*) is the likely cause.")
+                raise TypeError(
+                    f"Illegal pipeline output type. The output {i} contains a nested "
+                    "`DataNode`. Missing list/tuple expansion (*) is the likely cause.")
             elif not isinstance(outputs[i], DataNode):
                 try:
                     outputs[i] = types.Constant(outputs[i], device="cpu")
                 except TypeError:
-                    raise TypeError(f"Illegal output type. The output {i} is a `{type(outputs[i])}`. "
-                                     "Allowed types are ``DataNode`` and types convertible to "
-                                     "`types.Constant` (numerical constants, 1D lists/tuple of numbers "
-                                     "and ND arrays).")
+                    raise TypeError(
+                        f"Illegal output type. The output {i} is a `{type(outputs[i])}`. "
+                        "Allowed types are ``DataNode`` and types convertible to "
+                        "`types.Constant` (numerical constants, 1D lists/tuple of numbers "
+                        "and ND arrays).")
 
             _data_node._check(outputs[i])
 
@@ -636,17 +672,22 @@ Parameters
             # The sole point of this call is to ensure the lifetime of the pool exceeds the lifetime
             # of the pipeline's backend, so that shared memory managed by the pool is not freed
             # before pipline's backend is garbage collected.
-            # Otherwise the backend may try to access unmmaped memory which leads to crashes at the Python teardown.
+            # Otherwise the backend may try to access unmmaped memory which
+            # leads to crashes at the Python teardown.
             self._pipe.SetPyObjDependency(self._py_pool)
 
     def _start_py_workers(self):
         if not self._parallel_input_callbacks:
             return
         self._py_pool = WorkerPool.from_groups(
-            self._parallel_input_callbacks, self._prefetch_queue_depth, self._py_start_method,
-            self._py_num_workers, py_callback_pickler=self._py_callback_pickler)
-        # ensure processes started by the pool are termineted when pipeline is no longer used
-        weakref.finalize(self, lambda pool : pool.close(), self._py_pool)
+            self._parallel_input_callbacks,
+            self._prefetch_queue_depth,
+            self._py_start_method,
+            self._py_num_workers,
+            py_callback_pickler=self._py_callback_pickler)
+        # ensure processes started by the pool are termineted when pipeline is
+        # no longer used
+        weakref.finalize(self, lambda pool: pool.close(), self._py_pool)
         self._py_pool_started = True
 
     def _init_pipeline_backend(self):
@@ -664,7 +705,10 @@ Parameters
                                 self._set_affinity,
                                 self._max_streams,
                                 self._default_cuda_stream_priority)
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
+        self._pipe.SetExecutionTypes(
+            self._exec_pipelined,
+            self._exec_separated,
+            self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
 
@@ -673,11 +717,14 @@ Parameters
 
         for op in self._ops:
             if op.relation_id not in related_logical_id:
-                related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
+                related_logical_id[op.relation_id] = self._pipe.AddOperator(
+                    op.spec, op.name)
             else:
-                self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
+                self._pipe.AddOperator(
+                    op.spec, op.name, related_logical_id[op.relation_id])
         self._backend_prepared = True
-        self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
+        self._names_and_devices = [(e.name, e.device)
+                                   for e in self._graph_outputs]
 
     def _setup_input_callbacks(self):
         from nvidia.dali.external_source import _is_external_source_with_callback
@@ -693,12 +740,16 @@ Parameters
             self._seq_input_callbacks = self._input_callbacks
         else:
             parallel = [group for group in groups if group.parallel]
-            dedicated_worker_cbs = [group for group in parallel if WorkerPool.is_iterable_group(group)]
-            general_cbs = [group for group in parallel if not WorkerPool.is_iterable_group(group)]
+            dedicated_worker_cbs = [
+                group for group in parallel if WorkerPool.is_iterable_group(group)]
+            general_cbs = [
+                group for group in parallel if not WorkerPool.is_iterable_group(group)]
             # make the callbacks that need dedicated worker first in line for prefetching, so that
-            # the worker doesn't get busy with other tasks when dedicated tasks arrive
+            # the worker doesn't get busy with other tasks when dedicated tasks
+            # arrive
             self._parallel_input_callbacks = dedicated_worker_cbs + general_cbs
-            self._seq_input_callbacks = [group for group in groups if not group.parallel]
+            self._seq_input_callbacks = [
+                group for group in groups if not group.parallel]
 
     def start_py_workers(self):
         """
@@ -726,7 +777,7 @@ Parameters
         if not self._py_pool_started:
             self._start_py_workers()
 
-    def build(self, define_graph = None):
+    def build(self, define_graph=None):
         """Build the pipeline.
 
         Pipeline needs to be built in order to run it standalone.
@@ -748,8 +799,9 @@ Parameters
             return
 
         if self.num_threads < 1:
-            raise ValueError("Pipeline created with `num_threads` < 1 can only be used "
-                             "for serialization.")
+            raise ValueError(
+                "Pipeline created with `num_threads` < 1 can only be used "
+                "for serialization.")
 
         self.start_py_workers()
         if not self._backend_prepared:
@@ -759,7 +811,13 @@ Parameters
         self._pipe.Build(self._generate_build_args())
         self._built = True
 
-    def _feed_input(self, name, data, layout=None, cuda_stream=None, use_copy_kernel=False):
+    def _feed_input(
+            self,
+            name,
+            data,
+            layout=None,
+            cuda_stream=None,
+            use_copy_kernel=False):
         from nvidia.dali.external_source import _prep_data_for_feed_input
         if cuda_stream is None:
             cuda_stream = types._get_default_stream_for_array(data)
@@ -768,15 +826,23 @@ Parameters
         else:
             cuda_stream = types._raw_cuda_stream(cuda_stream)
 
-        data = _prep_data_for_feed_input(data, self._max_batch_size, layout, self._device_id)
+        data = _prep_data_for_feed_input(
+            data, self._max_batch_size, layout, self._device_id)
 
         if isinstance(data, list):
             self._pipe.SetExternalTensorInput(
                 name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
         else:
-            self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
+            self._pipe.SetExternalTLInput(
+                name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
-    def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
+    def feed_input(
+            self,
+            data_node,
+            data,
+            layout=None,
+            cuda_stream=None,
+            use_copy_kernel=False):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by feed_input. See ``cuda_stream`` parameter for details.
@@ -837,10 +903,14 @@ Parameters
             _data_node._check(data_node)
             name = data_node.name
 
-        # Check for use of feed_input on an external_source operator that was initialized with 'source'.
-        if next((op._callback is not None for op in self._ops if op.name == name), False):
-            raise RuntimeError(f"Cannot use `feed_input` on the external source '{name}' with a `source`"
-                                " argument specified.")
+        # Check for use of feed_input on an external_source operator that was
+        # initialized with 'source'.
+        if next(
+            (op._callback is not None for op in self._ops if op.name == name),
+                False):
+            raise RuntimeError(
+                f"Cannot use `feed_input` on the external source '{name}' with a `source`"
+                " argument specified.")
 
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
@@ -1000,7 +1070,8 @@ Parameters
             if not self._last_iter:
                 self._iter_setup()
                 self._batches_to_consume += 1
-            # Special case to prevent a deadlock if user didn't release the only buffer
+            # Special case to prevent a deadlock if user didn't release the
+            # only buffer
             if not self._exec_async and self._prefetch_queue_depth == 1:
                 self.release_outputs()
             self._run_cpu()
@@ -1028,7 +1099,11 @@ Parameters
         if self._py_pool is None:
             return
         for i, group in enumerate(self._parallel_input_callbacks):
-            group.prefetch(self._py_pool, i, self._max_batch_size, self._epoch_idx)
+            group.prefetch(
+                self._py_pool,
+                i,
+                self._max_batch_size,
+                self._epoch_idx)
 
     def _fill_separated_queues(self):
         """When using separated execution fill each of the prefetch queues
@@ -1038,7 +1113,8 @@ Parameters
         if not self._first_iter:
             raise RuntimeError("Queues can be filled only on first iteration.")
         if not self._exec_separated:
-            raise RuntimeError("This function should be only used with separated execution.")
+            raise RuntimeError(
+                "This function should be only used with separated execution.")
         for i in range(self._gpu_queue_size):
             self._run_up_to("gpu")
         for i in range(self._cpu_queue_size):
@@ -1089,7 +1165,7 @@ Parameters
             raise TypeError(
                 "Provided `define_graph` argument is not callable." +
                 (" Didn't you want to write `.serialize(filename=...)`?"
-                if isinstance(define_graph, str) else ""))
+                 if isinstance(define_graph, str) else ""))
         if not self._py_graph_built:
             self._build_graph(define_graph)
         if not self._backend_prepared:
@@ -1153,9 +1229,13 @@ Parameters
         )
         if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
             b.check_cuda_runtime()
-        pipeline._pipe.SetExecutionTypes(pipeline._exec_pipelined, pipeline._exec_separated,
-                                         pipeline._exec_async)
-        pipeline._pipe.SetQueueSizes(pipeline._cpu_queue_size, pipeline._gpu_queue_size)
+        pipeline._pipe.SetExecutionTypes(
+            pipeline._exec_pipelined,
+            pipeline._exec_separated,
+            pipeline._exec_async)
+        pipeline._pipe.SetQueueSizes(
+            pipeline._cpu_queue_size,
+            pipeline._gpu_queue_size)
         pipeline._pipe.EnableExecutorMemoryStats(pipeline._enable_memory_stats)
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
@@ -1181,15 +1261,22 @@ Parameters
                                 self._set_affinity,
                                 self._max_streams,
                                 self._default_cuda_stream_priority)
-        self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
+        self._pipe.SetExecutionTypes(
+            self._exec_pipelined,
+            self._exec_separated,
+            self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
         self._backend_prepared = True
         self._pipe.Build()
         self._built = True
 
-    def save_graph_to_dot_file(self, filename, show_tensors = False, show_ids = False,
-                               use_colors = False):
+    def save_graph_to_dot_file(
+            self,
+            filename,
+            show_tensors=False,
+            show_ids=False,
+            use_colors=False):
         """Saves the pipeline graph to a file.
 
         Parameters
@@ -1205,7 +1292,8 @@ Parameters
         """
         if not self._built:
             raise RuntimeError("Pipeline must be built first.")
-        self._pipe.SaveGraphToDotFile(filename, show_tensors, show_ids, use_colors)
+        self._pipe.SaveGraphToDotFile(
+            filename, show_tensors, show_ids, use_colors)
 
     def set_outputs(self, *output_data_nodes):
         """Set the outputs of the pipeline.
@@ -1234,18 +1322,29 @@ Parameters
         stop_iter = False
         for i, group in enumerate(self._parallel_input_callbacks):
             try:
-                batches.append(group.schedule_and_receive(self, self._py_pool, i, self._max_batch_size, self._epoch_idx))
+                batches.append(
+                    group.schedule_and_receive(
+                        self,
+                        self._py_pool,
+                        i,
+                        self._max_batch_size,
+                        self._epoch_idx))
             except StopIteration:
                 stop_iter = True
         for group in self._seq_input_callbacks:
             try:
-                batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
+                batches.append(
+                    group.get_batch(
+                        self,
+                        self._max_batch_size,
+                        self._epoch_idx))
             except StopIteration:
                 stop_iter = True
         if stop_iter:
             raise StopIteration()
 
-        # we only fill external source queues when we know that all callbacks succeeded
+        # we only fill external source queues when we know that all callbacks
+        # succeeded
         for batch in batches:
             batch.feed()
 
@@ -1263,10 +1362,10 @@ Parameters
 
     def _generate_build_args(self):
         num_outputs = len(self._names_and_devices)
-        dtypes = [self._output_dtype] * num_outputs if type(
-            self._output_dtype) is not list else self._output_dtype
-        ndims = [self._output_ndim] * num_outputs if type(
-            self._output_ndim) is not list else self._output_ndim
+        dtypes = [self._output_dtype] * num_outputs if not isinstance(
+            self._output_dtype, list) else self._output_dtype
+        ndims = [self._output_ndim] * num_outputs if not isinstance(
+            self._output_ndim, list) else self._output_ndim
         if not (len(dtypes) == len(ndims) == num_outputs):
             raise RuntimeError(
                 f"Lengths of provided output descriptions do not match. \n"
@@ -1274,7 +1373,6 @@ Parameters
 
         return [(name, dev, types.NO_TYPE if dtype is None else dtype, -1 if ndim is None else ndim)
                 for (name, dev), dtype, ndim in zip(self._names_and_devices, dtypes, ndims)]
-
 
 
 def _discriminate_args(func, **func_kwargs):
@@ -1305,7 +1403,8 @@ def _discriminate_args(func, **func_kwargs):
         elif is_ctor_arg:
             ctor_args[farg[0]] = farg[1]
         else:
-            assert False, "This shouldn't happen. Please double-check the `{}` argument".format(farg[0])
+            assert False, "This shouldn't happen. Please double-check the `{}` argument".format(
+                farg[0])
 
     return ctor_args, fn_args
 
@@ -1386,7 +1485,8 @@ def pipeline_def(fn=None, **pipeline_kwargs):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
-            pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})  # Merge and overwrite dict
+            # Merge and overwrite dict
+            pipe = Pipeline(**{**pipeline_kwargs, **ctor_args})
             with pipe:
                 pipe_outputs = func(*args, **fn_kwargs)
                 if isinstance(pipe_outputs, tuple):
@@ -1397,23 +1497,32 @@ def pipeline_def(fn=None, **pipeline_kwargs):
                     po = (pipe_outputs,)
                 pipe.set_outputs(*po)
             return pipe
-        create_pipeline._is_pipeline_def = True  # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
+        # Add `is_pipeline_def` attribute to the function marked as
+        # `@pipeline_def`
+        create_pipeline._is_pipeline_def = True
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
 
 
 def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
     from nvidia.dali._debug_mode import _PipelineDebug
-    pipeline_debug =  pipeline_kwargs.pop('debug', False)
+    pipeline_debug = pipeline_kwargs.pop('debug', False)
+
     def actual_decorator(func):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
             debug_mode_on = kwargs.get('debug', pipeline_debug)
             ctor_args, fn_kwargs = _discriminate_args(func, **kwargs)
-            pipeline_args = {**pipeline_kwargs, **ctor_args}  # Merge and overwrite dict
+            pipeline_args = {
+                **pipeline_kwargs,
+                **ctor_args}  # Merge and overwrite dict
             if debug_mode_on:
-                pipe = _PipelineDebug(functools.partial(func, *args, **fn_kwargs),
-                                     **pipeline_args)
+                pipe = _PipelineDebug(
+                    functools.partial(
+                        func,
+                        *args,
+                        **fn_kwargs),
+                    **pipeline_args)
             else:
                 pipe = Pipeline(**pipeline_args)
                 with pipe:
@@ -1426,15 +1535,19 @@ def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
                         po = (pipe_outputs,)
                     pipe.set_outputs(*po)
             return pipe
-        create_pipeline._is_pipeline_def = True  # Add `is_pipeline_def` attribute to the function marked as `@pipeline_def`
+        # Add `is_pipeline_def` attribute to the function marked as
+        # `@pipeline_def`
+        create_pipeline._is_pipeline_def = True
         return create_pipeline
     return actual_decorator(fn) if fn else actual_decorator
 
 
 def _insert_experimental_pipeline_def():
     current_module = sys.modules[__name__]
-    experimental_module = internal.get_submodule(current_module, 'experimental')
+    experimental_module = internal.get_submodule(
+        current_module, 'experimental')
     _pipeline_def_experimental.__module__ = experimental_module
     setattr(experimental_module, 'pipeline_def', _pipeline_def_experimental)
+
 
 _insert_experimental_pipeline_def()

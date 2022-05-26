@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-name-in-module, unused-import
+# pylint: disable=no-name-in-module, unused-import
 import nvidia.dali.backend
 from nvidia.dali.backend import TensorCPU
 from nvidia.dali.backend import TensorListCPU
@@ -64,22 +64,29 @@ def _tensorlist_to_string(self, indent=''):
 
     if data:
         if data.is_dense_tensor():
-            data_str = np.array2string(np.array(data.as_tensor()),
-                                       prefix=spaces_indent, edgeitems=edgeitems)
+            data_str = np.array2string(
+                np.array(
+                    data.as_tensor()),
+                prefix=spaces_indent,
+                edgeitems=edgeitems)
         else:
             data = list(map(np.array, data))
 
             # Triggers summarization if total number of elements exceeds 1000
             # (empty tensor is treated as 1 element).
-            crop = len(data) > 2 * edgeitems + 1 and sum(max(arr.size, 1) for arr in data) > 1000
+            crop = len(data) > 2 * edgeitems + 1 and sum(max(arr.size, 1)
+                                                         for arr in data) > 1000
             if crop:
                 data = data[:edgeitems] + data[-edgeitems:]
 
             # Seperator matching numpy standard.
             sep = '\n' * data[0].ndim + spaces_indent
 
-            data = [np.array2string(tensor, prefix=spaces_indent, edgeitems=edgeitems)
-                    for tensor in data]
+            data = [
+                np.array2string(
+                    tensor,
+                    prefix=spaces_indent,
+                    edgeitems=edgeitems) for tensor in data]
             data_str = f'[{_join_string(data, crop, edgeitems, sep)}]'
 
     shape = self.shape()

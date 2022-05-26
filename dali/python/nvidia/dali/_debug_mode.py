@@ -46,7 +46,11 @@ class DataNodeDebug(_DataNode):
     def gpu(self):
         if self.device == 'gpu':
             return self
-        return DataNodeDebug(self._data._as_gpu(), self.name, 'gpu', self.source)
+        return DataNodeDebug(
+            self._data._as_gpu(),
+            self.name,
+            'gpu',
+            self.source)
 
     def get(self):
         return self._data
@@ -141,12 +145,21 @@ class _ExternalSourceDebug:
     """Debug mode version of ExternalSource operator."""
 
     def __init__(
-            self, source=None, num_outputs=None, batch_size=-1, cycle=None, name=None, layout=None,
-            batch=None, batch_info=None):
+            self,
+            source=None,
+            num_outputs=None,
+            batch_size=-1,
+            cycle=None,
+            name=None,
+            layout=None,
+            batch=None,
+            batch_info=None):
         if name is not None and num_outputs is not None:
-            raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
+            raise ValueError(
+                "`num_outputs` is not compatible with named `ExternalSource`")
 
-        callback, source_desc = _get_callback_from_source(source, cycle, batch_info or False)
+        callback, source_desc = _get_callback_from_source(
+            source, cycle, batch_info or False)
 
         self._name = name
         self._layout = layout
@@ -163,7 +176,8 @@ class _ExternalSourceDebug:
         if callback is not None:
             arg_count = _accepted_arg_count(callback)
             if arg_count not in [0, 1]:
-                raise TypeError("External source callback must be a callable with 0 or 1 argument")
+                raise TypeError(
+                    "External source callback must be a callable with 0 or 1 argument")
             self.accepts_arg = arg_count > 0
 
     def _callback_args(self, idx_in_batch, epoch_idx):
@@ -186,10 +200,16 @@ class _ExternalSourceDebug:
     def _get_batch(self, epoch_idx):
         try:
             if self._batch:
-                callback_out = self._callback(*self._callback_args(None, epoch_idx))
+                callback_out = self._callback(
+                    *self._callback_args(None, epoch_idx))
             else:
-                callback_out = [self._callback(*self._callback_args(i, epoch_idx))
-                                for i in range(self._batch_size)]
+                callback_out = [
+                    self._callback(
+                        *
+                        self._callback_args(
+                            i,
+                            epoch_idx)) for i in range(
+                        self._batch_size)]
             self._current_sample += self._batch_size
             self._current_iter += 1
         except StopIteration:
@@ -200,8 +220,9 @@ class _ExternalSourceDebug:
 
     def _feed_input(self, data, kwargs):
         if self._callback is not None:
-            raise RuntimeError(f"Cannot use `feed_input` on the external source '{self._name}' with a `source`"
-                               " argument specified.")
+            raise RuntimeError(
+                f"Cannot use `feed_input` on the external source '{self._name}' with a `source`"
+                " argument specified.")
 
         self._feed_inputs.put((data, kwargs))
 
@@ -209,8 +230,10 @@ class _ExternalSourceDebug:
         """Fetches data from callback or provided with feed_input."""
 
         def to_data_node_debug(data):
-            data = _transform_data_to_tensorlist(data, self._batch_size, layout)
-            device = 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu'
+            data = _transform_data_to_tensorlist(
+                data, self._batch_size, layout)
+            device = 'gpu' if isinstance(
+                data, _tensors.TensorListGPU) else 'cpu'
 
             return DataNodeDebug(data, self._name, device, self._source_desc)
 
@@ -223,7 +246,8 @@ class _ExternalSourceDebug:
                     if self._batch:
                         raw_data.append(callback_out[idx])
                     else:
-                        raw_data.append([callback_out[i][idx] for i in range(self._batch_size)])
+                        raw_data.append([callback_out[i][idx]
+                                        for i in range(self._batch_size)])
             else:
                 raw_data = callback_out
         else:
@@ -256,35 +280,50 @@ class _IterBatchInfo:
         return False
 
     def check_input(self, other_size, other_context, op_name, input_idx):
-        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
-            raise RuntimeError(("Batch size must be uniform across an iteration. Input {} for operator '{}' has batch "
-                                "size = {}. Expected batch size = {} from:\n{}")
-                               .format(input_idx, op_name, other_size, self._size, self._source_context))
+        if not self.set_if_empty(other_size,
+                                 other_context) and self._size != other_size:
+            raise RuntimeError(
+                ("Batch size must be uniform across an iteration. Input {} for operator '{}' has batch "
+                 "size = {}. Expected batch size = {} from:\n{}") .format(
+                    input_idx, op_name, other_size, self._size, self._source_context))
 
     def check_external_source(self, other_size, other_context, output_idx=-1):
-        if not self.set_if_empty(other_size, other_context) and self._size != other_size:
+        if not self.set_if_empty(other_size,
+                                 other_context) and self._size != other_size:
             if self._source_context == other_context and output_idx > 0:
-                raise RuntimeError(("External source must return outputs with consistent batch size. Output {} has "
-                                    "batch size = {}, previous batch size = {}")
-                                   .format(output_idx, other_size, self._size))
+                raise RuntimeError(
+                    ("External source must return outputs with consistent batch size. Output {} has "
+                     "batch size = {}, previous batch size = {}") .format(
+                        output_idx, other_size, self._size))
             else:
-                raise RuntimeError(("Batch size must be uniform across an iteration. External Source operator returned"
-                                    " batch size: {}, expected: {}.\nIf you want to use variable batch size (that is "
-                                    "different batch size in each iteration) you must call all the external source "
-                                    "operators at the beginning of your debug pipeline, before other DALI operators. "
-                                    "All the external source operators are expected to return the same batch size in "
-                                    "a given iteration, but it can change between the iterations. Other operators will"
-                                    " use that batch size for processing.")
-                                   .format(other_size, self._size))
+                raise RuntimeError(
+                    ("Batch size must be uniform across an iteration. External Source operator returned"
+                     " batch size: {}, expected: {}.\nIf you want to use variable batch size (that is "
+                     "different batch size in each iteration) you must call all the external source "
+                     "operators at the beginning of your debug pipeline, before other DALI operators. "
+                     "All the external source operators are expected to return the same batch size in "
+                     "a given iteration, but it can change between the iterations. Other operators will"
+                     " use that batch size for processing.") .format(
+                        other_size, self._size))
 
 
 class _OperatorManager:
     """Utility class to manage single operator in the debug mode.
-    
+
     Uses :class:`ops.Operator` to create OpSpec and handle input sets.
     """
 
-    def __init__(self, op_class, op_name, pipe, source_context, next_logical_id, batch_size, seed, inputs, kwargs):
+    def __init__(
+            self,
+            op_class,
+            op_name,
+            pipe,
+            source_context,
+            next_logical_id,
+            batch_size,
+            seed,
+            inputs,
+            kwargs):
         """Creates direct operator."""
 
         self._batch_size = batch_size
@@ -296,7 +335,8 @@ class _OperatorManager:
         # Save inputs classification for later verification.
         self._inputs_classification = []
 
-        # When using input sets we have to create separate operators for each input.
+        # When using input sets we have to create separate operators for each
+        # input.
         input_set_len = -1
         for i, input in enumerate(inputs):
             classification = _Classification(input, f'Input {i}')
@@ -305,8 +345,9 @@ class _OperatorManager:
                 if input_set_len == -1:
                     input_set_len = len(classification.is_batch)
                 elif input_set_len != len(classification.is_batch):
-                    raise ValueError("All argument lists for Multipile Input Sets used "
-                                     f"with operator '{op_name}' must have the same length.")
+                    raise ValueError(
+                        "All argument lists for Multipile Input Sets used "
+                        f"with operator '{op_name}' must have the same length.")
             self._inputs_classification.append(classification)
         self.expected_inputs_size = len(inputs)
 
@@ -326,9 +367,12 @@ class _OperatorManager:
             next_logical_id, next_logical_id + abs(input_set_len))]
 
         for i in range(len(inputs)):
-            self.op_spec.AddInput(op_name+f'[{i}]', self._inputs_classification[i].device)
+            self.op_spec.AddInput(
+                op_name + f'[{i}]',
+                self._inputs_classification[i].device)
         for arg_name in self._call_args.keys():
-            # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
+            # To use argument inputs OpSpec needs it specified (can be an empty
+            # placeholder).
             self.op_spec.AddArgumentInput(arg_name, '')
 
     def _separate_kwargs(self, kwargs):
@@ -348,8 +392,10 @@ class _OperatorManager:
     def _init_arithm_op(self, name, inputs):
         """Fills arithmetic operator init arguments and returns inputs that are DataNodes."""
 
-        categories_idxs, data_nodes, integers, reals = _ops._group_inputs(inputs)
-        input_desc = _ops._generate_input_desc(categories_idxs, integers, reals)
+        categories_idxs, data_nodes, integers, reals = _ops._group_inputs(
+            inputs)
+        input_desc = _ops._generate_input_desc(
+            categories_idxs, integers, reals)
 
         self._init_args['device'] = _ops._choose_device(data_nodes)
         self._init_args['expression_desc'] = f'{name}({input_desc})'
@@ -362,19 +408,28 @@ class _OperatorManager:
         if isinstance(data, (list, tuple)):
             return [self._pack_to_data_node_debug(elem) for elem in data]
 
-        return DataNodeDebug(data, self._op_name, 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu', self)
+        return DataNodeDebug(
+            data, self._op_name, 'gpu' if isinstance(
+                data, _tensors.TensorListGPU) else 'cpu', self)
 
     def _check_arg_len(self, expected_len, actual_len, args_type):
         if expected_len != actual_len:
-            raise RuntimeError(f"Trying to use operator '{self._op_name}' with different number of {args_type} than"
-                               f" when it was built. Expected: {expected_len} {args_type}, got {actual_len}.")
+            raise RuntimeError(
+                f"Trying to use operator '{self._op_name}' with different number of {args_type} than"
+                f" when it was built. Expected: {expected_len} {args_type}, got {actual_len}.")
 
     def _check_device_classification(self, expected, actual, arg_type, value):
         if expected != actual:
-            raise RuntimeError(f"{arg_type} {value} for operator '{self._op_name}' is on '{actual}' "
-                               f"but was on '{expected}' when created.")
+            raise RuntimeError(
+                f"{arg_type} {value} for operator '{self._op_name}' is on '{actual}' "
+                f"but was on '{expected}' when created.")
 
-    def _check_batch_classification(self, expected_is_batch, actual_is_batch, arg_type, value):
+    def _check_batch_classification(
+            self,
+            expected_is_batch,
+            actual_is_batch,
+            arg_type,
+            value):
         def classification_to_str(is_batch):
             return 'batch' if is_batch else 'constant'
 
@@ -382,8 +437,9 @@ class _OperatorManager:
             expected_str = classification_to_str(expected_is_batch)
             actual_str = classification_to_str(actual_is_batch)
 
-            raise RuntimeError(f"{arg_type} {value} for operator '{self._op_name}' is a {actual_str} "
-                               f"but was a {expected_str} when created.")
+            raise RuntimeError(
+                f"{arg_type} {value} for operator '{self._op_name}' is a {actual_str} "
+                f"but was a {expected_str} when created.")
 
     def _check_batch_size(self, classification, input_idx):
         if isinstance(classification.is_batch, list):
@@ -400,10 +456,15 @@ class _OperatorManager:
 
         for i, input in enumerate(inputs):
             # Transforming any convertable datatype to TensorList (DataNodeDebugs are already unpacked).
-            # Additionally accepting input sets, but only as list of TensorList.
-            if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)) and \
-                    not (isinstance(input, list) and
-                         all([isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU)) for elem in input])):
+            # Additionally accepting input sets, but only as list of
+            # TensorList.
+            if not isinstance(
+                input, (_tensors.TensorListCPU, _tensors.TensorListGPU)) and not (
+                isinstance(
+                    input, list) and all(
+                    [
+                    isinstance(
+                        elem, (_tensors.TensorListCPU, _tensors.TensorListGPU)) for elem in input])):
                 inputs[i] = _transform_data_to_tensorlist(input, len(input))
 
         return self.op_helper._build_input_sets(inputs)
@@ -411,13 +472,16 @@ class _OperatorManager:
     def run(self, inputs, kwargs):
         """Checks correctness of inputs and kwargs and runs the backend operator."""
         self._check_arg_len(self._expected_inputs_size, len(inputs), 'inputs')
-        self._check_arg_len(len(self._kwargs_classification), len(kwargs), 'keyword arguments')
+        self._check_arg_len(len(self._kwargs_classification),
+                            len(kwargs), 'keyword arguments')
 
         call_args = {}
         inputs = list(inputs)
 
-        # Check inputs classification as batches and extract data from DataNodeDebugs.
-        for i, (input, expected_classification) in enumerate(zip(inputs, self._inputs_classification)):
+        # Check inputs classification as batches and extract data from
+        # DataNodeDebugs.
+        for i, (input, expected_classification) in enumerate(
+                zip(inputs, self._inputs_classification)):
             classification = _Classification(input, f'Input {i}')
 
             self._check_batch_classification(
@@ -428,9 +492,11 @@ class _OperatorManager:
             if classification.is_batch:
                 self._check_batch_size(classification, i)
 
-            if classification.device != ('gpu' if self._device == 'gpu' else 'cpu'):
-                raise RuntimeError(f"Cannot call {self._device.upper()} operator '{self._op_name}' with "
-                                   f"{classification.device.upper()} input {i}.")
+            if classification.device != (
+                    'gpu' if self._device == 'gpu' else 'cpu'):
+                raise RuntimeError(
+                    f"Cannot call {self._device.upper()} operator '{self._op_name}' with "
+                    f"{classification.device.upper()} input {i}.")
 
             inputs[i] = classification.data
 
@@ -442,21 +508,37 @@ class _OperatorManager:
                 value, f'Argument {key}', arg_constant_len=self._batch_size)
 
             self._check_batch_classification(
-                self._kwargs_classification[key].is_batch, classification.is_batch, 'Argument', key)
+                self._kwargs_classification[key].is_batch,
+                classification.is_batch,
+                'Argument',
+                key)
             self._check_device_classification(
-                self._kwargs_classification[key].device, classification.device, 'Argument', key)
+                self._kwargs_classification[key].device,
+                classification.device,
+                'Argument',
+                key)
 
             if not classification.is_batch and classification.data != self._init_args[key]:
-                raise RuntimeError(f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
-                                   f" value from '{self._init_args[key]}' to '{classification.data}'")
+                raise RuntimeError(
+                    f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
+                    f" value from '{self._init_args[key]}' to '{classification.data}'")
             if classification.is_batch:
                 call_args[key] = classification.data
 
-        res = [self._pipe._run_op_on_device(self._op_name, logical_id, self._device, input, call_args)
-               for input, logical_id in zip(input_sets, self.logical_ids)]
+        res = [
+            self._pipe._run_op_on_device(
+                self._op_name,
+                logical_id,
+                self._device,
+                input,
+                call_args) for input,
+            logical_id in zip(
+                input_sets,
+                self.logical_ids)]
 
         # Set iteration batch size if it wasn't set already.
-        self._pipe._cur_iter_batch_info.set_if_empty(len(res[0][0]), self._source_context)
+        self._pipe._cur_iter_batch_info.set_if_empty(
+            len(res[0][0]), self._source_context)
 
         if len(res) == 1:
             res = self._pack_to_data_node_debug(res[0])
@@ -483,9 +565,13 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._next_logical_id = 0
         self._operators = {}
         self._operators_built = False
-        self._cur_iter_batch_info = _IterBatchInfo(-1, None)  # Used for variable batch sizes.
+        # Used for variable batch sizes.
+        self._cur_iter_batch_info = _IterBatchInfo(-1, None)
         self._pipe = _b.PipelineDebug(
-            self._max_batch_size, self._num_threads, self._device_id, self._set_affinity)
+            self._max_batch_size,
+            self._num_threads,
+            self._device_id,
+            self._set_affinity)
 
         import numpy as np
         seed = kwargs.get('seed', -1)
@@ -494,8 +580,9 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._seed_generator = np.random.default_rng(seed)
 
     def __enter__(self):
-        raise RuntimeError("Currently pipeline in debug mode works only with `pipeline_def` decorator."
-                           "Using `with` statement is not supported.")
+        raise RuntimeError(
+            "Currently pipeline in debug mode works only with `pipeline_def` decorator."
+            "Using `with` statement is not supported.")
 
     def build(self):
         """Build the pipeline.
@@ -538,8 +625,10 @@ class _PipelineDebug(_pipeline.Pipeline):
                 raise TypeError(
                     f'Illegal pipeline output type. The output {i} contains a nested `DataNodeDebug`')
             else:
-                outputs.append(_tensors.TensorListCPU(
-                    np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))))
+                outputs.append(
+                    _tensors.TensorListCPU(
+                        np.tile(
+                            val, (self._max_batch_size, *[1] * np.array(val).ndim))))
         return tuple(outputs)
 
     def feed_input(self, data_node, data, **kwargs):
@@ -565,8 +654,17 @@ class _PipelineDebug(_pipeline.Pipeline):
     def _create_op(self, op_class, op_name, key, cur_context, inputs, kwargs):
         """Creates direct operator."""
         self._operators[key] = _OperatorManager(
-            op_class, op_name, self, cur_context, self._next_logical_id, self._max_batch_size,
-            self._seed_generator.integers(0, 2**32), inputs, kwargs)
+            op_class,
+            op_name,
+            self,
+            cur_context,
+            self._next_logical_id,
+            self._max_batch_size,
+            self._seed_generator.integers(
+                0,
+                2**32),
+            inputs,
+            kwargs)
 
         self._pipe.AddMultipleOperators(
             self._operators[key].op_spec, self._operators[key].logical_ids)
@@ -575,16 +673,19 @@ class _PipelineDebug(_pipeline.Pipeline):
     def _check_external_source_batch_size(self, data, cur_context):
         if isinstance(data, list):
             for i, output in enumerate(data):
-                self._cur_iter_batch_info.check_external_source(len(output.get()), cur_context, i)
+                self._cur_iter_batch_info.check_external_source(
+                    len(output.get()), cur_context, i)
         else:
-            self._cur_iter_batch_info.check_external_source(len(data.get()), cur_context)
+            self._cur_iter_batch_info.check_external_source(
+                len(data.get()), cur_context)
 
     def _external_source(self, name=None, **kwargs):
         self._cur_operator_id += 1
         cur_frame = inspect.currentframe().f_back.f_back
         key = inspect.getframeinfo(cur_frame)[:3] + (self._cur_operator_id,)
         if not self._operators_built:
-            es = _ExternalSourceDebug(batch_size=self._max_batch_size, name=name, **kwargs)
+            es = _ExternalSourceDebug(
+                batch_size=self._max_batch_size, name=name, **kwargs)
 
             # feed_input all data collected after build and before run
             for (data, fi_kwargs) in self._feed_input_data.pop(name, []):
@@ -598,18 +699,23 @@ class _PipelineDebug(_pipeline.Pipeline):
                 data, ''.join(traceback.format_stack(cur_frame, limit=1)))
             return data
         else:
-            raise RuntimeError(f"Unexpected operator 'ExternalSource'. Debug mode does not support"
-                               " changing the order of operators executed within the pipeline.")
+            raise RuntimeError(
+                f"Unexpected operator 'ExternalSource'. Debug mode does not support"
+                " changing the order of operators executed within the pipeline.")
 
     def _run_op_on_device(self, op_name, logical_id, device, inputs, kwargs):
         if device == 'gpu':
-            return self._pipe.RunOperatorGPU(logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorGPU(
+                logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
         if device == 'cpu':
-            return self._pipe.RunOperatorCPU(logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorCPU(
+                logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
         if device == 'mixed':
-            return self._pipe.RunOperatorMixed(logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
+            return self._pipe.RunOperatorMixed(
+                logical_id, inputs, kwargs, self._cur_iter_batch_info.size)
 
-        raise ValueError(f"Unknown device: '{device}' in operator '{op_name}'.")
+        raise ValueError(
+            f"Unknown device: '{device}' in operator '{op_name}'.")
 
     def _run_op(self, op_helper, inputs, kwargs):
         return op_helper.run(inputs, kwargs)
@@ -618,7 +724,8 @@ class _PipelineDebug(_pipeline.Pipeline):
     def _extract_data_node_inputs(inputs):
         """Extracts DataNodeDebugs from inputs for arithmetic operator and transforms data to GPU if needed."""
         data_nodes = []
-        to_gpu = any([input.device == 'gpu' for input in inputs if isinstance(input, DataNodeDebug)])
+        to_gpu = any(
+            [input.device == 'gpu' for input in inputs if isinstance(input, DataNodeDebug)])
 
         for input in inputs:
             if isinstance(input, DataNodeDebug):
@@ -635,12 +742,19 @@ class _PipelineDebug(_pipeline.Pipeline):
         cur_context = ''.join(traceback.format_stack(cur_frame, limit=1))
         key = inspect.getframeinfo(cur_frame)[:3] + (self._cur_operator_id,)
         if not self._operators_built:
-            self._create_op(op_class, op_name, key, cur_context, inputs, kwargs)
+            self._create_op(
+                op_class,
+                op_name,
+                key,
+                cur_context,
+                inputs,
+                kwargs)
 
         if key in self._operators:
             if op_name == 'arithmetic_generic_op':
                 inputs = _PipelineDebug._extract_data_node_inputs(inputs)
             return self._run_op(self._operators[key], inputs, kwargs)
         else:
-            raise RuntimeError(f"Unexpected operator '{op_name}'. Debug mode does not support"
-                               " changing the order of operators executed within the pipeline.")
+            raise RuntimeError(
+                f"Unexpected operator '{op_name}'. Debug mode does not support"
+                " changing the order of operators executed within the pipeline.")
