@@ -230,11 +230,11 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
 
   int window_len = args.window_size;
 
-  int kMaxShmBytes = GetSharedMemPerBlock();
-  int kMaxShmElements = kMaxShmBytes / sizeof(acc_t<InputType>);
+  int max_shm_bytes = GetSharedMemPerBlock();
+  int max_shm_elems = max_shm_bytes / sizeof(acc_t<InputType>);
 
   // Get a power of two that doesn't exceed the desired maximum shared memory size
-  int pow2 = prev_pow2(kMaxShmElements * SHARED_MEMORY_BANKS / (SHARED_MEMORY_BANKS + 1));
+  int pow2 = prev_pow2(max_shm_elems * SHARED_MEMORY_BANKS / (SHARED_MEMORY_BANKS + 1));
 
   // If reset interval is given, selects the logical block so that is close to it
   // effectively clearing accummulation error every `reset_interval` samples.
@@ -248,7 +248,7 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   assert(logical_block > 0);
 
   // At the very least we should be able to fit a window plus one element in shared mem
-  if (shm_sz > kMaxShmBytes) {
+  if (shm_sz > max_shm_bytes) {
     throw std::runtime_error(
       "Can't compute the requested running sum, due to shared memory restrictions");
   }
