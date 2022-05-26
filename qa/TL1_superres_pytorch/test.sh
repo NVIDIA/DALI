@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages="pillow numpy torch torchvision scikit-image tensorboardX"
+pip_packages='pillow numpy torch torchvision scikit-image tensorboardX'
 target_dir=./docs/examples/use_cases/video_superres
 
 do_once() {

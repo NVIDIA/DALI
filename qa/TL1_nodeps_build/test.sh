@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages=""
+pip_packages=''
 
 do_once() {
     apt-get update && apt-get -y install wget

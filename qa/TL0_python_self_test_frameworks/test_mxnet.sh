@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy mxnet psutil"
+pip_packages='nose numpy mxnet psutil'
 target_dir=./dali/test/python
 
 test_body() {

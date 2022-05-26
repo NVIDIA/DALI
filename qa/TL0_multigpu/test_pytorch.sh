@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose torch"
+pip_packages='nose torch'
 
 target_dir=./dali/test/python
 

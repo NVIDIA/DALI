@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="pillow nose numpy torch torchvision"
+pip_packages='pillow nose numpy torch torchvision'
 target_dir=./dali/test/python
 
 one_config_only=true

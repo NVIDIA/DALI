@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 # use TF that is installed from conda when DALI is installed
-pip_packages="nose"
+pip_packages='nose'
 target_dir=./dali/test/python
 
 # populate epilog and prolog with variants to enable/disable conda

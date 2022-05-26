@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 
-pip_packages="nose numpy>=1.17"
+pip_packages='nose numpy>=1.17'
 
 target_dir=./dali/test/python
 

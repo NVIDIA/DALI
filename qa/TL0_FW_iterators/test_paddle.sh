@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy paddlepaddle-gpu"
+pip_packages='nose numpy paddlepaddle-gpu'
 target_dir=./dali/test/python
 
 one_config_only=true

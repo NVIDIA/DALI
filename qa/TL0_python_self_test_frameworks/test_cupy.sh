@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy cupy"
+pip_packages='nose numpy cupy'
 target_dir=./dali/test/python
 
 test_body() {

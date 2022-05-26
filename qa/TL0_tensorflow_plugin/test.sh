@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose tensorflow-gpu"
+pip_packages='nose tensorflow-gpu'
 target_dir=./dali/test/python
 
 # reduce the lenght of the sanitizers tests as much as possible
