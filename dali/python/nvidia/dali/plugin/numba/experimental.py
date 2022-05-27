@@ -423,7 +423,7 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
             self._spec.AddArg(key, value)
 
         nvvm_options = {
-            'debug': True,
+            'debug': False,
             'lineinfo': False,
             'fastmath': False,
             'opt': 3

@@ -24,15 +24,15 @@ vector<ssize_t> calc_sizes(DALIDataType type, int ndim, uint64_t shape_ptr) {
   args.push_back(item_size);
 
   size_t nitems = 1;
-  uint64_t* shapes = (uint64_t*)shape_ptr;
+  uint64_t* shapes = reinterpret_cast<uint64_t*>(shape_ptr);
   for (int i = 0; i < ndim; i++) {
     ssize_t shape = shapes[i];
     args.push_back(shapes[i]);
     nitems *= shape;
   }
   args.insert(args.begin(), nitems);
-  ssize_t s1 = item_size;  // in_type size
-  ssize_t s2 = (ssize_t)(shapes)[1] * s1; // next row
+  ssize_t s1 = item_size;
+  ssize_t s2 = static_cast<ssize_t>((shapes)[1] * s1);
   args.push_back(s1);
   args.push_back(s2);
 
@@ -45,13 +45,13 @@ vector<void*> prepare_args(const vector<void*> &memory_ptrs, const vector<ssize_
   // https://github.com/numba/numba/blob/b1be2f12c83c01f57fe34fab9a9d77334f9baa1d/numba/cuda/dispatcher.py#L325
   vector<void*> args;
   for(size_t i = 0; i < memory_ptrs.size(); i++) {
-    args.push_back((void*)&memory_ptrs[i]);
+    args.push_back(const_cast<void*>(reinterpret_cast<const void*>(&memory_ptrs[i])));
   }  
 
   for(size_t i = 0; i < sizes.size(); i++) {
-    args.push_back((void*)&sizes[i]);
+    args.push_back(const_cast<void*>(reinterpret_cast<const void*>(&sizes[i])));
   }
-  args.insert(args.begin()+4, (void*)ptr);
+  args.insert(args.begin()+4, static_cast<void*>(ptr));
   return args;
 }
 
@@ -147,20 +147,14 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     vector<ssize_t> sizes = calc_sizes(in_types_[in_id], ins_ndim_[in_id], input_shape_ptrs_[in_id]);
     in_sizes_.push_back(sizes);
-    void* meminfo = nullptr;
-    void* parent = nullptr;
-    vector<void*> memory_ptrs = {meminfo, parent};
-    in_memory_ptrs_.push_back(memory_ptrs);
+    in_memory_ptrs_.push_back({nullptr, nullptr});
   }
 
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
     // For now we assume that inputs and outputs have the same shapes and types
     vector<ssize_t> sizes = calc_sizes(in_types_[out_id], ins_ndim_[out_id], input_shape_ptrs_[out_id]);
     out_sizes_.push_back(sizes);
-    void* meminfo = nullptr;
-    void* parent = nullptr;
-    vector<void*> memory_ptrs = {meminfo, parent};
-    out_memory_ptrs_.push_back(memory_ptrs);
+    out_memory_ptrs_.push_back({nullptr, nullptr});
   }
 
   for (int i = 0; i < noutputs; i++) {
@@ -219,7 +213,7 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     threads_per_block_[0], threads_per_block_[1], threads_per_block_[2], 
     0, 
     ws.stream(), 
-    (void**)args.data(), 
+    static_cast<void**>(args.data()), 
     NULL
   );
 }
