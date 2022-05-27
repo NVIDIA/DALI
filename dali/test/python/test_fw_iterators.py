@@ -1558,55 +1558,53 @@ def test_gluon_wrong_last_batch_policy_type():
                                glob="Wrong type for `last_batch_policy`.",
                                output_types=[GluonIterator.DENSE_TAG], last_batch_policy='FILL')
 
-def check_autoreset_quiet(fw_iterator, extract_data):
-    size = 3
+def check_autoreset_iter(fw_iterator, extract_data, auto_reset_op):
     batch_size = 2
-
-    def data_source(sample_info):
-        if sample_info.idx_in_epoch >= size * batch_size:
-            raise StopIteration
-        return np.array([sample_info.idx_in_epoch, sample_info.epoch_idx])
+    number_of_samples = 10
+    images_files = [__file__]*number_of_samples
+    labels = list(range(number_of_samples))
 
     @pipeline_def
     def BoringPipeline():
-        return fn.external_source(data_source, batch=False)
+        _, l = fn.readers.file(files=images_files, labels=labels, stick_to_shard =True, name="reader")
+
+        return l
     pipeline = BoringPipeline(batch_size=batch_size, device_id=0, num_threads=1)
 
-    loader = fw_iterator(pipeline, size=size, auto_reset="quiet")
-    current_epoch = -1
-    for i, data in enumerate(loader):
-        if i % size == 0:
-            current_epoch += 1
-        for j, d in enumerate(extract_data(data[0])):
-            assert d[0] == (i * batch_size + j) % (size * batch_size), f"{d[0]} { (i * batch_size + j) % (size * batch_size)}"
-            assert d[1] == current_epoch, f"{d[1]} { (current_epoch)}"
-        if i > size + 2:
-            break
+    loader = fw_iterator(pipeline, reader_name = "reader", auto_reset=auto_reset_op)
+    for _ in range(2):
+        for i, data in enumerate(loader):
+            for j, d in enumerate(extract_data(data[0])):
+                assert d[0] == i * batch_size + j, f"{d[0]} { i * batch_size + j}"
 
-def test_mxnet_autoreset_quiet():
+def test_mxnet_autoreset_iter():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
 
-    fw_iterator = lambda pipeline, size, auto_reset: MXNetIterator(pipeline, [("random", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
-    extract_data = lambda x: x.data[0].asnumpy()
-    check_autoreset_quiet(fw_iterator, extract_data)
+    for auto_reset_op in ["yes", "no"]:
+        fw_iterator = lambda pipeline, reader_name, auto_reset: MXNetIterator(pipeline, [("data", MXNetIterator.DATA_TAG)], reader_name=reader_name, auto_reset=auto_reset)
+        extract_data = lambda x: x.data[0].asnumpy()
+        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op
 
-def test_gluon_autoreset_quiet():
+def test_gluon_autoreset_iter():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
 
-    fw_iterator = lambda pipeline, size, auto_reset: GluonIterator(pipeline, size=size, auto_reset=auto_reset)
-    extract_data = lambda x: x[0].asnumpy()
-    check_autoreset_quiet(fw_iterator, extract_data)
+    for auto_reset_op in ["yes", "no"]:
+        fw_iterator = lambda pipeline, reader_name, auto_reset: GluonIterator(pipeline, reader_name=reader_name, auto_reset=auto_reset)
+        extract_data = lambda x: x[0].asnumpy()
+        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op
 
-def test_pytorch_autoreset_quiet():
+def test_pytorch_autoreset_iter():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
-    fw_iterator = lambda pipeline, size, auto_reset: PyTorchIterator(pipeline, output_map=["random"], size=size, auto_reset=auto_reset)
-    extract_data = lambda x : x["random"].numpy()
-    check_autoreset_quiet(fw_iterator, extract_data)
+    for auto_reset_op in ["yes", "no"]:
+        fw_iterator = lambda pipeline, reader_name, auto_reset: PyTorchIterator(pipeline, output_map=["data"], reader_name=reader_name, auto_reset=auto_reset)
+        extract_data = lambda x : x["data"].numpy()
+        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op
 
-def test_paddle_autoreset_quiet():
+def test_paddle_autoreset_iter():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
-    fw_iterator = lambda pipeline, size, auto_reset: PaddleIterator(pipeline, output_map=["random"], size=size, auto_reset=auto_reset)
-    extract_data = lambda x : np.array(x["random"])
-    check_autoreset_quiet(fw_iterator, extract_data)
+    for auto_reset_op in ["yes", "no"]:
+        fw_iterator = lambda pipeline, reader_name, auto_reset: PaddleIterator(pipeline, output_map=["data"], reader_name=reader_name, auto_reset=auto_reset)
+        extract_data = lambda x : np.array(x["data"])
+        yield check_autoreset_iter, fw_iterator, extract_data, auto_reset_op

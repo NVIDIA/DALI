@@ -80,9 +80,8 @@ class _DaliBaseIterator(object):
 
                 It can be one of the following values:
 
-                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called. Calling ``iter()`` on the iterator would reset it as well.
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
-                * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset() is silently called internally
 
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
@@ -150,8 +149,6 @@ class _DaliBaseIterator(object):
             self._auto_reset = "no"
         elif auto_reset == True or auto_reset == "yes":
             self._auto_reset = "yes"
-        elif auto_reset == "quiet":
-            self._auto_reset = "quiet"
         else:
             raise ValueError(f"Unsupported value for `auto_reset` {auto_reset}")
         self._prepare_first_batch = prepare_first_batch
@@ -274,10 +271,9 @@ class _DaliBaseIterator(object):
                     outputs.append(p.share_outputs())
         except StopIteration as e:
             # in case ExternalSource returns StopIteration
-            if self._size < 0 and (self._auto_reset == "yes" or self._auto_reset == "quiet"):
+            if self._size < 0 and self._auto_reset == "yes":
                 self.reset()
-            if self._auto_reset != "quiet":
-                raise e
+            raise e
         self._check_batch_size(outputs)
         return outputs
 
@@ -293,10 +289,9 @@ class _DaliBaseIterator(object):
                         "provided or iterator size is set explicitly"
 
     def _end_iteration(self):
-        if self._auto_reset == "yes" or self._auto_reset == "quiet":
+        if self._auto_reset == "yes":
             self.reset()
-        if self._auto_reset != "quiet":
-            raise StopIteration
+        raise StopIteration
 
     def _schedule_runs(self, release_outputs=True):
         """
@@ -397,6 +392,9 @@ class _DaliBaseIterator(object):
         raise NotImplementedError
 
     def __iter__(self):
+        # avoid redundant reset when someone would call `iter()` on a new iterator
+        if self._counter != 0:
+            self.reset()
         return self
 
     @property
