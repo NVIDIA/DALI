@@ -29,8 +29,20 @@ lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 def set_all_values_to_255_sample(in_arr, out_arr):
     x, y = cuda.grid(2)
+    if x < out_arr.shape[0] and y < out_arr.shape[1]:
+        out_arr[x][y] = 255
+
+
+def set_output_to_input_plus_5_sample(in_arr, out_arr):
+    x, y = cuda.grid(2)
     if x < in_arr.shape[0] and y < in_arr.shape[1] and x < out_arr.shape[0] and y < out_arr.shape[1]:
         out_arr[x][y] = in_arr[x][y] + 5
+
+
+def set_consecutive_values_sample(in_arr, out_arr):
+    x, y = cuda.grid(2)
+    if x < in_arr.shape[0] and y < in_arr.shape[1] and x < out_arr.shape[0] and y < out_arr.shape[1]:
+        out_arr[x][y] = y + x * in_arr.shape[1]
 
 
 def get_data(shapes, dtype):
@@ -54,15 +66,14 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
             out_arr = np.array(outs[0][i].as_cpu())
             assert np.array_equal(out_arr, expected_out[i])
 
+
 def test_numba_func():
-    # shape, dtype, run_fn, out_types, in_types, out_ndim, in_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
+    # shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
     args = [
-        ([(10, 5)], np.float32, set_all_values_to_255_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 6, dtype=np.float32)]),
+        ([(10, 5)], np.int8, set_all_values_to_255_sample, [dali_types.INT8], [dali_types.INT8], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 255, dtype=np.int8)]),
+        ([(10, 5)], np.float32, set_output_to_input_plus_5_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 6, dtype=np.float32)]),
+        ([(10, 5)], np.float32, set_consecutive_values_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.arange(10*5, dtype=np.float32).reshape((10, 5))]),
     ]
 
     for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out in args:
-        # yield _testimpl_numba_func, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, expected_out
-        _testimpl_numba_func(shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out)
-
-test_numba_func()
-# next(gen)
+        yield _testimpl_numba_func, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
