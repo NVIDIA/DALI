@@ -22,18 +22,19 @@
 
 namespace dali {
 namespace kernels {
-namespace find {
+namespace find_first_last {
 
 namespace {
 
 /**
  * @brief Sample descriptor
  */
-template <typename T, typename Predicate>
+template <typename T, typename Idx, typename Predicate, typename OutFormat>
 struct SampleDesc {
-  int64_t *a_ptr, *b_ptr;  // represents (first, last), (begin, end), or (begin, length) depending
-                           // on the OutputProcessor
+  Idx *a_ptr, *b_ptr;  // represents (first, last), (begin, end), or (begin, length) depending
+                       // on OutFormat
   Predicate predicate;
+  OutFormat format;
   const T *in;
   int64_t len;
 };
@@ -41,20 +42,22 @@ struct SampleDesc {
 /**
  * @brief Represents first, last (or other range representations) coordinates
  */
-struct pair_i64 {
-    int64_t a = 0;
-    int64_t b = 0;
+template <typename Idx>
+struct pair_idx {
+    Idx a = 0;
+    Idx b = 0;
 };
 
 /**
  * @brief First and last position
  */
+template <typename Idx>
 struct first_last {
-  DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
+  DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> operator()(pair_idx<Idx> x) const noexcept {
     return x;
   }
 
-  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_i64 neutral() const noexcept {
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> neutral() const noexcept {
     return {-1, -1};
   }
 };
@@ -62,12 +65,13 @@ struct first_last {
 /**
  * @brief Begin (inclusive) and End (exclusive) of the region
  */
+template <typename Idx>
 struct begin_end {
-  DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
+  DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> operator()(pair_idx<Idx> x) const noexcept {
     return {x.a, x.b + 1};
   }
 
-  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_i64 neutral() const noexcept {
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> neutral() const noexcept {
     return {0, 0};  // empty range
   }
 };
@@ -75,12 +79,13 @@ struct begin_end {
 /**
  * @brief Begin (inclusive) and Length of the region
  */
+template <typename Idx>
 struct begin_length {
-  DALI_HOST_DEV DALI_FORCEINLINE pair_i64 operator()(pair_i64 x) const noexcept {
+  DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> operator()(pair_idx<Idx> x) const noexcept {
     return {x.a, x.b - x.a + 1};
   }
 
-  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_i64 neutral() const noexcept {
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> neutral() const noexcept {
     return {0, 0};  // empty range
   }
 };
@@ -89,41 +94,51 @@ struct begin_length {
  * @brief Extract the position of the first and last position (or a derived representation) that
  * satisfies a predicate
  *
+ *
  * @remarks Calculates a double reduction (min, max) in one go
  *
  * @tparam T Input data type
+ * @tparam Idx Index data type (int64_t, int32_t)
  * @tparam Predicate Predicate that must be satisfied
  * @tparam OutFormat Optional Transformation to first, last coordinates
  * @param samples Sample descriptors, including a per-sample predicate
  * @param format Optional output coordinate transformation
  */
-template <typename T, typename Predicate, typename OutFormat = first_last>
-__global__ void FindFirstLastImpl(SampleDesc<T, Predicate> *samples, OutFormat format = {}) {
+template <typename T, typename Idx, typename Predicate, typename OutFormat>
+__global__ void FindFirstLastImpl(SampleDesc<T, Idx, Predicate, OutFormat> *samples) {
+  // This kernel is an adapted version of other reduce kernels (see ReduceAllBatchedKernel)
+  // This kernel processes 1024-element blocks laid out as 32x32.
+  // Grid is flat 2D and blockIdx.x corresponds to an output bin (a single element in this case)
+  // and blockIdx.y corresponds to sample in the batch.
+  // First, each thread goes with x-grid-sized stride over the data and iteratively reduces
+  // in a local variable.
+  // Then the local variable is reduced over the block.
   int sample_idx = blockIdx.y;
   auto &sample = samples[sample_idx];
   const T *input = sample.in;
   int64_t sample_len = sample.len;
   auto &predicate = sample.predicate;
+  auto &format = sample.format;
 
   const int64_t blk_size = blockDim.x * blockDim.y;
   const int64_t grid_size = gridDim.x * blk_size;
-  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  const int64_t flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
 
   reductions::min first_reduction;
   reductions::max last_reduction;
 
-  int64_t first_neutral = first_reduction.template neutral<int64_t>();
-  int64_t last_neutral = last_reduction.template neutral<int64_t>();
-  int64_t first = first_neutral;
-  int64_t last = last_neutral;
+  Idx first_neutral = first_reduction.template neutral<Idx>();
+  Idx last_neutral = last_reduction.template neutral<Idx>();
+  Idx first = first_neutral;
+  Idx last = last_neutral;
 
   // similar concept as in reduction kernels
 
   int64_t idx = blockIdx.x * blk_size + flat_tid;
   for (; idx < sample_len; idx += grid_size) {
-    int64_t tmp_idx = predicate(input[idx]) ? idx : -1;
-    int64_t first_candidate = tmp_idx < 0 ? first_reduction.template neutral<int64_t>() : tmp_idx;
-    int64_t last_candidate = tmp_idx < 0 ? last_reduction.template neutral<int64_t>() : tmp_idx;
+    Idx tmp_idx = predicate(input[idx]) ? idx : -1;
+    Idx first_candidate = tmp_idx < 0 ? first_reduction.template neutral<Idx>() : tmp_idx;
+    Idx last_candidate = tmp_idx < 0 ? last_reduction.template neutral<Idx>() : tmp_idx;
 
     first_reduction(first, first_candidate);
     last_reduction(last, last_candidate);
@@ -155,15 +170,34 @@ class FindFirstLastGPU {
     return req;
   }
 
-  template <typename T, typename Predicate, typename OutputFormat = first_last>
+  /**
+   * @brief Run from sample descriptors directly in GPU memory
+   * @remarks Convenient if predicates are to be generated on GPU
+   */
+  template <typename T, typename Idx, typename Predicate, typename OutFormat>
+  void Run(KernelContext &ctx, SampleDesc<T, Idx, Predicate, OutFormat> *sample_descs_gpu,
+           int nsamples) {
+    dim3 grid(1, nsamples);  // 1 output bin per sample (reduction to scalar)
+    dim3 block(32, 32);      // expected by BlockReduce
+    FindFirstLastImpl<T, Idx, Predicate, OutFormat>
+        <<<grid, block, 0, ctx.gpu.stream>>>(sample_descs_gpu);
+    CUDA_CALL(cudaGetLastError());
+  }
+
+  /**
+   * @brief Run from outputs, inputs, and predicates
+   * @remarks Convenient when data is populated on the host
+   */
+  template <typename T, typename Idx, typename Predicate, typename OutFormat>
   void Run(KernelContext &ctx,
-           const OutListGPU<int64_t, 0> &begin,
-           const OutListGPU<int64_t, 0> &length,
+           const OutListGPU<Idx, 0> &begin,
+           const OutListGPU<Idx, 0> &length,
            const InListGPU<T, 1> &in,
            span<Predicate> predicates = {},
-           OutputFormat format = {}) {
+           span<OutFormat> formaters = {}) {
     int nsamples = in.shape.num_samples();
-    auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc<T, Predicate>>(nsamples);
+    auto *sample_descs_cpu =
+        ctx.scratchpad->AllocatePinned<SampleDesc<T, Idx, Predicate, OutFormat>>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
       auto &sample = sample_descs_cpu[i];
@@ -175,19 +209,20 @@ class FindFirstLastGPU {
       sample.predicate = predicates.empty()     ? Predicate{} :
                          predicates.size() == 1 ? predicates[0] :
                                                   predicates[i];
+
+      // Allowing a default or a single output formater for the whole batch
+      sample.format = formaters.empty()     ? OutFormat{} :
+                      formaters.size() == 1 ? formaters[0] :
+                                              formaters[i];
     }
     auto *sample_descs_gpu =
         ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
 
-    dim3 grid(1, nsamples);  // 1 output bin per sample (reduction to scalar)
-    dim3 block(32, 32);      // expected by BlockReduce
-    FindFirstLastImpl<T, Predicate, OutputFormat>
-        <<<grid, block, 0, ctx.gpu.stream>>>(sample_descs_gpu, format);
-    CUDA_CALL(cudaGetLastError());
+    Run<T, Idx, Predicate, OutFormat>(ctx, sample_descs_gpu, nsamples);
   }
 };
 
-}  // namespace find
+}  // namespace find_first_last
 }  // namespace kernels
 }  // namespace dali
 
