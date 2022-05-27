@@ -93,6 +93,7 @@ struct begin_length {
  * @brief Extract the position of the first and last position (or a derived representation) that
  * satisfies a predicate
  *
+ *
  * @remarks Calculates a double reduction (min, max) in one go
  *
  * @tparam T Input data type
@@ -104,6 +105,13 @@ struct begin_length {
  */
 template <typename T, typename Idx, typename Predicate, typename OutFormat>
 __global__ void FindFirstLastImpl(SampleDesc<T, Idx, Predicate> *samples, OutFormat format = {}) {
+  // This kernel is an adapted version of other reduce kernels (see ReduceAllBatchedKernel)
+  // This kernel processes 1024-element blocks laid out as 32x32.
+  // Grid is flat 2D and blockIdx.x corresponds to an output bin (a single element in this case)
+  // and blockIdx.y corresponds to sample in the batch.
+  // First, each thread goes with x-grid-sized stride over the data and iteratively reduces
+  // in a local variable.
+  // Then the local variable is reduced over the block.
   int sample_idx = blockIdx.y;
   auto &sample = samples[sample_idx];
   const T *input = sample.in;
