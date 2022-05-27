@@ -1,29 +1,50 @@
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/common/find/find_first_last_gpu.cuh"
+#include "dali/kernels/reduce/reduce_gpu.h"
+#include "dali/kernels/signal/decibel/decibel_calculator.h"
+#include "dali/kernels/signal/moving_mean_square_gpu.h"
+#include "dali/operators/audio/nonsilence_op.h"
 #include "dali/pipeline/data/views.h"
 
 namespace dali {
 
 namespace {
 
-template <typename T>
-struct threshold_ptr {
-  T* ptr_;
-  DALI_HOST_DEV DALI_FORCEINLINE bool operator()(T x) const noexcept {
-    return x >= *ptr_;
+struct threshold_cutoff_db {
+  float thresh_;
+
+  DALI_HOST_DEV DALI_FORCEINLINE threshold_cutoff_db() = default;
+  DALI_HOST_DEV DALI_FORCEINLINE explicit threshold_cutoff_db(float cutoff_db, float ref) {
+    kernels::signal::DecibelToMagnitude<float> db2mag(10.f, ref);
+    thresh_ = db2mag(cutoff_db);
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE bool operator()(float x) const noexcept {
+    return x >= thresh_;
   }
 };
 
-template <typename T>
-struct threshold_val {
-  T value_;
-  explicit threshold_val(T value = 0) : value_(value) {}
-
-  DALI_HOST_DEV DALI_FORCEINLINE bool operator()(T x) const noexcept {
-    return x >= value_;
+__global__
+void InitPredicates(threshold_cutoff_db *predicates, float *ref_pow, float *cutoff_db, int N) {
+  for (int idx = threadIdx.x + blockIdx.x * blockDim.x;
+       idx < N;
+       idx += blockDim.x * gridDim.x) {
+    predicates[idx] = threshold_cutoff_db(cutoff_db[idx], ref_pow[idx]);
   }
-};
+}
 
 }  // namespace
 
@@ -39,7 +60,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override {
     auto dtype = ws.template Input<GPUBackend>(0).type();
     // TYPE_SWITCH(dtype, type2id, T, NONSILENCE_TYPES, (
-      RunImplTyped<float>(ws);
+      // RunImplTyped<float>(ws);
    // ), DALI_FAIL(make_string("Unsupported input type: ", dtype));)  // NOLINT
   }
 
@@ -62,49 +83,61 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
     max_kernel.Run(ctx, max, in);
   }
 
-  void CalcNonsilentRegionRefMax(kernels::KernelContext &ctx,
-                                 TensorListView<StorageGPU, int32_t, 0> &begin,
-                                 TensorListView<StorageGPU, int32_t, 0> &len,
-                                 TensorListView<StorageGPU, float, 1> &mms) {
-    int nsamples = mms.num_samples();
-    TensorListShape<0> scalar(nsamples);
-    auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
-    CalcMax(ctx, max_mms, mms);
+  // void CalcNonsilentRegionRefMax(kernels::KernelContext &ctx,
+  //                                TensorListView<StorageGPU, int32_t, 0> &begin,
+  //                                TensorListView<StorageGPU, int32_t, 0> &len,
+  //                                TensorListView<StorageGPU, float, 1> &mms,
+  //                                span<float> cutoff_db, span<float> ref_pow = {}) {
+  //   int nsamples = mms.num_samples();
+  //   TensorListShape<0> scalar(nsamples);
 
-    using Predicate = threshold_ptr<float>;
-    // no need for it to be pinned, since we copy those predicates to sample descriptors (pinned) in the kernel
-    span<Predicate> predicates{ctx.scratchpad->Allocate<mm::memory_kind::host, Predicate>(nsamples), nsamples};
-    for (int i = 0; i < nsamples; i++) {
-      predicates[i].ptr_ = max_mms[i].data;
-    }
+  //   using Predicate = threshold_cutoff_db;
 
-    using OutFormat = kernels::find::begin_length<int32_t>;
-    find_first_last_kernel.template Run<float, int32_t, Predicate, OutFormat>(
-        ctx, begin, len, mms, predicates);
-  }
+  //   if (ref_pow.empty()) {
+  //     auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
+  //     CalcMax(ctx, max_mms, mms);
 
-  void CalcNonsilentRegionRefConstant(kernels::KernelContext &ctx,
-                                      TensorListView<StorageGPU, int32_t, 0> &begin,
-                                      TensorListView<StorageGPU, int32_t, 0> &len,
-                                      TensorListView<StorageGPU, float, 1> &mms) {
-    int nsamples = mms.num_samples();
-    TensorListShape<0> scalar(nsamples);
-    auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
-    CalcMax(ctx, max_mms, mms);
+  //     // InitPredicates takes contiguous mem
+  //     // Sanity check that AllocTensorList allocated a contiguous chunk
+  //     assert(max_mms.is_contiguous());
+  //     float* max_mms_data = max_mms[0].data;
 
-    using Predicate = threshold_ptr<float>;
-    // no need for it to be pinned, since we copy those predicates to sample descriptors (pinned) in
-    // the kernel
-    span<Predicate> predicates{ctx.scratchpad->Allocate<mm::memory_kind::host, Predicate>(nsamples),
-                               nsamples};
-    for (int i = 0; i < nsamples; i++) {
-      predicates[i].ptr_ = max_mms[i].data;
-    }
+  //     Predicate* predicates = ctx.scratchpad->Allocate<mm::memory_kind::device, Predicate>(nsamples);
+  //     static constexpr int kBlockSize = 256;
+  //     int grid = div_ceil(nsamples, kBlockSize);
+  //     InitPredicates<<<grid, kBlockSize, 0, ctx.cuda.stream>>>(predicates, max_mms_data, cutoff_db.data(), nsamples);
+  //   }
 
-    using OutFormat = kernels::find::begin_length<int32_t>;
-    find_first_last_kernel.template Run<float, int32_t, Predicate, OutFormat>(ctx, begin, len, mms,
-                                                                              predicates);
-  }
+
+
+  //   using OutFormat = kernels::find::begin_length<int32_t>;
+  //   find_first_last_kernel.template Run<float, int32_t, Predicate, OutFormat>(
+  //       ctx, begin, len, mms, predicates);
+  // }
+
+  // void CalcNonsilentRegionRefConstant(kernels::KernelContext &ctx,
+  //                                     TensorListView<StorageGPU, int32_t, 0> &begin,
+  //                                     TensorListView<StorageGPU, int32_t, 0> &len,
+  //                                     TensorListView<StorageGPU, float, 1> &mms,
+  //                                     float ref_pow) {
+  //   int nsamples = mms.num_samples();
+  //   TensorListShape<0> scalar(nsamples);
+  //   auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
+  //   CalcMax(ctx, max_mms, mms);
+
+  //   using Predicate = threshold_val<float>;
+  //   // no need for it to be pinned, since we copy those predicates to sample descriptors (pinned) in
+  //   // the kernel
+  //   span<Predicate> predicates{ctx.scratchpad->Allocate<mm::memory_kind::host, Predicate>(nsamples),
+  //                              nsamples};
+  //   for (int i = 0; i < nsamples; i++) {
+  //     predicates[i].value_ = ref_pow;
+  //   }
+
+  //   using OutFormat = kernels::find::begin_length<int32_t>;
+  //   find_first_last_kernel.template Run<float, int32_t, Predicate, OutFormat>(ctx, begin, len, mms,
+  //                                                                             predicates);
+  // }
 
 
   template <typename T>
@@ -122,11 +155,11 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
     auto mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 1>(input.shape);
     CalcMMS(ctx, mms, input);
 
-    if (reference_max_) {
-      TensorListShape<0> scalar(nsamples);
-      auto max_mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
-      CalcMax(ctx, max_mms, mms);
-    }
+    // if (reference_max_) {
+    //   TensorListShape<0> scalar(nsamples);
+    //   auto max_mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
+    //   CalcMax(ctx, max_mms, mms);
+    // }
   }
 };
 
