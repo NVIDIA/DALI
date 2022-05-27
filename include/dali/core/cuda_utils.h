@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ int MaxThreadsPerBlock(KernelFunction *f) {
   return max_block_size[device];
 }
 
-inline int GetSmCount(int device_id = -1) {
+inline const cudaDeviceProp& GetDeviceProperties(int device_id = -1) {
   if (device_id < 0) {
     CUDA_CALL(cudaGetDevice(&device_id));
   }
@@ -103,13 +103,23 @@ inline int GetSmCount(int device_id = -1) {
     CUDA_CALL(cudaGetDeviceCount(&ndevs));
     return ndevs;
   }();
-  static vector<int> count(dev_count);
-  if (!count[device_id]) {
-    cudaDeviceProp prop;
-    CUDA_CALL(cudaGetDeviceProperties(&prop, 0));
-    count[device_id] = prop.multiProcessorCount;
+  static vector<bool> read(dev_count, false);
+  static vector<cudaDeviceProp> properties(dev_count);
+  if (!read[device_id]) {
+    CUDA_CALL(cudaGetDeviceProperties(&properties[device_id], 0));
+    read[device_id] = true;
   }
-  return count[device_id];
+  return properties[device_id];
+}
+
+inline int GetSmCount(int device_id = -1) {
+  const auto& props = GetDeviceProperties(device_id);
+  return props.multiProcessorCount;
+}
+
+inline int GetSharedMemPerBlock(int device_id = -1) {
+  const auto& props = GetDeviceProperties(device_id);
+  return props.sharedMemPerBlock;
 }
 
 }  // namespace dali

@@ -18,6 +18,7 @@
 #include <numeric>
 #include <vector>
 #include "dali/core/convert.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/util.h"
 #include "dali/kernels/signal/moving_mean_square.h"
 #include "dali/kernels/signal/moving_mean_square_gpu.h"
@@ -157,7 +158,7 @@ __global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int logical
   Out *output = sample.out;
   const In *input = sample.in;
   int64_t sample_len = sample.len;
-  int64_t grid_stride = gridDim.x * blockDim.x;
+  int64_t grid_stride = gridDim.x * logical_block;
 
   // Each CUDA block calculates the output for `logical_block` samples, where `logical_block` is
   // typically larger than the CUDA block.
@@ -229,11 +230,11 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
 
   int window_len = args.window_size;
 
-  constexpr int kMaxShmBytes = 40 * 1024;
-  constexpr int kMaxShmElements = kMaxShmBytes / sizeof(acc_t<InputType>);
+  int max_shm_bytes = GetSharedMemPerBlock();
+  int max_shm_elems = max_shm_bytes / sizeof(acc_t<InputType>);
 
   // Get a power of two that doesn't exceed the desired maximum shared memory size
-  int pow2 = prev_pow2(kMaxShmElements * SHARED_MEMORY_BANKS / (SHARED_MEMORY_BANKS + 1));
+  int pow2 = prev_pow2(max_shm_elems * SHARED_MEMORY_BANKS / (SHARED_MEMORY_BANKS + 1));
 
   // If reset interval is given, selects the logical block so that is close to it
   // effectively clearing accummulation error every `reset_interval` samples.
@@ -243,12 +244,11 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
 
   int shm_sz = shm_pos(pow2) * sizeof(acc_t<InputType>);
   int logical_block = pow2 - window_len;
-
   // Note: logical_block==1 is very wasteful, but better than failing
   assert(logical_block > 0);
 
   // At the very least we should be able to fit a window plus one element in shared mem
-  if (shm_sz > kMaxShmBytes) {
+  if (shm_sz > max_shm_bytes) {
     throw std::runtime_error(
       "Can't compute the requested running sum, due to shared memory restrictions");
   }
