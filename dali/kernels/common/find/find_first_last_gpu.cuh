@@ -22,18 +22,19 @@
 
 namespace dali {
 namespace kernels {
-namespace find {
+namespace find_first_last {
 
 namespace {
 
 /**
  * @brief Sample descriptor
  */
-template <typename T, typename Idx, typename Predicate>
+template <typename T, typename Idx, typename Predicate, typename OutFormat>
 struct SampleDesc {
   Idx *a_ptr, *b_ptr;  // represents (first, last), (begin, end), or (begin, length) depending
-                           // on the OutputProcessor
+                       // on OutFormat
   Predicate predicate;
+  OutFormat format;
   const T *in;
   int64_t len;
 };
@@ -104,7 +105,7 @@ struct begin_length {
  * @param format Optional output coordinate transformation
  */
 template <typename T, typename Idx, typename Predicate, typename OutFormat>
-__global__ void FindFirstLastImpl(SampleDesc<T, Idx, Predicate> *samples, OutFormat format = {}) {
+__global__ void FindFirstLastImpl(SampleDesc<T, Idx, Predicate, OutFormat> *samples) {
   // This kernel is an adapted version of other reduce kernels (see ReduceAllBatchedKernel)
   // This kernel processes 1024-element blocks laid out as 32x32.
   // Grid is flat 2D and blockIdx.x corresponds to an output bin (a single element in this case)
@@ -117,6 +118,7 @@ __global__ void FindFirstLastImpl(SampleDesc<T, Idx, Predicate> *samples, OutFor
   const T *input = sample.in;
   int64_t sample_len = sample.len;
   auto &predicate = sample.predicate;
+  auto &format = sample.format;
 
   const int64_t blk_size = blockDim.x * blockDim.y;
   const int64_t grid_size = gridDim.x * blk_size;
@@ -168,16 +170,34 @@ class FindFirstLastGPU {
     return req;
   }
 
-  template <typename T, typename Idx, typename Predicate, typename OutputFormat>
+  /**
+   * @brief Run from sample descriptors directly in GPU memory
+   * @remarks Convenient if predicates are to be generated on GPU
+   */
+  template <typename T, typename Idx, typename Predicate, typename OutFormat>
+  void Run(KernelContext &ctx, SampleDesc<T, Idx, Predicate, OutFormat> *sample_descs_gpu,
+           int nsamples) {
+    dim3 grid(1, nsamples);  // 1 output bin per sample (reduction to scalar)
+    dim3 block(32, 32);      // expected by BlockReduce
+    FindFirstLastImpl<T, Idx, Predicate, OutFormat>
+        <<<grid, block, 0, ctx.gpu.stream>>>(sample_descs_gpu);
+    CUDA_CALL(cudaGetLastError());
+  }
+
+  /**
+   * @brief Run from outputs, inputs, and predicates
+   * @remarks Convenient when data is populated on the host
+   */
+  template <typename T, typename Idx, typename Predicate, typename OutFormat>
   void Run(KernelContext &ctx,
            const OutListGPU<Idx, 0> &begin,
            const OutListGPU<Idx, 0> &length,
            const InListGPU<T, 1> &in,
            span<Predicate> predicates = {},
-           OutputFormat format = {}) {
+           span<OutFormat> formaters = {}) {
     int nsamples = in.shape.num_samples();
     auto *sample_descs_cpu =
-        ctx.scratchpad->AllocatePinned<SampleDesc<T, Idx, Predicate>>(nsamples);
+        ctx.scratchpad->AllocatePinned<SampleDesc<T, Idx, Predicate, OutFormat>>(nsamples);
 
     for (int i = 0; i < nsamples; i++) {
       auto &sample = sample_descs_cpu[i];
@@ -189,19 +209,20 @@ class FindFirstLastGPU {
       sample.predicate = predicates.empty()     ? Predicate{} :
                          predicates.size() == 1 ? predicates[0] :
                                                   predicates[i];
+
+      // Allowing a default or a single output formater for the whole batch
+      sample.format = formaters.empty()     ? OutFormat{} :
+                      formaters.size() == 1 ? formaters[0] :
+                                              formaters[i];
     }
     auto *sample_descs_gpu =
         ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
 
-    dim3 grid(1, nsamples);  // 1 output bin per sample (reduction to scalar)
-    dim3 block(32, 32);      // expected by BlockReduce
-    FindFirstLastImpl<T, Idx, Predicate, OutputFormat>
-        <<<grid, block, 0, ctx.gpu.stream>>>(sample_descs_gpu, format);
-    CUDA_CALL(cudaGetLastError());
+    Run<T, Idx, Predicate, OutFormat>(ctx, sample_descs_gpu, nsamples);
   }
 };
 
-}  // namespace find
+}  // namespace find_first_last
 }  // namespace kernels
 }  // namespace dali
 

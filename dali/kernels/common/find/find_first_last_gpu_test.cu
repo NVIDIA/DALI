@@ -23,7 +23,7 @@
 
 namespace dali {
 namespace kernels {
-namespace find {
+namespace find_first_last {
 namespace test {
 
 template <typename T>
@@ -211,6 +211,6 @@ TEST_F(FindFirstLastTestGPU, DISABLED_Benchmark) {
 }
 
 }  // namespace test
-}  // namespace find
+}  // namespace find_first_last
 }  // namespace kernels
 }  // namespace dali
