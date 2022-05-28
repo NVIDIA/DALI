@@ -21,11 +21,22 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/test/device_test.h"
+#include "dali/core/dynlink_cufile.h"
 
 namespace dali {
 namespace gds {
 
+struct CUFileDriverScope {
+  CUFileDriverScope() {
+    CUDA_CALL(cuFileDriverOpen());
+  }
+  ~CUFileDriverScope() {
+    CUDA_CALL(cuFileDriverClose());  // termination on exception is expected
+  }
+};
+
 TEST(GDSMem, AllocatorMultiDevice) {
+  CUFileDriverScope scope;
   int ndev;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   if (ndev < 2) {
@@ -36,6 +47,7 @@ TEST(GDSMem, AllocatorMultiDevice) {
 }
 
 TEST(GDSMem, Allocator) {
+  CUFileDriverScope scope;
   auto alloc = GDSAllocator::get();
   auto unq = alloc->alloc_unique(1024);
   ASSERT_NE(unq, nullptr);
@@ -45,6 +57,7 @@ TEST(GDSMem, Allocator) {
 }
 
 TEST(GDSMem, StagingEngine) {
+  CUFileDriverScope scope;
   CUDAStream stream = CUDAStream::Create(true);
   GDSStagingEngine engn;
   size_t chunk = engn.chunk_size();
@@ -93,12 +106,13 @@ DEFINE_TEST_KERNEL(GDSMem, StagingEngineBigTest, const int *target, int size, in
 }
 
 TEST(GDSMem, StagingEngineBigTest) {
+  CUFileDriverScope scope;
   CUDAStream stream = CUDAStream::Create(true);
   GDSStagingEngine engn;
   engn.set_stream(stream);
   const int num_threads = 50;
   std::vector<std::thread> threads;
-  int elems_per_thread = 50000000;
+  int elems_per_thread = 30000000;
   const int chunk = engn.chunk_size();
   const int elems_per_chunk = chunk / sizeof(int);
 
