@@ -10,13 +10,14 @@ Fields in the Checklist section can be marked after you create and save the Pull
 
 
 ## Category:
-<!--- Please pick one from below: --->
-<!--- **Bug fix** (*non-breaking change which fixes an issue*) --->
-<!--- **New feature** (*non-breaking change which adds functionality*) --->
-<!--- **Breaking change** (*fix or feature that would cause existing functionality to not work as expected*) --->
-<!--- **Refactoring** (*Redesign of existing code that doesn't affect functionality*) --->
-<!--- **Other** (*e.g. Documentation, Tests, Configuration*) --->
-
+<!---
+Please pick one from below:
+**Bug fix** (*non-breaking change which fixes an issue*)
+**New feature** (*non-breaking change which adds functionality*)
+**Breaking change** (*fix or feature that would cause existing functionality to not work as expected*)
+**Refactoring** (*Redesign of existing code that doesn't affect functionality*)
+**Other** (*e.g. Documentation, Tests, Configuration*)
+--->
 
 
 ## Description:
@@ -42,16 +43,14 @@ Examples:
 ### Key points relevant for the review:
 <!--- Describe here what is the most important part that reviewers should focus on. --->
 
+### Tests:
+<!--- Describe the test coverage of the introduced change.
 
-
-<!--- 
-At this point you can hit "Create".
-The checklist below shall be filled in the created PR.
+If you select `Existing tests apply` option, please list which test cases cover the introduced
+functionality. For example:
+- test_operator_gaussian_blur.py: test_gaussian*
+- tensor_vector_test.cc: TensorVectorVariableBatchSizeTest*
 --->
-
-## Checklist
-
-### Tests
 - [ ] Existing tests apply
 - [ ] New tests added
   - [ ] Python tests
@@ -59,6 +58,14 @@ The checklist below shall be filled in the created PR.
   - [ ] Benchmark
   - [ ] Other
 - [ ] N/A
+
+
+<!---
+At this point you can hit "Create".
+The checklist below shall be filled in the created PR.
+--->
+
+## Checklist
 
 ### Documentation
 - [ ] Existing documentation applies
