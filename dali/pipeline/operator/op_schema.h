@@ -1006,7 +1006,7 @@ inline T OpSchema::GetDefaultValueForArgument(const std::string &s) const {
 }
 
 #define DALI_SCHEMA_REG(OpName)      \
-  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {        \
+  int CONCAT_2(DALI_OPERATOR_SCHEMA_REQUIRED_FOR_, OpName)() {        \
     return 42;                                              \
   }                                                         \
   static ::dali::OpSchema* ANONYMIZE_VARIABLE(OpName) =             \
