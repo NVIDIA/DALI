@@ -2,7 +2,7 @@
 
 test_py_with_framework() {
     for test_script in $(ls test_operator_*.py test_pipeline*.py test_external_source_dali.py test_external_source_numpy.py test_external_source_parallel_garbage_collection_order.py test_functional_api.py test_backend_impl.py); do
-        ${python_test_runner} ${python_test_args} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
+        ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
     done
 }
 

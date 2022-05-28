@@ -14,13 +14,13 @@ test_body() {
     is_compatible=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_compatible_tensorflow())')
     if [ $is_compatible = 'True' ]; then
         # DALI TF DATASET run
-        ${python_test_runner} ${python_test_args} test_dali_tf_dataset_graph.py:_test_tf_dataset_other_gpu
-        ${python_test_runner} ${python_test_args} test_dali_tf_dataset_graph.py:_test_tf_dataset_multigpu_manual_placement
-        ${python_test_runner} ${python_test_args} test_dali_tf_dataset_eager.py:_test_tf_dataset_other_gpu
-        ${python_test_runner} ${python_test_args} test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_manual_placement
-        ${python_test_runner} ${python_test_args} test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_mirrored_strategy
-        ${python_test_runner} ${python_test_args} test_dali_tf_dataset_mnist_eager.py
-        ${python_test_runner} ${python_test_args} test_dali_tf_dataset_mnist_graph.py
+        ${python_invoke_test} test_dali_tf_dataset_graph.py:_test_tf_dataset_other_gpu
+        ${python_invoke_test} test_dali_tf_dataset_graph.py:_test_tf_dataset_multigpu_manual_placement
+        ${python_invoke_test} test_dali_tf_dataset_eager.py:_test_tf_dataset_other_gpu
+        ${python_invoke_test} test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_manual_placement
+        ${python_invoke_test} test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_mirrored_strategy
+        ${python_invoke_test} test_dali_tf_dataset_mnist_eager.py
+        ${python_invoke_test} test_dali_tf_dataset_mnist_graph.py
 
         # DALI TF Notebooks run
         pushd ../../../docs/examples/frameworks/tensorflow/

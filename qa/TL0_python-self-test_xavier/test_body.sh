@@ -20,7 +20,7 @@ test_py_with_framework() {
         done
         # execute only when no matches are found
         if [ ${status} -eq 0 ]; then
-            ${python_test_runner} ${python_test_args} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
+            ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
         fi
     done
 }

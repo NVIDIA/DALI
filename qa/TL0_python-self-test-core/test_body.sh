@@ -8,7 +8,7 @@ test_py_with_framework() {
                             test_backend_impl.py \
                             test_dali_variable_batch_size.py \
                             test_external_source_impl_utils.py); do
-        ${python_test_runner} ${python_test_args} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
+        ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
 }
 
@@ -21,7 +21,7 @@ test_py() {
 }
 
 test_pytorch() {
-    ${python_test_runner} ${python_test_args} --attr '!slow,pytorch' test_dali_variable_batch_size.py
+    ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
 }
 
 test_no_fw() {

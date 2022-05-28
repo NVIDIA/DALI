@@ -9,8 +9,8 @@ prolog=(: enable_conda)
 epilog=(: disable_conda)
 
 test_body() {
-    ${python_test_runner} ${python_test_args} test_optical_flow.py
-    ${python_test_runner} ${python_test_args} test_dali_variable_batch_size.py:test_optical_flow
+    ${python_invoke_test} test_optical_flow.py
+    ${python_invoke_test} test_dali_variable_batch_size.py:test_optical_flow
 }
 
 pushd ../..

@@ -11,6 +11,8 @@ source $topdir/qa/setup_test_common.sh
 # Set runner for python tests
 python_test_runner_package="nose"
 python_test_runner="python -m nose"
+python_invoke_test="${python_invoke_test}"
+
 python_test_args="--verbose -s"
 
 # Set proper CUDA version for packages, like MXNet, requiring it
