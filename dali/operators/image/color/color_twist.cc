@@ -150,10 +150,10 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   using Kernel = kernels::LinearTransformationCpu<OutputType, InputType, 3, 3, 3>;
   int num_samples = input.num_samples();
   kernel_manager_.template Resize<Kernel>(num_samples);
+  auto in_view = view<const InputType, ndim>(input);
+  auto out_view = view<OutputType, ndim>(output);
   for (int i = 0; i < num_samples; i++) {
-    auto in_view = view<const InputType, ndim>(input[i]);
-    auto out_view = view<OutputType, ndim>(output[i]);
-    auto planes_range = sequence_utils::unfolded_views_range<ndim - 3>(out_view, in_view);
+    auto planes_range = sequence_utils::unfolded_views_range<ndim - 3>(out_view[i], in_view[i]);
     const auto &in_range = planes_range.template get<1>();
     for (auto &&views : planes_range) {
       tp.AddWork(

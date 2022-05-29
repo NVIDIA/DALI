@@ -107,14 +107,15 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   using Kernel = kernels::MultiplyAddCpu<OutputType, InputType, 3>;
   kernel_manager_.template Resize<Kernel>(1);
 
+  auto in_view = view<const InputType, ndim>(input);
+  auto out_view = view<OutputType, ndim>(output);
   for (int sample_id = 0; sample_id < num_samples; sample_id++) {
     float add, mul;
     OpArgsToKernelArgs<OutputType, InputType>(add, mul, brightness_[sample_id],
                                               brightness_shift_[sample_id], contrast_[sample_id],
                                               contrast_center[sample_id]);
-    auto in_view = view<const InputType, ndim>(input[sample_id]);
-    auto out_view = view<OutputType, ndim>(output[sample_id]);
-    auto planes_range = sequence_utils::unfolded_views_range<ndim - 3>(out_view, in_view);
+    auto planes_range =
+        sequence_utils::unfolded_views_range<ndim - 3>(out_view[sample_id], in_view[sample_id]);
     const auto &in_range = planes_range.template get<1>();
     for (auto &&views : planes_range) {
       tp.AddWork([&, views, add, mul](int thread_id) {
