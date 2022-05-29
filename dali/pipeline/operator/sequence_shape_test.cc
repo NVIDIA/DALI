@@ -19,24 +19,13 @@
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/scatter_gather.h"
+#include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/operator/sequence_shape.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 
 namespace sequence_utils_test {
-
-template <typename BatchType>
-struct BatchBackend;
-
-template <template <typename> class BatchContainer, typename Backend>
-struct BatchBackend<BatchContainer<Backend>> {
-  using Type = Backend;
-};
-
-template <typename BatchType>
-using batch_backend_t =
-    typename BatchBackend<std::remove_cv_t<std::remove_reference_t<BatchType>>>::Type;
 
 constexpr cudaStream_t cuda_stream = 0;
 

@@ -321,6 +321,7 @@ inline void broadcast_samples(TensorList<GPUBackend> &expanded_batch,
   const auto &shape = batch.shape();
   auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
   expanded_batch.SetLayout(batch.GetLayout());
+  expanded_batch.set_order(stream);
   expanded_batch.Resize(broadcast_shape, batch.type());
   auto type_size = batch.type_info().size();
   for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
