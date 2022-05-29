@@ -226,6 +226,17 @@ TYPED_TEST(SequenceShapeUnfoldTest, Unfold2Extents3Iters) {
   this->TestUnfolding(*expanded_batch, batch, 2);
 }
 
+TYPED_TEST(SequenceShapeUnfoldTest, UnfoldVarExtents3Iters) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "XYZ");
+  this->TestUnfolding(*expanded_batch, batch, 1);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("XYZ");
+  this->TestUnfolding(*expanded_batch, batch, 2);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}, {13, 4, 11}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("XYZ");
+  this->TestUnfolding(*expanded_batch, batch, 3);
+}
+
 TYPED_TEST(SequenceShapeUnfoldTest, Unfold2Extents3ItersNoLayout) {
   auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "");
   this->TestUnfolding(*expanded_batch, batch, 2);
@@ -235,6 +246,17 @@ TYPED_TEST(SequenceShapeUnfoldTest, Unfold2Extents3ItersNoLayout) {
   batch.Resize({{2, 2, 6}, {13, 4, 11}, {13, 4, 11}, {13, 4, 11}}, DALI_FLOAT);
   batch.SetLayout("");
   this->TestUnfolding(*expanded_batch, batch, 2);
+}
+
+TYPED_TEST(SequenceShapeUnfoldTest, UnfoldVarExtents3ItersNoLayout) {
+  auto [batch, expanded_batch] = this->CreateTestBatch(DALI_UINT8, false, "");
+  this->TestUnfolding(*expanded_batch, batch, 1);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("");
+  this->TestUnfolding(*expanded_batch, batch, 2);
+  batch.Resize({{2, 2, 6}, {13, 4, 11}, {13, 4, 11}, {13, 4, 11}}, DALI_FLOAT);
+  batch.SetLayout("");
+  this->TestUnfolding(*expanded_batch, batch, 3);
 }
 
 TYPED_TEST(SequenceShapeUnfoldTest, Unfold2ExtentsEmptyLayout) {
@@ -396,9 +418,21 @@ TYPED_TEST(SequenceShapeBroadcastTest, Broadcast0Extents) {
   this->template TestBroadcasting<uint32_t>(*expanded_batch, batch, {{}, {}, {}});
 }
 
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast0ExtentsScalars) {
+  auto [batch, expanded_batch] =
+      this->template CreateTestBatch<uint32_t>(DALI_UINT32, false, "", {{}, {}, {}});
+  this->template TestBroadcasting<uint32_t>(*expanded_batch, batch, {{}, {}, {}});
+}
+
 TYPED_TEST(SequenceShapeBroadcastTest, Broadcast1Extent) {
   auto [batch, expanded_batch] = this->template CreateTestBatch<uint16_t>(DALI_UINT16);
   this->template TestBroadcasting<uint16_t>(*expanded_batch, batch, {{1}, {1}, {1}});
+}
+
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast1ExtentScalars) {
+  auto [batch, expanded_batch] =
+      this->template CreateTestBatch<uint16_t>(DALI_UINT16, false, "", {{}, {}, {}, {}});
+  this->template TestBroadcasting<uint16_t>(*expanded_batch, batch, {{1}, {1}, {1}, {1}});
 }
 
 TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2Extents) {
@@ -409,6 +443,13 @@ TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2Extents) {
 TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2ExtentsPinned) {
   auto [batch, expanded_batch] = this->template CreateTestBatch<uint8_t>(DALI_UINT8, true);
   this->template TestBroadcasting<uint8_t>(*expanded_batch, batch, {{1, 1}, {7, 0}, {12, 4}});
+}
+
+TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2ExtentsPinnedScalars) {
+  auto [batch, expanded_batch] =
+      this->template CreateTestBatch<uint8_t>(DALI_UINT8, true, "", {{}, {}, {}, {}});
+  this->template TestBroadcasting<uint8_t>(*expanded_batch, batch,
+                                           {{1, 1}, {7, 0}, {12, 4}, {7, 7}});
 }
 
 TYPED_TEST(SequenceShapeBroadcastTest, Broadcast2Extents3Iters) {
