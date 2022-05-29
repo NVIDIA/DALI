@@ -78,6 +78,7 @@ def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
 class NumbaFunction(metaclass=ops._DaliOperatorMeta):
     schema_name = 'NumbaFunction'
     ops.register_cpu_op('NumbaFunction')
+    ops.register_gpu_op('NumbaFunction')
 
     @property
     def spec(self):
@@ -141,81 +142,42 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             eval_string += ", " if i + 1 != num_ins else  ")"
         return njit(eval(eval_string))
 
-    def __call__(self, *inputs, **kwargs):
-        pipeline = Pipeline.current()
-        if pipeline is None:
-            Pipeline._raise_no_current_pipeline("NumbaFunction")
-        inputs = ops._preprocess_inputs(inputs, self._impl_name, self._device, None)
-        if pipeline is None:
-            Pipeline._raise_pipeline_required("NumbaFunction operator")
-        if (len(inputs) > self._schema.MaxNumInput() or
-                len(inputs) < self._schema.MinNumInput()):
-            raise ValueError(
-                ("Operator {} expects from {} to " +
-                 "{} inputs, but received {}.")
-                .format(type(self).__name__,
-                        self._schema.MinNumInput(),
-                        self._schema.MaxNumInput(),
-                        len(inputs)))
-        for inp in inputs:
-            if not isinstance(inp, _DataNode):
-                raise TypeError(
-                      ("Expected inputs of type `DataNode`. Received input of type '{}'. " +
-                       "Python Operators do not support Multiple Input Sets.")
-                      .format(type(inp).__name__))
-        op_instance = ops._OperatorInstance(inputs, self, **kwargs)
-        op_instance.spec.AddArg("run_fn", self.run_fn)
-        if self.setup_fn != None:
-            op_instance.spec.AddArg("setup_fn", self.setup_fn)
-        op_instance.spec.AddArg("out_types", self.out_types)
-        op_instance.spec.AddArg("in_types", self.in_types)
-        op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
-        op_instance.spec.AddArg("ins_ndim", self.ins_ndim)
-        op_instance.spec.AddArg("device", self.device)
-        op_instance.spec.AddArg("batch_processing", self.batch_processing)
-
-        if self.num_outputs == 0:
-            t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
-            t = _DataNode(t_name, self._device, op_instance)
-            pipeline.add_sink(t)
-            return
-        outputs = []
-
-
-        for i in range(self.num_outputs):
-            t_name = op_instance._name
-            if self.num_outputs > 1:
-                t_name += "[{}]".format(i)
-            t = _DataNode(t_name, self._device, op_instance)
-            op_instance.spec.AddOutput(t.name, t.device)
-            op_instance.append_output(t)
-            pipeline.add_sink(t)
-            outputs.append(t)
-        return outputs[0] if len(outputs) == 1 else outputs
-
-    def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, **kwargs):
-        assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
-        assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
-        if not isinstance(outs_ndim, list):
-            outs_ndim = [outs_ndim]
-        if not isinstance(ins_ndim, list):
-            ins_ndim = [ins_ndim]
-        if not isinstance(out_types, list):
-            out_types = [out_types]
-        if not isinstance(in_types, list):
-            in_types = [in_types]
-
+    def _get_setup_fn_cpu(self, setup_fn):
         setup_fn_address = None
         if setup_fn != None:
             setup_fn = njit(setup_fn)
-
             @cfunc(self._setup_fn_sig(), nopython=True)
             def setup_cfunc(out_shapes_ptr, out_ndims_ptr, num_outs, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
                 in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr, num_outs, num_samples)
                 setup_fn(out_shapes_np, in_shapes_np)
             setup_fn_address = setup_cfunc.address
+        return setup_fn_address
 
+    def _get_run_fn_gpu(self, run_fn, types, dims):
+        nvvm_options = {
+            'debug': False,
+            'lineinfo': False,
+            'fastmath': False,
+            'opt': 3
+        }
+
+        cuda_arguments = []
+        for dali_type, ndim in zip(types, dims):
+            cuda_arguments.append(numba_types.Array(_to_numba[dali_type], ndim, 'C'))
+
+        cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments)
+        tgt_ctx = cres.target_context
+        code = run_fn.__code__
+        filename = code.co_filename
+        linenum = code.co_firstlineno
+        lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
+                                            True, nvvm_options,
+                                            filename, linenum)
+        handle = lib.get_cufunc().handle
+        return handle.value
+
+    def _get_run_fn_cpu(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, batch_processing):
         out0_lambda, out1_lambda, out2_lambda, out3_lambda, out4_lambda, out5_lambda = self._get_carrays_eval_lambda(out_types, outs_ndim)
         in0_lambda, in1_lambda, in2_lambda, in3_lambda, in4_lambda, in5_lambda = self._get_carrays_eval_lambda(in_types, ins_ndim)
         run_fn = njit(run_fn)
@@ -292,50 +254,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                     in5 = in5_lambda(address_as_void_pointer(in_arr[5]), in_shapes_np[5][0])
 
                 run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
-
-        self._impl_name = "NumbaFuncImpl"
-        self._schema = _b.GetSchema(self._impl_name)
-        self._spec = _b.OpSpec(self._impl_name)
-        self._device = device
-
-        kwargs, self._call_args = ops._separate_kwargs(kwargs)
-
-        for key, value in kwargs.items():
-            self._spec.AddArg(key, value)
-
-        self.run_fn = run_cfunc.address
-        self.setup_fn = setup_fn_address
-        self.out_types = out_types
-        self.in_types = in_types
-        self.outs_ndim = outs_ndim
-        self.ins_ndim = ins_ndim
-        self.num_outputs = len(out_types)
-        self.batch_processing = batch_processing
-        self._preserve = True
-
-
-ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")
-
-
-class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
-    schema_name = 'NumbaFunction'
-    ops.register_gpu_op('NumbaFunction')
-
-    @property
-    def spec(self):
-        return self._spec
-
-    @property
-    def schema(self):
-        return self._schema
-
-    @property
-    def device(self):
-        return self._device
-
-    @property
-    def preserve(self):
-        return self._preserve
+        return run_cfunc.address
 
     def __call__(self, *inputs, **kwargs):
         pipeline = Pipeline.current()
@@ -367,10 +286,11 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
         op_instance.spec.AddArg("in_types", self.in_types)
         op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
         op_instance.spec.AddArg("ins_ndim", self.ins_ndim)
-        op_instance.spec.AddArg("blocks", self.blocks)
-        op_instance.spec.AddArg("threads_per_block", self.threads_per_block)
         op_instance.spec.AddArg("device", self.device)
         op_instance.spec.AddArg("batch_processing", self.batch_processing)
+        if self.device == 'gpu':
+            op_instance.spec.AddArg("blocks", self.blocks)
+            op_instance.spec.AddArg("threads_per_block", self.threads_per_block)
 
         if self.num_outputs == 0:
             t_name = self._impl_name + "_id_" + str(op_instance.id) + "_sink"
@@ -378,7 +298,6 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
             pipeline.add_sink(t)
             return
         outputs = []
-
 
         for i in range(self.num_outputs):
             t_name = op_instance._name
@@ -391,16 +310,18 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn=None, device='cpu', batch_processing=False, **kwargs):
+    def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, blocks=None, threads_per_block=None, **kwargs):
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
-        assert len(blocks) == 3, f"`blocks` array should contain 3 numbers, while received: {len(blocks)}"
-        for i, block_dim in enumerate(blocks):
-            assert block_dim > 0, f"All dimensions should be positive. Value specified in `blocks` at index {i} is nonpositive: {block_dim}"
         
-        assert len(threads_per_block) == 3, f"`threads_per_block` array should contain 3 numbers, while received: {len(threads_per_block)}"
-        for i, threads in enumerate(threads_per_block):
-            assert threads > 0, f"All dimensions should be positive. Value specified in `threads_per_block` at index {i} is nonpositive: {threads}"
+        if device == 'gpu':
+            assert len(blocks) == 3, f"`blocks` array should contain 3 numbers, while received: {len(blocks)}"
+            for i, block_dim in enumerate(blocks):
+                assert block_dim > 0, f"All dimensions should be positive. Value specified in `blocks` at index {i} is nonpositive: {block_dim}"
+            
+            assert len(threads_per_block) == 3, f"`threads_per_block` array should contain 3 numbers, while received: {len(threads_per_block)}"
+            for i, threads in enumerate(threads_per_block):
+                assert threads > 0, f"All dimensions should be positive. Value specified in `threads_per_block` at index {i} is nonpositive: {threads}"
 
         if not isinstance(outs_ndim, list):
             outs_ndim = [outs_ndim]
@@ -410,7 +331,6 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
             out_types = [out_types]
         if not isinstance(in_types, list):
             in_types = [in_types]
-
 
         self._impl_name = "NumbaFuncImpl"
         self._schema = _b.GetSchema(self._impl_name)
@@ -422,29 +342,12 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
-        nvvm_options = {
-            'debug': False,
-            'lineinfo': False,
-            'fastmath': False,
-            'opt': 3
-        }
-
-        cuda_arguments = []
-        for dali_type, ndim in zip(in_types + out_types, ins_ndim + outs_ndim):
-            cuda_arguments.append(numba_types.Array(_to_numba[dali_type], ndim, 'C'))
-
-        cres = cuda.compiler.compile_cuda(run_fn, numba_types.void, cuda_arguments)
-        tgt_ctx = cres.target_context
-        code = run_fn.__code__
-        filename = code.co_filename
-        linenum = code.co_firstlineno
-        lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
-                                            True, nvvm_options,
-                                            filename, linenum)
-        handle = lib.get_cufunc().handle
-
-        self.run_fn = handle.value
-        self.setup_fn = None
+        if device == 'gpu':
+            self.run_fn = self._get_run_fn_gpu(run_fn, in_types + out_types, ins_ndim + outs_ndim)
+            self.setup_fn = None
+        else:
+            self.run_fn = self._get_run_fn_cpu(run_fn, out_types, in_types, outs_ndim, ins_ndim, batch_processing)
+            self.setup_fn = self._get_setup_fn_cpu(setup_fn)
         self.out_types = out_types
         self.in_types = in_types
         self.outs_ndim = outs_ndim
@@ -455,5 +358,4 @@ class NumbaFunctionCuda(metaclass=ops._DaliOperatorMeta):
         self.blocks = blocks
         self.threads_per_block = threads_per_block
 
-
-ops._wrap_op(NumbaFunctionCuda, "fn.experimental", "nvidia.dali.plugin.numba")
+ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")
