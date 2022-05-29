@@ -14,7 +14,7 @@
 
 #include "dali/operators/image/color/color_twist.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
-#include "dali/pipeline/operator/sequence_utils.h"
+#include "dali/pipeline/data/sequence_utils.h"
 
 namespace dali {
 

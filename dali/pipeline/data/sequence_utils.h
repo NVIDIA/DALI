@@ -19,10 +19,38 @@
 #include <utility>
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/pipeline/operator/sequence_shape.h"
 
 namespace dali {
 namespace sequence_utils {
+
+template <typename Range>
+class RangeIterator {
+  using IndexType = typename Range::IndexType;
+  using ValueType = typename Range::ValueType;
+
+ public:
+  RangeIterator(const Range &range, IndexType idx) : range_{range}, idx_{idx} {}
+
+  ValueType operator*() const {
+    return range_[idx_];
+  }
+
+  bool operator==(const RangeIterator &other) const {
+    return idx_ == other.idx_;
+  }
+
+  bool operator!=(const RangeIterator &other) const {
+    return !(*this == other);
+  }
+
+  void operator++() {
+    ++idx_;
+  }
+
+ private:
+  const Range &range_;
+  IndexType idx_;
+};
 
 template <typename Storage, typename T, int ndim, int ndims_to_unfold>
 class UnfoldedViewRange {
@@ -81,6 +109,8 @@ UnfoldedViewRange<Storage, T, ndim, ndims_to_unfold> unfolded_view_range(
   return {view};
 }
 
+#if __cplusplus >= 201703L
+
 template <typename Range, typename... Ranges>
 class CombinedRange {
   static_assert(sizeof...(Ranges) >= 1);
@@ -126,6 +156,8 @@ CombinedRange<UnfoldedViewRange<Storages, Ts, ndims, ndims_to_unfold>...> unfold
     const TensorView<Storages, Ts, ndims> &...views) {
   return combine_ranges(unfolded_view_range<ndims_to_unfold>(views)...);
 }
+
+#endif  // __cplusplus >= 201703L
 
 }  // namespace sequence_utils
 

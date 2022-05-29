@@ -14,7 +14,7 @@
 
 #include "dali/operators/image/color/brightness_contrast.h"
 #include "dali/kernels/imgproc/pointwise/multiply_add.h"
-#include "dali/pipeline/operator/sequence_utils.h"
+#include "dali/pipeline/data/sequence_utils.h"
 
 namespace dali {
 
