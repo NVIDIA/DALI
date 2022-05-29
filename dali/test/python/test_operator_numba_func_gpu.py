@@ -70,7 +70,7 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
 def test_numba_func():
     # shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
     args = [
-        ([(10, 5)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 255, dtype=np.uint8)]),
+        ([(10, 5)], np.int8, set_all_values_to_255_sample, [dali_types.INT8], [dali_types.INT8], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 255, dtype=np.int8)]),
         ([(10, 5)], np.float32, set_output_to_input_plus_5_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 6, dtype=np.float32)]),
         ([(10, 5)], np.float32, set_consecutive_values_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.arange(10*5, dtype=np.float32).reshape((10, 5))]),
     ]
