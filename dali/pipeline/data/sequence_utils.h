@@ -23,6 +23,10 @@
 namespace dali {
 namespace sequence_utils {
 
+/**
+ * @brief Facilitates usage of a type that supports operator[] (and provides IndexType and ValueType
+ * types) in range-based for loops.
+ */
 template <typename Range>
 class RangeIterator {
   using IndexType = typename Range::IndexType;
@@ -52,6 +56,12 @@ class RangeIterator {
   IndexType idx_;
 };
 
+
+/**
+ * @brief Unfolds `ndims_to_unfold` leading extents of a TensorView into a range of TensorViews.
+ * For example, for `TensorView` of shape `{7, 2, 50, 100}` and `ndims_to_unfold` = 2,
+ * results in a range of 14 contiguous TensorViews, each of shape {50, 100}.
+ */
 template <typename Storage, typename T, int ndim, int ndims_to_unfold>
 class UnfoldedViewRange {
   static_assert(ndim == DynamicDimensions || ndim >= ndims_to_unfold);
@@ -111,6 +121,10 @@ UnfoldedViewRange<Storage, T, ndim, ndims_to_unfold> unfolded_view_range(
 
 #if __cplusplus >= 201703L
 
+/**
+ * @brief Zips two or more ranges of equal length into a single range of the same
+ * length. The i-th element of the range is a tuple of length equal to the number
+ * of input ranges, where k-th element of a tuple is the i-th element of the k-th range. */
 template <typename Range, typename... Ranges>
 class CombinedRange {
   static_assert(sizeof...(Ranges) >= 1);
@@ -125,7 +139,7 @@ class CombinedRange {
   using ValueType = std::tuple<typename Range::ValueType, typename Ranges::ValueType...>;
 
   ValueType operator[](IndexType idx) const {
-    return std::apply([&idx](const auto &...ranges) { return std::make_tuple(ranges[idx]...); },
+    return std::apply([idx](const auto &...ranges) { return std::make_tuple(ranges[idx]...); },
                       ranges_);
   }
 
@@ -151,6 +165,19 @@ CombinedRange<Ranges...> combine_ranges(Ranges &&...ranges) {
   return {std::forward<Ranges>(ranges)...};
 }
 
+/**
+ * @brief Unfolds the `ndims_to_unfold` leading extents of two or more TensorViews and produces
+ * the zipped range over the unfolded views ranges.
+ * The volume of `ndims_to_unfold` leading extents of every TensorViews must be equal.
+ * Consider the example: `in` is a TensorView of shape {50, 128, 128, 3}
+ * and `out` is a TensorView {50, 64, 64, 3} (it may be a sequence of video frames and
+ * we wish to resize each frame).
+ * Then, the function can be used in range-based loop as follows:
+ * for (auto &&[out_view, in_view] : unfolded_views_range<1>(out, in)) {
+ *    // process each of the 50 frames
+ * }
+ *
+ * */
 template <int ndims_to_unfold, typename... Storages, typename... Ts, int... ndims>
 CombinedRange<UnfoldedViewRange<Storages, Ts, ndims, ndims_to_unfold>...> unfolded_views_range(
     const TensorView<Storages, Ts, ndims> &...views) {
