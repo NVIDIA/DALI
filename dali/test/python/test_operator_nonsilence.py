@@ -80,7 +80,7 @@ def test_nonsilence_operator():
     batch_size = 3
     window_sizes = [512, 1024]
     reset_intervals = [-1, 2048, 8192]
-    references_power = [None, .0003]
+    references_power = [None, .03]
     cutoff_coeffs = [-10, -60, -80]
     for ws in window_sizes:
         for ri in reset_intervals:

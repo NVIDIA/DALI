@@ -45,10 +45,11 @@ struct nonsilent_region_fmt {
   DALI_HOST_DEV DALI_FORCEINLINE explicit nonsilent_region_fmt(int mms_window_len)
       : offset(mms_window_len - 1) {}
 
-  using Pair = using kernels::find_first_last::pair_idx<Idx>;
+  using Pair = kernels::find_first_last::pair_idx<Idx>;
   DALI_HOST_DEV DALI_FORCEINLINE Pair operator()(Pair x) const noexcept {
-    auto len = (x.b + 1) - x.a;  // last + 1 - b
-    return {len + offset};
+    auto begin = x.a - offset;  // count from the beginning of the window
+    auto end = x.b + 1;
+    return {begin, end - begin};
   }
 
   constexpr DALI_HOST_DEV DALI_FORCEINLINE Pair neutral() const noexcept {
@@ -60,8 +61,8 @@ using FindBeginLengthSampleDesc =
     kernels::find_first_last::SampleDesc<float, int32_t, threshold_cutoff_db,
                                          nonsilent_region_fmt<int32_t>>;
 
-__global__ void InitPredicates(FindBeginLengthSampleDesc *sample_descs_gpu, float *ref_pow,
-                               float *cutoff_db, int nsamples) {
+__global__ void InitPredicates(FindBeginLengthSampleDesc *sample_descs_gpu,
+                               float *ref_pow, float *cutoff_db, int nsamples) {
   for (int idx = threadIdx.x + blockIdx.x * blockDim.x; idx < nsamples;
        idx += blockDim.x * gridDim.x) {
     sample_descs_gpu[idx].predicate = threshold_cutoff_db(cutoff_db[idx], ref_pow[idx]);
@@ -81,9 +82,9 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
  protected:
   void RunImpl(workspace_t<GPUBackend> &ws) override {
     auto dtype = ws.template Input<GPUBackend>(0).type();
-    // TYPE_SWITCH(dtype, type2id, T, NONSILENCE_TYPES, (
-      RunImplTyped<float>(ws);
-   // ), DALI_FAIL(make_string("Unsupported input type: ", dtype));)  // NOLINT
+    TYPE_SWITCH(dtype, type2id, T, NONSILENCE_TYPES, (
+      RunImplTyped<T>(ws);
+    ), DALI_FAIL(make_string("Unsupported input type: ", dtype));)  // NOLINT
   }
 
  private:
@@ -121,26 +122,33 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
       sample.format = nonsilent_region_fmt<int32_t>(window_length_);
     }
 
-    if (!reference_max_) {  // otherwise it gets initialized by InitPredicates
+    FindBeginLengthSampleDesc* sample_descs_gpu;
+    if (!reference_max_) {
+      // Predicates can be initialized on host, because the reference power is given
       for (int i = 0; i < nsamples; i++) {
-        sample_descs_cpu[i].predicates = threshold_cutoff_db(cutoff_db_[i], reference_power_[i]);
+        sample_descs_cpu[i].predicate = threshold_cutoff_db(cutoff_db_[i], reference_power_[i]);
       }
-    }
-    auto sample_descs_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
-
-    if (reference_max_) {  // need to initialize predicates if using max as reference
+      sample_descs_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
+    } else {
+      // Predicates need to initialized on the device, because reference power is on the GPU
+      // (needs to be calculated as a pre-step)
       TensorListShape<0> scalar(nsamples);
       auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
       CalcMax(ctx, max_mms, mms);
+      assert(max_mms.is_contiguous());  // as we will pass it as a single pointer to InitPredicates
+      float *max_mms_ptr = max_mms[0].data;
 
       auto cutoff_db = ctx.scratchpad->Allocate<mm::memory_kind::pinned, float>(nsamples);
       for (int i = 0; i < nsamples; i++)
         cutoff_db[i] = cutoff_db_[i];
-      auto cutoff_db_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cutoff_db, nsamples));
+
+      float *cutoff_db_gpu;
+      std::tie(sample_descs_gpu, cutoff_db_gpu) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream,
+        make_span(sample_descs_cpu, nsamples), make_span(cutoff_db, nsamples));
 
       static constexpr int kBlockSize = 256;
       int grid = div_ceil(nsamples, kBlockSize);
-      InitPredicates<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(sample_descs_gpu, max_mms,
+      InitPredicates<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(sample_descs_gpu, max_mms_ptr,
                                                               cutoff_db_gpu, nsamples);
     }
 
@@ -156,15 +164,15 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
 
     auto input = view<const T, 1>(ws.template Input<GPUBackend>(0));
     int nsamples = input.shape.num_samples();
-    auto out_begin = view<int32_t>(ws.template Output<GPUBackend>(0));
-    auto out_end = view<int32_t>(ws.template Output<GPUBackend>(1));
+    auto out_begin = view<int32_t, 0>(ws.template Output<GPUBackend>(0));
+    auto out_len = view<int32_t, 0>(ws.template Output<GPUBackend>(1));
 
     // 1. Compute MMS
     auto mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 1>(input.shape);
     CalcMMS(ctx, mms, input);
 
-    // 2. Find the region that above or equal to the cutoff_db
-    CalcNonsilentRegion(ctx, out_begin, out_end, mms);
+    // 2. Find the non silent region as the begin and length of the region where the energy is above a given value.
+    CalcNonsilentRegion(ctx, out_begin, out_len, mms);
   }
 };
 

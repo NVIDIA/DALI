@@ -235,7 +235,12 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   // If reset interval is given, selects the logical block so that is close to it
   // effectively clearing accummulation error every `reset_interval` samples.
   if (needs_reset<InputType>::value && args.reset_interval > 0 && args.reset_interval < pow2) {
-    pow2 = prev_pow2(args.reset_interval);
+    auto p = prev_pow2(args.reset_interval);
+    auto n = next_pow2(args.reset_interval);
+    if (p > window_len)
+      pow2 = p;
+    else if (n < pow2)
+      pow2 = n;
   }
 
   int shm_sz = shm_pos(pow2) * sizeof(acc_t<InputType>);
