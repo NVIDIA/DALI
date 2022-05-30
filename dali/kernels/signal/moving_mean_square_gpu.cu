@@ -42,18 +42,12 @@ struct SampleDesc {
  * @remarks See Example 39-4 from
  *  https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
  */
-enum : int {
-  SHARED_MEMORY_BANKS = 32,
-  LOG_MEM_BANKS = 5,
-};
-
-DALI_HOST_DEV constexpr int conflict_free_offset(int n) {
-  return n >> LOG_MEM_BANKS;
-}
-
 struct conflict_free_pos {
+  static constexpr int kSharedMemBanks = 32;
+  static constexpr int kLogMemBanks = 5;
+
   DALI_HOST_DEV DALI_FORCEINLINE int operator()(int pos) const noexcept {
-    return pos + conflict_free_offset(pos);
+    return pos + (pos >> kLogMemBanks);
   }
 };
 
@@ -92,12 +86,13 @@ template <typename T, typename SharedMemPos = conflict_free_pos>
 __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {}) {
   int offset = 1;
   int tid = threadIdx.x;
+
   // build sum in place up the tree
   for (int d = pow2 >> 1; d > 0; d >>= 1) {
     __syncthreads();
-    if (tid < d) {
-      int ai = offset * (2 * tid + 1) - 1;
-      int bi = offset * (2 * tid + 2) - 1;
+    for (int idx = tid; idx < d; idx += blockDim.x) {
+      int ai = offset * (2 * idx + 1) - 1;
+      int bi = offset * (2 * idx + 2) - 1;
       buffer[shm_pos(bi)] += buffer[shm_pos(ai)];
     }
     offset <<= 1;
@@ -113,9 +108,9 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
   for (int d = 1; d < pow2; d <<= 1) {
     offset >>= 1;
     __syncthreads();
-    if (tid < d) {
-      int shm_pos_ai = shm_pos(offset * (2 * tid + 1) - 1);
-      int shm_pos_bi = shm_pos(offset * (2 * tid + 2) - 1);
+    for (int idx = tid; idx < d; idx += blockDim.x) {
+      int shm_pos_ai = shm_pos(offset * (2 * idx + 1) - 1);
+      int shm_pos_bi = shm_pos(offset * (2 * idx + 2) - 1);
       auto t = buffer[shm_pos_ai];
       buffer[shm_pos_ai] = buffer[shm_pos_bi];
       buffer[shm_pos_bi] += t;
@@ -215,7 +210,7 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   int nsamples = in.shape.num_samples();
   auto *sample_descs_cpu = ctx.scratchpad->AllocatePinned<SampleDesc<float, InputType>>(nsamples);
 
-  int64_t max_len;
+  int64_t max_len = 0;
   for (int i = 0; i < nsamples; i++) {
     auto &sample = sample_descs_cpu[i];
     sample.out = out[i].data;
@@ -227,6 +222,7 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
       ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
 
   conflict_free_pos shm_pos;
+  constexpr int kSharedMemBanks = conflict_free_pos::kSharedMemBanks;
 
   int window_len = args.window_size;
 
@@ -234,7 +230,7 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   int max_shm_elems = max_shm_bytes / sizeof(acc_t<InputType>);
 
   // Get a power of two that doesn't exceed the desired maximum shared memory size
-  int pow2 = prev_pow2(max_shm_elems * SHARED_MEMORY_BANKS / (SHARED_MEMORY_BANKS + 1));
+  int pow2 = prev_pow2(max_shm_elems * kSharedMemBanks / (kSharedMemBanks + 1));
 
   // If reset interval is given, selects the logical block so that is close to it
   // effectively clearing accummulation error every `reset_interval` samples.
@@ -254,7 +250,7 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   }
 
   dim3 grid(std::min<int64_t>(1024, div_ceil(max_len, 32)), nsamples);
-  int block_sz = 1024;
+  int block_sz = 512;
   // For mean square we square as a pre-step and divide by the window length at the end
   square pre;
   divide post(window_len);
