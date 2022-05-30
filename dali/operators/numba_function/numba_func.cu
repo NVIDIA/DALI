@@ -134,13 +134,6 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       in.type(), " != ", in_types_[in_id]));
   }
   auto N = in_shapes_[0].num_samples();
-  input_shape_ptrs_.resize(N * ninputs);
-  for (int in_id = 0; in_id < ninputs; in_id++) {
-    for (int i = 0; i < N; i++) {
-      input_shape_ptrs_[N * in_id + i] =
-        reinterpret_cast<uint64_t>(in_shapes_[in_id].tensor_shape_span(i).data());
-    }
-  }
 
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     vector<ssize_t> sizes = calc_sizes(in_types_[in_id], in_shapes_[in_id][0]);
