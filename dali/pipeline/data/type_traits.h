@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,6 +81,20 @@ static_assert(is_batch_container<TensorVector, GPUBackend>::value, "Test failed"
 static_assert(is_batch_container<TensorList, CPUBackend>::value, "Test failed");
 static_assert(is_batch_container<TensorList, GPUBackend>::value, "Test failed");
 }  // namespace test
+
+
+template <typename BatchType, typename T = void>
+struct BatchBackend;
+
+template <template <typename> class BatchContainer, typename Backend>
+struct BatchBackend<BatchContainer<Backend>,
+                    std::enable_if_t<is_batch_container<BatchContainer, Backend>::value>> {
+  using type = Backend;
+};
+
+template <typename BatchType>
+using batch_backend_t =
+    typename BatchBackend<std::remove_cv_t<std::remove_reference_t<BatchType>>>::type;
 
 }  // namespace dali
 
