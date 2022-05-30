@@ -81,7 +81,7 @@ TEST(MMPinnedAlloc, SyncAndSteal) {
   upstream.check_leaks();
 }
 
-TEST(MMPinnedAlloc, SyncCrossDeviceMultiDevice) {
+TEST(MMPinnedAlloc, SyncCrossDeviceMultiGpu) {
   test_pinned_resource upstream;
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
@@ -117,7 +117,7 @@ TEST(MMPinnedAlloc, SyncCrossDeviceMultiDevice) {
   upstream.check_leaks();
 }
 
-TEST(MMPinnedAlloc, FreeOnAnotherDeviceMultiDevice) {
+TEST(MMPinnedAlloc, FreeOnAnotherDeviceMultiGpu) {
   test_pinned_resource upstream;
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));

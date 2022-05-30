@@ -146,7 +146,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
       std::tie(sample_descs_gpu, cutoff_db_gpu) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream,
         make_span(sample_descs_cpu, nsamples), make_span(cutoff_db, nsamples));
 
-      static constexpr int kBlockSize = 256;
+      constexpr int kBlockSize = 256;
       int grid = div_ceil(nsamples, kBlockSize);
       InitPredicates<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(sample_descs_gpu, max_mms_ptr,
                                                               cutoff_db_gpu, nsamples);
