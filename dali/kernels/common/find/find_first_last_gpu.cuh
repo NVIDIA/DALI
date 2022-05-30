@@ -172,7 +172,7 @@ class FindFirstLastGPU {
 
   /**
    * @brief Run from sample descriptors directly in GPU memory
-   * @remarks Convenient if predicates are to be generated on GPU
+   * @remarks Convenient if sample descriptors are to be generated on GPU directly
    */
   template <typename T, typename Idx, typename Predicate, typename OutFormat>
   void Run(KernelContext &ctx, SampleDesc<T, Idx, Predicate, OutFormat> *sample_descs_gpu,
