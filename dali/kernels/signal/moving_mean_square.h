@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,28 @@
 namespace dali {
 namespace kernels {
 namespace signal {
+
+/**
+ * Accurate type is such type, that doesn't require
+ * reset interval for maintaining numeric precision
+ */
+template<typename T>
+struct needs_reset {
+  static constexpr bool value = !(std::is_integral<T>::value && sizeof(T) <= 2);
+};
+
+/**
+ * Type of the accumulator:
+ * In case calculation is performed on floating-point,
+ * it requires reset_interval to keep numeric accuracy.
+ */
+template<typename T>
+struct accumulator_type {
+  using type = std::conditional_t<needs_reset<T>::value, float, int64_t>;
+};
+
+template<typename T>
+using acc_t = typename accumulator_type<T>::type;
 
 template<typename InputType>
 class DLL_PUBLIC MovingMeanSquareCpu {
