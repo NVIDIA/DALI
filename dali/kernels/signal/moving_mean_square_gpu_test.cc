@@ -30,7 +30,7 @@ namespace test {
 template<class InputType>
 class MovingMeanSquareGPU : public ::testing::Test {
  public:
-  using In = int;
+  using In = InputType;
   using Out = float;
 
   TestTensorList<In> in_;
@@ -39,27 +39,28 @@ class MovingMeanSquareGPU : public ::testing::Test {
   void SetUp() final {
     int nsamples = 4;
 
-    TensorListShape<> sh = {{30, }, {1000, }, {50, }, {40, }};
+    TensorListShape<> sh = {{10000, }, {1000, }, {2049, }, {2027, }};
     in_.reshape(sh);
     out_.reshape(sh);
 
     std::mt19937 rng;
-    UniformRandomFill(in_.cpu(), rng, 0.0, 1.0);
+    UniformRandomFill(in_.cpu(), rng, 0.0f, 1.0f);
   }
 
   /**
    * @brief Naive calculation. Square and sum over a region
    */
   Out naive_moving_mean_square(In *start, In *pos, int window_size) {
+    float factor = 1.0f / window_size;
     In *ptr = pos - window_size;
     if (ptr < start)
       ptr = start;
-    Out sum = 0;
+    acc_t<In> sum = 0;
     for (; ptr <= pos; ++ptr) {
       auto x = *ptr;
       sum += (x * x);
     }
-    return sum / window_size;
+    return ConvertSat<Out>(factor * sum);
   }
 
   void RunTest() {
@@ -68,25 +69,26 @@ class MovingMeanSquareGPU : public ::testing::Test {
     DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
-    int window_size = 8;
-    MovingMeanSquareArgs args{window_size};
-
     auto out_batch = out_.gpu().to_static<1>();
-    auto in_batch = in_.gpu().to_static<1>();
+    auto in_batch = in_.gpu().template to_static<1>();
     int nsamples = in_batch.size();
+
+    int window_size = 2048;
+    MovingMeanSquareArgs args{window_size};
     MovingMeanSquareGpu<In> kernel;
+
     kernel.Run(ctx, out_batch, in_batch, args);
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
-    for (int s = 0; s < nsamples; s++) {
+    for (int s = 1; s < nsamples; s++) {
       auto in = in_.cpu()[s].data;
       auto out = out_.cpu()[s].data;
       int64_t len = in_.cpu()[s].shape.num_elements();
       assert(len == out_.cpu()[s].shape.num_elements());
-
       for (int64_t i = 0; i < len; i++) {
-        ASSERT_NEAR(naive_moving_mean_square(&in[0], &in[i], window_size), out[i], 1e-5)
-            << "Failed @ " << i;
+         ASSERT_NEAR(naive_moving_mean_square(&in[0], &in[i], window_size), out[i], 1e-5)
+            << "Failed @ " << i << " ref " << naive_moving_mean_square(&in[0], &in[i], window_size)
+            << " vs. " << out[i] << "\n";
       }
     }
   }
@@ -105,8 +107,12 @@ TEST(MovingMeanSquareGPU, DISABLED_Benchmark) {
   using In = float;
   using Out = float;
   int nsamples = 64;
-  int window_size = 2048;
   int n_iters = 1000;
+
+  int window_size = 2048;
+  MovingMeanSquareArgs args{window_size};
+  MovingMeanSquareGpu<In> kernel;
+
 
   TensorListShape<> sh(nsamples, 1);
   for (int s = 0; s < nsamples; s++) {
@@ -142,12 +148,8 @@ TEST(MovingMeanSquareGPU, DISABLED_Benchmark) {
   KernelContext ctx;
   ctx.gpu.stream = 0;
 
-  MovingMeanSquareArgs args{window_size};
-
   auto out = out_data.gpu().to_static<1>();
   auto in = in_data.gpu().to_static<1>();
-
-  MovingMeanSquareGpu<In> kernel;
 
   for (int i = 0; i < n_iters; ++i) {
     CUDA_CALL(cudaDeviceSynchronize());

@@ -125,6 +125,14 @@ class DLL_PUBLIC FramesDecoder {
     return Channels() * Width() * Height();
   }
 
+    /**
+   * @brief Is video variable frame rate
+   * 
+   */
+  bool IsVfr() const {
+    return is_vfr_;
+  }
+
   /**
    * @brief Reads next frame of the video and copies it to the provided buffer, if copy_to_output is True.
    * 
@@ -203,9 +211,12 @@ class DLL_PUBLIC FramesDecoder {
 
   bool CheckCodecSupport();
 
+  void DetectVfr();
+
   int channels_ = 3;
   bool flush_state_ = false;
   std::string filename_;
+  bool is_vfr_ = false;
 };
 }  // namespace dali
 
