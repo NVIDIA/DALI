@@ -450,8 +450,10 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                         { "101" : ["0.9.0"],
                           "111" : ["0.9.0"] }, extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackage("paddlepaddle-gpu",
-                        { "100" : ["2.2.0"],
-                          "110" : ["2.2.0"]})
+                        { "100" : [
+                            PckgVer("2.2.0", dependencies=["protobuf<4"])],
+                          "110" : [
+                            PckgVer("2.2.0", dependencies=["protobuf<4"])]})
                ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]
