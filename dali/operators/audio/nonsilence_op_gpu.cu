@@ -37,12 +37,34 @@ struct threshold_cutoff_db {
   }
 };
 
-__global__
-void InitPredicates(threshold_cutoff_db *predicates, float *ref_pow, float *cutoff_db, int N) {
-  for (int idx = threadIdx.x + blockIdx.x * blockDim.x;
-       idx < N;
+template <typename Idx>
+struct nonsilent_region_fmt {
+  int offset;  // adds win_len - 1 to the length because we are not sure where exactly within the
+               // window the silence starts
+  DALI_HOST_DEV DALI_FORCEINLINE nonsilent_region_fmt() = default;
+  DALI_HOST_DEV DALI_FORCEINLINE explicit nonsilent_region_fmt(int mms_window_len)
+      : offset(mms_window_len - 1) {}
+
+  using Pair = using kernels::find_first_last::pair_idx<Idx>;
+  DALI_HOST_DEV DALI_FORCEINLINE Pair operator()(Pair x) const noexcept {
+    auto len = (x.b + 1) - x.a;  // last + 1 - b
+    return {len + offset};
+  }
+
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE Pair neutral() const noexcept {
+    return {0, 0};  // empty range
+  }
+};
+
+using FindBeginLengthSampleDesc =
+    kernels::find_first_last::SampleDesc<float, int32_t, threshold_cutoff_db,
+                                         nonsilent_region_fmt<int32_t>>;
+
+__global__ void InitPredicates(FindBeginLengthSampleDesc *sample_descs_gpu, float *ref_pow,
+                               float *cutoff_db, int nsamples) {
+  for (int idx = threadIdx.x + blockIdx.x * blockDim.x; idx < nsamples;
        idx += blockDim.x * gridDim.x) {
-    predicates[idx] = threshold_cutoff_db(cutoff_db[idx], ref_pow[idx]);
+    sample_descs_gpu[idx].predicate = threshold_cutoff_db(cutoff_db[idx], ref_pow[idx]);
   }
 }
 
@@ -60,13 +82,13 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   void RunImpl(workspace_t<GPUBackend> &ws) override {
     auto dtype = ws.template Input<GPUBackend>(0).type();
     // TYPE_SWITCH(dtype, type2id, T, NONSILENCE_TYPES, (
-      // RunImplTyped<float>(ws);
+      RunImplTyped<float>(ws);
    // ), DALI_FAIL(make_string("Unsupported input type: ", dtype));)  // NOLINT
   }
 
  private:
   kernels::MaxGPU<float, float> max_kernel;
-  kernels::find::FindFirstLastGPU find_first_last_kernel;
+  kernels::find_first_last::FindFirstLastGPU find_first_last_kernel;
 
   template <typename T>
   void CalcMMS(kernels::KernelContext &ctx, TensorListView<StorageGPU, float, 1> &mms,
@@ -83,62 +105,47 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
     max_kernel.Run(ctx, max, in);
   }
 
-  // void CalcNonsilentRegionRefMax(kernels::KernelContext &ctx,
-  //                                TensorListView<StorageGPU, int32_t, 0> &begin,
-  //                                TensorListView<StorageGPU, int32_t, 0> &len,
-  //                                TensorListView<StorageGPU, float, 1> &mms,
-  //                                span<float> cutoff_db, span<float> ref_pow = {}) {
-  //   int nsamples = mms.num_samples();
-  //   TensorListShape<0> scalar(nsamples);
+  void CalcNonsilentRegion(kernels::KernelContext &ctx,
+                           TensorListView<StorageGPU, int32_t, 0> &begin,
+                           TensorListView<StorageGPU, int32_t, 0> &len,
+                           TensorListView<StorageGPU, float, 1> &mms) {
+    int nsamples = mms.num_samples();
+    auto sample_descs_cpu =
+        ctx.scratchpad->Allocate<mm::memory_kind::pinned, FindBeginLengthSampleDesc>(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      auto &sample = sample_descs_cpu[i];
+      sample.a_ptr = begin[i].data;
+      sample.b_ptr = len[i].data;
+      sample.in = mms[i].data;
+      sample.len = mms[i].shape[0];
+      sample.format = nonsilent_region_fmt<int32_t>(window_length_);
+    }
 
-  //   using Predicate = threshold_cutoff_db;
+    if (!reference_max_) {  // otherwise it gets initialized by InitPredicates
+      for (int i = 0; i < nsamples; i++) {
+        sample_descs_cpu[i].predicates = threshold_cutoff_db(cutoff_db_[i], reference_power_[i]);
+      }
+    }
+    auto sample_descs_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
 
-  //   if (ref_pow.empty()) {
-  //     auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
-  //     CalcMax(ctx, max_mms, mms);
+    if (reference_max_) {  // need to initialize predicates if using max as reference
+      TensorListShape<0> scalar(nsamples);
+      auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
+      CalcMax(ctx, max_mms, mms);
 
-  //     // InitPredicates takes contiguous mem
-  //     // Sanity check that AllocTensorList allocated a contiguous chunk
-  //     assert(max_mms.is_contiguous());
-  //     float* max_mms_data = max_mms[0].data;
+      auto cutoff_db = ctx.scratchpad->Allocate<mm::memory_kind::pinned, float>(nsamples);
+      for (int i = 0; i < nsamples; i++)
+        cutoff_db[i] = cutoff_db_[i];
+      auto cutoff_db_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cutoff_db, nsamples));
 
-  //     Predicate* predicates = ctx.scratchpad->Allocate<mm::memory_kind::device, Predicate>(nsamples);
-  //     static constexpr int kBlockSize = 256;
-  //     int grid = div_ceil(nsamples, kBlockSize);
-  //     InitPredicates<<<grid, kBlockSize, 0, ctx.cuda.stream>>>(predicates, max_mms_data, cutoff_db.data(), nsamples);
-  //   }
+      static constexpr int kBlockSize = 256;
+      int grid = div_ceil(nsamples, kBlockSize);
+      InitPredicates<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(sample_descs_gpu, max_mms,
+                                                              cutoff_db_gpu, nsamples);
+    }
 
-
-
-  //   using OutFormat = kernels::find::begin_length<int32_t>;
-  //   find_first_last_kernel.template Run<float, int32_t, Predicate, OutFormat>(
-  //       ctx, begin, len, mms, predicates);
-  // }
-
-  // void CalcNonsilentRegionRefConstant(kernels::KernelContext &ctx,
-  //                                     TensorListView<StorageGPU, int32_t, 0> &begin,
-  //                                     TensorListView<StorageGPU, int32_t, 0> &len,
-  //                                     TensorListView<StorageGPU, float, 1> &mms,
-  //                                     float ref_pow) {
-  //   int nsamples = mms.num_samples();
-  //   TensorListShape<0> scalar(nsamples);
-  //   auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
-  //   CalcMax(ctx, max_mms, mms);
-
-  //   using Predicate = threshold_val<float>;
-  //   // no need for it to be pinned, since we copy those predicates to sample descriptors (pinned) in
-  //   // the kernel
-  //   span<Predicate> predicates{ctx.scratchpad->Allocate<mm::memory_kind::host, Predicate>(nsamples),
-  //                              nsamples};
-  //   for (int i = 0; i < nsamples; i++) {
-  //     predicates[i].value_ = ref_pow;
-  //   }
-
-  //   using OutFormat = kernels::find::begin_length<int32_t>;
-  //   find_first_last_kernel.template Run<float, int32_t, Predicate, OutFormat>(ctx, begin, len, mms,
-  //                                                                             predicates);
-  // }
-
+    find_first_last_kernel.template Run(ctx, sample_descs_gpu, nsamples);
+  }
 
   template <typename T>
   void RunImplTyped(workspace_t<GPUBackend> &ws) {
@@ -152,14 +159,12 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
     auto out_begin = view<int32_t>(ws.template Output<GPUBackend>(0));
     auto out_end = view<int32_t>(ws.template Output<GPUBackend>(1));
 
+    // 1. Compute MMS
     auto mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 1>(input.shape);
     CalcMMS(ctx, mms, input);
 
-    // if (reference_max_) {
-    //   TensorListShape<0> scalar(nsamples);
-    //   auto max_mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 0>(scalar);
-    //   CalcMax(ctx, max_mms, mms);
-    // }
+    // 2. Find the region that above or equal to the cutoff_db
+    CalcNonsilentRegion(ctx, out_begin, out_end, mms);
   }
 };
 
