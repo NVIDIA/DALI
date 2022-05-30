@@ -16,7 +16,7 @@ import platform
 from shutil import copyfile
 from dali_tf_plugin_utils import *
 import os
-from distutils.version import StrictVersion
+from distutils.version import StrictVersion, LooseVersion
 from pathlib import Path
 import tempfile
 from stubgen import stubgen
@@ -278,12 +278,14 @@ class InstallerHelper:
             lib_filename = 'libdali_tf_current.so'
             lib_path =  os.path.join(self.plugin_dest_dir, lib_filename)
 
+            # for a newer TF we need to compiler with C++17
+            cpp_ver = "--std=c++14" if self.tf_version < LooseVersion('2.10') else "--std=c++17"
             # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
             # https://github.com/tensorflow/tensorflow/issues/17316
             # Do not remove it.
             # the latest TF in conda needs to include /PREFIX/include
             root_include = "-I" + os.getenv("PREFIX", default="/usr") + "/include"
-            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -Wl,-rpath,\'$ORIGIN\' -std=c++14 -DNDEBUG -shared ' \
+            cmd = compiler + ' -Wl,-R,\'$ORIGIN/..\' -Wl,-rpath,\'$ORIGIN\' ' + cpp_ver + ' -DNDEBUG -shared ' \
                 + plugin_src + ' -o ' + lib_path + ' -fPIC ' + dali_cflags + ' ' \
                 + tf_cflags + ' ' + root_include + ' ' + cuda_cflags + ' ' + dali_lflags + ' ' \
                 + tf_lflags + ' ' + cuda_lflags + ' -O2'
