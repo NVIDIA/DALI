@@ -35,7 +35,7 @@ struct CUFileDriverScope {
   }
 };
 
-TEST(GDSMem, AllocatorMultiDevice) {
+TEST(GDSMem, AllocatorMultiGpu) {
   CUFileDriverScope scope;
   int ndev;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
