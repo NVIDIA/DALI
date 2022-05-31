@@ -132,8 +132,7 @@ def check_reader(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N
 
             for tensor_out_fn, tensor_out_eager in zip(out_fn, out_eager):
                 if i == len(iter_eager) - 1:
-                    tensor_out_fn = _slice_tensorlist(tensor_out_fn, len(
-                        tensor_out_eager), tensor_out_fn.layout())
+                    tensor_out_fn = _slice_tensorlist(tensor_out_fn, len(tensor_out_eager))
 
                 assert type(tensor_out_fn) == type(tensor_out_eager)
                 check_batch(tensor_out_fn, tensor_out_eager, len(tensor_out_eager))

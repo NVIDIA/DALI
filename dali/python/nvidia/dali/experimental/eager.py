@@ -154,8 +154,8 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
 
                 if self._iter == self._num_iters:
                     # Return potentially partial batch at the end of an epoch.
-                    outputs = [_slice_tensorlist(
-                        tl_output, self._last_batch_size, tl_output.layout()) for tl_output in outputs]
+                    outputs = [_slice_tensorlist(tl_output, self._last_batch_size)
+                               for tl_output in outputs]
 
                 if len(outputs) == 1:
                     outputs = outputs[0]
