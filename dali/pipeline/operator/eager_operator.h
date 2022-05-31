@@ -182,7 +182,7 @@ class DLL_PUBLIC EagerOperator {
 
     return shared_thread_pool_;
   }
-  
+
   static inline std::shared_ptr<CUDAStreamLease> GetSharedCudaStream() {
     std::lock_guard<std::mutex> lock(shared_cuda_stream_mutex_);
 
