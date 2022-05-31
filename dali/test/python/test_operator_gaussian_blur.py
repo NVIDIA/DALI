@@ -394,7 +394,7 @@ def test_per_frame():
     yield from video_suite_helper(video_test_cases, expand_channels=True)
 
 
-# test if SequenceOperator properly errors out on per-frame argument when input is expended only
+# test if SequenceOperator properly errors out on per-frame argument when input is expanded only
 # because of channel-first layout (but there are no frames on the input)
 @raises(RuntimeError, "Tensor input for argument window_size is specified per frame (got F layout). "
         "In that case, samples in the input 0 must contain frames too. "
