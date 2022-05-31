@@ -284,6 +284,47 @@ void ExposeTensorLayout(py::module &m) {
 enum DALIDataTypePlaceholder {};
 
 /**
+ * @brief Copies the contents of the source DALI batch to an external buffer
+ *
+ * The function schedules a copy of the contents of src to the target destination buffer.
+ * The copy will be scheduled on the provided `cuda_stream` or, if left out, on an internal DALI
+ * stream.
+ * If a non-blocking copy is requested, the function will synchronize the source buffer's
+ * associated access order with the provided stream; otherwie, the function will wait until the
+ * copy completes.
+ *
+ * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorVector)
+ * @param src             Source batch
+ * @param dst_ptr         Destination pointer, wrapped in a C void_ptr Python type
+ * @param cuda_stream     CUDA stream, wrapped in a C void_ptr type
+ * @param non_blocking    whether the function should wait on host for the copy to complete
+ * @param use_copy_kernel if true, the copy will be done using a kernel instead of cudaMemcpyAsync
+ */
+template <typename SourceObject>
+void CopyToExternalImplGPU(SourceObject &src,
+                           py::object dst_ptr, py::object cuda_stream,
+                           bool non_blocking, bool use_copy_kernel) {
+  CUDAStreamLease lease;
+  AccessOrder order;
+  int device = src.device_id();
+  if (!cuda_stream.is_none()) {
+    cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+    order = AccessOrder(stream, device);
+  } else {
+    lease = CUDAStreamPool::instance().Get(device);
+    order = AccessOrder(lease, device);
+  }
+
+  void *ptr = ctypes_void_ptr(dst_ptr);
+  CopyToExternal<mm::memory_kind::device>(ptr, src, order, use_copy_kernel);
+
+  if (non_blocking)
+    src.order().wait(order);
+  else
+    AccessOrder::host().wait(order);
+}
+
+/**
  * Pipeline output descriptor.
  */
 using OutputDesc = std::tuple<std::string  /* name */,
@@ -541,14 +582,7 @@ void ExposeTensor(py::module &m) {
     .def("copy_to_external",
         [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
-          void *ptr = ctypes_void_ptr(p);
-          cudaStream_t stream = cuda_stream.is_none()
-                ? UserStream::Get()->GetStream(t)
-                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternal<mm::memory_kind::device>(ptr, t, stream, use_copy_kernel);
-          if (!non_blocking) {
-            CUDA_CALL(cudaStreamSynchronize(stream));
-          }
+          CopyToExternalImplGPU(t, p, cuda_stream, non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
@@ -1084,14 +1118,7 @@ void ExposeTensorList(py::module &m) {
     .def("copy_to_external",
         [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
-          void *ptr = ctypes_void_ptr(p);
-          cudaStream_t stream = cuda_stream.is_none()
-                ? UserStream::Get()->GetStream(t)
-                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternal<mm::memory_kind::device>(ptr, t, stream, use_copy_kernel);
-          if (!non_blocking) {
-            CUDA_CALL(cudaStreamSynchronize(stream));
-          }
+          CopyToExternalImplGPU(t, p, cuda_stream, non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
