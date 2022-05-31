@@ -35,52 +35,72 @@ struct CUFileDriverScope {
   }
 };
 
-TEST(GDSMem, AllocatorMultiGpu) {
-  CUFileDriverScope scope;
-  int ndev;
-  CUDA_CALL(cudaGetDeviceCount(&ndev));
-  if (ndev < 2) {
-    GTEST_SKIP() << "This test requires more than one CUDA capable device to run.";
-    return;
+template <typename TestBody>
+void SkipIfIncompatible(TestBody &&body) {
+  try {
+    body();
+  } catch (const CUFileError &e) {
+    if (e.result().err == CU_FILE_PLATFORM_NOT_SUPPORTED ||
+        e.result().err == CU_FILE_DEVICE_NOT_SUPPORTED) {
+      GTEST_SKIP() << "No GDS-capable device found";
+    } else {
+      throw;
+    }
   }
-  ASSERT_NE(GDSAllocator::get(0), GDSAllocator::get(1));
+}
+
+TEST(GDSMem, AllocatorMultiGPU) {
+  SkipIfIncompatible([&]{
+    CUFileDriverScope scope;
+    int ndev;
+    CUDA_CALL(cudaGetDeviceCount(&ndev));
+    if (ndev < 2) {
+      GTEST_SKIP() << "This test requires more than one CUDA capable device to run.";
+      return;
+    }
+    ASSERT_NE(GDSAllocator::get(0), GDSAllocator::get(1));
+  });
 }
 
 TEST(GDSMem, Allocator) {
-  CUFileDriverScope scope;
-  auto alloc = GDSAllocator::get();
-  auto unq = alloc->alloc_unique(1024);
-  ASSERT_NE(unq, nullptr);
-  CUDA_CALL(cudaMemset(unq.get(), 0, 1024));
-  unq.reset();
-  alloc.reset();
+  SkipIfIncompatible([&]{
+    CUFileDriverScope scope;
+    auto alloc = GDSAllocator::get();
+    auto unq = alloc->alloc_unique(1024);
+    ASSERT_NE(unq, nullptr);
+    CUDA_CALL(cudaMemset(unq.get(), 0, 1024));
+    unq.reset();
+    alloc.reset();
+  });
 }
 
 TEST(GDSMem, StagingEngine) {
-  CUFileDriverScope scope;
-  CUDAStream stream = CUDAStream::Create(true);
-  GDSStagingEngine engn;
-  size_t chunk = engn.chunk_size();
-  auto target_buf = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(chunk * 2);
-  CUDA_CALL(cudaMemset(target_buf.get(), 0xcc, chunk * 2));
-  CUDA_CALL(cudaDeviceSynchronize());
-  engn.set_stream(stream);
-  auto buf0 = engn.get_staging_buffer();
-  auto buf1 = engn.get_staging_buffer();
-  engn.return_unused(std::move(buf0));
-  auto buf2 = engn.get_staging_buffer(buf1.at(chunk));
-  CUDA_CALL(cudaMemsetAsync(buf1.at(0), 0xaa, chunk, stream));
-  CUDA_CALL(cudaMemsetAsync(buf2.at(0), 0xbb, chunk, stream));
-  engn.copy_to_client(target_buf.get(), chunk, std::move(buf1), 0);
-  engn.copy_to_client(target_buf.get() + chunk, chunk, std::move(buf2), 0);
-  engn.commit();
-  std::vector<uint8_t> host(chunk * 2);
-  CUDA_CALL(cudaMemcpyAsync(host.data(), target_buf.get(), 2 * chunk,
-                            cudaMemcpyDeviceToHost, stream));
-  for (size_t i = 0; i < chunk; i++)
-    ASSERT_EQ(host[i], 0xaa);
-  for (size_t i = chunk; i < 2*chunk; i++)
-    ASSERT_EQ(host[i], 0xbb);
+  SkipIfIncompatible([&]{
+    CUFileDriverScope scope;
+    CUDAStream stream = CUDAStream::Create(true);
+    GDSStagingEngine engn;
+    size_t chunk = engn.chunk_size();
+    auto target_buf = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(chunk * 2);
+    CUDA_CALL(cudaMemset(target_buf.get(), 0xcc, chunk * 2));
+    CUDA_CALL(cudaDeviceSynchronize());
+    engn.set_stream(stream);
+    auto buf0 = engn.get_staging_buffer();
+    auto buf1 = engn.get_staging_buffer();
+    engn.return_unused(std::move(buf0));
+    auto buf2 = engn.get_staging_buffer(buf1.at(chunk));
+    CUDA_CALL(cudaMemsetAsync(buf1.at(0), 0xaa, chunk, stream));
+    CUDA_CALL(cudaMemsetAsync(buf2.at(0), 0xbb, chunk, stream));
+    engn.copy_to_client(target_buf.get(), chunk, std::move(buf1), 0);
+    engn.copy_to_client(target_buf.get() + chunk, chunk, std::move(buf2), 0);
+    engn.commit();
+    std::vector<uint8_t> host(chunk * 2);
+    CUDA_CALL(cudaMemcpyAsync(host.data(), target_buf.get(), 2 * chunk,
+                              cudaMemcpyDeviceToHost, stream));
+    for (size_t i = 0; i < chunk; i++)
+      ASSERT_EQ(host[i], 0xaa);
+    for (size_t i = chunk; i < 2*chunk; i++)
+      ASSERT_EQ(host[i], 0xbb);
+  });
 }
 
 namespace {
@@ -106,46 +126,48 @@ DEFINE_TEST_KERNEL(GDSMem, StagingEngineBigTest, const int *target, int size, in
 }
 
 TEST(GDSMem, StagingEngineBigTest) {
-  CUFileDriverScope scope;
-  CUDAStream stream = CUDAStream::Create(true);
-  GDSStagingEngine engn;
-  engn.set_stream(stream);
-  const int num_threads = 50;
-  std::vector<std::thread> threads;
-  int elems_per_thread = 30000000;
-  const int chunk = engn.chunk_size();
-  const int elems_per_chunk = chunk / sizeof(int);
+  SkipIfIncompatible([&]{
+    CUFileDriverScope scope;
+    CUDAStream stream = CUDAStream::Create(true);
+    GDSStagingEngine engn;
+    engn.set_stream(stream);
+    const int num_threads = 50;
+    std::vector<std::thread> threads;
+    int elems_per_thread = 30000000;
+    const int chunk = engn.chunk_size();
+    const int elems_per_chunk = chunk / sizeof(int);
 
-  DeviceBuffer<int> out[num_threads];
+    DeviceBuffer<int> out[num_threads];
 
-  for (int t = 0; t < num_threads; t++)
-    out[t].resize(elems_per_thread);
+    for (int t = 0; t < num_threads; t++)
+      out[t].resize(elems_per_thread);
 
-  for (int t = 0; t < num_threads; t++) {
-    threads.emplace_back([&, t]() {
-      CUDAStreamLease fill_stream = CUDAStreamPool::instance().Get();
-      int elems_written = 0;
-      int *prev = nullptr;
-      while (elems_written < elems_per_thread) {
-        auto buf = engn.get_staging_buffer(prev + elems_per_chunk);
-        int n = std::min(elems_per_chunk, elems_per_thread - elems_written);
-        fill(static_cast<int*>(buf.at(0)), n, elems_written, fill_stream);
-        CUDA_CALL(cudaStreamSynchronize(fill_stream));
-        engn.copy_to_client(out[t].data() + elems_written, n * sizeof(int), std::move(buf), 0);
-        elems_written += n;
-      }
-    });
-  }
-  for (auto &t : threads)
-    t.join();
-  engn.commit();
-  CUDA_CALL(cudaStreamSynchronize(stream));
-  for (int t = 0; t < num_threads; t++) {
-    dim3 block(1024);
-    dim3 grid(div_ceil(elems_per_thread, block.x));
-    DEVICE_TEST_CASE_BODY(GDSMem, StagingEngineBigTest, grid, block,
-                          out[t].data(), 0, elems_per_thread);
-  }
+    for (int t = 0; t < num_threads; t++) {
+      threads.emplace_back([&, t]() {
+        CUDAStreamLease fill_stream = CUDAStreamPool::instance().Get();
+        int elems_written = 0;
+        int *prev = nullptr;
+        while (elems_written < elems_per_thread) {
+          auto buf = engn.get_staging_buffer(prev + elems_per_chunk);
+          int n = std::min(elems_per_chunk, elems_per_thread - elems_written);
+          fill(static_cast<int*>(buf.at(0)), n, elems_written, fill_stream);
+          CUDA_CALL(cudaStreamSynchronize(fill_stream));
+          engn.copy_to_client(out[t].data() + elems_written, n * sizeof(int), std::move(buf), 0);
+          elems_written += n;
+        }
+      });
+    }
+    for (auto &t : threads)
+      t.join();
+    engn.commit();
+    CUDA_CALL(cudaStreamSynchronize(stream));
+    for (int t = 0; t < num_threads; t++) {
+      dim3 block(1024);
+      dim3 grid(div_ceil(elems_per_thread, block.x));
+      DEVICE_TEST_CASE_BODY(GDSMem, StagingEngineBigTest, grid, block,
+                            out[t].data(), 0, elems_per_thread);
+    }
+  });
 }
 
 
