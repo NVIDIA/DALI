@@ -64,8 +64,6 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None, non_blocking = False):
     dali_tensor.copy_to_external(c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream), non_blocking)
     return arr
 
-stream = torch.cuda.Stream(device=0)
-arr = torch.empty([batch_size] + shape, dtype=torch.int32, device="cuda:0")
 num_iters = 20
 
 def ref_tensor(batch_size, sample_shape, start_value):
@@ -76,20 +74,35 @@ def ref_tensor(batch_size, sample_shape, start_value):
 def check(arr, ref):
     return torch.equal(arr, ref)
 
-pipe = _test_pipe(prefetch_queue_depth=4)
-pipe.build()
-ref = [ref_tensor(batch_size, shape, i * batch_size) for i in range(num_iters)]
-pipe.schedule_run()
-pipe.schedule_run()
-pipe.schedule_run()
-pipe.schedule_run()
-out, = pipe.share_outputs()
-feed_ndarray(out.as_tensor(), arr, stream.cuda_stream, True)
-pipe.release_outputs()
-pipe.schedule_run()
-_, = pipe.share_outputs()
-pipe.release_outputs()
-pipe.schedule_run()
-_, = pipe.share_outputs()
-pipe.release_outputs()
-assert check(arr, ref[0])
+# get a Pytorch CUDA stream
+stream = torch.cuda.Stream(device=0)
+with torch.cuda.stream(stream):
+    # allocate an empty tensor into which the pipeline output will be copied
+    arr = torch.empty([batch_size] + shape, dtype=torch.int32, device="cuda:0")
+    # create a reference tensor...
+    ref = ref_tensor(batch_size, shape, 0)
+    # ...and tensors which will be used to hog the GPU
+    hog = [ref_tensor(batch_size, shape, i * batch_size) for i in range(10)]
+
+    # try 10 times
+    for i in range(10):
+        # create a fresh pipeline
+        pipe = _test_pipe(prefetch_queue_depth=2)
+        pipe.build()
+        # schedule some runs ahead, so we know that the execution
+        # of the next iteration starts immediately
+        pipe.schedule_run()
+        pipe.schedule_run()
+        out, = pipe.share_outputs()
+        # do something time-consuming on the torch stream to give DALI time to clobber the buffer
+        hog = [torch.sqrt(x) for x in hog]
+        # copy the result asynchronously
+        feed_ndarray(out.as_tensor(), arr, stream.cuda_stream, True)
+        pipe.release_outputs()
+        # drain
+        _, = pipe.share_outputs()
+        pipe.release_outputs()
+        # if no appropriate synchronization is done, the array is likely clobbered with the
+        # results from the second iteration
+        assert check(arr, ref[0])
+        del pipe
