@@ -128,7 +128,8 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
       for (int i = 0; i < nsamples; i++) {
         sample_descs_cpu[i].predicate = threshold_cutoff_db(cutoff_db_[i], reference_power_[i]);
       }
-      sample_descs_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
+      sample_descs_gpu =
+          ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(sample_descs_cpu, nsamples));
     } else {
       // Predicates need to initialized on the device, because reference power is on the GPU
       // (needs to be calculated as a pre-step)
@@ -171,7 +172,8 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
     auto mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 1>(input.shape);
     CalcMMS(ctx, mms, input);
 
-    // 2. Find the non silent region as the begin and length of the region where the energy is above a given value.
+    // 2. Find the non silent region as the begin and length of the region where the energy is above
+    // a given value.
     CalcNonsilentRegion(ctx, out_begin, out_len, mms);
   }
 };
