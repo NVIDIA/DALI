@@ -638,6 +638,14 @@ def as_array(tensor):
 
 
 def python_function(*inputs, function, **kwargs):
+    """
+    Convenience wrapper around fn.python_function.
+    If you need to pass to the fn.python_function mix of datanodes and parameters that are not produced
+    by the pipeline, you probably need to proceed along the lines of:
+    `dali.fn.python_function(data_node, function=lambda data:my_function(data, non_pipeline_data))`.
+    This utility separates the data nodes from non data nodes automatically, so that you can simply call
+    `python_function(data_node, non_pipeline_data, function=my_function)`.
+    """
     node_inputs = [inp for inp in inputs if isinstance(inp, dali.data_node.DataNode)]
     const_inputs = [inp for inp in inputs if not isinstance(inp, dali.data_node.DataNode)]
     def wrapper(*exec_inputs):

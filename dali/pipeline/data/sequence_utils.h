@@ -39,7 +39,10 @@ class RangeIterator {
     return range_[idx_];
   }
 
+  // For performance reasons the equality completely disregards Range instance at hand.
+  // Comparing iterators over different range instances is UB.
   bool operator==(const RangeIterator &other) const {
+    assert(&range_ == &other.range_);
     return idx_ == other.idx_;
   }
 
@@ -79,7 +82,7 @@ class UnfoldedViewRange {
           assert(view_.shape.size() >= ndims_to_unfold);
           return volume(view_.shape.first(ndims_to_unfold));
         }()},
-        slice_shape_{view_.shape.last(out_ndim)},
+        slice_shape_{view_.shape.last(view_.shape.size() - ndims_to_unfold)},
         slice_stride_{static_cast<size_t>(volume(slice_shape_))} {}
 
   RangeIterator<Self> begin() const {
