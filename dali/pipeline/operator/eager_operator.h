@@ -153,7 +153,8 @@ class DLL_PUBLIC EagerOperator {
   DLL_PUBLIC inline static void UpdateCudaStream(int device_id) {
     if (device_id != CPU_ONLY_DEVICE_ID) {
       DeviceGuard g(device_id);
-      shared_cuda_stream_ = CUDAStreamPool::instance().Get(device_id);
+      std::lock_guard<std::mutex> lock(shared_cuda_stream_mutex_);
+      *shared_cuda_stream_ = CUDAStreamPool::instance().Get(device_id);
     }
   }
 
@@ -181,6 +182,16 @@ class DLL_PUBLIC EagerOperator {
 
     return shared_thread_pool_;
   }
+  
+  static inline std::shared_ptr<CUDAStreamLease> GetSharedCudaStream() {
+    std::lock_guard<std::mutex> lock(shared_cuda_stream_mutex_);
+
+    if (!shared_cuda_stream_) {
+      shared_cuda_stream_ = std::make_shared<CUDAStreamLease>();
+    }
+
+    return shared_cuda_stream_;
+  }
 
   int max_batch_size_;
   size_t num_outputs_;
@@ -189,8 +200,9 @@ class DLL_PUBLIC EagerOperator {
   std::string name_;
   std::unique_ptr<OperatorBase> op_;
 
-  static CUDAStreamLease shared_cuda_stream_;
+  static std::shared_ptr<CUDAStreamLease> shared_cuda_stream_;
   static std::shared_ptr<ThreadPool> shared_thread_pool_;
+  static std::mutex shared_cuda_stream_mutex_;
   static std::mutex shared_thread_pool_mutex_;
 };
 
@@ -200,7 +212,7 @@ EagerOperator<Backend>::Run(
     const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run(inputs, kwargs, shared_cuda_stream_, batch_size);
+  return Run(inputs, kwargs, *GetSharedCudaStream(), batch_size);
 }
 
 template <>
@@ -322,10 +334,13 @@ EagerOperator<Backend>::RunImpl(
 }
 
 template <typename Backend>
-CUDAStreamLease EagerOperator<Backend>::shared_cuda_stream_{};
+std::shared_ptr<CUDAStreamLease> EagerOperator<Backend>::shared_cuda_stream_{};
 
 template <typename Backend>
 std::shared_ptr<ThreadPool> EagerOperator<Backend>::shared_thread_pool_{};
+
+template <typename Backend>
+std::mutex EagerOperator<Backend>::shared_cuda_stream_mutex_{};
 
 template <typename Backend>
 std::mutex EagerOperator<Backend>::shared_thread_pool_mutex_{};
