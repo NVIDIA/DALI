@@ -19,7 +19,8 @@ from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
 from nvidia.dali import ops as _ops
 from nvidia.dali import tensors as _tensors
-from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
+from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist, \
+    _slice_tensorlist
 
 
 # Classification of eager operators. Operators not assigned to any class are exposed as stateless.
@@ -144,22 +145,22 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
         def __next__(self):
             """ Iterates over dataset once per epoch (last batch may not be full). """
 
-            if self._iter < self._num_iters:
+            if self._iter == self._num_iters:
+                self._iter = 0
+                raise StopIteration
+            else:
                 self._iter += 1
                 outputs = self._backend_op([], self._call_args)
 
                 if self._iter == self._num_iters:
                     # Return potentially partial batch at the end of an epoch.
-                    outputs = [type(tl_output)(
-                        [tl_output[i] for i in range(self._last_batch_size)]) for tl_output in outputs]
+                    outputs = [_slice_tensorlist(
+                        tl_output, self._last_batch_size, tl_output.layout()) for tl_output in outputs]
 
                 if len(outputs) == 1:
                     outputs = outputs[0]
 
                 return outputs
-            else:
-                self._iter = 0
-                raise StopIteration
 
         def __iter__(self):
             return self

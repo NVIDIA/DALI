@@ -30,7 +30,7 @@ import os
 import glob
 from collections.abc import Iterable
 from nose.plugins.attrib import attr
-from test_dali_cpu_only_utils import *
+from test_dali_cpu_only_utils import setup_test_nemo_asr_reader_cpu, setup_test_numpy_reader_cpu
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')

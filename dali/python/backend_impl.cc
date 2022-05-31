@@ -1296,7 +1296,11 @@ void ExposePipelineDebug(py::module &m) {
   py::class_<PipelineDebug>(m, "PipelineDebug")
       .def(py::init([](int batch_size, int num_threads, int device_id, bool set_affinity = false) {
         return std::make_unique<PipelineDebug>(batch_size, num_threads, device_id, set_affinity);
-      }))
+      }),
+      "batch_size"_a,
+      "num_threads"_a,
+      "device_id"_a,
+      "set_affinity"_a = false)
       .def("AddOperator", &PipelineDebug::AddOperator)
       .def("AddMultipleOperators", &PipelineDebug::AddMultipleOperators)
       .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend>)
