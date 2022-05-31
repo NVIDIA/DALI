@@ -1,3 +1,4 @@
+import nose_utils  # for Python 3.10 workaround
 import torch
 import numpy as np
 import nvidia.dali as dali
@@ -64,45 +65,46 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None, non_blocking = False):
     dali_tensor.copy_to_external(c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream), non_blocking)
     return arr
 
-num_iters = 20
+def test_copy_to_external():
 
-def ref_tensor(batch_size, sample_shape, start_value):
-    volume = np.prod(sample_shape)
-    sample0 = torch.arange(start_value, start_value + volume, dtype=torch.int32, device="cuda:0").reshape(shape)
-    return torch.stack([sample0 + i for i in range(batch_size)])
+    def ref_tensor(batch_size, sample_shape, start_value):
+        volume = np.prod(sample_shape)
+        sample0 = torch.arange(start_value, start_value + volume, dtype=torch.int32, device="cuda:0").reshape(shape)
+        return torch.stack([sample0 + i for i in range(batch_size)])
 
-def check(arr, ref):
-    return torch.equal(arr, ref)
+    def check(arr, ref):
+        return torch.equal(arr, ref)
 
-# get a Pytorch CUDA stream
-stream = torch.cuda.Stream(device=0)
-with torch.cuda.stream(stream):
-    # allocate an empty tensor into which the pipeline output will be copied
-    arr = torch.empty([batch_size] + shape, dtype=torch.int32, device="cuda:0")
-    # create a reference tensor...
-    ref = ref_tensor(batch_size, shape, 0)
-    # ...and tensors which will be used to hog the GPU
-    hog = [ref_tensor(batch_size, shape, i * batch_size) for i in range(10)]
+    num_iters = 20
+    # get a Pytorch CUDA stream
+    stream = torch.cuda.Stream(device=0)
+    with torch.cuda.stream(stream):
+        # allocate an empty tensor into which the pipeline output will be copied
+        arr = torch.empty([batch_size] + shape, dtype=torch.int32, device="cuda:0")
+        # create a reference tensor...
+        ref = ref_tensor(batch_size, shape, 0)
+        # ...and tensors which will be used to hog the GPU
+        hog = [ref_tensor(batch_size, shape, i * batch_size) for i in range(20)]
 
-    # try 10 times
-    for i in range(10):
-        # create a fresh pipeline
-        pipe = _test_pipe(prefetch_queue_depth=2)
-        pipe.build()
-        # schedule some runs ahead, so we know that the execution
-        # of the next iteration starts immediately
-        pipe.schedule_run()
-        pipe.schedule_run()
-        out, = pipe.share_outputs()
-        # do something time-consuming on the torch stream to give DALI time to clobber the buffer
-        hog = [torch.sqrt(x) for x in hog]
-        # copy the result asynchronously
-        feed_ndarray(out.as_tensor(), arr, stream.cuda_stream, True)
-        pipe.release_outputs()
-        # drain
-        _, = pipe.share_outputs()
-        pipe.release_outputs()
-        # if no appropriate synchronization is done, the array is likely clobbered with the
-        # results from the second iteration
-        assert check(arr, ref[0])
-        del pipe
+        # try 10 times
+        for i in range(10):
+            # create a fresh pipeline
+            pipe = _test_pipe(prefetch_queue_depth=2)
+            pipe.build()
+            # schedule some runs ahead, so we know that the execution
+            # of the next iteration starts immediately
+            pipe.schedule_run()
+            pipe.schedule_run()
+            out, = pipe.share_outputs()
+            # do something time-consuming on the torch stream to give DALI time to clobber the buffer
+            hog = [torch.sqrt(x) for x in hog]
+            # copy the result asynchronously
+            feed_ndarray(out.as_tensor(), arr, stream.cuda_stream, True)
+            pipe.release_outputs()
+            # drain
+            _, = pipe.share_outputs()
+            pipe.release_outputs()
+            # if no appropriate synchronization is done, the array is likely clobbered with the
+            # results from the second iteration
+            assert check(arr, ref)
+            del pipe

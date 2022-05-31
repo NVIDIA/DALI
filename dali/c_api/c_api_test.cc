@@ -25,6 +25,7 @@
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/core/cuda_stream_pool.h"
 
 using namespace std::string_literals;  // NOLINT(build/namespaces)
 
@@ -843,6 +844,84 @@ void Clear(Tensor<GPUBackend>& tensor) {
   CUDA_CALL(cudaMemset(tensor.raw_mutable_data(), 0, tensor.nbytes()));
 }
 
+namespace {
+
+struct GPUHog {
+  ~GPUHog() {
+    if (mem) {
+      CUDA_DTOR_CALL(cudaFree(mem));
+      mem = nullptr;
+    }
+  }
+
+  void init() {
+    if (!mem)
+      CUDA_CALL(cudaMalloc(&mem, size));
+  }
+
+  void run(cudaStream_t stream, int count = 1) {
+    for (int i = 0; i < count; i++) {
+      CUDA_CALL(cudaMemsetAsync(mem, i+1, size, stream));
+    }
+  }
+
+  uint8_t *mem = nullptr;
+  size_t size = 16<<20;
+};
+
+}  // namespace
+
+TEST(CApiTest, daliOutputCopy_Async) {
+  dali::Pipeline pipe(8, 4, 0);
+  std::string es_cpu_name = "pipe_in";
+  pipe.AddExternalInput(es_cpu_name, "cpu");
+
+  std::string cont_name = "pipe_out";
+  pipe.AddOperator(OpSpec("MakeContiguous")
+                          .AddArg("device", "mixed")
+                          .AddArg("name", cont_name)
+                          .AddInput(es_cpu_name, "cpu")
+                          .AddOutput(cont_name, "gpu"), cont_name);
+  std::vector<std::pair<std::string, std::string>> outputs = {{"pipe_out", "gpu"}};
+
+  GPUHog hog;
+  std::vector<std::vector<int>> in_data;
+  int sample_size = 1000000;
+  TensorListShape shape = uniform_list_shape(8, {sample_size});
+  in_data.resize(2);
+  for (int i = 0; i < 2; i++) {
+    in_data[i].resize(sample_size);
+    for (int j = 0; j < sample_size; j++)
+      in_data[i][j] = i + j;
+  }
+  std::vector<int> out_data(sample_size);
+
+  CUDAStreamLease stream = CUDAStreamPool::instance::Get();
+  pipe.SetOutputDescs(outputs);
+  std::string ser = pipe.SerializeToProtobuf();
+  daliPipelineHandle handle;
+  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+  hog.init();
+  daliSetExternalInput(&handle, "pipe_in", CPU, in_data[0], DALI_INT32,
+                       shape.shape.data(), 1, nullptr, 0);
+  daliRun(&handle);
+  daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1], DALI_INT32,
+                       shape.shape.data(), 1, nullptr, 0);
+  daliRun(&handle);  // schedule extra iteration
+  daliOutput(&handle);
+  hog.run(stream, 100);
+  daliOutputCopy(&handle, dst.data(), 0, CPU, stream, 0);
+  daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1], DALI_INT32,
+                       shape.shape.data(), 1, nullptr, 0);
+  daliRun(&handle);
+
+  CUDA_CALL(cudaMemcpyAsync(out_data.data(), out_gpu.data(),
+                            batch_size*sample_size*sizeof(int32_t)));
+
+  for (int i = 0; i <
+
+  daliDeletePipeline(&handle);
+}
 
 TYPED_TEST(CApiTest, daliOutputCopySamples) {
   auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
