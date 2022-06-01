@@ -397,10 +397,10 @@ class SequenceShapeBroadcastTest<TensorList<Backend>>
     ASSERT_EQ(expanded_batch.shape(), expanded_view.shape);
     ASSERT_EQ(expand_extents.num_elements(), expanded_batch.num_samples());
     for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
-      const auto &sample_shape = batch_view[sample_idx].shape;
+      const auto sample_shape = batch_view[sample_idx].shape;
       auto *sample_data = batch_view.tensor_data(sample_idx);
       for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
-        const auto &elem_shape = expanded_view[elem_idx].shape;
+        const auto elem_shape = expanded_view[elem_idx].shape;
         ASSERT_EQ(sample_shape, elem_shape);
         auto *elem_data = expanded_view.tensor_data(elem_idx++);
         for (int j = 0; j < volume(sample_shape); j++) {
