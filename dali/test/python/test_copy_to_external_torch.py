@@ -19,29 +19,23 @@
 
 
 import torch
+import torch.utils.dlpack as torch_dlpack
+import ctypes
 import numpy as np
 import nvidia.dali as dali
-from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
+from nvidia.dali import pipeline_def
+from nvidia.dali.backend import TensorGPU, TensorListGPU
+from nvidia.dali import types
 
-shape = [1000000]
-batch_size = 8
+shape = [4000000]
+batch_size = 2
 
 @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
 def _test_pipe():
     get_tensor = lambda si: np.arange(si.idx_in_epoch, si.idx_in_epoch + shape[0], dtype=np.int32)
     inp = fn.external_source(get_tensor, batch=False)
     return inp.gpu()
-
-
-from nvidia.dali.backend import TensorGPU, TensorListGPU
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
-from nvidia.dali import types
-import torch
-import torch.utils.dlpack as torch_dlpack
-import ctypes
-import numpy as np
 
 to_torch_type = {
     types.DALIDataType.FLOAT   : torch.float32,
@@ -54,14 +48,13 @@ to_torch_type = {
     types.DALIDataType.INT64   : torch.int64
 }
 
-def feed_ndarray(dali_tensor, arr, cuda_stream = None, non_blocking = False):
+def feed_ndarray(tensor_or_tl, arr, cuda_stream = None, non_blocking = False):
     """
     Copy contents of DALI tensor to PyTorch's Tensor.
 
     Parameters
     ----------
-    `dali_tensor` : nvidia.dali.backend.TensorCPU or nvidia.dali.backend.TensorGPU
-                    Tensor from which to copy
+    `tensor_or_tl` : TensorGPU or TensorListGPU
     `arr` : torch.Tensor
             Destination of the copy
     `cuda_stream` : torch.cuda.Stream, cudaStream_t or any value that can be cast to cudaStream_t.
@@ -70,7 +63,12 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None, non_blocking = False):
                     In most cases, using pytorch's current stream is expected (for example,
                     if we are copying to a tensor allocated with torch.zeros(...))
     """
-    dali_type = to_torch_type[dali_tensor.dtype]
+    dali_type = to_torch_type[tensor_or_tl.dtype]
+    if isinstance(tensor_or_tl, TensorListGPU):
+        dali_tensor = tensor_or_tl.as_tensor()
+    else:
+        dali_tensor = tensor_or_tl
+
 
     assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
             " doesn't match the element type of the target PyTorch Tensor:"
@@ -84,14 +82,14 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None, non_blocking = False):
     # turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
     stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
-    dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking)
+    tensor_or_tl.copy_to_external(c_type_pointer, stream, non_blocking)
     return arr
 
-def test_copy_to_external():
+def _test_copy_to_external(use_tensor_list, non_blocking):
     """Test whether the copy_to_external is properly synchronized before the output
     tensor is recycled.
 
-    copy_to_external can work in a non-blockin mode - in this mode, the data is copied on a
+    copy_to_external can work in a non-blocking mode - in this mode, the data is copied on a
     user-provided stream, but the host thread doesn't block until the copy finishes.
     However, to ensure that a tensor has been consumed before allowing its reuse, a
     synchronization is scheduled on the stream associated with the tensor being copied.
@@ -133,7 +131,8 @@ def test_copy_to_external():
             # do something time-consuming on the torch stream to give DALI time to clobber the buffer
             hog = [torch.sqrt(x) for x in hog]
             # copy the result asynchronously
-            feed_ndarray(out.as_tensor(), arr, stream.cuda_stream, True)
+            copy_source = out if use_tensor_list else out.as_tensor()
+            feed_ndarray(copy_source, arr, stream.cuda_stream, non_blocking)
             pipe.release_outputs()
             # drain
             _, = pipe.share_outputs()
@@ -144,3 +143,8 @@ def test_copy_to_external():
 
             # free resources to prevent OOM in the next iteration
             del pipe
+
+def test_copy_to_external():
+    for use_tl in [False, True]:
+        for non_blocking in [False, True]:
+            yield _test_copy_to_external, use_tl, non_blocking
