@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,12 +21,7 @@
 #include "dali/c_api.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/dev_buffer.h"
-#include "dali/pipeline/data/buffer.h"
-#include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/data/views.h"
 #include "dali/pipeline/pipeline.h"
-#include "dali/test/dali_test_config.h"
-#include "dali/test/tensor_test_utils.h"
 
 
 namespace dali {
@@ -36,39 +31,38 @@ namespace {
 
 __global__ void hog(float *f, size_t n) {
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-  if (i < n)
-    f[i] = sqrt(f[i]);
+  if (i < n) {
+    for (int k = 0; k < 100; k++)
+      f[i] = sqrt(f[i]);
+  }
 }
 
 struct GPUHog {
-  ~GPUHog() {
-    if (mem) {
-      CUDA_DTOR_CALL(cudaFree(mem));
-      mem = nullptr;
-    }
-  }
-
   void init() {
     if (!mem)
-      CUDA_CALL(cudaMalloc(&mem, size * sizeof(float)));
+      mem = mm::alloc_raw_unique<float, mm::memory_kind::device>(size);
+    CUDA_CALL(cudaMemset(mem.get(), 1, size * sizeof(float)));
   }
 
   void run(cudaStream_t stream, int count = 1) {
     for (int i = 0; i < count; i++) {
-      CUDA_CALL(cudaMemsetAsync(mem, 1, size * sizeof(float), stream));
-      hog<<<div_ceil(size, 512), 512>>>(mem, size);
+      hog<<<div_ceil(size, 512), 512, 0, stream>>>(mem.get(), size);
     }
     CUDA_CALL(cudaGetLastError());
   }
 
-  float *mem = nullptr;
+  mm::uptr<float> mem;
   size_t size = 16<<20;
 };
 
 }  // namespace
 
-TEST(CApiTest, daliOutputCopy_Async) {
-  int batch_size = 8;
+enum class Method {
+  Contiguous, Samples
+};
+
+void TestCopyOutput(Method method) {
+  int batch_size = 2;
   dali::Pipeline pipe(batch_size, 4, 0);
   std::string es_cpu_name = "pipe_in";
   pipe.AddExternalInput(es_cpu_name, "cpu");
@@ -82,8 +76,10 @@ TEST(CApiTest, daliOutputCopy_Async) {
   std::vector<std::pair<std::string, std::string>> outputs = {{"pipe_out", "gpu"}};
 
   GPUHog hog;
+  hog.init();
+
   std::vector<std::vector<int>> in_data;
-  int sample_size = 1000000;
+  int sample_size = 400000;
   TensorListShape<> shape = uniform_list_shape(8, {sample_size});
   in_data.resize(2);
   for (int i = 0; i < 2; i++) {
@@ -100,33 +96,75 @@ TEST(CApiTest, daliOutputCopy_Async) {
 
   CUDA_CALL(cudaMemsetAsync(out_gpu.data(), -1, out_gpu.size() * sizeof(int), stream));
   std::string ser = pipe.SerializeToProtobuf();
-  daliPipelineHandle handle;
-  hog.init();
-  hog.run(stream, 10);
-  daliDeserializeDefault(&handle, ser.c_str(), ser.size());
+  hog.run(stream, 50);
 
-  daliSetExternalInput(&handle, "pipe_in", CPU, in_data[0].data(), ::DALI_INT32,
-                       shape.shapes.data(), 1, nullptr, 0);
-  daliRun(&handle);
 
-  // schedule an extra iteration
-  daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1].data(), ::DALI_INT32,
-                       shape.shapes.data(), 1, nullptr, 0);
-  daliRun(&handle);
-  hog.run(stream, 1000);
-  daliOutput(&handle);
-  daliOutputCopy(&handle, out_gpu.data(), 0, GPU, stream, 0);
-  daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1].data(), ::DALI_INT32,
-                       shape.shapes.data(), 1, nullptr, 0);
-  daliRun(&handle);
+  // This loop is tuned so that if the output buffer is recycled before the asynchronous copy
+  // finishes, the buffer is clobbered and an error is detected.
+  // (michalz) Verified on my desktop. The changes in c_api that came with this test
+  // fix the synchronization problem.
+  for (int attempt = 0; attempt < 20; attempt++) {
+    daliPipelineHandle handle;
 
-  CUDA_CALL(cudaMemcpyAsync(out_cpu.data(), out_gpu.data(), batch_size*sample_size*sizeof(int),
-                            cudaMemcpyDeviceToHost, stream));
+    // create a new instance of the pipeline
+    daliDeserializeDefault(&handle, ser.c_str(), ser.size());
 
-  for (int i = 0; i < batch_size * sample_size; i++)
-    ASSERT_EQ(out_cpu[i], in_data[0][i]) << " at index " << i;
+    // feed the data & run - this is the iteration from which we want to see the data
+    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[0].data(), ::DALI_INT32,
+                        shape.shapes.data(), 1, nullptr, 0);
+    daliRun(&handle);
 
-  daliDeletePipeline(&handle);
+    // schedule an extra iteration
+    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1].data(), ::DALI_INT32,
+                        shape.shapes.data(), 1, nullptr, 0);
+    daliRun(&handle);
+    // ...and prepare for one more
+    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1].data(), ::DALI_INT32,
+                        shape.shapes.data(), 1, nullptr, 0);
+
+    // get the outputs - this contains some synchronization, so it comes before dispatching the hog
+    daliShareOutput(&handle);
+    // hog the GPU on the stream on which we'll copy the output
+    hog.run(stream, 10);
+
+    // copy the output on our stream, without waiting on host
+    if (method == Method::Contiguous) {
+      daliOutputCopy(&handle, out_gpu.data(), 0, GPU, stream, 0);
+    } else if (method == Method::Samples) {
+      void *dsts[batch_size];
+      for (int i = 0; i < batch_size; i++)
+        dsts[i] = out_gpu.data() + i*sample_size;
+      daliOutputCopySamples(&handle, dsts, 0, GPU, stream, 0);
+    }
+
+    // release the buffer - it can be immediately recycled (in appropriate stream order)
+    daliOutputRelease(&handle);
+    daliRun(&handle);
+
+    // now, copy the buffer to host...
+    CUDA_CALL(cudaMemcpyAsync(out_cpu.data(), out_gpu.data(), batch_size*sample_size*sizeof(int),
+                              cudaMemcpyDeviceToHost, stream));
+
+    // ...and verify the contents
+    for (int i = 0; i < batch_size * sample_size; i++) {
+      // check for race condition...
+      ASSERT_NE(out_cpu[i], in_data[1][i])
+        << " synchronization failed - data clobbered by next iteration " << i;
+
+      // ...and for any other corruption
+      ASSERT_EQ(out_cpu[i], in_data[0][i]) << " data corrupted at index " << i;
+    }
+
+    daliDeletePipeline(&handle);
+  }
+}
+
+TEST(CApiTest, daliOutputCopy_Async) {
+  TestCopyOutput(Method::Contiguous);
+}
+
+TEST(CApiTest, daliOutputCopySamples_Async) {
+  TestCopyOutput(Method::Samples);
 }
 
 }  // namespace dali

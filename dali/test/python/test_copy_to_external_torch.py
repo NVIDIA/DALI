@@ -1,4 +1,3 @@
-import nose_utils  # for Python 3.10 workaround
 import torch
 import numpy as np
 import nvidia.dali as dali
