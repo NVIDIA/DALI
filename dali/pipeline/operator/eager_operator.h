@@ -16,7 +16,7 @@
 #define DALI_PIPELINE_OPERATOR_EAGER_OPERATOR_H_
 
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -145,16 +145,17 @@ class DLL_PUBLIC EagerOperator {
   // Update shared thread pool used for all direct operators.
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
     std::lock_guard lock(shared_thread_pool_mutex_);
-    shared_thread_pool_ =
-        std::make_shared<ThreadPool>(num_threads, CPU_ONLY_DEVICE_ID, false, "EagerOperator");
+
+    CreateSharedThreadPool().reset(
+        new ThreadPool(num_threads, CPU_ONLY_DEVICE_ID, false, "EagerOperator"));
   }
 
   // Update shared CUDA stream used for all direct operators.
   DLL_PUBLIC inline static void UpdateCudaStream(int device_id) {
     if (device_id != CPU_ONLY_DEVICE_ID) {
       DeviceGuard g(device_id);
-      std::lock_guard lock(shared_cuda_stream_mutex_);
-      *shared_cuda_stream_ = CUDAStreamPool::instance().Get(device_id);
+      CUDAStreamLease &cuda_stream = GetSharedCudaStream();
+      cuda_stream = CUDAStreamPool::instance().Get(device_id);
     }
   }
 
@@ -169,28 +170,28 @@ class DLL_PUBLIC EagerOperator {
                        ", instance name: \"", name_, "\", encountered:\n", what);
   }
 
-  static inline std::shared_ptr<ThreadPool> GetSharedThreadPool() {
-    std::lock_guard lock(shared_thread_pool_mutex_);
-
-    if (!shared_thread_pool_) {
-      int num_cores = std::thread::hardware_concurrency();
-      num_cores = num_cores < 6 ? num_cores : 6;
-
-      shared_thread_pool_ =
-          std::make_shared<ThreadPool>(num_cores, CPU_ONLY_DEVICE_ID, false, "EagerOperator");
-    }
-
-    return shared_thread_pool_;
+  static inline int GetDefaultNumThreads() {
+    int num_cores = std::thread::hardware_concurrency();
+    return num_cores < 6 ? num_cores : 6;
   }
 
-  static inline std::shared_ptr<CUDAStreamLease> GetSharedCudaStream() {
-    std::lock_guard lock(shared_cuda_stream_mutex_);
+  static inline std::shared_ptr<ThreadPool> &CreateSharedThreadPool() {
+    static std::shared_ptr<ThreadPool> thread_pool = std::make_shared<ThreadPool>(
+        GetDefaultNumThreads(), CPU_ONLY_DEVICE_ID, false, "EagerOperator");
 
-    if (!shared_cuda_stream_) {
-      shared_cuda_stream_ = std::make_shared<CUDAStreamLease>();
-    }
+    return thread_pool;
+  }
 
-    return shared_cuda_stream_;
+  static inline std::shared_ptr<ThreadPool> GetSharedThreadPool() {
+    std::shared_lock lock(shared_thread_pool_mutex_);
+
+    return CreateSharedThreadPool();
+  }
+
+  static inline CUDAStreamLease &GetSharedCudaStream() {
+    static CUDAStreamLease cuda_stream;
+
+    return cuda_stream;
   }
 
   int max_batch_size_;
@@ -200,10 +201,7 @@ class DLL_PUBLIC EagerOperator {
   std::string name_;
   std::unique_ptr<OperatorBase> op_;
 
-  static std::shared_ptr<CUDAStreamLease> shared_cuda_stream_;
-  static std::shared_ptr<ThreadPool> shared_thread_pool_;
-  static std::mutex shared_cuda_stream_mutex_;
-  static std::mutex shared_thread_pool_mutex_;
+  static std::shared_mutex shared_thread_pool_mutex_;
 };
 
 template <typename Backend>
@@ -212,7 +210,7 @@ EagerOperator<Backend>::Run(
     const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run(inputs, kwargs, *GetSharedCudaStream(), batch_size);
+  return Run(inputs, kwargs, GetSharedCudaStream(), batch_size);
 }
 
 template <>
@@ -334,16 +332,7 @@ EagerOperator<Backend>::RunImpl(
 }
 
 template <typename Backend>
-std::shared_ptr<CUDAStreamLease> EagerOperator<Backend>::shared_cuda_stream_{};
-
-template <typename Backend>
-std::shared_ptr<ThreadPool> EagerOperator<Backend>::shared_thread_pool_{};
-
-template <typename Backend>
-std::mutex EagerOperator<Backend>::shared_cuda_stream_mutex_{};
-
-template <typename Backend>
-std::mutex EagerOperator<Backend>::shared_thread_pool_mutex_{};
+std::shared_mutex EagerOperator<Backend>::shared_thread_pool_mutex_{};
 
 }  // namespace dali
 
