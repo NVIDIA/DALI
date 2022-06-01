@@ -144,7 +144,7 @@ class DLL_PUBLIC EagerOperator {
 
   // Update shared thread pool used for all direct operators.
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
-    std::lock_guard<std::mutex> lock(shared_thread_pool_mutex_);
+    std::lock_guard lock(shared_thread_pool_mutex_);
     shared_thread_pool_ =
         std::make_shared<ThreadPool>(num_threads, CPU_ONLY_DEVICE_ID, false, "EagerOperator");
   }
@@ -153,7 +153,7 @@ class DLL_PUBLIC EagerOperator {
   DLL_PUBLIC inline static void UpdateCudaStream(int device_id) {
     if (device_id != CPU_ONLY_DEVICE_ID) {
       DeviceGuard g(device_id);
-      std::lock_guard<std::mutex> lock(shared_cuda_stream_mutex_);
+      std::lock_guard lock(shared_cuda_stream_mutex_);
       *shared_cuda_stream_ = CUDAStreamPool::instance().Get(device_id);
     }
   }
@@ -170,7 +170,7 @@ class DLL_PUBLIC EagerOperator {
   }
 
   static inline std::shared_ptr<ThreadPool> GetSharedThreadPool() {
-    std::lock_guard<std::mutex> lock(shared_thread_pool_mutex_);
+    std::lock_guard lock(shared_thread_pool_mutex_);
 
     if (!shared_thread_pool_) {
       int num_cores = std::thread::hardware_concurrency();
@@ -184,7 +184,7 @@ class DLL_PUBLIC EagerOperator {
   }
 
   static inline std::shared_ptr<CUDAStreamLease> GetSharedCudaStream() {
-    std::lock_guard<std::mutex> lock(shared_cuda_stream_mutex_);
+    std::lock_guard lock(shared_cuda_stream_mutex_);
 
     if (!shared_cuda_stream_) {
       shared_cuda_stream_ = std::make_shared<CUDAStreamLease>();
