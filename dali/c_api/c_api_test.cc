@@ -19,8 +19,6 @@
 #include <vector>
 
 #include "dali/c_api.h"
-#include "dali/core/cuda_stream_pool.h"
-#include "dali/core/dev_buffer.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/views.h"
