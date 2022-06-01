@@ -843,6 +843,7 @@ void Clear(Tensor<GPUBackend>& tensor) {
   CUDA_CALL(cudaMemset(tensor.raw_mutable_data(), 0, tensor.nbytes()));
 }
 
+
 TYPED_TEST(CApiTest, daliOutputCopySamples) {
   auto pipe_ptr = GetTestPipeline<TypeParam>(true, this->output_device_);
   auto serialized = pipe_ptr->SerializeToProtobuf();
