@@ -1,10 +1,30 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# it is enough to just import all functions from test_internals_operator_external_source
+# nose will query for the methods available and will run them
+# the test_internals_operator_external_source is 99% the same for cupy and numpy tests
+# so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
+
+
 import torch
 import numpy as np
 import nvidia.dali as dali
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 
-shape = [5000000]
+shape = [1000000]
 batch_size = 8
 
 @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
@@ -53,7 +73,9 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None, non_blocking = False):
     dali_type = to_torch_type[dali_tensor.dtype]
 
     assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
-            " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(dali_type, arr.dtype))
+            " doesn't match the element type of the target PyTorch Tensor:"
+            "{} vs {}".format(dali_type, arr.dtype))
+
     assert dali_tensor.shape() == list(arr.size()), \
             ("Shapes do not match: DALI tensor has size {0}"
             ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
@@ -61,20 +83,33 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None, non_blocking = False):
 
     # turn raw int to a c void pointer
     c_type_pointer = ctypes.c_void_p(arr.data_ptr())
-    dali_tensor.copy_to_external(c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream), non_blocking)
+    stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
+    dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking)
     return arr
 
 def test_copy_to_external():
+    """Test whether the copy_to_external is properly synchronized before the output
+    tensor is recycled.
+
+    copy_to_external can work in a non-blockin mode - in this mode, the data is copied on a
+    user-provided stream, but the host thread doesn't block until the copy finishes.
+    However, to ensure that a tensor has been consumed before allowing its reuse, a
+    synchronization is scheduled on the stream associated with the tensor being copied.
+
+    WARNING:
+    This test is crafted so that it fails when the synchronization doesn't occur. The timing
+    is controlled by data sizes and number of iterations - do not change these values!
+    """
 
     def ref_tensor(batch_size, sample_shape, start_value):
         volume = np.prod(sample_shape)
-        sample0 = torch.arange(start_value, start_value + volume, dtype=torch.int32, device="cuda:0").reshape(shape)
+        sample0 = torch.arange(start_value, start_value + volume,
+                               dtype=torch.int32, device="cuda:0").reshape(shape)
         return torch.stack([sample0 + i for i in range(batch_size)])
 
     def check(arr, ref):
         return torch.equal(arr, ref)
 
-    num_iters = 20
     # get a Pytorch CUDA stream
     stream = torch.cuda.Stream(device=0)
     with torch.cuda.stream(stream):
@@ -106,4 +141,6 @@ def test_copy_to_external():
             # if no appropriate synchronization is done, the array is likely clobbered with the
             # results from the second iteration
             assert check(arr, ref)
+
+            # free resources to prevent OOM in the next iteration
             del pipe
