@@ -20,5 +20,6 @@
 
 import numpy as np
 
+
 def cb(x):
     return np.full((10, 100), x.idx_in_epoch)

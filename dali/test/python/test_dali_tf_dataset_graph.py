@@ -38,6 +38,7 @@ def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
         get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor), batch=batch),
         to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, batch))
 
+
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_with_constant_input():
     for dev in ['cpu', 'gpu']:

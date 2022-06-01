@@ -25,15 +25,19 @@ from nose_utils import raises
 
 from test_pool_utils import *
 
+
 def answer(pid, info):
     return np.array([pid, info.idx_in_epoch, info.idx_in_batch, info.iteration])
+
 
 def simple_callback(info):
     pid = os.getpid()
     return answer(pid, info)
 
+
 def another_callback(info):
     return simple_callback(info) + 100
+
 
 class IteratorCb:
     def __init__(self):
@@ -48,6 +52,7 @@ class IteratorCb:
     def __next__(self):
         self.count += 1
         return [np.array([self.pid, self.count]) for i in range(self.count)]
+
 
 class MockGroup:
 
@@ -85,7 +90,7 @@ def assert_scheduled_num(context, num_tasks):
     assert len(context.task_queue) == num_tasks
 
 
-start_methods=["fork", "spawn"]
+start_methods = ["fork", "spawn"]
 
 # Invoke the `fn` with all start methods. Call setup and teardown before and after the test.
 #
@@ -98,6 +103,8 @@ start_methods=["fork", "spawn"]
 # def test_something():
 #   for start_method in start_methods:
 #      yield check_somthing, start_method
+
+
 def check_pool(fn):
     @wraps(fn)
     def wrapper():
@@ -184,6 +191,7 @@ def test_pool_work_split_multiple_tasks(start_method):
 # ################################################################################################ #
 # multiple callbacks
 # ################################################################################################ #
+
 
 @check_pool
 def test_pool_iterator_dedicated_worker(start_method):
@@ -303,6 +311,7 @@ def test_multiple_stateful_sources_single_worker():
 
 def invalid_callback(i):
     return "42"
+
 
 @raises(Exception, glob="Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, DALI TensorCPU, or list or tuple of them representing sample. Got")
 @with_setup(setup_function, teardown_function)

@@ -98,7 +98,7 @@ def lint(dali_root_dir, file_list, process_includes, n_subproc):
     n_subprocesses: how many subprocesses to use for linter processing
     Returns: 0 if lint passed, 1 otherwise
     """
-    if len(file_list)==0:
+    if len(file_list) == 0:
         return 0
     cmds = []
     diff = int(len(file_list) / n_subproc)

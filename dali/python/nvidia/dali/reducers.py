@@ -25,6 +25,8 @@ dummy_lambda = lambda : 0
 # the code syntactically nested inside the function, this includes nested functions
 # and list comprehension, for instance in case of [exp1 for exp2 in exp3] occuring inside
 # a function, references from exp1 would be omitted
+
+
 def get_global_references_from_nested_code(code, global_scope, global_refs):
     for constant in code.co_consts:
         if inspect.iscode(constant):
@@ -33,10 +35,12 @@ def get_global_references_from_nested_code(code, global_scope, global_refs):
             global_refs.update(inspect.getclosurevars(dummy_function).globals)
             get_global_references_from_nested_code(constant, global_scope, global_refs)
 
+
 def set_funcion_state(fun, state):
     fun.__globals__.update(state['global_refs'])
     fun.__defaults__ = state['defaults']
     fun.__kwdefaults__ = state['kwdefaults']
+
 
 def function_unpickle(name, qualname, code, closure):
     code = marshal.loads(code)
@@ -44,6 +48,7 @@ def function_unpickle(name, qualname, code, closure):
     fun = types.FunctionType(code, global_scope, name, closure=closure)
     fun.__qualname__ = qualname
     return fun
+
 
 def function_by_value_reducer(fun):
     cl_vars = inspect.getclosurevars(fun)
@@ -58,6 +63,7 @@ def function_by_value_reducer(fun):
     }
     return function_unpickle, basic_def, fun_context, None, None, set_funcion_state
 
+
 def module_unpickle(name, origin, submodule_search_locations):
     if name in sys.modules:
         return sys.modules[name]
@@ -69,15 +75,19 @@ def module_unpickle(name, origin, submodule_search_locations):
     spec.loader.exec_module(module)
     return module
 
+
 def module_reducer(module):
     spec = module.__spec__
     return module_unpickle, (spec.name, spec.origin, spec.submodule_search_locations)
 
+
 def set_cell_state(cell, state):
     cell.cell_contents = state['cell_contents']
 
+
 def cell_unpickle():
     return types.CellType(None)
+
 
 def cell_reducer(cell):
     return (cell_unpickle, tuple(), {'cell_contents': cell.cell_contents}, None, None, set_cell_state)

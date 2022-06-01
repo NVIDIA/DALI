@@ -23,15 +23,16 @@ from nose_utils import assert_raises
 random.seed(1234)
 np.random.seed(4321)
 
-def check_select_masks(batch_size, npolygons_range = (1, 10), nvertices_range = (3, 40), vertex_ndim = 2, vertex_dtype = np.float32, reindex_masks = False):
+
+def check_select_masks(batch_size, npolygons_range=(1, 10), nvertices_range=(3, 40), vertex_ndim=2, vertex_dtype=np.float32, reindex_masks=False):
     def get_data_source(*args, **kwargs):
         return lambda: make_batch_select_masks(*args, **kwargs)
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         polygons, vertices, mask_ids = fn.external_source(
-            source = get_data_source(batch_size, npolygons_range=npolygons_range,
+            source=get_data_source(batch_size, npolygons_range=npolygons_range,
             nvertices_range=nvertices_range, vertex_ndim=vertex_ndim, vertex_dtype=vertex_dtype),
-            num_outputs = 3, device='cpu'
+            num_outputs=3, device='cpu'
         )
         out_polygons, out_vertices = fn.segmentation.select_masks(
             mask_ids, polygons, vertices, reindex_masks=reindex_masks
@@ -73,6 +74,7 @@ def check_select_masks(batch_size, npolygons_range = (1, 10), nvertices_range = 
                 out_vertex = out_vertices[out_vertex_start:out_vertex_end]
                 assert (expected_out_vertex == out_vertex).all()
 
+
 def test_select_masks():
     npolygons_range = (1, 10)
     nvertices_range = (3, 40)
@@ -110,6 +112,7 @@ def test_select_masks_wrong_mask_ids():
     _test_select_masks_wrong_input(lambda: test_data(),
                                    err_regex="Selected mask_id .* is not present in the input\.")
 
+
 def test_select_masks_wrong_mask_meta_dim():
     def test_data():
         # Expects 3 integers, not 4
@@ -120,6 +123,7 @@ def test_select_masks_wrong_mask_meta_dim():
 
     _test_select_masks_wrong_input(lambda: test_data(),
                                    err_regex="``polygons`` is expected to contain 2D tensors with 3 columns: ``mask_id, start_idx, end_idx``\. Got \d* columns\.")
+
 
 def test_select_masks_wrong_vertex_ids():
     def test_data():

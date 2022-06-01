@@ -17,9 +17,11 @@
 from sys import argv
 import subprocess
 
-# Check if any element in the elms list matches the value
+
 def get_list_elm_match(value, elms):
+    """ Check if any element in the elms list matches the value """
     return any(e in value for e in elms)
+
 
 def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
     # Gather all libs that may be linked with 'lib' and don't need to be bundled
@@ -31,6 +33,7 @@ def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
             allowed_libs_to_check += allowed_libs[k]
 
     return linked_lib in bundled_lib_names or get_list_elm_match(linked_lib, allowed_libs_to_check)
+
 
 def main():
     allowed_libs = {"": ["linux-vdso.so.1",
@@ -68,6 +71,7 @@ def main():
                 print('Library: "' + linked_lib + '" should be bundled in whl or removed from the dynamic link dependency')
                 exit(1)
     print("-> OK")
+
 
 if __name__ == '__main__':
     main()

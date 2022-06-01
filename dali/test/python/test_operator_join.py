@@ -20,8 +20,10 @@ from test_utils import check_batch
 
 np.random.seed(1234)
 
-def input_generator(num_inputs, batch_size, ndim, variable_axis = None):
+
+def input_generator(num_inputs, batch_size, ndim, variable_axis=None):
     max_extent = int(math.ceil(math.pow(1e+6 / (batch_size * num_inputs), 1 / ndim))) if ndim > 0 else 1
+
     def gen():
         if ndim == 0:
             inputs = []
@@ -40,8 +42,9 @@ def input_generator(num_inputs, batch_size, ndim, variable_axis = None):
         return inputs
     return gen
 
+
 def test_cat_different_length():
-    pipe = dali.pipeline.Pipeline(batch_size = 1, num_threads = 3, device_id = 0)
+    pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=3, device_id=0)
     with pipe:
         src1 = dali.types.Constant(np.array(
             [[1, 2, 3 ,4],
@@ -51,8 +54,8 @@ def test_cat_different_length():
             [[13,14,15],
              [16,17,18],
              [19,20,21]]))
-        out_cpu = fn.cat(src1, src2, axis = 1)
-        out_gpu = fn.cat(src1.gpu(), src2.gpu(), axis = 1)
+        out_cpu = fn.cat(src1, src2, axis=1)
+        out_gpu = fn.cat(src1.gpu(), src2.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
 
     pipe.build()
@@ -69,7 +72,7 @@ def test_cat_different_length():
 
 
 def test_cat_empty_input():
-    pipe = dali.pipeline.Pipeline(batch_size = 1, num_threads = 3, device_id = 0)
+    pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=3, device_id=0)
     with pipe:
         src1 = dali.types.Constant(np.array(
             [[1, 2, 3 ,4],
@@ -83,8 +86,8 @@ def test_cat_empty_input():
             [[13,14,15],
              [16,17,18],
              [19,20,21]]))
-        out_cpu = fn.cat(src1, src2, src3, axis = 1)
-        out_gpu = fn.cat(src1.gpu(), src2.gpu(), src3.gpu(), axis = 1)
+        out_cpu = fn.cat(src1, src2, src3, axis=1)
+        out_gpu = fn.cat(src1.gpu(), src2.gpu(), src3.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
 
     pipe.build()
@@ -101,14 +104,14 @@ def test_cat_empty_input():
 
 
 def test_cat_all_empty():
-    pipe = dali.pipeline.Pipeline(batch_size = 1, num_threads = 3, device_id = 0)
+    pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=3, device_id=0)
     with pipe:
         src1 = dali.types.Constant(np.array(
             [[],
              [],
              []], dtype=np.int32))
-        out_cpu = fn.cat(src1, src1, src1, axis = 1)
-        out_gpu = fn.cat(src1.gpu(), src1.gpu(), src1.gpu(), axis = 1)
+        out_cpu = fn.cat(src1, src1, src1, axis=1)
+        out_gpu = fn.cat(src1.gpu(), src1.gpu(), src1.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
 
     pipe.build()
@@ -130,6 +133,7 @@ def ref_cat(input_batches, axis):
         out.append(np.concatenate(inputs, axis=axis))
     return out
 
+
 def ref_stack(input_batches, axis):
     N = len(input_batches[0])
     out = []
@@ -138,9 +142,10 @@ def ref_stack(input_batches, axis):
         out.append(np.stack(inputs, axis=axis))
     return out
 
+
 def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
-    num_iter=3
-    batch_size=4
+    num_iter = 3
+    batch_size = 4
     if ndim is None:
         ndim = len(layout)
 
@@ -149,7 +154,7 @@ def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
 
     axis_arg = None if axis_name else axis
 
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads = 3, device_id = 0)
+    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
     with pipe:
         inputs = fn.external_source(input_generator(num_inputs, batch_size, ndim, ref_axis), num_outputs=num_inputs, layout=layout)
         out_cpu = fn.cat(*inputs,                    axis=axis_arg, axis_name=axis_name)
@@ -165,8 +170,8 @@ def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
 
 
 def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
-    num_iter=3
-    batch_size=4
+    num_iter = 3
+    batch_size = 4
     if ndim is None:
         ndim = len(layout)
 
@@ -177,7 +182,7 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
     else:
         ref_layout = ""
 
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads = 3, device_id = 0)
+    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
     with pipe:
         inputs  = fn.external_source(input_generator(num_inputs, batch_size, ndim), num_outputs=num_inputs, layout=layout)
         out_cpu = fn.stack(*inputs,                    axis=axis, axis_name=axis_name)
@@ -199,10 +204,11 @@ def test_cat():
                 axis_name = layout[axis] if layout else None
                 yield _run_test_cat, num_inputs, layout, ndim, axis, axis_name
 
+
 def test_stack():
     for num_inputs in [1, 2, 3, 100]:
         for layout, ndim in [(None, 0), (None, 1), ('A', 1), (None, 2), ('HW', 2), (None, 3), ('DHW', 3)]:
-            for axis in range(ndim+1):
+            for axis in range(ndim + 1):
                 axis_names = [None] if layout is None and ndim > 0 else [None, 'C']
                 for axis_name in axis_names:
                     yield _run_test_stack, num_inputs, layout, ndim, axis, axis_name

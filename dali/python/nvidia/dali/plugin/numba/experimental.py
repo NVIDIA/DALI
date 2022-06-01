@@ -37,6 +37,7 @@ _to_numpy = {
     dali_types.FLOAT64 : "float64",
 }
 
+
 @nb.extending.intrinsic
 def address_as_void_pointer(typingctx, src):
     from numba.core import types, cgutils
@@ -45,6 +46,7 @@ def address_as_void_pointer(typingctx, src):
     def codegen(cgctx, builder, sig, args):
         return builder.inttoptr(args[0], cgutils.voidptr_t)
     return sig, codegen
+
 
 @njit
 def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
@@ -57,6 +59,7 @@ def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
             d.append(carray(address_as_void_pointer(shape_ptr), size, dtype=np.int64))
         l.append(d)
     return l
+
 
 class NumbaFunction(metaclass=ops._DaliOperatorMeta):
     schema_name = 'NumbaFunction'
@@ -191,6 +194,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         setup_fn_address = None
         if setup_fn != None:
             setup_fn = njit(setup_fn)
+
             @cfunc(self._setup_fn_sig(), nopython=True)
             def setup_cfunc(out_shapes_ptr, out_ndims_ptr, num_outs, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
@@ -294,5 +298,6 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self.num_outputs = len(out_types)
         self.batch_processing = batch_processing
         self._preserve = True
+
 
 ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")

@@ -21,6 +21,7 @@ import functools
 
 np = None
 
+
 def import_numpy():
     """Import numpy lazily, need to define global `np = None` variable"""
     global np
@@ -41,7 +42,8 @@ class SourceKind(Enum):
 class SourceDescription:
     """Keep the metadata about the source parameter that was originally passed
     """
-    def __init__(self, source, kind: SourceKind, has_inputs: bool, cycle: str, batch_info = False):
+
+    def __init__(self, source, kind: SourceKind, has_inputs: bool, cycle: str, batch_info=False):
         self.source = source
         self.kind = kind
         self.has_inputs = has_inputs
@@ -70,6 +72,7 @@ _tf_uniform_error_msg = (
     "Unsupported callback return value. TensorFlow requires that the batches produced by input "
     "datasets or External Source `source` callback in batch mode (that is when batch=True) "
     " are dense and uniform - this means that every sample has the same shape. Got `{}` instead.")
+
 
 def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return type. Got: `{}`."):
     import_numpy()
@@ -346,6 +349,7 @@ def get_sample_iterable_from_callback(source_desc: SourceDescription, batch_size
 
     class CallableSampleIterator:
         first_value = first
+
         def __init__(self):
             self.idx_in_epoch = 0
             self.idx_in_batch = 0
@@ -386,6 +390,7 @@ def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
 
     class CallableIterator:
         first_value = first
+
         def __init__(self):
             self.source = source_desc.source
 
@@ -421,6 +426,7 @@ def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_b
     class PeekFirstGenerator:
         first_iterator = first_iter
         first_value = first
+
         def __init__(self):
             self.source = source_desc.source
 

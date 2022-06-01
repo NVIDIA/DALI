@@ -34,10 +34,12 @@ except:
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/jpeg/')
 file_list_path = os.path.join(data_path, 'image_list.txt')
 
+
 def setup():
     skip_for_incompatible_tf()
 
-def dali_pipe_batch_1(shapes, types, as_single_tuple = False):
+
+def dali_pipe_batch_1(shapes, types, as_single_tuple=False):
     class TestPipeline(pipeline.Pipeline):
         def __init__(self, **kwargs):
             super(TestPipeline, self).__init__(**kwargs)
@@ -98,7 +100,7 @@ def dali_pipe_batch_N(shapes, types, batch):
             super(TestPipeline, self).__init__(**kwargs)
             self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
             self.decoder = ops.decoders.Image(device='mixed')
-            self.resize = ops.Resize(device="gpu", resize_x = 200, resize_y = 200)
+            self.resize = ops.Resize(device="gpu", resize_x=200, resize_y=200)
 
         def define_graph(self):
             data, _ = self.reader()
@@ -139,7 +141,7 @@ def dali_pipe_multiple_out(shapes, types, batch):
             super(TestPipeline, self).__init__(**kwargs)
             self.reader = ops.readers.File(file_root=data_path, file_list=file_list_path)
             self.decoder = ops.decoders.Image(device='mixed')
-            self.resize = ops.Resize(device="gpu", resize_x = 200, resize_y = 200)
+            self.resize = ops.Resize(device="gpu", resize_x=200, resize_y=200)
 
         def define_graph(self):
             data, label = self.reader()
@@ -160,6 +162,7 @@ def dali_pipe_multiple_out(shapes, types, batch):
             assert_equals(label.shape, (batch, 1))
         else:
             assert_equals(label.shape, (batch,))
+
 
 def test_multiple_input_valid_shapes():
     for batch in [1, 10]:
@@ -196,6 +199,7 @@ def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
             assert_equals(out.shape, (batch, 2,))
         if len(shapes) == 1:
             assert_equals(out.shape, (2,))
+
 
 def test_artificial_match():
     for batch in [1, 10]:
@@ -308,6 +312,7 @@ def test_deprecated_double_def():
     dtypes_error_msg = error_msg.format(*(("dtypes",) * 3))
     yield raises(ValueError, dtypes_error_msg)(dali_pipe_deprecated), \
         { "shapes": 2, "dtypes": tf.uint8, "output_dtypes": tf.uint8 }, 2, tf.uint8, dali_types.UINT8, 1, 2
+
 
 def test_no_output_dtypes():
     yield raises(TypeError,

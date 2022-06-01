@@ -20,6 +20,7 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from nose_utils import raises
 
+
 class ToDecibelsPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, multiplier, reference, cutoff_db,
                  num_threads=1, device_id=0):
@@ -27,7 +28,7 @@ class ToDecibelsPipeline(Pipeline):
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.dB = ops.ToDecibels(device = self.device,
+        self.dB = ops.ToDecibels(device=self.device,
                                  multiplier=multiplier,
                                  reference=reference,
                                  cutoff_db=cutoff_db)
@@ -42,12 +43,14 @@ class ToDecibelsPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
+
 def to_db_func(multiplier, reference, cutoff_db, input_data):
     if not reference:
         reference = np.amax(input_data)
     min_ratio = 10 ** (cutoff_db / multiplier)
     out = multiplier * np.log10(np.maximum(min_ratio, input_data / reference))
     return out
+
 
 class ToDecibelsPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, multiplier, reference, cutoff_db,
@@ -71,6 +74,7 @@ class ToDecibelsPythonPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
+
 def check_operator_to_decibels_vs_python(device, batch_size, input_shape,
                                          multiplier, reference, cutoff_db):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
@@ -81,6 +85,7 @@ def check_operator_to_decibels_vs_python(device, batch_size, input_shape,
         ToDecibelsPythonPipeline(device, batch_size, iter(eii2),
                           multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
         batch_size=batch_size, N_iterations=3, eps=1e-04)
+
 
 def test_operator_to_decibels_vs_python():
     for device in ['cpu', 'gpu']:
@@ -149,6 +154,7 @@ def test_operator_natural_logarithm():
     for device in ['cpu', 'gpu']:
         for sh in shapes:
             yield check_natural_logarithm, device, batch_size, sh
+
 
 @raises(RuntimeError, glob="`reference` argument can't be zero")
 def test_invalid_reference():

@@ -19,6 +19,7 @@ import numpy as np
 from test_utils import check_batch
 from nose_utils import raises
 
+
 def _test_permutation_generator(allow_repetitions, no_fixed):
     batch_size = 10
     pipe = Pipeline(batch_size, 1, None)
@@ -45,12 +46,15 @@ def test_permutation_generator():
         for no_fixed in [None, False, True]:
             yield _test_permutation_generator, allow_repetitions, no_fixed
 
+
 def random_sample():
     shape = np.random.randint(1, 50, [3])
     return np.random.randint(-1000000, 1000000, shape)
 
+
 def gen_data(batch_size, type):
     return [random_sample().astype(type) for _ in range(batch_size)]
+
 
 def _test_permute_batch(device, type):
     batch_size = 10
@@ -68,10 +72,12 @@ def _test_permute_batch(device, type):
         ref = [orig.at(idx) for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
+
 def test_permute_batch():
     for type in [np.uint8, np.int16, np.uint32, np.int64, np.float32]:
         for device in ["cpu", "gpu"]:
             yield _test_permute_batch, device, type
+
 
 def _test_permute_batch_fixed(device):
     batch_size = 10
@@ -88,6 +94,7 @@ def _test_permute_batch_fixed(device):
         ref = [orig.at(idx) for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
+
 def test_permute_batch_fixed():
     for device in ["cpu", "gpu"]:
         yield _test_permute_batch_fixed, device
@@ -102,6 +109,7 @@ def _test_permute_batch_out_of_range(device):
     pipe.set_outputs(data, fn.permute_batch(data, indices=[0,1,2,3,4,5,10,7,8,9]), perm)
     pipe.build()
     pipe.run()
+
 
 def test_permute_batch_out_of_range():
     for device in ["cpu", "gpu"]:

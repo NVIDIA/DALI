@@ -34,7 +34,8 @@ to_torch_type = {
     types.DALIDataType.INT64   : torch.int64
 }
 
-def feed_ndarray(dali_tensor, arr, cuda_stream = None):
+
+def feed_ndarray(dali_tensor, arr, cuda_stream=None):
     """
     Copy contents of DALI tensor to PyTorch's Tensor.
 
@@ -66,6 +67,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return arr
+
 
 class DALIGenericIterator(_DaliBaseIterator):
     """
@@ -141,6 +143,7 @@ class DALIGenericIterator(_DaliBaseIterator):
 
     last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  output_map,
@@ -251,7 +254,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # First calculate how much data is required to return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter - self._size)
                 # Figure out how many GPUs to grab from.
-                numGPUs_tograb = int(np.ceil(diff/self.batch_size))
+                numGPUs_tograb = int(np.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to
                 # bring us right up to self._size).
                 mod_diff = diff % self.batch_size
@@ -268,6 +271,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 return output
 
         return data_batches
+
 
 class DALIClassificationIterator(DALIGenericIterator):
     """
@@ -349,6 +353,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  size=-1,

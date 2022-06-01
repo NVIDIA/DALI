@@ -24,11 +24,13 @@ import sys
 default_plugins = [
 ]
 
+
 def deprecation_warning(what):
     # show only this warning
     with warnings.catch_warnings():
         warnings.simplefilter("default")
         warnings.warn(what, Warning, stacklevel=2)
+
 
 initialized = False
 if not initialized:
@@ -49,6 +51,8 @@ if not initialized:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
 
 cuda_checked = False
+
+
 def check_cuda_runtime():
     """
     Checks the availability of CUDA runtime/GPU, and NPP, nvJEPG, and cuFFT libraries and prints an

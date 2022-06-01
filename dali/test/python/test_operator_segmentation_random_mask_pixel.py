@@ -20,6 +20,7 @@ import nvidia.dali.math as math
 
 np.random.seed(4321)
 
+
 def check_random_mask_pixel(ndim=2, batch_size=3,
                             min_extent=20, max_extent=50):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
@@ -68,6 +69,7 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
             for d in range(ndim):
                 assert 0 <= anchor[d] and anchor[d] + crop_shape[d] <= in_mask.shape[d]
             assert out_mask.shape == tuple(crop_shape)
+
 
 def test_random_mask_pixel():
     for ndim in (2, 3):

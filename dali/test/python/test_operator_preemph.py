@@ -23,6 +23,7 @@ from test_utils import RandomlyShapedDataIterator
 
 SEED = 12345
 
+
 def preemph_func(border, coeff, signal):
     in_shape = signal.shape
     assert(len(in_shape) == 1)  # 1D
@@ -32,8 +33,9 @@ def preemph_func(border, coeff, signal):
         out[0] -= coeff * signal[0]
     elif border == 'reflect':
         out[0] -= coeff * signal[1]
-    out[1:] -= coeff * signal[0:in_shape[0]-1]
+    out[1:] -= coeff * signal[0:in_shape[0] - 1]
     return out
+
 
 class PreemphasisPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, border='clamp', preemph_coeff=0.97, per_sample_coeff=False, num_threads=4, device_id=0):
@@ -55,6 +57,7 @@ class PreemphasisPipeline(Pipeline):
             return self.preemph(out, preemph_coeff=preemph_coeff_arg)
         else:
             return self.preemph(out)
+
 
 class PreemphasisPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, border='clamp', preemph_coeff=0.97, per_sample_coeff=False,
@@ -79,6 +82,7 @@ class PreemphasisPythonPipeline(Pipeline):
         else:
             return self.preemph(data)
 
+
 def check_preemphasis_operator(device, batch_size, border, preemph_coeff, per_sample_coeff):
     eii1 = RandomlyShapedDataIterator(batch_size, min_shape=(100, ), max_shape=(10000, ), dtype=np.float32)
     eii2 = RandomlyShapedDataIterator(batch_size, min_shape=(100, ), max_shape=(10000, ), dtype=np.float32)
@@ -86,6 +90,7 @@ def check_preemphasis_operator(device, batch_size, border, preemph_coeff, per_sa
         PreemphasisPipeline(device, batch_size, iter(eii1), border=border, preemph_coeff=preemph_coeff, per_sample_coeff=per_sample_coeff),
         PreemphasisPythonPipeline(device, batch_size, iter(eii2), border=border, preemph_coeff=preemph_coeff, per_sample_coeff=per_sample_coeff),
         batch_size=batch_size, N_iterations=3)
+
 
 def test_preemphasis_operator():
     for device in ['cpu', 'gpu']:

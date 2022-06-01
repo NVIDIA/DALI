@@ -24,6 +24,7 @@ data_root = get_dali_extra_path()
 jpeg_file = os.path.join(data_root, 'db', 'single', 'jpeg', '510', 'ship-1083562_640.jpg')
 batch_size = 4
 
+
 def cb(sample_info):
     encoded_img = np.fromfile(jpeg_file, dtype=np.uint8)
     label = 1
@@ -47,6 +48,7 @@ def _test_no_segfault(method, workers_num):
         batch_size=batch_size, num_threads=4, prefetch_queue_depth=2, device_id=0)
     pipe.build()
     pipe.run()
+
 
 def test_no_segfault():
     import multiprocessing

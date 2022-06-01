@@ -22,11 +22,12 @@ import os.path
 import PIL.Image
 from test_utils import check_batch
 
+
 def init_video_data():
     batch_size = 2
     video_directory = os.path.join(os.environ['DALI_EXTRA_PATH'], "db", "video", "sintel", "video_files")
 
-    video_files=[os.path.join(video_directory, f) for f in sorted(os.listdir(video_directory))]
+    video_files = [os.path.join(video_directory, f) for f in sorted(os.listdir(video_directory))]
 
     video_pipe = dali.pipeline.Pipeline(batch_size, 3, 0, seed=16)
     with video_pipe:
@@ -38,22 +39,27 @@ def init_video_data():
     in_seq = out[0].as_cpu().at(0)
     return in_seq
 
+
 frames_fhwc = init_video_data()
 frames_fchw = frames_fhwc.transpose([0, 3, 1, 2])
 
-# gets overlapping sequences, starting at iteration number
+
 def GetSequences(channel_first, length, batch_size):
+    """ gets overlapping sequences, starting at iteration number """
     source = frames_fchw if channel_first else frames_fhwc
     N = source.shape[0]
+
     def get_seq(id):
         ret = []
         for k in range(length):
             i = (id + k) % N
             ret.append(source[i])
         return np.array(ret)
+
     def get_batch(iter):
         return [get_seq(iter * batch_size + i) for i in range(batch_size)]
     return get_batch
+
 
 resample_dali2pil = {
     types.INTERP_NN         : PIL.Image.NEAREST,
@@ -62,8 +68,10 @@ resample_dali2pil = {
     types.INTERP_LANCZOS3   : PIL.Image.LANCZOS
 }
 
+
 def resize_PIL(channel_first, interp, w, h):
     pil_resample = resample_dali2pil[interp]
+
     def resize(input):
         num_frames = input.shape[0]
         out_seq = []
@@ -79,23 +87,25 @@ def resize_PIL(channel_first, interp, w, h):
         return np.array(out_seq)
     return resize
 
-def create_ref_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size = 2):
+
+def create_ref_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
     pipe = dali.pipeline.Pipeline(batch_size,1,0,0, exec_async=False, exec_pipelined=False)
     with pipe:
         layout = "FCHW" if channel_first else "FHWC"
-        ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout = layout)
-        pil_resized = fn.python_function(ext, function=resize_PIL(channel_first, interp, w, h), batch_processing = False)
+        ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout=layout)
+        pil_resized = fn.python_function(ext, function=resize_PIL(channel_first, interp, w, h), batch_processing=False)
         if dtype is not None:  # unfortunately, PIL can't quite handle that
             pil_resized = fn.cast(pil_resized, dtype=dtype)
         pil_resized = fn.reshape(pil_resized, layout=layout)
         pipe.set_outputs(pil_resized)
     return pipe
 
-def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size = 2):
+
+def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
     pipe = dali.pipeline.Pipeline(batch_size,1,0,0)
     with pipe:
         layout = "FCHW" if channel_first else "FHWC"
-        ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout = layout)
+        ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout=layout)
         resize_cpu_out = fn.resize(ext,       resize_x=w, resize_y=h, interp_type=interp, dtype=dtype, save_attrs=True)
         resize_gpu_out = fn.resize(ext.gpu(), resize_x=w, resize_y=h, interp_type=interp, minibatch_size=4, dtype=dtype, save_attrs=True)
         dali_resized_cpu, size_cpu = resize_cpu_out
@@ -105,6 +115,7 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size = 2
                             2 if channel_first else 1, 2, axes=[0])
         pipe.set_outputs(dali_resized_cpu, dali_resized_gpu, ext_size, size_cpu, size_gpu)
     return pipe
+
 
 def _test_resize(layout, interp, dtype, w, h):
     channel_first = (layout == "FCHW")
@@ -142,6 +153,7 @@ def _test_resize(layout, interp, dtype, w, h):
         size_gpu = out_dali[4]
         check_batch(ext_size, size_cpu, 2)
         check_batch(ext_size, size_gpu, 2)
+
 
 def test_resize():
     channel_first = False

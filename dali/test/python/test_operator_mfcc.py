@@ -26,6 +26,7 @@ import math
 import librosa as librosa
 from nose_utils import assert_raises
 
+
 class MFCCPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, axis=0, dct_type=2, lifter=1.0, n_mfcc=20,
                  norm=None, num_threads=1, device_id=0):
@@ -33,12 +34,12 @@ class MFCCPipeline(Pipeline):
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.mfcc = ops.MFCC(device = self.device,
-                             axis = axis,
-                             dct_type = dct_type,
-                             lifter = lifter,
-                             n_mfcc = n_mfcc,
-                             normalize = norm)
+        self.mfcc = ops.MFCC(device=self.device,
+                             axis=axis,
+                             dct_type=dct_type,
+                             lifter=lifter,
+                             n_mfcc=n_mfcc,
+                             normalize=norm)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -49,6 +50,7 @@ class MFCCPipeline(Pipeline):
     def iter_setup(self):
         data = self.iterator.next()
         self.feed_input(self.data, data)
+
 
 def mfcc_func(axis, dct_type, lifter, n_mfcc, norm, input_data):
     # Librosa works with frequency-major mel-spectrograms
@@ -61,7 +63,7 @@ def mfcc_func(axis, dct_type, lifter, n_mfcc, norm, input_data):
     norm_str = 'ortho' if norm else None
 
     out = librosa.feature.mfcc(
-        S = input_data, n_mfcc = n_mfcc, dct_type = dct_type, norm = norm_str, lifter = lifter)
+        S=input_data, n_mfcc=n_mfcc, dct_type=dct_type, norm=norm_str, lifter=lifter)
 
     # Scipy DCT (used by Librosa) without normalization is scaled by a factor of 2 when comparing
     # with Wikipedia's formula
@@ -73,6 +75,7 @@ def mfcc_func(axis, dct_type, lifter, n_mfcc, norm, input_data):
         out = np.transpose(out)
 
     return out
+
 
 class MFCCPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, axis=0, dct_type=2, lifter=1.0, n_mfcc=20,
@@ -96,6 +99,7 @@ class MFCCPythonPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
+
 def check_operator_mfcc_vs_python(device, batch_size, input_shape,
                                   axis, dct_type, lifter, n_mfcc, norm):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
@@ -106,6 +110,7 @@ def check_operator_mfcc_vs_python(device, batch_size, input_shape,
         MFCCPythonPipeline(device, batch_size, iter(eii2),
                            axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm),
         batch_size=batch_size, N_iterations=3, eps=1e-03)
+
 
 def test_operator_mfcc_vs_python():
     for device in ['cpu', 'gpu']:
@@ -120,6 +125,7 @@ def test_operator_mfcc_vs_python():
                         yield check_operator_mfcc_vs_python, device, batch_size, shape, \
                             axis, dct_type, lifter, n_mfcc, norm
 
+
 def check_operator_mfcc_wrong_args(device, batch_size, input_shape,
                                    axis, dct_type, lifter, n_mfcc, norm, msg):
     with assert_raises(RuntimeError, regex=msg):
@@ -128,6 +134,7 @@ def check_operator_mfcc_wrong_args(device, batch_size, input_shape,
                             axis=axis, dct_type=dct_type, lifter=lifter, n_mfcc=n_mfcc, norm=norm)
         pipe.build()
         pipe.run()
+
 
 def test_operator_mfcc_wrong_args():
     batch_size = 3

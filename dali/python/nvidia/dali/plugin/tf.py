@@ -166,6 +166,7 @@ batch: bool, optional, default = False
     If the ``batch = True``, the input dataset is expected to return batches.
 """
 
+
 def serialize_pipeline(pipeline):
     try:
         return pipeline.serialize()
@@ -306,6 +307,7 @@ def _insert_experimental_member(member, name):
     experimental_module = _get_experimental()
     member.__module__ = experimental_module
     setattr(experimental_module, name, member)
+
 
 def _get_external_source_param(input_name, input_value, name_es_map, param_name):
     """Get value of the parameter `param_name` specified for the External Source node

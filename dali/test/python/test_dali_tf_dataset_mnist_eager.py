@@ -17,6 +17,7 @@ from nose_utils import raises
 
 tf.compat.v1.enable_eager_execution()
 
+
 def test_keras_single_gpu():
     run_keras_single_device('gpu', 0)
 
@@ -27,6 +28,7 @@ def test_keras_single_other_gpu():
 
 def test_keras_single_cpu():
     run_keras_single_device('cpu', 0)
+
 
 @with_setup(skip_for_incompatible_tf)
 @raises(Exception, "TF device and DALI device mismatch")

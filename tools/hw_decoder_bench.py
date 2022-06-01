@@ -36,17 +36,18 @@ args = parser.parse_args()
 @pipeline_def(batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0)
 def DecoderPipeline():
     device =  'mixed' if args.device == 'gpu' else 'cpu'
-    jpegs, _ = fn.readers.file(file_root = args.images_dir)
-    images = fn.decoders.image(jpegs, device = device, output_type = types.RGB, hw_decoder_load=args.hw_load,
+    jpegs, _ = fn.readers.file(file_root=args.images_dir)
+    images = fn.decoders.image(jpegs, device=device, output_type=types.RGB, hw_decoder_load=args.hw_load,
                         preallocate_width_hint=args.width_hint,
                         preallocate_height_hint=args.height_hint)
     return images
 
+
 @pipeline_def(batch_size=args.batch_size, num_threads=args.num_threads, device_id=args.device_id, seed=0)
 def RN50Pipeline():
     device =  'mixed' if args.device == 'gpu' else 'cpu'
-    jpegs, _ = fn.readers.file(file_root = args.images_dir)
-    images = fn.decoders.image_random_crop(jpegs, device = device, output_type = types.RGB, hw_decoder_load=args.hw_load,
+    jpegs, _ = fn.readers.file(file_root=args.images_dir)
+    images = fn.decoders.image_random_crop(jpegs, device=device, output_type=types.RGB, hw_decoder_load=args.hw_load,
                         preallocate_width_hint=args.width_hint,
                         preallocate_height_hint=args.height_hint)
     images = fn.resize(images, resize_x=224, resize_y=224)
@@ -62,6 +63,7 @@ def RN50Pipeline():
         std=[0.229 * 255,0.224 * 255,0.225 * 255],
         mirror=coin_flip)
     return images
+
 
 if args.pipeline == 'decoder':
     pipe = DecoderPipeline()

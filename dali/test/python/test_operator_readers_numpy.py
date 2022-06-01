@@ -50,6 +50,7 @@ def is_gds_supported(device_id=0):
     is_gds_supported_var = platform.processor() == "x86_64" and compute_cap >= 6.0
     return is_gds_supported_var
 
+
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
     arr = rng.random_sample(shape) * 10.
@@ -58,23 +59,26 @@ def create_numpy_file(filename, shape, typ, fortran_order):
         arr = np.asfortranarray(arr)
     np.save(filename, arr)
 
+
 def delete_numpy_file(filename):
     if os.path.isfile(filename):
         os.remove(filename)
 
+
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None, file_filter="*.npy",
                         num_threads=1, device_id=0, cache_header_information=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
-    data = fn.readers.numpy(device = device,
-                            file_list = file_list,
-                            files = files,
-                            file_root = path,
-                            file_filter = file_filter,
-                            shard_id = 0,
-                            num_shards = 1,
-                            cache_header_information = cache_header_information)
+    data = fn.readers.numpy(device=device,
+                            file_list=file_list,
+                            files=files,
+                            file_root=path,
+                            file_filter=file_filter,
+                            shard_id=0,
+                            num_shards=1,
+                            cache_header_information=cache_header_information)
     pipe.set_outputs(data)
     return pipe
+
 
 all_numpy_types = set(
     [np.bool_, np.byte, np.ubyte, np.short, np.ushort, np.intc, np.uintc, np.int_, np.uint,
@@ -96,9 +100,10 @@ test_shapes = {
     4 : [(2, 6, 2, 5), (5, 1, 6, 2), (3, 2, 3, 3), (1, 10, 1, 8), (2, 8, 2, 3), (2, 3, 2, 3), (1, 8, 4, 3), (1, 3, 10, 1)],
 }
 
-# test: compare reader with numpy, with different batch_size and num_threads
+
 def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order_arg, file_arg_type, cache_header_information):
-    nsamples=len(shapes)
+    """ compare reader with numpy, with different batch_size and num_threads """
+    nsamples = len(shapes)
 
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         # setup file
@@ -150,6 +155,7 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
                 assert_array_equal(pipe_arr, ref_arr)
                 i += 1
 
+
 def test_types_and_shapes():
     cache_header_information = False
     for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
@@ -164,6 +170,7 @@ def test_types_and_shapes():
                     batch_size = random.choice([1, 3, 4, 8, 16])
                     yield _testimpl_types_and_shapes, device, shapes, type, batch_size, num_threads, fortran_order, file_arg_type, cache_header_information
 
+
 def test_unsupported_types():
     fortran_order = False
     cache_header_information = False
@@ -177,6 +184,7 @@ def test_unsupported_types():
             with assert_raises(RuntimeError, glob="Unknown Numpy type string"):
                 _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fortran_order, file_arg_type, cache_header_information)
 
+
 def test_cache_headers():
     type = np.float32
     ndim = 2
@@ -188,6 +196,7 @@ def test_cache_headers():
     file_arg_type = 'files'
     for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         yield _testimpl_types_and_shapes, device, shapes, type, batch_size, num_threads, fortran_order, file_arg_type, cache_header_information
+
 
 def check_dim_mismatch(device, test_data_root, names):
     pipe = Pipeline(2, 2, 0)
@@ -202,8 +211,9 @@ def check_dim_mismatch(device, test_data_root, names):
     assert err, "Exception not thrown"
     assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
 
+
 def test_dim_mismatch():
-    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         names = ["2D.npy", "3D.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [3,4], np.float32, False)
@@ -211,6 +221,7 @@ def test_dim_mismatch():
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
             yield check_dim_mismatch, device, test_data_root, names
+
 
 def check_type_mismatch(device, test_data_root, names):
     pipe = Pipeline(2, 2, 0)
@@ -227,8 +238,9 @@ def check_type_mismatch(device, test_data_root, names):
     assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
     assert "int32" in str(err) and "float" in str(err), "Unexpected error message: {}".format(err)
 
+
 def test_type_mismatch():
-    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         names = ["int.npy", "float.npy"]
         paths = [os.path.join(test_data_root, name) for name in names]
         create_numpy_file(paths[0], [1,2,5], np.int32, False)
@@ -238,7 +250,8 @@ def test_type_mismatch():
             yield check_type_mismatch, device, test_data_root, names
 
 
-batch_size_alias_test=64
+batch_size_alias_test = 64
+
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def numpy_reader_pipe(numpy_op, path, device="cpu", file_filter="*.npy"):
@@ -262,7 +275,7 @@ def check_numpy_reader_alias(test_data_root, device):
 
 
 def test_numpy_reader_alias():
-    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         # create files
         num_samples = 20
         filenames = []
@@ -297,6 +310,7 @@ def numpy_reader_roi_pipe(file_root, device="cpu", file_filter='*.npy',
                            out_of_bounds_policy=out_of_bounds_policy, fill_values=fill_value)
     return roi_data, sliced_data
 
+
 def _testimpl_numpy_reader_roi(file_root, batch_size, ndim, dtype, device, fortran_order=False, file_filter="*.npy",
                                roi_start=None, rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
                                rel_roi_shape=None, roi_axes=None, out_of_bounds_policy=None, fill_value=None):
@@ -313,8 +327,9 @@ def _testimpl_numpy_reader_roi(file_root, batch_size, ndim, dtype, device, fortr
         sliced_arr = to_array(sliced_out[i])
         assert_array_equal(roi_arr, sliced_arr)
 
-# testcase name used for visibility in the output logs
+
 def _testimpl_numpy_reader_roi_empty_axes(testcase_name, file_root, batch_size, ndim, dtype, device, fortran_order, file_filter="*.npy"):
+    # testcase name used for visibility in the output logs
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
     def pipe():
         data0 = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
@@ -331,8 +346,9 @@ def _testimpl_numpy_reader_roi_empty_axes(testcase_name, file_root, batch_size, 
         roi_arr = to_array(data1[i])
         assert_array_equal(arr, roi_arr)
 
-# testcase name used for visibility in the output logs
+
 def _testimpl_numpy_reader_roi_empty_range(testcase_name, file_root, batch_size, ndim, dtype, device, fortran_order, file_filter="*.npy"):
+    # testcase name used for visibility in the output logs
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
     def pipe():
         data0 = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
@@ -353,13 +369,14 @@ def _testimpl_numpy_reader_roi_empty_range(testcase_name, file_root, batch_size,
             else:
                 assert roi_arr.shape[d] == arr.shape[d]
 
+
 def test_numpy_reader_roi():
     # setup file
-    shapes=[(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
-    ndim=2
-    dtype=np.uint8
-    batch_size=8
-    file_filter="*.npy"
+    shapes = [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
+    ndim = 2
+    dtype = np.uint8
+    batch_size = 8
+    file_filter = "*.npy"
 
     # roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy
     roi_args = [
@@ -385,13 +402,13 @@ def test_numpy_reader_roi():
     ]
 
     for fortran_order in [False, True, None]:
-        with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+        with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
             index = 0
             for sh in shapes:
                 filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
                 if fortran_order is None:
                     fortran_order = random.choice([False, True])
-                actual_fortran_order=fortran_order if fortran_order is not None else random.choice([False, True])
+                actual_fortran_order = fortran_order if fortran_order is not None else random.choice([False, True])
                 create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
             for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
@@ -402,6 +419,7 @@ def test_numpy_reader_roi():
 
             yield _testimpl_numpy_reader_roi_empty_axes, "empty axes", test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter
             yield _testimpl_numpy_reader_roi_empty_range, "empty range", test_data_root, batch_size, ndim, dtype, device, fortran_order, file_filter
+
 
 def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device, fortran_order=False, file_filter="*.npy",
                                      roi_start=None, rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
@@ -426,13 +444,14 @@ def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device,
     # asserts should not be in except block to avoid printing nested exception on failure
     assert err, "Exception not thrown"
 
+
 def test_numpy_reader_roi_error():
     # setup file
-    shapes=[(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
-    ndim=2
-    dtype=np.uint8
-    batch_size=8
-    file_filter="*.npy"
+    shapes = [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
+    ndim = 2
+    dtype = np.uint8
+    batch_size = 8
+    file_filter = "*.npy"
 
     # roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy
     roi_args = [
@@ -447,7 +466,7 @@ def test_numpy_reader_roi_error():
     ]
 
     fortran_order = False
-    with tempfile.TemporaryDirectory(prefix = gds_data_root) as test_data_root:
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         index = 0
         for sh in shapes:
             filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))

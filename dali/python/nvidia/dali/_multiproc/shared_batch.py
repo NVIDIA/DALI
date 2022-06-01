@@ -28,6 +28,7 @@ def _div_ceil(a, b):
     """Calculate ceil of a/b without decaying to float."""
     return -(-a // b)
 
+
 def _align_up(x, alignment):
     """ Align x up to multiple of alignment"""
     return _div_ceil(x, alignment) * alignment
@@ -52,6 +53,7 @@ class BufShmChunk:
     """Simple wrapper around shared memory chunks. Adds mem_chunk_id used
     to identify chunks in the communication between parent and worker process.
     """
+
     def __init__(self, shm_chunk_id, capacity, shm_chunk : shared_mem.SharedMem):
         self.shm_chunk_id = shm_chunk_id
         self.capacity = capacity
@@ -207,7 +209,7 @@ class SharedBatchWriter:
     SAMPLE_ALIGNMENT = 128
     BUFFER_ALIGNMENT = 4096
 
-    def __init__(self, shm_chunk: BufShmChunk, batch, min_trailing_offset=1024*1024):
+    def __init__(self, shm_chunk: BufShmChunk, batch, min_trailing_offset=1024 * 1024):
         import_numpy()
         self.shm_chunk = shm_chunk
         self.data_size = 0
@@ -268,7 +270,7 @@ def resize_shm_chunk(shm_chunk, needed_capacity):
 def read_shm_message(shm_chunk : BufShmChunk, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
-    buffer = shm_chunk.buf[shm_message.offset:shm_message.offset+shm_message.num_bytes]
+    buffer = shm_chunk.buf[shm_message.offset:shm_message.offset + shm_message.num_bytes]
     return pickle.loads(buffer)
 
 
@@ -288,6 +290,6 @@ def write_shm_message(worker_id, shm_chunk : BufShmChunk, message, offset, resiz
             # in the main process, and the description (ScheduledTask and its members) boils down
             # to bounded number of integers.
             raise RuntimeError("Could not put message into shared memory region, not enough space in the buffer.")
-    buffer = shm_chunk.buf[offset:offset+num_bytes]
+    buffer = shm_chunk.buf[offset:offset + num_bytes]
     buffer[:] = serialized_message
     return ShmMessageDesc(worker_id, shm_chunk.shm_chunk_id, shm_chunk.capacity, offset, num_bytes)

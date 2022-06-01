@@ -23,11 +23,13 @@ from nose_utils import assert_raises
 
 np.random.seed(4321)
 
+
 def random_shape(min_sh, max_sh, ndim):
-  return np.array(
-      [np.random.randint(min_sh, max_sh) for s in range(ndim)],
-      dtype=np.int32
-    )
+    return np.array(
+        [np.random.randint(min_sh, max_sh) for s in range(ndim)],
+        dtype=np.int32
+      )
+
 
 def batch_gen(max_batch_size, sample_shape_fn, dtype=np.float32):
     bs = np.random.randint(1, max_batch_size)
@@ -37,11 +39,12 @@ def batch_gen(max_batch_size, sample_shape_fn, dtype=np.float32):
         data += [np.zeros(sample_sh, dtype=dtype)]
     return data
 
+
 def check_roi_random_crop(ndim=2, max_batch_size=16,
-                          roi_min_start = 0, roi_max_start = 100,
-                          roi_min_extent = 20, roi_max_extent = 50,
-                          crop_min_extent = 20, crop_max_extent = 50,
-                          in_shape_min = 400, in_shape_max = 500,
+                          roi_min_start=0, roi_max_start=100,
+                          roi_min_extent=20, roi_max_extent=50,
+                          crop_min_extent=20, crop_max_extent=50,
+                          in_shape_min=400, in_shape_max=500,
                           niter=3):
     pipe = dali.pipeline.Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
@@ -119,6 +122,7 @@ def check_roi_random_crop(ndim=2, max_batch_size=16,
             for idx in range(6, 10):
                 check_crop_start(np.array(outputs[idx][s]).tolist(), roi_start, roi_shape, crop_shape, in_shape)
 
+
 def test_roi_random_crop():
     batch_size = 16
     niter = 3
@@ -132,6 +136,7 @@ def test_roi_random_crop():
                  (0, 1, 10, 20, 80, 100)]:
             yield check_roi_random_crop, ndim, batch_size, roi_start_min, roi_start_max, roi_extent_min, roi_extent_max, \
                 crop_extent_min, crop_extent_max, in_shape_min, in_shape_max, niter
+
 
 def check_roi_random_crop_error(shape_like_in=None, in_shape=None, crop_shape=None, roi_start=None,
                                 roi_shape=None, roi_end=None, error_msg=""):
@@ -153,6 +158,7 @@ def check_roi_random_crop_error(shape_like_in=None, in_shape=None, crop_shape=No
         for _ in range(niter):
             pipe.run()
 
+
 def test_roi_random_crop_error_incompatible_args():
     in_shape = np.array([4, 4])
     crop_shape = np.array([2, 2])
@@ -161,6 +167,7 @@ def test_roi_random_crop_error_incompatible_args():
     roi_end = np.array([2, 2])
     yield check_roi_random_crop_error, np.zeros(in_shape), in_shape, crop_shape, roi_start, roi_shape, None, "``in_shape`` argument is incompatible with providing an input."
     yield check_roi_random_crop_error, np.zeros(in_shape), None, crop_shape, roi_start, roi_shape, roi_end, "Either ROI end or ROI shape should be defined, but not both"
+
 
 def test_roi_random_crop_error_wrong_args():
     in_shape = np.array([4, 4])

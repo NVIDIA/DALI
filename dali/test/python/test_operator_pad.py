@@ -26,6 +26,7 @@ from test_utils import RandomlyShapedDataIterator, \
                        generator_random_data, \
                        as_array
 
+
 class PadSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator,
                  layout="HWC", num_threads=1, device_id=0, num_gpus=1, axes=(), axis_names="", align=(), shape_arg=()):
@@ -35,7 +36,7 @@ class PadSynthDataPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.pad = ops.Pad(device = self.device, axes=axes, axis_names=axis_names, align=align, shape=shape_arg)
+        self.pad = ops.Pad(device=self.device, axes=axes, axis_names=axis_names, align=align, shape=shape_arg)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -64,7 +65,7 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
             axes.append(axis_idx)
 
     actual_axes = axes if (axes and len(axes) > 0) else range(len(input_max_shape))
-    assert(len(actual_axes)>0)
+    assert(len(actual_axes) > 0)
 
     if not shape_arg or len(shape_arg) == 0:
         shape_arg = [-1] * len(actual_axes)
@@ -110,6 +111,7 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
                     expected_extent = expected_extent - remainder + align_val
                 assert(output_shape[dim] == expected_extent)
 
+
 def test_pad():
     for device in ["cpu", "gpu"]:
         for batch_size in {1, 8}:
@@ -136,6 +138,7 @@ def test_pad():
                  ((200, 400, 3), (0, 1), None, (4, 16), (1, 200))]:
                 yield check_pad, device, batch_size, input_max_shape, axes, axis_names, align, shape_arg
 
+
 def test_pad_error():
     batch_size = 2
     input_max_shape = (5, 5, 3)
@@ -154,12 +157,14 @@ def test_pad_error():
     with assert_raises(RuntimeError, glob='Values of `align` argument must be positive.'):
         pipe.run()
 
+
 def is_aligned(sh, align, axes):
     assert len(sh) == len(align)
     for i, axis in enumerate(axes):
         if sh[axis] % align[i] > 0:
             return False
     return True
+
 
 def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2, num_iter=3):
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
@@ -195,9 +200,11 @@ def check_pad_per_sample_shapes_and_alignment(device='cpu', batch_size=3, ndim=2
             assert (req_shape <= out_pad_both.shape).all()
             assert is_aligned(out_pad_both.shape, req_align, axes)
 
+
 def test_pad_per_sample_shapes_and_alignment():
     yield check_pad_per_sample_shapes_and_alignment, 'cpu'
     yield check_pad_per_sample_shapes_and_alignment, 'gpu'
+
 
 def check_pad_to_square(device='cpu', batch_size=3, ndim=2, num_iter=3):
     pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=0, seed=1234)
@@ -206,8 +213,8 @@ def check_pad_to_square(device='cpu', batch_size=3, ndim=2, num_iter=3):
         in_shape = fn.cast(fn.random.uniform(range=(10, 20), shape=(ndim,)), dtype=types.INT32)
         in_data = fn.reshape(fn.random.uniform(range=(0., 1.), shape=in_shape), layout="HW")
         shape = fn.shapes(in_data, dtype=types.INT32)
-        h = fn.slice(shape, 0, 1, axes = [0])
-        w = fn.slice(shape, 1, 1, axes = [0])
+        h = fn.slice(shape, 0, 1, axes=[0])
+        w = fn.slice(shape, 1, 1, axes=[0])
         side = math.max(h, w)
         if device == 'gpu':
             in_data = in_data.gpu()
@@ -227,9 +234,11 @@ def check_pad_to_square(device='cpu', batch_size=3, ndim=2, num_iter=3):
             np.testing.assert_equal(out_data[in_shape[0]:, :], 0)
             np.testing.assert_equal(out_data[:, in_shape[1]:], 0)
 
+
 def test_pad_to_square():
     yield check_pad_to_square, 'cpu'
     yield check_pad_to_square, 'gpu'
+
 
 def check_pad_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty):
     shape_arg_desc = (100, 120, np.int32)
@@ -287,23 +296,27 @@ def check_pad_dynamic_axes(device, batch_size, num_threads, use_negative, use_em
             np.testing.assert_allclose(pad2[:in_sh[0], :in_sh[1], :in_sh[2]], in_img)
             np.testing.assert_allclose(pad2[in_sh[0]:, :in_sh[1]:, :in_sh[2]:], fill_value)
 
+
 def test_dynamic_axes():
-    batch_size=10
-    num_threads=3
+    batch_size = 10
+    num_threads = 3
     for device in ['cpu', 'gpu']:
         yield check_pad_dynamic_axes, device, batch_size, num_threads, False, False
 
+
 def test_negative_axes():
-    batch_size=10
-    num_threads=3
+    batch_size = 10
+    num_threads = 3
     for device in ['cpu', 'gpu']:
         yield check_pad_dynamic_axes, device, batch_size, num_threads, True, False
 
+
 def test_empty_axes():
-    batch_size=10
-    num_threads=3
+    batch_size = 10
+    num_threads = 3
     for device in ['cpu', 'gpu']:
         yield check_pad_dynamic_axes, device, batch_size, num_threads, False, True
+
 
 def check_pad_wrong_axes(device, wrong_axes_range=None):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
@@ -317,6 +330,7 @@ def check_pad_wrong_axes(device, wrong_axes_range=None):
     # Note: [[] and []] are '[' and ']' characters.
     assert_raises(RuntimeError, p.run,
                   glob='Axis * out of range. Expected range is [[]-3, 2[]] for a 3D input')
+
 
 def test_wrong_axes():
     for device in ['cpu', 'gpu']:

@@ -89,6 +89,7 @@ class DummyCb:
     def __call__(self, sample_info):
         return np.int32([1])
 
+
 class DummyCb42:
 
     def __call__(self, sample_info):
@@ -166,6 +167,7 @@ def create_closure_generator_img_reader(batch_size, data_set_size):
 
 jpeg_file = os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg', '510', 'ship-1083562_640.jpg')
 sequence_lenght = 4
+
 
 def create_callback_with_syntactically_nested_code_referencing_global_var():
 

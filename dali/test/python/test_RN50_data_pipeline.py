@@ -22,13 +22,14 @@ import argparse
 import time
 from test_utils import get_dali_extra_path, AverageMeter
 
+
 class CommonPipeline(Pipeline):
     def __init__(self, data_paths, num_shards, batch_size, num_threads, device_id, prefetch, fp16, random_shuffle, nhwc,
                  dont_use_mmap, decoder_type, decoder_cache_params, reader_queue_depth, shard_id):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, random_shuffle, prefetch_queue_depth=prefetch)
         if decoder_type == 'roi':
             print('Using nvJPEG with ROI decoding')
-            self.decode_gpu = ops.decoders.ImageRandomCrop(device = "mixed", output_type = types.RGB)
+            self.decode_gpu = ops.decoders.ImageRandomCrop(device="mixed", output_type=types.RGB)
             self.res = ops.Resize(device="gpu", resize_x=224, resize_y=224)
         elif decoder_type == 'cached':
             assert decoder_cache_params['cache_enabled'] == True
@@ -36,14 +37,14 @@ class CommonPipeline(Pipeline):
             cache_threshold = decoder_cache_params['cache_threshold']
             cache_type = decoder_cache_params['cache_type']
             print('Using nvJPEG with cache (size : {} threshold: {}, type: {})'.format(cache_size, cache_threshold, cache_type))
-            self.decode_gpu = ops.decoders.Image(device = "mixed", output_type = types.RGB,
+            self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB,
                                                 cache_size=cache_size, cache_threshold=cache_threshold,
                                                 cache_type=cache_type, cache_debug=False)
-            self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
+            self.res = ops.RandomResizedCrop(device="gpu", size=(224,224))
         else:
             print('Using nvJPEG')
-            self.decode_gpu = ops.decoders.Image(device = "mixed", output_type = types.RGB)
-            self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
+            self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
+            self.res = ops.RandomResizedCrop(device="gpu", size=(224,224))
 
         layout = types.NHWC if nhwc else types.NCHW
         out_type = types.FLOAT16 if fp16 else types.FLOAT
@@ -63,73 +64,78 @@ class CommonPipeline(Pipeline):
         output = self.cmnp(images.gpu(), mirror=rng)
         return (output, labels)
 
+
 class MXNetReaderPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(MXNetReaderPipeline, self).__init__(**kwargs)
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.readers.MXNet(path = kwargs['data_paths'][0],
-                                       index_path = kwargs['data_paths'][1],
-                                       shard_id = kwargs['shard_id'],
-                                       num_shards = kwargs['num_shards'],
-                                       random_shuffle = kwargs['random_shuffle'],
-                                       stick_to_shard = cache_enabled,
+        self.input = ops.readers.MXNet(path=kwargs['data_paths'][0],
+                                       index_path=kwargs['data_paths'][1],
+                                       shard_id=kwargs['shard_id'],
+                                       num_shards=kwargs['num_shards'],
+                                       random_shuffle=kwargs['random_shuffle'],
+                                       stick_to_shard=cache_enabled,
                                        #skip_cached_images = cache_enabled,
-                                       prefetch_queue_depth = kwargs['reader_queue_depth'])
+                                       prefetch_queue_depth=kwargs['reader_queue_depth'])
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 class CaffeReadPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(CaffeReadPipeline, self).__init__(**kwargs)
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.readers.Caffe(path = kwargs['data_paths'][0],
-                                       shard_id = kwargs['shard_id'],
-                                       num_shards = kwargs['num_shards'],
-                                       stick_to_shard = cache_enabled,
-                                       random_shuffle = kwargs['random_shuffle'],
-                                       dont_use_mmap = kwargs['dont_use_mmap'],
+        self.input = ops.readers.Caffe(path=kwargs['data_paths'][0],
+                                       shard_id=kwargs['shard_id'],
+                                       num_shards=kwargs['num_shards'],
+                                       stick_to_shard=cache_enabled,
+                                       random_shuffle=kwargs['random_shuffle'],
+                                       dont_use_mmap=kwargs['dont_use_mmap'],
                                        #skip_cached_images = cache_enabled,
-                                       prefetch_queue_depth = kwargs['reader_queue_depth'])
+                                       prefetch_queue_depth=kwargs['reader_queue_depth'])
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 class Caffe2ReadPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(Caffe2ReadPipeline, self).__init__(**kwargs)
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.readers.Caffe2(path = kwargs['data_paths'][0],
-                                        shard_id = kwargs['shard_id'],
-                                        num_shards = kwargs['num_shards'],
-                                        random_shuffle = kwargs['random_shuffle'],
-                                        dont_use_mmap = kwargs['dont_use_mmap'],
-                                        stick_to_shard = cache_enabled,
+        self.input = ops.readers.Caffe2(path=kwargs['data_paths'][0],
+                                        shard_id=kwargs['shard_id'],
+                                        num_shards=kwargs['num_shards'],
+                                        random_shuffle=kwargs['random_shuffle'],
+                                        dont_use_mmap=kwargs['dont_use_mmap'],
+                                        stick_to_shard=cache_enabled,
                                         #skip_cached_images = cache_enabled,
-                                        prefetch_queue_depth = kwargs['reader_queue_depth'])
+                                        prefetch_queue_depth=kwargs['reader_queue_depth'])
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 class FileReadPipeline(CommonPipeline):
     def __init__(self, **kwargs):
         super(FileReadPipeline, self).__init__(**kwargs)
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.readers.File(file_root = kwargs['data_paths'][0],
-                                      shard_id = kwargs['shard_id'],
-                                      num_shards = kwargs['num_shards'],
-                                      random_shuffle = kwargs['random_shuffle'],
-                                      dont_use_mmap = kwargs['dont_use_mmap'],
-                                      stick_to_shard = cache_enabled,
+        self.input = ops.readers.File(file_root=kwargs['data_paths'][0],
+                                      shard_id=kwargs['shard_id'],
+                                      num_shards=kwargs['num_shards'],
+                                      random_shuffle=kwargs['random_shuffle'],
+                                      dont_use_mmap=kwargs['dont_use_mmap'],
+                                      stick_to_shard=cache_enabled,
                                       #skip_cached_images = cache_enabled,
-                                      prefetch_queue_depth = kwargs['reader_queue_depth'])
+                                      prefetch_queue_depth=kwargs['reader_queue_depth'])
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 class TFRecordPipeline(CommonPipeline):
     def __init__(self, **kwargs):
@@ -137,15 +143,15 @@ class TFRecordPipeline(CommonPipeline):
         tfrecord = sorted(glob.glob(kwargs['data_paths'][0]))
         tfrecord_idx = sorted(glob.glob(kwargs['data_paths'][1]))
         cache_enabled = kwargs['decoder_cache_params']['cache_enabled']
-        self.input = ops.readers.TFRecord(path = tfrecord,
-                                          index_path = tfrecord_idx,
-                                          shard_id = kwargs['shard_id'],
-                                          num_shards = kwargs['num_shards'],
-                                          random_shuffle = kwargs['random_shuffle'],
-                                          dont_use_mmap = kwargs['dont_use_mmap'],
-                                          stick_to_shard = cache_enabled,
+        self.input = ops.readers.TFRecord(path=tfrecord,
+                                          index_path=tfrecord_idx,
+                                          shard_id=kwargs['shard_id'],
+                                          num_shards=kwargs['num_shards'],
+                                          random_shuffle=kwargs['random_shuffle'],
+                                          dont_use_mmap=kwargs['dont_use_mmap'],
+                                          stick_to_shard=cache_enabled,
                                           #skip_cached_images = cache_enabled,
-                                          features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+                                          features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                       "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
                                           })
 
@@ -154,6 +160,7 @@ class TFRecordPipeline(CommonPipeline):
         images = inputs["image/encoded"]
         labels = inputs["image/class/label"]
         return self.base_define_graph(images, labels)
+
 
 class WebdatasetPipeline(CommonPipeline):
     def __init__(self, data_paths, decoder_cache_params, shard_id, num_shards, random_shuffle, dont_use_mmap, **kwargs):
@@ -167,17 +174,18 @@ class WebdatasetPipeline(CommonPipeline):
         wds, wds_idx = data_paths[:2]
 
         cache_enabled = decoder_cache_params['cache_enabled']
-        self.input = ops.readers.Webdataset(paths = wds,
-                                            index_paths = wds_idx,
-                                            ext = ["jpg", "cls"],
-                                            shard_id = shard_id,
-                                            num_shards = num_shards,
-                                            random_shuffle = random_shuffle,
-                                            dont_use_mmap = dont_use_mmap,
+        self.input = ops.readers.Webdataset(paths=wds,
+                                            index_paths=wds_idx,
+                                            ext=["jpg", "cls"],
+                                            shard_id=shard_id,
+                                            num_shards=num_shards,
+                                            random_shuffle=random_shuffle,
+                                            dont_use_mmap=dont_use_mmap,
                                             stick_to_shard=cache_enabled)
 
     def define_graph(self):
         return self.base_define_graph(*self.input(name="Reader"))
+
 
 test_data = {
             FileReadPipeline: [["/data/imagenet/train-jpeg"],
@@ -339,9 +347,9 @@ NUMBER_OF_SHARDS = N if args.number_of_shards == None else args.number_of_shards
 STICK_TO_SHARD = True if CACHED_DECODING else False
 SKIP_CACHED_IMAGES = True if CACHED_DECODING else False
 
-READ_SHUFFLE=args.read_shuffle
+READ_SHUFFLE = args.read_shuffle
 
-DISABLE_MMAP=args.disable_mmap
+DISABLE_MMAP = args.disable_mmap
 
 SMALL_DATA_SET = args.small
 if SMALL_DATA_SET:
@@ -357,7 +365,7 @@ for pipe_name in test_data.keys():
             pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=WORKERS, device_id=n,
                             num_shards=NUMBER_OF_SHARDS, data_paths=data_set, prefetch=PREFETCH, fp16=FP16, random_shuffle=READ_SHUFFLE,
                             dont_use_mmap=DISABLE_MMAP, nhwc=NHWC, decoder_type=DECODER_TYPE, decoder_cache_params=DECODER_CACHE_PARAMS,
-                            reader_queue_depth=READER_QUEUE_DEPTH, shard_id=DALI_SHARD+n) for n in range(N)]
+                            reader_queue_depth=READER_QUEUE_DEPTH, shard_id=DALI_SHARD + n) for n in range(N)]
         else:
             pipes = [pipe_name(batch_size=BATCH_SIZE, num_threads=WORKERS, device_id=GPU_ID,
                               num_shards=NUMBER_OF_SHARDS, data_paths=data_set, prefetch=PREFETCH, fp16=FP16, random_shuffle=READ_SHUFFLE,
@@ -384,16 +392,16 @@ for pipe_name in test_data.keys():
         print (data_set)
         end = time.time()
         for i in range(args.epochs):
-          if i == 0:
-              print("Warm up")
-          data_time = AverageMeter()
-          for j in range(iters):
-              for pipe in pipes:
-                  pipe.run()
-              data_time.update(time.time() - end)
-              if j % LOG_INTERVAL == 0:
-                  print("System {}, GPU {}, run {}: {} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
-                  .format(SYS_ID, GPU_ID, str(i), pipe_name.__name__, j + 1, iters, data_time.avg, data_time.max_val, N * BATCH_SIZE / data_time.avg))
-              end = time.time()
+            if i == 0:
+                print("Warm up")
+            data_time = AverageMeter()
+            for j in range(iters):
+                for pipe in pipes:
+                    pipe.run()
+                data_time.update(time.time() - end)
+                if j % LOG_INTERVAL == 0:
+                    print("System {}, GPU {}, run {}: {} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
+                    .format(SYS_ID, GPU_ID, str(i), pipe_name.__name__, j + 1, iters, data_time.avg, data_time.max_val, N * BATCH_SIZE / data_time.avg))
+                end = time.time()
 
         print("OK {0}/{1}: {2}".format(i + 1, data_set_len, pipe_name.__name__))

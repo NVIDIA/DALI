@@ -45,6 +45,7 @@ COPYRIGHT_NOTICE = """
 
 """
 
+
 def stubgen(header_filepath, out_file=sys.stdout):
     header_text = ""
     with open(header_filepath, "r") as file:

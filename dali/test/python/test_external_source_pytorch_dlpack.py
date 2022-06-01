@@ -22,8 +22,9 @@ from torch.utils.dlpack import to_dlpack, from_dlpack
 from test_utils import check_output
 from collections.abc import Iterable
 
+
 class TestIterator():
-    def __init__(self, n, batch_size, dims = [2], as_tensor = False, device="cuda"):
+    def __init__(self, n, batch_size, dims=[2], as_tensor=False, device="cuda"):
         self.batch_size = batch_size
         self.dims = dims
         self.n = n
@@ -41,6 +42,7 @@ class TestIterator():
     def __next__(self):
         np.random.seed(12345 * self.i + 4321)
         torch.random.manual_seed(12345 * self.i + 4321)
+
         def generate(dim):
             shape = np.random.randint(1, 10, [dim]).tolist()
             if self.as_tensor:
@@ -59,6 +61,7 @@ class TestIterator():
             raise StopIteration
     next = __next__
 
+
 def asnumpy(x, device):
     if x is None:
         return None
@@ -70,6 +73,7 @@ def asnumpy(x, device):
         return from_dlpack(x).numpy()
     else:
         return from_dlpack(x).cpu().numpy()
+
 
 def run_and_check(pipe, ref_iterable):
     iter_ref = iter(ref_iterable)
@@ -85,14 +89,16 @@ def run_and_check(pipe, ref_iterable):
             break
     assert(i == len(ref_iterable))
 
+
 def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
     batch_size = 7
+
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id, src_device):
             super(IterSetupPipeline, self).__init__(
-                batch_size = iterator.batch_size,
-                num_threads = num_threads,
-                device_id = device_id)
+                batch_size=iterator.batch_size,
+                num_threads=num_threads,
+                device_id=device_id)
 
             self.iterator = iterator
             self._device = src_device
@@ -100,13 +106,13 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
         def define_graph(self):
             if use_fn_api:
                 # pass a Torch stream where data is generated
-                self.batch_1 = fn.external_source(device = self._device, name = "src1", cuda_stream=torch.cuda.default_stream())
-                self.batch_2 = fn.external_source(device = self._device, name = "src2", cuda_stream=torch.cuda.default_stream())
+                self.batch_1 = fn.external_source(device=self._device, name="src1", cuda_stream=torch.cuda.default_stream())
+                self.batch_2 = fn.external_source(device=self._device, name="src2", cuda_stream=torch.cuda.default_stream())
             else:
-                input_1 = ops.ExternalSource(device = self._device)
-                input_2 = ops.ExternalSource(device = self._device)
-                self.batch_1 = input_1(name = "src1")
-                self.batch_2 = input_2(name = "src2")
+                input_1 = ops.ExternalSource(device=self._device)
+                input_2 = ops.ExternalSource(device=self._device)
+                self.batch_1 = input_1(name="src1")
+                self.batch_2 = input_2(name="src2")
             return [self.batch_1, self.batch_2]
 
         def iter_setup(self):
@@ -127,12 +133,14 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
 
     run_and_check(pipe, source)
 
+
 def test_iter_setup():
     for use_fn_api in [False, True]:
         for by_name in [False, True]:
             for src_device in ["cpu", "gpu"]:
                 for gen_device in ["cpu", "cuda"]:
                     yield _test_iter_setup, use_fn_api, by_name, src_device, gen_device
+
 
 def _test_external_source_callback_torch_stream(src_device, gen_device):
     with torch.cuda.stream(torch.cuda.Stream()):
@@ -151,6 +159,7 @@ def _test_external_source_callback_torch_stream(src_device, gen_device):
 
             for i in range(10):
                 check_output(pipe.run(), [np.array([attempt * 100 + (i + 1) * 10 + 1.5], dtype=np.float32)])
+
 
 def test_external_source_callback_torch_stream():
     for src_device in ["cpu", "gpu"]:

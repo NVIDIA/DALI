@@ -47,11 +47,11 @@ class Batch1D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([ 1,  2,  3,  4], dtype = self._data_type),
-                np.array([33,  2, 10, 10], dtype = self._data_type)
+                np.array([ 1,  2,  3,  4], dtype=self._data_type),
+                np.array([33,  2, 10, 10], dtype=self._data_type)
             ], [
-                np.array([10, 20, 30, 20], dtype = self._data_type),
-                np.array([33,  2, 15, 19], dtype = self._data_type)
+                np.array([10, 20, 30, 20], dtype=self._data_type),
+                np.array([33,  2, 15, 19], dtype=self._data_type)
             ]]
 
     def valid_axes(self):
@@ -63,11 +63,11 @@ class Batch2D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([[  1,  0,  2], [  3,  1,  4]], dtype = self._data_type),
-                np.array([[  5,  0,  6], [  7,  0,  8]], dtype = self._data_type)
+                np.array([[  1,  0,  2], [  3,  1,  4]], dtype=self._data_type),
+                np.array([[  5,  0,  6], [  7,  0,  8]], dtype=self._data_type)
             ], [
-                np.array([[ 13, 23, 22], [ 23, 21, 14]], dtype = self._data_type),
-                np.array([[ 23,  3,  6], [  7,  0, 20]], dtype = self._data_type)
+                np.array([[ 13, 23, 22], [ 23, 21, 14]], dtype=self._data_type),
+                np.array([[ 23,  3,  6], [  7,  0, 20]], dtype=self._data_type)
             ]]
 
     def valid_axes(self):
@@ -79,11 +79,11 @@ class Batch3D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([[[1, 0, 1], [2, 3, 1]], [[0, 4, 1], [0, 4, 1]]], dtype = self._data_type),
-                np.array([[[5, 0, 1], [6, 7, 1]], [[0, 8, 1], [0, 4, 1]]], dtype = self._data_type)
+                np.array([[[1, 0, 1], [2, 3, 1]], [[0, 4, 1], [0, 4, 1]]], dtype=self._data_type),
+                np.array([[[5, 0, 1], [6, 7, 1]], [[0, 8, 1], [0, 4, 1]]], dtype=self._data_type)
             ], [
-                np.array([[[9, 0, 3], [3, 3, 3]], [[7, 0, 3], [0, 6, 8]]], dtype = self._data_type),
-                np.array([[[7, 2, 3], [7, 8, 2]], [[3, 9, 2], [2, 6, 2]]], dtype = self._data_type)
+                np.array([[[9, 0, 3], [3, 3, 3]], [[7, 0, 3], [0, 6, 8]]], dtype=self._data_type),
+                np.array([[[7, 2, 3], [7, 8, 2]], [[3, 9, 2], [2, 6, 2]]], dtype=self._data_type)
             ]]
 
     def valid_axes(self):
@@ -99,7 +99,7 @@ class Batch3DOverflow(Batch3D):
                 sample *= 100000
 
 
-def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input = False, ddof = 0):
+def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input=False, ddof=0):
     batch_size = batch_fn.batch_size()
 
     # Needed due to how ExternalSource API works. It fails on methods, partials.
@@ -116,7 +116,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input =
         args['dtype'] = np_type_to_dali(output_type)
 
     with pipe:
-        input = fn.external_source(source = get_batch)
+        input = fn.external_source(source=get_batch)
         if not add_mean_input:
             reduced_cpu = reduce_fn(input, **args)
             reduced_gpu = reduce_fn(input.gpu(), **args)
@@ -139,7 +139,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input =
     return result_cpu, result_gpu
 
 
-def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type, ddof = None):
+def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type, ddof=None):
     result = []
     args = { 'keepdims': keep_dims, 'axis': axes}
     if output_type is not None:
@@ -168,18 +168,18 @@ def compare(dali_res, np_res):
             assert np.array_equal(dali_sample, np_sample)
 
 
-def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type = None):
+def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type=None):
     batch_fn = batch_gen(input_type)
     dali_reduce_fn, numpy_reduce_fn = reduce_fns
 
     for axes in batch_fn.valid_axes():
         dali_res_cpu, dali_res_gpu = run_dali(
-            dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type)
+            dali_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type)
 
         batch_fn.reset()
 
         np_res = run_numpy(
-            numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type)
+            numpy_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type)
 
         for iteration in range(batch_fn.num_iter()):
             compare(dali_res_cpu[iteration], np_res[iteration])
@@ -200,12 +200,12 @@ def test_reduce():
                     yield run_reduce, keep_dims, reduce_fns, batch_gen, type_id
 
 
-def mean_square(input, keepdims = False, axis = None, dtype = None):
-    return np.mean(np.square(input), keepdims = keepdims, axis = axis, dtype = dtype)
+def mean_square(input, keepdims=False, axis=None, dtype=None):
+    return np.mean(np.square(input), keepdims=keepdims, axis=axis, dtype=dtype)
 
 
-def root_mean_square(input, keepdims = False, axis = None, dtype = None):
-    return np.sqrt(mean_square(input, keepdims = keepdims, axis = axis, dtype = dtype))
+def root_mean_square(input, keepdims=False, axis=None, dtype=None):
+    return np.sqrt(mean_square(input, keepdims=keepdims, axis=axis, dtype=dtype))
 
 
 def test_reduce_with_promotion():
@@ -257,7 +257,7 @@ def test_sum_with_output_type():
                         yield run_reduce, keep_dims, reduce_fns, batch_gen, input_type, output_type
 
 
-def run_reduce_with_mean_input(keep_dims, reduce_fns, batch_gen, input_type, output_type = None):
+def run_reduce_with_mean_input(keep_dims, reduce_fns, batch_gen, input_type, output_type=None):
     batch_fn = batch_gen(input_type)
     dali_reduce_fn, numpy_reduce_fn = reduce_fns
 
@@ -270,12 +270,12 @@ def run_reduce_with_mean_input(keep_dims, reduce_fns, batch_gen, input_type, out
             valid_ddofs = [0, 1]
         for ddof in valid_ddofs:
             dali_res_cpu, dali_res_gpu = run_dali(
-                dali_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, add_mean_input = True, ddof = ddof)
+                dali_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type, add_mean_input=True, ddof=ddof)
 
             batch_fn.reset()
 
             np_res = run_numpy(
-                numpy_reduce_fn, batch_fn, keep_dims = keep_dims, axes = axes, output_type = output_type, ddof = ddof)
+                numpy_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type, ddof=ddof)
 
             for iteration in range(batch_fn.num_iter()):
                 compare(dali_res_cpu[iteration], np_res[iteration])
@@ -351,6 +351,7 @@ def test_reduce_axis_names():
 
     batch_fn = Batch3D(np.float32)
     batch_size = batch_fn.batch_size()
+
     def get_batch():
         return batch_fn()
 

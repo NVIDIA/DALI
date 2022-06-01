@@ -20,6 +20,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import test_utils
 
+
 def test_unified_arg_placement():
     batch_size = 30
 
@@ -39,6 +40,7 @@ def test_unified_arg_placement():
             assert offset[j] >= 1 and offset[j] < 2  # check that it's not all zeros or sth
         T = offset[:,np.newaxis]  # convert to a columnn
         assert np.array_equal(matrix, np.concatenate([np.identity(3), T], axis=1))
+
 
 def test_compose():
     batch_size = 3
@@ -71,8 +73,10 @@ def test_compose():
         mtx *= 2
         assert np.allclose(matrix, np.concatenate([mtx, T], axis=1), rtol=1e-5, atol=1e-6)
 
+
 test_data_root = os.environ['DALI_EXTRA_PATH']
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
+
 
 def test_compose_change_device():
     batch_size = 3

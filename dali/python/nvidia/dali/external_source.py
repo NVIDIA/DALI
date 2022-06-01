@@ -38,6 +38,7 @@ def _get_batch_shape(data):
             shape = data.shape()
         return [shape[1:]] * shape[0], True
 
+
 def _check_data_batch(data, batch_size, layout):
     shape, uniform = _get_batch_shape(data)
     if len(shape) > batch_size:
@@ -54,7 +55,8 @@ def _check_data_batch(data, batch_size, layout):
         if layout is not None and layout != "" and dim != len(layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
-def _prep_data_for_feed_input(data, batch_size, layout, device_id = None):
+
+def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
     def to_numpy(x):
         if _types._is_mxnet_array(x):
             return x.asnumpy()
@@ -127,6 +129,7 @@ class _ExternalDataBatch:
     def feed(self):
         self._group.feed(self._pipepline, self._data, self._batch_size)
 
+
 class _ExternalSourceGroup(object):
     def __init__(
             self, callback, source_desc, is_multioutput, instances=[], *,
@@ -156,7 +159,7 @@ class _ExternalSourceGroup(object):
     def append(self, instance):
         self.instances.append(instance)
 
-    def callback_args(self, idx_in_batch, epoch_idx, batch_size = 0, lead = 0):
+    def callback_args(self, idx_in_batch, epoch_idx, batch_size=0, lead=0):
         """Generate information to be passed to ES callback.
 
         Args:
@@ -791,7 +794,7 @@ provided memory is copied to the internal buffer.
         op = ExternalSource(device=device, num_outputs=num_outputs, source=source,
                             cycle=cycle, layout=layout, dtype=dtype, ndim=ndim, cuda_stream=cuda_stream,
                             use_copy_kernel=use_copy_kernel, batch=batch, **kwargs)
-        return op(name = name)
+        return op(name=name)
 
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
