@@ -552,7 +552,6 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   assert(ws != nullptr);
 
-  auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
   if (ws->OutputIsType<CPUBackend>(output_idx)) {
     AccessOrder order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
     CopyToExternal(dst, dst_mem_kind, ws->Output<CPUBackend>(output_idx),
@@ -581,7 +580,6 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   assert(ws != nullptr);
 
-  auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
   if (ws->OutputIsType<CPUBackend>(output_idx)) {
     AccessOrder order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
     if (!is_pinned) {
