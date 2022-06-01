@@ -305,23 +305,21 @@ void CopyToExternalImplGPU(SourceObject &src,
                            py::object dst_ptr, py::object cuda_stream,
                            bool non_blocking, bool use_copy_kernel) {
   CUDAStreamLease lease;
-  AccessOrder order;
+  AccessOrder copy_order;
+  AccessOrder wait_order = non_blocking ? src.order() : AccessOrder::host();
   int device = src.device_id();
   if (!cuda_stream.is_none()) {
     cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-    order = AccessOrder(stream, device);
+    copy_order = AccessOrder(stream, device);
   } else {
     lease = CUDAStreamPool::instance().Get(device);
-    order = AccessOrder(lease, device);
+    copy_order = AccessOrder(lease, device);
   }
 
   void *ptr = ctypes_void_ptr(dst_ptr);
-  CopyToExternal<mm::memory_kind::device>(ptr, src, order, use_copy_kernel);
+  CopyToExternal<mm::memory_kind::device>(ptr, src, copy_order, use_copy_kernel);
 
-  if (non_blocking)
-    src.order().wait(order);
-  else
-    AccessOrder::host().wait(order);
+  wait_order.wait(copy_order);
 }
 
 /**
