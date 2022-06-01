@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/common/find/find_first_last_gpu.cuh"
 #include <gtest/gtest.h>
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/kernels/reduce/find_reduce.cuh"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 
 namespace dali {
 namespace kernels {
-namespace find_first_last {
 namespace test {
 
 template <typename T>
@@ -37,7 +36,7 @@ struct threshold {
 };
 
 template <typename T>
-void SequentialFillBothEnds(T* data, int64_t data_len, T start_value) {
+void SequentialFillBothEnds(T *data, int64_t data_len, T start_value) {
   auto value = start_value;
   int i = 0;
   int j = data_len - 1;
@@ -49,20 +48,16 @@ void SequentialFillBothEnds(T* data, int64_t data_len, T start_value) {
     data[i] = value;
 }
 
-class FindFirstLastTestGPU : public ::testing::Test {
+class FindReduceTestGPU : public ::testing::Test {
  public:
   using T = float;
   using Idx = int64_t;
   TestTensorList<T> in_;
-  TestTensorList<Idx> out_begin_;
-  TestTensorList<Idx> out_length_;
+  TestTensorList<Idx> out_first_;
+  TestTensorList<Idx> out_last_;
 
-  TestTensorList<Idx> ref_begin_;
-  TestTensorList<Idx> ref_length_;
-
-  using Predicate = threshold<T>;
-  Predicate thresh{3};
-  span<Predicate> predicates{&thresh, 1};
+  TestTensorList<Idx> ref_first_;
+  TestTensorList<Idx> ref_last_;
 
   void SetUp() final {
     int nsamples = 5;
@@ -71,10 +66,10 @@ class FindFirstLastTestGPU : public ::testing::Test {
     TensorListShape<> sh = {{5, }, {10, }, {9, }, {7, }, {1500, }};
     TensorListShape<0> out_sh(nsamples);
     in_.reshape(sh);
-    out_begin_.reshape(out_sh);
-    out_length_.reshape(out_sh);
-    ref_begin_.reshape(out_sh);
-    ref_length_.reshape(out_sh);
+    out_first_.reshape(out_sh);
+    out_last_.reshape(out_sh);
+    ref_first_.reshape(out_sh);
+    ref_last_.reshape(out_sh);
 
     for (int i = 0; i < nsamples; i++) {
       auto v = in_.cpu()[i];
@@ -83,29 +78,29 @@ class FindFirstLastTestGPU : public ::testing::Test {
 
     // Threshold = 3
     // Input 0:  0 1 2 1 0
-    //           ^^
+    //         ^^
     // Input 1:  0 1 2 3 4 4 3 2 1 0
     //                 ^     ^
     // Input 2:  0 1 2 3 4 3 2 1 0
     //                 ^   ^
     // Input 3:  0 1 2 3 2 1 0
     //                 ^^
-    // Input 4:  0 1 2 3 4 5 ... 1494 1495 1496 1497 1498 1499
-    //                 ^                   ^
-    ref_begin_.cpu()[0].data[0] = 0;
-    ref_length_.cpu()[0].data[0] = 0;
+    // Input 4:  0 1 2 3 4 5 ... 5 4 3 2 1 0
+    //                 ^             ^
+    ref_first_.cpu()[0].data[0] = -1;
+    ref_last_.cpu()[0].data[0] = -1;
 
-    ref_begin_.cpu()[1].data[0] = 3;
-    ref_length_.cpu()[1].data[0] = 4;
+    ref_first_.cpu()[1].data[0] = 3;
+    ref_last_.cpu()[1].data[0] = 6;
 
-    ref_begin_.cpu()[2].data[0] = 3;
-    ref_length_.cpu()[2].data[0] = 3;
+    ref_first_.cpu()[2].data[0] = 3;
+    ref_last_.cpu()[2].data[0] = 5;
 
-    ref_begin_.cpu()[3].data[0] = 3;
-    ref_length_.cpu()[3].data[0] = 1;
+    ref_first_.cpu()[3].data[0] = 3;
+    ref_last_.cpu()[3].data[0] = 3;
 
-    ref_begin_.cpu()[4].data[0] = 3;
-    ref_length_.cpu()[4].data[0] = 1494;
+    ref_first_.cpu()[4].data[0] = 3;
+    ref_last_.cpu()[4].data[0] = 1496;
   }
 
   void RunTest() {
@@ -114,22 +109,34 @@ class FindFirstLastTestGPU : public ::testing::Test {
     DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
-    auto out_begin = out_begin_.gpu().to_static<0>();
-    auto out_length = out_length_.gpu().to_static<0>();
+    auto out_first = out_first_.gpu().to_static<0>();
+    auto out_last = out_last_.gpu().to_static<0>();
     auto in = in_.gpu().to_static<1>();
+    int nsamples = in.size();
 
-    FindFirstLastGPU kernel;
-    kernel.template Run<T, Idx, Predicate, begin_length<Idx>>(ctx, out_begin, out_length, in,
-                                                              predicates);
+    using Predicate = threshold<float>;
+
+    auto *predicates_cpu = dyn_scratchpad.AllocatePinned<Predicate>(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      predicates_cpu[i] = Predicate(3);
+    }
+    auto *predicates_gpu =
+        dyn_scratchpad.ToGPU(ctx.gpu.stream, make_cspan(predicates_cpu, nsamples));
+
+    FindReduceGPU<Idx, T, Predicate, reductions::min> first;
+    FindReduceGPU<Idx, T, Predicate, reductions::max> last;
+    first.Setup(ctx, in.shape);
+    last.Setup(ctx, in.shape);
+    first.Run(ctx, out_first, in, predicates_gpu);
+    last.Run(ctx, out_last, in, predicates_gpu);
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
-    int nsamples = in.size();
     for (int s = 0; s < nsamples; s++) {
-      auto begin = out_begin_.cpu()[s].data[0];
-      auto length = out_length_.cpu()[s].data[0];
+      auto begin = out_first_.cpu()[s].data[0];
+      auto length = out_last_.cpu()[s].data[0];
       int64_t input_len = in_.cpu()[s].shape.num_elements();
-      EXPECT_EQ(ref_begin_.cpu()[s].data[0], begin);
-      EXPECT_EQ(ref_length_.cpu()[s].data[0], length);
+      EXPECT_EQ(ref_first_.cpu()[s].data[0], begin);
+      EXPECT_EQ(ref_last_.cpu()[s].data[0], length);
     }
   }
 
@@ -138,6 +145,11 @@ class FindFirstLastTestGPU : public ::testing::Test {
     using Idx = int64_t;
     int nsamples = 64;
     int n_iters = 1000;
+
+    KernelContext ctx;
+    ctx.gpu.stream = 0;
+    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
 
     TensorListShape<0> out_sh(nsamples);
     TensorListShape<> sh(nsamples, 1);
@@ -155,9 +167,9 @@ class FindFirstLastTestGPU : public ::testing::Test {
     TestTensorList<T> in_data;
     in_data.reshape(sh);
 
-    TestTensorList<Idx> out_begin_, out_length_;
-    out_begin_.reshape(out_sh);
-    out_length_.reshape(out_sh);
+    TestTensorList<Idx> out_first_, out_last_;
+    out_first_.reshape(out_sh);
+    out_last_.reshape(out_sh);
 
     std::mt19937 rng;
     UniformRandomFill(in_data.cpu(), rng, 0.0, 1.0);
@@ -166,20 +178,27 @@ class FindFirstLastTestGPU : public ::testing::Test {
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
     double total_time_ms = 0;
     int64_t in_elems = in_data.cpu().shape.num_elements();
+    in_elems *= 2;  // 2 reductions
     int64_t in_bytes = in_elems * sizeof(T);
     int64_t out_elems = 2;
     int64_t out_bytes = out_elems * sizeof(int64_t);
-    std::cout << "FindFirstLast GPU Perf test.\n"
+    std::cout << "FindReduce GPU Perf test.\n"
               << "Input contains " << in_elems << " elements.\n";
 
-    KernelContext ctx;
-    ctx.gpu.stream = 0;
-
-    auto out_begin = out_begin_.gpu().to_static<0>();
-    auto out_length = out_length_.gpu().to_static<0>();
+    auto out_first = out_first_.gpu().to_static<0>();
+    auto out_last = out_last_.gpu().to_static<0>();
     auto in = in_data.gpu().to_static<1>();
 
-    FindFirstLastGPU kernel;
+    using Predicate = threshold<float>;
+    auto *predicates_cpu = dyn_scratchpad.AllocatePinned<Predicate>(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      predicates_cpu[i] = Predicate(3);
+    }
+    auto *predicates_gpu =
+        dyn_scratchpad.ToGPU(ctx.gpu.stream, make_cspan(predicates_cpu, nsamples));
+
+    FindReduceGPU<Idx, T, Predicate, reductions::min> first;
+    FindReduceGPU<Idx, T, Predicate, reductions::max> last;
     for (int i = 0; i < n_iters; ++i) {
       CUDA_CALL(cudaDeviceSynchronize());
 
@@ -187,9 +206,10 @@ class FindFirstLastTestGPU : public ::testing::Test {
       ctx.scratchpad = &dyn_scratchpad;
 
       CUDA_CALL(cudaEventRecord(start));
-
-      kernel.template Run<T, Idx, Predicate, begin_length<Idx>>(ctx, out_begin, out_length, in,
-                                                                predicates);
+      first.Setup(ctx, in.shape);
+      first.Run(ctx, out_first, in, predicates_gpu);
+      last.Setup(ctx, in.shape);
+      last.Run(ctx, out_last, in, predicates_gpu);
 
       CUDA_CALL(cudaEventRecord(end));
       CUDA_CALL(cudaDeviceSynchronize());
@@ -202,15 +222,14 @@ class FindFirstLastTestGPU : public ::testing::Test {
   }
 };
 
-TEST_F(FindFirstLastTestGPU, RunTest) {
+TEST_F(FindReduceTestGPU, RunTest) {
   this->RunTest();
 }
 
-TEST_F(FindFirstLastTestGPU, DISABLED_Benchmark) {
+TEST_F(FindReduceTestGPU, DISABLED_Benchmark) {
   this->RunPerf();
 }
 
 }  // namespace test
-}  // namespace find_first_last
 }  // namespace kernels
 }  // namespace dali
