@@ -49,6 +49,7 @@ If provided, the number of elements should match the dimensionality of the trans
     nullptr, true, true)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 /**

@@ -46,6 +46,7 @@ Example: combining [T1, T2, T3] is equivalent to T3(T2(T1(...))) for default ord
 )code")
   .NumInput(2, 99)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 class CombineTransformsCPU : public SequenceOperator<CPUBackend> {

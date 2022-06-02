@@ -33,6 +33,7 @@ The number of dimensions of the transform is inferred from this argument.)code",
     DALI_FLOAT_VEC, true, true)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 DALI_SCHEMA(TransformTranslation)  // Deprecated in 0.28.0dev

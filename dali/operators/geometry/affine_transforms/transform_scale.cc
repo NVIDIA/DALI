@@ -47,6 +47,7 @@ when `scale` is a scalar value and there's no input transform.
     nullptr, false)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 /**

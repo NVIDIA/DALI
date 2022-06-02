@@ -70,6 +70,7 @@ If another transform matrix is passed as an input, the operator applies the tran
     false)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 /**
