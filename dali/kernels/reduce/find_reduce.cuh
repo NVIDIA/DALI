@@ -71,7 +71,7 @@ class FindReduceGPU
   using Postprocessor = FindReducePostprocess<Out, Reduction>;
 
   std::vector<const In *> base_;
-  const Predicate *predicates_ = nullptr;
+  InListGPU<Predicate, 0> predicates_;
 
   void InitSampleData(const InListGPU<In> &in) {
     int nsamples = in.num_samples();
@@ -81,13 +81,13 @@ class FindReduceGPU
     }
   }
 
-  void InitPredicates(const Predicate *predicates) {
+  void InitPredicates(const InListGPU<Predicate, 0> &predicates) {
     predicates_ = predicates;
   }
 
   Preprocessor GetPreprocessorImpl(int sample_idx, bool batch) const {
     assert(!batch);  // not allowed
-    return Preprocessor{predicates_ + sample_idx, base_[sample_idx]};
+    return Preprocessor{predicates_[sample_idx].data, base_[sample_idx]};
   }
 
   Postprocessor GetPostprocessorImpl(int sample_index, bool batch) const {
@@ -99,13 +99,13 @@ class FindReduceGPU
     return {};
   }
 
-  void Setup(KernelContext &kctx, const TensorListShape<> &in_shape) {
+  void Setup(KernelContext &kctx, const TensorListShape<1> &in_shape) {
     std::array<int, 1> axes = {0};
     ReduceBase::Setup(kctx, in_shape, make_cspan(axes), false, false);
   }
 
-  void Run(KernelContext &kctx, const OutListGPU<Out> &out, const InListGPU<In> &in,
-           const Predicate *predicates = nullptr) {
+  void Run(KernelContext &kctx, const OutListGPU<Out, 0> &out, const InListGPU<In, 1> &in,
+           const InListGPU<Predicate, 0> &predicates) {
     this->InitSampleData(in);
     this->InitPredicates(predicates);
     ReduceBase::Run(kctx, out, in);

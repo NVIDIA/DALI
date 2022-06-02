@@ -115,13 +115,13 @@ class FindReduceTestGPU : public ::testing::Test {
     int nsamples = in.size();
 
     using Predicate = threshold<float>;
-
-    auto *predicates_cpu = dyn_scratchpad.AllocatePinned<Predicate>(nsamples);
+    TensorListShape<0> scalar_sh(nsamples);
+    TestTensorList<Predicate, 0> predicates;
+    predicates.reshape(scalar_sh);
     for (int i = 0; i < nsamples; i++) {
-      predicates_cpu[i] = Predicate(3);
+      *(predicates.cpu()[i].data) = Predicate(3);
     }
-    auto *predicates_gpu =
-        dyn_scratchpad.ToGPU(ctx.gpu.stream, make_cspan(predicates_cpu, nsamples));
+    auto predicates_gpu = predicates.gpu();
 
     FindReduceGPU<Idx, T, Predicate, reductions::min> first;
     FindReduceGPU<Idx, T, Predicate, reductions::max> last;
@@ -190,13 +190,13 @@ class FindReduceTestGPU : public ::testing::Test {
     auto in = in_data.gpu().to_static<1>();
 
     using Predicate = threshold<float>;
-    auto *predicates_cpu = dyn_scratchpad.AllocatePinned<Predicate>(nsamples);
+    TensorListShape<0> scalar_sh(nsamples);
+    TestTensorList<Predicate, 0> predicates;
+    predicates.reshape(scalar_sh);
     for (int i = 0; i < nsamples; i++) {
-      predicates_cpu[i] = Predicate(3);
+      *(predicates.cpu()[i].data) = Predicate(3);
     }
-    auto *predicates_gpu =
-        dyn_scratchpad.ToGPU(ctx.gpu.stream, make_cspan(predicates_cpu, nsamples));
-
+    auto predicates_gpu = predicates.gpu();
     FindReduceGPU<Idx, T, Predicate, reductions::min> first;
     FindReduceGPU<Idx, T, Predicate, reductions::max> last;
     for (int i = 0; i < n_iters; ++i) {
