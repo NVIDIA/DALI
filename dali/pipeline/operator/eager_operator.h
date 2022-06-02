@@ -146,7 +146,7 @@ class DLL_PUBLIC EagerOperator {
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
     std::lock_guard lock(shared_thread_pool_mutex_);
 
-    CreateSharedThreadPool().reset(
+    SharedThreadPoolInstance().reset(
         new ThreadPool(num_threads, CPU_ONLY_DEVICE_ID, false, "EagerOperator"));
   }
 
@@ -175,7 +175,7 @@ class DLL_PUBLIC EagerOperator {
     return num_cores < 6 ? num_cores : 6;
   }
 
-  static inline std::shared_ptr<ThreadPool> &CreateSharedThreadPool() {
+  static inline std::shared_ptr<ThreadPool> &SharedThreadPoolInstance() {
     static std::shared_ptr<ThreadPool> thread_pool = std::make_shared<ThreadPool>(
         GetDefaultNumThreads(), CPU_ONLY_DEVICE_ID, false, "EagerOperator");
 
@@ -185,7 +185,7 @@ class DLL_PUBLIC EagerOperator {
   static inline std::shared_ptr<ThreadPool> GetSharedThreadPool() {
     std::shared_lock lock(shared_thread_pool_mutex_);
 
-    return CreateSharedThreadPool();
+    return SharedThreadPoolInstance();
   }
 
   static inline CUDAStreamLease &GetSharedCudaStream() {
