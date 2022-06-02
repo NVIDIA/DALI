@@ -1,10 +1,7 @@
 # Contribution rules
 
-- DALI Coding Style Guide can be found [here](STYLE_GUIDE.md). We follow [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) with few exceptions and additional guidelines regarding DALI-specific cases. See the DALI Coding Style Guide for details. When no rules can be found, follow the already occuring conventions. If there is no precedence in our codebase we are open to discussion. Ensure that your contribution passes the `make lint` check. It applies rules to the following:
-  - class, function/method, and variable/field naming
-  - comment style
-  - indentation
-  - line length
+- DALI Coding Style Guide can be found [here](STYLE_GUIDE.md). We follow [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) with few exceptions and additional guidelines regarding DALI-specific cases. See the DALI Coding Style Guide for details. When no rules can be found, follow the already occuring conventions. If there is no precedence in our codebase we are open to discussion.
+- Prior to your contribution, please make sure that the code passes the linter check. We do both C++ and Python linting. To invoke the check, please use the `make lint` command in your build directory. We use [Flake8](https://flake8.pycqa.org/en/latest/) as the Python linter, so you may need to install it.
 - Avoid introducing unnecessary complexity into existing code so that maintainability and readability are preserved.
 - Try to keep pull requests (PRs) as concise as possible:
   - Avoid committing commented-out code.

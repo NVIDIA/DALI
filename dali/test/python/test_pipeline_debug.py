@@ -120,7 +120,6 @@ def injection_pipeline_standard(device='cpu'):
 
 
 def _test_injection(device, name, transform, eps=1e-07):
-    print(f'\nTesting {name}')
     pipe_load = load_images_pipeline()
     pipe_load.build()
     pipe_standard = injection_pipeline_standard(device)
@@ -306,7 +305,6 @@ def kwargs_len_change():
     if kwargs_len_change.change:
         kwargs_len_change.change = False
         kwargs['axis'] = 0
-    print(len(kwargs))
     return fn.cat(*inputs, **kwargs)
 
 

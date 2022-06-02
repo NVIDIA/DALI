@@ -20,8 +20,6 @@ import nvidia.dali.math as dmath
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 from test_utils import get_dali_extra_path, get_files, module_functions
 from segmentation_test_utils import make_batch_select_masks
-from test_audio_decoder_utils import generate_waveforms
-import scipy.io.wavfile
 from test_detection_pipeline import coco_anchors
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 import re
@@ -30,10 +28,9 @@ import numpy as np
 from nose_utils import assert_raises
 import os
 import glob
-import tempfile
-import json
 from collections.abc import Iterable
 from nose.plugins.attrib import attr
+from test_dali_cpu_only_utils import setup_test_nemo_asr_reader_cpu, setup_test_numpy_reader_cpu
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -553,62 +550,11 @@ def test_caffe2_reader_cpu():
     check_no_input(fn.readers.caffe2, path=caffe2_dir, shard_id=0, num_shards=1)
 
 def test_nemo_asr_reader_cpu():
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        def create_manifest_file(manifest_file, names, lengths, rates, texts):
-            assert(len(names) == len(lengths) == len(rates) == len(texts))
-            data = []
-            for idx in range(len(names)):
-                entry_i = {}
-                entry_i['audio_filepath'] = names[idx]
-                entry_i['duration'] = lengths[idx] * (1.0 / rates[idx])
-                entry_i["text"] = texts[idx]
-                data.append(entry_i)
-            with open(manifest_file, 'w') as f:
-                for entry in data:
-                    json.dump(entry, f)
-                    f.write('\n')
-        nemo_asr_manifest = os.path.join(tmp_dir, "nemo_asr_manifest.json")
-        names = [
-            os.path.join(tmp_dir, "dali_test_1C.wav"),
-            os.path.join(tmp_dir, "dali_test_2C.wav"),
-            os.path.join(tmp_dir, "dali_test_4C.wav")
-        ]
+    tmp_dir, nemo_asr_manifest = setup_test_nemo_asr_reader_cpu()
 
-        freqs = [
-            np.array([0.02]),
-            np.array([0.01, 0.012]),
-            np.array([0.01, 0.012, 0.013, 0.014])
-        ]
-        rates = [ 22050, 22050, 12347 ]
-        lengths = [ 10000, 54321, 12345 ]
-
-        def create_ref():
-            ref = []
-            for i in range(len(names)):
-                wave = generate_waveforms(lengths[i], freqs[i])
-                wave = (wave * 32767).round().astype(np.int16)
-                ref.append(wave)
-            return ref
-
-        ref_i = create_ref()
-
-        def create_wav_files():
-            for i in range(len(names)):
-                scipy.io.wavfile.write(names[i], rates[i], ref_i[i])
-
-        create_wav_files()
-
-        ref_text_literal = [
-            "dali test 1C",
-            "dali test 2C",
-            "dali test 4C",
-        ]
-        nemo_asr_manifest = os.path.join(tmp_dir, "nemo_asr_manifest.json")
-        create_manifest_file(nemo_asr_manifest, names, lengths, rates, ref_text_literal)
-
-        fixed_seed = 1234
+    with tmp_dir:
         check_no_input(fn.readers.nemo_asr, manifest_filepaths=[nemo_asr_manifest], dtype=types.INT16, downmix=False,
-                                            read_sample_rate=True, read_text=True, seed=fixed_seed)
+                       read_sample_rate=True, read_text=True, seed=1234)
 
 def test_video_reader():
     check_no_input(fn.experimental.readers.video, filenames=video_files, labels=[0, 1], sequence_length=10)
@@ -691,35 +637,19 @@ def test_box_encoder_cpu():
         out = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     test_lables_shape = [20, 1]
-    def get_lables():
+    def get_labels():
         out = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
         return out
     boxes = fn.external_source(source=get_boxes)
-    lables = fn.external_source(source=get_lables)
-    processed, _ = fn.box_encoder(boxes, lables, anchors=coco_anchors())
+    labels = fn.external_source(source=get_labels)
+    processed, _ = fn.box_encoder(boxes, labels, anchors=coco_anchors())
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
 def test_numpy_reader_cpu():
-    with tempfile.TemporaryDirectory() as test_data_root:
-        rng = np.random.RandomState(12345)
-        def create_numpy_file(filename, shape, typ, fortran_order):
-            # generate random array
-            arr = rng.random_sample(shape) * 10.
-            arr = arr.astype(typ)
-            if fortran_order:
-                arr = np.asfortranarray(arr)
-            np.save(filename, arr)
-
-        num_samples = 20
-        filenames = []
-        for index in range(0, num_samples):
-            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
-            filenames.append(filename)
-            create_numpy_file(filename, (5, 2, 8), np.float32, False)
-
+    with setup_test_numpy_reader_cpu() as test_data_root:
         check_no_input(fn.readers.numpy, file_root=test_data_root)
 
 @attr('pytorch')
@@ -1117,7 +1047,6 @@ tested_methods = [
     "slice",
     "segmentation.random_mask_pixel",
     "transpose",
-    "paste",
     "mfcc",
     "lookup_table",
     "element_extract",
@@ -1171,12 +1100,13 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
-    "jitter",               # not supported for CPU
-    "video_reader",         # not supported for CPU
-    "video_reader_resize",  # not supported for CPU
-    "readers.video",        # not supported for CPU
-    "readers.video_resize", # not supported for CPU
-    "optical_flow",         # not supported for CPU
+    "jitter",                # not supported for CPU
+    "video_reader",          # not supported for CPU
+    "video_reader_resize",   # not supported for CPU
+    "readers.video",         # not supported for CPU
+    "readers.video_resize",  # not supported for CPU
+    "optical_flow",          # not supported for CPU
+    "paste",                 # not supported for CPU
 ]
 
 def test_coverage():

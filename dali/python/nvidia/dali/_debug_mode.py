@@ -21,7 +21,7 @@ import nvidia.dali.ops as _ops
 import nvidia.dali.pipeline as _pipeline
 import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
-from nvidia.dali._utils.eager_util import _Classification, _transform_data_to_tensorlist
+from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali._utils.external_source_impl import \
@@ -484,8 +484,10 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._operators = {}
         self._operators_built = False
         self._cur_iter_batch_info = _IterBatchInfo(-1, None)  # Used for variable batch sizes.
+        
+        device_id = self._device_id if self._device_id is not None else _types.CPU_ONLY_DEVICE_ID
         self._pipe = _b.PipelineDebug(
-            self._max_batch_size, self._num_threads, self._device_id, self._set_affinity)
+            self._max_batch_size, self._num_threads, device_id, self._set_affinity)
 
         import numpy as np
         seed = kwargs.get('seed', -1)

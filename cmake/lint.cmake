@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_custom_target(
-          lint
+add_custom_target(lint-cpp
         COMMAND
           python ${PROJECT_SOURCE_DIR}/tools/lint.py ${PROJECT_SOURCE_DIR} --nproc=5
         COMMENT
-          "Performing linter check"
+          "Performing C++ linter check"
 )
+
+set(PYTHON_LINT_PATHS
+        ${PROJECT_SOURCE_DIR}/dali
+        ${PROJECT_SOURCE_DIR}/tools
+)
+
+add_custom_target(lint-python
+        COMMAND
+          flake8 --config=${PROJECT_SOURCE_DIR}/.flake8 ${PYTHON_LINT_PATHS}
+        COMMENT
+          "Performing Python linter check"
+)
+
+add_custom_target(lint)
+add_dependencies(lint lint-cpp)  #TODO(mszolucha): add lint-python when linter errors are resolved

@@ -136,7 +136,7 @@ TEST(MMDefaultResource, GetResource_Device) {
   CUDA_CALL(cudaFreeHost(stage));
 }
 
-TEST(MMDefaultResource, GetResource_MultiDevice) {
+TEST(MMDefaultResource, GetResource_MultiGPU) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   if (ndev < 2) {
@@ -211,7 +211,7 @@ TEST(MMDefaultResource, SetResource_Device) {
   TestSetDefaultResource<memory_kind::device>();
 }
 
-TEST(MMDefaultResource, SetResource_MultiDevice) {
+TEST(MMDefaultResource, SetResource_MultiGPU) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   if (ndev < 2)
@@ -281,7 +281,7 @@ TEST(MMDefaultResource, SetResource_Current) {
   SetDefaultDeviceResource(-1, nullptr);
 }
 
-TEST(MMDefaultResource, GetResource_Device_RangeCheck_MultiDevice) {
+TEST(MMDefaultResource, GetResource_Device_RangeCheck_MultiGPU) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
   EXPECT_NO_THROW(GetDefaultDeviceResource(-1));

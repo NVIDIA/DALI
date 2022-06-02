@@ -56,6 +56,21 @@ class ArgDesc:
 
 
 class ArgCb:
+    """
+    Describes a callback to be used as a per-sample/per-frame argument to the operator.
+    ----------
+    `name` : Union[str, int]
+        String with the name of a named argument of the operator or an int if the data
+             should be passed as a positional input.
+    `cb` : Callable[[SampleDesc], np.ndarray]
+        Callback that based on the SampleDesc instance produces a single parameter for specific sample/frame.
+    `is_per_frame` : bool
+        Flag if the cb should be run for every sample (sequence) or for every frame. In the latter case, the
+        argument is passed wrapped in per-frame call to the operator.
+    `dest_device` : str
+        Controls whether the produced data should be passed to the operator in cpu or gpu memory.
+        If set to "gpu", the copy to gpu is added in the pipeline. Applicable only to positional inputs.
+    """
     def __init__(self, name: Union[str, int], cb: Callable[[SampleDesc], np.ndarray], is_per_frame: bool, dest_device: str = "cpu"):
         self.desc = ArgDesc(name, is_per_frame, dest_device)
         self.cb = cb
@@ -406,7 +421,7 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
         [(fn.operator, {fixed_param_name: fixed_param_value}, [ArgCb(tensor_arg_name, single_arg_cb, is_per_frame, dest_device)])]
         where the first element is ``fn.operator``, the second one is a dictionary of fixed arguments that should
         be passed to the operator and the last one is a list of ArgCb instances describing tensor input arguments
-        (see `ParamsProvider` argument description) or custom params provider instance.
+        or custom params provider instance (see `ParamsProvider`).
     `test_channel_first` : bool
         If True, the "FCHW" layout is tested.
     `expand_channels` : bool

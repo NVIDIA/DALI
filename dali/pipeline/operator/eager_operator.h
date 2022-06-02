@@ -141,6 +141,12 @@ class DLL_PUBLIC EagerOperator {
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
       CUDAStreamLease &cuda_stream, int batch_size = -1);
 
+  DLL_PUBLIC ReaderMeta GetReaderMeta() const {
+    ReaderMeta meta = op_->GetReaderMeta();
+    DALI_ENFORCE(meta, "Operator " + name_ + " does not expose valid metadata.");
+    return meta;
+  }
+
   // Update shared thread pool used for all direct operators.
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
     shared_thread_pool = std::make_unique<ThreadPool>(num_threads, CPU_ONLY_DEVICE_ID, false);

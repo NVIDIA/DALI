@@ -22,7 +22,7 @@ DALI_SCHEMA(WarpAffine)
 )code")
   .NumInput(1, 2)
   .NumOutput(1)
-  .InputLayout(0, { "HWC", "DHWC" })
+  .InputLayout(0, { "HWC", "FHWC", "DHWC", "FDHWC" })
   .SupportVolumetric()
   .AddOptionalArg<float>("matrix",
       R"code(Transform matrix.
@@ -41,7 +41,7 @@ transform and it is inverted before applying the formula above.
 It is equivalent to OpenCV's ``warpAffine`` operation with the ``inverse_map`` argument being
 analog to the ``WARP_INVERSE_MAP`` flag.
 )code",
-      vector<float>(), true)
+      vector<float>(), true, true)
   .AddOptionalArg<bool>("inverse_map", "Set to ``False`` if the given transform is a "
                         "destination to source mapping, ``True`` otherwise.", true, false)
   .AddParent("WarpAttr");

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,11 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-add_subdirectory(join)
-add_subdirectory(find)
-
-# Get all the source files and dump test files
-collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-collect_sources(DALI_KERNEL_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_KERNEL_TEST_SRCS PARENT_SCOPE)

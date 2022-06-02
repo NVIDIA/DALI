@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +17,12 @@ import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import math
-from numpy.testing import assert_array_equal, assert_allclose
 import os
 import cv2
-from test_utils import check_batch
+from sequences_test_utils import video_suite_helper, SampleDesc, ArgCb
 from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
 import random
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -262,3 +259,66 @@ def _test_extremely_large_data(device):
 def test_extremely_large_data():
   for device in ["cpu", "gpu"]:
     yield _test_extremely_large_data, device
+
+
+def test_video():
+
+  rng = random.Random(42)
+
+  def random_flip_mx(sample_desc):
+    x, y = sample_desc.rng.choice([(-1, -1), (1, -1), (-1, 1)])
+    _, h, w, _ = sample_desc.sample.shape  # assuming FHWC layout
+    return np.array([
+      [x, 0, 0 if x == 1 else w],
+      [0, y, 0 if y == 1 else h],
+      [0, 0, 1]], dtype=np.float32)
+
+  def random_translate_mx(sample_desc):
+    _, h, w, _ = sample_desc.sample.shape  # assuming FHWC layout
+    return np.array([
+      [1, 0, sample_desc.rng.uniform(-w/2, w/2)],
+      [0, 1, rng.uniform(-h/2, h/2)],
+      [0, 0, 1]], dtype=np.float32)
+
+  def random_scale_mx(sample_desc):
+    def rand_scale():
+        return sample_desc.rng.uniform(0.25, 4)
+    return np.array([
+      [rand_scale(), 0, 0],
+      [0, rand_scale(), 0],
+      [0, 0, 1]], dtype=np.float32)
+
+  def random_rotate_mx(sample_desc):
+    angle = math.radians(sample_desc.rng.uniform(-90, 90))
+    c = np.cos(angle)
+    s = np.sin(angle)
+    return np.array([
+      [c, -s, 0],
+      [s, c, 0],
+      [0, 0, 1]], dtype=np.float32)
+
+  def random_mx(sample_desc):
+    m = np.eye(3, dtype=np.float32)
+    for transformation in [random_flip_mx, random_translate_mx, random_scale_mx, random_rotate_mx]:
+      if sample_desc.rng.choice([0, 1]):
+        m = np.matmul(m, transformation(sample_desc))
+    return m[0:2,:]
+
+  def output_size(sample_desc):
+    _, h, w, _ = sample_desc.sample.shape  # assuming FHWC layout
+    rng = sample_desc.rng
+    return np.array([h * rng.uniform(0.5, 2), w * rng.uniform(0.5, 2)], dtype=np.float32)
+
+  video_test_cases = [
+      (fn.warp_affine, {"matrix": random_rotate_mx(SampleDesc(rng, 0, 0, 0, None))[0:2,:]}, []),
+      (fn.warp_affine, {}, [ArgCb("matrix", random_mx, False)]),
+      (fn.warp_affine, {}, [ArgCb("matrix", random_mx, True)]),
+      (fn.warp_affine, {}, [ArgCb("matrix", random_mx, False), ArgCb("size", output_size, False)]),
+      (fn.warp_affine, {}, [ArgCb("matrix", random_mx, True), ArgCb("size", output_size, False)]),
+      (fn.warp_affine, {}, [ArgCb(1, random_mx, True, dest_device="cpu")]),
+      (fn.warp_affine, {}, [ArgCb(1, random_mx, True, dest_device="gpu")], ["gpu"]),
+      (fn.warp_affine, {}, [ArgCb(1, random_mx, False, dest_device="cpu")]),
+      (fn.warp_affine, {}, [ArgCb(1, random_mx, False, dest_device="gpu")], ["gpu"]),
+  ]
+
+  yield from video_suite_helper(video_test_cases, test_channel_first=False, expand_channels=False, rng=rng)

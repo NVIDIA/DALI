@@ -133,3 +133,9 @@ class _Classification:
                 return False, 'gpu', data
 
         return False, 'cpu', data
+
+
+def _slice_tensorlist(data, size):
+    """ Constructs TensorList consisting of ``size`` first elements of ``data``. """
+
+    return type(data)(list(data)[:size], layout=data.layout())
