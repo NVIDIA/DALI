@@ -99,7 +99,7 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
             otherwise in a specified parent module.
         wrapper_doc (str): Documentation of the wrapper function
     """
-    import nvidia.dali.experimental.eager as eager
+    from nvidia.dali.experimental import eager
 
     schema = _b.TryGetSchema(op_class.__name__)
     make_hidden = schema.IsDocHidden() if schema else False
