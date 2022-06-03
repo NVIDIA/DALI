@@ -20,22 +20,24 @@ from test_utils import check_batch
 from nose_utils import raises
 from nvidia.dali.types import DALIDataType
 
-def build_src_pipe(device, layout = None):
+
+def build_src_pipe(device, layout=None):
     if layout is None:
         layout = "XY"
     batches = [[
-        np.array([[1,2,3],[4,5,6]], dtype = np.float32),
-        np.array([[10,20], [30,40], [50,60]], dtype = np.float32)
+        np.array([[1,2,3],[4,5,6]], dtype=np.float32),
+        np.array([[10,20], [30,40], [50,60]], dtype=np.float32)
     ],
     [
-        np.array([[9,10],[11,12]], dtype = np.float32),
-        np.array([[100,200,300,400,500]], dtype = np.float32)
+        np.array([[9,10],[11,12]], dtype=np.float32),
+        np.array([[100,200,300,400,500]], dtype=np.float32)
     ]]
 
     src_pipe = Pipeline(len(batches), 1, 0)
     src_pipe.set_outputs(fn.external_source(source=batches, device=device, cycle=True, layout=layout))
     src_pipe.build()
     return src_pipe, len(batches)
+
 
 def _test_feed_input(device):
     src_pipe, batch_size = build_src_pipe(device)
@@ -55,11 +57,12 @@ def test_feed_input():
         yield _test_feed_input, device
 
 
-def _test_callback(device, as_tensors, change_layout_to = None):
+def _test_callback(device, as_tensors, change_layout_to=None):
     src_pipe, batch_size = build_src_pipe(device)
     ref_pipe, batch_size = build_src_pipe(device, layout=change_layout_to)
 
     dst_pipe = Pipeline(batch_size, 1, 0)
+
     def get_from_src():
         tl = src_pipe.run()[0]
         return [tl[i] for i in range(len(tl))] if as_tensors else tl
@@ -71,6 +74,7 @@ def _test_callback(device, as_tensors, change_layout_to = None):
         ref = ref_pipe.run()
         out = dst_pipe.run()
         check_batch(out[0], ref[0], batch_size, 0, 0)
+
 
 def test_callback():
     for device in ["cpu", "gpu"]:
@@ -99,6 +103,7 @@ def _test_scalar(device, as_tensors):
         dst_pipe.feed_input("ext", data)
         dst = dst_pipe.run()
         check_batch(src[0], dst[0], batch_size, 0, 0, "")
+
 
 def test_scalar():
     for device in ["cpu", "gpu"]:
@@ -149,12 +154,14 @@ def _test_batch_info_flag_default(cb, batch_size):
     pipe.build()
     pipe.run()
 
+
 def test_batch_info_flag_default():
     batch_size = 5
     cb_int = BatchCb(False, batch_size, 1)
     yield _test_batch_info_flag_default, cb_int, batch_size
     cb_batch_info = BatchCb(True, batch_size, 1)
     yield raises(AssertionError, "Expected BatchInfo instance as cb argument")(_test_batch_info_flag_default), cb_batch_info, batch_size
+
 
 def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
     num_epochs = 3
@@ -182,6 +189,7 @@ def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
         else:
             assert False, "expected StopIteration"
 
+
 def test_epoch_idx():
     batch_size = 3
     epoch_size = 4
@@ -195,7 +203,7 @@ def test_epoch_idx():
 def test_dtype_arg():
     batch_size = 2
     src_data = [
-        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
+        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
@@ -211,8 +219,8 @@ def test_dtype_arg():
 def test_dtype_arg_multioutput():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
-         [np.ones((120, 120, 3), dtype=np.float32)]*batch_size]
+        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+         [np.ones((120, 120, 3), dtype=np.float32)] * batch_size]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
@@ -233,7 +241,7 @@ def test_dtype_arg_multioutput():
 def test_incorrect_dtype_arg():
     batch_size = 2
     src_data = [
-        [np.ones((120, 120, 3), dtype=np.float32)]*batch_size
+        [np.ones((120, 120, 3), dtype=np.float32)] * batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)
@@ -241,14 +249,15 @@ def test_incorrect_dtype_arg():
     src_pipe.build()
     src_pipe.run()
 
+
 @raises(RuntimeError, glob="Type of the data fed to the external source has changed from the "
                            "previous iteration. Type in the previous iteration was float and "
                            "the current type is uint8.")
 def test_changing_dtype():
     batch_size = 2
     src_data = [
-        [np.ones((120, 120, 3), dtype=np.float32)]*batch_size,
-        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
+        [np.ones((120, 120, 3), dtype=np.float32)] * batch_size,
+        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext = fn.external_source(source=src_data)
@@ -261,7 +270,7 @@ def test_changing_dtype():
 def test_ndim_arg():
     batch_size = 2
     src_data = [
-        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size
+        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8, ndim=3)
@@ -279,8 +288,8 @@ def test_ndim_arg():
 def test_ndim_arg_multioutput():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
-         [np.ones((120, 120), dtype=np.float32)]*batch_size]
+        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+         [np.ones((120, 120), dtype=np.float32)] * batch_size]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src1_ext, src1_ext2 = fn.external_source(source=src_data, num_outputs=2,
@@ -308,8 +317,8 @@ def test_ndim_arg_multioutput():
 def test_layout_ndim_match():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
-         [np.ones((120, 120), dtype=np.uint8)]*batch_size]
+        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+         [np.ones((120, 120), dtype=np.uint8)] * batch_size]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext1, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
@@ -317,7 +326,7 @@ def test_layout_ndim_match():
                                             ndim=[3, 2])
     src_pipe.set_outputs(src_ext1, src_ext2)
     src_pipe.build()
-    out1, out2= src_pipe.run()
+    out1, out2 = src_pipe.run()
     for i in range(batch_size):
         t1 = out1.at(i)
         t2 = out2.at(i)
@@ -338,8 +347,8 @@ def test_ndim_layout_mismatch():
 def test_ndim_data_mismatch():
     batch_size = 2
     src_data = [
-        [[np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
-         [np.ones((120, 120), dtype=np.uint8)]*batch_size]
+        [[np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+         [np.ones((120, 120), dtype=np.uint8)] * batch_size]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext1, src_ext2 = fn.external_source(source=src_data, num_outputs=2,
@@ -355,8 +364,8 @@ def test_ndim_data_mismatch():
 def test_ndim_changing():
     batch_size = 2
     src_data = [
-        [np.ones((120, 120, 3), dtype=np.uint8)]*batch_size,
-        [np.ones((120, 120), dtype=np.uint8)]*batch_size
+        [np.ones((120, 120, 3), dtype=np.uint8)] * batch_size,
+        [np.ones((120, 120), dtype=np.uint8)] * batch_size
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
     src_ext1 = fn.external_source(source=src_data, dtype=DALIDataType.UINT8)

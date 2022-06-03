@@ -26,6 +26,7 @@ import numpy as np
 
 from nose.tools import nottest
 
+
 def get_min_shape_helper(batch, max_shape):
     """For batch=None or batch=True, we use batch mode which requires fixed shape.
     In that case min and max shape for RandomSampleIterator need to be equal.
@@ -36,6 +37,7 @@ def get_min_shape_helper(batch, max_shape):
         return max_shape
     else:
         return None
+
 
 class RandomSampleIterator:
     def __init__(self,
@@ -79,6 +81,7 @@ class FixedSampleIterator:
     def __next__(self):
         return self.value
 
+
 class InfiniteSampleIterator:
     def __init__(self, start_value):
         self.value = start_value
@@ -90,6 +93,7 @@ class InfiniteSampleIterator:
         result = self.value
         self.value = self.value + np.array(1, dtype=self.value.dtype)
         return result
+
 
 @pipeline_def
 def one_input_pipeline(def_for_dataset, device, source, external_source_device, no_copy, batch):
@@ -164,10 +168,11 @@ def external_source_converter_with_fixed_value(shape, dtype, tensor, batch="data
         return dali_dataset
     return to_dataset
 
-# Test that uses Generator dataset as inputs to DALI pipeline
+
 def external_source_converter_with_callback(
         input_iterator, shape, dtype, start_samples=0, stop_samples=1e10, min_shape=None,
         batch="dataset"):
+    """ Test that uses Generator dataset as inputs to DALI pipeline """
     def to_dataset(pipeline_desc, device_str):
         dataset_pipeline, shapes, dtypes = pipeline_desc
 
@@ -203,6 +208,7 @@ def external_source_converter_with_callback(
                     device_id=dataset_pipeline.device_id)
         return dali_dataset
     return to_dataset
+
 
 @nottest
 def external_source_tester(shape, dtype, source=None, external_source_device="cpu", no_copy=None, batch=False):
@@ -294,6 +300,7 @@ def external_source_converter_multiple(start_values, input_names, batches):
                     device_id=dataset_pipeline.device_id)
         return dali_dataset
     return to_dataset
+
 
 @nottest
 def external_source_tester_multiple(start_values, input_names, batches):

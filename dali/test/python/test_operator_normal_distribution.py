@@ -23,21 +23,24 @@ import random
 
 test_types = [types.INT8, types.INT16, types.INT32, types.FLOAT, types.FLOAT64]
 
-def random_shape(max_shape):
-  return np.array(
-      [1 if s == 1 else np.random.randint(1, s) for s in max_shape],
-      dtype=np.int32
-    )
 
-def random_shape_or_empty(max_shape):
-  empty_sh = random.choice([True, False])
-  if empty_sh:
-      return np.array([200, 0, 3], np.int32)
-  else:
+def random_shape(max_shape):
     return np.array(
         [1 if s == 1 else np.random.randint(1, s) for s in max_shape],
         dtype=np.int32
-    )
+      )
+
+
+def random_shape_or_empty(max_shape):
+    empty_sh = random.choice([True, False])
+    if empty_sh:
+        return np.array([200, 0, 3], np.int32)
+    else:
+        return np.array(
+            [1 if s == 1 else np.random.randint(1, s) for s in max_shape],
+            dtype=np.int32
+        )
+
 
 def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=False, variable_shape=False,
                               mean=0.0, stddev=1.0, variable_dist_params=False, shape_gen_f=None,
@@ -128,6 +131,7 @@ def check_normal_distribution(device, dtype, shape=None, use_shape_like_input=Fa
                 _, pvalues_anderson, _ = st.anderson(data, dist='norm')
                 assert pvalues_anderson[2] > 0.5
 
+
 def test_normal_distribution():
     niter = 3
     batch_size = 3
@@ -147,6 +151,7 @@ def test_normal_distribution():
                     yield check_normal_distribution, device, dtype, shape_arg, use_shape_like_in, \
                         variable_shape, mean, stddev, variable_dist_params, shape_gen_f, niter, batch_size
 
+
 def test_normal_distribution_scalar_and_one_elem():
     niter = 3
     batch_size = 3
@@ -158,6 +163,7 @@ def test_normal_distribution_scalar_and_one_elem():
             for shape in [None, (), (1,)]:
                 yield check_normal_distribution, device, dtype, shape, False, False, \
                     mean, stddev, False, None, niter, batch_size
+
 
 def test_normal_distribution_empty_shapes():
     niter = 3

@@ -139,6 +139,7 @@ def test_parallel_fork_cpu_only():
         capture_processes(pipe1._py_pool)
         compare_pipelines(pipe0, pipe1, batch_size, iters)
 
+
 def test_parallel_no_workers():
     batch_size = 10
     iters = 4
@@ -253,6 +254,7 @@ class ext_cb():
     def __init__(self, name, shape):
         self.name = name
         self.shape = shape
+
     def __call__(self, sinfo):
         return np.full(self.shape, sinfo.idx_in_epoch, dtype=np.int32)
 
@@ -551,7 +553,7 @@ def _test_cycle_multiple_iterators(batch_size, iters_num, py_num_workers, reader
         for batch_parallel, batch_seq in zip(parallel_out, seq_out):
             assert len(batch_parallel) == len(batch_seq) == batch_size
             for sample_parallel, sample_seq in zip(batch_parallel, batch_seq):
-                    np.testing.assert_equal(np.array(sample_parallel), np.array(sample_seq))
+                np.testing.assert_equal(np.array(sample_parallel), np.array(sample_seq))
 
 
 def test_cycle_multiple_iterators():
@@ -575,7 +577,7 @@ def test_discard():
     bs = 5
     pipe = dali.Pipeline(batch_size=bs, device_id=None, num_threads=5, py_num_workers=4, py_start_method='spawn')
     with pipe:
-        ext1 = dali.fn.external_source([[np.float32(i) for i in range(bs)]]*3, cycle='raise')
+        ext1 = dali.fn.external_source([[np.float32(i) for i in range(bs)]] * 3, cycle='raise')
         ext2 = dali.fn.external_source(ext_cb2, batch=False, parallel=True)
         ext3 = dali.fn.external_source(ext_cb2, batch=False, parallel=False)
         pipe.set_outputs(ext1, ext2, ext3)

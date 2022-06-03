@@ -280,7 +280,7 @@ class _IterBatchInfo:
 
 class _OperatorManager:
     """Utility class to manage single operator in the debug mode.
-    
+
     Uses :class:`ops.Operator` to create OpSpec and handle input sets.
     """
 
@@ -326,7 +326,7 @@ class _OperatorManager:
             next_logical_id, next_logical_id + abs(input_set_len))]
 
         for i in range(len(inputs)):
-            self.op_spec.AddInput(op_name+f'[{i}]', self._inputs_classification[i].device)
+            self.op_spec.AddInput(op_name + f'[{i}]', self._inputs_classification[i].device)
         for arg_name in self._call_args.keys():
             # To use argument inputs OpSpec needs it specified (can be an empty placeholder).
             self.op_spec.AddArgumentInput(arg_name, '')
@@ -541,7 +541,7 @@ class _PipelineDebug(_pipeline.Pipeline):
                     f'Illegal pipeline output type. The output {i} contains a nested `DataNodeDebug`')
             else:
                 outputs.append(_tensors.TensorListCPU(
-                    np.tile(val, (self._max_batch_size, *[1]*np.array(val).ndim))))
+                    np.tile(val, (self._max_batch_size, *[1] * np.array(val).ndim))))
         return tuple(outputs)
 
     def feed_input(self, data_node, data, **kwargs):

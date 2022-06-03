@@ -25,11 +25,13 @@ test_data_root = get_dali_extra_path()
 file_root = os.path.join(test_data_root, 'db', 'coco', 'images')
 train_annotations = os.path.join(test_data_root, 'db', 'coco', 'instances.json')
 
+
 class sample_desc():
     def __init__(self, id, cls, mapped_cls):
         self.id = id
         self.cls = cls
         self.mapped_cls = mapped_cls
+
 
 test_data = {
     'car-race-438467_1280.jpg' : sample_desc(17, 5, 6),
@@ -83,6 +85,7 @@ def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False)
             lines = f.read().splitlines()
         assert lines.sort() == images.sort()
 
+
 def test_operator_coco_reader_custom_order():
     custom_orders = [
         None,  # natural order
@@ -93,6 +96,7 @@ def test_operator_coco_reader_custom_order():
     for order in custom_orders:
         yield check_operator_coco_reader_custom_order, order, False
     yield check_operator_coco_reader_custom_order, None, True  # Natural order plus an invalid path
+
 
 def check_operator_coco_reader_label_remap(avoid_remap):
     batch_size = 2
@@ -119,9 +123,11 @@ def check_operator_coco_reader_label_remap(avoid_remap):
             assert ids_map[int(out[0].at(s))] == int(out[1].at(s)), f"{i}, {ids_map[int(out[0].at(s))]} vs {out[1].at(s)}"
             i = i + 1
 
+
 def test_operator_coco_reader_label_remap():
     for avoid_remap in [True, False]:
         yield check_operator_coco_reader_label_remap, avoid_remap
+
 
 def test_operator_coco_reader_same_images():
     file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')
@@ -177,6 +183,7 @@ def test_operator_coco_reader_same_images():
             np.testing.assert_array_equal(boxes1.at(0), boxes2.at(0))
             np.testing.assert_array_equal(boxes1.at(0), boxes3.at(0))
 
+
 @raises(
     RuntimeError,
     glob='Argument "preprocessed_annotations_dir" is not supported by operator *readers*COCO')
@@ -193,13 +200,15 @@ def test_invalid_args():
     pipeline.build()
 
 
-batch_size_alias_test=64
+batch_size_alias_test = 64
+
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_masks):
     inputs, boxes, labels, *_ = coco_op(file_root=file_root, annotations_file=annotations_file,
             polygon_masks=polygon_masks, pixelwise_masks=pixelwise_masks)
     return inputs, boxes, labels
+
 
 def test_coco_reader_alias():
     def check_coco_reader_alias(polygon_masks, pixelwise_masks):

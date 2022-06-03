@@ -273,6 +273,7 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
         else:
             assert False
 
+
 def test_operator_multipaste():
     tests = [
         # The arguments are:

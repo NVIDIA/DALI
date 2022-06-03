@@ -21,12 +21,13 @@ import time
 
 data_paths = ["/data/imagenet/train-jpeg"]
 
+
 class RN50Pipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc):
         super(RN50Pipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=prefetch)
-        self.input = ops.readers.File(file_root = data_paths[0], shard_id = device_id, num_shards = num_gpus)
-        self.decode_gpu = ops.decoders.Image(device = "mixed", output_type = types.RGB)
-        self.res = ops.RandomResizedCrop(device="gpu", size =(224,224))
+        self.input = ops.readers.File(file_root=data_paths[0], shard_id=device_id, num_shards=num_gpus)
+        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
+        self.res = ops.RandomResizedCrop(device="gpu", size=(224,224))
 
         layout = types.args.nhwc if nhwc else types.NCHW
         out_type = types.FLOAT16 if fp16 else types.FLOAT
@@ -46,6 +47,7 @@ class RN50Pipeline(Pipeline):
         images = self.res(images)
         output = self.cmnp(images.gpu(), mirror=rng)
         return (output, labels.gpu())
+
 
 parser = argparse.ArgumentParser(description='Test RN50 augmentation pipeline with different FW iterators')
 parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
@@ -83,8 +85,10 @@ PREFETCH = args.prefetch
 if args.separate_queue:
     PREFETCH = {'cpu_size': args.cpu_size , 'gpu_size': args.gpu_size}
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -102,6 +106,7 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
 
 def test_fw_iter(IteratorClass, args):
     iterator_name = IteratorClass.__module__ + "." + IteratorClass.__name__
@@ -138,9 +143,9 @@ def test_fw_iter(IteratorClass, args):
                     out_type = tf.float16
                 else:
                     out_type = tf.float32
-                image, label = daliop(pipeline = pipes[dev],
-                    shapes = [(args.batch_size, 3, 224, 224), ()],
-                    dtypes = [out_type, tf.int32])
+                image, label = daliop(pipeline=pipes[dev],
+                    shapes=[(args.batch_size, 3, 224, 224), ()],
+                    dtypes=[out_type, tf.int32])
                 images.append(image)
                 labels.append(label)
         gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.5)
@@ -177,17 +182,21 @@ def test_fw_iter(IteratorClass, args):
                 if j > iters:
                     break
 
+
 def import_mxnet():
     from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
     return MXNetIterator
+
 
 def import_pytorch():
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
     return PyTorchIterator
 
+
 def import_paddle():
     from nvidia.dali.plugin.paddle import DALIClassificationIterator as PaddleIterator
     return PaddleIterator
+
 
 def import_tf():
     global tf
@@ -211,6 +220,7 @@ def import_tf():
     except:
         pass
     return TensorFlowIterator
+
 
 Iterators = {
     "mxnet": [import_mxnet],

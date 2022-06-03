@@ -30,9 +30,11 @@ from distutils.version import LooseVersion
 import math
 from contextlib import contextmanager
 
+
 def skip_for_incompatible_tf():
     if not dali_tf.dataset_distributed_compatible_tensorflow():
         raise SkipTest('This feature is enabled for TF 2.5.0 and higher')
+
 
 def skip_inputs_for_incompatible_tf():
     if not dali_tf.dataset_inputs_compatible_tensorflow():
@@ -303,6 +305,7 @@ def run_tf_dataset_eager_mode(device, device_id=0, get_pipeline_desc=get_image_p
 
     compare(dataset_results, standalone_results)
 
+
 def run_tf_dataset_multigpu_graph_manual_placement(get_pipeline_desc=get_image_pipeline,
         to_dataset=to_image_dataset):
     num_devices = num_available_gpus()
@@ -369,9 +372,9 @@ def run_tf_dataset_multigpu_eager_mirrored_strategy(get_pipeline_desc=get_image_
 
     strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
     input_options = tf.distribute.InputOptions(
-        experimental_place_dataset_on_device = True,
-        experimental_fetch_to_device = False,
-        experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
+        experimental_place_dataset_on_device=True,
+        experimental_fetch_to_device=False,
+        experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA)
 
     def dataset_fn(input_context):
         return get_dali_dataset(

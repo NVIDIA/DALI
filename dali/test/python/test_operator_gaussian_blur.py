@@ -37,6 +37,7 @@ shape_layout_axes_cases = [((20, 20, 30, 3), "DHWC", 3), ((20, 20, 30), "", 3),
                            ((5, 10, 10, 7, 3), "FDHWC", 3), ((5, 3, 20, 30), "FCHW", 2),
                            ((3, 5, 10, 10, 7), "CFDHW", 3)]
 
+
 def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
 
@@ -156,6 +157,7 @@ def test_gaussian_blur_cpu_gpu():
     for window_size in [5, [7, 13]]:
         yield check_gaussian_blur_cpu_gpu, 10, None, window_size
 
+
 @attr('slow')
 def test_gaussian_blur_cpu_gpu_slow():
     for sigma in [1.0, [1.0, 2.0], None]:
@@ -228,6 +230,7 @@ def test_generic_gaussian_blur():
     for dev in ["cpu", "gpu"]:
         for (t_in, t_out) in [(np.uint8, types.NO_TYPE), (np.float32, types.FLOAT), (np.uint8, types.FLOAT)]:
             yield from generate_generic_cases(dev, t_in, t_out)
+
 
 def test_one_sized_extent():
     for dev in ["cpu", "gpu"]:

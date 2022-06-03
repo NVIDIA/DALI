@@ -17,14 +17,17 @@ import collections.abc
 _not_iterable = ()
 _original_check = None
 
+
 class _NotIterable:
     def __iter__(self):
         raise TypeError("The objects of type `", type(self), "` are not iterable.")
+
 
 def _check_iterable(iterable, instance):
     if isinstance(instance, _not_iterable):
         return False
     return _original_check(iterable, instance)
+
 
 def _hook_iterable_check():
     global _original_check
@@ -35,6 +38,7 @@ def _hook_iterable_check():
     type(collections.abc.Iterable).__instancecheck__ = _check_iterable
     if len(_not_iterable) == 0:
         _not_iterable = (_NotIterable,)
+
 
 def not_iterable(cls, add_iter=True):
     """Makes an object non-iterable by raising a TypeError in __iter__ and suppressing

@@ -24,6 +24,7 @@ use_cupy()
 import cupy as cp
 from nose.plugins.attrib import attr
 
+
 def test_external_source_with_iter_cupy_stream():
     with cp.cuda.Stream(non_blocking=True):
         for attempt in range(10):
@@ -35,9 +36,11 @@ def test_external_source_with_iter_cupy_stream():
             for i in range(10):
                 check_output(pipe.run(), [np.array([attempt * 100 + i * 10 + 1.5], dtype=np.float32)])
 
+
 def test_external_source_mixed_contiguous():
     batch_size = 2
     iterations = 4
+
     def generator(i):
         if i % 2:
             return cp.array([[100 + i * 10 + 1.5]] * batch_size, dtype=cp.float32)
@@ -64,6 +67,7 @@ def _test_cross_device(src, dst):
     pipe = Pipeline(1, 3, dst)
 
     iter = 0
+
     def get_data():
         nonlocal iter
         with cp.cuda.Device(src):
@@ -78,6 +82,7 @@ def _test_cross_device(src, dst):
     for i in range(10):
         out, = pipe.run()
         assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1,2,3,4],[5,6,7,8]]) + i)
+
 
 @attr('multigpu')
 def test_cross_device():

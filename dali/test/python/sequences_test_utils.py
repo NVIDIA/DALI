@@ -71,6 +71,7 @@ class ArgCb:
         Controls whether the produced data should be passed to the operator in cpu or gpu memory.
         If set to "gpu", the copy to gpu is added in the pipeline. Applicable only to positional inputs.
     """
+
     def __init__(self, name: Union[str, int], cb: Callable[[SampleDesc], np.ndarray], is_per_frame: bool, dest_device: str = "cpu"):
         self.desc = ArgDesc(name, is_per_frame, dest_device)
         self.cb = cb

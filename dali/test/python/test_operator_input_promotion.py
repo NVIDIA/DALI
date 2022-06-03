@@ -16,6 +16,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
 
+
 def test_cat_numpy_array():
     pipe = dali.pipeline.Pipeline(1,1,None)
     src = fn.external_source([[np.array([[10,11],[12,13]], dtype=np.float32)]])
@@ -32,6 +33,7 @@ def test_stack_numpy_scalar():
     pipe.build()
     o = pipe.run()
     assert np.array_equal(o[0].at(0), np.array([[10,11,20],[12,13,21]]))
+
 
 def test_slice_fn():
     pipe = dali.pipeline.Pipeline(1,1,0)
@@ -63,13 +65,14 @@ def test_python_function():
     pipe = dali.pipeline.Pipeline(3,1,0, exec_async=False, exec_pipelined=False)
     with pipe:
         def func(inp):
-            ret = [x*x for x in inp]
+            ret = [x * x for x in inp]
             return ret
         out_cpu = fn.python_function(np.array([[1,2],[3,4]]), function=func, batch_processing=True)
         pipe.set_outputs(out_cpu)
     pipe.build()
     o = pipe.run()
     assert np.array_equal(o[0].at(0), np.array([[1,4],[9,16]]))
+
 
 def test_arithm_ops():
     pipe = dali.pipeline.Pipeline(1,1,None)
@@ -81,6 +84,7 @@ def test_arithm_ops():
     assert np.array_equal(o[0].at(0), np.array([[11,22],[33,44]]))
     assert np.array_equal(o[1].at(0), np.array([[6,7],[8,9]]))
     assert np.array_equal(o[2].at(0), np.array([[101,102],[103,104]]))
+
 
 def test_arg_input():
     pipe = dali.pipeline.Pipeline(1,1,None)

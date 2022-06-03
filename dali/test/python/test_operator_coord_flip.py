@@ -26,18 +26,19 @@ from test_utils import RandomDataIterator
 import math
 from nose.tools import *
 
+
 class CoordFlipPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, layout,
-                 center_x = None, center_y = None, center_z = None,
+                 center_x=None, center_y=None, center_z=None,
                  num_threads=1, device_id=0):
         super(CoordFlipPipeline, self).__init__(batch_size, num_threads, device_id)
         self.device = device
         self.iterator = iterator
-        self.coord_flip = ops.CoordFlip(device = self.device, layout=layout,
+        self.coord_flip = ops.CoordFlip(device=self.device, layout=layout,
                                         center_x=center_x, center_y=center_y, center_z=center_z)
-        self.flip_x = ops.random.CoinFlip(probability = 0.5)
-        self.flip_y = ops.random.CoinFlip(probability = 0.5)
-        self.flip_z = ops.random.CoinFlip(probability = 0.5) if len(layout) == 3 else None
+        self.flip_x = ops.random.CoinFlip(probability=0.5)
+        self.flip_y = ops.random.CoinFlip(probability=0.5)
+        self.flip_z = ops.random.CoinFlip(probability=0.5) if len(layout) == 3 else None
 
     def define_graph(self):
         inputs = fn.external_source(lambda: next(self.iterator))
@@ -51,6 +52,7 @@ class CoordFlipPipeline(Pipeline):
         if flip_z is not None:
             outputs.append(flip_z)
         return outputs
+
 
 def check_operator_coord_flip(device, batch_size, layout, shape, center_x, center_y, center_z):
     eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
@@ -86,6 +88,7 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
                 if flip_dim[d]:
                     expected_out_coords[:, d] = 2 * center_dim[d] - in_coords[:, d]
             np.testing.assert_allclose(out_coords[:, d], expected_out_coords[:, d])
+
 
 def test_operator_coord_flip():
     for device in ['cpu', 'gpu']:

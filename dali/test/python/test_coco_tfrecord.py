@@ -34,9 +34,9 @@ class TFRecordDetectionPipeline(Pipeline):
         super(TFRecordDetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
         self.input = ops.readers.TFRecord(
-            path = os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
-            index_path = os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
-            features = {
+            path=os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
+            index_path=os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
+            features={
                 'image/encoded' : tfrec.FixedLenFeature((), tfrec.string, ""),
                 'image/object/class/label':  tfrec.VarLenFeature([], tfrec.int64,  0),
                 'image/object/bbox':    tfrec.VarLenFeature([4], tfrec.float32, 0.0),
@@ -46,7 +46,7 @@ class TFRecordDetectionPipeline(Pipeline):
             random_shuffle=False)
 
         self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
-        self.cast = ops.Cast(dtype = types.INT32)
+        self.cast = ops.Cast(dtype=types.INT32)
         self.box_encoder = ops.BoxEncoder(
             device="cpu",
             criteria=0.5,
@@ -70,7 +70,7 @@ class TFRecordDetectionPipeline(Pipeline):
 
 
 class COCODetectionPipeline(Pipeline):
-    def __init__(self, args, data_path = test_data_path):
+    def __init__(self, args, data_path=test_data_path):
         super(COCODetectionPipeline, self).__init__(
             args.batch_size, args.num_workers, 0, 0)
 

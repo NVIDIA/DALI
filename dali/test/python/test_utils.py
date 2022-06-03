@@ -23,13 +23,14 @@ import sys
 import random
 import re
 
+
 def get_dali_extra_path():
-  try:
-      dali_extra_path = os.environ['DALI_EXTRA_PATH']
-  except KeyError:
-      print("WARNING: DALI_EXTRA_PATH not initialized.", file=sys.stderr)
-      dali_extra_path = "."
-  return dali_extra_path
+    try:
+        dali_extra_path = os.environ['DALI_EXTRA_PATH']
+    except KeyError:
+        print("WARNING: DALI_EXTRA_PATH not initialized.", file=sys.stderr)
+        dali_extra_path = "."
+    return dali_extra_path
 
 
 # those functions import modules on demand to no impose additional dependency on numpy or matplot
@@ -182,6 +183,7 @@ def check_batch(
                 np.save("err_1.npy", left)
                 np.save("err_2.npy", right)
                 assert False, error_msg
+
 
 def compare_pipelines(pipe1, pipe2, batch_size, N_iterations, eps=1e-07, max_allowed_error=None,
                       expected_layout=None, compare_layouts=True):
@@ -517,7 +519,8 @@ def to_array(dali_out):
         dali_out = dali_out.as_array()
     return np.array(dali_out)
 
-def module_functions(cls, prefix = "", remove_prefix = ""):
+
+def module_functions(cls, prefix="", remove_prefix=""):
     res = []
     if "_schema_name" in cls.__dict__.keys():
         prefix = prefix.replace(remove_prefix, "")
@@ -531,16 +534,17 @@ def module_functions(cls, prefix = "", remove_prefix = ""):
         for c in cls.__dict__.keys():
             if not c.startswith("_") and c not in sys.builtin_module_names:
                 c = cls.__dict__[c]
-                res += module_functions(c, cls.__name__, remove_prefix = remove_prefix)
+                res += module_functions(c, cls.__name__, remove_prefix=remove_prefix)
     return res
 
+
 def get_files(path, ext):
-  full_path = os.path.join(get_dali_extra_path(), path)
-  audio_files = [
-      os.path.join(full_path, f) for f in os.listdir(full_path) \
-      if re.match(f".*\.{ext}", f) is not None
-  ]
-  return audio_files
+    full_path = os.path.join(get_dali_extra_path(), path)
+    audio_files = [
+        os.path.join(full_path, f) for f in os.listdir(full_path) \
+        if re.match(f".*\.{ext}", f) is not None
+    ]
+    return audio_files
 
 
 def _test_skipped(reason=None):
@@ -558,6 +562,7 @@ def restrict_python_version(major, minor=None):
 
     return decorator
 
+
 def generator_random_data(batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
                           dtype=None, val_range=[0, 255]):
     import_numpy()
@@ -565,6 +570,7 @@ def generator_random_data(batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
         dtype = np.uint8
     assert len(min_sh) == len(max_sh)
     ndim = len(min_sh)
+
     def gen():
         out = []
         for _ in range(batch_size):
@@ -578,9 +584,11 @@ def generator_random_data(batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
         return out
     return gen
 
+
 def generator_random_axes_for_3d_input(batch_size, use_negative=False, use_empty=False,
                                        extra_out_desc=[]):
     import_numpy()
+
     def gen():
         ndim = 3
         options = [
@@ -622,6 +630,7 @@ def generator_random_axes_for_3d_input(batch_size, use_negative=False, use_empty
             extra_outputs.append(extra_out)
         return tuple([axes] + extra_outputs)
     return gen
+
 
 def as_array(tensor):
     import_numpy()

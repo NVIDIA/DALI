@@ -35,8 +35,9 @@ bboxes_data = {
     3 : [bbox_3d_ltrb_1, bbox_3d_ltrb_2, bbox_3d_ltrb_3]
 }
 
+
 class BBoxDataIterator():
-    def __init__(self, n, batch_size, ndim = 2, produce_labels = False):
+    def __init__(self, n, batch_size, ndim=2, produce_labels=False):
         self.batch_size = batch_size
         self.ndim = ndim
         self.produce_labels = produce_labels
@@ -89,17 +90,17 @@ class BBoxDataIterator():
 class RandomBBoxCropSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size,
                  bbox_source,
-                 thresholds = [0, 0.01, 0.05, 0.1, 0.15],
-                 threshold_type = 'iou',
-                 scaling = [0.3, 1.0],
-                 aspect_ratio = [0.5, 2.0],
-                 bbox_layout = "xyXY",
-                 num_attempts = 100,
-                 allow_no_crop = False,
-                 input_shape = None,
-                 crop_shape = None,
-                 all_boxes_above_threshold = False,
-                 output_bbox_indices = False,
+                 thresholds=[0, 0.01, 0.05, 0.1, 0.15],
+                 threshold_type='iou',
+                 scaling=[0.3, 1.0],
+                 aspect_ratio=[0.5, 2.0],
+                 bbox_layout="xyXY",
+                 num_attempts=100,
+                 allow_no_crop=False,
+                 input_shape=None,
+                 crop_shape=None,
+                 all_boxes_above_threshold=False,
+                 output_bbox_indices=False,
                  num_threads=1, device_id=0, num_gpus=1):
         super(RandomBBoxCropSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
@@ -108,24 +109,25 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
         self.bbox_source = bbox_source
 
         self.bbox_crop = ops.RandomBBoxCrop(
-            device = self.device,
-            aspect_ratio = aspect_ratio,
-            scaling = scaling,
-            thresholds = thresholds,
-            threshold_type = threshold_type,
-            bbox_layout = bbox_layout,
-            num_attempts = num_attempts,
-            allow_no_crop = allow_no_crop,
-            input_shape = input_shape,
-            crop_shape = crop_shape,
-            all_boxes_above_threshold = all_boxes_above_threshold,
-            output_bbox_indices = output_bbox_indices
+            device=self.device,
+            aspect_ratio=aspect_ratio,
+            scaling=scaling,
+            thresholds=thresholds,
+            threshold_type=threshold_type,
+            bbox_layout=bbox_layout,
+            num_attempts=num_attempts,
+            allow_no_crop=allow_no_crop,
+            input_shape=input_shape,
+            crop_shape=crop_shape,
+            all_boxes_above_threshold=all_boxes_above_threshold,
+            output_bbox_indices=output_bbox_indices
         )
 
     def define_graph(self):
         inputs = fn.external_source(source=self.bbox_source, num_outputs=self.bbox_source.num_outputs)
         outputs = self.bbox_crop(*inputs)
         return [inputs[0], *outputs]
+
 
 def crop_contains(crop_anchor, crop_shape, point):
     ndim = len(crop_shape)
@@ -140,6 +142,7 @@ def crop_contains(crop_anchor, crop_shape, point):
         return False
     return True
 
+
 def filter_by_centroid(crop_anchor, crop_shape, bboxes):
     ndim = len(crop_shape)
     nboxes = bboxes.shape[0]
@@ -152,6 +155,7 @@ def filter_by_centroid(crop_anchor, crop_shape, bboxes):
         filtered_boxes = np.array(bboxes[indexes, :])
     return filtered_boxes
 
+
 def map_box(bbox, crop_anchor, crop_shape):
     ndim = int(len(bbox) / 2)
     assert len(crop_anchor) == ndim
@@ -161,13 +165,14 @@ def map_box(bbox, crop_anchor, crop_shape):
         c_start = crop_anchor[d]
         c_end = crop_anchor[d] + crop_shape[d]
         b_start = bbox[d]
-        b_end = bbox[ndim+d]
+        b_end = bbox[ndim + d]
         rel_extent = c_end - c_start
         n_start = (max(c_start, b_start) - c_start) / rel_extent
         n_end = (min(c_end, b_end) - c_start) / rel_extent
         new_bbox[d] = max(0.0, min(1.0, n_start))
         new_bbox[ndim + d] = max(0.0, min(1.0, n_end))
     return new_bbox
+
 
 def check_processed_bboxes(crop_anchor, crop_shape, original_boxes, processed_boxes, bbox_indices=None):
     if bbox_indices is not None:
@@ -183,6 +188,7 @@ def check_processed_bboxes(crop_anchor, crop_shape, original_boxes, processed_bo
         expected_box = map_box(box, crop_anchor, crop_shape)
         assert(np.allclose(expected_box, processed_box, atol=1e-6))
 
+
 def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
     ndim = len(shape)
     k = 0
@@ -197,15 +203,16 @@ def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
         assert anchor[d] >= 0.0 and anchor[d] <= 1.0, anchor
         assert(anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= 1.0)
 
-        for d2 in range(d+1, ndim):
+        for d2 in range(d + 1, ndim):
             ar = shape[d] / shape[d2]
-            ar_min = aspect_ratio[k*2]
-            ar_max = aspect_ratio[k*2+1]
+            ar_min = aspect_ratio[k * 2]
+            ar_max = aspect_ratio[k * 2 + 1]
             if ar_min == ar_max:
                 assert np.isclose(ar, ar_min), "ar {}/{} = {} is not close to ar_min={}".format(d, d2, ar, ar_min)
             else:
-                assert ar >= aspect_ratio[k*2] and ar <= aspect_ratio[k*2+1]
+                assert ar >= aspect_ratio[k * 2] and ar <= aspect_ratio[k * 2 + 1]
             k = int((k + 1) % nranges)
+
 
 def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
     ndim = len(shape)
@@ -214,6 +221,7 @@ def check_crop_dims_fixed_size(anchor, shape, expected_crop_shape, input_shape):
         assert anchor[d] >= anchor_rng[0] and anchor[d] <= anchor_rng[1], \
             f"Expected anchor[{d}] to be within the range {anchor_rng}. Got: {anchor[d]}"
         assert shape[d] == expected_crop_shape[d], "{} != {}".format(shape, expected_crop_shape)
+
 
 def check_random_bbox_crop_variable_shape(batch_size, ndim, scaling, aspect_ratio, use_labels, output_bbox_indices):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
@@ -253,6 +261,7 @@ def test_random_bbox_crop_variable_shape():
                     yield check_random_bbox_crop_variable_shape, \
                         batch_size, ndim, scaling, aspect_ratio, use_labels, out_bbox_indices
 
+
 def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape, use_labels):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
     bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
@@ -261,7 +270,7 @@ def check_random_bbox_crop_fixed_shape(batch_size, ndim, crop_shape, input_shape
                                            bbox_layout=bbox_layout,
                                            scaling=None, aspect_ratio=None,
                                            input_shape=input_shape, crop_shape=crop_shape,
-                                           all_boxes_above_threshold = False)
+                                           all_boxes_above_threshold=False)
     pipe.build()
     for i in range(100):
         outputs = pipe.run()
@@ -294,6 +303,7 @@ def test_random_bbox_crop_fixed_shape():
                         yield check_random_bbox_crop_fixed_shape, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
 
+
 def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, use_labels):
     bbox_source = BBoxDataIterator(100, batch_size, ndim, produce_labels=use_labels)
     bbox_layout = "xyzXYZ" if ndim == 3 else "xyXY"
@@ -305,7 +315,7 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
                                            bbox_layout=bbox_layout,
                                            scaling=None, aspect_ratio=None,
                                            input_shape=input_shape, crop_shape=crop_shape,
-                                           all_boxes_above_threshold = False)
+                                           all_boxes_above_threshold=False)
     pipe.build()
     for _ in range(100):
         outputs = pipe.run()
@@ -331,6 +341,7 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
                     break
             assert(at_least_one_box_in)
 
+
 def test_random_bbox_crop_overlap():
     input_shapes = {
         2: [[400, 300]],
@@ -348,14 +359,16 @@ def test_random_bbox_crop_overlap():
                         yield check_random_bbox_crop_overlap, \
                                 batch_size, ndim, crop_shape, input_shape, use_labels
 
+
 def test_random_bbox_crop_no_labels():
     batch_size = 3
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     test_box_shape = [200, 4]
+
     def get_boxes():
-        out = [(np.random.randint(0, 255, size = test_box_shape, dtype = np.uint8) / 255).astype(dtype = np.float32) for _ in range(batch_size)]
+        out = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255).astype(dtype=np.float32) for _ in range(batch_size)]
         return out
-    boxes = fn.external_source(source = get_boxes)
+    boxes = fn.external_source(source=get_boxes)
     processed = fn.random_bbox_crop(boxes,
                                     aspect_ratio=[0.5, 2.0],
                                     thresholds=[0.1, 0.3, 0.5],
@@ -365,6 +378,7 @@ def test_random_bbox_crop_no_labels():
     pipe.build()
     for _ in range(3):
         pipe.run()
+
 
 def _testimpl_random_bbox_crop_square(use_input_shape):
     batch_size = 3
@@ -400,6 +414,7 @@ def _testimpl_random_bbox_crop_square(use_input_shape):
                 np.testing.assert_allclose(in_shape[0] * out_crop_shape[0], in_shape[1] * out_crop_shape[1], rtol=1e-06)
             else:
                 np.testing.assert_allclose(out_crop_shape[0], out_crop_shape[1], rtol=1e-06)
+
 
 def test_random_bbox_crop_square():
     for use_input_shape in [False, True]:

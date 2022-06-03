@@ -23,6 +23,7 @@ from functools import partial
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
+
 def setup_pytorch():
     global torch_dlpack
     global torch
@@ -31,9 +32,11 @@ def setup_pytorch():
     global torch_stream
     torch_stream = torch.cuda.Stream()
 
+
 def setup_mxnet():
     global mxnd
     from mxnet import ndarray as mxnd
+
 
 def setup_cupy():
     global cupy
@@ -70,6 +73,7 @@ def setup_cupy():
         }
     }
     ''', 'gray_scale')
+
 
 def random_seed():
     return int(random.random() * (1 << 32))
@@ -277,8 +281,8 @@ def cupy_case(fun, synchronize=True):
 def cupy_simple(in1, in2):
     fin1 = [arr.astype(cupy.float32) for arr in in1]
     fin2 = [arr.astype(cupy.float32) for arr in in2]
-    return [cupy.sin(fin1[i]*fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)], \
-           [cupy.cos(fin1[i]*fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)]
+    return [cupy.sin(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)], \
+           [cupy.cos(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)]
 
 
 def gray_scale_call(input):

@@ -26,8 +26,9 @@ from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
 
-def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_size = 3,
-                                           num_iters = 4, num_threads = 4, device_id = 0, seed=1234):
+
+def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_size=3,
+                                           num_iters=4, num_threads=4, device_id=0, seed=1234):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=seed)
     with pipe:
         # Read data from COCO
@@ -75,7 +76,7 @@ def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_si
         scale_rel_to_abs = fn.transforms.scale(scale=fn.cat(w, h))
 
         # Selected vertices (relative coordinates)
-        sel_vertices_abs= fn.coord_transform(out_vertices, MT=scale_rel_to_abs)
+        sel_vertices_abs = fn.coord_transform(out_vertices, MT=scale_rel_to_abs)
 
         # Output bboxes
         bbox2_x = fn.slice(out_bboxes, 0, 1, axes=[1])
@@ -183,6 +184,7 @@ def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_si
             expected_out_bboxes_abs[:, 2] = expected_out_bboxes_abs[:, 2] * w
             expected_out_bboxes_abs[:, 3] = expected_out_bboxes_abs[:, 3] * h
             np.testing.assert_allclose(expected_out_bboxes_abs, out_bboxes_abs, rtol=1e-4)
+
 
 def test_bbox_random_crop_adjust_polygons():
     file_root = os.path.join(test_data_root, 'db', 'coco', 'images')

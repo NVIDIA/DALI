@@ -26,6 +26,7 @@ from test_utils import RandomlyShapedDataIterator
 import math
 import librosa as librosa
 
+
 class MelFilterBankPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_low, freq_high,
                  normalize, mel_formula, layout='ft', num_threads=1, device_id=0):
@@ -33,14 +34,14 @@ class MelFilterBankPipeline(Pipeline):
         self.device = device
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.fbank = ops.MelFilterBank(device = self.device,
-                                       nfilter = nfilter,
-                                       sample_rate = sample_rate,
-                                       freq_low = freq_low,
-                                       freq_high = freq_high,
-                                       normalize = normalize,
-                                       mel_formula = mel_formula)
-        self.layout=layout
+        self.fbank = ops.MelFilterBank(device=self.device,
+                                       nfilter=nfilter,
+                                       sample_rate=sample_rate,
+                                       freq_low=freq_low,
+                                       freq_high=freq_high,
+                                       normalize=normalize,
+                                       mel_formula=mel_formula)
+        self.layout = layout
 
     def define_graph(self):
         self.data = self.inputs()
@@ -52,6 +53,7 @@ class MelFilterBankPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
+
 def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, input_data):
     in_shape = input_data.shape
     axis = -2 if len(in_shape) > 1 else 0
@@ -60,7 +62,7 @@ def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_for
     librosa_norm = 'slaney' if normalize else None
     librosa_htk = (mel_formula == 'htk')
     mel_transform = librosa.filters.mel(
-        sr = sample_rate, n_mels=nfilter, n_fft = nfft,
+        sr=sample_rate, n_mels=nfilter, n_fft=nfft,
         fmin=freq_low, fmax=freq_high,
         norm=librosa_norm, dtype=np.float32, htk=librosa_htk)
 
@@ -76,6 +78,7 @@ def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_for
         out = np.dot(mel_transform, input_data)
     return out
 
+
 class MelFilterBankPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_low, freq_high,
                  normalize, mel_formula, layout='ft', num_threads=1, device_id=0, func=mel_fbank_func):
@@ -88,7 +91,7 @@ class MelFilterBankPythonPipeline(Pipeline):
 
         function = partial(func, nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula)
         self.mel_fbank = ops.PythonFunction(function=function)
-        self.layout=layout
+        self.layout = layout
         self.freq_major = layout.find('f') != len(layout) - 1
         self.need_transpose = not self.freq_major and len(layout) > 1
         if self.need_transpose:
@@ -111,6 +114,7 @@ class MelFilterBankPythonPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
+
 def check_operator_mel_filter_bank_vs_python(device, batch_size, max_shape,
                                              nfilter, sample_rate, freq_low, freq_high,
                                              normalize, mel_formula, layout):
@@ -127,6 +131,7 @@ def check_operator_mel_filter_bank_vs_python(device, batch_size, max_shape,
                                     nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
                                     normalize=normalize, mel_formula=mel_formula, layout=layout),
         batch_size=batch_size, N_iterations=3, eps=1e-03)
+
 
 def test_operator_mel_filter_bank_vs_python():
     for device in ['cpu', 'gpu']:

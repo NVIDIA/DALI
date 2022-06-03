@@ -34,6 +34,7 @@ def get_sample_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=T
         return result
     return callback
 
+
 def get_batch_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
     def callback(x):
         if x > iter_limit:
@@ -45,6 +46,7 @@ def get_batch_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=Tr
             elem[1] = x
         return np.stack(result) if dense else result
     return callback
+
 
 def get_batch_one_arg_callback_with_batch_info(dtype, iter_limit=1000, batch_size=None, dense=True):
     def callback(x):
@@ -58,6 +60,7 @@ def get_batch_one_arg_callback_with_batch_info(dtype, iter_limit=1000, batch_siz
             elem[2] = x.epoch_idx
         return np.stack(result) if dense else result
     return callback
+
 
 def get_no_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
     class Callable:
@@ -82,6 +85,7 @@ def get_no_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
                 return np.stack(result)
     return Callable()
 
+
 class UnwrapIterator:
     def __init__(self, iterator):
         self.iterator = iterator
@@ -91,6 +95,7 @@ class UnwrapIterator:
 
     def __next__(self):
         return next(self.iterator)[0]
+
 
 class DenseIterator:
     def __init__(self, iterator):
@@ -106,6 +111,7 @@ class DenseIterator:
 class FiniteIterator:
     """Used to wrap RandomlyShapedDataIterator to add iteration counts and finite data size
     """
+
     def __init__(self, iterator, iter_limit):
         self.iterator = iterator
         self.iter_limit = iter_limit
@@ -137,6 +143,7 @@ def get_iterable(dtype, iter_limit=1000, batch_size=None, dense=True):
     else:
         return DenseIterator(iter(result)) if dense else result
 
+
 def get_iterable_generator(dtype, iter_limit=1000, batch_size=None, dense=True):
     def generator():
         iterator = iter(get_iterable(dtype, iter_limit, batch_size, dense))
@@ -167,6 +174,7 @@ es_configurations = [
     # (get_iterable_generator, True, "raise", False),
 ]
 
+
 def get_external_source_pipe(es_args, dtype, es_device):
     def get_pipeline_desc(batch_size, num_threads, device, device_id, shard_id, num_shards,
                           def_for_dataset):
@@ -181,6 +189,7 @@ def get_external_source_pipe(es_args, dtype, es_device):
             pipe.set_outputs(pad)
         return pipe, None, dtype
     return get_pipeline_desc
+
 
 def external_source_to_tf_dataset(pipe_desc, device_str): # -> tf.data.Dataset
     pipe, _, dtypes = pipe_desc

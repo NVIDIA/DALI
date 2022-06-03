@@ -27,12 +27,14 @@ from test_utils import RandomDataIterator
 from test_utils import RandomlyShapedDataIterator
 import itertools
 
+
 def transpose_func(image, permutation=(1, 0, 2)):
     return image.transpose(permutation)
 
+
 class TransposePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0,
-                 permutation = (1, 0, 2), transpose_layout=False, out_layout_arg=None):
+                 permutation=(1, 0, 2), transpose_layout=False, out_layout_arg=None):
         super(TransposePipeline, self).__init__(batch_size,
                                                 num_threads,
                                                 device_id)
@@ -41,14 +43,14 @@ class TransposePipeline(Pipeline):
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
         if out_layout_arg:
-            self.transpose = ops.Transpose(device = self.device,
-                                           perm = permutation,
-                                           transpose_layout = transpose_layout,
-                                           output_layout = out_layout_arg)
+            self.transpose = ops.Transpose(device=self.device,
+                                           perm=permutation,
+                                           transpose_layout=transpose_layout,
+                                           output_layout=out_layout_arg)
         else:
-            self.transpose = ops.Transpose(device = self.device,
-                                           perm = permutation,
-                                           transpose_layout = transpose_layout)
+            self.transpose = ops.Transpose(device=self.device,
+                                           perm=permutation,
+                                           transpose_layout=transpose_layout)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -59,6 +61,7 @@ class TransposePipeline(Pipeline):
     def iter_setup(self):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
+
 
 class PythonOpPipeline(Pipeline):
     def __init__(self, function, batch_size, layout, iterator, num_threads=1, device_id=0):
@@ -81,8 +84,9 @@ class PythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
+
 def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation):
-    max_shape = [int(math.pow(total_volume/batch_size, 1/dim))] * dim
+    max_shape = [int(math.pow(total_volume / batch_size, 1 / dim))] * dim
     print("Testing", device, "backend with batch of", batch_size, "max size", max_shape)
     print("permutation ", permutation)
     eii1 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
@@ -91,8 +95,10 @@ def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation)
                       PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "", iter(eii2)),
                       batch_size=batch_size, N_iterations=3)
 
+
 def all_permutations(n):
     return itertools.permutations(range(n))
+
 
 def test_transpose_vs_numpy():
     for device in ['cpu', 'gpu']:
@@ -100,6 +106,7 @@ def test_transpose_vs_numpy():
             for dim in range(2, 5):
                 for permutation in all_permutations(dim):
                     yield check_transpose_vs_numpy, device, batch_size, dim, 1000000, permutation
+
 
 def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
                            transpose_layout, out_layout_arg):
@@ -120,6 +127,7 @@ def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
         expected_out_layout = "" if in_layout is None else in_layout
 
     assert(out[0].layout() == expected_out_layout)
+
 
 def test_transpose_layout():
     batch_size = 3

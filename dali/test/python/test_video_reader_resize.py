@@ -151,6 +151,7 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
                 assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
                             gt_frame.shape, frame.shape)
 
+
 def run_for_params(batch_size, video_reader_params, resize_params):
     pipeline = video_reader_resize_pipeline(
         batch_size, video_reader_params, resize_params)

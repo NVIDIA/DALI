@@ -26,6 +26,7 @@ from test_utils import to_array
 
 test_data_root = get_dali_extra_path()
 
+
 def coco_anchors():
     anchors = []
 
@@ -90,9 +91,9 @@ def normalize_ref(image):
     normalization_mean = [0.485, 0.456, 0.406]
     normalization_std = [0.229, 0.224, 0.225]
 
-    image = image.astype(dtype=np.float).transpose((2,0,1))/255
+    image = image.astype(dtype=np.float).transpose((2,0,1)) / 255
     for plane, (m, s) in zip(range(len(image)), zip(normalization_mean, normalization_std)):
-        image[plane] = (image[plane]- m)/s
+        image[plane] = (image[plane] - m) / s
     return image
 
 
@@ -330,12 +331,14 @@ def compare(val_1, val_2, reference=None):
 
     return test
 
+
 def crop_border(image, border):
     return image[border:-border, border:-border, :]
 
 
 def diff_against_eps(image_1, image_2, eps):
     return np.absolute(image_1.astype(float) - image_2.astype(float)).max() <= eps
+
 
 def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
     test = diff_against_eps(val_1, val_2, eps)
@@ -351,6 +354,7 @@ def relaxed_compare(val_1, val_2, reference=None, eps=1, border=0):
             test = test and diff_against_eps(reference, val_1, eps)
             test = test and diff_against_eps(reference, val_2, eps)
     return test
+
 
 def run_for_dataset(args, dataset):
     print("Build pipeline")
@@ -407,7 +411,7 @@ def run_for_dataset(args, dataset):
                 image_normalized_cpu, image_normalized_gpu, image_normalized_ref)
 
             # Check twisting ops
-            twist_gpu_cpu = relaxed_compare(image_twisted_cpu, image_twisted_gpu, eps = 2)
+            twist_gpu_cpu = relaxed_compare(image_twisted_cpu, image_twisted_gpu, eps=2)
             twist = twist_gpu_cpu and hsv_bc_twist
 
             # Check flipping ops

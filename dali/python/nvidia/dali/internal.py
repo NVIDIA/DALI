@@ -1,6 +1,7 @@
 import sys
 import types
 
+
 def get_submodule(root, path):
     """Gets or creates sumbodule(s) of `root`.
 If the module path contains multiple parts, multiple modules are traversed or created

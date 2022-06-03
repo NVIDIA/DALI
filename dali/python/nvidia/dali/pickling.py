@@ -17,6 +17,7 @@ import pickle
 import io
 from nvidia.dali import reducers
 
+
 class _DaliPickle:
 
     @staticmethod

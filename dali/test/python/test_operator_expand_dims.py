@@ -20,12 +20,14 @@ from nose_utils import assert_raises
 
 
 def get_data(shapes):
-    return [np.empty(shape, dtype = np.uint8) for shape in shapes]
+    return [np.empty(shape, dtype=np.uint8) for shape in shapes]
+
 
 @pipeline_def
 def expand_dims_pipe(shapes, axes=None, new_axis_names=None, layout=None):
-    data = fn.external_source(lambda: get_data(shapes), layout=layout, batch=True, device = "cpu")
+    data = fn.external_source(lambda: get_data(shapes), layout=layout, batch=True, device="cpu")
     return fn.expand_dims(data, axes=axes, new_axis_names=new_axis_names)
+
 
 def _testimpl_expand_dims(axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout):
     batch_size = len(shapes)
@@ -55,6 +57,7 @@ def test_expand_dims():
     ]
     for axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
         yield _testimpl_expand_dims, axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout
+
 
 def test_expand_dims_throw_error():
     args = [

@@ -25,6 +25,7 @@ DALI_EXTRA_PATH = get_dali_extra_path()
 EPOCH_SIZE = 32
 BATCH_SIZE = 1
 
+
 class DetectionPipeline(Pipeline):
     def __init__(self, batch_size, device_id, file_root, annotations_file):
         super(DetectionPipeline, self).__init__(
@@ -43,6 +44,7 @@ class DetectionPipeline(Pipeline):
         inputs, boxes, labels = self.input(name="Reader")
         return inputs, boxes.gpu(), labels
 
+
 def data_paths():
     root = os.path.join(DALI_EXTRA_PATH, 'db', 'coco', 'images')
     annotations = os.path.join(DALI_EXTRA_PATH, 'db', 'coco', 'instances.json')
@@ -51,6 +53,7 @@ def data_paths():
 #####################################
 ########## Unit tests ###############
 #####################################
+
 
 def test_mxnet_pipeline_dynamic_shape():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
@@ -91,15 +94,18 @@ def test_api_fw_check1_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     test_api_fw_check1(PyTorchIterator, ['data', 'bboxes', 'label'])
 
+
 def test_api_fw_check1_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     test_api_fw_check1(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
                                         ('bboxes', MXNetIterator.LABEL_TAG),
                                         ('label', MXNetIterator.LABEL_TAG)])
 
+
 def test_api_fw_check1_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     test_api_fw_check1(PaddleIterator, ['data', 'bboxes', 'label'])
+
 
 def test_api_fw_check1(iter_type, data_definition):
     root, annotations = data_paths()
@@ -122,19 +128,23 @@ def test_api_fw_check1(iter_type, data_definition):
             assert(False)
     yield check, iter_type
 
+
 def test_api_fw_check2_mxnet():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     test_api_fw_check2(MXNetIterator, [('data', MXNetIterator.DATA_TAG),
                                         ('bboxes', MXNetIterator.LABEL_TAG),
                                         ('label', MXNetIterator.LABEL_TAG)])
 
+
 def test_api_fw_check2_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     test_api_fw_check2(PyTorchIterator, ['data', 'bboxes', 'label'])
 
+
 def test_api_fw_check2_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     test_api_fw_check2(PaddleIterator, ['data', 'bboxes', 'label'])
+
 
 def test_api_fw_check2(iter_type, data_definition):
     root, annotations = data_paths()
@@ -161,6 +171,7 @@ def test_api_fw_check2(iter_type, data_definition):
     except RuntimeError:
         assert(False)
     yield check, iter_type
+
 
 def check(iter_type):
     pass

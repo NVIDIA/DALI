@@ -20,12 +20,14 @@ from nose_utils import raises
 
 
 def get_data(shapes):
-    return [np.empty(shape, dtype = np.uint8) for shape in shapes]
+    return [np.empty(shape, dtype=np.uint8) for shape in shapes]
+
 
 @pipeline_def
 def squeeze_pipe(shapes, axes=None, axis_names=None, layout=None):
-    data = fn.external_source(lambda: get_data(shapes), layout=layout, batch=True, device = "cpu")
+    data = fn.external_source(lambda: get_data(shapes), layout=layout, batch=True, device="cpu")
     return fn.squeeze(data, axes=axes, axis_names=axis_names)
+
 
 def _testimpl_squeeze(axes, axis_names, layout, shapes, expected_out_shapes, expected_layout):
     batch_size = len(shapes)

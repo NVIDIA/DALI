@@ -14,6 +14,7 @@
 
 from webdataset_base import *
 
+
 def cross_check(
     dont_use_mmap,
     batch_size,

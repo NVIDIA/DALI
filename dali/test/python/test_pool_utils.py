@@ -42,6 +42,7 @@ def setup_function():
     pool_threads = []
     pools = []
 
+
 def teardown_function():
     """Check if there are no children processes started by the test after it ended.
 
@@ -76,6 +77,7 @@ def check_shm_for_dali(msg):
 
 def setup_module():
     check_shm_for_dali("Expected clear shared mem environment before starting tests, found old DALI file handle: {}")
+
 
 def teardown_module():
     check_shm_for_dali("Test left opened shared memory file handle: {}")

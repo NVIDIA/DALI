@@ -23,10 +23,12 @@ _special_case_mapping = {
     "tf_record" : "tfrecord"
 }
 
+
 def _handle_special_case(s):
     for artifact, desired in _special_case_mapping.items():
         s = s.replace(artifact, desired)
     return s
+
 
 def _to_snake_case(pascal):
     out = ""
@@ -44,13 +46,13 @@ def _to_snake_case(pascal):
                 if len(out) > 0:
                     out += '_'
                 if nupper > 1:
-                    out += pascal[start:i-1].lower() + '_'
-                out += pascal[i-1].lower()
+                    out += pascal[start:i - 1].lower() + '_'
+                out += pascal[i - 1].lower()
                 out += c
                 nupper = 0
-            start = i+1
+            start = i + 1
         else:
-            out += pascal[start:i+1].lower()
+            out += pascal[start:i + 1].lower()
             start = i + 1
             nupper = 0
 
@@ -60,6 +62,7 @@ def _to_snake_case(pascal):
         out += pascal[start:].lower()
     out = _handle_special_case(out)
     return out
+
 
 def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     def op_wrapper(*inputs, **kwargs):
@@ -88,6 +91,7 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     fn_wrapper.__doc__ = wrapper_doc
     fn_wrapper._schema_name = op_class.schema_name
     return fn_wrapper
+
 
 def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     """Wrap the DALI Operator with fn API and insert the function into appropriate module.

@@ -24,6 +24,7 @@ test_data_root = get_dali_extra_path()
 path = 'db/single'
 file_types = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k'}
 
+
 def run_decode(data_path, out_type):
     batch_size = 4
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
@@ -47,7 +48,9 @@ def run_decode(data_path, out_type):
                 assert image.shape[d] == raw_shape.at(i)[d], "{} vs {}".format(image.shape[d], raw_shape.at(i)[d])
                 assert raw_shape.at(i)[d].dtype == shape_type, "{} vs {}".format(raw_shape.at(i)[d].dtyp, shape_type)
 
+
 test_types = [types.INT32, types.UINT32, types.INT64, types.UINT64, types.FLOAT, types.FLOAT64]
+
 
 def test_operator_peek_image_shape():
     for img_type in file_types:

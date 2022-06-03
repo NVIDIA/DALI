@@ -32,9 +32,9 @@ class FlipPipeline(Pipeline):
                                            num_threads,
                                            device_id)
         self.device = device
-        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
-        self.flip = ops.Flip(device = self.device, vertical=is_vertical, horizontal=is_horizontal)
+        self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
+        self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
+        self.flip = ops.Flip(device=self.device, vertical=is_vertical, horizontal=is_horizontal)
 
 
     def define_graph(self):
@@ -45,6 +45,7 @@ class FlipPipeline(Pipeline):
             images = images.gpu()
         images = self.flip(images)
         return images
+
 
 class SynthFlipPipeline(Pipeline):
     def __init__(self, batch_size, layout, data_iterator, device):

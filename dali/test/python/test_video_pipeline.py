@@ -29,7 +29,7 @@ from nose_utils import assert_raises, raises
 VIDEO_DIRECTORY = "/tmp/video_files"
 PLENTY_VIDEO_DIRECTORY = "/tmp/many_video_files"
 VIDEO_FILES = os.listdir(VIDEO_DIRECTORY)
-PLENTY_VIDEO_FILES=  os.listdir(PLENTY_VIDEO_DIRECTORY)
+PLENTY_VIDEO_FILES =  os.listdir(PLENTY_VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + '/' + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
@@ -41,9 +41,9 @@ corrupted_video_data_root = os.path.join(video_data_root, 'corrupted')
 video_containers_data_root = os.path.join(test_data_root, 'db', 'video', 'containers')
 video_types = ['avi', 'mov', 'mkv', 'mpeg']
 
-ITER=6
-BATCH_SIZE=4
-COUNT=5
+ITER = 6
+BATCH_SIZE = 4
+COUNT = 5
 
 
 class VideoPipe(Pipeline):
@@ -59,6 +59,7 @@ class VideoPipe(Pipeline):
         output = self.input(name="Reader")
         return output
 
+
 class VideoPipeList(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT, step=-1, stride=1,
                  file_list_frame_num=True, file_list_include_preceding_frame=False):
@@ -71,6 +72,7 @@ class VideoPipeList(Pipeline):
         output = self.input(name="Reader")
         return output
 
+
 class VideoPipeRoot(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
         super(VideoPipeRoot, self).__init__(batch_size, num_threads=2, device_id=device_id)
@@ -81,6 +83,7 @@ class VideoPipeRoot(Pipeline):
         output = self.input(name="Reader")
         return output
 
+
 def test_simple_videopipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES)
     pipe.build()
@@ -90,10 +93,12 @@ def test_simple_videopipeline():
         assert(out[0].layout() == "FHWC")
     del pipe
 
+
 def test_wrong_length_sequence_videopipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, sequence_length=100000)
     with assert_raises(RuntimeError, glob='There are no valid sequences in the provided dataset'):
         pipe.build()
+
 
 def check_videopipeline_supported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
@@ -103,21 +108,26 @@ def check_videopipeline_supported_type(dtype):
         _ = pipe.run()
     del pipe
 
+
 @raises(RuntimeError, glob='Data type must be FLOAT or UINT8')
 def check_videopipeline_unsupported_type(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     pipe.build()
 
+
 SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
 ALL_TYPES = list(types.DALIDataType.__members__.values())
+
 
 def test_simple_videopipeline_supported_types():
     for type in SUPPORTED_TYPES:
         yield check_videopipeline_supported_type, type
 
+
 def test_simple_videopipeline_not_supported_types():
     for type in set(ALL_TYPES) - set(SUPPORTED_TYPES):
         yield check_videopipeline_unsupported_type, type
+
 
 def test_file_list_videopipeline():
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=FILE_LIST)
@@ -126,6 +136,7 @@ def test_file_list_videopipeline():
         print("Iter " + str(i))
         _ = pipe.run()
     del pipe
+
 
 def _test_file_list_starts_videopipeline(start, end):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
@@ -165,6 +176,7 @@ def _test_file_list_starts_videopipeline(start, end):
     assert expected_seq_num == seq_num, "Reference is {}, expected is {}, obtained {}".format(reference_seq_num, expected_seq_num, seq_num)
     os.remove(list_file.name)
 
+
 def test_file_list_starts_ends_videopipeline():
     ranges = [
         [0, None],
@@ -179,6 +191,7 @@ def test_file_list_starts_ends_videopipeline():
     for r in ranges:
         yield _test_file_list_starts_videopipeline, r[0], r[1]
 
+
 def _create_file_list_include_preceding_frame_pipe(file_list_include_preceding_frame):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
@@ -190,6 +203,7 @@ def _create_file_list_include_preceding_frame_pipe(file_list_include_preceding_f
                          file_list_include_preceding_frame=file_list_include_preceding_frame)
 
     return pipe, list_file.name
+
 
 def test_file_list_include_preceding_frame():
     pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(True)
@@ -257,6 +271,7 @@ def test_step_video_pipeline():
         _ = pipe.run()
     del pipe
 
+
 def test_stride_video_pipeline():
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, stride=3)
     pipe.build()
@@ -264,6 +279,7 @@ def test_stride_video_pipeline():
         print("Iter " + str(i))
         _ = pipe.run()
     del pipe
+
 
 def test_multiple_resolution_videopipeline():
     pipe = VideoPipeRoot(batch_size=BATCH_SIZE, data=MUTLIPLE_RESOLUTION_ROOT)
@@ -279,6 +295,7 @@ def test_multiple_resolution_videopipeline():
             raise
     del pipe
 
+
 def test_multi_gpu_video_pipeline():
     gpus = get_gpu_num()
     pipes = [VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, device_id=d, num_shards=gpus) for d in range(gpus)]
@@ -286,8 +303,9 @@ def test_multi_gpu_video_pipeline():
         p.build()
         p.run()
 
-# checks if the readers.Video can handle more than OS max open file limit of opened files at once
+
 def test_plenty_of_video_files():
+    """ checks if the readers.Video can handle more than OS max open file limit of opened files at once """
     # make sure that there is one sequence per video file
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=PLENTY_VIDEO_FILES, step=1000000, sequence_length=1)
     pipe.build()
@@ -295,6 +313,7 @@ def test_plenty_of_video_files():
     for i in range(iters):
         print("Iter " + str(i))
         pipe.run()
+
 
 @raises(RuntimeError, glob='Could not open file * because of Invalid data found when processing input')
 def check_corrupted_videos():
@@ -306,8 +325,10 @@ def check_corrupted_videos():
             pipe.set_outputs(vid)
         pipe.build()
 
+
 def test_corrupted_videos():
     check_corrupted_videos()
+
 
 def check_container(cont):
     pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
@@ -324,9 +345,11 @@ def check_container(cont):
     for _ in range(iter_num):
         pipe.run()
 
+
 def test_container():
     for cont in video_types:
         yield check_container, cont
+
 
 def test_pad_sequence():
     def get_epoch_size(pipe):
@@ -349,14 +372,14 @@ def test_pad_sequence():
     total_number_of_frames = get_epoch_size(dali_pipe)
 
     sequence_length = 4
-    stride = sequence_length//2
+    stride = sequence_length // 2
     batch_size = 2
     # second sequence should have only half of the frames
-    step = total_number_of_frames - (stride * sequence_length//2 - 1)
+    step = total_number_of_frames - (stride * sequence_length // 2 - 1)
     dali_pipe = create_video_pipe(batch_size=batch_size, filenames=video_filename, sequence_length=sequence_length,
                                   stride=stride, step=step, pad_sequences=True)
     dali_pipe.build()
-    assert get_epoch_size(dali_pipe)== 2
+    assert get_epoch_size(dali_pipe) == 2
 
     last_sample_frame_count = 1 + (total_number_of_frames - 1 - step) // stride
     assert last_sample_frame_count < sequence_length

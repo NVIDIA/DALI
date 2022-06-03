@@ -20,6 +20,7 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.types as types
 
+
 class FilesDataSet:
 
     def __init__(self, data_path):
@@ -260,6 +261,7 @@ def get_pipe_factories(test_pipes, parallel_pipe, file_reader_pipe, scalar_pipe)
     if "scalar" in test_pipes:
         result.append(scalar_pipe)
     return result
+
 
 def parse_test_arguments(supports_distributed):
 

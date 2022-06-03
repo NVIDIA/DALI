@@ -51,6 +51,7 @@ def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=No
             pvs = pvs + [pv]
         assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
+
 def test_uniform_continuous():
     batch_size = 4
     shape = [100000]
@@ -58,6 +59,7 @@ def test_uniform_continuous():
     for device in ['cpu', 'gpu']:
         for val_range in [None, (200.0, 400.0)]:
             yield check_uniform_default, device, batch_size, shape, val_range, niter
+
 
 def check_uniform_continuous_next_after(device='cpu', batch_size=32, shape=[1e5], niter=3):
     batch_size = 4
@@ -77,12 +79,14 @@ def check_uniform_continuous_next_after(device='cpu', batch_size=32, shape=[1e5]
             assert (val_range[0] == data).all(), \
                 f"{data} is outside of requested range"
 
+
 def test_uniform_continuous_next_after():
     batch_size = 4
     shape = [100000]
     niter = 3
     for device in ['cpu', 'gpu']:
         yield check_uniform_continuous_next_after, device, batch_size, shape, niter
+
 
 def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None, niter=10):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
@@ -95,7 +99,7 @@ def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None
             if isinstance(outputs[0], TensorListGPU) else outputs[0]
         values_set = set(values)
         maxval = np.max(values)
-        bins = np.concatenate([values, np.array([np.nextafter(maxval, maxval+1)])])
+        bins = np.concatenate([values, np.array([np.nextafter(maxval, maxval + 1)])])
         bins.sort()
         pvs = []
         for i in range(batch_size):
@@ -106,6 +110,7 @@ def check_uniform_discrete(device='cpu', batch_size=32, shape=[1e5], values=None
             _, pv = st.chisquare(h)
             pvs = pvs + [pv]
         assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
+
 
 def test_uniform_discrete():
     batch_size = 4

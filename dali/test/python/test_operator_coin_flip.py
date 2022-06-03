@@ -21,14 +21,16 @@ import numpy as np
 import scipy.stats as st
 import math
 
-# Produces a random shape close to the max shape
+
 def random_shape(max_shape, diff=100):
-  for s in max_shape:
-      assert s > diff
-  return np.array(
-      [np.random.randint(s - diff, s) for s in max_shape],
-      dtype=np.int32
-    )
+    # Produces a random shape close to the max shape
+    for s in max_shape:
+        assert s > diff
+    return np.array(
+        [np.random.randint(s - diff, s) for s in max_shape],
+        dtype=np.int32
+      )
+
 
 def check_coin_flip(device='cpu', batch_size=32, max_shape=[1e5], p=None, use_shape_like_input=False):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
@@ -67,7 +69,8 @@ def check_coin_flip(device='cpu', batch_size=32, max_shape=[1e5], p=None, use_sh
             assert (data.shape == sample_shape).all()
             total = len(data)
             positive = np.count_nonzero(data)
-            np.testing.assert_allclose(p, positive/total, atol=0.005)  # +/- -.5%
+            np.testing.assert_allclose(p, positive / total, atol=0.005)  # +/- -.5%
+
 
 def test_coin_flip():
     batch_size = 8

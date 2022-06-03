@@ -14,6 +14,7 @@
 
 from webdataset_base import *
 
+
 def test_return_empty():
     global test_batch_size
     num_samples = 1000
@@ -280,6 +281,7 @@ def test_pax_format():
             test_batch_size,
             math.ceil(num_samples / num_shards / test_batch_size) * 2,
         )
+
 
 def test_index_generation():
     global test_batch_size

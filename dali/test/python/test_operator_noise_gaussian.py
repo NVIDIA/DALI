@@ -25,12 +25,13 @@ from test_utils import get_dali_extra_path, check_batch
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
+
 @pipeline_def
 def pipe_gaussian_noise(mean, stddev, variable_dist_params, device=None):
     encoded, _ = fn.readers.file(file_root=images_dir)
     in_data = fn.cast(
         fn.decoders.image(encoded, device="cpu", output_type=types.RGB),
-        dtype = types.FLOAT
+        dtype=types.FLOAT
     )
     if device == 'gpu':
         in_data = in_data.gpu()
@@ -44,6 +45,7 @@ def pipe_gaussian_noise(mean, stddev, variable_dist_params, device=None):
     out_data2 = in_data + fn.random.normal(in_data, mean=mean_arg, stddev=stddev_arg, seed=seed)
     return out_data1, out_data2
 
+
 def _testimpl_operator_noise_gaussian_vs_add_normal_dist(device, mean, stddev, variable_dist_params,
                                                          batch_size, niter):
     pipe = pipe_gaussian_noise(mean, stddev, variable_dist_params,
@@ -52,6 +54,7 @@ def _testimpl_operator_noise_gaussian_vs_add_normal_dist(device, mean, stddev, v
     for _ in range(niter):
         out0, out1 = pipe.run()
         check_batch(out0, out1, batch_size=batch_size, eps=0.1)
+
 
 def test_operator_noise_gaussian_vs_add_normal_dist():
     niter = 3

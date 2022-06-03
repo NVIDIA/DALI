@@ -242,7 +242,7 @@ def test_external_source_debug_multiple_outputs():
     n_iters = 13
     batch_size = 8
     num_outputs = 3
-    data = [[np.random.rand(batch_size, 120, 120, 3)]*num_outputs]*n_iters
+    data = [[np.random.rand(batch_size, 120, 120, 3)] * num_outputs] * n_iters
     pipe_debug = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size, debug=True)
     pipe_standard = es_pipeline_multiple_outputs(data, num_outputs, batch_size=batch_size)
 
@@ -284,7 +284,7 @@ def inputs_len_change():
         inputs_len_change.change = False
         inputs = [input]
     else:
-        inputs = [input]*2
+        inputs = [input] * 2
     return fn.cat(*inputs)
 
 
@@ -300,7 +300,7 @@ def test_inputs_len_change():
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
 def kwargs_len_change():
     input = [np.zeros(1)] * 8
-    inputs = [input]*2
+    inputs = [input] * 2
     kwargs = {}
     if kwargs_len_change.change:
         kwargs_len_change.change = False
@@ -323,7 +323,7 @@ def inputs_batch_change():
         inputs_batch_change.change = False
         input = np.zeros(8)
     else:
-        input = [np.zeros(1)]*8
+        input = [np.zeros(1)] * 8
     return fn.random.coin_flip(input)
 
 
@@ -343,7 +343,7 @@ def kwargs_batch_change():
         kwargs_batch_change.change = False
         kwargs['probability'] = 0.75
     else:
-        kwargs['probability'] = [np.zeros(1)]*8
+        kwargs['probability'] = [np.zeros(1)] * 8
     return fn.random.coin_flip(**kwargs)
 
 
@@ -358,8 +358,8 @@ def test_kwargs_batch_change():
 
 @pipeline_def
 def init_config_pipeline():
-  jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
-  return jpegs, labels
+    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    return jpegs, labels
 
 
 def test_init_config_pipeline():
@@ -550,8 +550,8 @@ def test_incorrect_variable_batch_size_from_es():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def incorrect_variable_batch_size_inside_es_pipeline():
-    src_data = [[[np.ones((120, 120, 3), dtype=np.uint8)]*8,
-                 [np.ones((120, 120, 3), dtype=np.float32)]*6]]
+    src_data = [[[np.ones((120, 120, 3), dtype=np.uint8)] * 8,
+                 [np.ones((120, 120, 3), dtype=np.float32)] * 6]]
     out1, out2 = fn.external_source(source=src_data, num_outputs=2,
                                     dtype=[types.DALIDataType.UINT8, types.DALIDataType.FLOAT])
     return out1, out2

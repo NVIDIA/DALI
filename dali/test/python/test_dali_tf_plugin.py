@@ -14,15 +14,18 @@
 
 import unittest
 
+
 class TestDaliTfPluginLoadOk(unittest.TestCase):
     def test_import_dali_tf_ok(self):
         import nvidia.dali.plugin.tf as dali_tf
         assert True
 
+
 class TestDaliTfPluginLoadFail(unittest.TestCase):
     def test_import_dali_tf_load_fail(self):
         with self.assertRaises(Exception):
             import nvidia.dali.plugin.tf as dali_tf
+
 
 if __name__ == '__main__':
     unittest.main()

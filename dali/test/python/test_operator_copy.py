@@ -20,6 +20,7 @@ import numpy as np
 
 batch_size = 10
 
+
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
 def copy_pipe(shape, layout, dev, dtype):
     min_shape = [s // 2 if s > 1 else 1 for s in shape]
@@ -34,6 +35,7 @@ def copy_pipe(shape, layout, dev, dtype):
     output = fn.copy(input)
     return input, output
 
+
 def check_copy(shape, layout, dev, dtype=np.uint8):
     pipe = copy_pipe(shape, layout, dev, dtype)
     pipe.build()
@@ -45,8 +47,9 @@ def check_copy(shape, layout, dev, dtype=np.uint8):
             obtained = to_array(output[i])
             np.testing.assert_array_equal(expected, obtained)
 
+
 def test_copy():
     for shape, layout in [([4, 2, 3], "HWC"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]:
-            for device in ["cpu", "gpu"]:
-                for dtype in [np.uint8, np.float16, np.int32]:
-                    yield check_copy, shape, layout, device, dtype
+        for device in ["cpu", "gpu"]:
+            for dtype in [np.uint8, np.float16, np.int32]:
+                yield check_copy, shape, layout, device, dtype

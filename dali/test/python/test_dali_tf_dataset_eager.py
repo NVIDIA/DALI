@@ -37,15 +37,19 @@ def test_tf_dataset_cpu():
     run_tf_dataset_eager_mode('cpu')
 
 # Return differently sized images to check if DALIDataset can handle this case gracefully
+
+
 @raises(tf.errors.FailedPreconditionError, glob='Batch output at index * from DALI pipeline is not uniform')
 def test_mixed_size_pipeline():
     run_tf_dataset_eager_mode('gpu', get_pipeline_desc=get_mix_size_image_pipeline)
+
 
 def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     tensor = np.full(shape, value, dtype)
     run_tf_dataset_eager_mode(dev,
         get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor), batch=batch),
         to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, batch))
+
 
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_with_constant_input():
@@ -106,8 +110,8 @@ def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
 def test_tf_dataset_with_random_input_gpu():
     for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
         for dtype in [np.uint8, np.int32, np.float32]:
-                for batch in ["dataset", False, True, None]:
-                    yield run_tf_dataset_with_random_input_gpu, max_shape, dtype, batch
+            for batch in ["dataset", False, True, None]:
+                yield run_tf_dataset_with_random_input_gpu, max_shape, dtype, batch
 
 
 def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
@@ -152,6 +156,7 @@ def test_tf_dataset_with_stop_iter():
             for dtype in [np.uint8, np.int32, np.float32]:
                 for iters in [1, 2, 3, 4, 5]:
                     yield run_tf_dataset_with_stop_iter, dev, max_shape, dtype, iters * batch_size - 3
+
 
 def run_tf_dataset_multi_input(dev, start_values, input_names, batches):
     run_tf_dataset_eager_mode(dev,
@@ -228,6 +233,7 @@ def check_basic_dataset_build(input_datasets):
 @raises(TypeError, glob='`input_datasets` must be a dictionary that maps input names * to input datasets')
 def check_tf_dataset_wrong_input_type(wrong_input_datasets):
     check_basic_dataset_build(wrong_input_datasets)
+
 
 @with_setup(skip_inputs_for_incompatible_tf)
 def test_tf_dataset_wrong_input_type():

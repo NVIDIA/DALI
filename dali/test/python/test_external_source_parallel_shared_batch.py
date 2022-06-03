@@ -98,6 +98,7 @@ def _put_msgs(queue, msgs, one_by_one):
         for msg in msgs:
             queue.put([msg])
 
+
 def test_queue_full_assertion():
     for start_method in ("spawn", "fork"):
         for capacity in [1, 4]:
@@ -119,6 +120,7 @@ def copy_callback(task_queue, res_queue, num_samples):
 
 def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs, send_one_by_one):
     count = 0
+
     def next_i():
         nonlocal count
         count += 1
