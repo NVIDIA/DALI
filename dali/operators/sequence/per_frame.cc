@@ -50,6 +50,7 @@ or replaces the character with ``F``.
 )code")
     .NumInput(1)
     .NumOutput(1)
+    .PassThrough({{0, 0}})
     .AddOptionalArg<bool>("replace",
                           R"code(Controls handling of the input with already specified layout.
 If set to False, the operator errors-out if the first character of the layout is not ``F``.
