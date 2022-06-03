@@ -39,12 +39,19 @@ void AccessOrder::wait(const AccessOrder &other) const {
     auto event = pool.Get(other_dev);
     // Record an event in the preceding stream
 
+    auto current_dev = []() {
+      int dev;
+      CUDA_CALL(cudaGetDevice(&dev));
+      return dev;
+    };
+
     // If the stream handle has a special value, we can't refer to it directly - it is
     // inherently associated with the concept of "current device" and it must be switched
-    if (other_dev != device_id_ &&
-        (other.stream_ == 0 ||
+    if (other_dev != device_id_ ||
+        ((other.stream_ == 0 ||
          other.stream_ == cudaStreamPerThread ||
-         other.stream_ == cudaStreamLegacy)) {
+         other.stream_ == cudaStreamLegacy) &&
+         other_dev != current_dev())) {
       DeviceGuard dg(other.device_id_);
       CUDA_CALL(cudaEventRecord(event, other.stream()));
     } else {
