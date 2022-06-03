@@ -21,7 +21,9 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/operator/common.h"
@@ -37,6 +39,47 @@ inline bool is_per_frame(const TensorVector<CPUBackend> &arg_input) {
   return layout.size() > 0 && layout[0] == 'F';
 }
 }  // namespace detail
+
+
+// broadcasting on gpu requires some extra state, so separate broadcasting from the
+// sequence operator and derive from appropriate specialization
+template <typename Backend>
+class SampleBroadcasting;
+
+template <>
+class SampleBroadcasting<CPUBackend> {
+ protected:
+  template <typename DataBackend>
+  void BroadcastSamples(TensorVector<DataBackend> &expanded_batch,
+                        const TensorVector<DataBackend> &batch, const ExpandDesc &expand_desc,
+                        const ArgumentWorkspace &expanded) {
+    (void)expanded;
+    sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
+                                      expand_desc.DimsToExpand());
+  }
+};
+
+template <>
+class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
+ protected:
+  using SampleBroadcasting<CPUBackend>::BroadcastSamples;
+
+  void BroadcastSamples(TensorList<GPUBackend> &expanded_batch, const TensorList<GPUBackend> &batch,
+                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
+    sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
+                                      expand_desc.DimsToExpand(), scatter_gather_,
+                                      expanded.stream());
+  }
+
+  void BroadcastSamples(TensorList<CPUBackend> &expanded_batch, const TensorList<CPUBackend> &batch,
+                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
+    (void)expanded;
+    sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
+                                      expand_desc.DimsToExpand());
+  }
+
+  kernels::ScatterGatherGPU scatter_gather_;
+};
 
 /**
  * @brief SequenceOperator
@@ -55,12 +98,13 @@ inline bool is_per_frame(const TensorVector<CPUBackend> &arg_input) {
  * resize the outputs.
  */
 template <typename Backend>
-class SequenceOperator : public Operator<Backend> {
+class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<Backend> {
  public:
   inline explicit SequenceOperator(const OpSpec &spec) : Operator<Backend>{spec} {}
 
   using Operator<Backend>::Setup;
   using Operator<Backend>::Run;
+  using SampleBroadcasting<Backend>::BroadcastSamples;
 
   template <typename InputBackend>
   using ws_input_t = typename workspace_t<Backend>::template input_t<InputBackend>;
@@ -79,7 +123,10 @@ class SequenceOperator : public Operator<Backend> {
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");
-      SetupExpandedWorkspace(expanded_, ws);
+      if (!is_expanded_ws_initialized_) {
+        InitializeExpandedWorkspace(ws);
+        is_expanded_ws_initialized_ = true;
+      }
       ExpandInputs(ws);
       ExpandArguments(ws);
       is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
@@ -96,7 +143,6 @@ class SequenceOperator : public Operator<Backend> {
       ExpandOutputs(ws);
       Operator<Backend>::Run(expanded_);
       PostprocessOutputs(ws);
-      ClearExpanded();
     }
   }
 
@@ -168,13 +214,19 @@ class SequenceOperator : public Operator<Backend> {
     return GetInputExpandDesc(GetReferenceInputIdx());
   }
 
-   /**
+  /**
    * @brief Returns the index of the operator input which is expandable and given argument input
    * should be expanded or broadcast in a manner consistent with the input.
    */
   virtual int GetArgExpandDescInputIdx(const std::string &arg_name) const {
     (void)arg_name;
     return GetReferenceInputIdx();
+  }
+
+  virtual void InitializeExpandedArgument(const workspace_t<Backend> &ws,
+                                          const std::string &arg_name,
+                                          const TensorVector<CPUBackend> &arg_input) {
+    expanded_.AddArgumentInput(arg_name, sequence_utils::expanded_like(arg_input));
   }
 
   /**
@@ -195,11 +247,19 @@ class SequenceOperator : public Operator<Backend> {
                               const TensorVector<CPUBackend> &arg_input) {
     assert(IsExpandable());
     auto input_idx = GetArgExpandDescInputIdx(arg_name);
-    auto expanded_arg = ExpandArgumentLikeInput(arg_input, arg_name, input_idx);
-    auto expanded_handle = std::make_shared<TensorVector<CPUBackend>>(std::move(expanded_arg));
-    ExpandedAddArgument(arg_name, std::move(expanded_handle));
+    ExpandArgumentLikeInput(ExpandedArg(arg_name), arg_input, arg_name, input_idx);
   }
 
+  virtual void InitializeExpandedInput(const workspace_t<Backend> &ws, int input_idx) {
+    ProcessInput(ws, input_idx, [&](const auto &batch) {
+      expanded_.AddInput(sequence_utils::expanded_like(batch));
+    });
+  }
+
+  // TODO(ktokarski) Treat all but main input as arguments and make positional args expansion
+  // consistent with named arguments expansion. For now, if the main input has "CF/FC" expandable
+  // layout, named arg with "F" or "" expandable layout is supported, while for positional arg it
+  // must be either "CF/FC" or "".
   /**
    * @brief Expands the input from the provided workspace and adds to the expanded workspace.
    *
@@ -210,7 +270,7 @@ class SequenceOperator : public Operator<Backend> {
    * 1. have the same expandble layout prefix and matching outermost dimensions that are to
    *    be expanded, or
    * 2. have no expandable layout prefix, in that case the samples are going to be broadcast
-   *    to match the other expanded inputs (TODO).
+   *    to match the other expanded inputs.
    */
   virtual void ExpandInput(const workspace_t<Backend> &ws, int input_idx) {
     assert(IsExpandable());
@@ -219,15 +279,25 @@ class SequenceOperator : public Operator<Backend> {
     const auto &input_desc = GetInputExpandDesc(input_idx);
     int num_expand_dims = input_desc.NumDimsToExpand();
     if (num_expand_dims == 0) {
-      // TODO(ktokarski) Add support for broadcasting inputs in multi-input case.
-      DALI_FAIL("Broadcasting of inputs for multi-input operators is not supported.")
+      ProcessInput(ws, input_idx, [&](const auto &input) {
+        auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
+        BroadcastBatch(expanded_input, input, ref_expand_desc);
+      });
     } else {
       if (ref_input_idx != input_idx) {
         VerifyExpansionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
       }
-      ExpandedAddProcessedInput(ws, input_idx,
-                                [&](const auto &input) { return UnfoldBatch(input, input_desc); });
+      ProcessInput(ws, input_idx, [&](const auto &input) {
+        auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
+        UnfoldBatch(expanded_input, input, input_desc);
+      });
     }
+  }
+
+  virtual void InitializeExpandedOutput(const workspace_t<Backend> &ws, int output_idx) {
+    ProcessOutput(ws, output_idx, [&](const auto &batch) {
+      expanded_.AddOutput(sequence_utils::expanded_like(batch));
+    });
   }
 
   /**
@@ -237,8 +307,10 @@ class SequenceOperator : public Operator<Backend> {
    */
   virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-    ExpandedAddProcessedOutput(
-        ws, output_idx, [&](const auto &output) { return UnfoldBatch(output, expand_desc); });
+    ProcessOutput(ws, output_idx, [&](const auto &output) {
+      auto &expanded_output = ExpandedOutput<batch_backend_t<decltype(output)>>(output_idx);
+      UnfoldBatch(expanded_output, output, expand_desc);
+    });
   }
 
   /**
@@ -341,11 +413,19 @@ class SequenceOperator : public Operator<Backend> {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
-      if (detail::is_per_frame(*shared_tvec)) {
+      if (IsPerFrameArg(arg_input.first, *shared_tvec)) {
         return true;
       }
     }
     return false;
+  }
+
+  bool IsPerFrameArg(const std::string &arg_name, const TensorVector<CPUBackend> &arg_input) {
+    const auto &schema = Operator<Backend>::GetSpec().GetSchema();
+    // Do not error out but simply ignore `F` layout of the argument input
+    // if it is not marked as per-frame in schema to be consistent with operators
+    // that do not support per-frame at all
+    return schema.ArgSupportsPerFrameInput(arg_name) && detail::is_per_frame(arg_input);
   }
 
   void VerifyExpansionConsistency(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
@@ -406,69 +486,84 @@ class SequenceOperator : public Operator<Backend> {
     }
   }
 
-  void SetupExpandedWorkspace(workspace_t<CPUBackend> &expanded,
-                              const workspace_t<CPUBackend> &ws) {
+  void InitializeExpandedInputs(const workspace_t<Backend> &ws) {
+    assert(expanded_.NumInput() == 0);
+    for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
+      InitializeExpandedInput(ws, input_idx);
+    }
+    assert(expanded_.NumInput() == ws.NumInput());
+  }
+
+  void InitializeExpandedOutputs(const workspace_t<Backend> &ws) {
+    assert(expanded_.NumOutput() == 0);
+    for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
+      InitializeExpandedOutput(ws, output_idx);
+    }
+    assert(expanded_.NumOutput() == ws.NumOutput());
+  }
+
+  void InitializeExpandedArguments(const workspace_t<Backend> &ws) {
+    for (const auto &arg_input : ws) {
+      auto &shared_tvec = arg_input.second.tvec;
+      assert(shared_tvec);
+      InitializeExpandedArgument(ws, arg_input.first, *shared_tvec);
+    }
+  }
+
+  void InitializeExpandedWorkspace(const workspace_t<Backend> &ws) {
+    InitializeExpandedWorkspace(expanded_, ws);
+    InitializeExpandedInputs(ws);
+    InitializeExpandedArguments(ws);
+    InitializeExpandedOutputs(ws);
+  }
+
+  void InitializeExpandedWorkspace(workspace_t<CPUBackend> &expanded,
+                                   const workspace_t<CPUBackend> &ws) {
     expanded.SetThreadPool(&ws.GetThreadPool());
   }
 
-  void SetupExpandedWorkspace(workspace_t<GPUBackend> &expanded,
-                              const workspace_t<GPUBackend> &ws) {
+  void InitializeExpandedWorkspace(workspace_t<GPUBackend> &expanded,
+                                   const workspace_t<GPUBackend> &ws) {
     if (ws.has_stream()) {
       expanded.set_stream(ws.stream());
     }
   }
 
   template <typename ProcessFunc>
-  void ExpandedAddProcessedInput(const workspace_t<Backend> &ws, int input_idx,
-                                 ProcessFunc &&process) {
+  void ProcessInput(const workspace_t<Backend> &ws, int input_idx, ProcessFunc &&process) {
     if (ws.template InputIsType<GPUBackend>(input_idx)) {
-      ExpandedAddInput(process(ws.template Input<GPUBackend>(input_idx)));
+      process(ws.template Input<GPUBackend>(input_idx));
     } else {
-      ExpandedAddInput(process(ws.template Input<CPUBackend>(input_idx)));
+      process(ws.template Input<CPUBackend>(input_idx));
     }
   }
 
   template <typename ProcessFunc>
-  void ExpandedAddProcessedOutput(const workspace_t<Backend> &ws, int output_idx,
-                                  ProcessFunc &&process) {
+  void ProcessOutput(const workspace_t<Backend> &ws, int output_idx, ProcessFunc &&process) {
     if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-      ExpandedAddOutput(process(ws.template Output<GPUBackend>(output_idx)));
+      process(ws.template Output<GPUBackend>(output_idx));
     } else {
-      ExpandedAddOutput(process(ws.template Output<CPUBackend>(output_idx)));
+      process(ws.template Output<CPUBackend>(output_idx));
     }
   }
 
   template <typename InputBackend>
-  void ExpandedAddInput(ws_input_t<InputBackend> &&input) {
-    expanded_.AddInput(input);
+  auto &ExpandedInput(int intput_idx) {
+    return expanded_.template UnsafeMutableInput<InputBackend>(intput_idx);
   }
 
   template <typename OutputBackend>
-  void ExpandedAddOutput(ws_input_t<OutputBackend> &&output) {
-    expanded_.AddOutput(output);
-  }
-
-  void ExpandedAddArgument(const std::string &arg_name,
-                           std::shared_ptr<TensorVector<CPUBackend>> &&arg_input) {
-    expanded_.AddArgumentInput(arg_name, arg_input);
-  }
-
-  template <typename InputBackend>
-  const auto &ExpandedInput(int intput_idx) {
-    return expanded_.template Input<InputBackend>(intput_idx);
-  }
-
-  template <typename OutputBackend>
-  const auto &ExpandedOutput(int output_idx) {
+  auto &ExpandedOutput(int output_idx) {
     return expanded_.template Output<OutputBackend>(output_idx);
   }
 
-  void ClearExpanded() {
-    expanded_.Clear();
+  TensorVector<CPUBackend> &ExpandedArg(const std::string &arg_name) {
+    return expanded_.UnsafeMutableArgumentInput(arg_name);
   }
 
-  template <typename Type>
-  auto UnfoldBatch(const Type &batch, const ExpandDesc &expand_desc) {
+  template <typename BatchType>
+  void UnfoldBatch(BatchType &expanded_batch, const BatchType &batch,
+                   const ExpandDesc &expand_desc) {
     auto sample_dim = batch.shape().sample_dim();
     auto num_expand_dims = expand_desc.NumDimsToExpand();
     DALI_ENFORCE(
@@ -478,11 +573,19 @@ class SequenceOperator : public Operator<Backend> {
             sample_dim, ") than the requested number of dimensions to unfold: ", num_expand_dims,
             "."));
     VerifyExpandedBatchSizeNumericLimit(expand_desc);
-    return std::make_shared<Type>(UnfoldOuterDims(batch, expand_desc));
+    UnfoldOuterDims(expanded_batch, batch, expand_desc);
   }
 
-  TensorVector<CPUBackend> ExpandArgumentLikeInput(const TensorVector<CPUBackend> &arg_input,
-                                                   const std::string &arg_name, int input_idx) {
+  template <typename BatchType>
+  void BroadcastBatch(BatchType &expanded_batch, const BatchType &batch,
+                      const ExpandDesc &expand_desc) {
+    VerifyExpandedBatchSizeNumericLimit(expand_desc);
+    BroadcastSamples(expanded_batch, batch, expand_desc, expanded_);
+  }
+
+  void ExpandArgumentLikeInput(TensorVector<CPUBackend> &expanded_arg_input,
+                               const TensorVector<CPUBackend> &arg_input,
+                               const std::string &arg_name, int input_idx) {
     const auto &expand_desc = GetInputExpandDesc(input_idx);
     assert(expand_desc.NumDimsToExpand() > 0);
     DALI_ENFORCE(arg_input.num_samples() == expand_desc.NumSamples(),
@@ -491,11 +594,9 @@ class SequenceOperator : public Operator<Backend> {
                              ") does not match the number of samples in the input (got ",
                              expand_desc.NumSamples(), ")."));
     VerifyExpandedBatchSizeNumericLimit(expand_desc);
-    const auto &schema = Operator<Backend>::GetSpec().GetSchema();
-    // Do not error out but simply ignore `F` layout of the argument input
-    // if it is not marked as per-frame in schema to be consistent with operators
-    // that do not support per-frame at all
-    if (schema.ArgSupportsPerFrameInput(arg_name) && detail::is_per_frame(arg_input)) {
+    if (!IsPerFrameArg(arg_name, arg_input)) {
+      BroadcastSamples(expanded_arg_input, arg_input, expand_desc, expanded_);
+    } else {
       DALI_ENFORCE(
           expand_desc.ExpandFrames(),
           make_string(
@@ -505,18 +606,17 @@ class SequenceOperator : public Operator<Backend> {
               "layout that starts with 'F'",
               ShouldExpandChannels(input_idx) ? " or 'CF'" : "", "). Got layout ",
               expand_desc.Layout(), " for operator intput ", input_idx, "."));
-      return UnfoldBroadcastArgument(arg_input, arg_name, input_idx, expand_desc);
+      UnfoldBroadcastArgument(expanded_arg_input, arg_input, arg_name, expand_desc);
     }
-    return BroadcastArgument(arg_input, expand_desc);
   }
 
-  TensorVector<CPUBackend> UnfoldBroadcastArgument(const TensorVector<CPUBackend> &arg_input,
-                                                   const std::string &arg_name, int input_idx,
-                                                   const ExpandDesc &expand_desc) {
+  void UnfoldBroadcastArgument(TensorVector<CPUBackend> &expanded_arg,
+                               const TensorVector<CPUBackend> &arg_input,
+                               const std::string &arg_name, const ExpandDesc &expand_desc) {
     constexpr int ndims_to_unfold = 1;
     assert((arg_input.num_samples() == expand_desc.NumSamples()) && expand_desc.ExpandFrames());
-    auto tv_builder =
-        sequence_utils::tv_builder_like(arg_input, expand_desc.NumExpanded(), ndims_to_unfold);
+    auto tv_builder = sequence_utils::tv_builder_like(expanded_arg, arg_input,
+                                                      expand_desc.NumExpanded(), ndims_to_unfold);
     for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
       auto frames_range =
           sequence_utils::unfolded_slice_range(arg_input, sample_idx, ndims_to_unfold);
@@ -532,12 +632,12 @@ class SequenceOperator : public Operator<Backend> {
       if (num_arg_frames == 1) {  // broadcast the sample
         auto slice = frames_range[0];
         for (int j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
-          tv_builder.push(slice);
+          tv_builder.SetNext(slice);
         }
       } else if (!expand_desc.ExpandChannels()) {  // expand frames dimension
         assert(num_arg_frames == expand_desc.NumExpanded(sample_idx));
         for (auto &&slice : frames_range) {
-          tv_builder.push(slice);
+          tv_builder.SetNext(slice);
         }
       } else {
         int num_input_channels = expand_desc.NumChannels(sample_idx);
@@ -545,60 +645,35 @@ class SequenceOperator : public Operator<Backend> {
         if (expand_desc.IsChannelFirst()) {
           for (int j = 0; j < num_input_channels; j++) {
             for (auto &&slice : frames_range) {
-              tv_builder.push(slice);
+              tv_builder.SetNext(slice);
             }
           }
         } else {
           for (auto &&slice : frames_range) {
             for (int j = 0; j < num_input_channels; j++) {
-              tv_builder.push(slice);
+              tv_builder.SetNext(slice);
             }
           }
         }
       }
     }
-    return tv_builder.take();
-  }
-
-  TensorVector<CPUBackend> BroadcastArgument(const TensorVector<CPUBackend> &arg_input,
-                                             const ExpandDesc &expand_desc) {
-    const auto &shape = arg_input.shape();
-    auto tv_builder = sequence_utils::tv_builder_like(arg_input, expand_desc.NumExpanded());
-    const auto &type_info = arg_input.type_info();
-    assert(expand_desc.NumSamples() == arg_input.num_samples());
-    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      const auto &slice_shape = shape[sample_idx];
-      int num_elements = expand_desc.NumExpanded(sample_idx);
-      uint8_t *ptr =
-          const_cast<uint8_t *>(static_cast<const uint8_t *>(arg_input.raw_tensor(sample_idx)));
-      for (int sample_slice_idx = 0; sample_slice_idx < num_elements; sample_slice_idx++) {
-        tv_builder.push({ptr, slice_shape, type_info.size()});
-      }
-    }
-    return tv_builder.take();
+    assert(tv_builder.NextSampleIdx() == expanded_arg.num_samples());
   }
 
   template <typename DataBackend>
-  TensorVector<DataBackend> UnfoldOuterDims(const TensorVector<DataBackend> &data,
-                                            const ExpandDesc &expand_desc) {
+  void UnfoldOuterDims(TensorVector<DataBackend> &expanded_batch,
+                       const TensorVector<DataBackend> &batch, const ExpandDesc &expand_desc) {
     auto ndims_to_unfold = expand_desc.NumDimsToExpand();
-    auto tv_builder =
-        sequence_utils::tv_builder_like(data, expand_desc.NumExpanded(), ndims_to_unfold);
-    assert(expand_desc.NumSamples() == data.num_samples());
-    for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); sample_idx++) {
-      auto slices_range = sequence_utils::unfolded_slice_range(data, sample_idx, ndims_to_unfold);
-      assert(expand_desc.NumExpanded(sample_idx) == slices_range.NumSlices());
-      for (auto &&slice : slices_range) {
-        tv_builder.push(slice);
-      }
-    }
-    return tv_builder.take();
+    assert(expand_desc.NumSamples() == batch.num_samples());
+    assert(batch.shape().first(ndims_to_unfold).num_elements() == expand_desc.NumExpanded());
+    sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand(),
+                                      expand_desc.NumExpanded());
   }
 
   template <typename DataBackend>
-  TensorList<DataBackend> UnfoldOuterDims(const TensorList<DataBackend> &data,
-                                          const ExpandDesc &expand_desc) {
-    return sequence_utils::unfold_outer_dims(data, expand_desc.NumDimsToExpand());
+  void UnfoldOuterDims(TensorList<DataBackend> &expanded_batch,
+                       const TensorList<DataBackend> &batch, const ExpandDesc &expand_desc) {
+    sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand());
   }
 
   std::vector<ExpandDesc> input_expand_desc_;
@@ -607,6 +682,7 @@ class SequenceOperator : public Operator<Backend> {
  private:
   int expand_like_idx_ = -1;
   bool is_expanding_ = false;
+  bool is_expanded_ws_initialized_ = false;
   workspace_t<Backend> expanded_;
 };
 

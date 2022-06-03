@@ -72,6 +72,10 @@ class ArgumentWorkspace {
     return *it->second.tvec;
   }
 
+  TensorVector<CPUBackend>& UnsafeMutableArgumentInput(const std::string &arg_name) {
+    return const_cast<TensorVector<CPUBackend>&>(ArgumentInput(arg_name));
+  }
+
  protected:
   struct ArgumentInputDesc {
     shared_ptr<TensorVector<CPUBackend>> tvec;

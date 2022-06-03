@@ -32,7 +32,7 @@ test_gtest() {
         exit 1
     fi
 
-    "$FULLPATH" --gtest_filter="*MultiGpu*"
+    "$FULLPATH" --gtest_filter="*MultiGPU*"
   done
 }
 
