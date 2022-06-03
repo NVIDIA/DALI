@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -362,3 +362,16 @@ def _testimpl_image_decoder_slice_error_oob(device):
 def test_image_decoder_slice_error_oob():
     for device in ['cpu', 'mixed']:
         yield _testimpl_image_decoder_slice_error_oob, device
+
+def test_pinned_input_hw_decoder():
+    file_root = os.path.join(test_data_root, good_path, "jpeg")
+    @pipeline_def(batch_size=128, device_id=0, num_threads=4)
+    def pipe():
+        encoded, _ = fn.readers.file(file_root=file_root)
+        encoded_gpu = encoded.gpu()
+        # encoded.gpu() should make encoded pinned
+        decoded = fn.decoders.image(encoded, device="mixed")
+        return decoded, encoded_gpu
+    p = pipe()
+    p.build()
+    p.run()
