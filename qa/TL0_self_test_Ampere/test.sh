@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 
-pip_packages="nose numpy>=1.17"
+pip_packages='${python_test_runner_package} numpy>=1.17'
 
 target_dir=./dali/test/python
 
@@ -30,7 +30,7 @@ test_body() {
   done
 
   # test decoders on A100 as well
-  nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy,!numba' test_operator_decoders_image.py
+  ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' test_operator_decoders_image.py
 }
 
 pushd ../..

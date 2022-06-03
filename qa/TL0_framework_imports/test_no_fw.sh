@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 
-pip_packages=""
+pip_packages=''
 
 test_body() {
     # test code

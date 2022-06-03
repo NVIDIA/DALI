@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib numpy"
+pip_packages='jupyter matplotlib numpy'
 target_dir=./docs/examples/
 
 test_body() {

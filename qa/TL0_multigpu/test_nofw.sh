@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose"
+pip_packages='${python_test_runner_package}'
 target_dir=./dali/test/python
 
 # test_body definition is in separate file so it can be used without setup

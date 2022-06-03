@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy paddlepaddle-gpu"
+pip_packages='${python_test_runner_package} numpy paddlepaddle-gpu'
 target_dir=./dali/test/python
 
 one_config_only=true
@@ -18,9 +18,9 @@ test_body() {
             python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
                 --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
         done
-        nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators_detection.py
+        ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators_detection.py
     fi
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators.py
+    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators.py
 }
 
 pushd ../..

@@ -3,7 +3,7 @@
 # used pip packages
 # nvidia-index provides a stub for tensorboard which collides with one required by pytorch-lightning
 # pin version which is not replaced
-pip_packages="pillow jupyter matplotlib torchvision torch pytorch-lightning tensorboard==2.2.2"
+pip_packages='pillow jupyter matplotlib torchvision torch pytorch-lightning tensorboard==2.2.2'
 target_dir=./docs/examples/
 
 do_once() {

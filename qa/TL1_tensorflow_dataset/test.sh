@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose jupyter tensorflow-gpu"
+pip_packages='${python_test_runner_package} jupyter tensorflow-gpu'
 target_dir=./dali/test/python
 
 # populate epilog and prolog with variants to enable/disable virtual env
@@ -18,13 +18,13 @@ test_body() {
     is_compatible=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_compatible_tensorflow())')
     if [ $is_compatible = 'True' ]; then
         # DALI TF DATASET run
-        nosetests --verbose -s test_dali_tf_dataset_graph.py:_test_tf_dataset_other_gpu
-        nosetests --verbose -s test_dali_tf_dataset_graph.py:_test_tf_dataset_multigpu_manual_placement
-        nosetests --verbose -s test_dali_tf_dataset_eager.py:_test_tf_dataset_other_gpu
-        nosetests --verbose -s test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_manual_placement
-        nosetests --verbose -s test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_mirrored_strategy
-        nosetests --verbose -s test_dali_tf_dataset_mnist_eager.py
-        nosetests --verbose -s test_dali_tf_dataset_mnist_graph.py
+        ${python_invoke_test} test_dali_tf_dataset_graph.py:_test_tf_dataset_other_gpu
+        ${python_invoke_test} test_dali_tf_dataset_graph.py:_test_tf_dataset_multigpu_manual_placement
+        ${python_invoke_test} test_dali_tf_dataset_eager.py:_test_tf_dataset_other_gpu
+        ${python_invoke_test} test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_manual_placement
+        ${python_invoke_test} test_dali_tf_dataset_eager.py:_test_tf_dataset_multigpu_mirrored_strategy
+        ${python_invoke_test} test_dali_tf_dataset_mnist_eager.py
+        ${python_invoke_test} test_dali_tf_dataset_mnist_graph.py
 
         # DALI TF Notebooks run
         pushd ../../../docs/examples/frameworks/tensorflow/

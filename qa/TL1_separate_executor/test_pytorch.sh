@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="pillow torchvision torch"
+pip_packages='pillow torchvision torch'
 target_dir=./dali/test/python
 one_config_only=true
 

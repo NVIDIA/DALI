@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 # rarfile>= 3.2 breaks python 3.5 compatibility
-pip_packages="paddlepaddle-gpu"
+pip_packages='paddlepaddle-gpu'
 target_dir=./docs/examples/use_cases/paddle/ssd/
 
 test_body() {

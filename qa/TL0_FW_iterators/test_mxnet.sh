@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy mxnet"
+pip_packages='${python_test_runner_package} numpy mxnet'
 target_dir=./dali/test/python
 
 one_config_only=true
@@ -19,9 +19,9 @@ test_body() {
                 --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
         done
     fi
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators_detection.py
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators.py
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*gluon*' test_fw_iterators.py
+    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators_detection.py
+    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*mxnet*' test_fw_iterators.py
+    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*gluon*' test_fw_iterators.py
 }
 
 pushd ../..

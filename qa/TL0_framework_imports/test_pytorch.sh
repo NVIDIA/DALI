@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 
-pip_packages="pillow torchvision torch"
+pip_packages='pillow torchvision torch'
 
 test_body() {
     # test code

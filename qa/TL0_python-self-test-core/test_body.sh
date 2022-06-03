@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-test_nose() {
+test_py_with_framework() {
     # Note that we do not filter '!numba' below as it is installed as dependency
     for test_script in $(ls test_pipeline*.py \
                             test_triton_autoserialize.py \
@@ -8,7 +8,7 @@ test_nose() {
                             test_backend_impl.py \
                             test_dali_variable_batch_size.py \
                             test_external_source_impl_utils.py); do
-        nosetests --verbose --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
+        ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' ${test_script}
     done
 }
 
@@ -21,11 +21,11 @@ test_py() {
 }
 
 test_pytorch() {
-    nosetests --verbose --attr '!slow,pytorch' test_dali_variable_batch_size.py
+    ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
 }
 
 test_no_fw() {
-    test_nose
+    test_py_with_framework
     test_py
 }
 

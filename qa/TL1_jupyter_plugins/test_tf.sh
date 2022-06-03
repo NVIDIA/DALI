@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib tensorflow-gpu"
+pip_packages='jupyter matplotlib tensorflow-gpu'
 target_dir=./docs/examples/
 
 do_once() {

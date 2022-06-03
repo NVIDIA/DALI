@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 
-pip_packages="tensorflow-gpu"
+pip_packages='tensorflow-gpu'
 
 test_body() {
     # test code
