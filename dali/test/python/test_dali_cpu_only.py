@@ -740,7 +740,6 @@ def test_sequence_rearrange_cpu():
 
 
 def test_box_encoder_cpu():
-
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     test_box_shape = [20, 4]
 
@@ -749,9 +748,10 @@ def test_box_encoder_cpu():
         return out
     test_lables_shape = [20, 1]
 
-    def get_lables():
+    def get_labels():
         out = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32) for _ in range(batch_size)]
         return out
+
     boxes = fn.external_source(source=get_boxes)
     labels = fn.external_source(source=get_labels)
     processed, _ = fn.box_encoder(boxes, labels, anchors=coco_anchors())
