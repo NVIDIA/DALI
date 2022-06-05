@@ -178,35 +178,37 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
     }
   }
 
-  vector<void*> args;
-  for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    vector<void*> args_local = prepare_args(in_memory_ptrs_[in_id], in_sizes_[in_id], &in_ptrs[in_id]);
-    args.insert(
-      args.end(),
-      make_move_iterator(args_local.begin()),
-      make_move_iterator(args_local.end())
+  for (int i = 0; i < N; i++) {
+    vector<void*> args;
+    for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+      vector<void*> args_local = prepare_args(in_memory_ptrs_[in_id], in_sizes_[in_id], &in_ptrs[N * in_id + i]);
+      args.insert(
+        args.end(),
+        make_move_iterator(args_local.begin()),
+        make_move_iterator(args_local.end())
+      );
+    }
+
+    for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+      vector<void*> args_local = prepare_args(out_memory_ptrs_[out_id], out_sizes_[out_id], &out_ptrs[N * out_id + i]);
+      args.insert(
+        args.end(),
+        make_move_iterator(args_local.begin()),
+        make_move_iterator(args_local.end())
+      );
+    }
+
+    CUfunction cufunc = (CUfunction)run_fn_;
+    CUresult result = cuLaunchKernel(
+      cufunc, 
+      blocks_[0], blocks_[1], blocks_[2], 
+      threads_per_block_[0], threads_per_block_[1], threads_per_block_[2], 
+      0, 
+      ws.stream(), 
+      static_cast<void**>(args.data()), 
+      NULL
     );
   }
-
-  for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-    vector<void*> args_local = prepare_args(out_memory_ptrs_[out_id], out_sizes_[out_id], &out_ptrs[out_id]);
-    args.insert(
-      args.end(),
-      make_move_iterator(args_local.begin()),
-      make_move_iterator(args_local.end())
-    );
-  }
-
-  CUfunction cufunc = (CUfunction)run_fn_;
-  CUresult result = cuLaunchKernel(
-    cufunc, 
-    blocks_[0], blocks_[1], blocks_[2], 
-    threads_per_block_[0], threads_per_block_[1], threads_per_block_[2], 
-    0, 
-    ws.stream(), 
-    static_cast<void**>(args.data()), 
-    NULL
-  );
 }
 
 DALI_REGISTER_OPERATOR(NumbaFuncImpl, NumbaFuncImpl<GPUBackend>, GPU);
