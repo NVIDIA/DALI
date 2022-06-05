@@ -14,6 +14,7 @@
 
 
 #include "dali/operators/numba_function/numba_func.h"
+#include <vector>
 
 namespace dali {
 
@@ -25,7 +26,7 @@ vector<ssize_t> calc_sizes(DALIDataType type, TensorShape<-1> shape) {
   args.push_back(nitems);
   args.push_back(item_size);
 
-  for(size_t i = 0; i < shape.size(); i++) {
+  for (size_t i = 0; i < shape.size(); i++) {
     args.push_back(shape[i]);
   }
 
@@ -38,15 +39,16 @@ vector<ssize_t> calc_sizes(DALIDataType type, TensorShape<-1> shape) {
 }
 
 
-vector<void*> prepare_args(const vector<void*> &memory_ptrs, const vector<ssize_t> &sizes, uint64_t *ptr) {
+vector<void*> prepare_args(const vector<void*> &memory_ptrs,
+    const vector<ssize_t> &sizes, uint64_t *ptr) {
   // The order and structure of arguments is specified in the numba source code:
   // https://github.com/numba/numba/blob/b1be2f12c83c01f57fe34fab9a9d77334f9baa1d/numba/cuda/dispatcher.py#L325
   vector<void*> args;
-  for(size_t i = 0; i < memory_ptrs.size(); i++) {
+  for (size_t i = 0; i < memory_ptrs.size(); i++) {
     args.push_back(const_cast<void*>(reinterpret_cast<const void*>(&memory_ptrs[i])));
-  }  
+  }
 
-  for(size_t i = 0; i < sizes.size(); i++) {
+  for (size_t i = 0; i < sizes.size(); i++) {
     args.push_back(const_cast<void*>(reinterpret_cast<const void*>(&sizes[i])));
   }
   args.insert(args.begin()+4, static_cast<void*>(ptr));
@@ -102,7 +104,8 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 
   threads_per_block_ = spec.GetRepeatedArgument<int>("threads_per_block");
   DALI_ENFORCE(threads_per_block_.size() == 3, make_string(
-    "`threads_per_block` array should contain 3 numbers, while received: ", threads_per_block_.size()));
+    "`threads_per_block` array should contain 3 numbers, while received: ",
+    threads_per_block_.size()));
   for (size_t i = 0; i < threads_per_block_.size(); i++) {
     DALI_ENFORCE(threads_per_block_[i] >= 0, make_string(
       "All dimensions should be positive. Value specified in "
@@ -133,7 +136,6 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       "Data type passed in `in_types` at index ", in_id, " doesn't match type of the input data: ",
       in.type(), " != ", in_types_[in_id]));
   }
-  auto N = in_shapes_[0].num_samples();
 
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
     vector<ssize_t> sizes = calc_sizes(in_types_[in_id], in_shapes_[in_id][0]);
@@ -181,33 +183,36 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
   for (int i = 0; i < N; i++) {
     vector<void*> args;
     for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-      vector<void*> args_local = prepare_args(in_memory_ptrs_[in_id], in_sizes_[in_id], &in_ptrs[N * in_id + i]);
+      vector<void*> args_local = prepare_args(
+        in_memory_ptrs_[in_id],
+        in_sizes_[in_id],
+        &in_ptrs[N * in_id + i]);
       args.insert(
         args.end(),
         make_move_iterator(args_local.begin()),
-        make_move_iterator(args_local.end())
-      );
+        make_move_iterator(args_local.end()));
     }
 
     for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-      vector<void*> args_local = prepare_args(out_memory_ptrs_[out_id], out_sizes_[out_id], &out_ptrs[N * out_id + i]);
+      vector<void*> args_local = prepare_args(
+        out_memory_ptrs_[out_id],
+        out_sizes_[out_id],
+        &out_ptrs[N * out_id + i]);
       args.insert(
         args.end(),
         make_move_iterator(args_local.begin()),
-        make_move_iterator(args_local.end())
-      );
+        make_move_iterator(args_local.end()));
     }
 
     CUfunction cufunc = (CUfunction)run_fn_;
     CUresult result = cuLaunchKernel(
-      cufunc, 
-      blocks_[0], blocks_[1], blocks_[2], 
-      threads_per_block_[0], threads_per_block_[1], threads_per_block_[2], 
-      0, 
-      ws.stream(), 
-      static_cast<void**>(args.data()), 
-      NULL
-    );
+      cufunc,
+      blocks_[0], blocks_[1], blocks_[2],
+      threads_per_block_[0], threads_per_block_[1], threads_per_block_[2],
+      0,
+      ws.stream(),
+      static_cast<void**>(args.data()),
+      NULL);
   }
 }
 
