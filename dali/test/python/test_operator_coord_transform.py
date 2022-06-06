@@ -203,7 +203,7 @@ def test_sequences():
     num_iters = 4
 
     def points():
-        return np_rng.uniform(-100, 250, (num_points, 2))
+        return np.float32(np_rng.uniform(-100, 250, (num_points, 2)))
 
     def rand_range(limit):
         return range(rng.randint(1, limit) + 1)
@@ -223,9 +223,11 @@ def test_sequences():
     def mt(sample_desc):
         return np.append(m(sample_desc), t(sample_desc).reshape(-1, 1), axis=1)
 
-    input_seq_data = [[np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
-                        for _ in rand_range(max_batch_size)]
-                        for _ in range(num_iters)]
+    input_seq_data = [[
+        np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
+        for _ in rand_range(max_batch_size)]
+        for _ in range(num_iters)]
+
     input_cases = [
         (fn.coord_transform, {}, [ArgCb("M", m, True)]),
         (fn.coord_transform, {}, [ArgCb("T", t, True)]),
@@ -236,3 +238,15 @@ def test_sequences():
     ]
 
     yield from sequence_suite_helper(rng, "F", [("F**", input_seq_data)], input_cases, num_iters)
+
+    input_mt_data = [[
+        np.array([mt(None) for _ in rand_range(max_num_frames)], dtype=np.float32)
+        for _ in rand_range(max_batch_size)]
+        for _ in range(num_iters)]
+
+    input_broadcast_cases = [
+        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "cpu")], ["cpu"], "MT"),
+        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "gpu")], ["cpu"], "MT"),
+    ]
+
+    yield from sequence_suite_helper(rng, "F", [("F**", input_mt_data)], input_broadcast_cases, num_iters)
