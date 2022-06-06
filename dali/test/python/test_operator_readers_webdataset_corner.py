@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import webdataset_base as base
-from test_utils import compare_pipelines, get_dali_extra_path
-from nose_utils import assert_raises
-from nose.tools import assert_equal
-from glob import glob
-import os
 import math
 import nvidia.dali as dali
+import os
 import tempfile
+from glob import glob
+from nose.tools import assert_equal
+
+import webdataset_base as base
+from nose_utils import assert_raises
+from test_utils import compare_pipelines, get_dali_extra_path
+
 
 def general_corner_case(
-    test_batch_size=base.test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
+        test_batch_size=base.test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
 ):
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
@@ -31,7 +33,7 @@ def general_corner_case(
 
     extract_dir = base.generate_temp_extract(tar_file_path)
     equivalent_files = sorted(
-        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
+        glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1: s.rfind(".")])
     )
 
     compare_pipelines(
@@ -235,7 +237,7 @@ def test_argument_errors():
 
 
 def general_index_error(
-    index_file_contents, tar_file_path="db/webdataset/MNIST/devel-0.tar", ext="jpg"
+        index_file_contents, tar_file_path="db/webdataset/MNIST/devel-0.tar", ext="jpg"
 ):
     index_file = tempfile.NamedTemporaryFile()
     index_file.write(index_file_contents)

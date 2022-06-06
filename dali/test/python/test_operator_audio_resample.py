@@ -12,27 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
-from nvidia.dali import fn, pipeline_def, types
-
 import numpy as np
 import scipy.io.wavfile
+from nvidia.dali import fn, pipeline_def, types
+
 from test_audio_decoder_utils import generate_waveforms
 from test_utils import check_batch, dali_type_to_np, as_array
 
 names = [
-  "/tmp/dali_test_1C.wav",
-  "/tmp/dali_test_2C.wav",
-  "/tmp/dali_test_4C.wav"
+    "/tmp/dali_test_1C.wav",
+    "/tmp/dali_test_2C.wav",
+    "/tmp/dali_test_4C.wav"
 ]
 
 freqs = [
-  np.array([0.02]),
-  np.array([0.01, 0.012]),
-  np.array([0.01, 0.012, 0.013, 0.014])
+    np.array([0.02]),
+    np.array([0.01, 0.012]),
+    np.array([0.01, 0.012, 0.013, 0.014])
 ]
-rates = [ 16000, 22050, 12347 ]
-lengths = [ 10000, 54321, 12345 ]
+rates = [16000, 22050, 12347]
+lengths = [10000, 54321, 12345]
 
 
 def create_files():
@@ -89,9 +88,9 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
     def test_pipe(device):
         input = fn.external_source(in_data, batch=False, cycle='quiet', device=device)
         return fn.experimental.audio_resample(input, dtype=dst_type, scale=1, quality=0)
+
     pipe = test_pipe(device, device_id=0, num_threads=4)
     pipe.build()
-    is_gpu = device == 'gpu'
     for _ in range(2):
         out, = pipe.run()
         assert len(out) == len(out_values)
@@ -109,24 +108,27 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
 
 
 def test_dynamic_ranges():
-    for type, values, eps in [(types.FLOAT,  [-1.e30, -1 - 1.e-6, -1, -0.5, -1.e-30, 0, 1.e-30, 0.5, 1, 1 + 1.e-6, 1e30], 0),
-                              (types.UINT8,  [0, 1, 128, 254, 255], 0),
-                              (types.INT8,   [-128, -127, -1, 0, 1, 127], 0),
-                              (types.UINT16, [0, 1, 32767, 32768, 65534, 65535], 0),
-                              (types.INT16,  [-32768, -32767, -100, -1, 0, 1, 100, 32767], 0),
-                              (types.UINT32,  [0, 1, 0x7fffffff, 0x80000000, 0xfffffffe, 0xffffffff], 128),
-                              (types.INT32,  [-0x80000000, -0x7fffffff, -100, -1, 0, 1, 0x7fffffff], 128)]:
+    for type, values, eps in [
+        (types.FLOAT, [-1.e30, -1 - 1.e-6, -1, -0.5, -1.e-30, 0, 1.e-30, 0.5, 1, 1 + 1.e-6, 1e30],
+         0),
+        (types.UINT8, [0, 1, 128, 254, 255], 0),
+        (types.INT8, [-128, -127, -1, 0, 1, 127], 0),
+        (types.UINT16, [0, 1, 32767, 32768, 65534, 65535], 0),
+        (types.INT16, [-32768, -32767, -100, -1, 0, 1, 100, 32767], 0),
+        (types.UINT32, [0, 1, 0x7fffffff, 0x80000000, 0xfffffffe, 0xffffffff], 128),
+        (types.INT32, [-0x80000000, -0x7fffffff, -100, -1, 0, 1, 0x7fffffff], 128)
+    ]:
         for device in ('cpu', 'gpu'):
             yield _test_type_conversion, device, type, values, type, values, eps
 
 
 def test_type_conversion():
-    type_ranges = [(types.FLOAT,  [-1, 1]),
-                   (types.UINT8,  [0, 255]),
-                   (types.INT8,   [-127, 127]),
+    type_ranges = [(types.FLOAT, [-1, 1]),
+                   (types.UINT8, [0, 255]),
+                   (types.INT8, [-127, 127]),
                    (types.UINT16, [0, 65535]),
-                   (types.INT16,  [-32767, 32767]),
-                   (types.INT32,  [-0x7fffffff, 0x7fffffff]),
+                   (types.INT16, [-32767, 32767]),
+                   (types.INT32, [-0x7fffffff, 0x7fffffff]),
                    (types.UINT32, [0, 0xffffffff])]
 
     for src_type, src_range in type_ranges:
@@ -145,10 +147,10 @@ def test_type_conversion():
                     out_values = [o_lo, 0, o_hi]
             else:
                 out_values = [o_lo, o_lo + (o_hi - o_lo) * in_values[1] / (i_hi - i_lo),
-                                    o_lo + (o_hi - o_lo) * in_values[2] / (i_hi - i_lo), o_hi]
+                              o_lo + (o_hi - o_lo) * in_values[2] / (i_hi - i_lo), o_hi]
             if dst_type != types.FLOAT:
                 out_values = list(map(int, out_values))
-            eps = (o_hi - o_lo) / 2**24 + (i_hi - i_lo) / 2**24
+            eps = (o_hi - o_lo) / 2 ** 24 + (i_hi - i_lo) / 2 ** 24
             print(src_type, in_values, dst_type, out_values)
 
             # the result will be halfway - add epsilon of 1

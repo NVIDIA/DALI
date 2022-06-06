@@ -580,7 +580,7 @@ def test_external_source_fail_missing_output():
     pipe = ExternalSourcePipeline(batch_size, batch_size, 3, 0)
     pipe.build()
     assert_raises(RuntimeError, pipe.run,
-                  regex="Cannot find [\w]+ tensor, it doesn't exists or was pruned as unused one")
+                  regex="Cannot find [\w]+ tensor, it doesn't exists or was pruned as unused one")  # noqa: E501, W605
 
 
 def external_data_veri(external_data, batch_size):

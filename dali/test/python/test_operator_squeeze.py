@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-from nvidia.dali import pipeline_def
-import nvidia.dali.fn as fn
 import numpy as np
+import nvidia.dali.fn as fn
+from nvidia.dali import pipeline_def
+
 from nose_utils import raises
 
 
@@ -31,7 +32,8 @@ def squeeze_pipe(shapes, axes=None, axis_names=None, layout=None):
 
 def _testimpl_squeeze(axes, axis_names, layout, shapes, expected_out_shapes, expected_layout):
     batch_size = len(shapes)
-    pipe = squeeze_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, axes=axes, axis_names=axis_names, layout=layout)
+    pipe = squeeze_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, axes=axes,
+                        axis_names=axis_names, layout=layout)
     pipe.build()
     for _ in range(3):
         outs = pipe.run()
@@ -56,11 +58,13 @@ def test_squeeze():
         (None, "X", "XYZ", [(100, 0, 0)], [(0, 0)], "YZ"),
     ]
     for axes, axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
-        yield _testimpl_squeeze, axes, axis_names, layout, shapes, expected_out_shapes, expected_layout
+        yield _testimpl_squeeze, axes, axis_names, layout, \
+              shapes, expected_out_shapes, expected_layout
 
 
 def _test_squeeze_throw_error(axes, axis_names, layout, shapes):
-    pipe = squeeze_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes, axes=axes, axis_names=axis_names, layout=layout)
+    pipe = squeeze_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
+                        axes=axes, axis_names=axis_names, layout=layout)
     pipe.build()
     pipe.run()
 
@@ -84,4 +88,5 @@ def test_squeeze_throw_error():
     ]
     assert len(expected_errors) == len(args_list)
     for (axes, axis_names, layout, shapes), error_msg in zip(args_list, expected_errors):
-        yield raises(RuntimeError, error_msg)(_test_squeeze_throw_error), axes, axis_names, layout, shapes
+        yield raises(RuntimeError, error_msg)(_test_squeeze_throw_error), \
+              axes, axis_names, layout, shapes
