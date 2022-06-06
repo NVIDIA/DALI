@@ -23,7 +23,8 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from test_utils import compare_pipelines
-from sequences_test_utils import ArgData, ArgDesc, get_video_input_cases, ParamsProvider, sequence_suite_helper, ArgCb
+from sequences_test_utils import ArgData, ArgDesc, get_video_input_cases, ParamsProvider, \
+    sequence_suite_helper, ArgCb
 
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -63,10 +64,23 @@ def get_3d_lin_rotation(angle, axis):
     cosa = math.cos(angle)
     sina = math.sin(angle)
     return np.array([
-      [u * u + (v * v + w * w) * cosa, u * v * (1 - cosa) - w * sina, u * w * (1 - cosa) + v * sina],
-      [u * v * (1 - cosa) + w * sina, v * v + (u * u + w * w) * cosa, v * w * (1 - cosa) - u * sina],
-      [u * w * (1 - cosa) - v * sina, v * w * (1 - cosa) + u * sina, w * w + (u * u + v * v) * cosa],
-    ], dtype=np.float32)
+        [
+            u * u + (v * v + w * w) * cosa,
+            u * v * (1 - cosa) - w * sina,
+            u * w * (1 - cosa) + v * sina
+        ],
+        [
+            u * v * (1 - cosa) + w * sina,
+            v * v + (u * u + w * w) * cosa,
+            v * w * (1 - cosa) - u * sina
+        ],
+        [
+            u * w * (1 - cosa) - v * sina,
+            v * w * (1 - cosa) + u * sina,
+            w * w + (u * u + v * v) * cosa
+        ],
+    ],
+                    dtype=np.float32)
 
 
 def get_3d_output_size(angle, axis, input_size, parity_correction=False):
@@ -100,7 +114,7 @@ def get_transform(angle, input_size, output_size):
         [0, 1, in_h * 0.5],
         [0, 0, 1]])
 
-    return (np.matmul(t2, np.matmul(r, t1)))[0:2,0:3]
+    return (np.matmul(t2, np.matmul(r, t1)))[0:2, 0:3]
 
 
 def ToCVMatrix(matrix):
@@ -121,8 +135,12 @@ def CVRotate(output_type, input_type, fixed_size):
         if output_type == dali.types.FLOAT or input_type == dali.types.FLOAT:
             img = np.float32(img)
         out_size_wh = (out_size[1], out_size[0])
-        out = cv2.warpAffine(img, matrix, out_size_wh, borderMode=cv2.BORDER_CONSTANT, borderValue=[42,42,42],
-          flags=(cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP))
+        out = cv2.warpAffine(img,
+                             matrix,
+                             out_size_wh,
+                             borderMode=cv2.BORDER_CONSTANT,
+                             borderValue=[42, 42, 42],
+                             flags=(cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP))
         if output_type == dali.types.UINT8 and input_type == dali.types.FLOAT:
             out = np.uint8(np.clip(out, 0, 255))
         return out
@@ -131,10 +149,25 @@ def CVRotate(output_type, input_type, fixed_size):
 
 
 class RotatePipeline(Pipeline):
-    def __init__(self, device, batch_size, output_type, input_type, fixed_size=None, num_threads=3, device_id=0, num_gpus=1):
-        super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+    def __init__(self,
+                 device,
+                 batch_size,
+                 output_type,
+                 input_type,
+                 fixed_size=None,
+                 num_threads=3,
+                 device_id=0,
+                 num_gpus=1):
+        super(RotatePipeline, self).__init__(batch_size,
+                                             num_threads,
+                                             device_id,
+                                             seed=7865,
+                                             exec_async=False,
+                                             exec_pipelined=False)
         self.name = device
-        self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
+        self.input = ops.readers.Caffe(path=caffe_db_folder,
+                                       shard_id=device_id,
+                                       num_shards=num_gpus)
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
         if input_type != dali.types.UINT8:
             self.cast = ops.Cast(device=device, dtype=input_type)
@@ -157,10 +190,24 @@ class RotatePipeline(Pipeline):
 
 
 class CVPipeline(Pipeline):
-    def __init__(self, batch_size, output_type, input_type, fixed_size, num_threads=3, device_id=0, num_gpus=1):
-        super(CVPipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+    def __init__(self,
+                 batch_size,
+                 output_type,
+                 input_type,
+                 fixed_size,
+                 num_threads=3,
+                 device_id=0,
+                 num_gpus=1):
+        super(CVPipeline, self).__init__(batch_size,
+                                         num_threads,
+                                         device_id,
+                                         seed=7865,
+                                         exec_async=False,
+                                         exec_pipelined=False)
         self.name = "cv"
-        self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
+        self.input = ops.readers.Caffe(path=caffe_db_folder,
+                                       shard_id=device_id,
+                                       num_shards=num_gpus)
         self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
         self.rotate = ops.PythonFunction(function=CVRotate(output_type, input_type, fixed_size),
                                          output_layouts="HWC")
@@ -201,12 +248,14 @@ def create_pipeline(backend, *args):
 
 def run_cases(backend1, backend2, epsilon):
     for batch_size in [1, 4, 19]:
-        for output_size in [None, (160,240)]:
+        for output_size in [None, (160, 240)]:
             for (itype, otype) in io_types:
+
                 def run_case(backend1, backend2, *args):
                     pipe1 = create_pipeline(backend1, *args)
                     pipe2 = create_pipeline(backend2, *args)
                     compare(pipe1, pipe2, epsilon)
+
                 yield run_case, backend1, backend2, batch_size, otype, itype, output_size
 
 
@@ -226,22 +275,26 @@ def test_gpu_vs_cpu():
 
 
 def infer_sequence_size(input_shapes, angles, axes=None):
-    assert(len(input_shapes) == len(angles))
-    assert(axes is None or len(axes) == len(angles))
+    assert (len(input_shapes) == len(angles))
+    assert (axes is None or len(axes) == len(angles))
     if axes is None:
         no_correction_shapes = [
             np.array(get_output_size(math.radians(angle), shape, False), dtype=np.int32)
-            for shape, angle in zip(input_shapes, angles)]
+            for shape, angle in zip(input_shapes, angles)
+        ]
         corrected_shapes = [
             np.array(get_output_size(math.radians(angle), shape, True), dtype=np.int32)
-            for shape, angle in zip(input_shapes, angles)]
+            for shape, angle in zip(input_shapes, angles)
+        ]
     else:
         no_correction_shapes = [
             np.array(get_3d_output_size(math.radians(angle), axis, shape, False), dtype=np.int32)
-            for shape, angle, axis in zip(input_shapes, angles, axes)]
+            for shape, angle, axis in zip(input_shapes, angles, axes)
+        ]
         corrected_shapes = [
             np.array(get_3d_output_size(math.radians(angle), axis, shape, True), dtype=np.int32)
-            for shape, angle, axis in zip(input_shapes, angles, axes)]
+            for shape, angle, axis in zip(input_shapes, angles, axes)
+        ]
     max_shape = np.max(no_correction_shapes, axis=0)
     parity = np.sum(np.array(corrected_shapes, dtype=np.int32) % 2, axis=0)
     for i in range(len(max_shape)):
@@ -252,20 +305,23 @@ def infer_sequence_size(input_shapes, angles, axes=None):
 
 def sequence_batch_output_size(unfolded_extents, input_batch, angle_batch, axis_batch=None):
     def iter_by_groups():
-        assert(sum(unfolded_extents) == len(input_batch))
-        assert(len(input_batch) == len(angle_batch))
-        assert(axis_batch is None or len(axis_batch) == len(angle_batch))
+        assert sum(unfolded_extents) == len(input_batch)
+        assert len(input_batch) == len(angle_batch)
+        assert axis_batch is None or len(axis_batch) == len(angle_batch)
         offset = 0
         for group in unfolded_extents:
             yield input_batch[offset:offset + group], angle_batch[offset:offset + group],\
               None if axis_batch is None else axis_batch[offset:offset + group]
             offset += group
+
     sequence_output_shape = [
         infer_sequence_size([frame.shape for frame in input_frames], angles, axes)
-        for input_frames, angles, axes in iter_by_groups()]
+        for input_frames, angles, axes in iter_by_groups()
+    ]
     return [
         output_shape for output_shape, num_frames in zip(sequence_output_shape, unfolded_extents)
-        for _ in range(num_frames)]
+        for _ in range(num_frames)
+    ]
 
 
 class RotatePerFrameParamsProvider(ParamsProvider):
@@ -274,26 +330,23 @@ class RotatePerFrameParamsProvider(ParamsProvider):
     The expanded baseline pipeline must be provided with additional argument ``size``
     to make allowance for coalescing of inferred frames sizes
     """
-
     def __init__(self, input_params):
         super().__init__(input_params)
 
     def expand_params(self):
-        assert(self.num_expand == 1)
+        assert (self.num_expand == 1)
         expanded_params = super().expand_params()
         params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
         expanded_angles = params_dict.get('angle')
         expanded_axis = params_dict.get('axis')
-        assert expanded_angles is not None and 'size' not in self.fixed_params and 'size' not in params_dict
-        sequence_extents = [
-          [sample.shape[0] for sample in input_batch]
-          for input_batch in self.input_data]
+        assert expanded_angles is not None and 'size' not in self.fixed_params and \
+            'size' not in params_dict
+        sequence_extents = [[sample.shape[0] for sample in input_batch]
+                            for input_batch in self.input_data]
         output_size_params = (sequence_extents, self.unfolded_input, expanded_angles.data)
         if expanded_axis is not None:
-            output_size_params += (expanded_axis.data,)
-        output_sizes = [
-            sequence_batch_output_size(*args)
-            for args in zip(*output_size_params)]
+            output_size_params += (expanded_axis.data, )
+        output_sizes = [sequence_batch_output_size(*args) for args in zip(*output_size_params)]
         expanded_params.append(ArgData(ArgDesc("size", False, "cpu"), output_sizes))
         return expanded_params
 
@@ -317,7 +370,8 @@ def test_video():
         (dali.fn.rotate, {}, [ArgCb("angle", random_angle, False)]),
         (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", small_angle, True)])),
         (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True)])),
-        (dali.fn.rotate, {}, [ArgCb("angle", small_angle, True), ArgCb("size", random_output, False)]),
+        (dali.fn.rotate, {}, [ArgCb("angle", small_angle, True),
+                              ArgCb("size", random_output, False)]),
     ]
 
     rng = random.Random(42)
@@ -352,7 +406,9 @@ def test_3d_sequence():
 
     test_cases = [
       (dali.fn.rotate, {'angle': 45., 'axis': np.array([1, 0, 0], dtype=np.float32)}, []),
-      (dali.fn.rotate, {'size': (50, 30, 20)}, [ArgCb("angle", random_angle, True), ArgCb("axis", random_axis, True)]),
-      (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True), ArgCb("axis", random_axis, True)])),
+      (dali.fn.rotate, {'size': (50, 30, 20)}, [ArgCb("angle", random_angle, True),
+                                                ArgCb("axis", random_axis, True)]),
+      (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True),
+                                                         ArgCb("axis", random_axis, True)])),
     ]
     yield from sequence_suite_helper(rng, "F", input_cases, test_cases)

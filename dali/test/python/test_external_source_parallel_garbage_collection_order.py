@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,12 +40,15 @@ def simple_pipeline():
 
 def _test_no_segfault(method, workers_num):
     """
-    This may cause segmentation fault on Python teardown if shared memory wrappers managed by the py_pool
-    are garbage collected before pipeline's backend
+    This may cause segmentation fault on Python teardown if shared memory wrappers managed by the
+    py_pool are garbage collected before pipeline's backend
     """
-    pipe = simple_pipeline(
-        py_start_method=method, py_num_workers=workers_num,
-        batch_size=batch_size, num_threads=4, prefetch_queue_depth=2, device_id=0)
+    pipe = simple_pipeline(py_start_method=method,
+                           py_num_workers=workers_num,
+                           batch_size=batch_size,
+                           num_threads=4,
+                           prefetch_queue_depth=2,
+                           device_id=0)
     pipe.build()
     pipe.run()
 

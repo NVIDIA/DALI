@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend_impl import *
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
+from nvidia.dali.tensors import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU
 import nvidia.dali.tensors as tensors
 import numpy as np
 import torch
@@ -36,40 +34,45 @@ def test_dlpack_tensor_gpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
     tensor = TensorGPU(to_dlpack(arr))
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
-    assert(torch.all(arr.eq(dali_torch_tensor)))
+    assert (torch.all(arr.eq(dali_torch_tensor)))
 
 
 def test_dlpack_tensor_gpu_to_cpu():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
     tensor = TensorGPU(to_dlpack(arr))
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
-    assert(torch.all(arr.cpu().eq(dali_torch_tensor.cpu())))
+    assert (torch.all(arr.cpu().eq(dali_torch_tensor.cpu())))
 
 
 def test_dlpack_tensor_list_gpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
     tensor_list = TensorListGPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
-    assert(torch.all(arr.eq(dali_torch_tensor)))
+    assert (torch.all(arr.eq(dali_torch_tensor)))
 
 
 def test_dlpack_tensor_list_gpu_to_cpu():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
     tensor_list = TensorListGPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
-    assert(torch.all(arr.cpu().eq(dali_torch_tensor.cpu())))
+    assert (torch.all(arr.cpu().eq(dali_torch_tensor.cpu())))
 
 
 def check_dlpack_types_gpu(t):
     arr = torch.tensor([[-0.39, 1.5], [-1.5, 0.33]], device="cuda", dtype=t)
     tensor = TensorGPU(to_dlpack(arr), "NHWC")
-    dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape())
-    assert(torch.all(arr.eq(dali_torch_tensor)))
+    dali_torch_tensor = convert_to_torch(tensor,
+                                         device=arr.device,
+                                         dtype=arr.dtype,
+                                         size=tensor.shape())
+    assert (torch.all(arr.eq(dali_torch_tensor)))
 
 
 def test_dlpack_interface_types():
-    for t in [torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
-              torch.float64, torch.float32, torch.float16]:
+    for t in [
+            torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
+            torch.float64, torch.float32, torch.float16
+    ]:
         yield check_dlpack_types_gpu, t
 
 
@@ -77,14 +80,15 @@ def test_dlpack_tensor_cpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cpu")
     tensor = TensorCPU(to_dlpack(arr))
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
-    assert(torch.all(arr.eq(dali_torch_tensor)))
+    assert (torch.all(arr.eq(dali_torch_tensor)))
 
 
 def test_dlpack_tensor_list_cpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cpu")
     tensor_list = TensorListCPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
-    assert(torch.all(arr.eq(dali_torch_tensor)))
+    assert (torch.all(arr.eq(dali_torch_tensor)))
+
 
 # Check if dlpack tensors behave correctly when created from temporary objects
 
@@ -94,6 +98,7 @@ def test_tensor_cpu_from_dlpack():
         a = np.full((4, 4), idx)
         dlt = to_dlpack(torch.from_numpy(a))
         return tensors.TensorCPU(dlt, "")
+
     out = [create_tmp(i) for i in range(4)]
     for i, t in enumerate(out):
         np.testing.assert_array_equal(np.array(t), np.full((4, 4), i))
@@ -104,6 +109,7 @@ def test_tensor_list_cpu_from_dlpack():
         a = np.full((4, 4), idx)
         dlt = to_dlpack(torch.from_numpy(a))
         return tensors.TensorListCPU(dlt, "")
+
     out = [create_tmp(i) for i in range(4)]
     for i, tl in enumerate(out):
         np.testing.assert_array_equal(tl.as_array(), np.full((4, 4), i))
@@ -114,6 +120,7 @@ def test_tensor_gpu_from_dlpack():
         a = np.full((4, 4), idx)
         dlt = to_dlpack(torch.from_numpy(a).cuda())
         return tensors.TensorGPU(dlt, "")
+
     out = [create_tmp(i) for i in range(4)]
     for i, t in enumerate(out):
         np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4, 4), i))
@@ -124,6 +131,7 @@ def test_tensor_list_gpu_from_dlpack():
         a = np.full((4, 4), idx)
         dlt = to_dlpack(torch.from_numpy(a).cuda())
         return tensors.TensorListGPU(dlt, "")
+
     out = [create_tmp(i) for i in range(4)]
     for i, tl in enumerate(out):
         np.testing.assert_array_equal(tl.as_cpu().as_array(), np.full((4, 4), i))
@@ -132,13 +140,18 @@ def test_tensor_list_gpu_from_dlpack():
 def check_dlpack_types_cpu(t):
     arr = torch.tensor([[-0.39, 1.5], [-1.5, 0.33]], device="cpu", dtype=t)
     tensor = TensorCPU(to_dlpack(arr), "NHWC")
-    dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape())
-    assert(torch.all(arr.eq(dali_torch_tensor)))
+    dali_torch_tensor = convert_to_torch(tensor,
+                                         device=arr.device,
+                                         dtype=arr.dtype,
+                                         size=tensor.shape())
+    assert (torch.all(arr.eq(dali_torch_tensor)))
 
 
 def test_dlpack_interface_types_cpu():
-    for t in [torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
-              torch.float64, torch.float32]:
+    for t in [
+            torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
+            torch.float64, torch.float32
+    ]:
         yield check_dlpack_types_cpu, t
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +15,7 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import nvidia.dali.tfrecord as tfrec
-from timeit import default_timer as timer
-import numpy as np
-import os
-from numpy.testing import assert_array_equal, assert_allclose
+from numpy.testing import assert_array_equal
 from test_utils import get_dali_extra_path
 
 seed = 1549361629
@@ -32,8 +28,7 @@ batch_size = 20
 def compare(tl1, tl2):
     tl1_cpu = tl1.as_cpu()
     tl2_cpu = tl2.as_cpu()
-    #tl2 = tl2.as_cpu()
-    assert(len(tl1_cpu) == len(tl2_cpu))
+    assert len(tl1_cpu) == len(tl2_cpu)
     for i in range(0, len(tl1_cpu)):
         assert_array_equal(tl1_cpu.at(i), tl2_cpu.at(i), "cached and non-cached images differ")
 
@@ -45,7 +40,12 @@ class HybridDecoderPipeline(Pipeline):
         policy = None
         if cache_size > 0:
             policy = "threshold"
-        self.decode = ops.decoders.Image(device='mixed', output_type=types.RGB, cache_debug=False, cache_size=cache_size, cache_type=policy, cache_batch_copy=True)
+        self.decode = ops.decoders.Image(device='mixed',
+                                         output_type=types.RGB,
+                                         cache_debug=False,
+                                         cache_size=cache_size,
+                                         cache_type=policy,
+                                         cache_batch_copy=True)
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")
