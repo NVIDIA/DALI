@@ -174,7 +174,7 @@ def common_pipeline(images):
 
 
 def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch_queue_depth,
-                         reader_queue_depth, read_encoded, **kwargs, ):
+                         reader_queue_depth, read_encoded, **kwargs):
     pipe = dali.pipeline.Pipeline(
         batch_size=batch_size, num_threads=num_threads, device_id=device_id,
         prefetch_queue_depth=prefetch_queue_depth)
@@ -183,7 +183,7 @@ def file_reader_pipeline(data_path, batch_size, num_threads, device_id, prefetch
             name="Reader",
             file_root=data_path,
             prefetch_queue_depth=reader_queue_depth,
-            random_shuffle=True, )
+            random_shuffle=True)
         dev = "mixed" if read_encoded else "cpu"
         images = dali.fn.decoders.image(images, device=dev, output_type=types.RGB)
         images = common_pipeline(images.gpu())

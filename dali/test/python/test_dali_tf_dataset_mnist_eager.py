@@ -1,4 +1,3 @@
-# flake8: noqa
 # Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from test_dali_tf_dataset_mnist import *
 from nose_utils import raises
+from test_dali_tf_dataset_mnist import run_keras_single_device, skip_for_incompatible_tf, \
+    keras_model, get_dataset, EPOCHS, ITERATIONS, available_gpus, TARGET, clear_checkpoints, \
+    run_estimators_single_device, get_dataset_multi_gpu
+import tensorflow as tf
+from nose.tools import with_setup
+
 
 tf.compat.v1.enable_eager_execution()
 
