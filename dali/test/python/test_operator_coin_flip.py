@@ -29,7 +29,7 @@ def check_coin_flip(device='cpu', batch_size=32, max_shape=[1e5], p=None,
                     use_shape_like_input=False):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
-        shape_gen_f = lambda: random_shape(max_shape)  # noqa: E731
+        def shape_gen_f(): return random_shape(max_shape)
         shape_arg = None
         inputs = []
         shape_out = None

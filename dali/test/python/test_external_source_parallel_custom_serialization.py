@@ -427,8 +427,8 @@ def _test_serialization_of_globals_referenced_in_list_comprehension_in_cb(name,
 @register_case(tests_dali_pickling)
 @register_case(tests_cloudpickle_pickling)
 def _test_mutually_recursive_functions(name, py_callback_pickler):
-    div_by_2 = lambda n, acc=0: acc if n <= 0 else add_one(n // 2, acc)  # noqa: E731
-    add_one = lambda n, acc: div_by_2(n, acc + 1)  # noqa: E731
+    def div_by_2(n, acc=0): return acc if n <= 0 else add_one(n // 2, acc)
+    def add_one(n, acc): return div_by_2(n, acc + 1)
     _create_and_compare_simple_pipelines(
         lambda x: np.int32([div_by_2(x.idx_in_epoch)]),
         py_callback_pickler, batch_size=15, py_num_workers=2)
@@ -437,8 +437,8 @@ def _test_mutually_recursive_functions(name, py_callback_pickler):
 @register_case(tests_dali_pickling)
 @register_case(tests_cloudpickle_pickling)
 def _test_builtin_functions_usage_in_cb(name, py_callback_pickler):
-    div_by_2 = lambda n, acc=0: acc if n <= 0 else add_one(n // 2, acc)  # noqa: E731
-    add_one = lambda n, acc: div_by_2(n, acc + 1)  # noqa: E731
+    def div_by_2(n, acc=0): return acc if n <= 0 else add_one(n // 2, acc)
+    def add_one(n, acc): return div_by_2(n, acc + 1)
     _create_and_compare_simple_pipelines(
         lambda x: np.int32([div_by_2(x.idx_in_epoch)]) + len(dir(np)),
         py_callback_pickler, batch_size=15, py_num_workers=2)
