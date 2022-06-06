@@ -52,7 +52,7 @@ struct PostprocessSampleDesc {
  * @brief Represents first, last (or other range representations) coordinates
  */
 template <typename Idx>
-struct pair_idx {
+struct idx_pair {
     Idx a = 0;
     Idx b = 0;
 };
@@ -62,11 +62,11 @@ struct pair_idx {
  */
 template <typename Idx>
 struct first_last {
-  DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> operator()(pair_idx<Idx> x) const noexcept {
+  DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> operator()(idx_pair<Idx> x) const noexcept {
     return x;
   }
 
-  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> neutral() const noexcept {
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> neutral() const noexcept {
     return {-1, -1};
   }
 };
@@ -76,11 +76,11 @@ struct first_last {
  */
 template <typename Idx>
 struct begin_end {
-  DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> operator()(pair_idx<Idx> x) const noexcept {
+  DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> operator()(idx_pair<Idx> x) const noexcept {
     return {x.a, x.b + 1};
   }
 
-  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> neutral() const noexcept {
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> neutral() const noexcept {
     return {0, 0};  // empty range
   }
 };
@@ -90,17 +90,17 @@ struct begin_end {
  */
 template <typename Idx>
 struct begin_length {
-  DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> operator()(pair_idx<Idx> x) const noexcept {
+  DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> operator()(idx_pair<Idx> x) const noexcept {
     return {x.a, x.b - x.a + 1};
   }
 
-  constexpr DALI_HOST_DEV DALI_FORCEINLINE pair_idx<Idx> neutral() const noexcept {
+  constexpr DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> neutral() const noexcept {
     return {0, 0};  // empty range
   }
 };
 
 template <typename Postprocessor, typename Idx>
-__device__ void Postprocess(Postprocessor &post, Idx &a, Idx &b, pair_idx<Idx> neutral) {
+__device__ void Postprocess(Postprocessor &post, Idx &a, Idx &b, idx_pair<Idx> neutral) {
   auto tmp = post.neutral();
   if (a != neutral.a && b != neutral.b)
     tmp = post({a, b});
@@ -110,7 +110,7 @@ __device__ void Postprocess(Postprocessor &post, Idx &a, Idx &b, pair_idx<Idx> n
 
 
 template <typename Idx>
-__device__ void Postprocess(nullptr_t &, Idx &, Idx &, pair_idx<Idx>) {}
+__device__ void Postprocess(nullptr_t &, Idx &, Idx &, idx_pair<Idx>) {}
 
 /**
  * @brief Extract the position of the first and last position that
@@ -143,7 +143,7 @@ __global__ void FindFirstLastImpl(SampleDesc<T, Idx, Predicate, Postprocessor> *
 
   constexpr Idx first_neutral = first_reduction.template neutral<Idx>();
   constexpr Idx last_neutral = last_reduction.template neutral<Idx>();
-  constexpr pair_idx<Idx> neutral{first_neutral, last_neutral};
+  constexpr idx_pair<Idx> neutral{first_neutral, last_neutral};
   Idx first = first_neutral;
   Idx last = last_neutral;
 
@@ -172,7 +172,7 @@ __global__ void FindFirstLastImpl(SampleDesc<T, Idx, Predicate, Postprocessor> *
  */
 template <typename Idx, typename Postprocessor>
 __global__ void PostprocessKernelImpl(PostprocessSampleDesc<Idx, Postprocessor> *samples,
-                                      int nsamples, pair_idx<Idx> neutral) {
+                                      int nsamples, idx_pair<Idx> neutral) {
   for (int idx = threadIdx.x; idx < nsamples; idx += blockDim.x) {
     auto &sample = samples[idx];
     Postprocessor post;
@@ -222,7 +222,7 @@ class FindFirstLastGPU {
       last_.Run(ctx, length, in, predicates);
       if (!std::is_same<Postprocessor, nullptr_t>::value) {
         // that's what FindReduceGPU gives us for "not-found"
-        constexpr pair_idx<Idx> neutral{-1, -1};
+        constexpr idx_pair<Idx> neutral{-1, -1};
         RunPostprocessKernel(ctx, begin, length, neutral, postprocessors);
       }
     }
@@ -260,7 +260,7 @@ class FindFirstLastGPU {
 
   void RunPostprocessKernel(KernelContext ctx, const OutListGPU<Idx, 0> &first,
                             const OutListGPU<Idx, 0> &last,
-                            pair_idx<Idx> neutral,
+                            idx_pair<Idx> neutral,
                             const InListGPU<Postprocessor, 0> postprocessors = {}) {
     int nsamples = first.num_samples();
     int block = nsamples > 256 ? 256 : nsamples;
