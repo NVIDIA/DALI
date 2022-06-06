@@ -26,7 +26,7 @@ vector<ssize_t> calc_sizes(DALIDataType type, TensorShape<-1> shape) {
   args.push_back(nitems);
   args.push_back(item_size);
 
-  for (size_t i = 0; i < shape.size(); i++) {
+  for (int i = 0; i < shape.size(); i++) {
     args.push_back(shape[i]);
   }
 
