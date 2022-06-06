@@ -12,23 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from webdataset_base import *
-
+import webdataset_base as base
+from test_utils import compare_pipelines, get_dali_extra_path
+from nose_utils import assert_raises
+from nose.tools import assert_equal
+from glob import glob
+import os
+import math
+import nvidia.dali as dali
+import tempfile
 
 def general_corner_case(
-    test_batch_size=test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
+    test_batch_size=base.test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
 ):
     num_samples = 1000
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
-    index_file = generate_temp_index_file(tar_file_path)
+    index_file = base.generate_temp_index_file(tar_file_path)
 
-    extract_dir = generate_temp_extract(tar_file_path)
+    extract_dir = base.generate_temp_extract(tar_file_path)
     equivalent_files = sorted(
         glob(extract_dir.name + "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])
     )
 
     compare_pipelines(
-        webdataset_raw_pipeline(
+        base.webdataset_raw_pipeline(
             tar_file_path,
             index_file.name,
             ["jpg", "cls"],
@@ -39,7 +46,7 @@ def general_corner_case(
             num_threads=1,
             **kwargs
         ),
-        file_reader_pipeline(
+        base.file_reader_pipeline(
             equivalent_files,
             ["jpg", "cls"],
             batch_size=test_batch_size,
@@ -73,13 +80,13 @@ def test_single_sample():
     test_batch_size = 1
     num_samples = 1
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/single.tar")
-    index_file = generate_temp_index_file(tar_file_path)
+    index_file = base.generate_temp_index_file(tar_file_path)
 
-    extract_dir = generate_temp_extract(tar_file_path)
+    extract_dir = base.generate_temp_extract(tar_file_path)
     equivalent_files = list(sorted(glob(extract_dir.name + "/*")))
 
     compare_pipelines(
-        webdataset_raw_pipeline(
+        base.webdataset_raw_pipeline(
             tar_file_path,
             index_file.name,
             ["txt"],
@@ -88,13 +95,13 @@ def test_single_sample():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(
+        base.file_reader_pipeline(
             equivalent_files, ["txt"], batch_size=test_batch_size, device_id=0, num_threads=1
         ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size) * 10,
     )
-    wds_pipeline = webdataset_raw_pipeline(
+    wds_pipeline = base.webdataset_raw_pipeline(
         tar_file_path,
         index_file.name,
         ["txt"],
@@ -110,13 +117,13 @@ def test_single_sample_and_junk():
     test_batch_size = 1
     num_samples = 1
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/single_junk.tar")
-    index_file = generate_temp_index_file(tar_file_path)
+    index_file = base.generate_temp_index_file(tar_file_path)
 
-    extract_dir = generate_temp_extract(tar_file_path)
+    extract_dir = base.generate_temp_extract(tar_file_path)
     equivalent_files = list(sorted(glob(extract_dir.name + "/*")))
 
     compare_pipelines(
-        webdataset_raw_pipeline(
+        base.webdataset_raw_pipeline(
             tar_file_path,
             index_file.name,
             ["txt"],
@@ -124,13 +131,13 @@ def test_single_sample_and_junk():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(
+        base.file_reader_pipeline(
             equivalent_files, ["txt"], batch_size=test_batch_size, device_id=0, num_threads=1
         ),
         test_batch_size,
         math.ceil(num_samples / test_batch_size) * 10,
     )
-    wds_pipeline = webdataset_raw_pipeline(
+    wds_pipeline = base.webdataset_raw_pipeline(
         tar_file_path,
         index_file.name,
         ["txt"],
@@ -146,14 +153,14 @@ def test_wide_sample():
     test_batch_size = 1
     num_samples = 1
     tar_file_path = os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/wide.tar")
-    index_file = generate_temp_index_file(tar_file_path)
+    index_file = base.generate_temp_index_file(tar_file_path)
 
-    extract_dir = generate_temp_extract(tar_file_path)
+    extract_dir = base.generate_temp_extract(tar_file_path)
     equivalent_files = list(sorted(glob(extract_dir.name + "/*")))
 
     num_components = 1000
     compare_pipelines(
-        webdataset_raw_pipeline(
+        base.webdataset_raw_pipeline(
             tar_file_path,
             index_file.name,
             [str(x) for x in range(num_components)],
@@ -161,7 +168,7 @@ def test_wide_sample():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(
+        base.file_reader_pipeline(
             equivalent_files,
             [str(x) for x in range(num_components)],
             batch_size=test_batch_size,
@@ -171,7 +178,7 @@ def test_wide_sample():
         test_batch_size,
         math.ceil(num_samples / test_batch_size) * 10,
     )
-    wds_pipeline = webdataset_raw_pipeline(
+    wds_pipeline = base.webdataset_raw_pipeline(
         tar_file_path,
         index_file.name,
         ["txt"],
@@ -185,7 +192,7 @@ def test_wide_sample():
 
 def test_argument_errors():
     def paths_index_paths_error():
-        webdataset_pipeline = webdataset_raw_pipeline(
+        webdataset_pipeline = base.webdataset_raw_pipeline(
             [
                 os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar"),
                 os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-1.tar"),
@@ -233,7 +240,7 @@ def general_index_error(
     index_file = tempfile.NamedTemporaryFile()
     index_file.write(index_file_contents)
     index_file.flush()
-    webdataset_pipeline = webdataset_raw_pipeline(
+    webdataset_pipeline = base.webdataset_raw_pipeline(
         os.path.join(get_dali_extra_path(), tar_file_path),
         index_file.name,
         ext,

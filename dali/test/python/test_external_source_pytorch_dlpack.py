@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend_impl import *
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
-import nvidia.dali.fn as fn
 import numpy as np
+import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
 import torch
+from nvidia.dali.backend_impl import *  # noqa: F401, F403
+from nvidia.dali.pipeline import Pipeline
 from torch.utils.dlpack import to_dlpack, from_dlpack
+
 from test_utils import check_output
-from collections.abc import Iterable
 
 
 class TestIterator():
@@ -48,8 +48,10 @@ class TestIterator():
             if self.as_tensor:
                 data = to_dlpack(torch.rand(size=[self.batch_size] + shape, device=self.device))
             else:
-                data = [to_dlpack(torch.rand(shape, device=self.device)) for _ in range(self.batch_size)]
+                data = [to_dlpack(torch.rand(shape, device=self.device)) for _ in
+                        range(self.batch_size)]
             return data
+
         if self.i < self.n:
             self.i += 1
             if isinstance(self.dims, (list, tuple)):
@@ -59,6 +61,7 @@ class TestIterator():
         else:
             self.i = 0
             raise StopIteration
+
     next = __next__
 
 
@@ -82,12 +85,12 @@ def run_and_check(pipe, ref_iterable):
         try:
             pipe_out = pipe.run()
             data = next(iter_ref)
-            data = asnumpy(data, iter_ref.device )
+            data = asnumpy(data, iter_ref.device)
             check_output(pipe_out, data)
             i += 1
         except StopIteration:
             break
-    assert(i == len(ref_iterable))
+    assert (i == len(ref_iterable))
 
 
 def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
@@ -95,10 +98,8 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
 
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id, src_device):
-            super(IterSetupPipeline, self).__init__(
-                batch_size=iterator.batch_size,
-                num_threads=num_threads,
-                device_id=device_id)
+            super().__init__(batch_size=iterator.batch_size, num_threads=num_threads,
+                             device_id=device_id)
 
             self.iterator = iterator
             self._device = src_device
@@ -106,8 +107,10 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
         def define_graph(self):
             if use_fn_api:
                 # pass a Torch stream where data is generated
-                self.batch_1 = fn.external_source(device=self._device, name="src1", cuda_stream=torch.cuda.default_stream())
-                self.batch_2 = fn.external_source(device=self._device, name="src2", cuda_stream=torch.cuda.default_stream())
+                self.batch_1 = fn.external_source(device=self._device, name="src1",
+                                                  cuda_stream=torch.cuda.default_stream())
+                self.batch_2 = fn.external_source(device=self._device, name="src2",
+                                                  cuda_stream=torch.cuda.default_stream())
             else:
                 input_1 = ops.ExternalSource(device=self._device)
                 input_2 = ops.ExternalSource(device=self._device)
@@ -154,11 +157,13 @@ def _test_external_source_callback_torch_stream(src_device, gen_device):
                 t0 += increment
                 return [to_dlpack(t0)]
 
-            pipe.set_outputs(fn.external_source(source=gen_batch, device=src_device, cuda_stream=torch.cuda.current_stream()))
+            pipe.set_outputs(fn.external_source(source=gen_batch, device=src_device,
+                                                cuda_stream=torch.cuda.current_stream()))
             pipe.build()
 
             for i in range(10):
-                check_output(pipe.run(), [np.array([attempt * 100 + (i + 1) * 10 + 1.5], dtype=np.float32)])
+                check_output(pipe.run(),
+                             [np.array([attempt * 100 + (i + 1) * 10 + 1.5], dtype=np.float32)])
 
 
 def test_external_source_callback_torch_stream():
