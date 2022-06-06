@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
-import time
 import argparse
+import os
 import subprocess
-from shutil import which
+import sys
 import tarfile
+import time
+from shutil import which
 
 
 class IndexCreator:
@@ -28,9 +28,9 @@ class IndexCreator:
 
     Example usage:
     ----------
-    >>> with IndexCreator('data/test.tar','data/test.idx') as ic:
-    >>>     ic.create_index()
-    >>> !ls data/
+    >> with IndexCreator('data/test.tar','data/test.idx') as ic:
+    >>     ic.create_index()
+    >> !ls data/
     test.tar  test.idx
 
     Parameters
@@ -77,7 +77,7 @@ class IndexCreator:
     def split_name(filepath):
         """Splits the webdataset into the basename and the extension"""
         dot_pos = filepath.find(".", filepath.rfind("/") + 1)
-        return filepath[:dot_pos], filepath[dot_pos + 1 :]
+        return filepath[:dot_pos], filepath[dot_pos + 1:]
 
     def _get_data_tar(self):
         """Retreives the data about the offset, name and size of each component
@@ -100,20 +100,23 @@ class IndexCreator:
         )  # <type>... <size> <date> <name>
 
         # Extracting
-        for blocks_line, next_blocks_line, types_sizes_line in zip(tar_blocks, tar_blocks[1:], tar_types_sizes):
+        for blocks_line, next_blocks_line, types_sizes_line in zip(tar_blocks, tar_blocks[1:],
+                                                                   tar_types_sizes):
             if not blocks_line or not types_sizes_line:
                 continue
 
-            name = str(blocks_line[blocks_line.find(b":") + 2 :], "ascii")
+            name = str(blocks_line[blocks_line.find(b":") + 2:], "ascii")
             entry_type = types_sizes_line[0:1]
 
             if entry_type != b"-":
                 continue
 
-            offset = int(next_blocks_line[next_blocks_line.find(b"block") + 6 : next_blocks_line.find(b":")]) * 512
+            offset = int(
+                next_blocks_line[next_blocks_line.find(b"block") + 6 : next_blocks_line.find(b":")]) * 512  # noqa: E203, E501
+
             size = types_sizes_line[: -len(name)]
             size = size[: size.rfind(b"-") - 8]  # "... <size> 20yy-mm-...."
-            size = int(size[size.rfind(b" ") :])
+            size = int(size[size.rfind(b" "):])
             offset -= size
             offset -= offset % 512
 
@@ -194,7 +197,7 @@ class IndexCreator:
 def parse_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="Creates a webdataset index file for the use with the fn.readers.webdataset from DALI.",
+        description="Creates a webdataset index file for the use with the `fn.readers.webdataset`.",
     )
     parser.add_argument("archive", help="path to .tar file.")
     parser.add_argument(
