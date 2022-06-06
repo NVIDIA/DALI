@@ -321,20 +321,23 @@ class RotatePerFrameParamsProvider(ParamsProvider):
         super().__init__(input_params)
 
     def expand_params(self):
-        assert self.num_expand == 1
+        assert self.input_data.desc.expandable_prefix == "F"
         expanded_params = super().expand_params()
         params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
         expanded_angles = params_dict.get('angle')
         expanded_axis = params_dict.get('axis')
         assert (expanded_angles is not None and 'size' not in self.fixed_params
                 and 'size' not in params_dict)
-        sequence_extents = [[sample.shape[0] for sample in input_batch]
-                            for input_batch in self.input_data]
-        output_size_params = (sequence_extents, self.unfolded_input, expanded_angles.data)
+        sequence_extents = [
+          [sample.shape[0] for sample in input_batch]
+          for input_batch in self.input_data.data]
+        output_size_params = (sequence_extents, self.unfolded_input.data, expanded_angles.data)
         if expanded_axis is not None:
-            output_size_params += (expanded_axis.data, )
-        output_sizes = [sequence_batch_output_size(*args) for args in zip(*output_size_params)]
-        expanded_params.append(ArgData(ArgDesc("size", False, "cpu"), output_sizes))
+            output_size_params += (expanded_axis.data,)
+        output_sizes = [
+            sequence_batch_output_size(*args)
+            for args in zip(*output_size_params)]
+        expanded_params.append(ArgData(ArgDesc("size", "", "cpu"), output_sizes))
         return expanded_params
 
     def __repr__(self):
