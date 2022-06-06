@@ -313,6 +313,32 @@ class DLL_PUBLIC TensorVector {
 
   TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;
 
+  /**
+   * @brief Checks whether the batch container is contiguous. It returns true if and only if
+   * all of the stored individual tensors are densely packed in memory.
+   */
+  bool IsContiguousTensor() const;
+
+  /**
+   * @brief Checks whether the batch container can be converted to a dense Tensor. It returns true
+   * if and only if all of the stored tensors have the same shape and they are densely packed in
+   * memory.
+   */
+  bool IsDenseTensor() const;
+
+  /**
+   * @brief Returns a pointer to Tensor which shares the data with this batch object and give it the
+   * provided shape. Batch and the Tensor share the memory allocation. The tensor obtained through
+   * this function stays valid for as long as TensorList data is unchanged.
+   * The batch must be representable as DenseTensor.
+   */
+  DLL_PUBLIC Tensor<Backend> AsReshapedTensor(const TensorShape<> &new_shape);
+
+  /**
+   * @brief Return a Dense Tensor representation of the underlying memory if possible.
+   */
+  DLL_PUBLIC Tensor<Backend> AsTensor();
+
   void UpdateViews();
 
   shared_ptr<TensorList<Backend>> AsTensorList(bool check_contiguity = true);
@@ -365,7 +391,6 @@ class DLL_PUBLIC TensorVector {
 
   void update_view(int idx);
 
-  std::atomic<int> views_count_;
   std::vector<std::shared_ptr<Tensor<Backend>>> tensors_;
   int curr_num_tensors_;
   std::shared_ptr<TensorList<Backend>> tl_;

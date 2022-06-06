@@ -21,13 +21,12 @@ namespace dali {
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector()
-    : views_count_(0), curr_num_tensors_(0), tl_(std::make_shared<TensorList<Backend>>()) {}
+    : curr_num_tensors_(0), tl_(std::make_shared<TensorList<Backend>>()) {}
 
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector(int batch_size)
-    : views_count_(0),
-      curr_num_tensors_(0),
+    : curr_num_tensors_(0),
       tl_(std::make_shared<TensorList<Backend>>(batch_size)) {
   resize_tensors(batch_size);
 }
@@ -35,7 +34,7 @@ TensorVector<Backend>::TensorVector(int batch_size)
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector(std::shared_ptr<TensorList<Backend>> tl)
-    : views_count_(0), curr_num_tensors_(0), tl_(std::move(tl)) {
+    : curr_num_tensors_(0), tl_(std::move(tl)) {
   assert(tl_ && "Construction with null TensorList is illegal");
   pinned_ = tl_->is_pinned();
   type_ = tl_->type_info();
@@ -55,15 +54,8 @@ TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
   tl_ = std::move(other.tl_);
   type_ = std::move(other.type_);
   sample_dim_ = other.sample_dim_;
-  views_count_ = other.views_count_.load();
   tensors_ = std::move(other.tensors_);
-  for (auto &t : tensors_) {
-    if (t) {
-      if (auto *del = std::get_deleter<ViewRefDeleter>(t->data_)) del->ref = &views_count_;
-    }
-  }
 
-  other.views_count_ = 0;
   other.curr_num_tensors_ = 0;
   other.tensors_.clear();
   other.sample_dim_ = -1;
@@ -466,7 +458,7 @@ void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
 
 template <typename Backend>
 bool TensorVector<Backend>::IsContiguous() const noexcept {
-  return state_ == State::contiguous && views_count_ == num_samples();
+  return state_ == State::contiguous;
 }
 
 
@@ -487,7 +479,6 @@ void TensorVector<Backend>::Reset() {
   type_ = {};
   sample_dim_ = -1;
   if (IsContiguous()) {
-    views_count_ = 0;
     tl_->Reset();
   }
 }
@@ -537,7 +528,6 @@ void TensorVector<Backend>::ShareData(const TensorVector<Backend> &tv) {
   sample_dim_ = tv.sample_dim_;
   state_ = tv.state_;
   pinned_ = tv.is_pinned();
-  views_count_ = 0;
   if (tv.state_ == State::contiguous) {
     ShareData(*tv.tl_);
   } else {
@@ -562,19 +552,79 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
     tl_ = std::move(other.tl_);
     type_ = other.type_;
     sample_dim_ = other.sample_dim_;
-    views_count_ = other.views_count_.load();
     tensors_ = std::move(other.tensors_);
-    for (auto &t : tensors_) {
-      if (t) {
-        if (auto *del = std::get_deleter<ViewRefDeleter>(t->data_)) del->ref = &views_count_;
-      }
-    }
-
-    other.views_count_ = 0;
     other.curr_num_tensors_ = 0;
     other.tensors_.clear();
   }
   return *this;
+}
+
+
+template <typename Backend>
+bool TensorVector<Backend>::IsContiguousTensor() const {
+  if (num_samples() == 0 || shape().num_elements() == 0) {
+    return true;
+  }
+  // if we are using contiguous representation we assume we can safely return
+  if (IsContiguous()) {
+    return true;
+  }
+  const uint8_t *base_ptr = static_cast<const uint8_t *>(tensors_[0]->raw_data());
+  size_t size = type_info().size();
+
+  for (int i = 0; i < shape().num_samples(); ++i) {
+    if (base_ptr != tensors_[i]->raw_data()) {
+      return false;
+    }
+    base_ptr += shape()[i].num_elements() * size;
+  }
+  return true;
+}
+
+
+template <typename Backend>
+bool TensorVector<Backend>::IsDenseTensor() const {
+  return IsContiguousTensor() && is_uniform(shape());
+}
+
+
+template <typename Backend>
+Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new_shape) {
+  DALI_ENFORCE(num_samples() > 0,
+               "To create a view Tensor, the batch must have at least 1 element.");
+  DALI_ENFORCE(IsValidType(type()),
+               "To create a view Tensor, the batch must have a valid data type.");
+  DALI_ENFORCE(has_data(), "To create a view Tensor, the batch must have a valid data allocation.");
+  DALI_ENFORCE(
+      IsContiguousTensor(),
+      "The batch must be representable as tensor - it must be allocated in contiguous memory.");
+  DALI_ENFORCE(
+      shape().num_elements() == new_shape.num_elements(),
+      make_string("To create a view Tensor, requested shape need to have the same volume as the "
+                  "batch, requested: ",
+                  new_shape.num_elements(), " expected: ", shape().num_elements()));
+  Tensor<Backend> result;
+  result.ShareData(unsafe_sample_owner(*tl_, 0), tl_->capacity(), tl_->is_pinned(), new_shape,
+                   type(), order());
+  result.set_device_id(device_id());
+  auto result_layout = GetLayout();
+  if (!GetLayout().empty()) {
+    result_layout = TensorLayout("N") + result_layout;
+  }
+  result.SetLayout(result_layout);
+  return result;
+}
+
+
+template <typename Backend>
+Tensor<Backend> TensorVector<Backend>::AsTensor() {
+  DALI_ENFORCE(IsDenseTensor(),
+               "The batch must be representable as tensor - it must has uniform shape and be "
+               "allocated in contiguous memory.");
+  DALI_ENFORCE(shape().num_samples() > 0,
+               "To create a view Tensor, the batch must have at least 1 element.");
+  DALI_ENFORCE(shape()[0].num_elements() > 0, "To create a view Tensor, sample must not be empty.");
+  return AsReshapedTensor(shape_cat(shape().num_samples(), shape()[0]));
 }
 
 
@@ -588,7 +638,6 @@ void TensorVector<Backend>::UpdateViews() {
 
   assert(curr_num_tensors_ == tl_->num_samples());
 
-  views_count_ = curr_num_tensors_;
   for (int i = 0; i < curr_num_tensors_; i++) {
     update_view(i);
   }
@@ -689,7 +738,7 @@ void TensorVector<Backend>::update_view(int idx) {
   // TODO(klecki): deleter that reduces views_count or just noop sharing?
   // tensors_[i]->ShareData(tl_.get(), static_cast<int>(idx));
   if (tensors_[idx]->raw_data() != ptr || tensors_[idx]->shape() != shape) {
-    tensors_[idx]->ShareData(std::shared_ptr<void>(ptr, ViewRefDeleter{&views_count_}),
+    tensors_[idx]->ShareData(unsafe_sample_owner(*tl_, idx),
                              volume(tl_->tensor_shape(idx)) * tl_->type_info().size(),
                              tl_->is_pinned(),
                              shape, tl_->type(),
