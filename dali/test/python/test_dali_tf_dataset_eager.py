@@ -16,17 +16,17 @@ import tensorflow as tf
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
+from nvidia.dali.plugin.tf.experimental import Input
 from nvidia.dali import fn
 from nose.tools import with_setup
-from nvidia.dali.plugin.tf.experimental import Input
-from dali.test.python.test_dali_tf_dataset_pipelines import \
+from test_dali_tf_dataset_pipelines import \
     FixedSampleIterator, RandomSampleIterator, external_source_converter_multiple, \
     external_source_converter_with_callback, external_source_converter_with_fixed_value, \
     external_source_tester, external_source_tester_multiple, get_min_shape_helper, \
     many_input_pipeline
-from dali.test.python.test_dali_tf_es_pipelines import \
+from test_dali_tf_es_pipelines import \
     external_source_to_tf_dataset, gen_tf_with_dali_external_source, get_external_source_pipe
-from dali.test.python.test_utils_tensorflow import \
+from test_utils_tensorflow import \
     get_dali_dataset_from_pipeline, get_image_pipeline, get_mix_size_image_pipeline, \
     run_dataset_eager_mode, run_tf_dataset_eager_mode, \
     run_tf_dataset_multigpu_eager_manual_placement, \
