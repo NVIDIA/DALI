@@ -191,7 +191,7 @@ TEST_F(FindRegionTestGPU, RunTest) {
   this->RunTest();
 }
 
-TEST_F(FindRegionTestGPU, Benchmark) {
+TEST_F(FindRegionTestGPU, DISABLED_Benchmark) {
   this->RunPerf(2);
   this->RunPerf(8);
   this->RunPerf(16);
