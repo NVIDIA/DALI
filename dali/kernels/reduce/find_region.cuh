@@ -43,7 +43,7 @@ struct FindRegionPostprocess {
     if (acc == i64vec2(max_value<int64_t>()))
       return i64vec2(0);
     else
-      return i64vec2(acc.x, -(acc.x + acc.y));
+      return i64vec2(acc.x, -(acc.x + acc.y) + 1);
   }
 };
 

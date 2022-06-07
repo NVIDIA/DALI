@@ -178,7 +178,7 @@ class FindReduceTestGPU : public ::testing::Test {
     double total_time_ms = 0;
     int64_t in_elems = in_data.cpu().shape.num_elements();
     int64_t in_bytes = in_elems * sizeof(T);
-    int64_t out_elems = 1;
+    int64_t out_elems = nsamples;
     int64_t out_bytes = out_elems * sizeof(int64_t);
     std::cout << "FindReduce GPU Perf test.\n"
               << "Input contains " << in_elems << " elements.\n";

@@ -101,11 +101,42 @@ struct min_impl<vec<N, T>> {
   static constexpr vec<N, T> neutral() noexcept { return max_value<T>(); }
 };
 
+template <typename T>
+struct max_impl {
+  template <typename U>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static T reduce(T &max_val, const U &val) noexcept {
+    return val > max_val ? val : max_val;
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static constexpr T neutral() noexcept { return min_value<T>(); }
+};
+
+template <typename T, int N>
+struct max_impl<vec<N, T>> {
+  template <typename U>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static vec<N, T> reduce(vec<N, T> &max_val, const vec<N, U> &val) noexcept {
+    IMPL_VEC_ELEMENTWISE(max_impl<T>::reduce(max_val[i], val[i]));
+  }
+
+  template <typename U>
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static vec<N, T> reduce(vec<N, T> &max_val, const U &val) noexcept {
+    IMPL_VEC_ELEMENTWISE(max_impl<T>::reduce(max_val[i], val));
+  }
+
+
+  DALI_HOST_DEV DALI_FORCEINLINE
+  static constexpr vec<N, T> neutral() noexcept { return min_value<T>(); }
+};
+
 struct min {
   template <typename T, typename U>
   DALI_HOST_DEV DALI_FORCEINLINE
   void operator()(T &min_val, const U &val) const noexcept {
-    min_impl<T>::reduce(min_val, val);
+    min_val = min_impl<T>::reduce(min_val, val);
   }
 
   template <typename T>
@@ -117,13 +148,12 @@ struct max {
   template <typename T, typename U>
   DALI_HOST_DEV DALI_FORCEINLINE
   void operator()(T &max_val, const U &val) const noexcept {
-    if (val > max_val)
-      max_val = val;
+    max_val = max_impl<T>::reduce(max_val, val);
   }
 
   template <typename T>
   DALI_HOST_DEV DALI_FORCEINLINE
-  static constexpr T neutral() noexcept { return min_value<T>(); }
+  static constexpr T neutral() noexcept { return max_impl<T>::neutral(); }
 };
 
 template <typename Reduction>

@@ -116,89 +116,88 @@ class FindRegionTestGPU : public ::testing::Test {
     }
   }
 
-//   void RunPerf(int nsamples = 64) {
-//     using T = float;
-//     using Idx = int64_t;
-//     int n_iters = 1000;
+  void RunPerf(int nsamples = 64) {
+    int n_iters = 1000;
 
-//     KernelContext ctx;
-//     ctx.gpu.stream = 0;
-//     DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
-//     ctx.scratchpad = &dyn_scratchpad;
+    KernelContext ctx;
+    ctx.gpu.stream = 0;
+    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
 
-//     TensorListShape<0> out_sh(nsamples);
-//     TensorListShape<> sh(nsamples, 1);
-//     for (int s = 0; s < nsamples; s++) {
-//       if (s % 4 == 0)
-//         sh.tensor_shape_span(s)[0] = 16000 * 60;
-//       else if (s % 4 == 1)
-//         sh.tensor_shape_span(s)[0] = 16000 * 120;
-//       else if (s % 4 == 2)
-//         sh.tensor_shape_span(s)[0] = 16000 * 30;
-//       else if (s % 4 == 3)
-//         sh.tensor_shape_span(s)[0] = 16000 * 90;
-//     }
+    TensorListShape<0> out_sh(nsamples);
+    TensorListShape<> sh(nsamples, 1);
+    for (int s = 0; s < nsamples; s++) {
+      if (s % 4 == 0)
+        sh.tensor_shape_span(s)[0] = 16000 * 60;
+      else if (s % 4 == 1)
+        sh.tensor_shape_span(s)[0] = 16000 * 120;
+      else if (s % 4 == 2)
+        sh.tensor_shape_span(s)[0] = 16000 * 30;
+      else if (s % 4 == 3)
+        sh.tensor_shape_span(s)[0] = 16000 * 90;
+    }
 
-//     TestTensorList<T> in_data;
-//     in_data.reshape(sh);
+    TestTensorList<float> in_data;
+    in_data.reshape(sh);
 
-//     TestTensorList<Idx> out_first_, out_last_;
-//     out_first_.reshape(out_sh);
-//     out_last_.reshape(out_sh);
+    TestTensorList<i64vec2> out_region_;
+    out_region_.reshape(out_sh);
 
-//     std::mt19937 rng;
-//     UniformRandomFill(in_data.cpu(), rng, 0.0, 1.0);
+    std::mt19937 rng;
+    UniformRandomFill(in_data.cpu(), rng, 0.0, 1.0);
 
-//     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
-//     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
-//     double total_time_ms = 0;
-//     int64_t in_elems = in_data.cpu().shape.num_elements();
-//     int64_t in_bytes = in_elems * sizeof(T);
-//     int64_t out_elems = 1;
-//     int64_t out_bytes = out_elems * sizeof(int64_t);
-//     std::cout << "FindReduce GPU Perf test.\n"
-//               << "Input contains " << in_elems << " elements.\n";
+    CUDAEvent start = CUDAEvent::CreateWithFlags(0);
+    CUDAEvent end = CUDAEvent::CreateWithFlags(0);
+    double total_time_ms = 0;
+    int64_t in_elems = in_data.cpu().shape.num_elements();
+    int64_t in_bytes = in_elems * sizeof(float);
+    int64_t out_elems = nsamples;
+    int64_t out_bytes = out_elems * sizeof(i64vec2);
 
-//     auto out_first = out_first_.gpu().to_static<0>();
-//     auto in = in_data.gpu().to_static<1>();
+    auto out_region = out_region_.gpu().to_static<0>();
+    auto in = in_data.gpu().to_static<1>();
 
-//     using Predicate = threshold<float>;
-//     TensorListShape<0> scalar_sh(nsamples);
-//     TestTensorList<Predicate, 0> predicates;
-//     predicates.reshape(scalar_sh);
-//     for (int i = 0; i < nsamples; i++) {
-//       *(predicates.cpu()[i].data) = Predicate(3);
-//     }
-//     auto predicates_gpu = predicates.gpu();
-//     FindReduceGPU<Idx, T, Predicate, reductions::min> first;
-//     for (int i = 0; i < n_iters; ++i) {
-//       CUDA_CALL(cudaDeviceSynchronize());
+    using Predicate = threshold<float>;
+    TensorListShape<0> scalar_sh(nsamples);
+    TestTensorList<Predicate, 0> predicates;
+    predicates.reshape(scalar_sh);
+    for (int i = 0; i < nsamples; i++) {
+      *(predicates.cpu()[i].data) = Predicate(3);
+    }
+    auto predicates_gpu = predicates.gpu();
+    FindRegionGPU<float, Predicate> first;
+    for (int i = 0; i < n_iters; ++i) {
+      CUDA_CALL(cudaDeviceSynchronize());
 
-//       DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
-//       ctx.scratchpad = &dyn_scratchpad;
+      DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+      ctx.scratchpad = &dyn_scratchpad;
 
-//       CUDA_CALL(cudaEventRecord(start));
-//       first.Setup(ctx, in.shape);
-//       first.Run(ctx, out_first, in, predicates_gpu);
+      CUDA_CALL(cudaEventRecord(start));
+      first.Setup(ctx, in.shape);
+      first.Run(ctx, out_region, in, predicates_gpu);
 
-//       CUDA_CALL(cudaEventRecord(end));
-//       CUDA_CALL(cudaDeviceSynchronize());
-//       float time_ms;
-//       CUDA_CALL(cudaEventElapsedTime(&time_ms, start, end));
-//       total_time_ms += time_ms;
-//     }
-//     std::cout << "Bandwidth: " << n_iters * (in_bytes + out_bytes) / (total_time_ms * 1e6)
-//               << " GBs/sec" << std::endl;
-//   }
+      CUDA_CALL(cudaEventRecord(end));
+      CUDA_CALL(cudaDeviceSynchronize());
+      float time_ms;
+      CUDA_CALL(cudaEventElapsedTime(&time_ms, start, end));
+      total_time_ms += time_ms;
+    }
+    std::cout << "Bandwidth: " << n_iters * (in_bytes + out_bytes) / (total_time_ms * 1e6)
+              << " GBs/sec" << std::endl;
+  }
 };
 
 TEST_F(FindRegionTestGPU, RunTest) {
   this->RunTest();
 }
 
-// TEST_F(FindReduceTestGPU, DISABLED_Benchmark) {
-//   this->RunPerf();
-// }
+TEST_F(FindRegionTestGPU, Benchmark) {
+  this->RunPerf(2);
+  this->RunPerf(8);
+  this->RunPerf(16);
+  this->RunPerf(32);
+  this->RunPerf(64);
+}
 
 }  // namespace test
 }  // namespace kernels
