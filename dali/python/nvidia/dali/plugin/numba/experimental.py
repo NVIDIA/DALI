@@ -144,10 +144,10 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         eval_string += "run_fn("
         for i in range(num_outs):
             eval_string += "out{}".format(i)
-            eval_string += ", " if i + 1 != num_outs else  ", "
+            eval_string += ", " if i + 1 != num_outs else ", "
         for i in range(num_ins):
             eval_string += "in{}".format(i)
-            eval_string += ", " if i + 1 != num_ins else  ")"
+            eval_string += ", " if i + 1 != num_ins else ")"
         return njit(eval(eval_string))
 
     def _get_setup_fn_cpu(self, setup_fn):
