@@ -63,8 +63,8 @@ def bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, o
 
 
 def ref_operator(contrast_center, out_dtype):
-    return lambda input, brightness, brightness_shift, contrast: \
-                  bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, out_dtype)
+    return lambda input, brightness, brightness_shift, contrast: bricon_ref(
+        input, brightness, brightness_shift, contrast, contrast_center, out_dtype)
 
 
 def contrast_param():
@@ -121,7 +121,7 @@ def bricon_ref_pipe(data_iterator, contrast_center, dtype, has_3_dims=False):
     contrast = contrast_param()
     inp = fn.external_source(source=data_iterator)
     layout = "FHWC" if has_3_dims else "HWC"
-    return fn.python_function(inp, brightness, brightness_shift, contrast,\
+    return fn.python_function(inp, brightness, brightness_shift, contrast,
                               function=ref_operator(contrast_center, dali_type_to_np(dtype)),
                               output_layouts=layout)
 
