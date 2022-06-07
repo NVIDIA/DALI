@@ -37,20 +37,14 @@ data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
 def mnist_pipeline(num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
     pipeline = Pipeline(BATCH_SIZE, num_threads, device_id, seed)
     with pipeline:
-        jpegs, labels = fn.readers.caffe2(path=path,
-                                          random_shuffle=True,
-                                          shard_id=shard_id,
-                                          num_shards=num_shards)
-        images = fn.decoders.image(jpegs,
-                                   device='mixed' if device == 'gpu' else 'cpu',
-                                   output_type=types.GRAY)
+        jpegs, labels = fn.readers.caffe2(
+            path=path, random_shuffle=True, shard_id=shard_id, num_shards=num_shards)
+        images = fn.decoders.image(
+            jpegs, device='mixed' if device == 'gpu' else 'cpu', output_type=types.GRAY)
         if device == 'gpu':
             labels = labels.gpu()
-        images = fn.crop_mirror_normalize(images,
-                                          dtype=types.FLOAT,
-                                          mean=[0.],
-                                          std=[255.],
-                                          output_layout="CHW")
+        images = fn.crop_mirror_normalize(
+            images, dtype=types.FLOAT, mean=[0.], std=[255.], output_layout="CHW")
 
         pipeline.set_outputs(images, labels)
 
@@ -62,13 +56,9 @@ def get_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_dev
     shapes = ((BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE), (BATCH_SIZE, ))
     dtypes = (tf.float32, tf.int32)
 
-    daliset = dali_tf.DALIDataset(pipeline=pipeline,
-                                  batch_size=BATCH_SIZE,
-                                  output_shapes=shapes,
-                                  output_dtypes=dtypes,
-                                  num_threads=4,
-                                  device_id=device_id,
-                                  fail_on_device_mismatch=fail_on_device_mismatch)
+    daliset = dali_tf.DALIDataset(
+        pipeline=pipeline, batch_size=BATCH_SIZE, output_shapes=shapes, output_dtypes=dtypes,
+        num_threads=4, device_id=device_id, fail_on_device_mismatch=fail_on_device_mismatch)
     return daliset
 
 
@@ -79,8 +69,7 @@ def get_dataset_multi_gpu(strategy):
             return get_dataset('gpu', device_id, device_id, num_available_gpus())
 
     input_options = tf.distribute.InputOptions(
-        experimental_place_dataset_on_device=True,
-        experimental_fetch_to_device=False,
+        experimental_place_dataset_on_device=True, experimental_fetch_to_device=False,
         experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA)
 
     train_dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
@@ -88,13 +77,14 @@ def get_dataset_multi_gpu(strategy):
 
 
 def keras_model():
-    model = tf.keras.models.Sequential([
-        tf.keras.layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE), name='images'),
-        tf.keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
-        tf.keras.layers.Dense(HIDDEN_SIZE, activation='relu'),
-        tf.keras.layers.Dropout(DROPOUT),
-        tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
-    ])
+    model = tf.keras.models.Sequential(
+        [
+            tf.keras.layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE), name='images'),
+            tf.keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
+            tf.keras.layers.Dense(HIDDEN_SIZE, activation='relu'),
+            tf.keras.layers.Dropout(DROPOUT),
+            tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
+        ])
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
     return model
@@ -182,13 +172,14 @@ def _test_estimators_single_device(model, device='cpu', device_id=0):
 
 
 def _run_config(device='cpu', device_id=0):
-    return tf.estimator.RunConfig(model_dir='/tmp/tensorflow-checkpoints',
-                                  device_fn=lambda op: '/{0}:{1}'.format(device, device_id))
+    return tf.estimator.RunConfig(
+        model_dir='/tmp/tensorflow-checkpoints',
+        device_fn=lambda op: '/{0}:{1}'.format(device, device_id))
 
 
 def run_estimators_single_device(device='cpu', device_id=0):
     with tf.device('/{0}:{1}'.format(device, device_id)):
         model = keras_model()
-    model = tf.keras.estimator.model_to_estimator(keras_model=model,
-                                                  config=_run_config(device, device_id))
+    model = tf.keras.estimator.model_to_estimator(
+        keras_model=model, config=_run_config(device, device_id))
     _test_estimators_single_device(model, device, device_id)
