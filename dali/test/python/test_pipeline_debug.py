@@ -33,11 +33,8 @@ def rn50_pipeline_base():
     resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(resized_images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
+    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu",
+                                      dtype=out_type, crop=(224, 224),
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return rng, jpegs, labels, images, resized_images, output
@@ -76,12 +73,8 @@ def rn50_pipeline():
     print(np.array(images.get().as_cpu()[0]))
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
-                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type,
+                                      crop=(224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return (output, labels.gpu())
 
@@ -94,7 +87,8 @@ def test_operations_on_debug_pipeline():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def load_images_pipeline():
-    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
     return images, labels
 
@@ -105,12 +99,8 @@ def injection_pipeline(callback, device='cpu'):
     images = fn.random_resized_crop(callback(), device=device, size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
-                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type,
+                                      crop=(224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return rng, images, output
 
@@ -125,12 +115,8 @@ def injection_pipeline_standard(device='cpu'):
     images = fn.random_resized_crop(images, device=device, size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
-                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type,
+                                      crop=(224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return rng, images, output
 
@@ -184,12 +170,8 @@ def es_pipeline_debug():
     images = fn.random_resized_crop(images, size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
-                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type,
+                                      crop=(224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return rng, images, output, labels
 
@@ -202,12 +184,8 @@ def es_pipeline_standard():
     images = fn.random_resized_crop(images, size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
-                                      mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+    output = fn.crop_mirror_normalize(images.gpu(), mirror=rng, device="gpu", dtype=out_type,
+                                      crop=(224, 224), mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return rng, images, output, labels
 
@@ -290,19 +268,15 @@ def order_change_pipeline():
     resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224), seed=27)
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(resized_images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
+    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu",
+                                      dtype=out_type, crop=(224, 224),
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return rng, jpegs, labels, images, resized_images, output
 
 
-@raises(RuntimeError,
-        glob=('Unexpected operator *. Debug mode does not support'
-              ' changing the order of operators executed within the pipeline.'))
+@raises(RuntimeError, glob='Unexpected operator *. Debug mode does not support'
+        ' changing the order of operators executed within the pipeline.')
 def test_operators_order_change():
     order_change_pipeline.change = False
     pipe = order_change_pipeline()
@@ -445,19 +419,14 @@ def test_seed_generation():
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def seed_rn50_pipeline_base():
     rng = fn.random.coin_flip(probability=0.5)
-    jpegs, labels = fn.readers.file(file_root=file_root,
-                                    shard_id=0,
-                                    num_shards=2,
+    jpegs, labels = fn.readers.file(file_root=file_root, shard_id=0, num_shards=2,
                                     random_shuffle=True)
     images = fn.decoders.image(jpegs, device='mixed', output_type=types.RGB)
     resized_images = fn.random_resized_crop(images, device="gpu", size=(224, 224))
     out_type = types.FLOAT16
 
-    output = fn.crop_mirror_normalize(resized_images.gpu(),
-                                      mirror=rng,
-                                      device="gpu",
-                                      dtype=out_type,
-                                      crop=(224, 224),
+    output = fn.crop_mirror_normalize(resized_images.gpu(), mirror=rng, device="gpu",
+                                      dtype=out_type, crop=(224, 224),
                                       mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                                       std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
     return rng, jpegs, labels, images, resized_images, output
@@ -471,10 +440,8 @@ def test_seed_generation_base():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def device_change_rn50_pipeline_base():
-    jpegs, labels = fn.readers.file(file_root=file_root,
-                                    shard_id=0,
-                                    num_shards=2,
-                                    random_shuffle=True)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
     images = fn.decoders.image(jpegs, output_type=types.RGB)
 
     if device_change_rn50_pipeline_base.change:
@@ -496,10 +463,8 @@ def test_device_change():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def cpu_after_gpu_pipeline():
-    jpegs, labels = fn.readers.file(file_root=file_root,
-                                    shard_id=0,
-                                    num_shards=2,
-                                    random_shuffle=True)
+    jpegs, labels = fn.readers.file(
+        file_root=file_root, shard_id=0, num_shards=2, random_shuffle=True)
     images = fn.decoders.image(jpegs, output_type=types.RGB, device='mixed')
     output = fn.random_resized_crop(images, size=(224, 224), device='cpu')
     return labels, output
@@ -515,10 +480,8 @@ def test_cpu_operator_after_gpu():
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def input_sets_statefull_op_pipeline():
     set_size = 5
-    jpegs = [
-        fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
-        for _ in range(set_size)
-    ]
+    jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
+             for _ in range(set_size)]
     images = fn.decoders.image(jpegs, seed=42)
     output = fn.random_resized_crop(images, size=(224, 224), seed=42)
 
@@ -541,9 +504,8 @@ def incorrect_input_sets_pipeline():
     return tuple(output)
 
 
-@raises(ValueError,
-        glob=("All argument lists for Multipile Input Sets used with operator 'cat' must"
-              " have the same length."))
+@raises(ValueError, glob=("All argument lists for Multipile Input Sets used with operator"
+                          " 'cat' must have the same length."))
 def test_incorrect_input_sets():
     pipe = incorrect_input_sets_pipeline()
     pipe.build()
@@ -552,9 +514,8 @@ def test_incorrect_input_sets():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def multiple_input_sets_pipeline():
-    jpegs = [
-        fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0] for _ in range(6)
-    ]
+    jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
+             for _ in range(6)]
     images = fn.decoders.image(jpegs, seed=42)
     cropped_images = fn.random_resized_crop(images, size=(224, 224), seed=42)
     output = fn.cat(cropped_images[:3], cropped_images[3:])
@@ -587,15 +548,13 @@ def test_variable_batch_size_from_external_source():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def incorrect_variable_batch_size_from_es_pipeline():
-    rng = fn.random.coin_flip(probability=0.5)
     src_data = np.zeros((1, 6, 64, 64, 3), dtype=np.uint8)
     images = fn.external_source(src_data)
     return images,
 
 
-@raises(RuntimeError,
-        glob=('Batch size must be uniform across an iteration. External Source operator'
-              ' returned batch size*'))
+@raises(RuntimeError, glob=('Batch size must be uniform across an iteration.'
+                            ' External Source operator returned batch size*'))
 def test_incorrect_variable_batch_size_from_es():
     pipe = incorrect_variable_batch_size_from_es_pipeline()
     pipe.build()
@@ -606,8 +565,7 @@ def test_incorrect_variable_batch_size_from_es():
 def incorrect_variable_batch_size_inside_es_pipeline():
     src_data = [[[np.ones((120, 120, 3), dtype=np.uint8)] * 8,
                  [np.ones((120, 120, 3), dtype=np.float32)] * 6]]
-    out1, out2 = fn.external_source(source=src_data,
-                                    num_outputs=2,
+    out1, out2 = fn.external_source(source=src_data, num_outputs=2,
                                     dtype=[types.DALIDataType.UINT8, types.DALIDataType.FLOAT])
     return out1, out2
 
