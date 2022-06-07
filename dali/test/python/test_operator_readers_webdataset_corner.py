@@ -18,10 +18,9 @@ import os
 import tempfile
 import nvidia.dali as dali
 from nose_utils import assert_raises
-from test_RN50_external_source_parallel_utils import file_reader_pipeline
 from test_utils import compare_pipelines, get_dali_extra_path
 from webdataset_base import generate_temp_extract, generate_temp_index_file, \
-                            webdataset_raw_pipeline, test_batch_size
+    webdataset_raw_pipeline, file_reader_pipeline, test_batch_size
 from third_party.pybind11.tests.test_numpy_dtypes import assert_equal
 
 def general_corner_case(
