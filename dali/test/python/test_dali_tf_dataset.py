@@ -31,11 +31,12 @@ def test_different_num_shapes_dtypes():
     dtypes = tuple(dtypes[0:2])
 
     with tf.device('/cpu:0'):
-        dali_tf.DALIDataset(pipeline=dataset_pipe,
-                            batch_size=batch_size,
-                            output_shapes=shapes,
-                            output_dtypes=dtypes,
-                            num_threads=num_threads)
+        dali_tf.DALIDataset(
+            pipeline=dataset_pipe,
+            batch_size=batch_size,
+            output_shapes=shapes,
+            output_dtypes=dtypes,
+            num_threads=num_threads)
 
 
 @raises(RuntimeError, "some operators*cannot be used with TensorFlow Dataset API and DALIIterator")
@@ -49,9 +50,10 @@ def test_python_operator_not_allowed_in_tf_dataset_error():
     dtypes = (tf.float32)
 
     with tf.device('/cpu:0'):
-        _ = dali_tf.DALIDataset(pipeline=pipeline,
-                                batch_size=1,
-                                output_shapes=shapes,
-                                output_dtypes=dtypes,
-                                num_threads=1,
-                                device_id=0)
+        _ = dali_tf.DALIDataset(
+            pipeline=pipeline,
+            batch_size=1,
+            output_shapes=shapes,
+            output_dtypes=dtypes,
+            num_threads=1,
+            device_id=0)
