@@ -15,7 +15,7 @@
 import os
 from glob import glob
 import math
-import dali
+import nvidia.dali as dali
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises
 from nose.tools import assert_equal
@@ -44,9 +44,7 @@ def test_return_empty():
             num_threads=1,
             missing_component_behavior="empty",
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", []],
-                             batch_size=test_batch_size,
-                             device_id=0,
+        file_reader_pipeline(equivalent_files, ["jpg", []], batch_size=test_batch_size, device_id=0,
                              num_threads=1),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
@@ -77,10 +75,8 @@ def test_skip_sample():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", "cls"],
-                             batch_size=test_batch_size,
-                             device_id=0,
-                             num_threads=1),
+        file_reader_pipeline(equivalent_files, ["jpg", "cls"], batch_size=test_batch_size,
+                             device_id=0, num_threads=1),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )
@@ -133,10 +129,8 @@ def test_different_components():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", {"txt", "cls"}],
-                             batch_size=test_batch_size,
-                             device_id=0,
-                             num_threads=1),
+        file_reader_pipeline(equivalent_files, ["jpg", {"txt", "cls"}], batch_size=test_batch_size,
+                             device_id=0, num_threads=1),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )
@@ -179,8 +173,8 @@ def test_wds_sharding():
     extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
     equivalent_files = sum(
         list(
-            sorted(glob(extract_dir.name + "/*"),
-                   key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]))
+            sorted(glob(extract_dir.name +
+                        "/*"), key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]))
             for extract_dir in extract_dirs),
         [],
     )
@@ -290,8 +284,8 @@ def test_index_generation():
     extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
     equivalent_files = sum(
         list(
-            sorted(glob(extract_dir.name + "/*"),
-                   key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]))
+            sorted(glob(extract_dir.name +
+                        "/*"), key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]))
             for extract_dir in extract_dirs),
         [],
     )
