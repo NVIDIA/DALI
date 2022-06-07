@@ -11,13 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
+
 
 DEBUG_LVL = 0
 SHOW_IMAGES = False
@@ -26,6 +26,7 @@ np.random.seed(1234)
 
 data_root = get_dali_extra_path()
 img_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+
 
 np_type_map = {
     types.UINT8: np.uint8,
@@ -50,23 +51,23 @@ def intersects(anchors1, shapes1, anchors2, shapes2):
 
 
 def prepare_cuts(
-    iters=4,
-    batch_size=16,
-    input_size=None,
-    output_size=None,
-    even_paste_count=False,
-    no_intersections=False,
-    full_input=False,
-    in_anchor_top_left=False,
-    in_anchor_range=None,
-    out_anchor_top_left=False,
-    out_anchor_range=None,
-    out_of_bounds_count=0,
+        iters=4,
+        batch_size=16,
+        input_size=None,
+        output_size=None,
+        even_paste_count=False,
+        no_intersections=False,
+        full_input=False,
+        in_anchor_top_left=False,
+        in_anchor_range=None,
+        out_anchor_top_left=False,
+        out_anchor_range=None,
+        out_of_bounds_count=0,
 ):
     # Those two will not work together
-    assert (out_of_bounds_count == 0 or not no_intersections)
+    assert(out_of_bounds_count == 0 or not no_intersections)
 
-    in_idx_l = [np.zeros(shape=(0, ), dtype=np.int32) for _ in range(batch_size)]
+    in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
     in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
     shapes_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
     out_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]
@@ -77,12 +78,11 @@ def prepare_cuts(
             while True:
                 in_idx = np.int32(np.random.randint(batch_size))
                 out_idx = np.int32(i if even_paste_count else np.random.randint(batch_size))
-                shape = [
-                    np.int32(
-                        np.random.randint(
-                            min(input_size[i], output_size[i]) //
-                            (iters if no_intersections else 1)) + 1) for i in range(dim)
-                ] if not full_input else input_size
+                shape = [np.int32(
+                    np.random.randint(
+                        min(input_size[i], output_size[i]) // (iters if no_intersections else 1)
+                    ) + 1
+                ) for i in range(dim)] if not full_input else input_size
 
                 if in_anchor_top_left:
                     in_anchor = [0] * dim
@@ -152,37 +152,41 @@ def prepare_cuts(
     return in_idx_l, in_anchors_l, shapes_l, out_anchors_l
 
 
-def get_pipeline(batch_size=4,
-                 in_size=None,
-                 out_size=None,
-                 even_paste_count=False,
-                 k=4,
-                 dtype=types.UINT8,
-                 no_intersections=True,
-                 full_input=False,
-                 in_anchor_top_left=False,
-                 in_anchor_range=None,
-                 out_anchor_top_left=False,
-                 out_anchor_range=None,
-                 use_gpu=False,
-                 num_out_of_bounds=0):
-    pipe = Pipeline(batch_size=batch_size,
-                    num_threads=4,
-                    device_id=0,
+def get_pipeline(
+        batch_size=4,
+        in_size=None,
+        out_size=None,
+        even_paste_count=False,
+        k=4,
+        dtype=types.UINT8,
+        no_intersections=True,
+        full_input=False,
+        in_anchor_top_left=False,
+        in_anchor_range=None,
+        out_anchor_top_left=False,
+        out_anchor_range=None,
+        use_gpu=False,
+        num_out_of_bounds=0
+):
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0,
                     seed=np.random.randint(12345))
     with pipe:
         input, _ = fn.readers.file(file_root=img_dir)
         decoded = fn.decoders.image(input, device='cpu', output_type=types.RGB)
         resized = fn.resize(decoded, resize_x=in_size[1], resize_y=in_size[0])
         in_idx_l, in_anchors_l, shapes_l, out_anchors_l = prepare_cuts(
-            k, batch_size, in_size, out_size, even_paste_count, no_intersections, full_input,
-            in_anchor_top_left, in_anchor_range, out_anchor_top_left, out_anchor_range,
-            num_out_of_bounds)
+            k, batch_size, in_size, out_size, even_paste_count,
+            no_intersections, full_input, in_anchor_top_left, in_anchor_range,
+            out_anchor_top_left, out_anchor_range, num_out_of_bounds)
         in_idx = fn.external_source(lambda: in_idx_l)
         in_anchors = fn.external_source(lambda: in_anchors_l)
         shapes = fn.external_source(lambda: shapes_l)
         out_anchors = fn.external_source(lambda: out_anchors_l)
-        kwargs = {"in_ids": in_idx, "output_size": out_size, "dtype": dtype}
+        kwargs = {
+            "in_ids": in_idx,
+            "output_size": out_size,
+            "dtype": dtype
+        }
 
         if not full_input:
             kwargs["shapes"] = shapes
@@ -265,7 +269,8 @@ def check_operator_multipaste(bs, pastes, in_size, out_size, even_paste_count, n
         out_anchor_top_left=out_anchor_top_left,
         out_anchor_range=out_anchor_range,
         num_out_of_bounds=num_out_of_bounds,
-        use_gpu=device == 'gpu')
+        use_gpu=device == 'gpu'
+    )
     pipe.build()
     try:
         result, input = pipe.run()
