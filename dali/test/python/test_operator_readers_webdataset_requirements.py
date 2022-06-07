@@ -60,9 +60,9 @@ def test_skip_sample():
     extract_dir = generate_temp_extract(tar_file_path)
     equivalent_files = list(
         filter(
-            lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]) < 2500,
+            lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]) < 2500,
             sorted(glob(extract_dir.name + "/*"),
-                   key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")])),
+                   key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")])),
         ))
 
     compare_pipelines(
@@ -174,7 +174,7 @@ def test_wds_sharding():
     equivalent_files = sum(
         list(
             sorted(glob(extract_dir.name +
-                        "/*"), key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]))
+                        "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))
             for extract_dir in extract_dirs),
         [],
     )
@@ -208,7 +208,7 @@ def test_sharding():
 
     extract_dir = generate_temp_extract(tar_file_path)
     equivalent_files = sorted(glob(extract_dir.name + "/*"),
-                              key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]))
+                              key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))
 
     num_shards = 100
     for shard_id in range(num_shards):
@@ -285,7 +285,7 @@ def test_index_generation():
     equivalent_files = sum(
         list(
             sorted(glob(extract_dir.name +
-                        "/*"), key=lambda s: int(s[s.rfind("/") + 1:s.rfind(".")]))
+                        "/*"), key=lambda s: int(s[s.rfind("/") + 1 : s.rfind(".")]))
             for extract_dir in extract_dirs),
         [],
     )
