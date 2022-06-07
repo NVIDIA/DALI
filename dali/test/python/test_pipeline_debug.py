@@ -548,9 +548,10 @@ def test_variable_batch_size_from_external_source():
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
 def incorrect_variable_batch_size_from_es_pipeline():
+    rng = fn.random.coin_flip(probability=0.5)
     src_data = np.zeros((1, 6, 64, 64, 3), dtype=np.uint8)
     images = fn.external_source(src_data)
-    return images,
+    return images, rng
 
 
 @raises(RuntimeError, glob=('Batch size must be uniform across an iteration.'

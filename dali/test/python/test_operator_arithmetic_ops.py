@@ -55,8 +55,8 @@ all_input_kinds = [
 # We cannot have 'Constant x Constant' operations with DALI op.
 # And scalar is still a represented by a Tensor, so 'Scalar x Constant' is the same
 # as 'Tensor x Constant'.
-bin_input_kinds = (list_product(["cpu", "gpu"], all_input_kinds) +
-                   list_product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"]))
+bin_input_kinds = (list_product(["cpu", "gpu"], all_input_kinds)
+                   + list_product(["cpu_scalar", "gpu_scalar", "const"], ["cpu", "gpu"]))
 
 ternary_input_kinds = list_product(all_input_kinds, all_input_kinds, all_input_kinds)
 ternary_input_kinds.remove(("const", "const", "const"))
