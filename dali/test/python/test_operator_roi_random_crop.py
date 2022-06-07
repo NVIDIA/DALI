@@ -141,9 +141,9 @@ def test_roi_random_crop():
                 [(20, 50, 10, 20, 30, 40),
                  (20, 50, 100, 140, 30, 40),
                  (0, 1, 10, 20, 80, 100)]:
-            yield check_roi_random_crop, ndim, batch_size, roi_start_min, roi_start_max, \
-                roi_extent_min, roi_extent_max, crop_extent_min, crop_extent_max, in_shape_min, \
-                in_shape_max, niter
+            yield (check_roi_random_crop, ndim, batch_size, roi_start_min, roi_start_max,
+                   roi_extent_min, roi_extent_max, crop_extent_min, crop_extent_max, in_shape_min,
+                   in_shape_max, niter)
 
 
 def check_roi_random_crop_error(shape_like_in=None, in_shape=None, crop_shape=None, roi_start=None,

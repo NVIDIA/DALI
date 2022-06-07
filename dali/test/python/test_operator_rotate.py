@@ -64,23 +64,11 @@ def get_3d_lin_rotation(angle, axis):
     cosa = math.cos(angle)
     sina = math.sin(angle)
     return np.array([
-        [
-            u * u + (v * v + w * w) * cosa,
-            u * v * (1 - cosa) - w * sina,
-            u * w * (1 - cosa) + v * sina
-        ],
-        [
-            u * v * (1 - cosa) + w * sina,
-            v * v + (u * u + w * w) * cosa,
-            v * w * (1 - cosa) - u * sina
-        ],
-        [
-            u * w * (1 - cosa) - v * sina,
-            v * w * (1 - cosa) + u * sina,
-            w * w + (u * u + v * v) * cosa
-        ],
-    ],
-                    dtype=np.float32)
+    return np.array([
+      [u * u + (v * v + w * w) * cosa, u * v * (1 - cosa) - w * sina,  u * w * (1 - cosa) + v * sina],  # noqa:E501
+      [u * v * (1 - cosa) + w * sina,  v * v + (u * u + w * w) * cosa, v * w * (1 - cosa) - u * sina],  # noqa:E501
+      [u * w * (1 - cosa) - v * sina,  v * w * (1 - cosa) + u * sina,  w * w + (u * u + v * v) * cosa], # noqa:E501
+    ], dtype=np.float32)
 
 
 def get_3d_output_size(angle, axis, input_size, parity_correction=False):

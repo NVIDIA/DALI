@@ -75,8 +75,8 @@ def test_skip_sample():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", "cls"], batch_size=test_batch_size,
-                             device_id=0, num_threads=1),
+        file_reader_pipeline(equivalent_files, ["jpg", "cls"],
+                             batch_size=test_batch_size, device_id=0, num_threads=1),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )
@@ -129,8 +129,8 @@ def test_different_components():
             device_id=0,
             num_threads=1,
         ),
-        file_reader_pipeline(equivalent_files, ["jpg", {"txt", "cls"}], batch_size=test_batch_size,
-                             device_id=0, num_threads=1),
+        file_reader_pipeline(equivalent_files, ["jpg", {"txt", "cls"}],
+                             batch_size=test_batch_size, device_id=0, num_threads=1),
         test_batch_size,
         math.ceil(num_samples / test_batch_size),
     )

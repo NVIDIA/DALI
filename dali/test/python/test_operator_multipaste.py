@@ -141,13 +141,15 @@ def prepare_cuts(
         below_zero = np.random.randint(2) == 0
         change_dim_idx = np.random.randint(dim)
         if below_zero:
-            (in_anchors_l if change_in else out_anchors_l
-             )[clip_out_idx][clip_in_idx][change_dim_idx] = np.int32(np.random.randint(5) - 5)
+            anchors = in_anchors_l if change_in else out_anchors_l
+            anchors[clip_out_idx][clip_in_idx][change_dim_idx] = np.int32(np.random.randint(-5, 0))
         else:
-            (in_anchors_l
-             if change_in else out_anchors_l)[clip_out_idx][clip_in_idx][change_dim_idx] = np.int32(
-                 (input_size if change_in else output_size)[change_dim_idx] -
-                 shapes_l[clip_out_idx][clip_in_idx][change_dim_idx] + np.random.randint(5) + 1)
+            anchors = in_anchors_l if change_in else out_anchors_l
+            size = input_size if change_in else output_size
+            anchors[clip_out_idx][clip_in_idx][change_dim_idx] = np.int32(
+                 size[change_dim_idx]
+                 - shapes_l[clip_out_idx][clip_in_idx][change_dim_idx]
+                 + np.random.randint(5) + 1)
 
     return in_idx_l, in_anchors_l, shapes_l, out_anchors_l
 

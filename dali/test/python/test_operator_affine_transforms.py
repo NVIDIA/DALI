@@ -262,8 +262,9 @@ def shear_affine_mat(shear=None, angles=None, center=None):
     return affine_mat
 
 
-def check_transform_shear_op(shear=None, angles=None, center=None, has_input=False,
-                             reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+def check_transform_shear_op(shear=None, angles=None, center=None,
+                             has_input=False, reverse_order=False,
+                             batch_size=1, num_threads=4, device_id=0):
     assert shear is not None or angles is not None
     if shear is not None:
         assert len(shear) == 2 or len(shear) == 6
@@ -290,9 +291,9 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input=Fal
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order, atol=1e-6)
 
 
-def check_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_input=False,
-                                          reverse_order=False, batch_size=1, num_threads=4,
-                                          device_id=0):
+def check_transform_shear_op_runtime_args(ndim, use_angles, use_center,
+                                          has_input=False, reverse_order=False,
+                                          batch_size=1, num_threads=4, device_id=0):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=1234)
     with pipe:
         inputs = [fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1))] if has_input else []

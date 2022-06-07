@@ -144,12 +144,14 @@ class CVPipeline(Pipeline):
         if self.use_input:
             self.transform_source = ops.ExternalSource(
                 lambda: gen_transforms(self.max_batch_size, 10))
-            self.warp = ops.PythonFunction(
-                function=CVWarp(output_type, input_type, inv_map=inv_map), output_layouts="HWC")
+            warp = ops.PythonFunction(
+                function=CVWarp(output_type, input_type, inv_map=inv_map),
+                output_layouts="HWC")
         else:
             self.warp = ops.PythonFunction(
                 function=CVWarp(output_type, input_type, [[0.1, 0.9, 10], [0.8, -0.2, -20]],
-                                inv_map), output_layouts="HWC")
+                                inv_map),
+                output_layouts="HWC")
         self.iter = 0
 
     def define_graph(self):
