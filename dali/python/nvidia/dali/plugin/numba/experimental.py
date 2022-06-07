@@ -74,13 +74,13 @@ def address_as_void_pointer(typingctx, src):
 def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
     ndims = carray(address_as_void_pointer(ndims_ptr), num_dims, dtype=np.int32)
     samples = carray(address_as_void_pointer(shapes_ptr), (num_dims, num_samples), dtype=np.int64)
-    l = []
+    lst = []
     for sample, size in zip(samples, ndims):
         d = []
         for shape_ptr in sample:
             d.append(carray(address_as_void_pointer(shape_ptr), size, dtype=np.int64))
-        l.append(d)
-    return l
+        lst.append(d)
+    return lst
 
 
 class NumbaFunction(metaclass=ops._DaliOperatorMeta):
