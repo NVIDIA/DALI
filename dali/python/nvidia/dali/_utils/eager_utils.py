@@ -337,7 +337,7 @@ def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
             self._spec.AddArg('max_batch_size', max_batch_size)
 
             for i in range(num_inputs):
-                self._spec.AddInput(op_name+f'[{i}]', self._device)
+                self._spec.AddInput(op_name + f'[{i}]', self._device)
 
             for arg_name in call_args_names:
                 self._spec.AddArgumentInput(arg_name, '')

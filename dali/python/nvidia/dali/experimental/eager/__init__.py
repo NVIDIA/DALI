@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import math
+from . import math  # noqa: F401
+
 
 class enable_arithm_op:
     """Context-manager that enables arithmetic operators and slicing  on TensorLists.
