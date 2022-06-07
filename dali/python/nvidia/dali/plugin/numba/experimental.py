@@ -106,11 +106,11 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
 
     def _setup_fn_sig(self):
         return numba_types.void(numba_types.uint64,
-                        numba_types.uint64,
-                        numba_types.int32,
-                        numba_types.uint64,
-                        numba_types.uint64,
-                        numba_types.int32, numba_types.int32)
+                                numba_types.uint64,
+                                numba_types.int32,
+                                numba_types.uint64,
+                                numba_types.uint64,
+                                numba_types.int32, numba_types.int32)
 
     def _run_fn_sig(self, batch_processing=False):
         sig_types = []
