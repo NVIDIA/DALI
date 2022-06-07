@@ -23,7 +23,10 @@ np.random.seed(4321)
 
 
 def random_shape(min_sh, max_sh, ndim):
-    return np.array([np.random.randint(min_sh, max_sh) for s in range(ndim)], dtype=np.int32)
+    return np.array(
+        [np.random.randint(min_sh, max_sh) for s in range(ndim)],
+        dtype=np.int32
+      )
 
 
 def batch_gen(max_batch_size, sample_shape_fn, dtype=np.float32):
@@ -35,16 +38,11 @@ def batch_gen(max_batch_size, sample_shape_fn, dtype=np.float32):
     return data
 
 
-def check_roi_random_crop(ndim=2,
-                          max_batch_size=16,
-                          roi_min_start=0,
-                          roi_max_start=100,
-                          roi_min_extent=20,
-                          roi_max_extent=50,
-                          crop_min_extent=20,
-                          crop_max_extent=50,
-                          in_shape_min=400,
-                          in_shape_max=500,
+def check_roi_random_crop(ndim=2, max_batch_size=16,
+                          roi_min_start=0, roi_max_start=100,
+                          roi_min_extent=20, roi_max_extent=50,
+                          crop_min_extent=20, crop_max_extent=50,
+                          in_shape_min=400, in_shape_max=500,
                           niter=3):
     pipe = dali.pipeline.Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
@@ -63,9 +61,7 @@ def check_roi_random_crop(ndim=2,
             crop_shape = [(crop_min_extent + crop_max_extent) // 2] * ndim
         else:
             crop_shape = fn.random.uniform(range=(crop_min_extent, crop_max_extent + 1),
-                                           shape=(ndim, ),
-                                           dtype=types.INT32,
-                                           device='cpu')
+                                           shape=(ndim, ), dtype=types.INT32, device='cpu')
 
         if random.choice([True, False]):
             roi_shape = [(roi_min_extent + roi_max_extent) // 2] * ndim
@@ -73,43 +69,29 @@ def check_roi_random_crop(ndim=2,
             roi_end = [roi_start[d] + roi_shape[d] for d in range(ndim)]
         else:
             roi_shape = fn.random.uniform(range=(roi_min_extent, roi_max_extent + 1),
-                                          shape=(ndim, ),
-                                          dtype=types.INT32,
-                                          device='cpu')
+                                          shape=(ndim,), dtype=types.INT32, device='cpu')
             roi_start = fn.random.uniform(range=(roi_min_start, roi_max_start + 1),
-                                          shape=(ndim, ),
-                                          dtype=types.INT32,
-                                          device='cpu')
+                                          shape=(ndim,), dtype=types.INT32, device='cpu')
             roi_end = roi_start + roi_shape
 
         outs = [
             fn.roi_random_crop(crop_shape=crop_shape,
-                               roi_start=roi_start,
-                               roi_shape=roi_shape,
+                               roi_start=roi_start, roi_shape=roi_shape,
                                device='cpu'),
             fn.roi_random_crop(crop_shape=crop_shape,
-                               roi_start=roi_start,
-                               roi_end=roi_end,
+                               roi_start=roi_start, roi_end=roi_end,
                                device='cpu'),
-            fn.roi_random_crop(shape_like_in,
-                               crop_shape=crop_shape,
-                               roi_start=roi_start,
-                               roi_shape=roi_shape,
+            fn.roi_random_crop(shape_like_in, crop_shape=crop_shape,
+                               roi_start=roi_start, roi_shape=roi_shape,
                                device='cpu'),
-            fn.roi_random_crop(shape_like_in,
-                               crop_shape=crop_shape,
-                               roi_start=roi_start,
-                               roi_end=roi_end,
+            fn.roi_random_crop(shape_like_in, crop_shape=crop_shape,
+                               roi_start=roi_start, roi_end=roi_end,
                                device='cpu'),
-            fn.roi_random_crop(in_shape=in_shape,
-                               crop_shape=crop_shape,
-                               roi_start=roi_start,
-                               roi_shape=roi_shape,
+            fn.roi_random_crop(in_shape=in_shape, crop_shape=crop_shape,
+                               roi_start=roi_start, roi_shape=roi_shape,
                                device='cpu'),
-            fn.roi_random_crop(in_shape=in_shape,
-                               crop_shape=crop_shape,
-                               roi_start=roi_start,
-                               roi_end=roi_end,
+            fn.roi_random_crop(in_shape=in_shape, crop_shape=crop_shape,
+                               roi_start=roi_start, roi_end=roi_end,
                                device='cpu'),
         ]
 
@@ -140,7 +122,6 @@ def check_roi_random_crop(ndim=2,
                     else:
                         assert crop_start[d] >= roi_start[d]
                         assert crop_end[d] <= roi_end[d]
-
             for idx in range(4, 6):
                 check_crop_start(
                     np.array(outputs[idx][s]).tolist(), roi_start, roi_shape, crop_shape)
@@ -165,13 +146,8 @@ def test_roi_random_crop():
                 in_shape_max, niter
 
 
-def check_roi_random_crop_error(shape_like_in=None,
-                                in_shape=None,
-                                crop_shape=None,
-                                roi_start=None,
-                                roi_shape=None,
-                                roi_end=None,
-                                error_msg=""):
+def check_roi_random_crop_error(shape_like_in=None, in_shape=None, crop_shape=None, roi_start=None,
+                                roi_shape=None, roi_end=None, error_msg=""):
     batch_size = 3
     niter = 3
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
