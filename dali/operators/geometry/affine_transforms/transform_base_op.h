@@ -47,8 +47,8 @@ using affine_mat_t = mat<mat_dim, mat_dim, T>;
  */
 template <typename Backend, typename TransformImpl>
 class TransformBaseOp : public SequenceOperator<Backend, true> {
- using Base = SequenceOperator<Backend, true>;
  public:
+  using Base = SequenceOperator<Backend, true>;
   explicit TransformBaseOp(const OpSpec &spec) :
       Base(spec), reverse_order_(spec.GetArgument<bool>("reverse_order")) {
     matrix_data_.set_pinned(false);
