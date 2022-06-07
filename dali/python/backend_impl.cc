@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
+#include <sstream>
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"
 #if SHM_WRAPPER_ENABLED
@@ -283,6 +284,25 @@ void ExposeTensorLayout(py::module &m) {
 // Placeholder enum for defining __call__ on dtype member of Tensor (to be deprecated).
 enum DALIDataTypePlaceholder {};
 
+auto ExtractPythonAttr(py::detail::str_attr_accessor &&cur_attr, const char *next_attr_name) {
+  return cur_attr.attr(next_attr_name);
+}
+
+template <typename... Args>
+auto ExtractPythonAttr(py::detail::str_attr_accessor &&cur_attr, const char *next_attr_name,
+                       Args... rest) {
+  return ExtractPythonAttr(cur_attr.attr(next_attr_name), rest...);
+}
+
+template <typename... Args>
+auto FromPythonTrampoline(const char *python_module, const char *attr_name, Args... attr_names) {
+  return ExtractPythonAttr(py::module::import(python_module).attr(attr_name), attr_names...);
+}
+
+auto FromPythonTrampoline(const char *python_module, const char *attr_name) {
+  return py::module::import(python_module).attr(attr_name);
+}
+
 /**
  * @brief Copies the contents of the source DALI batch to an external buffer
  *
@@ -486,6 +506,12 @@ void ExposeTensor(py::module &m) {
       R"code(
       Returns the address of the first element of tensor.
       )code")
+    .def("__str__", [](Tensor<CPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
+    })
+    .def("__repr__", [](Tensor<CPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
+    })
     .def_property("__array_interface__", &ArrayInterfaceRepr<CPUBackend>, nullptr,
       R"code(
       Returns Array Interface representation of TensorCPU.
@@ -603,6 +629,12 @@ void ExposeTensor(py::module &m) {
       R"code(
       Returns the address of the first element of tensor.
       )code")
+    .def("__str__", [](Tensor<GPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
+    })
+    .def("__repr__", [](Tensor<GPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensor_to_string")(t);
+    })
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
       Returns CUDA Array Interface (Version 2) representation of TensorGPU.
@@ -705,9 +737,46 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
 }
 #endif
 
+template <typename Backend>
+using backend_to_py_class_t = py::class_<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>>;
+
+template <typename Backend>
+void EagerArithmOp(backend_to_py_class_t<Backend> &py_class, std::string &op_name) {
+  py_class.def(("__" + op_name + "__").c_str(), [impl_name = "_" + op_name](py::args &args) {
+    bool arithm_ops_enabled =
+        FromPythonTrampoline("nvidia.dali.experimental.eager", "is_arithm_op_enabled")()
+            .cast<bool>();
+
+    if (arithm_ops_enabled) {
+      return FromPythonTrampoline("nvidia.dali._utils.eager_utils", impl_name.c_str())(*args);
+    } else {
+      std::stringstream types_ss;
+      types_ss << args[0].get_type();
+      for (size_t i = 1; i < args.size(); ++i) {
+        types_ss << " and " << args[i].get_type();
+      }
+      throw py::type_error(
+          make_string("unsupported operand type(s) for _", impl_name, "__: ", types_ss.str()));
+    }
+  });
+}
+
+template <typename Backend>
+void ExposeTensorListOperators(backend_to_py_class_t<Backend> &py_class) {
+  static std::vector<std::string> arithm_op_list{
+      "add",      "radd",     "sub",       "rsub", "mul", "rmul", "pow", "rpow", "truediv",
+      "rtruediv", "floordiv", "rfloordiv", "eq",   "ne",  "lt",   "le",  "gt",   "ge",
+      "and",      "rand",     "or",        "ror",  "xor", "rxor", "neg"};
+
+  for (std::string &op_name : arithm_op_list) {
+    EagerArithmOp(py_class, op_name);
+  }
+}
+
 void ExposeTensorList(py::module &m) {
-  py::class_<TensorList<CPUBackend>, std::shared_ptr<TensorList<CPUBackend>>>(
-      m, "TensorListCPU", py::buffer_protocol())
+  auto tensor_list_cpu_class =
+      py::class_<TensorList<CPUBackend>, std::shared_ptr<TensorList<CPUBackend>>>(
+          m, "TensorListCPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
             auto t = std::make_shared<TensorList<CPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
@@ -958,6 +1027,12 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns the address of the first element of TensorList.
       )code")
+    .def("__str__", [](TensorList<CPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
+    })
+    .def("__repr__", [](TensorList<CPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
+    })
     .def_property_readonly("dtype", [](TensorList<CPUBackend> &tl) {
           return tl.type();
         },
@@ -966,9 +1041,12 @@ void ExposeTensorList(py::module &m) {
 
       :type: DALIDataType
       )code");
+  
+  ExposeTensorListOperators(tensor_list_cpu_class);
 
-  py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
-      m, "TensorListGPU", py::buffer_protocol())
+  auto tensor_list_gpu_class =
+      py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
+          m, "TensorListGPU", py::buffer_protocol())
     .def(py::init([](py::capsule &capsule, string layout = "") {
             auto t = std::make_shared<TensorList<GPUBackend>>();
             FillTensorFromDlPack(capsule, t.get(), layout);
@@ -1149,6 +1227,12 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Returns the address of the first element of TensorList.
       )code")
+    .def("__str__", [](TensorList<GPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
+    })
+    .def("__repr__", [](TensorList<GPUBackend> &t) {
+      return FromPythonTrampoline("nvidia.dali.tensors", "_tensorlist_to_string")(t);
+    })
     .def_property_readonly("dtype", [](TensorList<GPUBackend> &tl) {
           return tl.type();
         },
@@ -1157,6 +1241,8 @@ void ExposeTensorList(py::module &m) {
 
       :type: DALIDataType
       )code");
+
+  ExposeTensorListOperators(tensor_list_gpu_class);
 }
 
 #define GetRegisteredOpsFor(OPTYPE)                                           \
@@ -1488,15 +1574,14 @@ PYBIND11_MODULE(backend_impl, m) {
              deprecation_func("Calling '.dtype()' is deprecated, please use '.dtype' instead");
              return FormatStrFromType(static_cast<DALIDataType>(self));
            })
-      .def("__repr__", [](DALIDataTypePlaceholder self) {
-             return py::module::import("nvidia.dali.types")
-                 .attr("DALIDataType")
-                 .attr("__repr__")(static_cast<DALIDataType>(self));
+      .def("__repr__",
+           [](DALIDataTypePlaceholder self) {
+             return FromPythonTrampoline("nvidia.dali.types", "DALIDataType",
+                                         "__repr__")(static_cast<DALIDataType>(self));
            })
       .def("__str__", [](DALIDataTypePlaceholder self) {
-        return py::module::import("nvidia.dali.types")
-            .attr("DALIDataType")
-            .attr("__str__")(static_cast<DALIDataType>(self));
+        return FromPythonTrampoline("nvidia.dali.types", "DALIDataType",
+                                    "__str__")(static_cast<DALIDataType>(self));
       });
 
   // DALIImageType

@@ -1,9 +1,10 @@
+import importlib
 import sys
 import types
 
 
 def get_submodule(root, path):
-    """Gets or creates sumbodule(s) of `root`.
+    """Gets or creates submodule(s) of `root`.
 If the module path contains multiple parts, multiple modules are traversed or created
 
 Parameters
@@ -29,7 +30,11 @@ Parameters
         m = getattr(root, part, None)
         module_name += '.' + part
         if m is None:
-            m = sys.modules[module_name] = types.ModuleType(module_name)
+            try:
+                # Try importing existing module (if not loaded yet) to not overwrite it.
+                m = importlib.import_module(module_name)
+            except ModuleNotFoundError:
+                m = sys.modules[module_name] = types.ModuleType(module_name)
             setattr(root, part, m)
         elif not isinstance(m, types.ModuleType):
             raise RuntimeError("The module {} already contains an attribute \"{}\", which is not a module, but {}".format(

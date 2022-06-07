@@ -1206,18 +1206,18 @@ def _to_type_desc(input):
             .format(str(type(input))))
 
 
-# Group inputs into categories_idxs, _DataNodes, integer constants and real constants
+# Group inputs into categories_idxs, edges of type ``edge_type``, integer constants and real constants.
 # The categories_idxs is a list that for an input `i` contains a tuple:
 # (category of ith input, index of ith input in appropriate category)
-def _group_inputs(inputs):
+def _group_inputs(inputs, edge_type=_DataNode):
     categories_idxs = []
     edges = []
     integers = []
     reals = []
     for input in inputs:
-        if not isinstance(input, (_DataNode, _ScalarConstant, int, float)):
+        if not isinstance(input, (edge_type, _ScalarConstant, int, float)):
             input = nvidia.dali.types.Constant(input)
-        if isinstance(input, _DataNode):
+        if isinstance(input, edge_type):
             categories_idxs.append(("edge", len(edges)))
             edges.append(input)
         elif _is_integer_like(input):

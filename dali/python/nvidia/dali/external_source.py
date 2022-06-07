@@ -25,7 +25,7 @@ from nvidia.dali._utils.external_source_impl import \
 
 
 def _get_batch_shape(data):
-    if isinstance(data, (list, tuple, _b.TensorListCPU, _b.TensorListGPU)):
+    if isinstance(data, (list, tuple, _tensors.TensorListCPU, _tensors.TensorListGPU)):
         if len(data) == 0:
             return [], True
         if callable(data[0].shape):

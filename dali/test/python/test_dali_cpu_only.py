@@ -27,7 +27,8 @@ from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 from nose_utils import assert_raises
 from segmentation_test_utils import make_batch_select_masks
-from test_dali_cpu_only_utils import setup_test_nemo_asr_reader_cpu, setup_test_numpy_reader_cpu
+from test_dali_cpu_only_utils import pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu, \
+    setup_test_numpy_reader_cpu
 from test_detection_pipeline import coco_anchors
 from test_utils import get_dali_extra_path, get_files, module_functions
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
@@ -921,54 +922,7 @@ def test_reduce_variance_cpu():
 
 
 def test_arithm_ops_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    data = fn.external_source(source=get_data, layout="HWC")
-    processed = [data * 2,
-                 data + 2,
-                 data - 2,
-                 data / 2,
-                 data // 2,
-                 data ** 2,
-                 data == 2,
-                 data != 2,
-                 data < 2,
-                 data <= 2,
-                 data > 2,
-                 data >= 2,
-                 data & 2,
-                 data | 2,
-                 data ^ 2,
-                 dmath.abs(data),
-                 dmath.fabs(data),
-                 dmath.floor(data),
-                 dmath.ceil(data),
-                 dmath.pow(data, 2),
-                 dmath.fpow(data, 1.5),
-                 dmath.min(data, 2),
-                 dmath.max(data, 50),
-                 dmath.clamp(data, 10, 50),
-                 dmath.sqrt(data),
-                 dmath.rsqrt(data),
-                 dmath.cbrt(data),
-                 dmath.exp(data),
-                 dmath.exp(data),
-                 dmath.log(data),
-                 dmath.log2(data),
-                 dmath.log10(data),
-                 dmath.sin(data),
-                 dmath.cos(data),
-                 dmath.tan(data),
-                 dmath.asin(data),
-                 dmath.acos(data),
-                 dmath.atan(data),
-                 dmath.atan2(data, 3),
-                 dmath.sinh(data),
-                 dmath.cosh(data),
-                 dmath.tanh(data),
-                 dmath.asinh(data),
-                 dmath.acosh(data),
-                 dmath.atanh(data)]
-    pipe.set_outputs(*processed)
+    pipe = pipeline_arithm_ops_cpu(batch_size=batch_size, num_threads=4, device_id=None)
     pipe.build()
     for _ in range(3):
         pipe.run()
