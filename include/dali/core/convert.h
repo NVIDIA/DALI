@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ template <typename T>
 DALI_HOST_DEV constexpr T max_value() {
   return const_limits<std::remove_cv_t<T>>::max;
 }
+
 template <typename T>
 DALI_HOST_DEV constexpr T min_value() {
   return const_limits<std::remove_cv_t<T>>::min;

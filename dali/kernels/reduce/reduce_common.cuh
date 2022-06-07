@@ -21,14 +21,27 @@
 namespace dali {
 namespace kernels {
 
+template <typename T>
+DALI_FORCEINLINE __device__ T shfl_down(T &t, int n) {
+  constexpr unsigned FULL_MASK = 0xffffffffu;
+  return __shfl_down_sync(FULL_MASK, t, n);
+}
+
+template <typename T, int N>
+DALI_FORCEINLINE __device__ vec<N, T> shfl_down(vec<N, T> &t, int n) {
+  constexpr unsigned FULL_MASK = 0xffffffffu;
+  vec<N, T> ret;
+  IMPL_VEC_ELEMENTWISE(ret[i] = __shfl_down_sync(FULL_MASK, t[i], n));
+  return ret;
+}
+
 template <typename Acc, typename Reduction>
 DALI_FORCEINLINE __device__ void WarpReduce(Acc &val, Reduction reduce) {
-  constexpr unsigned FULL_MASK = 0xffffffffu;
-  reduce(val, __shfl_down_sync(FULL_MASK, val, 16));
-  reduce(val, __shfl_down_sync(FULL_MASK, val, 8));
-  reduce(val, __shfl_down_sync(FULL_MASK, val, 4));
-  reduce(val, __shfl_down_sync(FULL_MASK, val, 2));
-  reduce(val, __shfl_down_sync(FULL_MASK, val, 1));
+  reduce(val, shfl_down(val, 16));
+  reduce(val, shfl_down(val, 8));
+  reduce(val, shfl_down(val, 4));
+  reduce(val, shfl_down(val, 2));
+  reduce(val, shfl_down(val, 1));
 }
 
 /**
