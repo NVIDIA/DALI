@@ -12,12 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# it is enough to just import all functions from test_internals_operator_external_source
-# nose will query for the methods available and will run them
-# the test_internals_operator_external_source is 99% the same for cupy and numpy tests
-# so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
-
-
 import torch
 import torch.utils.dlpack as torch_dlpack
 import ctypes
@@ -48,7 +42,7 @@ to_torch_type = {
     types.DALIDataType.INT64   : torch.int64
 }
 
-def feed_ndarray(tensor_or_tl, arr, cuda_stream = None, non_blocking = False):
+def feed_ndarray(tensor_or_tl, arr, cuda_stream=None, non_blocking=False):
     """
     Copy contents of DALI tensor to PyTorch's Tensor.
 
@@ -86,23 +80,26 @@ def feed_ndarray(tensor_or_tl, arr, cuda_stream = None, non_blocking = False):
     return arr
 
 def _test_copy_to_external(use_tensor_list, non_blocking):
-    """Test whether the copy_to_external is properly synchronized before the output
-    tensor is recycled.
+    """Test whether the copy_to_external is properly synchronized before the
+    output tensor is recycled.
 
-    copy_to_external can work in a non-blocking mode - in this mode, the data is copied on a
-    user-provided stream, but the host thread doesn't block until the copy finishes.
-    However, to ensure that a tensor has been consumed before allowing its reuse, a
-    synchronization is scheduled on the stream associated with the tensor being copied.
+    copy_to_external can work in a non-blocking mode - in this mode, the data is
+    copied on a user-provided stream, but the host thread doesn't block until
+    the copy finishes. However, to ensure that a tensor has been consumed before
+    allowing its reuse, a synchronization is scheduled on the stream associated
+    with the tensor being copied.
 
     WARNING:
-    This test is crafted so that it fails when the synchronization doesn't occur. The timing
-    is controlled by data sizes and number of iterations - do not change these values!
+    This test is crafted so that it fails when the synchronization doesn't occur.
+    The timing is controlled by data sizes and number of iterations - do not
+    change these values!
     """
 
     def ref_tensor(batch_size, sample_shape, start_value):
         volume = np.prod(sample_shape)
         sample0 = torch.arange(start_value, start_value + volume,
-                               dtype=torch.int32, device="cuda:0").reshape(shape)
+                               dtype=torch.int32,
+                               device="cuda:0").reshape(shape)
         return torch.stack([sample0 + i for i in range(batch_size)])
 
     def check(arr, ref):
@@ -128,7 +125,8 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
             pipe.schedule_run()
             pipe.schedule_run()
             out, = pipe.share_outputs()
-            # do something time-consuming on the torch stream to give DALI time to clobber the buffer
+            # do something time-consuming on the torch stream to give DALI time
+            # to clobber the buffer
             hog = [torch.sqrt(x) for x in hog]
             # copy the result asynchronously
             copy_source = out if use_tensor_list else out.as_tensor()
@@ -137,8 +135,8 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
             # drain
             _, = pipe.share_outputs()
             pipe.release_outputs()
-            # if no appropriate synchronization is done, the array is likely clobbered with the
-            # results from the second iteration
+            # if no appropriate synchronization is done, the array is likely
+            # clobbered with the results from the second iteration
             assert check(arr, ref)
 
             # free resources to prevent OOM in the next iteration
