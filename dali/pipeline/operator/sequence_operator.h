@@ -600,8 +600,8 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
 
   /* Expands the arg to match the referential `expand_desc` */
   void ExpandArgumentLikeRef(TensorVector<CPUBackend> &expanded_arg_input,
-                            const TensorVector<CPUBackend> &arg_input,
-                            const std::string &arg_name, const ExpandDesc &expand_desc) {
+                             const TensorVector<CPUBackend> &arg_input, const std::string &arg_name,
+                             const ExpandDesc &expand_desc) {
     assert(expand_desc.NumDimsToExpand() > 0);
     DALI_ENFORCE(
         arg_input.num_samples() == expand_desc.NumSamples(),
@@ -636,12 +636,10 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
       auto num_arg_frames = frames_range.NumSlices();
       DALI_ENFORCE(
           num_arg_frames == 1 || num_input_frames == num_arg_frames,
-          make_string("The ", sample_idx, " of tensor argument `", arg_name,
-                      "`should either be a single argument to be reused across all frames in the "
-                      "corresponding sample of ",
-                      expand_desc.SourceInfo(), " or should be specified per each frame. Got ",
-                      num_arg_frames, " arguments in the sample but there are ", num_input_frames,
-                      " frames in the corresponding sample of ", expand_desc.SourceInfo(), "."));
+          make_string("The sample ", sample_idx, " of tensor argument `", arg_name, "` contains ",
+                      num_arg_frames, " per-frame parameters, but there are ", num_input_frames,
+                      " frames in the corresponding sample of ", expand_desc.SourceInfo(),
+                      ". The numbers should match."));
       if (num_arg_frames == 1) {  // broadcast the sample
         auto slice = frames_range[0];
         for (int j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
