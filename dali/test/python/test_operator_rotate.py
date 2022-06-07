@@ -262,8 +262,8 @@ def test_gpu_vs_cpu():
 
 
 def infer_sequence_size(input_shapes, angles, axes=None):
-    assert (len(input_shapes) == len(angles))
-    assert (axes is None or len(axes) == len(angles))
+    assert len(input_shapes) == len(angles)
+    assert axes is None or len(axes) == len(angles)
     if axes is None:
         no_correction_shapes = [
             np.array(get_output_size(math.radians(angle), shape, False), dtype=np.int32)
@@ -321,7 +321,7 @@ class RotatePerFrameParamsProvider(ParamsProvider):
         super().__init__(input_params)
 
     def expand_params(self):
-        assert (self.num_expand == 1)
+        assert self.num_expand == 1
         expanded_params = super().expand_params()
         params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
         expanded_angles = params_dict.get('angle')

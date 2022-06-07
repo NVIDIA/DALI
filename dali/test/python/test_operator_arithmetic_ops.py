@@ -610,8 +610,7 @@ def check_comparsion_op(kinds, types, op, shape, _):
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, None)
         assert_equals(out.dtype, np.bool_)
-        np.testing.assert_array_equal(out, op(l_np, r_np),
-                                      err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
+        np.testing.assert_array_equal(out, op(l_np, r_np), err_msg=f"{l_np} op\n{r_np} =\n{out}")
 
 
 def test_comparison_ops_selected():
@@ -651,7 +650,7 @@ def check_arithm_binary_float(kinds, types, op, shape, get_range, _):
         assert_equals(out.dtype, target_type)
         np.testing.assert_allclose(out, numpy_op(l_np, r_np),
                                    rtol=1e-06 if target_type != np.float16 else 0.005,
-                                   err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
+                                   err_msg=f"{l_np} op\n{r_np} =\n{out}")
 
 
 def test_arithmetic_binary_float_big():
@@ -766,8 +765,8 @@ def test_bool_disallowed():
             yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc, error_msg
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            yield check_raises_re, kinds, (np.bool_, np.bool_,
-                                           np.bool_), op, shape_small, op_desc, error_msg
+            yield check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), \
+                op, shape_small, op_desc, error_msg
 
 
 def test_bitwise_disallowed():
