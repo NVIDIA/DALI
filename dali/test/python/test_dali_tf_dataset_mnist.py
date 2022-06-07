@@ -22,6 +22,7 @@ from shutil import rmtree as remove_directory
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
 
+
 TARGET = 0.8
 BATCH_SIZE = 64
 DROPOUT = 0.2
@@ -34,7 +35,8 @@ ITERATIONS = 100
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/MNIST/training/')
 
 
-def mnist_pipeline(num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
+def mnist_pipeline(
+        num_threads, path, device, device_id=0, shard_id=0, num_shards=1, seed=0):
     pipeline = Pipeline(BATCH_SIZE, num_threads, device_id, seed)
     with pipeline:
         jpegs, labels = fn.readers.caffe2(
@@ -52,13 +54,23 @@ def mnist_pipeline(num_threads, path, device, device_id=0, shard_id=0, num_shard
 
 
 def get_dataset(device='cpu', device_id=0, shard_id=0, num_shards=1, fail_on_device_mismatch=True):
-    pipeline = mnist_pipeline(4, data_path, device, device_id, shard_id, num_shards)
-    shapes = ((BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE), (BATCH_SIZE, ))
-    dtypes = (tf.float32, tf.int32)
+    pipeline = mnist_pipeline(
+        4, data_path, device, device_id, shard_id, num_shards)
+    shapes = (
+        (BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE),
+        (BATCH_SIZE,))
+    dtypes = (
+        tf.float32,
+        tf.int32)
 
     daliset = dali_tf.DALIDataset(
-        pipeline=pipeline, batch_size=BATCH_SIZE, output_shapes=shapes, output_dtypes=dtypes,
-        num_threads=4, device_id=device_id, fail_on_device_mismatch=fail_on_device_mismatch)
+        pipeline=pipeline,
+        batch_size=BATCH_SIZE,
+        output_shapes=shapes,
+        output_dtypes=dtypes,
+        num_threads=4,
+        device_id=device_id,
+        fail_on_device_mismatch=fail_on_device_mismatch)
     return daliset
 
 
@@ -69,7 +81,8 @@ def get_dataset_multi_gpu(strategy):
             return get_dataset('gpu', device_id, device_id, num_available_gpus())
 
     input_options = tf.distribute.InputOptions(
-        experimental_place_dataset_on_device=True, experimental_fetch_to_device=False,
+        experimental_place_dataset_on_device=True,
+        experimental_fetch_to_device=False,
         experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA)
 
     train_dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
@@ -77,15 +90,17 @@ def get_dataset_multi_gpu(strategy):
 
 
 def keras_model():
-    model = tf.keras.models.Sequential(
-        [
-            tf.keras.layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE), name='images'),
-            tf.keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
-            tf.keras.layers.Dense(HIDDEN_SIZE, activation='relu'),
-            tf.keras.layers.Dropout(DROPOUT),
-            tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
-        ])
-    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Input(shape=(IMAGE_SIZE, IMAGE_SIZE), name='images'),
+        tf.keras.layers.Flatten(input_shape=(IMAGE_SIZE, IMAGE_SIZE)),
+        tf.keras.layers.Dense(HIDDEN_SIZE, activation='relu'),
+        tf.keras.layers.Dropout(DROPOUT),
+        tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
+    ])
+    model.compile(
+        optimizer='adam',
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy'])
 
     return model
 
@@ -95,9 +110,14 @@ def run_keras_single_device(device='cpu', device_id=0):
         model = keras_model()
         train_dataset = get_dataset(device, device_id)
 
-    model.fit(train_dataset, epochs=EPOCHS, steps_per_epoch=ITERATIONS)
+    model.fit(
+        train_dataset,
+        epochs=EPOCHS,
+        steps_per_epoch=ITERATIONS)
 
-    assert model.evaluate(train_dataset, steps=ITERATIONS)[1] > TARGET
+    assert model.evaluate(
+        train_dataset,
+        steps=ITERATIONS)[1] > TARGET
 
 
 def graph_model(images, reuse, is_training):
@@ -138,16 +158,19 @@ def run_graph_single_device(device='cpu', device_id=0):
         images, labels = iterator.get_next()
 
         # images = tf_v1.reshape(images, [BATCH_SIZE, IMAGE_SIZE*IMAGE_SIZE])
-        labels = tf_v1.reshape(tf_v1.one_hot(labels, NUM_CLASSES), [BATCH_SIZE, NUM_CLASSES])
+        labels = tf_v1.reshape(
+            tf_v1.one_hot(labels, NUM_CLASSES),
+            [BATCH_SIZE, NUM_CLASSES])
 
         logits_train = graph_model(images, reuse=False, is_training=True)
         logits_test = graph_model(images, reuse=True, is_training=False)
 
-        loss_op = tf_v1.reduce_mean(
-            tf_v1.nn.softmax_cross_entropy_with_logits(logits=logits_train, labels=labels))
+        loss_op = tf_v1.reduce_mean(tf_v1.nn.softmax_cross_entropy_with_logits(
+            logits=logits_train, labels=labels))
         train_step = tf_v1.train.AdamOptimizer().minimize(loss_op)
 
-        correct_pred = tf_v1.equal(tf_v1.argmax(logits_test, 1), tf_v1.argmax(labels, 1))
+        correct_pred = tf_v1.equal(
+            tf_v1.argmax(logits_test, 1), tf_v1.argmax(labels, 1))
         accuracy = tf_v1.reduce_mean(tf_v1.cast(correct_pred, tf_v1.float32))
 
     train_graph([iterator.initializer], train_step, accuracy)
@@ -164,7 +187,9 @@ def _test_estimators_single_device(model, device='cpu', device_id=0):
 
     model.train(input_fn=dataset_fn, steps=EPOCHS * ITERATIONS)
 
-    evaluation = model.evaluate(input_fn=dataset_fn, steps=ITERATIONS)
+    evaluation = model.evaluate(
+        input_fn=dataset_fn,
+        steps=ITERATIONS)
     final_accuracy = evaluation['acc'] if 'acc' in evaluation else evaluation['accuracy']
     print('Final accuracy: ', final_accuracy)
 
@@ -181,5 +206,9 @@ def run_estimators_single_device(device='cpu', device_id=0):
     with tf.device('/{0}:{1}'.format(device, device_id)):
         model = keras_model()
     model = tf.keras.estimator.model_to_estimator(
-        keras_model=model, config=_run_config(device, device_id))
-    _test_estimators_single_device(model, device, device_id)
+        keras_model=model,
+        config=_run_config(device, device_id))
+    _test_estimators_single_device(
+        model,
+        device,
+        device_id)
