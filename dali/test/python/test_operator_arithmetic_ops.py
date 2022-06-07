@@ -103,8 +103,10 @@ def pos_range(*types):
     return [(1, 20) if np.issubdtype(t, np.integer) else (0.5, 20.0) for t in types]
 
 
+# The range that is supposed to be [-1, 1], but we extend it a bit.
+
+
 def one_range(*types):
-    # The range that is supposed to be [-1, 1], but we extend it a bit.
     return [(-2, 2) if np.issubdtype(t, np.integer) else (-1.5, 1.5) for t in types]
 
 
@@ -423,12 +425,7 @@ def extract_data(pipe_out, sample_id, kinds, target_type):
 def check_unary_op(kind, type, op, shape, _):
     # Regular arithmetic ops that can be validated as straight numpy
     iterator = iter(ExternalInputIterator(batch_size, shape, type, kind))
-    pipe = ExprOpPipeline(kind,
-                          type,
-                          iterator,
-                          op,
-                          batch_size=batch_size,
-                          num_threads=2,
+    pipe = ExprOpPipeline(kind, type, iterator, op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
     pipe_out = pipe.run()
@@ -453,20 +450,14 @@ def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc, eps
     limted_range = get_range(type)
     iterator = iter(ExternalInputIterator(batch_size, shape, type, kind,
                                           limited_range=limted_range))
-    pipe = ExprOpPipeline(kind,
-                          type,
-                          iterator,
-                          op,
-                          batch_size=batch_size,
-                          num_threads=2,
+    pipe = ExprOpPipeline(kind, type, iterator, op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
     pipe_out = pipe.run()
     out_type = np.float32 if is_integer else type
     for sample in range(batch_size):
         in_np, out = extract_un_data(pipe_out, sample, kind, out_type)
-        np.testing.assert_allclose(out,
-                                   np_op(in_np.astype(out_type)),
+        np.testing.assert_allclose(out, np_op(in_np.astype(out_type)),
                                    rtol=eps if type != np.float16 else 0.005)
 
 
@@ -488,17 +479,9 @@ def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
     left_type, right_type = types
     target_type = bin_promote(left_type, right_type)
     iterator = iter(
-        ExternalInputIterator(batch_size,
-                              shape,
-                              types,
-                              kinds,
+        ExternalInputIterator(batch_size, shape, types, kinds,
                               limited_range=get_range(left_type, right_type)))
-    pipe = ExprOpPipeline(kinds,
-                          types,
-                          iterator,
-                          dali_op,
-                          batch_size=batch_size,
-                          num_threads=2,
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
     pipe_out = pipe.run()
@@ -506,8 +489,7 @@ def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
-            np.testing.assert_allclose(out,
-                                       numpy_op(l_np, r_np),
+            np.testing.assert_allclose(out, numpy_op(l_np, r_np),
                                        rtol=1e-06 if target_type != np.float16 else 0.005)
         else:
             np.testing.assert_array_equal(out, numpy_op(l_np, r_np))
@@ -521,12 +503,7 @@ def check_ternary_op(kinds, types, op, shape, _):
         dali_op = numpy_op = op
     target_type = bin_promote(bin_promote(types[0], types[1]), types[2])
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds,
-                          types,
-                          iterator,
-                          dali_op,
-                          batch_size=batch_size,
-                          num_threads=2,
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
     pipe_out = pipe.run()
@@ -534,8 +511,7 @@ def check_ternary_op(kinds, types, op, shape, _):
         x, y, z, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
-            np.testing.assert_allclose(out,
-                                       numpy_op(x, y, z),
+            np.testing.assert_allclose(out, numpy_op(x, y, z),
                                        rtol=1e-07 if target_type != np.float16 else 0.005)
         else:
             np.testing.assert_array_equal(out, numpy_op(x, y, z))
@@ -624,21 +600,17 @@ def test_bitwise_ops():
 
 def check_comparsion_op(kinds, types, op, shape, _):
     # Comparisons - should always return bool
+    left_type, right_type = types
+    left_kind, right_kind = kinds
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds,
-                          types,
-                          iterator,
-                          op,
-                          batch_size=batch_size,
-                          num_threads=2,
+    pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, None)
         assert_equals(out.dtype, np.bool_)
-        np.testing.assert_array_equal(out,
-                                      op(l_np, r_np),
+        np.testing.assert_array_equal(out, op(l_np, r_np),
                                       err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
 
@@ -668,25 +640,16 @@ def check_arithm_binary_float(kinds, types, op, shape, get_range, _):
     left_type, right_type = types
     target_type = div_promote(left_type, right_type)
     iterator = iter(
-        ExternalInputIterator(batch_size,
-                              shape,
-                              types,
-                              kinds, (False, True),
+        ExternalInputIterator(batch_size, shape, types, kinds, (False, True),
                               limited_range=get_range(left_type, right_type)))
-    pipe = ExprOpPipeline(kinds,
-                          types,
-                          iterator,
-                          dali_op,
-                          batch_size=batch_size,
-                          num_threads=2,
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
-        np.testing.assert_allclose(out,
-                                   numpy_op(l_np, r_np),
+        np.testing.assert_allclose(out, numpy_op(l_np, r_np),
                                    rtol=1e-06 if target_type != np.float16 else 0.005,
                                    err_msg="{} op\n{} =\n{}".format(l_np, r_np, out))
 
@@ -703,8 +666,8 @@ def test_arithmetic_binary_float_selected():
         for types_in in itertools.product(selected_input_types, selected_input_types):
             for (op, op_desc, get_range) in floaty_operations:
                 if types_in != (np.bool_, np.bool_):
-                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, \
-                        get_range, op_desc
+                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, get_range, \
+                        op_desc
 
 
 @attr('slow')
@@ -713,8 +676,8 @@ def test_arithmetic_binary_float():
         for types_in in itertools.product(input_types, input_types):
             for (op, op_desc, get_range) in floaty_operations:
                 if types_in != (np.bool_, np.bool_):
-                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, \
-                        get_range, op_desc
+                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, get_range, \
+                        op_desc
 
 
 def check_arithm_div(kinds, types, shape):
@@ -722,20 +685,15 @@ def check_arithm_div(kinds, types, shape):
     left_type, right_type = types
     target_type = bin_promote(left_type, right_type)
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds, (False, True)))
-    pipe = ExprOpPipeline(kinds,
-                          types,
-                          iterator, (lambda x, y: x // y),
-                          batch_size=batch_size,
-                          num_threads=2,
-                          device_id=0)
+    pipe = ExprOpPipeline(kinds, types, iterator, (lambda x, y: x // y), batch_size=batch_size,
+                          num_threads=2, device_id=0)
     pipe.build()
     pipe_out = pipe.run()
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
         if 'f' in np.dtype(target_type).kind:
-            np.testing.assert_allclose(out,
-                                       l_np / r_np,
+            np.testing.assert_allclose(out, l_np / r_np,
                                        rtol=1e-07 if target_type != np.float16 else 0.005)
         else:
             # Approximate validation, as np does something different than C
@@ -773,12 +731,7 @@ def check_raises(kinds, types, op, shape):
     else:
         dali_op = op
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
-    pipe = ExprOpPipeline(kinds,
-                          types,
-                          iterator,
-                          dali_op,
-                          batch_size=batch_size,
-                          num_threads=2,
+    pipe = ExprOpPipeline(kinds, types, iterator, dali_op, batch_size=batch_size, num_threads=2,
                           device_id=0)
     pipe.build()
     pipe.run()
@@ -789,10 +742,9 @@ def check_raises_re(kinds, types, op, shape, _, msg):
         check_raises(kinds, types, op, shape)
 
 
-@raises(TypeError,
-        glob=("\"DataNode\" is a symbolic representation of TensorList used for"
-              " defining graph of operations for DALI Pipeline. It should not be used"
-              " for truth evaluation in regular Python context."))
+@raises(TypeError, glob=("\"DataNode\" is a symbolic representation of TensorList used for"
+                         " defining graph of operations for DALI Pipeline. It should not be used"
+                         " for truth evaluation in regular Python context."))
 def check_raises_te(kinds, types, op, shape, _):
     check_raises(kinds, types, op, shape)
 
@@ -833,9 +785,8 @@ def test_prohibit_min_max():
             yield check_raises_te, kinds, (np.int32, np.int32), op, shape_small, op_desc
 
 
-@raises(TypeError,
-        glob=("\"DataNode\" is a symbolic representation of TensorList used for"
-              " defining graph of operations for DALI Pipeline. It should not"
-              " be used for truth evaluation in regular Python context."))
+@raises(TypeError, glob=("\"DataNode\" is a symbolic representation of TensorList used for"
+                         " defining graph of operations for DALI Pipeline. It should not"
+                         " be used for truth evaluation in regular Python context."))
 def test_bool_raises():
     bool(DataNode("dummy"))

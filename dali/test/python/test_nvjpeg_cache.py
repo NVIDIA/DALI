@@ -40,11 +40,8 @@ class HybridDecoderPipeline(Pipeline):
         policy = None
         if cache_size > 0:
             policy = "threshold"
-        self.decode = ops.decoders.Image(device='mixed',
-                                         output_type=types.RGB,
-                                         cache_debug=False,
-                                         cache_size=cache_size,
-                                         cache_type=policy,
+        self.decode = ops.decoders.Image(device='mixed', output_type=types.RGB, cache_debug=False,
+                                         cache_size=cache_size, cache_type=policy,
                                          cache_batch_copy=True)
 
     def define_graph(self):
