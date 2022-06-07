@@ -30,7 +30,8 @@ test_dummy_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco_dummy')
 
 class TFRecordDetectionPipeline(Pipeline):
     def __init__(self, args):
-        super(TFRecordDetectionPipeline, self).__init__(args.batch_size, args.num_workers, 0, 0)
+        super(TFRecordDetectionPipeline, self).__init__(
+            args.batch_size, args.num_workers, 0, 0)
         self.input = ops.readers.TFRecord(
             path=os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
             index_path=os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
@@ -45,7 +46,10 @@ class TFRecordDetectionPipeline(Pipeline):
 
         self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
         self.cast = ops.Cast(dtype=types.INT32)
-        self.box_encoder = ops.BoxEncoder(device="cpu", criteria=0.5, anchors=coco_anchors())
+        self.box_encoder = ops.BoxEncoder(
+            device="cpu",
+            criteria=0.5,
+            anchors=coco_anchors())
 
     def define_graph(self):
         inputs = self.input()
@@ -55,30 +59,45 @@ class TFRecordDetectionPipeline(Pipeline):
         labels = self.cast(inputs['image/object/class/label'])
         encoded_boxes, encoded_labels = self.box_encoder(inputs['image/object/bbox'], labels)
 
-        return (image_gpu, inputs['image/object/bbox'], labels, encoded_boxes, encoded_labels)
+        return (
+            image_gpu,
+            inputs['image/object/bbox'],
+            labels,
+            encoded_boxes,
+            encoded_labels)
 
 
 class COCODetectionPipeline(Pipeline):
     def __init__(self, args, data_path=test_data_path):
-        super(COCODetectionPipeline, self).__init__(args.batch_size, args.num_workers, 0, 0)
+        super(COCODetectionPipeline, self).__init__(
+            args.batch_size, args.num_workers, 0, 0)
 
-        self.input = ops.readers.COCO(file_root=os.path.join(data_path, 'images'),
-                                      annotations_file=os.path.join(data_path, 'instances.json'),
-                                      shard_id=0,
-                                      num_shards=1,
-                                      ratio=True,
-                                      ltrb=True,
-                                      random_shuffle=False)
+        self.input = ops.readers.COCO(
+            file_root=os.path.join(data_path, 'images'),
+            annotations_file=os.path.join(data_path, 'instances.json'),
+            shard_id=0,
+            num_shards=1,
+            ratio=True,
+            ltrb=True,
+            random_shuffle=False)
 
         self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
-        self.box_encoder = ops.BoxEncoder(device="cpu", criteria=0.5, anchors=coco_anchors())
+        self.box_encoder = ops.BoxEncoder(
+            device="cpu",
+            criteria=0.5,
+            anchors=coco_anchors())
 
     def define_graph(self):
         inputs, boxes, labels = self.input(name="Reader")
         image_gpu = self.decode_gpu(inputs)
         encoded_boxes, encoded_labels = self.box_encoder(boxes, labels)
 
-        return (image_gpu, boxes, labels, encoded_boxes, encoded_labels)
+        return (
+            image_gpu,
+            boxes,
+            labels,
+            encoded_boxes,
+            encoded_labels)
 
 
 def print_args(args):
