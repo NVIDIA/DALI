@@ -108,10 +108,10 @@ def test_decoded_vs_generated():
             ref3 = generate_waveforms(ref_len[3], freqs[idx] * (rates[idx] / rate2))
             ref3 = ref3.mean(axis=1, keepdims=1)
 
-            assert(out[4].at(i) == rates[idx])
-            assert(out[5].at(i) == rate1)
-            assert(out[6].at(i) == rates[idx])
-            assert(out[7].at(i) == rate2)
+            assert out[4].at(i) == rates[idx]
+            assert out[5].at(i) == rate1
+            assert out[6].at(i) == rates[idx]
+            assert out[7].at(i) == rate2
 
             # just reading - allow only for rounding
             assert np.allclose(plain, ref0, rtol=0, atol=0.5)
@@ -181,7 +181,7 @@ def check_audio_decoder_correctness(fmt, dtype):
             if len(ref.shape) == 1:
                 ref = np.expand_dims(ref, 1)
             arr = np.array(data[0][s])
-            assert(arr.shape == ref.shape)
+            assert arr.shape == ref.shape
             if fmt == 'ogg':
                 # For OGG Vorbis, we consider errors any value that is off by more than 1
                 # TODO(janton): There is a bug in libsndfile that produces underflow/overflow.
@@ -189,7 +189,7 @@ def check_audio_decoder_correctness(fmt, dtype):
                 # Tuple with two arrays, we just need the first dimension
                 wrong_values = np.where(np.abs(arr - ref) > 1)[0]
                 nerrors = len(wrong_values)
-                assert(nerrors <= 1)
+                assert nerrors <= 1
                 # TODO(janton): Uncomment this when the bug is fixed
                 # np.testing.assert_allclose(arr, ref, atol=1)
             else:
