@@ -63,11 +63,7 @@ def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
 
 
-def check_sequence_rearrange(batch_size,
-                             shape,
-                             reorders,
-                             persample_reorder=True,
-                             op_type="cpu",
+def check_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu",
                              layout=""):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
@@ -109,12 +105,8 @@ def test_sequence_rearrange():
                     yield check_sequence_rearrange, 5, shape, new_order, per_sample, dev, layout
 
 
-def check_fail_sequence_rearrange(batch_size,
-                                  shape,
-                                  reorders,
-                                  persample_reorder=True,
-                                  op_type="cpu",
-                                  layout=""):
+def check_fail_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True,
+                                  op_type="cpu", layout=""):
     check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout)
 
 
@@ -145,7 +137,8 @@ def test_fail_sequence_rearrange():
         for [new_order, per_sample], error_msg in zip(orders, error_msgs):
             yield raises(
                 RuntimeError,
-                glob=error_msg)(check_fail_sequence_rearrange), 2, shape, new_order, per_sample, dev
+                glob=error_msg
+            )(check_fail_sequence_rearrange), 2, shape, new_order, per_sample, dev
 
 
 def test_wrong_layouts_sequence_rearrange():
