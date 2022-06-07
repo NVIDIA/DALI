@@ -64,7 +64,7 @@ def bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, o
 
 def ref_operator(contrast_center, out_dtype):
     return lambda input, brightness, brightness_shift, contrast: \
-        bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, out_dtype)
+                  bricon_ref(input, brightness, brightness_shift, contrast, contrast_center, out_dtype)
 
 
 def contrast_param():
@@ -104,21 +104,14 @@ def bricon_pipe(data_iterator, contrast_center, bri, con, dtype, dev='cpu'):
     if dev == 'gpu':
         inp = inp.gpu()
     if bri and con:
-        return fn.brightness_contrast(inp,
-                                      brightness=brightness,
-                                      brightness_shift=brightness_shift,
-                                      contrast=contrast,
-                                      contrast_center=contrast_center,
+        return fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
+                                      contrast=contrast, contrast_center=contrast_center,
                                       dtype=dtype)
     elif bri:
-        return fn.brightness_contrast(inp,
-                                      brightness=brightness,
-                                      brightness_shift=brightness_shift,
+        return fn.brightness_contrast(inp, brightness=brightness, brightness_shift=brightness_shift,
                                       dtype=dtype)
     elif con:
-        return fn.brightness_contrast(inp,
-                                      contrast=contrast,
-                                      contrast_center=contrast_center,
+        return fn.brightness_contrast(inp, contrast=contrast, contrast_center=contrast_center,
                                       dtype=dtype)
 
 
@@ -128,7 +121,7 @@ def bricon_ref_pipe(data_iterator, contrast_center, dtype, has_3_dims=False):
     contrast = contrast_param()
     inp = fn.external_source(source=data_iterator)
     layout = "FHWC" if has_3_dims else "HWC"
-    return fn.python_function(inp, brightness, brightness_shift, contrast,
+    return fn.python_function(inp, brightness, brightness_shift, contrast,\
                               function=ref_operator(contrast_center, dali_type_to_np(dtype)),
                               output_layouts=layout)
 
@@ -170,10 +163,7 @@ def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims):
     ri1 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
     ri2 = RandomDataIterator(batch_size, shape=shape, dtype=dali_type_to_np(inp_dtype))
     contrast_center = 0.4 * max_range(dali_type_to_np(inp_dtype))
-    pipe1 = bricon_ref_pipe(ri1,
-                            contrast_center,
-                            out_dtype,
-                            has_3_dims=has_3_dims,
+    pipe1 = bricon_ref_pipe(ri1, contrast_center, out_dtype, has_3_dims=has_3_dims,
                             batch_size=batch_size)
     pipe2 = bricon_pipe(ri2, contrast_center, True, True, out_dtype, device, batch_size=batch_size)
     if out_dtype in [np.half, np.single, np.double]:
