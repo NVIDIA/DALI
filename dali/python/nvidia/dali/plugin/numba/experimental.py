@@ -26,17 +26,17 @@ import numba as nb
 
 
 _to_numpy = {
-    dali_types.UINT8 : "uint8",
-    dali_types.UINT16 : "uint16",
-    dali_types.UINT32 : "uint32",
-    dali_types.UINT64 : "uint64",
-    dali_types.INT8 : "int8",
-    dali_types.INT16 : "int16",
-    dali_types.INT32 : "int32",
-    dali_types.INT64 : "int64",
-    dali_types.FLOAT16 : "float16",
-    dali_types.FLOAT : "float32",
-    dali_types.FLOAT64 : "float64",
+    dali_types.UINT8: "uint8",
+    dali_types.UINT16: "uint16",
+    dali_types.UINT32: "uint32",
+    dali_types.UINT64: "uint64",
+    dali_types.INT8: "int8",
+    dali_types.INT16: "int16",
+    dali_types.INT32: "int32",
+    dali_types.INT64: "int64",
+    dali_types.FLOAT16: "float16",
+    dali_types.FLOAT: "float32",
+    dali_types.FLOAT64: "float64",
 }
 
 _to_numba = {
