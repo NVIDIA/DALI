@@ -16,7 +16,7 @@ import functools
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline
 
 from nose_utils import assert_raises
 from test_utils import check_output
@@ -39,7 +39,7 @@ cpu_input = True
 
 
 def _to_numpy(x):
-    assert (False)
+    assert False
 
 
 def cast_to(x, dtype):
@@ -97,7 +97,8 @@ def use_torch(gpu):
         return x.type(dtype)
 
     cast_to = torch_cast
-    random_array = lambda shape: make_torch_tensor(np.random.ranf(shape))  # noqa: E731
+    def random_array(shape):
+        return make_torch_tensor(np.random.ranf(shape))
     global make_array
 
     make_array = make_torch_tensor
@@ -432,7 +433,7 @@ def test_external_source_with_sample_info():
         pipe = Pipeline(batch_size, 3, 0)
 
         def src(si):
-            assert (si.idx_in_epoch == batch_size * si.iteration + si.idx_in_batch)
+            assert si.idx_in_epoch == batch_size * si.iteration + si.idx_in_batch
             return make_array([attempt * 100 + si.iteration * 10 + si.idx_in_batch + 1.5],
                               dtype=datapy.float32)
 
@@ -440,8 +441,8 @@ def test_external_source_with_sample_info():
         pipe.build()
 
         for i in range(10):
-            batch = [np.array([attempt * 100 + i * 10 + s + 1.5], dtype=np.float32) for s in
-                     range(batch_size)]
+            batch = [np.array([attempt * 100 + i * 10 + s + 1.5], dtype=np.float32)
+                     for s in range(batch_size)]
             check_output(pipe.run(), batch)
 
 
@@ -636,8 +637,8 @@ def test_external_source_gpu():
 
         def iter_setup(self):
             if use_list:
-                batch_data = [cast_to(random_array([100, 100, 3]) * 256, datapy.uint8) for _ in
-                              range(self.batch_size)]
+                batch_data = [cast_to(random_array([100, 100, 3]) * 256, datapy.uint8)
+                              for _ in range(self.batch_size)]
             else:
                 batch_data = cast_to(random_array([self.batch_size, 100, 100, 3]) * 256,
                                      datapy.uint8)

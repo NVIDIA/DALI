@@ -112,16 +112,15 @@ def test_api_fw_check1(iter_type, data_definition):
                    pipe.run]:
         try:
             method()
-            assert (False)
+            assert False
         except RuntimeError:
-            assert (True)
+            pass
     # disable check
     pipe.enable_api_check(False)
     for method in [pipe.schedule_run, pipe.share_outputs, pipe.release_outputs, pipe.outputs,
                    pipe.run]:
         try:
             method()
-            assert (True)
         except RuntimeError:
             assert (False)
     yield check, iter_type

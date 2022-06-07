@@ -109,14 +109,14 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
 
 def test_dynamic_ranges():
     for type, values, eps in [
-        (types.FLOAT, [-1.e30, -1 - 1.e-6, -1, -0.5, -1.e-30, 0, 1.e-30, 0.5, 1, 1 + 1.e-6, 1e30],
+        (types.FLOAT,  [-1.e30, -1 - 1.e-6, -1, -0.5, -1.e-30, 0, 1.e-30, 0.5, 1, 1 + 1.e-6, 1e30],
          0),
-        (types.UINT8, [0, 1, 128, 254, 255], 0),
-        (types.INT8, [-128, -127, -1, 0, 1, 127], 0),
+        (types.UINT8,  [0, 1, 128, 254, 255], 0),
+        (types.INT8,   [-128, -127, -1, 0, 1, 127], 0),
         (types.UINT16, [0, 1, 32767, 32768, 65534, 65535], 0),
-        (types.INT16, [-32768, -32767, -100, -1, 0, 1, 100, 32767], 0),
+        (types.INT16,  [-32768, -32767, -100, -1, 0, 1, 100, 32767], 0),
         (types.UINT32, [0, 1, 0x7fffffff, 0x80000000, 0xfffffffe, 0xffffffff], 128),
-        (types.INT32, [-0x80000000, -0x7fffffff, -100, -1, 0, 1, 0x7fffffff], 128)
+        (types.INT32,  [-0x80000000, -0x7fffffff, -100, -1, 0, 1, 0x7fffffff], 128)
     ]:
         for device in ('cpu', 'gpu'):
             yield _test_type_conversion, device, type, values, type, values, eps

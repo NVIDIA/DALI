@@ -86,8 +86,8 @@ NUM_WORKERS = 6
 
 class CommonPipeline(Pipeline):
     def __init__(self, device):
-        super().__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED, exec_async=False,
-                         exec_pipelined=False)
+        super().__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED,
+                         exec_async=False, exec_pipelined=False)
         self.input = ops.readers.File(file_root=images_dir)
         self.decode = ops.decoders.Image(device='mixed' if device == 'gpu' else 'cpu',
                                          output_type=types.RGB)

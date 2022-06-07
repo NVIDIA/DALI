@@ -56,7 +56,7 @@ class ConstantPipeline(Pipeline):
         self.const7 = ops.Constant(device=device, idata=[0, 1, 0], dtype=types.BOOL)
 
     def define_graph(self):
-        return self.const1(), self.const2(), self.const3(), self.const4(), self.const5(), \
+        return self.const1(), self.const2(), self.const3(), self.const4(), self.const5(),
                self.const6(), self.const7()
 
 
@@ -72,15 +72,24 @@ class ConstantFnPipeline(Pipeline):
     def define_graph(self):
         device = self.device
         return [
-            types.Constant(device=device, value=(1.25, 2.5, 3)),
             types.Constant(device=device,
-                           value=self.array([[[1, 2]], [[3, 4]]], dtype=self.dtype('int32'))),
+                           value=(1.25, 2.5, 3)),
             types.Constant(device=device,
-                           value=self.array([0, 1, 2, 3, 4], dtype=self.dtype('uint8'))),
-            types.Constant(device=device, value=self.array([0.25, 1.25, 2.25, 3.25, 4.25],
-                                                           dtype=self.dtype('float16'))),
-            types.Constant(device=device, value=5.5, shape=(100, 100), name="large"),
-            types.Constant(device=device, value=-4, shape=(10, 20)),
+                           value=self.array([[[1, 2]], [[3, 4]]],
+                           dtype=self.dtype('int32'))),
+            types.Constant(device=device,
+                           value=self.array([0, 1, 2, 3, 4],
+                           dtype=self.dtype('uint8'))),
+            types.Constant(device=device,
+                           value=self.array([0.25, 1.25, 2.25, 3.25, 4.25],
+                           dtype=self.dtype('float16'))),
+            types.Constant(device=device,
+                           value=5.5,
+                           shape=(100, 100),
+                           name="large"),
+            types.Constant(device=device,
+                           value=-4,
+                           shape=(10, 20)),
             types.Constant(device=device, value=[False, True, False])
         ]
 
@@ -105,8 +114,8 @@ class ScalarConstantPipeline(Pipeline):
 def check(a1, a2):
     if a1.dtype != a2.dtype:
         print(a1.dtype, a2.dtype)
-    assert (a1.dtype == a2.dtype)
-    assert (np.array_equal(a1, a2))
+    assert a1.dtype == a2.dtype
+    assert np.array_equal(a1, a2)
 
 
 ref = [

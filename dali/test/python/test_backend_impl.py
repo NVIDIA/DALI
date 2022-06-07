@@ -58,11 +58,11 @@ def test_tensorlist_getitem_cpu():
     tensorlist = TensorListCPU(arr, "NHWC")
     list_of_tensors = [x for x in tensorlist]
 
-    assert (type(tensorlist.at(0)) == np.ndarray)
-    assert (type(tensorlist[0]) != np.ndarray)
-    assert (type(tensorlist[0]) == TensorCPU)
-    assert (type(tensorlist[-3]) == TensorCPU)
-    assert (len(list_of_tensors) == len(tensorlist))
+    assert type(tensorlist.at(0)) == np.ndarray
+    assert type(tensorlist[0]) != np.ndarray
+    assert type(tensorlist[0]) == TensorCPU
+    assert type(tensorlist[-3]) == TensorCPU
+    assert len(list_of_tensors) == len(tensorlist)
     with assert_raises(IndexError, glob="out of range"):
         tensorlist[len(tensorlist)]
     with assert_raises(IndexError, glob="out of range"):
@@ -74,7 +74,7 @@ def test_data_ptr_tensor_cpu():
     tensor = TensorCPU(arr, "NHWC")
     from_tensor = py_buffer_from_address(tensor.data_ptr(), tensor.shape(),
                                          types.to_numpy_type(tensor.dtype))
-    assert (np.array_equal(arr, from_tensor))
+    assert np.array_equal(arr, from_tensor)
 
 
 def test_data_ptr_tensor_list_cpu():
@@ -115,7 +115,7 @@ def test_transfer_cpu_gpu():
 def check_array_types(t):
     arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
     tensor = TensorCPU(arr, "NHWC")
-    assert (np.allclose(np.array(arr), np.asanyarray(tensor)))
+    assert np.allclose(np.array(arr), np.asanyarray(tensor))
 
 
 def test_array_interface_types():

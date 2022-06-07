@@ -17,7 +17,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import torch
 from nvidia.dali.backend_impl import *  # noqa: F401, F403
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline
 from torch.utils.dlpack import to_dlpack, from_dlpack
 
 from test_utils import check_output
@@ -90,7 +90,7 @@ def run_and_check(pipe, ref_iterable):
             i += 1
         except StopIteration:
             break
-    assert (i == len(ref_iterable))
+    assert i == len(ref_iterable)
 
 
 def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):

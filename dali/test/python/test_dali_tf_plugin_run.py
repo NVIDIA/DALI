@@ -61,8 +61,8 @@ class CommonPipeline(Pipeline):
 class CaffeReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus):
         super().__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.Caffe(path=lmdb_folder, random_shuffle=True, shard_id=device_id,
-                                       num_shards=num_gpus)
+        self.input = ops.readers.Caffe(path=lmdb_folder, random_shuffle=True,
+                                       shard_id=device_id, num_shards=num_gpus)
 
     def define_graph(self):
         images, labels = self.input()
@@ -94,7 +94,7 @@ def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=16, iterations=32):
         from tensorflow.compat.v1 import GPUOptions
         from tensorflow.compat.v1 import ConfigProto
         from tensorflow.compat.v1 import Session
-    except ModuleNotFoundError:
+    except ImportError:
         # Older TF versions don't have compat.v1 layer
         from tensorflow import GPUOptions
         from tensorflow import ConfigProto
@@ -108,9 +108,9 @@ def test_dali_tf_op(pipe_type=CaffeReadPipeline, batch_size=16, iterations=32):
             # Testing correctness of labels
             for label in labels:
                 # labels need to be integers
-                assert (np.equal(np.mod(label, 1), 0).all())
-                assert ((label >= 0).all())
-                assert ((label <= 999).all())
+                assert np.equal(np.mod(label, 1), 0).all()
+                assert (label >= 0).all()
+                assert (label <= 999).all()
 
 
 class PythonOperatorPipeline(Pipeline):
