@@ -1041,7 +1041,7 @@ void ExposeTensorList(py::module &m) {
 
       :type: DALIDataType
       )code");
-  
+
   ExposeTensorListOperators(tensor_list_cpu_class);
 
   auto tensor_list_gpu_class =
