@@ -83,9 +83,7 @@ def numpy_flip(data, h_dim, v_dim, d_dim, hor, ver, depth):
 
 
 def find_dims(layout):
-    return layout.find("W"), \
-        layout.find("H"), \
-        layout.find("D")
+    return layout.find("W"), layout.find("H"), layout.find("D")
 
 
 class SynthPythonFlipPipeline(Pipeline):

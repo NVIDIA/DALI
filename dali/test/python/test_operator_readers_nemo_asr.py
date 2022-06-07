@@ -238,10 +238,12 @@ def test_nemo_asr_reader_alias():
     for read_sr, read_text in [(True, False), (False, True), (False, False)]:
         for dtype in [types.INT16, types.FLOAT]:
             for downmix in [True, False]:
-                new_pipe = nemo_pipe(fn.readers.nemo_asr, [
-                                     nemo_asr_manifest], read_sr, read_text, dtype, downmix)
-                legacy_pipe = nemo_pipe(fn.nemo_asr_reader, [
-                                        nemo_asr_manifest], read_sr, read_text, dtype, downmix)
+                new_pipe = nemo_pipe(
+                    fn.readers.nemo_asr,
+                    [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
+                legacy_pipe = nemo_pipe(
+                    fn.nemo_asr_reader,
+                    [nemo_asr_manifest], read_sr, read_text, dtype, downmix)
                 compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
 
 

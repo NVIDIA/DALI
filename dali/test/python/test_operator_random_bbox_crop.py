@@ -368,8 +368,9 @@ def test_random_bbox_crop_no_labels():
     test_box_shape = [200, 4]
 
     def get_boxes():
-        out = [(np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) /
-                255).astype(dtype=np.float32) for _ in range(batch_size)]
+        out = [
+            (np.random.randint(0, 255, size=test_box_shape, dtype=np.uint8) / 255)
+            .astype(dtype=np.float32) for _ in range(batch_size)]
         return out
     boxes = fn.external_source(source=get_boxes)
     processed = fn.random_bbox_crop(boxes,

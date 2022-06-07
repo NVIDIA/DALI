@@ -58,11 +58,10 @@ def test_mixed_size_pipeline():
 
 def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     tensor = np.full(shape, value, dtype)
-    run_tf_dataset_eager_mode(
-        dev,
-        get_pipeline_desc=external_source_tester(
-            shape, dtype, FixedSampleIterator(tensor), batch=batch),
-        to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, batch))
+    get_pipeline_desc = external_source_tester(
+        shape, dtype, FixedSampleIterator(tensor), batch=batch)
+    to_dataset = external_source_converter_with_fixed_value(shape, dtype, tensor, batch)
+    run_tf_dataset_eager_mode(dev, get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)
@@ -77,20 +76,11 @@ def test_tf_dataset_with_constant_input():
 
 def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch="dataset"):
     min_shape = get_min_shape_helper(batch, max_shape)
-    run_tf_dataset_eager_mode(
-        dev,
-        get_pipeline_desc=external_source_tester(max_shape,
-                                                 dtype,
-                                                 RandomSampleIterator(
-                                                     max_shape, dtype(0), min_shape=min_shape),
-                                                 batch=batch),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator,
-                                                           max_shape,
-                                                           dtype,
-                                                           0,
-                                                           1e10,
-                                                           min_shape,
-                                                           batch=batch))
+    it = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
+    get_pipeline_desc = external_source_tester(max_shape, dtype, it, batch=batch)
+    to_dataset = external_source_converter_with_callback(
+        RandomSampleIterator, max_shape, dtype, 0, 1e10, min_shape, batch=batch)
+    run_tf_dataset_eager_mode(dev, get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)
@@ -105,21 +95,11 @@ def test_tf_dataset_with_random_input():
 # Run with everything on GPU (External Source op as well)
 def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
     min_shape = get_min_shape_helper(batch, max_shape)
-    run_tf_dataset_eager_mode(
-        "gpu",
-        get_pipeline_desc=external_source_tester(max_shape,
-                                                 dtype,
-                                                 RandomSampleIterator(
-                                                     max_shape, dtype(0), min_shape=min_shape),
-                                                 "gpu",
-                                                 batch=batch),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator,
-                                                           max_shape,
-                                                           dtype,
-                                                           0,
-                                                           1e10,
-                                                           min_shape,
-                                                           batch=batch))
+    it = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
+    get_pipeline_desc = external_source_tester(max_shape, dtype, it, "gpu", batch=batch)
+    to_dataset = external_source_converter_with_callback(
+            RandomSampleIterator, max_shape, dtype, 0, 1e10, min_shape, batch=batch)
+    run_tf_dataset_eager_mode("gpu", get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)
@@ -131,12 +111,12 @@ def test_tf_dataset_with_random_input_gpu():
 
 
 def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
-    run_tf_dataset_eager_mode(
-        dataset_dev,
-        get_pipeline_desc=external_source_tester(max_shape, dtype,
-                                                 RandomSampleIterator(max_shape, dtype(0)), es_dev,
-                                                 no_copy),
-        to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
+    get_pipeline_desc = external_source_tester(
+        max_shape, dtype, RandomSampleIterator(max_shape, dtype(0)), es_dev, no_copy)
+    to_dataset = external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype)
+    run_tf_dataset_eager_mode(dataset_dev,
+                              get_pipeline_desc=get_pipeline_desc,
+                              to_dataset=to_dataset)
 
 
 # Check if setting no_copy flags in all placement scenarios is ok as we override it internally
@@ -152,16 +132,14 @@ def test_tf_dataset_with_no_copy():
 
 
 def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
+    it1 = RandomSampleIterator(max_shape, dtype(0), start=0, stop=stop_samples)
+    get_pipeline_desc = external_source_tester(max_shape, dtype, it1)
+    to_dataset = external_source_converter_with_callback(
+        RandomSampleIterator, max_shape, dtype, 0, stop_samples)
     run_tf_dataset_eager_mode(dev,
                               to_stop_iter=True,
-                              get_pipeline_desc=external_source_tester(
-                                  max_shape, dtype,
-                                  RandomSampleIterator(max_shape,
-                                                       dtype(0),
-                                                       start=0,
-                                                       stop=stop_samples)),
-                              to_dataset=external_source_converter_with_callback(
-                                  RandomSampleIterator, max_shape, dtype, 0, stop_samples))
+                              get_pipeline_desc=get_pipeline_desc,
+                              to_dataset=to_dataset)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)
@@ -356,10 +334,11 @@ def check_layout(kwargs, input_datasets, layout):
 
 
 def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
-    run_tf_dataset_eager_mode(dev,
-                              get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
-                              to_dataset=external_source_to_tf_dataset,
-                              to_stop_iter=True)
+    run_tf_dataset_eager_mode(
+        dev,
+        get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
+        to_dataset=external_source_to_tf_dataset,
+        to_stop_iter=True)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)
