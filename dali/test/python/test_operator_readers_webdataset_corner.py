@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from webdataset_base import *
-
+import glob
+import math
+import os
+import tempfile
+import nvidia.dali as dali
+from nose_utils import assert_raises
+from test_RN50_external_source_parallel_utils import file_reader_pipeline
+from test_utils import compare_pipelines, get_dali_extra_path
+from webdataset_base import generate_temp_extract, generate_temp_index_file, \
+                            webdataset_raw_pipeline, test_batch_size
+from third_party.pybind11.tests.test_numpy_dtypes import assert_equal
 
 def general_corner_case(
     test_batch_size=test_batch_size, dtypes=None, missing_component_behavior="", **kwargs
