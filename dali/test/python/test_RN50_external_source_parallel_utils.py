@@ -239,11 +239,15 @@ def external_source_pipeline(data_path, batch_size, num_threads, device_id, pref
 def external_source_parallel_pipeline(data_path, batch_size, num_threads, device_id,
                                       prefetch_queue_depth, reader_queue_depth, read_encoded,
                                       source_mode, py_num_workers=None, py_start_method="fork"):
-    pipe = ExternalSourcePipeline(
-        batch_size=batch_size, num_threads=num_threads, device_id=device_id,
-        prefetch_queue_depth=prefetch_queue_depth, py_start_method=py_start_method,
-        py_num_workers=py_num_workers, data_path=data_path, source_mode=source_mode,
-        read_encoded=read_encoded)
+    pipe = ExternalSourcePipeline(batch_size=batch_size,
+                                  num_threads=num_threads,
+                                  device_id=device_id,
+                                  prefetch_queue_depth=prefetch_queue_depth,
+                                  py_start_method=py_start_method,
+                                  py_num_workers=py_num_workers,
+                                  data_path=data_path,
+                                  source_mode=source_mode,
+                                  read_encoded=read_encoded)
     with pipe:
         images, labels = dali.fn.external_source(
             pipe.loader, num_outputs=2, parallel=True,

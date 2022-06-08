@@ -16,8 +16,8 @@ import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import torch
-from nvidia.dali.backend_impl import *  # noqa: F401, F403
 from nvidia.dali import Pipeline
+from nvidia.dali.backend_impl import *  # noqa: F401, F403
 from torch.utils.dlpack import to_dlpack, from_dlpack
 
 from test_utils import check_output
@@ -98,8 +98,10 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
 
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id, src_device):
-            super().__init__(batch_size=iterator.batch_size, num_threads=num_threads,
-                             device_id=device_id)
+            super().__init__(
+                batch_size=iterator.batch_size,
+                num_threads=num_threads,
+                device_id=device_id)
 
             self.iterator = iterator
             self._device = src_device

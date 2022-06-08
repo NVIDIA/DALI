@@ -40,8 +40,8 @@ def next_power_of_two(x):
 
 class CropMirrorNormalizePipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
-                 dtype=types.FLOAT, output_layout="HWC", mirror_probability=0.0, mean=[0., 0., 0.],
-                 std=[1., 1., 1.], scale=None, shift=None, pad_output=False):
+                 dtype=types.FLOAT, output_layout="HWC", mirror_probability=0.0,
+                 mean=[0., 0., 0.], std=[1., 1., 1.], scale=None, shift=None, pad_output=False):
         super().__init__(batch_size, num_threads, device_id, seed=7865)
         self.device = device
         self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id,

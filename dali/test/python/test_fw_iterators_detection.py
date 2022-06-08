@@ -122,7 +122,7 @@ def test_api_fw_check1(iter_type, data_definition):
         try:
             method()
         except RuntimeError:
-            assert (False)
+            assert False
     yield check, iter_type
 
 

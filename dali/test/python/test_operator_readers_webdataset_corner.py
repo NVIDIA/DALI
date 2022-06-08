@@ -237,7 +237,9 @@ def test_argument_errors():
 
 
 def general_index_error(
-        index_file_contents, tar_file_path="db/webdataset/MNIST/devel-0.tar", ext="jpg"
+        index_file_contents,
+        tar_file_path="db/webdataset/MNIST/devel-0.tar",
+        ext="jpg"
 ):
     index_file = tempfile.NamedTemporaryFile()
     index_file.write(index_file_contents)

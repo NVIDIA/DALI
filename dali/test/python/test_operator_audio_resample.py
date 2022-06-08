@@ -123,12 +123,12 @@ def test_dynamic_ranges():
 
 
 def test_type_conversion():
-    type_ranges = [(types.FLOAT, [-1, 1]),
-                   (types.UINT8, [0, 255]),
-                   (types.INT8, [-127, 127]),
+    type_ranges = [(types.FLOAT,  [-1, 1]),
+                   (types.UINT8,  [0, 255]),
+                   (types.INT8,   [-127, 127]),
                    (types.UINT16, [0, 65535]),
-                   (types.INT16, [-32767, 32767]),
-                   (types.INT32, [-0x7fffffff, 0x7fffffff]),
+                   (types.INT16,  [-32767, 32767]),
+                   (types.INT32,  [-0x7fffffff, 0x7fffffff]),
                    (types.UINT32, [0, 0xffffffff])]
 
     for src_type, src_range in type_ranges:

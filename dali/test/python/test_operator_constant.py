@@ -90,7 +90,8 @@ class ConstantFnPipeline(Pipeline):
             types.Constant(device=device,
                            value=-4,
                            shape=(10, 20)),
-            types.Constant(device=device, value=[False, True, False])
+            types.Constant(device=device,
+                           value=[False, True, False])
         ]
 
 

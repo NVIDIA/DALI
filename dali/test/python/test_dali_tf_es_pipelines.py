@@ -201,14 +201,13 @@ def get_external_source_pipe(es_args, dtype, es_device):
 def external_source_to_tf_dataset(pipe_desc, device_str):  # -> tf.data.Dataset
     pipe, _, dtypes = pipe_desc
     with tf.device(device_str):
-        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-            input_datasets=None,
-            pipeline=pipe,
-            batch_size=pipe.max_batch_size,
-            output_shapes=None,
-            output_dtypes=dtypes,
-            num_threads=pipe.num_threads,
-            device_id=pipe.device_id)
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(input_datasets=None,
+                                                                  pipeline=pipe,
+                                                                  batch_size=pipe.max_batch_size,
+                                                                  output_shapes=None,
+                                                                  output_dtypes=dtypes,
+                                                                  num_threads=pipe.num_threads,
+                                                                  device_id=pipe.device_id)
     return dali_dataset
 
 

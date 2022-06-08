@@ -161,8 +161,8 @@ def create_closure_generator_img_reader(batch_size, data_set_size):
     return py_file_gen_reader
 
 
-jpeg_file = os.path.join(get_dali_extra_path(), 'db', 'single', 'jpeg', '510',
-                         'ship-1083562_640.jpg')
+jpeg_file = os.path.join(
+    get_dali_extra_path(), 'db', 'single', 'jpeg', '510', 'ship-1083562_640.jpg')
 sequence_lenght = 4
 
 
@@ -185,8 +185,8 @@ def create_callback_with_syntactically_nested_code_referencing_global_var():
 def create_callback_with_list_comprehension_referencing_global_var():
     def get_data(sample_info):
         return [x for xs in
-                [[np.fromfile(jpeg_file, dtype=np.uint8) for _ in range(sequence_lenght)] for i in
-                 range(2)] for x in xs]
+                [[np.fromfile(jpeg_file, dtype=np.uint8) for _ in range(sequence_lenght)]
+                 for i in range(2)] for x in xs]
 
     return get_data
 
@@ -275,9 +275,13 @@ def _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipelin
 
 def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py_num_workers=2,
                                          py_start_method="spawn"):
-    parallel_pipeline = create_simple_pipeline(cb, py_callback_pickler, batch_size=batch_size,
-                                               py_num_workers=py_num_workers,
-                                               py_start_method=py_start_method, parallel=True)
+    parallel_pipeline = create_simple_pipeline(
+        cb,
+        py_callback_pickler,
+        batch_size=batch_size,
+        py_num_workers=py_num_workers,
+        py_start_method=py_start_method,
+        parallel=True)
     serial_pipeline = create_simple_pipeline(cb, None, batch_size=batch_size, parallel=False)
     parallel_pipeline.build()
     serial_pipeline.build()
@@ -289,8 +293,8 @@ def _create_and_compare_simple_pipelines(cb, py_callback_pickler, batch_size, py
 def test_no_pickling_in_forking_mode():
     # modify callback name so that an attempt to pickle it in spawn mode would fail
     _simple_callback.__name__ = _simple_callback.__qualname__ = "simple_callback"
-    _create_and_compare_simple_pipelines(_simple_callback, None, batch_size=8, py_num_workers=2,
-                                         py_start_method="fork")
+    _create_and_compare_simple_pipelines(_simple_callback, None, batch_size=8,
+                                         py_num_workers=2, py_start_method="fork")
 
 
 # Run this one as sanity check that standard serialization is not broken by the change

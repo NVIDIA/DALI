@@ -715,9 +715,11 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
 
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id, device, prefetch_queue_depth=2):
-            super().__init__(batch_size=iterator.batch_size, num_threads=num_threads,
-                             device_id=device_id, prefetch_queue_depth=prefetch_queue_depth)
-
+            super().__init__(
+                batch_size=iterator.batch_size,
+                num_threads=num_threads,
+                device_id=device_id,
+                prefetch_queue_depth=prefetch_queue_depth)
             self.iterator = iterator
             self._device = device
 

@@ -67,6 +67,10 @@ def check_coin_flip(device='cpu', batch_size=32, max_shape=[1e5], p=None,
 def test_coin_flip():
     batch_size = 8
     for device in ['cpu', 'gpu']:
-        for max_shape, use_shape_like_in in [([100000], False), ([100000], True), (None, False)]:
+        for max_shape, use_shape_like_in in [
+            ([100000], False),
+            ([100000], True),
+            (None, False)
+        ]:
             for probability in [None, 0.7, 0.5, 0.0, 1.0]:
                 yield check_coin_flip, device, batch_size, max_shape, probability, use_shape_like_in
