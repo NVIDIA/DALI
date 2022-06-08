@@ -69,7 +69,7 @@ def replace_with_empty_volumes(rng, input, empty_volume_policy):
         start = 0
         end = rng.integers(1, len(input) // 3)
     elif empty_volume_policy == "right":
-        start = rng.integers(1, len(input) * 2 // 3)
+        start = rng.integers(len(input) * 2 // 3, len(input) - 1)
         end = len(input)
     elif empty_volume_policy == "middle":
         start = rng.integers(1 + len(input) // 3, len(input) * 2 // 3)
