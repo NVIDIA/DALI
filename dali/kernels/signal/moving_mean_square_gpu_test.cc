@@ -57,7 +57,7 @@ class MovingMeanSquareGPU : public ::testing::Test {
       ptr = start;
     acc_t<In> sum = 0;
     for (; ptr <= pos; ++ptr) {
-      auto x = *ptr;
+      acc_t<In> x = *ptr;
       sum += (x * x);
     }
     return ConvertSat<Out>(factor * sum);
