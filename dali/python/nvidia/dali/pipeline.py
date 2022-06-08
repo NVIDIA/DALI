@@ -630,6 +630,7 @@ Parameters
         self._ops = ops
         self._graph_outputs = outputs
         self._setup_input_callbacks()
+        self._check_ext_source_groups_in_graph()
         self._py_graph_built = True
 
     def _setup_pipe_pool_dependency(self):
@@ -679,6 +680,25 @@ Parameters
                 self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
         self._backend_prepared = True
         self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
+
+    def _check_ext_source_groups_in_graph(self):
+        def truncate_str(obj, max_len=103):
+            obj_str = str(obj)
+            if len(obj_str) <= max_len:
+                return obj_str
+            return obj_str[:max_len - 3] + "..."
+
+        graph_op_ids = set(op.id for op in self._ops)
+        for group in self._input_callbacks:
+            for i, op in enumerate(group.instances):
+                if op.id not in graph_op_ids:
+                    num_outputs = len(group.instances)
+                    source_str = truncate_str(group.source_desc.source)
+                    raise RuntimeError(
+                        f"The external source '{source_str}' produces {num_outputs} outputs, but "
+                        f"the output at the index {i} is not used. Please make sure all outputs "
+                        f"of the external source operator contribute to the pipeline output "
+                        f"or adjust the external source to return only the needed outputs.")
 
     def _setup_input_callbacks(self):
         from nvidia.dali.external_source import _is_external_source_with_callback
