@@ -110,8 +110,8 @@ class BatchLoader(SampleLoader):
         self.batch_size = batch_size
 
     def __call__(self, batch_info):
-        assert isinstance(batch_info,
-                          types.BatchInfo), f"Expected batch info instance, got {type(batch_info)}"
+        assert isinstance(batch_info, types.BatchInfo), \
+               f"Expected batch info instance, got {type(batch_info)}"
         batch_i = batch_info.iteration
         epoch_idx = batch_info.epoch_idx
         files_paths, labels = tuple(
@@ -215,9 +215,12 @@ class ExternalSourcePipeline(dali.pipeline.Pipeline):
 
 def external_source_pipeline(data_path, batch_size, num_threads, device_id, prefetch_queue_depth,
                              reader_queue_depth, read_encoded, source_mode, **kwargs):
-    pipe = ExternalSourcePipeline(batch_size=batch_size, num_threads=num_threads,
-                                  device_id=device_id, data_path=data_path, source_mode=source_mode,
+    pipe = ExternalSourcePipeline(batch_size=batch_size,
+                                  num_threads=num_threads,
+                                  device_id=device_id,
                                   prefetch_queue_depth=prefetch_queue_depth,
+                                  data_path=data_path,
+                                  source_mode=source_mode,
                                   read_encoded=read_encoded)
     with pipe:
         images, labels = dali.fn.external_source(

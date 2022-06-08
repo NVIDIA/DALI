@@ -106,7 +106,7 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
             for frame in range(video_reader_params['sequence_length']):
                 yield [np.expand_dims(sequences_out[sample][frame], 0)]
 
-    gt_pipeline = dali.pipeline.Pipeline(batch_size=1, **pipeline_params)
+    gt_pipeline = dali.Pipeline(batch_size=1, **pipeline_params)
 
     with gt_pipeline:
         resized_frame = dali.fn.external_source(
@@ -134,7 +134,7 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
             if gt_frame.shape == frame.shape:
                 assert (gt_frame == frame).all(), "Images are not equal"
             else:
-                assert (gt_frame.shape == frame.shape), \
+                assert gt_frame.shape == frame.shape, \
                     f"Shapes are not equal: {gt_frame.shape} != {frame.shape}"
 
 

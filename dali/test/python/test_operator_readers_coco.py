@@ -214,10 +214,10 @@ def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_mas
 
 def test_coco_reader_alias():
     def check_coco_reader_alias(polygon_masks, pixelwise_masks):
-        new_pipe = coco_pipe(fn.readers.coco, file_root, train_annotations, polygon_masks,
-                             pixelwise_masks)
-        legacy_pipe = coco_pipe(fn.coco_reader, file_root, train_annotations, polygon_masks,
-                                pixelwise_masks)
+        new_pipe = coco_pipe(fn.readers.coco, file_root, train_annotations,
+                             polygon_masks, pixelwise_masks)
+        legacy_pipe = coco_pipe(fn.coco_reader, file_root, train_annotations,
+                                polygon_masks, pixelwise_masks)
         compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 5)
 
     file_root = os.path.join(test_data_root, 'db', 'coco_pixelwise', 'images')

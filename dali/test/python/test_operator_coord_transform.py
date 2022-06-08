@@ -132,8 +132,7 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
         if out_dtype != np.float32:  # headroom for rounding
             avg += 0.33
             eps += 0.5
-        check_batch(outputs[1], ref, batch_size, eps, eps, expected_layout="NX",
-                    compare_layouts=True)
+        check_batch(outputs[1], ref, batch_size, eps, eps, expected_layout="NX")
 
 
 def test_all():
@@ -174,11 +173,7 @@ def _test_empty_input(device):
     with pipe:
         X = fn.external_source(source=[[np.zeros([0, 3]), np.zeros([0, 3])]], device="cpu",
                                layout="AB")
-        Y = fn.coord_transform(
-            X,
-            M=(1, 2, 3, 4, 5, 6),
-            T=(1, 2)
-        )
+        Y = fn.coord_transform(X, M=(1, 2, 3, 4, 5, 6), T=(1, 2))
         pipe.set_outputs(Y)
     pipe.build()
     o = pipe.run()
