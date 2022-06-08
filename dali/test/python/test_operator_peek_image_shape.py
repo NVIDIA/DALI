@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import nvidia.dali.fn as fn
-import nvidia.dali as dali
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import os
-import numpy as np
 from test_utils import get_dali_extra_path, dali_type_to_np
 
 test_data_root = get_dali_extra_path()
@@ -40,16 +38,22 @@ def run_decode(data_path, out_type):
         samples += batch_size
         (images, decoded_shape, raw_shape) = pipe.run()
         for i in range(batch_size):
-            # as we are asking for a particular color space it may differ from the source image, so don't compare it
+            # as we are asking for a particular color space it may
+            # differ from the source image, so don't compare it
             image = images.at(i)
             shape_type = dali_type_to_np(out_type)
             for d in range(len(image.shape) - 1):
-                assert image.shape[d] == decoded_shape.at(i)[d], "{} vs {}".format(image.shape[d], decoded_shape.at(i)[d])
-                assert image.shape[d] == raw_shape.at(i)[d], "{} vs {}".format(image.shape[d], raw_shape.at(i)[d])
-                assert raw_shape.at(i)[d].dtype == shape_type, "{} vs {}".format(raw_shape.at(i)[d].dtyp, shape_type)
+                assert image.shape[d] == decoded_shape.at(i)[d], \
+                    "{} vs {}".format(image.shape[d], decoded_shape.at(i)[d])
+                assert image.shape[d] == raw_shape.at(i)[d], \
+                    "{} vs {}".format(image.shape[d], raw_shape.at(i)[d])
+                assert raw_shape.at(i)[d].dtype == shape_type, \
+                    "{} vs {}".format(raw_shape.at(i)[d].dtyp, shape_type)
 
 
-test_types = [types.INT32, types.UINT32, types.INT64, types.UINT64, types.FLOAT, types.FLOAT64]
+test_types = [types.INT32, types.UINT32,
+              types.INT64, types.UINT64,
+              types.FLOAT, types.FLOAT64]
 
 
 def test_operator_peek_image_shape():

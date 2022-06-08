@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -59,7 +59,9 @@ def gen_data(batch_size, type):
 def _test_permute_batch(device, type):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
-    data = fn.external_source(source=lambda: gen_data(batch_size, type), device=device, layout="abc")
+    data = fn.external_source(
+        source=lambda: gen_data(batch_size, type),
+        device=device, layout="abc")
     perm = fn.batch_permutation()
     pipe.set_outputs(data, fn.permute_batch(data, indices=perm), perm)
     pipe.build()
@@ -82,7 +84,9 @@ def test_permute_batch():
 def _test_permute_batch_fixed(device):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
-    data = fn.external_source(source=lambda: gen_data(batch_size, np.int16), device=device, layout="abc")
+    data = fn.external_source(
+        source=lambda: gen_data(batch_size, np.int16),
+        device=device, layout="abc")
     idxs = [4, 8, 0, 6, 3, 5, 2, 9, 7, 1]
     pipe.set_outputs(data, fn.permute_batch(data, indices=idxs))
     pipe.build()
@@ -100,13 +104,16 @@ def test_permute_batch_fixed():
         yield _test_permute_batch_fixed, device
 
 
-@raises(RuntimeError, glob="Sample index out of range. * is not a valid index for an input batch of * tensors.")
+@raises(RuntimeError,
+        glob="Sample index out of range. * is not a valid index for an input batch of * tensors.")
 def _test_permute_batch_out_of_range(device):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
-    data = fn.external_source(source=lambda: gen_data(batch_size, np.int32), device=device, layout="abc")
+    data = fn.external_source(
+        source=lambda: gen_data(batch_size, np.int32),
+        device=device, layout="abc")
     perm = fn.batch_permutation()
-    pipe.set_outputs(data, fn.permute_batch(data, indices=[0,1,2,3,4,5,10,7,8,9]), perm)
+    pipe.set_outputs(data, fn.permute_batch(data, indices=[0, 1, 2, 3, 4, 5, 10, 7, 8, 9]), perm)
     pipe.build()
     pipe.run()
 

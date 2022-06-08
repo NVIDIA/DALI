@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,14 +13,12 @@
 # limitations under the License.
 
 from nvidia.dali import pipeline_def
-from nvidia.dali.backend_impl import TensorListGPU
-import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import random
 import numpy as np
 import os
-from test_utils import get_dali_extra_path, check_batch
+from test_utils import get_dali_extra_path
 from test_noise_utils import PSNR
 
 test_data_root = get_dali_extra_path()
@@ -64,8 +62,10 @@ def _testimpl_operator_noise_shot(device, factor, batch_size, niter):
             np.testing.assert_allclose(psnr_out, psnr_ref, atol=1)
             if dump_images:
                 import cv2
-                cv2.imwrite(f"./shotnoise_ref_p{factor}_s{s}.png", cv2.cvtColor(sample_ref, cv2.COLOR_BGR2RGB))
-                cv2.imwrite(f"./shotnoise_out_p{factor}_s{s}.png", cv2.cvtColor(sample_out, cv2.COLOR_BGR2RGB))
+                cv2.imwrite(f"./shotnoise_ref_p{factor}_s{s}.png",
+                            cv2.cvtColor(sample_ref, cv2.COLOR_BGR2RGB))
+                cv2.imwrite(f"./shotnoise_out_p{factor}_s{s}.png",
+                            cv2.cvtColor(sample_out, cv2.COLOR_BGR2RGB))
 
 
 def test_operator_noise_shot():

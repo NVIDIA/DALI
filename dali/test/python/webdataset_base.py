@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,18 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
 from nvidia.dali import pipeline_def
-import nvidia.dali.fn.readers as readers
-from test_utils import compare_pipelines, get_dali_extra_path
-from nose_utils import assert_raises
+from nvidia.dali.fn import readers
 from nose.tools import assert_equal
 import tempfile
 from subprocess import call
 import os
-from glob import glob
 import tarfile
-import math
 
 test_batch_size = 4
 wds2idx_script = "../../../tools/wds2idx.py"
@@ -108,10 +103,9 @@ def file_reader_pipeline(
 def generate_temp_index_file(tar_file_path):
     global wds2idx_script
     temp_index_file = tempfile.NamedTemporaryFile()
-    assert_equal (
-        call([wds2idx_script, tar_file_path, temp_index_file.name], stdout=open(os.devnull, "wb"))
-        , 0
-    )
+    assert_equal(
+        call([wds2idx_script, tar_file_path, temp_index_file.name],
+             stdout=open(os.devnull, "wb")), 0)
     return temp_index_file
 
 

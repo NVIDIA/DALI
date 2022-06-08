@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 # it is enough to just import all functions from test_internals_operator_external_source
 # nose will query for the methods available and will run them
 # the test_internals_operator_external_source is 99% the same for cupy and numpy tests
-# so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
+# so it is better to store everything in one file and just call `use_cupy` to switch
+# between the default numpy and cupy
 
-from test_external_source_impl import *
+from test_external_source_impl import *  # noqa: F401 F403
