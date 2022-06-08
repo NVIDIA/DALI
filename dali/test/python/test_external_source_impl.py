@@ -97,6 +97,7 @@ def use_torch(gpu):
         return x.type(dtype)
 
     cast_to = torch_cast
+
     def random_array(shape):
         return make_torch_tensor(np.random.ranf(shape))
     global make_array
