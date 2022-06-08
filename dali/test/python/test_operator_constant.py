@@ -56,7 +56,7 @@ class ConstantPipeline(Pipeline):
         self.const7 = ops.Constant(device=device, idata=[0, 1, 0], dtype=types.BOOL)
 
     def define_graph(self):
-        return self.const1(), self.const2(), self.const3(), self.const4(), self.const5(),
+        return self.const1(), self.const2(), self.const3(), self.const4(), self.const5(), \
                self.const6(), self.const7()
 
 
