@@ -50,8 +50,8 @@ def replace_with_empty_volumes(rng, input, empty_volume_policy):
     input : List of np.array
         Batch to process
     empty_volume_policy : str
-        one of "left", "right, "middle", "all", to indicate if the batch suffix, prefix, infix
-        or all of them should be randomly replaced with 0-volumed samples
+        one of "left", "right, "middle", "mixed", "all", to indicate if the batch suffix, prefix,
+        infix or all of them should be randomly replaced with 0-volumed samples
 
     Returns
     -------
@@ -61,11 +61,14 @@ def replace_with_empty_volumes(rng, input, empty_volume_policy):
         return input
     if len(input[0].shape) == 0:
         return input
-    if empty_volume_policy == "all":
+    if empty_volume_policy == "mixed":
         left = replace_with_empty_volumes(rng, input, "left")
         left_and_mid = replace_with_empty_volumes(rng, left, "middle")
         return replace_with_empty_volumes(rng, left_and_mid, "right")
-    if empty_volume_policy == "left":
+    if empty_volume_policy == "all":
+        start = 0
+        end = len(input)
+    elif empty_volume_policy == "left":
         start = 0
         end = rng.integers(1, len(input) // 3)
     elif empty_volume_policy == "right":
@@ -169,7 +172,10 @@ def test_operator_cast_empty_volumes():
         for in_type in types:
             for out_type in types:
                 ndim = rng.integers(0, 4)
+
                 batch_size = rng.integers(12, 64)
-                for empty_volume_policy in ["left", "right", "middle", "all"]:
+                for empty_volume_policy in [
+                        rng.choice(["left", "right", "middle", "mixed"]), "all"
+                ]:
                     yield (_test_operator_cast, ndim, batch_size, in_type, out_type, device,
                            empty_volume_policy)
