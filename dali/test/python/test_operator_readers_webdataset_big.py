@@ -13,7 +13,10 @@
 # limitations under the License.
 
 from webdataset_base import *
-
+import os
+import math
+from glob import glob
+from test_utils import compare_pipelines, get_dali_extra_path
 
 def cross_check(
     dont_use_mmap,
