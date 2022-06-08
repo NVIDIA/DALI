@@ -14,6 +14,7 @@
 
 import random
 import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
@@ -395,7 +396,7 @@ def test_layout_changing():
     src_pipe.feed_input("input", [np.zeros((1))], layout="H")
 
 
-def _test_partially_utilized_external_source(usage_mask, source_type):
+def _test_partially_utilized_external_source_fail(usage_mask, source_type):
     np_rng = np.random.default_rng(12345)
     max_batch_size = 8
     num_outputs = len(usage_mask)
@@ -441,7 +442,7 @@ def _test_partially_utilized_external_source(usage_mask, source_type):
     def pipeline():
         outputs = fn.external_source(source=sources[source_type], num_outputs=num_outputs,
                                      batch=source_type != "sample_cb_source")
-        assert (len(outputs) == num_outputs)
+        assert len(outputs) == num_outputs
         utilized_outputs = (out for out, is_used in zip(outputs, usage_mask) if is_used)
         return tuple(fn.gaussian_blur(out, window_size=3) for out in utilized_outputs)
 
@@ -468,7 +469,46 @@ def test_partially_utilized_external_source_fail():
         for num_unused in range(1, num_outputs):
             unused = rng.sample(list(range(num_outputs)), num_unused)
             usage_mask = [i not in unused for i in range(num_outputs)]
-            yield _test_partially_utilized_external_source, usage_mask, next(source_type)
+            yield _test_partially_utilized_external_source_fail, usage_mask, next(source_type)
+
+
+def _test_partially_utilized_es_old_style(usage_mask):
+    # check that the build time error on unused external source does not interfere
+    # with external sources that are manually fed by user provided code
+
+    num_outputs = len(usage_mask)
+    batch_size = 16
+    batch = np.array(list(range(batch_size * 1024))).reshape(batch_size, 16, 16, 4)
+    class OldStylePipe(Pipeline):
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.inp = ops.ExternalSource(num_outputs=num_outputs)
+            self.gb = ops.GaussianBlur(window_size=3)
+
+        def define_graph(self):
+            self.all_inputs = self.inp()
+            assert len(self.all_inputs) == num_outputs
+            self.utilized_inputs = [inp for inp, is_used in zip(self.all_inputs, usage_mask) if is_used]
+            return tuple(self.gb(inp) for inp in self.utilized_inputs)
+
+        def iter_setup(self):
+            assert len(self.utilized_inputs) == sum(usage_mask)
+            for out in self.utilized_inputs:
+                self.feed_input(out, batch)
+
+    pipe = OldStylePipe(batch_size=batch_size, num_threads=4, device_id=0)
+    pipe.build()
+    pipe.run()
+
+
+def test_partially_utilized_es_old_style():
+    rng = random.Random(42)
+    for num_outputs in (2, 3, 4):
+        for num_unused in range(1, num_outputs):
+            unused = rng.sample(list(range(num_outputs)), num_unused)
+            usage_mask = [i not in unused for i in range(num_outputs)]
+            yield _test_partially_utilized_es_old_style, usage_mask
 
 
 def _test_non_utilized_external_source_pruning(num_outputs):
