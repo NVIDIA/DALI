@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@
 #ifndef DALI_CORE_GEOM_VEC_H_
 #define DALI_CORE_GEOM_VEC_H_
 
+#ifdef __CUDACC__
+#include <cuda_runtime.h>
+#endif
 #include <cmath>
 #include <iosfwd>
 #include <ostream>
@@ -627,5 +630,13 @@ std::ostream &operator<<(std::ostream& os, const dali::vec<N, T> &v) {
 }
 
 }  // namespace dali
+
+#ifdef __CUDACC__
+template <typename T, int N>
+__device__ DALI_FORCEINLINE dali::vec<N, T> __ldg(const dali::vec<N, T>* ptr) {
+  using dali::vec;
+  IMPL_VEC_ELEMENTWISE(__ldg(&ptr->v[i]));
+}
+#endif
 
 #endif  // DALI_CORE_GEOM_VEC_H_
