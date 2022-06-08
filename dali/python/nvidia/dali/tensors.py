@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorCPU  # noqa: F401
-from nvidia.dali.backend import TensorListCPU  # noqa: F401
-from nvidia.dali.backend import TensorGPU  # noqa: F401
-from nvidia.dali.backend import TensorListGPU  # noqa: F401
+from nvidia.dali.backend import TensorCPU, TensorListCPU, TensorGPU, TensorListGPU  # noqa: F401
 
 
 def _transfer_to_cpu(data, device):
