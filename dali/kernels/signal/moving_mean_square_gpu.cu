@@ -141,9 +141,9 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
  */
 template <typename Out, typename In, typename Preprocessor = dali::identity,
           typename Postprocessor = dali::identity, typename SharedMemPos = conflict_free_pos>
-__global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int logical_block, int window,
-                                 int pow2, Preprocessor pre = {}, Postprocessor post = {},
-                                 SharedMemPos shm_pos = {}) {
+__global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int64_t logical_block,
+                                 int window, int pow2, Preprocessor pre = {},
+                                 Postprocessor post = {}, SharedMemPos shm_pos = {}) {
   extern __shared__ char shm[];  // allocated on invocation
   auto *temp = reinterpret_cast<acc_t<In> *>(shm);
 
