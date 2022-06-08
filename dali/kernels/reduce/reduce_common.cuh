@@ -30,9 +30,7 @@ DALI_FORCEINLINE __device__ T shfl_down(T &t, int n) {
 template <typename T, int N>
 DALI_FORCEINLINE __device__ vec<N, T> shfl_down(vec<N, T> &t, int n) {
   constexpr unsigned FULL_MASK = 0xffffffffu;
-  vec<N, T> ret;
-  IMPL_VEC_ELEMENTWISE(ret[i] = __shfl_down_sync(FULL_MASK, t[i], n));
-  return ret;
+  IMPL_VEC_ELEMENTWISE(__shfl_down_sync(FULL_MASK, t[i], n));
 }
 
 template <typename Acc, typename Reduction>

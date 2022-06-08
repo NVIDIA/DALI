@@ -24,6 +24,14 @@
 namespace dali {
 namespace kernels {
 
+/**
+ * @brief Preprocess input for a minimum reduction, each element contains two values
+ *        {i, -i}               if predicate(sample[i])
+ *        max_value, max_value  otherwise.
+ *        Later, this is reduced so that the first value represents the index of the
+ *        first element that satisfies the predicate, and the second value represents
+ *        the negative of the index of the last value that satisfies the predicate.
+ */
 template <typename T, typename Predicate>
 struct FindRegionPreprocess {
   const Predicate *__restrict__ predicate = nullptr;
@@ -38,18 +46,21 @@ struct FindRegionPreprocess {
   }
 };
 
+/**
+ * @brief Converts the reduced {min_i, -max_i} pair to a {begin, length} representation
+ */
 struct FindRegionPostprocess {
   DALI_HOST_DEV DALI_FORCEINLINE i64vec2 operator()(i64vec2 acc) const {
     if (acc == i64vec2(max_value<int64_t>()))
-      return i64vec2(0);
+      return i64vec2(0);  // empty region
     else
+      // begin = min_i, length = -(min_i + (-max_i)) + 1 = max_i - min_i + 1
       return i64vec2(acc.x, -(acc.x + acc.y) + 1);
   }
 };
 
 /**
- * @brief Finds positions in the input that satisfy a predicate, reducing them
- *        to a single index (e.g. first, last)
+ * @brief Finds region (begin, length) satisfying a predicate
  */
 template <typename In, typename Predicate>
 class FindRegionGPU
