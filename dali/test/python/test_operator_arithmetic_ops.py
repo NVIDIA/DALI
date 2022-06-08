@@ -544,8 +544,11 @@ def test_arithmetic_ops():
 def test_ternary_ops_big():
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            for types_in in [(np.int32, np.int32, np.int32), (np.int32, np.int8, np.int16),
-                             (np.int32, np.uint8, np.float32)]:
+            for types_in in [
+                (np.int32, np.int32, np.int32),
+                (np.int32, np.int8, np.int16),
+                (np.int32, np.uint8, np.float32),
+            ]:
                 yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
 
 
@@ -565,9 +568,12 @@ def test_ternary_ops_selected():
 def test_ternary_ops_kinds():
     for kinds in ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            for types_in in [(np.int32, np.int32, np.int32), (np.float32, np.int32, np.int32),
-                             (np.uint8, np.float32, np.float32),
-                             (np.int32, np.float32, np.float32)]:
+            for types_in in [
+                (np.int32, np.int32, np.int32),
+                (np.float32, np.int32, np.int32),
+                (np.uint8, np.float32, np.float32),
+                (np.int32, np.float32, np.float32),
+            ]:
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
 
@@ -600,8 +606,6 @@ def test_bitwise_ops():
 
 def check_comparsion_op(kinds, types, op, shape, _):
     # Comparisons - should always return bool
-    left_type, right_type = types
-    left_kind, right_kind = kinds
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
     pipe = ExprOpPipeline(kinds, types, iterator, op, batch_size=batch_size, num_threads=2,
                           device_id=0)
