@@ -159,12 +159,9 @@ __global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int64_t log
   // typically larger than the CUDA block.
   for (int64_t logical_block_start = logical_block * blockIdx.x; logical_block_start < sample_len;
        logical_block_start += grid_stride) {
-    int n = cuda_min(static_cast<int>(sample.len - logical_block_start), logical_block);
-
     const In *logical_block_in_ptr = input + logical_block_start;
     Out *logical_block_out_ptr = output + logical_block_start;
-    int64_t logical_block_sz =
-        cuda_min(static_cast<int64_t>(logical_block), sample_len - logical_block_start);
+    int64_t logical_block_sz = cuda_min(logical_block, sample_len - logical_block_start);
 
     const In *extended_blk_start = logical_block_in_ptr - window;
     const In *extended_blk_end = logical_block_in_ptr + logical_block_sz;
