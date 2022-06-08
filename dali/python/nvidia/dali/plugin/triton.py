@@ -29,7 +29,7 @@ def autoserialize(dali_pipeline):
     For more information about Triton, please refer to [Triton documentation](https://github.com/triton-inference-server/server#triton-inference-server).
 
     :param dali_pipeline: DALI Python model definition (``pipeline_def``).
-    """
+    """  # noqa W505
     if not getattr(dali_pipeline, "_is_pipeline_def", False):
         raise TypeError("Only `@pipeline_def` can be decorated with `@triton.autoserialize`.")
     dali_pipeline._is_autoserialize = True
