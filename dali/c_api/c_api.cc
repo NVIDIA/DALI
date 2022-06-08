@@ -545,28 +545,30 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
   dali::DomainTimeRange tr("[DALI][C API] daliOutputCopy", dali::DomainTimeRange::kGreen);
 
   bool is_pinned = flags & DALI_ext_pinned;
-  bool sync = flags & DALI_ext_force_sync;
+  bool host_sync = flags & DALI_ext_force_sync;
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
   auto dst_mem_kind = GetMemKind(dst_type, is_pinned);
 
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   assert(ws != nullptr);
 
-  auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
+  AccessOrder wait_order = AccessOrder::host();
+  AccessOrder copy_order = AccessOrder::host();
+
   if (ws->OutputIsType<CPUBackend>(output_idx)) {
-    AccessOrder order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
-    CopyToExternal(dst, dst_mem_kind, ws->Output<CPUBackend>(output_idx),
-                   order, use_copy_kernel);
-    if (!is_pinned) {
-      sync = false;
-    }
+    copy_order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
+    auto &src = ws->Output<CPUBackend>(output_idx);
+    CopyToExternal(dst, dst_mem_kind, src, copy_order, use_copy_kernel);
+    if (!host_sync)
+      wait_order = src.order();  // if the copy order is host, then wait will be no-op
   } else {
-    CopyToExternal(dst, dst_mem_kind, ws->Output<GPUBackend>(output_idx),
-                   stream, use_copy_kernel);
+    auto &src = ws->Output<GPUBackend>(output_idx);
+    copy_order = stream;
+    CopyToExternal(dst, dst_mem_kind, src, copy_order, use_copy_kernel);
+    if (!host_sync)
+      wait_order = src.order();
   }
-  if (sync) {
-    CUDA_CALL(cudaStreamSynchronize(stream));
-  }
+  wait_order.wait(copy_order);
 }
 
 void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int output_idx,
@@ -574,28 +576,30 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
   dali::DomainTimeRange tr("[DALI][C API] daliOutputCopySamples", dali::DomainTimeRange::kGreen);
 
   bool is_pinned = flags & DALI_ext_pinned;
-  bool sync = flags & DALI_ext_force_sync;
+  bool host_sync = flags & DALI_ext_force_sync;
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
   auto dst_mem_kind = GetMemKind(dst_type, is_pinned);
 
   dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
   assert(ws != nullptr);
 
-  auto &type_info = dali::TypeTable::GetTypeInfo(dali::DALIDataType::DALI_UINT8);
+  AccessOrder wait_order = AccessOrder::host();
+  AccessOrder copy_order = AccessOrder::host();
+
   if (ws->OutputIsType<CPUBackend>(output_idx)) {
-    AccessOrder order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
-    if (!is_pinned) {
-      sync = false;
-    }
-    CopyToExternal(dsts, dst_mem_kind, ws->Output<CPUBackend>(output_idx),
-                   order, use_copy_kernel);
+    copy_order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
+    auto & src = ws->Output<CPUBackend>(output_idx);
+    CopyToExternal(dsts, dst_mem_kind, src, copy_order, use_copy_kernel);
+    if (!host_sync)
+      wait_order = src.order();  // if the copy order is host, then wait will be no-op
   } else {
-    CopyToExternal(dsts, dst_mem_kind, ws->Output<GPUBackend>(output_idx),
-                   stream, use_copy_kernel);
+    auto &src = ws->Output<GPUBackend>(output_idx);
+    copy_order = stream;
+    CopyToExternal(dsts, dst_mem_kind, src, copy_order, use_copy_kernel);
+    if (!host_sync)
+      wait_order = src.order();
   }
-  if (sync) {
-    CUDA_CALL(cudaStreamSynchronize(stream));
-  }
+  wait_order.wait(copy_order);
 }
 
 
