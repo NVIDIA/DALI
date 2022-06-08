@@ -21,7 +21,7 @@ import os
 import tarfile
 
 test_batch_size = 4
-wds2idx_script = "../../../tools/wds2idx.py"
+wds2idx_script = "../../tools/wds2idx.py"
 
 
 @pipeline_def()

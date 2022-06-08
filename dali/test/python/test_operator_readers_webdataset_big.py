@@ -12,12 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
-import os
-import math
-from webdataset_base import test_batch_size, generate_temp_index_file, generate_temp_extract, \
-                            file_reader_pipeline, webdataset_raw_pipeline
-from test_utils import get_dali_extra_path, compare_pipelines
+from webdataset_base import *
+
 
 def cross_check(
     dont_use_mmap,
@@ -39,7 +35,7 @@ def cross_check(
     equivalent_files = sum(
         (
             sorted(
-                glob.glob(extract_dir.name + "/*"),
+                glob(extract_dir.name + "/*"),
                 key=lambda s: (int(s[s.rfind("/") + 1 : s.find(".")]), s),
             )
             for extract_dir in extract_dirs
