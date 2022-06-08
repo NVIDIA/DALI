@@ -23,8 +23,8 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
 from test_utils import compare_pipelines
-from sequences_test_utils import ArgData, ArgDesc, get_video_input_cases, ParamsProvider, \
-    sequence_suite_helper, ArgCb
+from sequences_test_utils import (ArgData, ArgDesc, ArgCb, ParamsProvider, get_video_input_cases,
+                                  sequence_suite_helper)
 
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
@@ -326,8 +326,8 @@ class RotatePerFrameParamsProvider(ParamsProvider):
         params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
         expanded_angles = params_dict.get('angle')
         expanded_axis = params_dict.get('axis')
-        assert expanded_angles is not None and 'size' not in self.fixed_params and \
-            'size' not in params_dict
+        assert (expanded_angles is not None and 'size' not in self.fixed_params
+                and 'size' not in params_dict)
         sequence_extents = [[sample.shape[0] for sample in input_batch]
                             for input_batch in self.input_data]
         output_size_params = (sequence_extents, self.unfolded_input, expanded_angles.data)

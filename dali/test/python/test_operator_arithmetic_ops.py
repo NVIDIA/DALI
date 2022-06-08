@@ -466,8 +466,8 @@ def test_math_function_ops():
         for (op, np_op, op_desc, get_range, eps) in math_function_operations:
             for types_in in input_types:
                 if types_in != np.bool_:
-                    yield check_math_function_op, kinds, types_in, op, np_op, shape_small, \
-                        get_range, op_desc, eps
+                    yield (check_math_function_op, kinds, types_in, op, np_op, shape_small,
+                           get_range, op_desc, eps)
 
 
 def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
@@ -665,8 +665,8 @@ def test_arithmetic_binary_float_selected():
         for types_in in itertools.product(selected_input_types, selected_input_types):
             for (op, op_desc, get_range) in floaty_operations:
                 if types_in != (np.bool_, np.bool_):
-                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, get_range, \
-                        op_desc
+                    yield (check_arithm_binary_float, kinds, types_in, op, shape_small, get_range,
+                           op_desc)
 
 
 @attr('slow')
@@ -675,8 +675,8 @@ def test_arithmetic_binary_float():
         for types_in in itertools.product(input_types, input_types):
             for (op, op_desc, get_range) in floaty_operations:
                 if types_in != (np.bool_, np.bool_):
-                    yield check_arithm_binary_float, kinds, types_in, op, shape_small, get_range, \
-                        op_desc
+                    yield (check_arithm_binary_float, kinds, types_in, op, shape_small, get_range,
+                           op_desc)
 
 
 def check_arithm_div(kinds, types, shape):
@@ -765,8 +765,8 @@ def test_bool_disallowed():
             yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc, error_msg
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
-            yield check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), \
-                op, shape_small, op_desc, error_msg
+            yield (check_raises_re, kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc,
+                   error_msg)
 
 
 def test_bitwise_disallowed():

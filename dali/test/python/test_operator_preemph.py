@@ -103,5 +103,5 @@ def test_preemphasis_operator():
         for batch_size in [1, 3, 128]:
             for border in ['zero', 'clamp', 'reflect']:
                 for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]:
-                    yield check_preemphasis_operator, device, batch_size, border, coef, \
-                        per_sample_coeff
+                    yield (check_preemphasis_operator, device, batch_size, border, coef,
+                           per_sample_coeff)

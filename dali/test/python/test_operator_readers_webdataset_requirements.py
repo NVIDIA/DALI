@@ -19,8 +19,8 @@ import nvidia.dali as dali
 from test_utils import compare_pipelines, get_dali_extra_path
 from nose_utils import assert_raises
 from nose.tools import assert_equal
-from webdataset_base import generate_temp_extract, generate_temp_index_file, \
-    webdataset_raw_pipeline, file_reader_pipeline
+from webdataset_base import (generate_temp_extract, generate_temp_index_file,
+                             webdataset_raw_pipeline, file_reader_pipeline)
 
 from webdataset_base import test_batch_size  # noqa:F401, this is a parameter used in tests
 
