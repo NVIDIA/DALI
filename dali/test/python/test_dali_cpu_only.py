@@ -922,7 +922,7 @@ def test_reduce_variance_cpu():
 
 
 def test_arithm_ops_cpu():
-    pipe = pipeline_arithm_ops_cpu(batch_size=batch_size, num_threads=4, device_id=None)
+    pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size, num_threads=4, device_id=None)
     pipe.build()
     for _ in range(3):
         pipe.run()
