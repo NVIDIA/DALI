@@ -275,8 +275,8 @@ def order_change_pipeline():
     return rng, jpegs, labels, images, resized_images, output
 
 
-@raises(RuntimeError, glob='Unexpected operator *. Debug mode does not support'
-        ' changing the order of operators executed within the pipeline.')
+@raises(RuntimeError, glob=('Unexpected operator *. Debug mode does not support'
+                            ' changing the order of operators executed within the pipeline.'))
 def test_operators_order_change():
     order_change_pipeline.change = False
     pipe = order_change_pipeline()
@@ -296,8 +296,8 @@ def inputs_len_change():
     return fn.cat(*inputs)
 
 
-@raises(RuntimeError,
-        glob='Trying to use operator * with different number of inputs than when it was built.')
+@raises(RuntimeError, glob=('Trying to use operator * with different number of inputs than when'
+                            ' it was built.'))
 def test_inputs_len_change():
     inputs_len_change.change = True
     pipe = inputs_len_change()
@@ -317,9 +317,8 @@ def kwargs_len_change():
     return fn.cat(*inputs, **kwargs)
 
 
-@raises(RuntimeError,
-        glob=('Trying to use operator * with different number of keyword arguments than'
-              ' when it was built.'))
+@raises(RuntimeError, glob=('Trying to use operator * with different number of keyword arguments'
+                            ' than when it was built.'))
 def test_kwargs_len_change():
     kwargs_len_change.change = True
     pipe = kwargs_len_change()
