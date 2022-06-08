@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-name-in-module, unused-import
-from nvidia.dali.backend import TensorCPU
-from nvidia.dali.backend import TensorListCPU
-from nvidia.dali.backend import TensorGPU
-from nvidia.dali.backend import TensorListGPU
+from nvidia.dali.backend import TensorCPU  # noqa: F401
+from nvidia.dali.backend import TensorListCPU  # noqa: F401
+from nvidia.dali.backend import TensorGPU  # noqa: F401
+from nvidia.dali.backend import TensorListGPU  # noqa: F401
 
 
 def _transfer_to_cpu(data, device):

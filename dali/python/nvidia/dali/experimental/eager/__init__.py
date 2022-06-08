@@ -27,7 +27,7 @@ class enable_arithm_op:
     def __enter__(self):
         pass
 
-    def __exit__(self):
+    def __exit__(self, type, value, traceback):
         enable_arithm_op._arithm_op_enabled = False
 
     _arithm_op_enabled = False
