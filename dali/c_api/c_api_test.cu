@@ -101,8 +101,8 @@ void TestCopyOutput(Method method) {
 
   // This loop is tuned so that if the output buffer is recycled before the asynchronous copy
   // finishes, the buffer is clobbered and an error is detected.
-  // (michalz) Verified on my desktop. The changes in c_api that came with this test
-  // fix the synchronization problem.
+  // In order to trigger a failure, remove the `wait_order.wait` at the end of
+  // daliOutputCopy / daliOutputCopySamples
   for (int attempt = 0; attempt < 20; attempt++) {
     daliPipelineHandle handle;
 

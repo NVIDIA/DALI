@@ -589,8 +589,6 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
   if (ws->OutputIsType<CPUBackend>(output_idx)) {
     copy_order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
     auto & src = ws->Output<CPUBackend>(output_idx);
-    if (!host_sync)
-      wait_order = src.order();  // if the copy order is host, then wait will be no-op
     CopyToExternal(dsts, dst_mem_kind, src, copy_order, use_copy_kernel);
     if (!host_sync)
       wait_order = src.order();  // if the copy order is host, then wait will be no-op

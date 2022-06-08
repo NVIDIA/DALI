@@ -290,7 +290,7 @@ enum DALIDataTypePlaceholder {};
  * The copy will be scheduled on the provided `cuda_stream` or, if left out, on an internal DALI
  * stream.
  * If a non-blocking copy is requested, the function will synchronize the source buffer's
- * associated access order with the provided stream; otherwie, the function will wait until the
+ * associated access order with the provided stream; otherwise, the function will wait until the
  * copy completes.
  *
  * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorVector)
