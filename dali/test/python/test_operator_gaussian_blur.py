@@ -24,7 +24,8 @@ from nose_utils import assert_raises
 from nose.plugins.attrib import attr
 
 from sequences_test_utils import video_suite_helper, ArgCb
-from test_utils import get_dali_extra_path, check_batch, compare_pipelines, RandomlyShapedDataIterator, dali_type
+from test_utils import get_dali_extra_path, check_batch, compare_pipelines, \
+                       RandomlyShapedDataIterator, dali_type
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -181,7 +182,8 @@ def check_generic_gaussian_blur(
         out_dtype=types.NO_TYPE, random_shape=True):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     min_shape = None if random_shape else shape
-    data = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=shape, dtype=in_dtype)
+    data = RandomlyShapedDataIterator(
+        batch_size, min_shape=min_shape, max_shape=shape, dtype=in_dtype)
     # Extract the numpy type from DALI, we can have float32 or the same as input
     if out_dtype == types.NO_TYPE:
         result_type = in_dtype
@@ -209,7 +211,8 @@ def check_generic_gaussian_blur(
             gaussian_baseline(img, sigma, window_size, axes, skip_axes, dtype=result_type)
             for img in input]
         max_error = 1 if result_type != np.float32 else 1e-04
-        check_batch(result, baseline, batch_size, max_allowed_error=max_error, expected_layout=layout)
+        check_batch(result, baseline, batch_size, max_allowed_error=max_error,
+                    expected_layout=layout)
 
 
 # Generate tests for single or per-axis sigma and window_size arguments
@@ -221,23 +224,32 @@ def generate_generic_cases(dev, t_in, t_out):
                     sigma = sigma[0:axes]
                 if isinstance(window_size, list):
                     window_size = window_size[0:axes]
-                yield check_generic_gaussian_blur, 10, sigma, window_size, shape, layout, axes, dev, t_in, t_out
+                yield check_generic_gaussian_blur, \
+                    10, sigma, window_size, shape, layout, axes, dev, t_in, t_out
     for window_size in [11, 15]:
-        yield check_generic_gaussian_blur, 10, None, window_size, shape, layout, axes, dev, t_in, t_out
+        yield check_generic_gaussian_blur, \
+            10, None, window_size, shape, layout, axes, dev, t_in, t_out
 
 
 def test_generic_gaussian_blur():
     for dev in ["cpu", "gpu"]:
-        for (t_in, t_out) in [(np.uint8, types.NO_TYPE), (np.float32, types.FLOAT), (np.uint8, types.FLOAT)]:
+        for (t_in, t_out) in [(np.uint8, types.NO_TYPE),
+                              (np.float32, types.FLOAT),
+                              (np.uint8, types.FLOAT)]:
             yield from generate_generic_cases(dev, t_in, t_out)
 
 
 def test_one_sized_extent():
     for dev in ["cpu", "gpu"]:
-        for shape, layout in [((1, 10, 6), "DHW"), ((10, 1, 3), "HWC"), ((1, 10, 3), "HWC"),
-                              ((1, 10), "HW"), ((10, 1), "HW")]:
+        for shape, layout in [((1, 10, 6), "DHW"),
+                              ((10, 1, 3), "HWC"),
+                              ((1, 10, 3), "HWC"),
+                              ((1, 10), "HW"),
+                              ((10, 1), "HW")]:
             axes = len(layout) - ("C" in layout)
-            yield check_generic_gaussian_blur, 10, 2.0, 5, shape, layout, axes, dev, np.float32, types.FLOAT, False
+            yield check_generic_gaussian_blur, \
+                10, 2.0, 5, shape, layout, axes, dev, \
+                np.float32, types.FLOAT, False
 
 
 @attr('slow')
@@ -301,7 +313,8 @@ def test_per_sample_gaussian_blur():
                 for window_size_dim in [None, 1, axes]:
                     if sigma_dim is None and window_size_dim is None:
                         continue
-                    yield check_per_sample_gaussian_blur, 10, sigma_dim, window_size_dim, shape, layout, axes, dev
+                    yield check_per_sample_gaussian_blur, \
+                        10, sigma_dim, window_size_dim, shape, layout, axes, dev
 
 
 def check_fail_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, op_type,
@@ -316,30 +329,38 @@ def test_fail_gaussian_blur():
         # Check layout and channel placement errors
         args = [
             ((20, 20, 30, 3), "DHCW", 3,
-             "Only channel-first or channel-last layouts are supported, got: .*\."),
+             r"Only channel-first or channel-last layouts are supported, got: .*\."),
             ((5, 20, 30, 3), "HFWC", 2,
-             "For sequences, layout should begin with 'F' or 'C', got: .*\."),
+             r"For sequences, layout should begin with 'F' or 'C', got: .*\."),
             ((5, 10, 10, 10, 7, 3), "FWXYZC", 4,
-             "Too many dimensions, found: \d+ data axes, maximum supported is: 3\."),
+             r"Too many dimensions, found: \d+ data axes, maximum supported is: 3\."),
             ((5, 3, 20, 3, 30), "FCHCW", 2,
-             "Only channel-first or channel-last layouts are supported, got: .*\."),
+             r"Only channel-first or channel-last layouts are supported, got: .*\."),
             ((5, 3, 20, 3, 30), "FCCHW", 2,
-             "Found more the one occurrence of 'F' or 'C' axes in layout: .*\.")
+             r"Found more the one occurrence of 'F' or 'C' axes in layout: .*\.")
         ]
         for shape, layout, axes, err_regex in args:
-            yield check_fail_gaussian_blur, 10, 1.0, 11, shape, layout, axes, dev, err_regex
+            yield check_fail_gaussian_blur, \
+                10, 1.0, 11, shape, layout, axes, dev, err_regex
         # Negative, disallowed or both unspecified values of sigma and window size
-        yield check_fail_gaussian_blur, 10, 0.0, 0, (100, 20, 3), "HWC", 3, dev, \
-              "`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, axis: \d+\."
-        yield check_fail_gaussian_blur, 10, -1.0, 0, (100, 20, 3), "HWC", 3, dev, \
-              "`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\."
-        yield check_fail_gaussian_blur, 10, 0.0, -11, (100, 20, 3), "HWC", 3, dev, \
-              "`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\."
+        yield check_fail_gaussian_blur, \
+            10, 0.0, 0, (100, 20, 3), "HWC", 3, dev, \
+            r"`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, " \
+            r"axis: \d+\."
+        yield check_fail_gaussian_blur, \
+            10, -1.0, 0, (100, 20, 3), "HWC", 3, dev, \
+            r"`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\."
+        yield check_fail_gaussian_blur, \
+            10, 0.0, -11, (100, 20, 3), "HWC", 3, dev, \
+            r"`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\."
 
-    yield check_fail_gaussian_blur, 10, 0.0, 2, (100, 20, 3), "HWC", 3, "cpu", \
-          "Kernel window should have odd length, got: \d*\."
-    yield check_fail_gaussian_blur, 10, 0.0, 2, (100, 20, 3), "HWC", 3, "gpu", \
-          "Even or non-centered windows are not supported yet, got window with even length: [\s\S]* for sample \d*\."
+    yield check_fail_gaussian_blur, \
+        10, 0.0, 2, (100, 20, 3), "HWC", 3, "cpu", \
+        r"Kernel window should have odd length, got: \d*\."
+    yield check_fail_gaussian_blur, \
+        10, 0.0, 2, (100, 20, 3), "HWC", 3, "gpu", \
+        r"Even or non-centered windows are not supported yet, got window with even length: " \
+        r"[\s\S]* for sample \d*\."
 
 
 def test_per_frame():

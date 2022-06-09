@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
@@ -28,9 +27,9 @@ def skip_second(src, dst):
     with open(src, 'r') as tmp_f:
         with open(dst, 'w') as f:
             second = False
-            for l in tmp_f:
+            for x in tmp_f:
                 if not second:
-                    f.write(l)
+                    f.write(x)
                 second = not second
 
 
@@ -38,11 +37,12 @@ def test_tfrecord():
     class TFRecordPipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, num_gpus, data, data_idx):
             super(TFRecordPipeline, self).__init__(batch_size, num_threads, device_id)
-            self.input = ops.readers.TFRecord(path=data,
-                                              index_path=data_idx,
-                                              features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                                                          "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)}
-                                             )
+            self.input = ops.readers.TFRecord(
+                path=data,
+                index_path=data_idx,
+                features={
+                    "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
+                    "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)})
 
         def define_graph(self):
             inputs = self.input(name="Reader")
@@ -63,7 +63,7 @@ def test_tfrecord():
     pipe.build()
     pipe_org.build()
     iters = pipe.epoch_size("Reader")
-    for _ in  range(iters):
+    for _ in range(iters):
         out = pipe.run()
         out_ref = pipe_org.run()
         for a, b in zip(out, out_ref):
@@ -96,7 +96,7 @@ def test_recordio():
     pipe.build()
     pipe_org.build()
     iters = pipe.epoch_size("Reader")
-    for _ in  range(iters):
+    for _ in range(iters):
         out = pipe.run()
         out_ref = pipe_org.run()
         for a, b in zip(out, out_ref):
@@ -113,10 +113,13 @@ def test_wrong_feature_shape():
     test_dummy_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco_dummy')
     pipe = Pipeline(1, 1, 0)
     with pipe:
-        input = fn.readers.tfrecord(path=os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
-                                    index_path=os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
-                                    features=features)
-    pipe.set_outputs(input['image/encoded'], input['image/object/class/label'], input['image/object/bbox'])
+        input = fn.readers.tfrecord(
+            path=os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
+            index_path=os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
+            features=features)
+    pipe.set_outputs(input['image/encoded'],
+                     input['image/object/class/label'],
+                     input['image/object/bbox'])
     pipe.build()
     # the error is raised because FixedLenFeature is used with insufficient shape to house the input
     assert_raises(RuntimeError,
@@ -144,9 +147,12 @@ def test_mxnet_reader_alias():
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def tfrecord_pipe(tfrecord_op, path, index_path):
-    inputs = tfrecord_op(path=path, index_path=index_path,
-            features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)})
+    inputs = tfrecord_op(
+        path=path,
+        index_path=index_path,
+        features={
+            "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
+            "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)})
     return inputs["image/encoded"]
 
 
@@ -160,15 +166,16 @@ def test_tfrecord_reader_alias():
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def tfrecord_pipe_empty_fields(path, index_path):
-    inputs = fn.readers.tfrecord(path=path, index_path=index_path,
-            features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
-                      "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1),
-                      "does/not/exists": tfrec.VarLenFeature(tfrec.int64, -1),
-                      "does/not/exists/as/well": tfrec.FixedLenFeature([1], tfrec.float32, .0)})
+    inputs = fn.readers.tfrecord(
+        path=path, index_path=index_path,
+        features={"image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
+                  "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1),
+                  "does/not/exists": tfrec.VarLenFeature(tfrec.int64, -1),
+                  "does/not/exists/as/well": tfrec.FixedLenFeature([1], tfrec.float32, .0)})
     return inputs["image/encoded"], inputs["does/not/exists"], inputs["does/not/exists/as/well"]
 
 
-def test_tfrecord_reader_alias():
+def test_tfrecord_reader_alias2():
     tfrecord = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train')
     tfrecord_idx = os.path.join(get_dali_extra_path(), 'db', 'tfrecord', 'train.idx')
     pipe = tfrecord_pipe_empty_fields(tfrecord, tfrecord_idx)
@@ -177,12 +184,12 @@ def test_tfrecord_reader_alias():
     for tensor in out[0]:
         data = np.array(tensor)
         assert len(data) != 0
-        assert data.dtype  == np.uint8
+        assert data.dtype == np.uint8
     for tensor in out[1]:
         data = np.array(tensor)
         assert len(data) == 0
-        assert data.dtype  == np.int64
+        assert data.dtype == np.int64
     for tensor in out[2]:
         data = np.array(tensor)
         assert len(data) == 0
-        assert data.dtype  == np.float32
+        assert data.dtype == np.float32
