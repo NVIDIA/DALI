@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
-import nvidia.dali.ops as ops
-import nvidia.dali.fn as fn
+import functools
 import numpy as np
+import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
+from nvidia.dali import Pipeline
+
 from nose_utils import assert_raises
 from test_utils import check_output
-import functools
+
 datapy = np
 
 make_array = np.array
@@ -26,16 +28,18 @@ random_seed = np.random.seed
 random_array = np.random.ranf
 random_int = np.random.randint
 
-# to use this it is enough to just import all functions from it by `from test_internals_operator_external_source import *`
+# to use this it is enough to just import all functions from it by
+# `from test_internals_operator_external_source import *`
 # nose will query for the methods available and will run them
-# the code for CPU and GPU input is 99% the same and the biggest difference is between importing numpy or cupy
-# so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
+# the code for CPU and GPU input is 99% the same and the biggest
+# difference is between importing numpy or cupy so it is better to store everything in one file
+# and just call `use_cupy` to switch between the default numpy and cupy
 
 cpu_input = True
 
 
 def _to_numpy(x):
-    assert(False)
+    assert False
 
 
 def cast_to(x, dtype):
@@ -81,6 +85,7 @@ def use_torch(gpu):
 
     def torch2numpy(tensor):
         return np.array(tensor.cpu())
+
     _to_numpy = torch2numpy
     global random_array
 
@@ -90,8 +95,11 @@ def use_torch(gpu):
 
     def torch_cast(x, dtype):
         return x.type(dtype)
+
     cast_to = torch_cast
-    random_array = lambda shape: make_torch_tensor(np.random.ranf(shape))
+
+    def random_array(shape):
+        return make_torch_tensor(np.random.ranf(shape))
     global make_array
 
     make_array = make_torch_tensor
@@ -122,7 +130,9 @@ class TestIterator():
                 shape = random_int(1, 10, [dim]).tolist()
                 return random_array([self.batch_size] + shape)
             else:
-                return [random_array(random_int(1, 10, [dim]).tolist()) for _ in range(self.batch_size)]
+                return [random_array(random_int(1, 10, [dim]).tolist()) for _ in
+                        range(self.batch_size)]
+
         if self.i < self.n:
             self.i += 1
             if isinstance(self.dims, (list, tuple)):
@@ -132,6 +142,7 @@ class TestIterator():
         else:
             self.i = 0
             raise StopIteration
+
     next = __next__
 
 
@@ -156,6 +167,7 @@ class SampleIterator():
             ret = self.batch[self.idx]
         self.idx += 1
         return ret
+
     next = __next__
 
 
@@ -171,7 +183,7 @@ def run_and_check(pipe, ref_iterable):
             i += 1
         except StopIteration:
             break
-    assert(i == len(ref_iterable))
+    assert i == len(ref_iterable)
 
 
 def _test_iter_setup(use_fn_api, by_name, device):
@@ -265,7 +277,8 @@ def _test_external_source_callback_split(use_fn_api, batch, as_tensor, device):
     if use_fn_api:
         inputs = fn.external_source(lambda: next(iter_in), 2, device=device, batch=batch)
     else:
-        ext_source = ops.ExternalSource(lambda: next(iter_in), num_outputs=2, device=device, batch=batch)
+        ext_source = ops.ExternalSource(lambda: next(iter_in), num_outputs=2, device=device,
+                                        batch=batch)
         inputs = ext_source()
     pipe.set_outputs(*inputs)
     pipe.build()
@@ -337,8 +350,8 @@ def test_external_source_collection():
     pipe = Pipeline(1, 3, 0)
 
     batches = [
-        [make_array([1.5,2.5], dtype=datapy.float32)],
-        [make_array([-1, 3.5,4.5], dtype=datapy.float32)]
+        [make_array([1.5, 2.5], dtype=datapy.float32)],
+        [make_array([-1, 3.5, 4.5], dtype=datapy.float32)]
     ]
 
     pipe.set_outputs(fn.external_source(batches))
@@ -349,7 +362,7 @@ def test_external_source_collection():
 def test_external_source_iterate_ndarray():
     pipe = Pipeline(4, 3, 0)
 
-    batch = make_array([1.5,2.5,2,3], dtype=datapy.float32)
+    batch = make_array([1.5, 2.5, 2, 3], dtype=datapy.float32)
 
     pipe.set_outputs(fn.external_source(batch, batch=False))
     pipe.build()
@@ -360,8 +373,8 @@ def test_external_source_collection_cycling():
     pipe = Pipeline(1, 3, 0)
 
     batches = [
-        [make_array([1.5,2.5], dtype=datapy.float32)],
-        [make_array([-1, 3.5,4.5], dtype=datapy.float32)]
+        [make_array([1.5, 2.5], dtype=datapy.float32)],
+        [make_array([-1, 3.5, 4.5], dtype=datapy.float32)]
     ]
 
     pipe.set_outputs(fn.external_source(batches, cycle=True))
@@ -378,15 +391,16 @@ def test_external_source_collection_cycling_raise():
     pipe = Pipeline(1, 3, 0, prefetch_queue_depth=1)
 
     batches = [
-        [make_array([1.5,2.5], dtype=datapy.float32)],
-        [make_array([-1, 3.5,4.5], dtype=datapy.float32)]
+        [make_array([1.5, 2.5], dtype=datapy.float32)],
+        [make_array([-1, 3.5, 4.5], dtype=datapy.float32)]
     ]
 
     def batch_gen():
         for b in batches:
             yield b
 
-    pipe.set_outputs(fn.external_source(batches, cycle="raise"), fn.external_source(batch_gen, cycle="raise"))
+    pipe.set_outputs(fn.external_source(batches, cycle="raise"),
+                     fn.external_source(batch_gen, cycle="raise"))
     pipe.build()
 
     # epochs are cycles over the source iterable
@@ -406,7 +420,8 @@ def test_external_source_with_iter():
     for attempt in range(10):
         pipe = Pipeline(1, 3, 0)
 
-        pipe.set_outputs(fn.external_source(lambda i: [make_array([attempt * 100 + i * 10 + 1.5], dtype=datapy.float32)]))
+        pipe.set_outputs(fn.external_source(
+            lambda i: [make_array([attempt * 100 + i * 10 + 1.5], dtype=datapy.float32)]))
         pipe.build()
 
         for i in range(10):
@@ -419,14 +434,16 @@ def test_external_source_with_sample_info():
         pipe = Pipeline(batch_size, 3, 0)
 
         def src(si):
-            assert(si.idx_in_epoch == batch_size * si.iteration + si.idx_in_batch)
-            return make_array([attempt * 100 + si.iteration * 10 + si.idx_in_batch + 1.5], dtype=datapy.float32)
+            assert si.idx_in_epoch == batch_size * si.iteration + si.idx_in_batch
+            return make_array([attempt * 100 + si.iteration * 10 + si.idx_in_batch + 1.5],
+                              dtype=datapy.float32)
 
         pipe.set_outputs(fn.external_source(src, batch=False))
         pipe.build()
 
         for i in range(10):
-            batch = [np.array([attempt * 100 + i * 10 + s + 1.5], dtype=np.float32) for s in range(batch_size)]
+            batch = [np.array([attempt * 100 + i * 10 + s + 1.5], dtype=np.float32)
+                     for s in range(batch_size)]
             check_output(pipe.run(), batch)
 
 
@@ -481,8 +498,9 @@ def test_external_source_generator_cycle_error():
         for i in range(5):
             yield [make_array([i + 1.5], dtype=datapy.float32)]
 
-    fn.external_source(gen(), cycle=False)     # no cycle - OK
-    with assert_raises(TypeError, glob="Cannot cycle through a generator * pass that function instead as `source`."):
+    fn.external_source(gen(), cycle=False)  # no cycle - OK
+    with assert_raises(TypeError,
+                       glob="Cannot cycle through a generator * pass that function instead as `source`."):  # noqa: E501
         fn.external_source(gen(), cycle=True)  # cycle over generator - error expected
 
 
@@ -506,11 +524,12 @@ def test_external_source():
             else:
                 self.i = 0
                 raise StopIteration
+
         next = __next__
 
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id):
-            super(IterSetupPipeline, self).__init__(1, num_threads, device_id)
+            super().__init__(1, num_threads, device_id)
             self.input_1 = ops.ExternalSource()
             self.input_2 = ops.ExternalSource()
             self.iterator = iterator
@@ -533,17 +552,17 @@ def test_external_source():
     i = 0
     while True:
         try:
-            pipe_out = pipe.run()
+            pipe.run()
             i += 1
         except StopIteration:
             break
-    assert(iter_num == i)
+    assert iter_num == i
 
 
 def test_external_source_fail_missing_output():
     class ExternalSourcePipeline(Pipeline):
         def __init__(self, batch_size, external_s_size, num_threads, device_id):
-            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            super().__init__(batch_size, num_threads, device_id)
             self.input = ops.ExternalSource()
             self.input_2 = ops.ExternalSource()
             self.batch_size_ = batch_size
@@ -555,20 +574,21 @@ def test_external_source_fail_missing_output():
             return [self.batch]
 
         def iter_setup(self):
-            batch = datapy.zeros([self.external_s_size_,4,5])
+            batch = datapy.zeros([self.external_s_size_, 4, 5])
             self.feed_input(self.batch, batch)
             self.feed_input(self.batch_2, batch)
 
     batch_size = 3
     pipe = ExternalSourcePipeline(batch_size, batch_size, 3, 0)
     pipe.build()
-    assert_raises(RuntimeError, pipe.run, regex="Cannot find [\w]+ tensor, it doesn't exists or was pruned as unused one")
+    assert_raises(RuntimeError, pipe.run,
+                  regex=r"Cannot find [\w]+ tensor, it doesn't exists or was pruned as unused one")
 
 
 def external_data_veri(external_data, batch_size):
     class ExternalSourcePipeline(Pipeline):
         def __init__(self, batch_size, external_data, num_threads, device_id):
-            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            super().__init__(batch_size, num_threads, device_id)
             self.input = ops.ExternalSource()
             self.batch_size_ = batch_size
             self.external_data = external_data
@@ -606,7 +626,7 @@ def test_external_source_scalar_list():
 def test_external_source_gpu():
     class ExternalSourcePipeline(Pipeline):
         def __init__(self, batch_size, num_threads, device_id, use_list):
-            super(ExternalSourcePipeline, self).__init__(batch_size, num_threads, device_id)
+            super().__init__(batch_size, num_threads, device_id)
             self.input = ops.ExternalSource(device="gpu")
             self.crop = ops.Crop(device="gpu", crop_h=32, crop_w=32, crop_pos_x=0.2, crop_pos_y=0.2)
             self.use_list = use_list
@@ -618,9 +638,11 @@ def test_external_source_gpu():
 
         def iter_setup(self):
             if use_list:
-                batch_data = [cast_to(random_array([100, 100, 3]) * 256, datapy.uint8) for _ in range(self.batch_size)]
+                batch_data = [cast_to(random_array([100, 100, 3]) * 256, datapy.uint8)
+                              for _ in range(self.batch_size)]
             else:
-                batch_data = cast_to(random_array([self.batch_size, 100, 100, 3]) * 256, datapy.uint8)
+                batch_data = cast_to(random_array([self.batch_size, 100, 100, 3]) * 256,
+                                     datapy.uint8)
             self.feed_input(self.batch, batch_data, layout="HWC")
 
     for batch_size in [1, 10]:
@@ -645,7 +667,8 @@ class TestIteratorZeroCopy():
 
     def __iter__(self):
         # return a copy, so that the iteration number doesn't collide
-        return TestIteratorZeroCopy(self.n, self.batch_size, self.dims, self.as_tensor, self.num_keep_samples)
+        return TestIteratorZeroCopy(self.n, self.batch_size, self.dims, self.as_tensor,
+                                    self.num_keep_samples)
 
     def __next__(self):
         random_seed(12345 * self.i + 4321)
@@ -674,6 +697,7 @@ class TestIteratorZeroCopy():
                 else:
                     x += 1
                 return x
+
             if len(self.data) > self.num_keep_samples:
                 tmp = self.data.pop(0)
                 # change poped data to make sure it is corrupted
@@ -682,6 +706,7 @@ class TestIteratorZeroCopy():
         else:
             self.i = 0
             raise StopIteration
+
     next = __next__
 
 
@@ -691,12 +716,11 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
 
     class IterSetupPipeline(Pipeline):
         def __init__(self, iterator, num_threads, device_id, device, prefetch_queue_depth=2):
-            super(IterSetupPipeline, self).__init__(
+            super().__init__(
                 batch_size=iterator.batch_size,
                 num_threads=num_threads,
                 device_id=device_id,
                 prefetch_queue_depth=prefetch_queue_depth)
-
             self.iterator = iterator
             self._device = device
 
@@ -724,7 +748,8 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
     # it is enough to keep only ``prefetch_queue_depth`` or ``cpu_queue_depth * gpu_queue_depth``
     # (when they are not equal), but they are equal in this case
     num_keep_samples = prefetch_queue_depth + additional_num_keep_samples
-    source = TestIteratorZeroCopy(iter_num, batch_size, [2, 3], as_tensor=as_tensor, num_keep_samples=num_keep_samples)
+    source = TestIteratorZeroCopy(iter_num, batch_size, [2, 3], as_tensor=as_tensor,
+                                  num_keep_samples=num_keep_samples)
     pipe = IterSetupPipeline(iter(source), 3, 0, device, prefetch_queue_depth)
     pipe.build()
 
@@ -733,9 +758,10 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
         if device == "cpu" and not cpu_input:
             input_types.reverse()
         assert_raises(RuntimeError, pipe.run,
-            glob="no_copy is supported only for the same data source device type as operator. "
-                 "Received: {} input for {} operator".format(*input_types))
-    elif additional_num_keep_samples < 0 and not (device == "gpu" and not cpu_input and not as_tensor):
+                      glob="no_copy is supported only for the same data source device type as "
+                           "operator. Received: {} input for {} operator".format(*input_types))
+    elif additional_num_keep_samples < 0 and not (
+            device == "gpu" and not cpu_input and not as_tensor):
         # for the GPU2GPU non contiguous input DALI makes an internal copy on provided stream so no
         # data needs to be preserved by the user
         # assert_raises doesn't work here for the assertions from the test_utils.py
@@ -748,7 +774,7 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
                 run_and_check(pipe, source)
         except AssertionError:
             if_raised = True
-        assert(if_raised)
+        assert (if_raised)
     else:
         run_and_check(pipe, source)
 
@@ -758,6 +784,7 @@ def test_iter_setup_zero_copy():
         for by_name in [False, True]:
             for as_tensor in [False, True]:
                 for device in ["cpu", "gpu"]:
-                    # make it -5 as -1 sometimes works, sometimes not due to being close to the limit
+                    # make it -4 as -1 sometimes fails due to being close to the limit
                     for additional_num_keep_samples in [-4, 0, 1]:
-                        yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, additional_num_keep_samples
+                        yield _test_iter_setup_zero_copy, use_fn_api, by_name, as_tensor, device, \
+                              additional_num_keep_samples

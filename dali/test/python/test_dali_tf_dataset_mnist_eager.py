@@ -12,79 +12,82 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from test_dali_tf_dataset_mnist import *
+import tensorflow as tf
+from nose.tools import with_setup
+
+import test_dali_tf_dataset_mnist as mnist
 from nose_utils import raises
 
 tf.compat.v1.enable_eager_execution()
 
 
 def test_keras_single_gpu():
-    run_keras_single_device('gpu', 0)
+    mnist.run_keras_single_device('gpu', 0)
 
 
 def test_keras_single_other_gpu():
-    run_keras_single_device('gpu', 1)
+    mnist.run_keras_single_device('gpu', 1)
 
 
 def test_keras_single_cpu():
-    run_keras_single_device('cpu', 0)
+    mnist.run_keras_single_device('cpu', 0)
 
 
-@with_setup(skip_for_incompatible_tf)
+@with_setup(mnist.skip_for_incompatible_tf)
 @raises(Exception, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_gpu():
     with tf.device('cpu:0'):
-        model = keras_model()
-        train_dataset = get_dataset('gpu', 0)
+        model = mnist.keras_model()
+        train_dataset = mnist.get_dataset('gpu', 0)
 
     model.fit(
         train_dataset,
-        epochs=EPOCHS,
-        steps_per_epoch=ITERATIONS)
+        epochs=mnist.EPOCHS,
+        steps_per_epoch=mnist.ITERATIONS)
 
 
-@with_setup(skip_for_incompatible_tf)
+@with_setup(mnist.skip_for_incompatible_tf)
 @raises(Exception, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_cpu():
     with tf.device('gpu:0'):
-        model = keras_model()
-        train_dataset = get_dataset('cpu', 0)
+        model = mnist.keras_model()
+        train_dataset = mnist.get_dataset('cpu', 0)
 
     model.fit(
         train_dataset,
-        epochs=EPOCHS,
-        steps_per_epoch=ITERATIONS)
+        epochs=mnist.EPOCHS,
+        steps_per_epoch=mnist.ITERATIONS)
 
 
-@with_setup(skip_for_incompatible_tf)
+@with_setup(mnist.skip_for_incompatible_tf)
 def test_keras_multi_gpu_mirrored_strategy():
-    strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
+    strategy = tf.distribute.MirroredStrategy(devices=mnist.available_gpus())
 
     with strategy.scope():
-        model = keras_model()
+        model = mnist.keras_model()
 
-    train_dataset = get_dataset_multi_gpu(strategy)
+    train_dataset = mnist.get_dataset_multi_gpu(strategy)
 
     model.fit(
         train_dataset,
-        epochs=EPOCHS,
-        steps_per_epoch=ITERATIONS)
+        epochs=mnist.EPOCHS,
+        steps_per_epoch=mnist.ITERATIONS)
 
     assert model.evaluate(
         train_dataset,
-        steps=ITERATIONS)[1] > TARGET
+        steps=mnist.ITERATIONS)[1] > mnist.TARGET
 
 
-@with_setup(clear_checkpoints, clear_checkpoints)
+@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
 def test_estimators_single_gpu():
-    run_estimators_single_device('gpu', 0)
+    mnist.run_estimators_single_device('gpu', 0)
 
 
-@with_setup(clear_checkpoints, clear_checkpoints)
+@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
 def test_estimators_single_other_gpu():
-    run_estimators_single_device('gpu', 1)
+    mnist.run_estimators_single_device('gpu', 1)
 
 
-@with_setup(clear_checkpoints, clear_checkpoints)
+@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
 def test_estimators_single_cpu():
-    run_estimators_single_device('cpu', 0)
+    mnist.run_estimators_single_device('cpu', 0)

@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sys import argv
 import subprocess
+from sys import argv
 
 
 def get_list_elm_match(value, elms):
@@ -37,20 +37,20 @@ def check_ldd_out(lib, linked_lib, bundled_lib_names, allowed_libs):
 
 def main():
     allowed_libs = {"": ["linux-vdso.so.1",
-                        "libm.so.6",
-                        "libpthread.so.0",
-                        "libc.so.6",
-                        "/lib64/ld-linux",
-                        "/lib/ld-linux",
-                        "libdl.so.2",
-                        "librt.so.1",
-                        "libstdc++.so.6",
-                        "libgcc_s.so.1",
-                        "libasan.so",
-                        "liblsan.so",
-                        "libubsan.so",
-                        "libtsan.so"
-                    ]}
+                         "libm.so.6",
+                         "libpthread.so.0",
+                         "libc.so.6",
+                         "/lib64/ld-linux",
+                         "/lib/ld-linux",
+                         "libdl.so.2",
+                         "librt.so.1",
+                         "libstdc++.so.6",
+                         "libgcc_s.so.1",
+                         "libasan.so",
+                         "liblsan.so",
+                         "libubsan.so",
+                         "libtsan.so"
+                         ]}
 
     bundled_libs = argv[1:]
 
@@ -62,13 +62,14 @@ def main():
 
     print("Checking bundled libs linkage:")
     for lib_path, lib_name in zip(bundled_libs, bundled_lib_names):
-        print ("- " + lib_name)
+        print(f"- {lib_name}")
         ldd = subprocess.Popen(["ldd", lib_path], stdout=subprocess.PIPE)
-        for l in ldd.stdout:
-            l = l.decode().strip('\t').strip('\n')
-            linked_lib = l.split()[0]
+        for lib in ldd.stdout:
+            lib = lib.decode().strip('\t').strip('\n')
+            linked_lib = lib.split()[0]
             if not check_ldd_out(lib_name, linked_lib, bundled_lib_names, allowed_libs):
-                print('Library: "' + linked_lib + '" should be bundled in whl or removed from the dynamic link dependency')
+                print(f"Library: '{linked_lib}' should be bundled in whl "
+                      f"or removed from the dynamic link dependency")
                 exit(1)
     print("-> OK")
 
