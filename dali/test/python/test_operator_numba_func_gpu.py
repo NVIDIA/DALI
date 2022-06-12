@@ -21,6 +21,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
 from test_utils import get_dali_extra_path
+from nose_utils import raises
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 test_data_root = get_dali_extra_path()
@@ -80,3 +81,8 @@ def test_numba_func():
 
     for shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out in args:
         yield _testimpl_numba_func, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
+
+
+@raises(AssertionError, regex='Currently batch processing is not supported.')
+def test_batch_processing_assertion():
+    _testimpl_numba_func([(10, 5)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 255, dtype=np.uint8)])

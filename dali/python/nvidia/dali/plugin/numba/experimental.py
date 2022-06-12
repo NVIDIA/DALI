@@ -313,6 +313,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
     def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, blocks=None, threads_per_block=None, **kwargs):
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
+
+        assert batch_processing == False, "Currently batch processing is not supported."
         
         if device == 'gpu':
             assert len(blocks) == 3, f"`blocks` array should contain 3 numbers, while received: {len(blocks)}"
