@@ -39,17 +39,17 @@ vector<ssize_t> calc_sizes(DALIDataType type, TensorShape<-1> shape) {
 }
 
 
-vector<void*> prepare_args(const vector<void*> &memory_ptrs,
-    const vector<ssize_t> &sizes, uint64_t *ptr) {
+vector<void*> prepare_args(vector<void*> &memory_ptrs,
+    vector<ssize_t> &sizes, uint64_t *ptr) {
   // The order and structure of arguments is specified in the numba source code:
   // https://github.com/numba/numba/blob/b1be2f12c83c01f57fe34fab9a9d77334f9baa1d/numba/cuda/dispatcher.py#L325
   vector<void*> args;
   for (size_t i = 0; i < memory_ptrs.size(); i++) {
-    args.push_back(const_cast<void*>(reinterpret_cast<const void*>(&memory_ptrs[i])));
+    args.push_back(reinterpret_cast<void*>(&memory_ptrs[i]));
   }
 
   for (size_t i = 0; i < sizes.size(); i++) {
-    args.push_back(const_cast<void*>(reinterpret_cast<const void*>(&sizes[i])));
+    args.push_back(reinterpret_cast<void*>(&sizes[i]));
   }
   args.insert(args.begin()+4, static_cast<void*>(ptr));
   return args;
