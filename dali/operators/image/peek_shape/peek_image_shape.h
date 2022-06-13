@@ -30,7 +30,7 @@ class PeekImageShape : public Operator<CPUBackend> {
   PeekImageShape(const PeekImageShape &) = delete;
 
   explicit PeekImageShape(const OpSpec &spec) : Operator<CPUBackend>(spec) {
-    output_type_ = spec.GetArgument<DALIDataType>("type");
+    output_type_ = spec.GetArgument<DALIDataType>("dtype");
     switch (output_type_) {
     case DALI_INT32:
     case DALI_UINT32:

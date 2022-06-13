@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ def check_bbox_random_crop_adjust_polygons(file_root, annotations_file, batch_si
         out_vertices = fn.coord_transform(sel_vertices, MT=MT)
 
         # Converting to absolute coordinates (demo purposes)
-        image_shape = fn.peek_image_shape(inputs, type=types.FLOAT)
+        image_shape = fn.peek_image_shape(inputs, dtype=types.FLOAT)
         h = fn.slice(image_shape, 0, 1, axes=[0])
         w = fn.slice(image_shape, 1, 1, axes=[0])
 
