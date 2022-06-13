@@ -42,7 +42,6 @@ def get_include_flags():
     Returns:
         The compilation flags
     """
-    import nvidia.dali.backend as b
     flags = []
     flags.append('-I%s' % get_include_dir())
     return flags
@@ -57,7 +56,7 @@ def get_compile_flags():
     import nvidia.dali.backend as b
     flags = []
     flags.append('-I%s' % get_include_dir())
-    flags.append('-D_GLIBCXX_USE_CXX11_ABI=%d' % b.GetCxx11AbiFlag() )
+    flags.append('-D_GLIBCXX_USE_CXX11_ABI=%d' % b.GetCxx11AbiFlag())
     return flags
 
 
@@ -71,3 +70,4 @@ def get_link_flags():
     flags.append('-L%s' % get_lib_dir())
     flags.append('-ldali')
     return flags
+    
