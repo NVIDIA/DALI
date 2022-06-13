@@ -57,7 +57,7 @@ def invoke_autoserialize(head_module, filename):
 
     :param head_module: Module, denoting the model tree in which the decorated function shall exist.
     :param filename: Path to the file, where the output of serialization will be saved.
-    """
+    """  # noqa W505
     autoserialize_functions = _discover_autoserialize(head_module, visited=[])
     if len(autoserialize_functions) > 1:
         raise RuntimeError(
@@ -65,6 +65,6 @@ def invoke_autoserialize(head_module, filename):
             f"Found {len(autoserialize_functions)}: {autoserialize_functions}.")
     if len(autoserialize_functions) < 1:
         raise RuntimeError(
-            f"Precisely one autoserialize function must exist in the module. Found none.")
+            "Precisely one autoserialize function must exist in the module. Found none.")
     dali_pipeline = autoserialize_functions[0]
     dali_pipeline().serialize(filename=filename)
