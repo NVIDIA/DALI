@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -328,7 +328,7 @@ class ArgValue {
           (void) spec.GetArgument<T>(arg_name_);
       }
     } else {
-      has_constant_value_ = spec.TryGetRepeatedArgument<T>(data_, arg_name_);
+      has_constant_value_ = spec.TryGetRepeatedArgument(data_, arg_name_);
       if (!has_constant_value_) {
         if (error_if_no_value)  // call GetRepeatedArgument and let it throw
           (void) spec.GetRepeatedArgument<T>(arg_name_);

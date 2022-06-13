@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
  public:
   explicit LMDBLoader(const OpSpec& options)
       : Loader(options) {
-    bool ret = options.TryGetRepeatedArgument<std::string>(db_paths_, "path");
+    bool ret = options.TryGetRepeatedArgument(db_paths_, "path");
     if (!ret) {
       std::string path = options.GetArgument<std::string>("path");
       db_paths_.push_back(path);

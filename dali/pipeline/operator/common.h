@@ -30,12 +30,12 @@ namespace dali {
 template <typename T>
 inline void GetSingleOrRepeatedArg(const OpSpec &spec, vector<T> &result,
                                    const std::string &argName, size_t repeat_count = 2) {
-  if (!spec.TryGetRepeatedArgument<T>(result, argName)) {
-      T scalar = spec.GetArgument<T>(argName);
-      result.assign(repeat_count, scalar);
+  if (!spec.TryGetRepeatedArgument(result, argName)) {
+    T scalar = spec.GetArgument<T>(argName);
+    result.assign(repeat_count, scalar);
   } else if (result.size() == 1 && repeat_count != 1) {
-      T scalar = result.front();
-      result.assign(repeat_count, scalar);
+    T scalar = result.front();
+    result.assign(repeat_count, scalar);
   }
 
   DALI_ENFORCE(result.size() == repeat_count,
