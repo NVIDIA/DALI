@@ -54,7 +54,7 @@ class BufShmChunk:
     to identify chunks in the communication between parent and worker process.
     """
 
-    def __init__(self, shm_chunk_id, capacity, shm_chunk : shared_mem.SharedMem):
+    def __init__(self, shm_chunk_id, capacity, shm_chunk: shared_mem.SharedMem):
         self.shm_chunk_id = shm_chunk_id
         self.capacity = capacity
         self._shm_chunk = shm_chunk
@@ -69,7 +69,8 @@ class BufShmChunk:
 
     @classmethod
     def allocate(cls, shm_chunk_id, initial_chunk_size):
-        return cls(shm_chunk_id, initial_chunk_size, shared_mem.SharedMem.allocate(initial_chunk_size))
+        return cls(shm_chunk_id, initial_chunk_size,
+                   shared_mem.SharedMem.allocate(initial_chunk_size))
 
     def open_shm(self, handle):
         # self._shm_chunk should be None only as a result of deserialization of the instance.
@@ -78,7 +79,7 @@ class BufShmChunk:
         assert self._shm_chunk is None
         try:
             self._shm_chunk = shared_mem.SharedMem.open(handle, self.capacity)
-        except:
+        except ValueError:
             if handle >= 0:
                 os.close(handle)
             raise
@@ -119,7 +120,8 @@ class SampleMeta:
 
 
 class SharedBatchMeta:
-    """Describes offset within shared memory chunk and size of serialized list of `SampleMeta` instances"""
+    """Describes offset within shared memory chunk and size of serialized list of
+       `SampleMeta` instances"""
 
     def __init__(self, meta_offset, meta_size):
         self.meta_offset = meta_offset
@@ -173,7 +175,7 @@ def deserialize_batch(buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta):
 
 def assert_valid_data_type(sample):
     """Check if the output of the callback is type that can be serialized"""
-    _apply_to_sample(lambda x : _assert_cpu_sample_data_type(x, _sample_error_msg), sample)
+    _apply_to_sample(lambda x: _assert_cpu_sample_data_type(x, _sample_error_msg), sample)
 
 
 def _apply_to_sample(func, sample, *args, nest_with_sample=0):
@@ -195,7 +197,8 @@ def _apply_to_sample(func, sample, *args, nest_with_sample=0):
             assert len(args[i]) == len(sample)
         nest_group = sample, *args[0:nest_with_sample]
         scalar_args = args[nest_with_sample:]
-        return type(sample)(_apply_to_sample(func, *part, *scalar_args) for part in zip(*nest_group))
+        return type(sample)(_apply_to_sample(func, *part, *scalar_args)
+                            for part in zip(*nest_group))
     else:
         # we unpacked all nesting levels, now is actual data:
         return func(sample, *args)
@@ -255,7 +258,8 @@ class SharedBatchWriter:
             resize_shm_chunk(self.shm_chunk, self.total_size + self.min_trailing_offset)
         memview = self.shm_chunk.buf
         for sample, sample_meta in zip(batch, meta):
-            _apply_to_sample(self._add_array_to_batch, sample, sample_meta, memview, nest_with_sample=1)
+            _apply_to_sample(self._add_array_to_batch, sample, sample_meta, memview,
+                             nest_with_sample=1)
         # copy meta data at the end of shared memory chunk
         buffer = memview[self.data_size:(self.data_size + self.meta_data_size)]
         buffer[:] = serialized_meta
@@ -267,14 +271,14 @@ def resize_shm_chunk(shm_chunk, needed_capacity):
     shm_chunk.resize(new_capacity, trunc=True)
 
 
-def read_shm_message(shm_chunk : BufShmChunk, shm_message):
+def read_shm_message(shm_chunk: BufShmChunk, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
     buffer = shm_chunk.buf[shm_message.offset:shm_message.offset + shm_message.num_bytes]
     return pickle.loads(buffer)
 
 
-def write_shm_message(worker_id, shm_chunk : BufShmChunk, message, offset, resize=True):
+def write_shm_message(worker_id, shm_chunk: BufShmChunk, message, offset, resize=True):
     """
     Pickles `message` instances, stores it in the provided `shm` chunk at given offset and returns
     `ShmMessageDesc` instance describing the placement of the `message`.
@@ -289,7 +293,8 @@ def write_shm_message(worker_id, shm_chunk : BufShmChunk, message, offset, resiz
             # This should not happen, resize is False only when writing task description into memory
             # in the main process, and the description (ScheduledTask and its members) boils down
             # to bounded number of integers.
-            raise RuntimeError("Could not put message into shared memory region, not enough space in the buffer.")
+            raise RuntimeError("Could not put message into shared memory region,"
+                               " not enough space in the buffer.")
     buffer = shm_chunk.buf[offset:offset + num_bytes]
     buffer[:] = serialized_message
     return ShmMessageDesc(worker_id, shm_chunk.shm_chunk_id, shm_chunk.capacity, offset, num_bytes)
