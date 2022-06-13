@@ -310,7 +310,7 @@ def _wrap_iterator(op_class, op_name, wrapper_name):
     """Wraps reader Eager Operator in a Python iterator.
 
     Example:
-        >>> for file, label in eager.readers.file(file_root=file_path, batch_size=8):   # noqa: F821
+        >> for file, label in eager.readers.file(file_root=file_path, batch_size=8):
         ...     # file and label are batches of size 8 (TensorLists).
         ...     print(file)
     """
