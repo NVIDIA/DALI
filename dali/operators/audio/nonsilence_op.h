@@ -144,7 +144,7 @@ class NonsilenceOperator : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     AcquireArgs(spec_, ws);
     TensorShape<> scalar_shape = {};
     auto curr_batch_size = ws.GetInputBatchSize(0);

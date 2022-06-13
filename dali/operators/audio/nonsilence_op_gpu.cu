@@ -55,6 +55,7 @@ struct NonsilentRegionPostprocessArgs {
   Idx *begin;
   Idx *len;
   const i64vec2 *region;
+  Idx input_len;
 };
 
 template <typename Idx = int64_t>
@@ -65,9 +66,12 @@ __global__ void NonsilentRegionPostprocess(NonsilentRegionPostprocessArgs<Idx> *
     auto &sample_args = args[idx];
     auto region = *(sample_args.region);
     // Begin it's calculated as first - window, meaning that we start counting from the
-    // beginning of the sliding window.
-    *(sample_args.begin) = region.x - window;  // start region -window steps earlier
-    *(sample_args.len) = region.y + window;    // the length of the region is also increased then
+    // beginning of the sliding window. The lenght of the region needs to be increased by the same
+    // factor. We also limit the region to the bounds of the input.
+    Idx start = cuda_max(static_cast<Idx>(region.x - window), Idx(0));
+    *(sample_args.begin) = start;
+    *(sample_args.len) = cuda_min(static_cast<Idx>(region.y + window),
+                                  static_cast<Idx>(sample_args.input_len - start));
   }
 }
 
@@ -174,6 +178,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
       sample.region = region_tmp[i].data;
       sample.begin = begin[i].data;
       sample.len = len[i].data;
+      sample.input_len = mms[i].shape[0];
     }
     auto postprocess_args_gpu =
         ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(postprocess_args, nsamples));
