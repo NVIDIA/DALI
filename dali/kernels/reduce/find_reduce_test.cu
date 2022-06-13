@@ -28,8 +28,7 @@ namespace test {
 template <typename T>
 struct threshold {
   T value_;
-
-  explicit DALI_HOST_DEV DALI_FORCEINLINE threshold(T value = 0) : value_(value) {}
+  explicit threshold(T value = 0) : value_(value) {}
 
   DALI_HOST_DEV DALI_FORCEINLINE bool operator()(T x) const noexcept {
     return x >= value_;
@@ -57,35 +56,12 @@ class FindReduceTestGPU : public ::testing::Test {
   TestTensorList<Idx> out_first_;
   TestTensorList<Idx> out_last_;
 
-<<<<<<< HEAD
   TestTensorList<Idx> ref_first_;
   TestTensorList<Idx> ref_last_;
 
   void SetUp() final {
     int nsamples = 5;
 
-=======
-<<<<<<<< HEAD:dali/kernels/reduce/find_reduce_test.cu
-  TestTensorList<Idx> ref_first_;
-  TestTensorList<Idx> ref_last_;
-========
-  TestTensorList<Idx> ref_begin_;
-  TestTensorList<Idx> ref_length_;
-  using Predicate = threshold<T>;
-  TestTensorList<Predicate, 0> predicates_;
-
-  void SetupPredicates(int nsamples) {
-    TensorListShape<0> sh(nsamples);
-    predicates_.reshape(sh);
-    for (int i = 0; i < nsamples; i++) {
-      predicates_.cpu()[i].data[0] = threshold<T>{3};
-    }
-  }
->>>>>>>> upstream/main:dali/kernels/common/find/find_first_last_gpu_test.cu
-
-  void SetUp() final {
-    int nsamples = 5;
->>>>>>> upstream/main
     // 1500 chosen so that it doesn't fit one CUDA block (32*32)
     TensorListShape<> sh = {{5, }, {10, }, {9, }, {7, }, {1500, }};
     TensorListShape<0> out_sh(nsamples);
@@ -100,10 +76,6 @@ class FindReduceTestGPU : public ::testing::Test {
       SequentialFillBothEnds(v.data, static_cast<int64_t>(v.shape.num_elements()), T(0));
     }
 
-<<<<<<< HEAD
-=======
-    SetupPredicates(nsamples);
->>>>>>> upstream/main
     // Threshold = 3
     // Input 0:  0 1 2 1 0
     //         ^^
@@ -142,10 +114,6 @@ class FindReduceTestGPU : public ::testing::Test {
     auto in = in_.gpu().to_static<1>();
     int nsamples = in.size();
 
-<<<<<<< HEAD
-=======
-<<<<<<<< HEAD:dali/kernels/reduce/find_reduce_test.cu
->>>>>>> upstream/main
     using Predicate = threshold<float>;
     TensorListShape<0> scalar_sh(nsamples);
     TestTensorList<Predicate, 0> predicates;
@@ -161,13 +129,6 @@ class FindReduceTestGPU : public ::testing::Test {
     last.Setup(ctx, in.shape);
     first.Run(ctx, out_first, in, predicates_gpu);
     last.Run(ctx, out_last, in, predicates_gpu);
-<<<<<<< HEAD
-=======
-========
-    FindFirstLastGPU<T, Idx, Predicate, begin_length<Idx>> kernel;
-    kernel.Run(ctx, out_begin, out_length, in, predicates_.gpu());
->>>>>>>> upstream/main:dali/kernels/common/find/find_first_last_gpu_test.cu
->>>>>>> upstream/main
     CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));
 
     for (int s = 0; s < nsamples; s++) {
@@ -212,21 +173,12 @@ class FindReduceTestGPU : public ::testing::Test {
     std::mt19937 rng;
     UniformRandomFill(in_data.cpu(), rng, 0.0, 1.0);
 
-<<<<<<< HEAD
-=======
-    this->SetupPredicates(nsamples);
-
->>>>>>> upstream/main
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
     double total_time_ms = 0;
     int64_t in_elems = in_data.cpu().shape.num_elements();
     int64_t in_bytes = in_elems * sizeof(T);
-<<<<<<< HEAD
-    int64_t out_elems = 1;
-=======
     int64_t out_elems = nsamples;
->>>>>>> upstream/main
     int64_t out_bytes = out_elems * sizeof(int64_t);
     std::cout << "FindReduce GPU Perf test.\n"
               << "Input contains " << in_elems << " elements.\n";
@@ -234,10 +186,6 @@ class FindReduceTestGPU : public ::testing::Test {
     auto out_first = out_first_.gpu().to_static<0>();
     auto in = in_data.gpu().to_static<1>();
 
-<<<<<<< HEAD
-=======
-<<<<<<<< HEAD:dali/kernels/reduce/find_reduce_test.cu
->>>>>>> upstream/main
     using Predicate = threshold<float>;
     TensorListShape<0> scalar_sh(nsamples);
     TestTensorList<Predicate, 0> predicates;
@@ -247,12 +195,6 @@ class FindReduceTestGPU : public ::testing::Test {
     }
     auto predicates_gpu = predicates.gpu();
     FindReduceGPU<Idx, T, Predicate, reductions::min> first;
-<<<<<<< HEAD
-=======
-========
-    FindFirstLastGPU<T, Idx, Predicate, begin_length<Idx>> kernel;
->>>>>>>> upstream/main:dali/kernels/common/find/find_first_last_gpu_test.cu
->>>>>>> upstream/main
     for (int i = 0; i < n_iters; ++i) {
       CUDA_CALL(cudaDeviceSynchronize());
 
@@ -260,18 +202,8 @@ class FindReduceTestGPU : public ::testing::Test {
       ctx.scratchpad = &dyn_scratchpad;
 
       CUDA_CALL(cudaEventRecord(start));
-<<<<<<< HEAD
       first.Setup(ctx, in.shape);
       first.Run(ctx, out_first, in, predicates_gpu);
-=======
-<<<<<<<< HEAD:dali/kernels/reduce/find_reduce_test.cu
-      first.Setup(ctx, in.shape);
-      first.Run(ctx, out_first, in, predicates_gpu);
-========
-
-      kernel.Run(ctx, out_begin, out_length, in, predicates_.gpu());
->>>>>>>> upstream/main:dali/kernels/common/find/find_first_last_gpu_test.cu
->>>>>>> upstream/main
 
       CUDA_CALL(cudaEventRecord(end));
       CUDA_CALL(cudaDeviceSynchronize());
@@ -288,22 +220,8 @@ TEST_F(FindReduceTestGPU, RunTest) {
   this->RunTest();
 }
 
-<<<<<<< HEAD
 TEST_F(FindReduceTestGPU, DISABLED_Benchmark) {
   this->RunPerf();
-=======
-<<<<<<<< HEAD:dali/kernels/reduce/find_reduce_test.cu
-TEST_F(FindReduceTestGPU, DISABLED_Benchmark) {
-  this->RunPerf();
-========
-TEST_F(FindFirstLastTestGPU, DISABLED_Benchmark) {
-  this->RunPerf(2);
-  this->RunPerf(8);
-  this->RunPerf(16);
-  this->RunPerf(32);
-  this->RunPerf(64);
->>>>>>>> upstream/main:dali/kernels/common/find/find_first_last_gpu_test.cu
->>>>>>> upstream/main
 }
 
 }  // namespace test

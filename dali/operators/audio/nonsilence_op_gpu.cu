@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/common/find/find_first_last_gpu.cuh"
+#include "dali/kernels/reduce/find_region.cuh"
+#include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/signal/decibel/decibel_calculator.h"
 #include "dali/kernels/signal/moving_mean_square_gpu.h"
 #include "dali/operators/audio/nonsilence_op.h"
@@ -27,31 +28,10 @@ namespace {
  */
 template <typename T>
 struct NotLess {
-  T threshold;
+  T value_;
 
   DALI_HOST_DEV DALI_FORCEINLINE bool operator()(T x) const noexcept {
-    return x >= threshold;
-  }
-};
-
-using kernels::find_first_last::idx_pair;
-
-/**
- * @brief Coordinate post-processor. Converts first/last to begin/length.
- *        Begin it's calculated as first - window, meaning that we start counting from the
- *        beginning of the sliding window.
- */
-template <typename Idx>
-struct NonsilentRegion {
-  Idx window;
-
-  DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> operator()(idx_pair<Idx> x) const noexcept {
-    Idx start = x.a - window;
-    return {start, x.b + 1 - start};
-  }
-
-  constexpr DALI_HOST_DEV DALI_FORCEINLINE idx_pair<Idx> neutral() const noexcept {
-    return  idx_pair<Idx>{0, 0};  // empty range
+    return x >= value_;
   }
 };
 
@@ -66,8 +46,28 @@ __global__ void InitPredicates(InitPredicateSampleArgs *sample_params, int nsamp
        idx += blockDim.x * gridDim.x) {
     auto &params = sample_params[idx];
     kernels::signal::DecibelToMagnitude<float> db2mag(10.f, *params.ref_pow);
-    auto threshold = db2mag(params.cutoff_db);
-    *(params.predicate) = {threshold};
+    *(params.predicate) = {db2mag(params.cutoff_db)};
+  }
+}
+
+template <typename Idx>
+struct NonsilentRegionPostprocessArgs {
+  Idx *begin;
+  Idx *len;
+  const i64vec2 *region;
+};
+
+template <typename Idx = int64_t>
+__global__ void NonsilentRegionPostprocess(NonsilentRegionPostprocessArgs<Idx> *args, int nsamples,
+                                           int window) {
+  for (int idx = threadIdx.x + blockIdx.x * blockDim.x; idx < nsamples;
+       idx += blockDim.x * gridDim.x) {
+    auto &sample_args = args[idx];
+    auto region = *(sample_args.region);
+    // Begin it's calculated as first - window, meaning that we start counting from the
+    // beginning of the sliding window.
+    *(sample_args.begin) = region.x - window;  // start region -window steps earlier
+    *(sample_args.len) = region.y + window;    // the length of the region is also increased then
   }
 }
 
@@ -90,10 +90,9 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   }
 
  private:
-  kernels::MaxGPU<float, float> max_kernel;
+  kernels::MaxGPU<float, float> max_kernel_;
   using Predicate = NotLess<float>;
-  kernels::find_first_last::FindFirstLastGPU<float, int32_t, Predicate, NonsilentRegion<int32_t>>
-      find_first_last_;
+  kernels::FindRegionGPU<float, Predicate> find_region_;
 
   /**
    * @brief Computes mean moving mean squre of an audio signal
@@ -102,7 +101,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   void CalcMMS(kernels::KernelContext &ctx, TensorListView<StorageGPU, float, 1> &mms,
                const TensorListView<StorageGPU, const T, 1> &in) {
     kernels::signal::MovingMeanSquareGpu<T> kernel;
-    kernels::signal::MovingMeanSquareArgs args{window_length_, reset_interval_};
+    kernels::signal::MovingMeanSquareArgs args{window_length_, -1};
     kernel.Run(ctx, mms, in, args);
   }
 
@@ -112,8 +111,8 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   void CalcMax(kernels::KernelContext &ctx, TensorListView<StorageGPU, float, 0> &max,
                const TensorListView<StorageGPU, float, 1> &in) {
     std::array<int, 1> axes = { 0 };
-    max_kernel.Setup(ctx, in.shape, make_cspan(axes), false, false);
-    max_kernel.Run(ctx, max, in);
+    max_kernel_.Setup(ctx, in.shape, make_cspan(axes), false, false);
+    max_kernel_.Run(ctx, max, in);
   }
 
   /**
@@ -124,6 +123,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
                            TensorListView<StorageGPU, int32_t, 0> &len,
                            TensorListView<StorageGPU, float, 1> &mms) {
     int nsamples = mms.num_samples();
+    int G = div_ceil(nsamples, 256), B = 256;  // for the simpler kernels
 
     TensorListShape<0> scalar_sh(nsamples);
     auto predicates =
@@ -134,7 +134,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
         ctx.scratchpad->AllocTensorList<mm::memory_kind::pinned, NotLess<float>>(scalar_sh);
       for (int i = 0; i < nsamples; i++) {
         kernels::signal::DecibelToMagnitude<float> db2mag(10.f, reference_power_[i]);
-        (*predicates_cpu.data[i]).threshold = db2mag(cutoff_db_[i]);
+        (*predicates_cpu.data[i]) = {db2mag(cutoff_db_[i])};
       }
       assert(predicates_cpu.is_contiguous());
       assert(predicates.is_contiguous());
@@ -159,26 +159,28 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
       auto init_predicate_args_gpu =
           ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(init_predicate_args, nsamples));
 
-      constexpr int kBlockSize = 256;
-      int grid = div_ceil(nsamples, kBlockSize);
-      InitPredicates<<<grid, kBlockSize, 0, ctx.gpu.stream>>>(init_predicate_args_gpu, nsamples);
+      InitPredicates<<<G, B, 0, ctx.gpu.stream>>>(init_predicate_args, nsamples);
     }
 
-    // Initialize post-processors
-    // NonsilentRegion postprocessor converts first/last to begin/length
-    // begin is calculated as `first - window`, that is, the beginning of the sliding window for the
-    // first sample that goes above the threshold.
-    auto postprocessors_cpu =
-        ctx.scratchpad->Allocate<mm::memory_kind::pinned, NonsilentRegion<int32_t>>(nsamples);
+    auto region_tmp = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, i64vec2>(scalar_sh);
+    find_region_.Setup(ctx, mms.shape);
+    find_region_.Run(ctx, region_tmp, mms, predicates);
+
+    auto postprocess_args =
+        ctx.scratchpad->Allocate<mm::memory_kind::pinned, NonsilentRegionPostprocessArgs<int32_t>>(
+            nsamples);
     for (int i = 0; i < nsamples; i++) {
-      postprocessors_cpu[i].window = window_length_;
+      auto &sample = postprocess_args[i];
+      sample.region = region_tmp[i].data;
+      sample.begin = begin[i].data;
+      sample.len = len[i].data;
     }
-    auto postprocessors_data =
-        ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(postprocessors_cpu, nsamples));
-    TensorListView<StorageGPU, NonsilentRegion<int32_t>, 0> postprocessors{postprocessors_data,
-                                                                           scalar_sh};
+    auto postprocess_args_gpu =
+        ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(postprocess_args, nsamples));
 
-    find_first_last_.Run(ctx, begin, len, mms, predicates, postprocessors);
+    // Postprocess: Deinterleave and adjust region to start of the window
+    NonsilentRegionPostprocess<int32_t>
+        <<<G, B, 0, ctx.gpu.stream>>>(postprocess_args_gpu, nsamples, window_length_);
   }
 
   template <typename T>
