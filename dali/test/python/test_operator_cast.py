@@ -38,10 +38,54 @@ def random_shape(rng, ndim: int, max_size: int):
     if ndim == 0:
         return []
     max_size = int(max_size ** (1 / ndim))
-    return list(rng.integers(0, max_size, [ndim]))
+    return list(rng.integers(1, max_size, [ndim]))
+
+def replace_with_empty_volumes(rng, input, empty_volume_policy):
+    """Replaces samples with 0-volumed ones if possible.
+
+    Parameters
+    ----------
+    rng :
+        rng
+    input : List of np.array
+        Batch to process
+    empty_volume_policy : str
+        one of "left", "right, "middle", "mixed", "all", to indicate if the batch suffix, prefix,
+        infix or all of them should be randomly replaced with 0-volumed samples
+
+    Returns
+    -------
+    List of np.array
+    """
+    if empty_volume_policy is None:
+        return input
+    if len(input[0].shape) == 0:
+        return input
+    if empty_volume_policy == "mixed":
+        left = replace_with_empty_volumes(rng, input, "left")
+        left_and_mid = replace_with_empty_volumes(rng, left, "middle")
+        return replace_with_empty_volumes(rng, left_and_mid, "right")
+    if empty_volume_policy == "all":
+        start = 0
+        end = len(input)
+    elif empty_volume_policy == "left":
+        start = 0
+        end = rng.integers(1, len(input) // 3)
+    elif empty_volume_policy == "right":
+        start = rng.integers(len(input) * 2 // 3, len(input) - 1)
+        end = len(input)
+    elif empty_volume_policy == "middle":
+        start = rng.integers(1 + len(input) // 3, len(input) * 2 // 3)
+        end = rng.integers(start + 1, len(input) - 1)
+    for i in range(start, end):
+        shape = list(input[i].shape)
+        shape[0] = 0
+        input[i] = np.zeros(dtype=input[i].dtype, shape=shape)
+    return input
 
 
-def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.dtype):
+def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.dtype,
+             empty_volume_policy: str):
     lo, hi = -1000, 1000
     if np.issubdtype(out_dtype, np.integer):
         lo = np.iinfo(out_dtype).min
@@ -59,6 +103,7 @@ def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.
 
     max_size = 100000 // batch_size
     out = [rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype) for _ in range(batch_size)]
+    out = replace_with_empty_volumes(rng, out, empty_volume_policy)
     if np.issubdtype(in_dtype, np.floating) and np.issubdtype(out_dtype, np.integer):
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU
@@ -71,8 +116,8 @@ rng = np.random.default_rng(1234)
 
 
 @nottest
-def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
-    src = lambda: generate(rng, ndim, batch_size, in_dtype, out_dtype)
+def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_volume_policy=None):
+    src = lambda: generate(rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy)
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
     def cast_pipe():
@@ -119,3 +164,18 @@ def test_operator_cast():
                 ndim = rng.integers(0, 4)
                 batch_size = rng.integers(1, 11)
                 yield _test_operator_cast, ndim, batch_size, in_type, out_type, device
+
+
+def test_operator_cast_empty_volumes():
+    types = [np.uint8, np.int32, np.float32]
+    for device in ['cpu', 'gpu']:
+        for in_type in types:
+            for out_type in types:
+                ndim = rng.integers(0, 4)
+
+                batch_size = rng.integers(12, 64)
+                for empty_volume_policy in [
+                        rng.choice(["left", "right", "middle", "mixed"]), "all"
+                ]:
+                    yield (_test_operator_cast, ndim, batch_size, in_type, out_type, device,
+                           empty_volume_policy)
