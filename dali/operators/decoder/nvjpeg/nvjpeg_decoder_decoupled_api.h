@@ -869,7 +869,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
       CUDA_CALL(cudaEventSynchronize(hw_decode_event_));
-      if (RestrictPinnedMemUsage()) {
+      // if the input is pinned already we don't need to copy to the staging area
+      if (RestrictPinnedMemUsage() || input.is_pinned()) {
         for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
           in_data_[k] = static_cast<unsigned char*>(tv.raw_mutable_tensor(k));
         }

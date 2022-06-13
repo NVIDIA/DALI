@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import tensorflow as tf
 import copy
-
-from nvidia.dali import Pipeline, fn
+import numpy as np
 import nvidia.dali.plugin.tf as dali_tf
+import tensorflow as tf
+from nvidia.dali import Pipeline, fn
+
 from test_utils import RandomlyShapedDataIterator
 
 
@@ -32,7 +32,9 @@ def get_sample_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=T
         result[0][2] = x.iteration
         result[0][3] = x.epoch_idx
         return result
+
     return callback
+
 
 def get_batch_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
     def callback(x):
@@ -44,7 +46,9 @@ def get_batch_one_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=Tr
             elem[0] = i
             elem[1] = x
         return np.stack(result) if dense else result
+
     return callback
+
 
 def get_batch_one_arg_callback_with_batch_info(dtype, iter_limit=1000, batch_size=None, dense=True):
     def callback(x):
@@ -57,7 +61,9 @@ def get_batch_one_arg_callback_with_batch_info(dtype, iter_limit=1000, batch_siz
             elem[1] = x.iteration
             elem[2] = x.epoch_idx
         return np.stack(result) if dense else result
+
     return callback
+
 
 def get_no_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
     class Callable:
@@ -80,7 +86,9 @@ def get_no_arg_callback(dtype, iter_limit=1000, batch_size=None, dense=True):
                 for i, elem in enumerate(result):
                     elem[0] = i
                 return np.stack(result)
+
     return Callable()
+
 
 class UnwrapIterator:
     def __init__(self, iterator):
@@ -91,6 +99,7 @@ class UnwrapIterator:
 
     def __next__(self):
         return next(self.iterator)[0]
+
 
 class DenseIterator:
     def __init__(self, iterator):
@@ -106,6 +115,7 @@ class DenseIterator:
 class FiniteIterator:
     """Used to wrap RandomlyShapedDataIterator to add iteration counts and finite data size
     """
+
     def __init__(self, iterator, iter_limit):
         self.iterator = iterator
         self.iter_limit = iter_limit
@@ -131,17 +141,20 @@ def get_iterable(dtype, iter_limit=1000, batch_size=None, dense=True):
     bs = 1 if batch_size is None else batch_size
     max_shape = (20, 20)
     min_shape = max_shape  # if dense else None
-    result = FiniteIterator(iter(RandomlyShapedDataIterator(bs, min_shape, max_shape, 42, dtype)), iter_limit)
+    result = FiniteIterator(iter(RandomlyShapedDataIterator(bs, min_shape, max_shape, 42, dtype)),
+                            iter_limit)
     if batch_size is None:
         return UnwrapIterator(iter(result))
     else:
         return DenseIterator(iter(result)) if dense else result
+
 
 def get_iterable_generator(dtype, iter_limit=1000, batch_size=None, dense=True):
     def generator():
         iterator = iter(get_iterable(dtype, iter_limit, batch_size, dense))
         for example in iterator:
             yield example
+
     return generator
 
 
@@ -167,6 +180,7 @@ es_configurations = [
     # (get_iterable_generator, True, "raise", False),
 ]
 
+
 def get_external_source_pipe(es_args, dtype, es_device):
     def get_pipeline_desc(batch_size, num_threads, device, device_id, shard_id, num_shards,
                           def_for_dataset):
@@ -180,19 +194,20 @@ def get_external_source_pipe(es_args, dtype, es_device):
             pad = fn.pad(es, device=device)
             pipe.set_outputs(pad)
         return pipe, None, dtype
+
     return get_pipeline_desc
 
-def external_source_to_tf_dataset(pipe_desc, device_str): # -> tf.data.Dataset
+
+def external_source_to_tf_dataset(pipe_desc, device_str):  # -> tf.data.Dataset
     pipe, _, dtypes = pipe_desc
     with tf.device(device_str):
-        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-                input_datasets=None,
-                pipeline=pipe,
-                batch_size=pipe.max_batch_size,
-                output_shapes=None,
-                output_dtypes=dtypes,
-                num_threads=pipe.num_threads,
-                device_id=pipe.device_id)
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(input_datasets=None,
+                                                                  pipeline=pipe,
+                                                                  batch_size=pipe.max_batch_size,
+                                                                  output_shapes=None,
+                                                                  output_dtypes=dtypes,
+                                                                  num_threads=pipe.num_threads,
+                                                                  device_id=pipe.device_id)
     return dali_dataset
 
 
@@ -211,7 +226,8 @@ def gen_tf_with_dali_external_source(test_run):
                     for iter_limit in [3, 9, 10, 11, 100]:
                         bs = 12 if is_batched else None
                         es_args = {'source': get_callback(dtype, iter_limit, bs, dense),
-                                    'batch': is_batched,
-                                    'cycle': cycle,
-                                    'batch_info': batch_info}
-                        yield test_run, dev, es_args, es_dev, tf.dtypes.as_dtype(dtype), iter_limit, dense
+                                   'batch': is_batched,
+                                   'cycle': cycle,
+                                   'batch_info': batch_info}
+                        yield test_run, dev, es_args, es_dev, tf.dtypes.as_dtype(dtype), \
+                            iter_limit, dense

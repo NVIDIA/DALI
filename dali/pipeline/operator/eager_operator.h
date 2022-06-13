@@ -16,6 +16,7 @@
 #define DALI_PIPELINE_OPERATOR_EAGER_OPERATOR_H_
 
 #include <memory>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -111,7 +112,7 @@ class DLL_PUBLIC EagerOperator {
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec) : EagerOperator(spec, spec.name()) {}
 
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name)
-      : EagerOperator(spec, std::move(name), shared_thread_pool->NumThreads()) {}
+      : EagerOperator(spec, std::move(name), GetSharedThreadPool()->NumThreads()) {}
 
   DLL_PUBLIC inline EagerOperator(const OpSpec &spec, std::string name, int num_threads)
       : max_batch_size_(spec.GetArgument<int>("max_batch_size")),
@@ -141,16 +142,26 @@ class DLL_PUBLIC EagerOperator {
       const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
       CUDAStreamLease &cuda_stream, int batch_size = -1);
 
+  DLL_PUBLIC ReaderMeta GetReaderMeta() const {
+    ReaderMeta meta = op_->GetReaderMeta();
+    DALI_ENFORCE(meta, "Operator " + name_ + " does not expose valid metadata.");
+    return meta;
+  }
+
   // Update shared thread pool used for all direct operators.
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
-    shared_thread_pool = std::make_unique<ThreadPool>(num_threads, CPU_ONLY_DEVICE_ID, false);
+    std::lock_guard lock(shared_thread_pool_mutex_);
+
+    SharedThreadPoolInstance().reset(
+        new ThreadPool(num_threads, CPU_ONLY_DEVICE_ID, false, "EagerOperator"));
   }
 
   // Update shared CUDA stream used for all direct operators.
   DLL_PUBLIC inline static void UpdateCudaStream(int device_id) {
     if (device_id != CPU_ONLY_DEVICE_ID) {
       DeviceGuard g(device_id);
-      shared_cuda_stream = CUDAStreamPool::instance().Get(device_id);
+      CUDAStreamLease &cuda_stream = GetSharedCudaStream();
+      cuda_stream = CUDAStreamPool::instance().Get(device_id);
     }
   }
 
@@ -170,6 +181,25 @@ class DLL_PUBLIC EagerOperator {
     return num_cores < 6 ? num_cores : 6;
   }
 
+  static inline std::shared_ptr<ThreadPool> &SharedThreadPoolInstance() {
+    static std::shared_ptr<ThreadPool> thread_pool = std::make_shared<ThreadPool>(
+        GetDefaultNumThreads(), CPU_ONLY_DEVICE_ID, false, "EagerOperator");
+
+    return thread_pool;
+  }
+
+  static inline std::shared_ptr<ThreadPool> GetSharedThreadPool() {
+    std::shared_lock lock(shared_thread_pool_mutex_);
+
+    return SharedThreadPoolInstance();
+  }
+
+  static inline CUDAStreamLease &GetSharedCudaStream() {
+    static CUDAStreamLease cuda_stream;
+
+    return cuda_stream;
+  }
+
   int max_batch_size_;
   size_t num_outputs_;
   workspace_t<Backend> ws_;
@@ -177,8 +207,7 @@ class DLL_PUBLIC EagerOperator {
   std::string name_;
   std::unique_ptr<OperatorBase> op_;
 
-  static CUDAStreamLease shared_cuda_stream;
-  static std::unique_ptr<ThreadPool> shared_thread_pool;
+  static std::shared_mutex shared_thread_pool_mutex_;
 };
 
 template <typename Backend>
@@ -187,7 +216,7 @@ EagerOperator<Backend>::Run(
     const std::vector<std::shared_ptr<TensorList<InBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run(inputs, kwargs, shared_cuda_stream, batch_size);
+  return Run(inputs, kwargs, GetSharedCudaStream(), batch_size);
 }
 
 template <>
@@ -195,7 +224,7 @@ std::vector<std::shared_ptr<TensorList<CPUBackend>>> EagerOperator<CPUBackend>::
     const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
     const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>> &kwargs,
     int batch_size) {
-  return Run(inputs, kwargs, shared_thread_pool.get(), batch_size);
+  return Run(inputs, kwargs, GetSharedThreadPool().get(), batch_size);
 }
 
 template <typename Backend>
@@ -309,12 +338,7 @@ EagerOperator<Backend>::RunImpl(
 }
 
 template <typename Backend>
-std::unique_ptr<ThreadPool> EagerOperator<Backend>::shared_thread_pool =
-    std::make_unique<ThreadPool>(EagerOperator<Backend>::GetDefaultNumThreads(), CPU_ONLY_DEVICE_ID,
-                                 false, "EagerOperator");
-
-template <typename Backend>
-CUDAStreamLease EagerOperator<Backend>::shared_cuda_stream{};
+std::shared_mutex EagerOperator<Backend>::shared_thread_pool_mutex_{};
 
 }  // namespace dali
 

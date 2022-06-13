@@ -53,7 +53,7 @@ class CommonPipeline(Pipeline):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=False,
                                              exec_pipelined=False)
         self.input = ops.readers.File(file_root=image_dir)
-        self.decode = ops.decoders.Image(device = 'cpu', output_type=types.RGB)
+        self.decode = ops.decoders.Image(device='cpu', output_type=types.RGB)
         self.resize = ops.PythonFunction(function=resize, output_layouts='HWC')
 
     def load(self):
@@ -86,6 +86,7 @@ class PythonOperatorPipeline(CommonPipeline):
         assert isinstance(processed, _DataNode)
         return processed
 
+
 class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
         super(PythonOperatorInvalidPipeline, self).__init__(batch_size, num_threads, device_id,
@@ -96,6 +97,7 @@ class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
         images, labels = self.load()
         processed = self.python_function([images, images])
         return processed
+
 
 class FlippingPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
@@ -203,6 +205,7 @@ def bias(image):
 def flip(image):
     return numpy.fliplr(image)
 
+
 def flip_batch(images):
     return [flip(x) for x in images]
 
@@ -212,6 +215,7 @@ def dlflip(image):
     out = numpy.fliplr(image)
     out = ops._dlpack_from_array(out)
     return out;
+
 
 def dlflip_batch(images):
     return [dlflip(x) for x in images]
@@ -252,22 +256,22 @@ def test_python_operator_flip():
 class RotatePipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
-        self.rotate=ops.Rotate(angle=90.0, interp_type=types.INTERP_NN)
+        self.rotate = ops.Rotate(angle=90.0, interp_type=types.INTERP_NN)
 
     def define_graph(self):
         images, labels = self.load()
-        rotate=self.rotate(images)
+        rotate = self.rotate(images)
         return rotate
 
 
 class BrightnessPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
         super(BrightnessPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
-        self.brightness=ops.BrightnessContrast(device = "gpu", brightness = 0.5)
+        self.brightness = ops.BrightnessContrast(device="gpu", brightness=0.5)
 
     def define_graph(self):
         images, labels = self.load()
-        bright=self.brightness(images.gpu())
+        bright = self.brightness(images.gpu())
         return bright
 
 
@@ -295,7 +299,7 @@ def test_python_operator_brightness():
         numpy_output, = numpy_brightness.run()
         dali_output, = dali_brightness.run()
         for i in range(len(dali_output)):
-            assert numpy.allclose(numpy_output.at(i), dali_output.as_cpu().at(i), rtol = 1e-5, atol = 1)
+            assert numpy.allclose(numpy_output.at(i), dali_output.as_cpu().at(i), rtol=1e-5, atol=1)
 
 
 def invalid_function(image):
@@ -439,8 +443,10 @@ def test_not_a_tuple_dl():
     invalid_pipe.build()
     invalid_pipe.run()
 
+
 def three_outputs(inp):
     return inp, inp, inp
+
 
 @raises(Exception, glob="Unexpected number of outputs*got 3*expected 2")
 def test_wrong_outputs_number():
@@ -449,12 +455,14 @@ def test_wrong_outputs_number():
     invalid_pipe.build()
     invalid_pipe.run()
 
+
 @raises(Exception, glob="Unexpected number of outputs*got 3*expected 2")
 def test_wrong_outputs_number_dl():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                     images_dir, three_outputs, op=ops.DLTensorPythonFunction)
     invalid_pipe.build()
     invalid_pipe.run()
+
 
 SINK_PATH = tempfile.mkdtemp()
 
@@ -486,6 +494,7 @@ def func_with_side_effects(images):
     print('Call ' + str(counter))
 
     return numpy.full_like(images, counter)
+
 
 def test_func_with_side_effects():
     pipe_one = PythonOperatorPipeline(
@@ -522,10 +531,12 @@ class AsyncPipeline(Pipeline):
     def define_graph(self):
         return self.op()
 
+
 @raises(RuntimeError, "exec_async*exec_pipelined*False")
 def test_wrong_pipeline():
     pipe = AsyncPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED)
     pipe.build()
+
 
 def test_output_layout():
     pipe = CommonPipeline(1, 1, 0, 999, images_dir)
@@ -536,11 +547,11 @@ def test_output_layout():
                                         num_outputs=2,
                                         output_layouts=['ABC', 'DE'])
         out3, out4 = fn.python_function(images,
-                                        function=lambda x: (x, x/2),
+                                        function=lambda x: (x, x / 2),
                                         num_outputs=2,
                                         output_layouts='FGH')
         out5, out6 = fn.python_function(images,
-                                        function=lambda x: (x, x/2),
+                                        function=lambda x: (x, x / 2),
                                         num_outputs=2,
                                         output_layouts=['IJK'])
 
@@ -553,6 +564,7 @@ def test_output_layout():
     assert(out4.layout() == 'FGH')
     assert(out5.layout() == 'IJK')
     assert(out6.layout() == '')
+
 
 @raises(RuntimeError, "*length of*output_layouts*greater than*")
 def test_invalid_layouts_arg():

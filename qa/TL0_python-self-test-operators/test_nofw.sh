@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose dataclasses numpy>=1.17 opencv-python pillow librosa==0.8.1 scipy nvidia-ml-py==11.450.51 numba"
+pip_packages='${python_test_runner_package} dataclasses numpy>=1.17 opencv-python pillow librosa==0.8.1 scipy nvidia-ml-py==11.450.51 numba'
 
 target_dir=./dali/test/python
 

@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy"
+pip_packages='${python_test_runner_package} numpy'
 target_dir=./dali/test/python
 
 # populate epilog and prolog with variants to enable/disable conda
@@ -9,7 +9,7 @@ prolog=(: enable_conda)
 epilog=(: disable_conda)
 
 test_body() {
-    nosetests --verbose test_plugin_manager.py
+    ${python_invoke_test} test_plugin_manager.py
 }
 
 pushd ../..

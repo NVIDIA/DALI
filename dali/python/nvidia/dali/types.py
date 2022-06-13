@@ -23,6 +23,7 @@ try:
 except ImportError:
     _tfrecord_support = False
 
+
 def _to_list(func):
     def _to_list_instance(val):
         if isinstance(val, (list, tuple)):
@@ -31,8 +32,10 @@ def _to_list(func):
             return [func(val)]
     return _to_list_instance
 
+
 def _not_implemented(val):
     raise NotImplementedError()
+
 
 _known_types = {
         DALIDataType.INT8 : ("int", int),
@@ -76,6 +79,7 @@ if _tfrecord_support:
     _known_types[DALIDataType._FEATURE_DICT] = ("dict of (string, nvidia.dali.tfrecord.Feature)",
             _not_implemented)
 
+
 def _type_name_convert_to_string(dtype, allow_tensors):
     if dtype in _known_types:
         type_name = _known_types[dtype][0]
@@ -88,15 +92,18 @@ def _type_name_convert_to_string(dtype, allow_tensors):
     else:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
 
+
 def _type_convert_value(dtype, val):
     if dtype not in _known_types:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
     return _known_types[dtype][1](val)
 
+
 def _vector_element_type(dtype):
     if dtype not in _vector_types:
         raise RuntimeError(str(dtype) + " is not a vector type.")
     return _vector_types[dtype]
+
 
 def _default_converter(dtype, default_value):
     if dtype in _enum_types:
@@ -104,8 +111,11 @@ def _default_converter(dtype, default_value):
     else:
         return repr(_type_convert_value(dtype, default_value))
 
+
 # avoid importing NumPy if to_numpy_type is not called to break strong NumPy dependency
 _numpy_types = None
+
+
 def to_numpy_type(dali_type):
     """
     Converts DALIDataType to NumPy type
@@ -135,6 +145,7 @@ def to_numpy_type(dali_type):
 
     return _numpy_types[dali_type]
 
+
 @unique
 class PipelineAPIType(Enum):
     """Pipeline API type
@@ -146,6 +157,7 @@ class PipelineAPIType(Enum):
 
 class CUDAStream:
     """Wrapper class for a CUDA stream."""
+
     def __init__(self, ptr=0):
         self._ptr = ptr
 
@@ -153,6 +165,7 @@ class CUDAStream:
     def ptr(self):
         """Raw CUDA stream pointer, stored as uint64."""
         return self._ptr
+
 
 _bool_types = [DALIDataType.BOOL]
 _int_types = [DALIDataType.INT8, DALIDataType.INT16, DALIDataType.INT32, DALIDataType.INT64,
@@ -189,6 +202,7 @@ value: bool or int or float
 dtype: DALIDataType, optional
     Target type of the constant to be used in types promotions.
     """
+
     def __init__(self, value, dtype=None):
         self.shape = []
         value_dtype = getattr(value, "dtype", None)  # handle 0D tensors and numpy scalars
@@ -303,18 +317,23 @@ dtype: DALIDataType, optional
     def __repr__(self):
         return "{}".format(self.value)
 
+
 def _is_scalar_shape(shape):
     return shape is None or shape == () or shape == [] or shape == 1 or \
            shape == [1] or shape == (1,)  # legacy pseudo-scalars
 
+
 def _is_true_scalar(value):
     return len(getattr(value, "shape", ())) == 0
+
 
 def _is_mxnet_array(value):
     return 'mxnet.ndarray.ndarray.NDArray' in str(type(value))
 
+
 def _is_torch_tensor(value):
     return 'torch.Tensor' in str(type(value))
+
 
 def _is_numpy_array(value):
     type_name = str(type(value))
@@ -322,6 +341,7 @@ def _is_numpy_array(value):
             'numpy.int' in type_name or \
             'numpy.uint' in type_name or \
             'numpy.float' in type_name
+
 
 def _raw_cuda_stream(stream_obj):
     if stream_obj is None:
@@ -332,6 +352,7 @@ def _raw_cuda_stream(stream_obj):
         return stream_obj.ptr
     else:
         return stream_obj
+
 
 def _get_default_stream_for_array(array):
     if isinstance(array, list) and len(array):
@@ -345,6 +366,7 @@ def _get_default_stream_for_array(array):
     else:
         return None
 
+
 def _get_device_id_for_array(array):
     if isinstance(array, list) and len(array):
         array = array[0]
@@ -357,10 +379,13 @@ def _get_device_id_for_array(array):
     else:
         return None
 
+
 _cupy_array_type_regex = re.compile('.*cupy\..*\.ndarray.*')
+
 
 def _is_cupy_array(value):
     return _cupy_array_type_regex.match(str(type(value)))
+
 
 # common type names used by numpy, torch and possibly
 _type_name_to_dali_type = {
@@ -395,6 +420,7 @@ _type_name_to_dali_type = {
 }
 
 dali_type_converters = []
+
 
 def to_dali_type(framework_type):
     t = str(framework_type)
@@ -494,10 +520,11 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         call_args["name"] = name
         del constructor_args["name"]
 
-    op = ops.Constant(device = device, fdata = fdata, idata = idata,
-                      shape = shape, dtype = dtype, layout = layout,
+    op = ops.Constant(device=device, fdata=fdata, idata=idata,
+                      shape=shape, dtype=dtype, layout=layout,
                       **constructor_args)
     return op(**call_args)
+
 
 def _is_scalar_value(value):
     if value is None:
@@ -506,7 +533,8 @@ def _is_scalar_value(value):
         return True
     return not _is_compatible_array_type(value) or _is_scalar_shape(value.shape)
 
-def Constant(value, dtype = None, shape = None, layout = None, device = None, **kwargs):
+
+def Constant(value, dtype=None, shape=None, layout=None, device=None, **kwargs):
     """Wraps a constant value which can then be used in
 :meth:`nvidia.dali.Pipeline.define_graph` pipeline definition step.
 
@@ -554,6 +582,7 @@ device: string, optional, "cpu" or "gpu"
     else:
         return ScalarConstant(value, dtype)
 
+
 class SampleInfo:
     """
     Describes the indices of a sample requested from :meth:`nvidia.dali.fn.external_source`
@@ -563,11 +592,13 @@ class SampleInfo:
     :ivar iteration:    number of current batch within epoch
     :ivar epoch_idx:    number of current epoch
     """
+
     def __init__(self, idx_in_epoch, idx_in_batch, iteration, epoch_idx):
         self.idx_in_epoch = idx_in_epoch
         self.idx_in_batch = idx_in_batch
         self.iteration = iteration
         self.epoch_idx = epoch_idx
+
 
 class BatchInfo:
     """
@@ -576,6 +607,7 @@ class BatchInfo:
     :ivar iteration:    number of current batch within epoch
     :ivar epoch_idx:    number of current epoch
     """
+
     def __init__(self, iteration, epoch_idx):
         self.iteration = iteration
         self.epoch_idx = epoch_idx

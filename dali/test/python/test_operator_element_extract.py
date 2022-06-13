@@ -30,7 +30,7 @@ def test_element_extract_operator():
 
     test_data = []
     for _ in range(batch_size):
-        test_data.append( np.array( np.random.rand(F, H, W, C) * 255, dtype = np.uint8 ) )
+        test_data.append( np.array( np.random.rand(F, H, W, C) * 255, dtype=np.uint8 ) )
 
     class ExternalInputIterator(object):
         def __init__(self, batch_size):
@@ -58,9 +58,9 @@ def test_element_extract_operator():
             # Extract first element in each sample
             self.element_extract_first = ops.ElementExtract(element_map=[0])
             # Extract last element in each sample
-            self.element_extract_last = ops.ElementExtract(element_map=[F-1])
+            self.element_extract_last = ops.ElementExtract(element_map=[F - 1])
             # Extract both first and last element in each sample to two separate outputs
-            self.element_extract_first_last = ops.ElementExtract(element_map=[0, F-1])
+            self.element_extract_first_last = ops.ElementExtract(element_map=[0, F - 1])
 
         def define_graph(self):
             self.sequences = self.inputs()
@@ -95,13 +95,14 @@ def test_element_extract_operator():
         np.testing.assert_array_equal( expected_first, out1 )
         np.testing.assert_array_equal( expected_first, out3 )
 
-        expected_last = test_data[i][F-1]
+        expected_last = test_data[i][F - 1]
         assert out2.shape == out4.shape
         np.testing.assert_array_equal( expected_last, out2 )
         np.testing.assert_array_equal( expected_last, out4 )
 
 
-batch_size=8
+batch_size = 8
+
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
 def element_extract_pipe(shape, layout, element_map, dev, dtype):
@@ -119,6 +120,7 @@ def element_extract_pipe(shape, layout, element_map, dev, dtype):
     result = (input,) + tuple(elements) if len(element_map) > 1 else (input, elements)
     return result
 
+
 def check_element_extract(shape, layout, element_map, dev, dtype=np.uint8):
     pipe = element_extract_pipe(shape, layout, element_map, dev, dtype)
     pipe.build()
@@ -133,6 +135,7 @@ def check_element_extract(shape, layout, element_map, dev, dtype=np.uint8):
                 obtained = to_array(elements[j][i])
                 np.testing.assert_array_equal(expected, obtained)
 
+
 def test_element_extract_layout():
     for shape, layout in [([4, 2, 2], "FHW"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]:
         for element_map in [[1, 3], [0], [2, 2], [0, 1, 2]]:
@@ -141,6 +144,7 @@ def test_element_extract_layout():
                     yield check_element_extract, shape, layout, element_map, device, dtype
     for device in ["cpu", "gpu"]:
         yield check_element_extract, [4, 3, 3], "FXY", [0, 1, 2, 3, 3, 2, 1, 0], device
+
 
 def test_raises():
     with assert_raises(RuntimeError,

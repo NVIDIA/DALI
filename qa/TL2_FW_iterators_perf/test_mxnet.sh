@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="mxnet"
+pip_packages='mxnet'
 target_dir=./dali/test/python
 one_config_only=true
 

@@ -104,6 +104,7 @@ class ShmChunkManager:
     def num_chunks(self):
         return len(self.chunks_ids)
 
+
 class CallbackContext:
     """Keeps track of tasks and partially received results for a given source.
     Contains source description, dedicated ShmChunkManager instance and
@@ -469,6 +470,7 @@ class ProcPool:
                     if proc.pid is not None:
                         proc.join()
             raise
+
 
 class Observer:
     """

@@ -20,6 +20,7 @@ import numpy as np
 from nvidia.dali.pipeline import Pipeline
 from nose_utils import assert_raises
 
+
 @dali.pipeline_def(batch_size=2, num_threads=3, device_id=0)
 def index_pipe(data_source, indexing_func):
     src = data_source
@@ -28,6 +29,7 @@ def index_pipe(data_source, indexing_func):
     gpu = indexing_func(src.gpu())
 
     return src, cpu, gpu
+
 
 def test_plain_indexing():
     data = [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
@@ -40,7 +42,8 @@ def test_plain_indexing():
         assert np.array_equal(x[1,1], cpu.at(i))
         assert np.array_equal(x[1,1], gpu.as_cpu().at(i))
 
-def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func = None):
+
+def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None):
     src = fn.external_source(data_gen, layout=input_layout)
     pipe = index_pipe(src, dali_index_func)
     pipe.build()
@@ -53,6 +56,7 @@ def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_i
         assert cpu.layout() == output_layout
         assert gpu.layout() == output_layout
 
+
 def test_constant_ranges():
     def data_gen():
         return [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
@@ -63,6 +67,7 @@ def test_constant_ranges():
     yield _test_indexing, data_gen, "AB", "B", lambda x: x[1,:-2], None
     yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1,-1], None
     yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1,0], None
+
 
 def test_swapped_ends():
     data = [np.uint8([1,2,3]),np.uint8([1,2])]
@@ -75,10 +80,12 @@ def test_swapped_ends():
         assert np.array_equal(x[2:1], cpu.at(i))
         assert np.array_equal(x[2:1], gpu.as_cpu().at(i))
 
+
 def test_noop():
     node = dali.types.Constant(np.float32([1,2,2]))
     indexed = node[:]
     assert "SubscriptDimCheck" in indexed.name
+
 
 def test_runtime_indexing():
     def data_gen():
@@ -102,6 +109,7 @@ def test_runtime_indexing():
             assert np.array_equal(ref, cpu.at(i))
             assert np.array_equal(ref, gpu.as_cpu().at(i))
 
+
 def test_new_axis():
     def data_gen():
         return [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
@@ -109,6 +117,7 @@ def test_new_axis():
     yield _test_indexing, data_gen, "AB", "CAB",    lambda x: x[dali.newaxis("C"),-1:,:-2], lambda x: x[np.newaxis,-1:,:-2]
     yield _test_indexing, data_gen, "AB", "ACB",    lambda x: x[:,dali.newaxis("C"),:],     lambda x: x[:,np.newaxis,:]
     yield _test_indexing, data_gen, "AB", "C",      lambda x: x[1,dali.newaxis("C"),1],     lambda x: x[1,np.newaxis,1]
+
 
 def _test_invalid_args(device, args, message, run):
     data = [np.uint8([[1,2,3]]),np.uint8([[1,2]])]
@@ -120,6 +129,7 @@ def _test_invalid_args(device, args, message, run):
         if run:
             pipe.run()
 
+
 def test_inconsistent_args():
     for device in ["cpu", "gpu"]:
         for args, message in [
@@ -127,6 +137,7 @@ def test_inconsistent_args():
                 ({ "at_0":0, "step_0":1 }, "cannot have a step")
             ]:
             yield _test_invalid_args, device, args, message, False
+
 
 def test_unsupported_step():
     for device in ["cpu", "gpu"]:
@@ -136,6 +147,7 @@ def test_unsupported_step():
             ]:
             yield _test_invalid_args, device, args, "not implemented", True
 
+
 def _test_out_of_range(device, idx):
     data = [np.uint8([1,2,3]),np.uint8([1,2])]
     src = fn.external_source(lambda: data, device=device)
@@ -143,6 +155,7 @@ def _test_out_of_range(device, idx):
     pipe.build()
     with assert_raises(RuntimeError, glob="out of range"):
         _ = pipe.run()
+
 
 def test_out_of_range():
     for device in ["cpu", "gpu"]:
@@ -184,12 +197,14 @@ def test_too_many_indices():
     for device in ["cpu", "gpu"]:
         yield _test_too_many_indices, device
 
+
 def test_stride_not_implemented():
     data = [np.uint8([1,2,3]),np.uint8([1,2])]
     src = fn.external_source(lambda: data)
     src[::1]
     with assert_raises(NotImplementedError):
         src[::2]
+
 
 def test_ellipsis_not_implemented():
     data = [np.uint8([1,2,3]),np.uint8([1,2])]

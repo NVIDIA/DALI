@@ -31,6 +31,7 @@ def converts(callback, sample, baseline):
 
 test_array = np.array([[42, 42], [42, 42]], dtype=np.uint8)
 
+
 def run_checks(samples_allowed, batches_allowed, samples_disallowed, batches_disallowed):
     for sample, baseline in samples_allowed:
         yield passes_assert, external_source_impl.assert_cpu_sample_data_type, sample
@@ -98,6 +99,7 @@ def test_pytorch_containers():
     ]
     yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
 
+
 @attr('mxnet')
 def test_mxnet_containers():
     import mxnet as mx
@@ -113,6 +115,7 @@ def test_mxnet_containers():
         mx.nd.array(test_array, ctx=mx.gpu(0))
     ]
     yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
+
 
 @attr('cupy')
 def test_cupy_containers():

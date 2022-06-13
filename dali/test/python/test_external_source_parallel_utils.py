@@ -100,6 +100,7 @@ def check_callback(parallel_pipe, pipe, epoch_size, batch_size, dtype=None):
     capture_processes(parallel_pipe._py_pool)
     compare_pipelines(parallel_pipe, pipe, batch_size, iters_no)
 
+
 @with_setup(setup_function, teardown_function)
 def _check_spawn_with_callback(callback, callback_ref, batch_size, num_outputs, layout, workers_num, epoch_size, dtype):
     pipe_parallel = create_pipe(
@@ -110,6 +111,7 @@ def _check_spawn_with_callback(callback, callback_ref, batch_size, num_outputs, 
         callback_ref, 'cpu', batch_size, parallel=False,
         num_outputs=num_outputs, layout=layout)
     check_callback(pipe_parallel, pipe, epoch_size, batch_size, dtype)
+
 
 def check_spawn_with_callback(
         callback_class, callback_ref_class=ExtCallback, num_outputs=None, layout=None,

@@ -18,6 +18,7 @@ import sys
 from . import _utils
 from ._utils import hacks
 
+
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
     # Fully circular imports don't work. We need to import _arithm_op late and
@@ -25,8 +26,9 @@ def _arithm_op(*args, **kwargs):
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
     return nvidia.dali.ops._arithm_op(*args, **kwargs)
 
+
 class _NewAxis:
-    def __init__(self, name = None):
+    def __init__(self, name=None):
         if name is not None:
             if not isinstance(name, str):
                 raise TypeError("Axis name must be a single-character string")
@@ -38,10 +40,12 @@ class _NewAxis:
     def name(self):
         return self._name
 
-    def __call__(self, name = None):
+    def __call__(self, name=None):
         return _NewAxis(name)
 
+
 newaxis = _NewAxis()
+
 
 class DataNode(object):
     """This class is a symbolic representation of a TensorList and is used at graph definition
@@ -52,6 +56,7 @@ class DataNode(object):
     arguments) but they also provide arithmetic operations which implicitly create appropriate
     operators that perform the expressions.
     """
+
     def __init__(self, name, device="cpu", source=None):
         self.name = name
         self.device = device
@@ -70,31 +75,37 @@ class DataNode(object):
 
     def __add__(self, other):
         return _arithm_op("add", self, other)
+
     def __radd__(self, other):
         return _arithm_op("add", other, self)
 
     def __sub__(self, other):
         return _arithm_op("sub", self, other)
+
     def __rsub__(self, other):
         return _arithm_op("sub", other, self)
 
     def __mul__(self, other):
         return _arithm_op("mul", self, other)
+
     def __rmul__(self, other):
         return _arithm_op("mul", other, self)
 
     def __pow__(self, other):
         return _arithm_op("pow", self, other)
+
     def __rpow__(self, other):
         return _arithm_op("pow", other, self)
 
     def __truediv__(self, other):
         return _arithm_op("fdiv", self, other)
+
     def __rtruediv__(self, other):
         return _arithm_op("fdiv", other, self)
 
     def __floordiv__(self, other):
         return _arithm_op("div", self, other)
+
     def __rfloordiv__(self, other):
         return _arithm_op("div", other, self)
 
@@ -125,16 +136,19 @@ class DataNode(object):
 
     def __and__(self, other):
         return _arithm_op("bitand", self, other)
+
     def __rand__(self, other):
         return _arithm_op("bitand", other, self)
 
     def __or__(self, other):
         return _arithm_op("bitor", self, other)
+
     def __ror__(self, other):
         return _arithm_op("bitor", other, self)
 
     def __xor__(self, other):
         return _arithm_op("bitxor", self, other)
+
     def __rxor__(self, other):
         return _arithm_op("bitxor", other, self)
 
@@ -190,10 +204,10 @@ class DataNode(object):
 
         slice_args = {}
         for i, (at, lo, hi, step) in enumerate(idxs):
-            if at   is not None: slice_args["at_%i"%i] = at
-            if lo   is not None: slice_args["lo_%i"%i] = lo
-            if hi   is not None: slice_args["hi_%i"%i] = hi
-            if step is not None: slice_args["step_%i"%i] = step
+            if at   is not None: slice_args["at_%i" % i] = at
+            if lo   is not None: slice_args["lo_%i" % i] = lo
+            if hi   is not None: slice_args["hi_%i" % i] = hi
+            if step is not None: slice_args["step_%i" % i] = step
 
         import nvidia.dali.fn
         if len(slice_args) == 0:
@@ -213,7 +227,9 @@ class DataNode(object):
         else:
             return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
 
+
 _utils.hacks.not_iterable(DataNode)
+
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):

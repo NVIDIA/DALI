@@ -15,6 +15,7 @@
 from nvidia.dali import backend as b
 from nvidia.dali import ops as ops
 
+
 def load_library(library_path : str, global_symbols : bool = False):
     """Loads a DALI plugin, containing one or more operators.
 

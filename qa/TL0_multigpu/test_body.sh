@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-test_nose() {
+test_py_with_framework() {
   # placeholder function
   :
 }
@@ -37,15 +37,15 @@ test_gtest() {
 }
 
 test_cupy() {
-    nosetests --verbose --attr 'multigpu' test_external_source_cupy.py
+    ${python_invoke_test} --attr 'multigpu' test_external_source_cupy.py
 }
 
 test_pytorch() {
-    nosetests --verbose --attr 'multigpu' test_external_source_pytorch_gpu.py
+    ${python_invoke_test} --attr 'multigpu' test_external_source_pytorch_gpu.py
 }
 
 test_no_fw() {
-    test_nose
+    test_py_with_framework
     test_py
     test_gtest
 }

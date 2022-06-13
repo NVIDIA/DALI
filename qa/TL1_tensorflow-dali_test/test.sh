@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages="horovod==0.23.0"
+pip_packages='horovod==0.23.0'
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {

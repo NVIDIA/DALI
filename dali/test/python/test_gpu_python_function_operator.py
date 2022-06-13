@@ -80,7 +80,7 @@ square_diff_kernel = cupy.ElementwiseKernel(
 
 
 def square_diff(in1, in2):
-    return in1*in1 - in2*in2
+    return in1 * in1 - in2 * in2
 
 
 def test_cupy_kernel():

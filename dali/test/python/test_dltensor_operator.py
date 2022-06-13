@@ -12,28 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy
 import nvidia.dali.ops as ops
-from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import os
 import random
-import numpy
 from functools import partial
+from nvidia.dali.pipeline import Pipeline
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 
+
 def setup_pytorch():
     global torch_dlpack
     global torch
-    import torch.utils.dlpack as torch_dlpack
     import torch as torch
     global torch_stream
     torch_stream = torch.cuda.Stream()
 
+
 def setup_mxnet():
     global mxnd
-    from mxnet import ndarray as mxnd
+
 
 def setup_cupy():
     global cupy
@@ -71,6 +72,7 @@ def setup_cupy():
     }
     ''', 'gray_scale')
 
+
 def random_seed():
     return int(random.random() * (1 << 32))
 
@@ -84,8 +86,8 @@ NUM_WORKERS = 6
 
 class CommonPipeline(Pipeline):
     def __init__(self, device):
-        super(CommonPipeline, self).__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED,
-                                             exec_async=False, exec_pipelined=False)
+        super().__init__(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, seed=SEED,
+                         exec_async=False, exec_pipelined=False)
         self.input = ops.readers.File(file_root=images_dir)
         self.decode = ops.decoders.Image(device='mixed' if device == 'gpu' else 'cpu',
                                          output_type=types.RGB)
@@ -100,7 +102,7 @@ class CommonPipeline(Pipeline):
 
 class LoadingPipeline(CommonPipeline):
     def __init__(self, device):
-        super(LoadingPipeline, self).__init__(device)
+        super().__init__(device)
 
     def define_graph(self):
         im = self.load()
@@ -212,8 +214,6 @@ def mxnet_case(fun, device):
     common_case(mxnet_wrapper(fun), device, partial(mxnet_compare, fun))
 
 
-
-
 def mxnet_flatten(in1, in2):
     return [mxnd.flatten(t) for t in in1], [mxnd.flatten(t) for t in in2]
 
@@ -230,7 +230,6 @@ def test_mxnet():
     for testcase in [mxnet_flatten, mxnet_slice, mxnet_cast]:
         for device in ['cpu', 'gpu']:
             yield mxnet_case, testcase, device
-
 
 
 def cupy_adapter_sync(fun, in1, in2):
@@ -277,8 +276,8 @@ def cupy_case(fun, synchronize=True):
 def cupy_simple(in1, in2):
     fin1 = [arr.astype(cupy.float32) for arr in in1]
     fin2 = [arr.astype(cupy.float32) for arr in in2]
-    return [cupy.sin(fin1[i]*fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)], \
-           [cupy.cos(fin1[i]*fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)]
+    return [cupy.sin(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)], \
+           [cupy.cos(fin1[i] * fin2[i]).astype(cupy.float32) for i in range(BATCH_SIZE)]
 
 
 def gray_scale_call(input):
@@ -312,7 +311,7 @@ def cupy_kernel_gray_scale(in1, in2):
 def test_cupy():
     setup_cupy()
     print(cupy)
-    for testcase in [cupy_simple,  cupy_kernel_square_diff, cupy_kernel_mix_channels]:
+    for testcase in [cupy_simple, cupy_kernel_square_diff, cupy_kernel_mix_channels]:
         yield cupy_case, testcase
 
 

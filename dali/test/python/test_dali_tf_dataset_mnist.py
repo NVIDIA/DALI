@@ -87,9 +87,9 @@ def get_dataset_multi_gpu(strategy):
             return get_dataset('gpu', device_id, device_id, num_available_gpus())
 
     input_options = tf.distribute.InputOptions(
-        experimental_place_dataset_on_device = True,
-        experimental_fetch_to_device = False,
-        experimental_replication_mode = tf.distribute.InputReplicationMode.PER_REPLICA)
+        experimental_place_dataset_on_device=True,
+        experimental_fetch_to_device=False,
+        experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA)
 
     train_dataset = strategy.distribute_datasets_from_function(dataset_fn, input_options)
     return train_dataset

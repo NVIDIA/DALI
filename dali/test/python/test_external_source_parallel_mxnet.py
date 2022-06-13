@@ -23,6 +23,7 @@ from nose_utils import raises
 from test_pool_utils import *
 from test_external_source_parallel_utils import *
 
+
 class ExtCallbackMX(ExtCallback):
     def __call__(self, sample_info):
         a = super().__call__(sample_info)

@@ -25,11 +25,12 @@ from nose.tools import raises
 
 from scipy.spatial.transform import Rotation as scipy_rotate
 
+
 def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
     ndim = mat_ref.shape[0] - 1
     ref_T1 = None
     if T0 is not None:
-        mat_T0 = np.identity(ndim+1)
+        mat_T0 = np.identity(ndim + 1)
         mat_T0[:ndim, :] = T0
         if reverse:
             mat_T1 = np.dot(mat_T0, mat_ref)
@@ -40,9 +41,11 @@ def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
         ref_T1 = mat_ref[:ndim, :]
     assert np.allclose(T1, ref_T1, atol=1e-6)
 
+
 def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, atol=1e-6):
     for idx in range(batch_size):
         check_results_sample(T1.at(idx), mat_ref, T0.at(idx) if T0 is not None else None, reverse, atol)
+
 
 def translate_affine_mat(offset):
     ndim = len(offset)
@@ -50,12 +53,13 @@ def translate_affine_mat(offset):
     affine_mat[:ndim, -1] = offset
     return affine_mat
 
-def check_transform_translation_op(offset, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+
+def check_transform_translation_op(offset, has_input=False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     ndim = len(offset)
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=1234)
     with pipe:
         if has_input:
-            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1))
             T1 = fn.transforms.translation(T0, device='cpu', offset=offset, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -67,6 +71,7 @@ def check_transform_translation_op(offset, has_input = False, reverse_order=Fals
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
 
+
 def test_transform_translation_op(batch_size=3, num_threads=4, device_id=0):
     for offset in [(0.0, 1.0), (2.0, 1.0, 3.0)]:
         for has_input in [False, True]:
@@ -74,7 +79,8 @@ def test_transform_translation_op(batch_size=3, num_threads=4, device_id=0):
                 yield check_transform_translation_op, offset, has_input, reverse_order, \
                                                       batch_size, num_threads, device_id
 
-def scale_affine_mat(scale, center = None, ndim = None):
+
+def scale_affine_mat(scale, center=None, ndim=None):
     if ndim is None:
         ndim = len(scale)
     else:
@@ -95,15 +101,16 @@ def scale_affine_mat(scale, center = None, ndim = None):
 
     return affine_mat
 
-def check_transform_scale_op(scale, center=None, has_input = False, reverse_order=False, ndim=None, batch_size=1, num_threads=4, device_id=0):
+
+def check_transform_scale_op(scale, center=None, has_input=False, reverse_order=False, ndim=None, batch_size=1, num_threads=4, device_id=0):
     if ndim is None:
         ndim = len(scale)
     assert center is None or len(center) == ndim
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=1234)
     with pipe:
         if has_input:
-            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1))
             T1 = fn.transforms.scale(T0, device='cpu', scale=scale, center=center, ndim=ndim, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -115,6 +122,7 @@ def check_transform_scale_op(scale, center=None, has_input = False, reverse_orde
     T0 = outs[1] if has_input else None
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
 
+
 def test_transform_scale_op(batch_size=3, num_threads=4, device_id=0):
     for scale, center, ndim in [((0.0, 1.0), None, None),
                                 ((2.0, 1.0, 3.0), None, None),
@@ -125,7 +133,8 @@ def test_transform_scale_op(batch_size=3, num_threads=4, device_id=0):
                 yield check_transform_scale_op, scale, center, has_input, reverse_order, \
                                                 ndim, batch_size, num_threads, device_id,
 
-def rotate_affine_mat(angle, axis = None, center = None):
+
+def rotate_affine_mat(angle, axis=None, center=None):
     assert axis is None or len(axis) == 3
     ndim = 3 if axis is not None else 2
     assert center is None or len(center) == ndim
@@ -152,7 +161,8 @@ def rotate_affine_mat(angle, axis = None, center = None):
 
     return affine_mat
 
-def check_transform_rotation_op(angle=None, axis=None, center=None, has_input = False,
+
+def check_transform_rotation_op(angle=None, axis=None, center=None, has_input=False,
                                 reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     assert axis is None or len(axis) == 3
     ndim = 3 if axis is not None else 2
@@ -166,7 +176,7 @@ def check_transform_rotation_op(angle=None, axis=None, center=None, has_input = 
             angle = fn.random.uniform(range=(-90, 90))
 
         if has_input:
-            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1))
             T1 = fn.transforms.rotation(T0, device='cpu', angle=angle, axis=axis, center=center, reverse_order=reverse_order)
             outputs = [T1, T0]
         else:
@@ -194,6 +204,7 @@ def check_transform_rotation_op(angle=None, axis=None, center=None, has_input = 
         ref_mat = rotate_affine_mat(angle=angle, axis=axis, center=center)
         check_results_sample(outs[0].at(idx), ref_mat, T0, reverse_order, atol=1e-6)
 
+
 def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
     for angle, axis, center in [(None, None, None),
                                 (30.0, None, None),
@@ -207,7 +218,8 @@ def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
                 yield check_transform_rotation_op, angle, axis, center, has_input, reverse_order, \
                                                    batch_size, num_threads, device_id
 
-def shear_affine_mat(shear = None, angles = None, center = None):
+
+def shear_affine_mat(shear=None, angles=None, center=None):
     assert shear is not None or angles is not None
 
     if isinstance(shear, (list, tuple)):
@@ -245,7 +257,8 @@ def shear_affine_mat(shear = None, angles = None, center = None):
 
     return affine_mat
 
-def check_transform_shear_op(shear=None, angles=None, center=None, has_input = False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
+
+def check_transform_shear_op(shear=None, angles=None, center=None, has_input=False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
     assert shear is not None or angles is not None
     if shear is not None:
         assert len(shear) == 2 or len(shear) == 6
@@ -255,10 +268,10 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
         ndim = 3 if len(angles) == 6 else 2
     assert center is None or len(center) == ndim
 
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=1234)
     with pipe:
         if has_input:
-            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1))
             T1 = fn.transforms.shear(T0, device='cpu', shear=shear, angles=angles, center=center, reverse_order=reverse_order)
             pipe.set_outputs(T1, T0)
         else:
@@ -272,18 +285,18 @@ def check_transform_shear_op(shear=None, angles=None, center=None, has_input = F
 
 
 def check_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_input=False, reverse_order=False, batch_size=1, num_threads=4, device_id=0):
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=1234)
     with pipe:
-        inputs = [fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))] if has_input else []
+        inputs = [fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1))] if has_input else []
         params = []
         angles_arg = None
         shear_arg = None
         center_arg = None
         if use_angles:
-            angles_arg = fn.random.uniform(range=(-80,80), shape=[ndim, ndim-1])
+            angles_arg = fn.random.uniform(range=(-80,80), shape=[ndim, ndim - 1])
             params.append(angles_arg)
         else:
-            shear_arg = fn.random.uniform(range=(-2,2), shape=[ndim, ndim-1])
+            shear_arg = fn.random.uniform(range=(-2,2), shape=[ndim, ndim - 1])
             params.append(shear_arg)
         if use_center:
             center_arg = fn.random.uniform(range=(-10,10), shape=[ndim])
@@ -311,6 +324,7 @@ def check_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_inpu
             inp = T0.at(idx) if T0 is not None else None
             check_results_sample(outs[0].at(idx), ref_mat, inp, reverse_order, atol=1e-6)
 
+
 def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
     for shear, angles, center in [((1., 2.), None, None),
                                   ((1., 2.), None, (0.4, 0.5)),
@@ -324,6 +338,7 @@ def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_transform_shear_op, shear, angles, center, has_input, reverse_order, \
                                                 batch_size, num_threads, device_id
+
 
 def test_transform_shear_op_runtime_args(batch_size=3, num_threads=4, device_id=0):
     for ndim in [2, 3]:
@@ -341,8 +356,10 @@ def get_ndim(from_start, from_end, to_start, to_end):
         assert sz == ndim or sz == 1
     return ndim
 
+
 def expand_dims(from_start, from_end, to_start, to_end):
     ndim = get_ndim(from_start, from_end, to_start, to_end)
+
     def expand(arg, ndim, default_arg):
         if arg is None:
             return [default_arg] * ndim
@@ -354,7 +371,7 @@ def expand_dims(from_start, from_end, to_start, to_end):
     return [expand(from_start, ndim, 0.), expand(from_end, ndim, 1.), expand(to_start, ndim, 0.), expand(to_end, ndim, 1.)]
 
 
-def crop_affine_mat(from_start, from_end, to_start, to_end, absolute = False):
+def crop_affine_mat(from_start, from_end, to_start, to_end, absolute=False):
     from_start, from_end, to_start, to_end = (np.array(x) for x in expand_dims(from_start, from_end, to_start, to_end))
     if absolute:
         from_start, from_end = np.minimum(from_start, from_end), np.maximum(from_start, from_end)
@@ -367,14 +384,15 @@ def crop_affine_mat(from_start, from_end, to_start, to_end, absolute = False):
     affine_mat = np.dot(T2, np.dot(S, T1))
     return affine_mat
 
-def check_transform_crop_op(from_start = None, from_end = None, to_start = None, to_end = None,
-                            absolute = False, has_input = False, reverse_order=False,
+
+def check_transform_crop_op(from_start=None, from_end=None, to_start=None, to_end=None,
+                            absolute=False, has_input=False, reverse_order=False,
                             batch_size=1, num_threads=4, device_id=0):
     ndim = get_ndim(from_start, from_end, to_start, to_end)
-    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed = 1234)
+    pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id, seed=1234)
     with pipe:
         if has_input:
-            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1))
+            T0 = fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1))
             T1 = fn.transforms.crop(T0, device='cpu',
                                    from_start=from_start, from_end=from_end,
                                    to_start=to_start, to_end=to_end,
@@ -405,6 +423,7 @@ def check_transform_crop_op(from_start = None, from_end = None, to_start = None,
             assert np.allclose(np.dot(M, from_start) + T, to_start, atol=1e-6)
             assert np.allclose(np.dot(M, from_end) + T, to_end, atol=1e-6)
 
+
 def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
     for from_start, from_end, to_start, to_end in \
         [(None, None, None, None),
@@ -414,7 +433,7 @@ def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
          (None, (0.4, 0.9), None, None),
          ((0.1, 0.2, 0.3), (1., 1.2, 1.3), (0.3, 0.2, 0.1), (0.5, 0.6, 0.7)),
          ((0.1, 0.2, 0.3), (1., 1.2, 1.3), None, None)]:
-       for has_input in [False, True]:
+        for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
                 yield check_transform_crop_op, from_start, from_end, to_start, to_end, \
                                                False, has_input, reverse_order, \
@@ -425,11 +444,12 @@ def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
                                                    absolute, has_input, reverse_order, \
                                                    batch_size, num_threads, device_id
 
-def check_combine_transforms(num_transforms = 2, ndim = 2, reverse_order = False,
+
+def check_combine_transforms(num_transforms=2, ndim=2, reverse_order=False,
                              batch_size=1, num_threads=4, device_id=0):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     with pipe:
-        transforms = [fn.random.uniform(range=(-1, 1), shape=(ndim, ndim+1), seed = 1234) for _ in range(num_transforms)]
+        transforms = [fn.random.uniform(range=(-1, 1), shape=(ndim, ndim + 1), seed=1234) for _ in range(num_transforms)]
         T = fn.transforms.combine(*transforms)
     pipe.set_outputs(T, *transforms)
     pipe.build()
@@ -437,18 +457,19 @@ def check_combine_transforms(num_transforms = 2, ndim = 2, reverse_order = False
     for idx in range(batch_size):
         num_mats = len(outs) - 1
         assert num_mats >= 2
-        mats = [np.identity(ndim+1) for _ in range(num_mats)]
+        mats = [np.identity(ndim + 1) for _ in range(num_mats)]
         for in_idx in range(len(mats)):
             mats[in_idx][:ndim, :] = outs[1 + in_idx].at(idx)
 
         # by default we want to access them in opposite order
         if not reverse_order:
             mats.reverse()
-        ref_mat = np.identity(ndim+1)
+        ref_mat = np.identity(ndim + 1)
         for mat in mats:
             ref_mat = np.dot(mat, ref_mat)
 
         assert np.allclose(outs[0].at(idx), ref_mat[:ndim,:], atol=1e-6)
+
 
 def test_combine_transforms(batch_size=3, num_threads=4, device_id=0):
     for num_transforms in [2, 3, 10]:
@@ -456,6 +477,7 @@ def test_combine_transforms(batch_size=3, num_threads=4, device_id=0):
             for reverse_order in [False, True]:
                 yield check_combine_transforms, num_transforms, ndim, reverse_order, \
                                                 batch_size, num_threads, device_id
+
 
 def test_combine_transforms_correct_order(batch_size=3, num_threads=4, device_id=0):
     ndim = 2
@@ -473,6 +495,7 @@ def test_combine_transforms_correct_order(batch_size=3, num_threads=4, device_id
         assert np.allclose(outs[0].at(idx), outs[1].at(idx), atol=1e-6)
         assert np.allclose(outs[2].at(idx), outs[3].at(idx), atol=1e-6)
 
+
 def verify_deprecation(callback):
     with warnings.catch_warnings(record=True) as w:
         # Cause all warnings to always be triggered.
@@ -484,6 +507,7 @@ def verify_deprecation(callback):
         assert issubclass(w[-1].category, DeprecationWarning)
         assert "WARNING: `transform_translation` is now deprecated. Use `transforms.translation` instead." \
                 == str(w[-1].message)
+
 
 def test_transform_translation_deprecation():
     verify_deprecation(lambda : fn.transform_translation(offset=(0, 0)))

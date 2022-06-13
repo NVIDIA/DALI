@@ -1,21 +1,22 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy librosa==0.8.1 torch psutil"
+pip_packages='${python_test_runner_package} numpy librosa==0.8.1 torch psutil'
 target_dir=./dali/test/python
 
 test_body() {
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_pytorch_operator.py
-    nosetests --verbose -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_dltensor_operator.py
-    nosetests --verbose test_torch_pipeline_rnnt.py
-    nosetests --verbose test_external_source_pytorch_cpu.py
-    nosetests --verbose test_external_source_pytorch_gpu.py
-    nosetests --verbose test_external_source_pytorch_dlpack.py
-    nosetests --verbose test_external_source_parallel_pytorch.py
-    nosetests --verbose test_backend_impl_torch_dlpack.py
-    nosetests --verbose test_dali_fork_torch.py
-    nosetests --verbose --attr 'pytorch' test_external_source_impl_utils.py
-    nosetests --verbose --attr 'pytorch' test_pipeline_debug.py
-    nosetests --verbose --attr 'pytorch' test_functional_api.py
+    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_pytorch_operator.py
+    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_dltensor_operator.py
+    ${python_invoke_test} test_torch_pipeline_rnnt.py
+    ${python_invoke_test} test_external_source_pytorch_cpu.py
+    ${python_invoke_test} test_external_source_pytorch_gpu.py
+    ${python_invoke_test} test_external_source_pytorch_dlpack.py
+    ${python_invoke_test} test_external_source_parallel_pytorch.py
+    ${python_invoke_test} test_backend_impl_torch_dlpack.py
+    ${python_invoke_test} test_dali_fork_torch.py
+    ${python_invoke_test} test_copy_to_external_torch.py
+    ${python_invoke_test} --attr 'pytorch' test_external_source_impl_utils.py
+    ${python_invoke_test} --attr 'pytorch' test_pipeline_debug.py
+    ${python_invoke_test} --attr 'pytorch' test_functional_api.py
 }
 
 pushd ../..

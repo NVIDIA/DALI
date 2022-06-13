@@ -27,6 +27,7 @@ from test_utils import get_dali_extra_path
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
+
 class WaterPipeline(Pipeline):
     def __init__(self, device, batch_size, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y,
                  num_threads=3, device_id=0, num_gpus=1, dtype=types.UINT8, prime_size=False,
@@ -36,11 +37,11 @@ class WaterPipeline(Pipeline):
         self.dtype = dtype
         self.prime_size = prime_size
         self.do_mask = do_mask
-        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
-        self.water = ops.Water(device = self.device, ampl_x=ampl_x, ampl_y=ampl_y,
+        self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
+        self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
+        self.water = ops.Water(device=self.device, ampl_x=ampl_x, ampl_y=ampl_y,
                                phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y,
-                               interp_type = dali.types.INTERP_LINEAR)
+                               interp_type=dali.types.INTERP_LINEAR)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -55,10 +56,11 @@ class WaterPipeline(Pipeline):
         images = self.water(images, mask=mask)
         return images
 
+
 def python_water(img, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y):
-    nh,nw=img.shape[:2]
-    img_x=np.zeros((nh,nw),np.float32)
-    img_y=np.zeros((nh,nw),np.float32)
+    nh,nw = img.shape[:2]
+    img_x = np.zeros((nh,nw),np.float32)
+    img_y = np.zeros((nh,nw),np.float32)
     x_idx = np.arange(0, nw, 1, np.float32)
     y_idx = np.arange(0, nh, 1, np.float32)
     x_wave = ampl_y * np.cos(freq_y * x_idx + phase_y)
@@ -71,6 +73,7 @@ def python_water(img, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y):
 
     return cv2.remap(img, img_x, img_y, cv2.INTER_LINEAR)
 
+
 class WaterPythonPipeline(Pipeline):
     def __init__(self,  batch_size, function, num_threads=1, device_id=0, num_gpus=1,
                  dtype=types.UINT8, prime_size=False):
@@ -81,8 +84,8 @@ class WaterPythonPipeline(Pipeline):
                                            exec_pipelined=False)
         self.dtype = dtype
         self.prime_size = prime_size
-        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
+        self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
+        self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
 
         self.water = ops.PythonFunction(function=function, output_layouts="HWC")
 
@@ -97,13 +100,14 @@ class WaterPythonPipeline(Pipeline):
         images = self.water(images)
         return images
 
+
 def check_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask):
-    phase_y=0.5
-    phase_x=0.2
-    freq_x=0.06
-    freq_y=0.08
-    ampl_x=2.0
-    ampl_y=3.0
+    phase_y = 0.5
+    phase_x = 0.2
+    freq_x = 0.06
+    freq_y = 0.08
+    ampl_x = 2.0
+    ampl_y = 3.0
     compare_pipelines(WaterPipeline('cpu', batch_size, ampl_x=ampl_x, ampl_y=ampl_y,
                                     phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y,
                                     dtype=dtype, do_mask=do_mask),
@@ -112,6 +116,7 @@ def check_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask):
                                     dtype=dtype, do_mask=do_mask),
                       batch_size=batch_size, N_iterations=niter, eps=1)
 
+
 def test_water_cpu_vs_gpu():
     niter = 3
     for batch_size in [1, 3]:
@@ -119,13 +124,14 @@ def test_water_cpu_vs_gpu():
             for dtype in [types.UINT8, types.FLOAT]:
                 yield check_water_cpu_vs_gpu, batch_size, niter, dtype, do_mask
 
+
 def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
-    phase_y=0.5
-    phase_x=0.2
-    freq_x=0.06
-    freq_y=0.08
-    ampl_x=2.0
-    ampl_y=3.0
+    phase_y = 0.5
+    phase_x = 0.2
+    freq_x = 0.06
+    freq_y = 0.08
+    ampl_x = 2.0
+    ampl_y = 3.0
     python_func = lambda img: python_water(img, phase_y, phase_x, freq_x, freq_y, ampl_x, ampl_y)
     compare_pipelines(WaterPipeline(device, batch_size, ampl_x=ampl_x, ampl_y=ampl_y,
                                     phase_x=phase_x, phase_y=phase_y, freq_x=freq_x, freq_y=freq_y,
@@ -133,6 +139,7 @@ def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
                       WaterPythonPipeline(batch_size, python_func, dtype=dtype,
                                           prime_size=prime_size),
                       batch_size=batch_size, N_iterations=niter, eps=8)
+
 
 def test_water_vs_cv():
     niter = 3

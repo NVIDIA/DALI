@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="pillow jupyter numpy matplotlib torch torchvision webdataset pyyaml"
+pip_packages='pillow jupyter numpy matplotlib torch torchvision webdataset pyyaml'
 target_dir=./docs/examples
 
 # populate epilog and prolog with variants to enable/disable conda

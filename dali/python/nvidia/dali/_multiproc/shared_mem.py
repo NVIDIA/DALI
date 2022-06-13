@@ -15,6 +15,7 @@
 import os
 from nvidia.dali import backend as _b
 
+
 class SharedMem:
     """SharedMem allows you to allocate and access shared memory.
     Provides memory view of the allocated memory via buf property.

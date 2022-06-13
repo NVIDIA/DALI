@@ -135,6 +135,7 @@ def get_batch_size(batch):
         else:
             return batch.shape[0]
 
+
 def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ['cpu', 'gpu'], **pipeline_fn_args):
     """
     Verifies, if given pipeline supports iter-to-iter variable batch size
@@ -224,6 +225,7 @@ def image_data_helper(operator_fn, opfn_args={}):
                    pipeline_fn=single_op_pipeline, input_layout="HWC", operator_fn=operator_fn,
                    **opfn_args)
 
+
 def float_array_helper(operator_fn, opfn_args={}):
     check_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=single_op_pipeline,
                    operator_fn=operator_fn, **opfn_args)
@@ -269,6 +271,7 @@ ops_image_default_args = [
     fn.stack,
     fn.water,
 ]
+
 
 def test_ops_image_default_args():
     for op in ops_image_default_args:
@@ -319,6 +322,7 @@ ops_image_custom_args = [
     (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]})
 ]
 
+
 def test_ops_image_custom_args():
     for op, args in ops_image_custom_args:
         yield image_data_helper, op, args
@@ -331,6 +335,7 @@ float_array_ops = [
     (fn.to_decibels, {}),
     (fn.experimental.audio_resample, {'devices': ['cpu'], 'scale' : 1.2}),
 ]
+
 
 def test_float_array_ops():
     for op, args in float_array_ops:
@@ -348,9 +353,11 @@ random_ops = [
                           'roi_shape': [40, 30, 3]})
 ]
 
+
 def test_random_ops():
     for op, args in random_ops:
         yield random_op_helper, op, args
+
 
 sequence_ops = [
     (fn.cast, {'dtype': types.INT32}),
@@ -473,6 +480,7 @@ def test_combine_transforms():
 @attr('pytorch')
 def test_dl_tensor_python_function():
     import torch.utils.dlpack as torch_dlpack
+
     def dl_tensor_operation(tensor):
         tensor = torch_dlpack.from_dlpack(tensor)
         tensor_n = tensor.double() / 255
@@ -498,6 +506,7 @@ def test_dl_tensor_python_function():
     check_pipeline(generate_data(31, 13, image_like_shape_generator, lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=pipe, devices=['cpu'])
 
+
 def test_random_object_bbox():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -521,6 +530,7 @@ def test_random_object_bbox():
                 [0, 2, 2, 1]])
     ]
     run_pipeline(get_data, pipeline_fn=pipe, devices=['cpu'])
+
 
 def test_math_ops():
     def pipe(max_batch_size, input_data, device):
@@ -879,6 +889,7 @@ def test_audio_decoders():
     yield test_decoders_check, audio_decoder_pipe, \
           os.path.join(test_utils.get_dali_extra_path(), 'db', 'audio'), '.wav'
 
+
 def test_image_decoders():
     def image_decoder_pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -952,6 +963,7 @@ def test_python_function():
 
     check_pipeline(generate_data(31, 13, image_like_shape_generator), pipe, devices=['cpu'])
 
+
 def test_reinterpret():
     def pipe(max_batch_size, input_data, device, input_layout):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -966,13 +978,15 @@ def test_reinterpret():
     check_pipeline(generate_data(31, 13, (5, 160, 80, 3), lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=pipe, input_layout="FHWC")
 
+
 def test_segmentation_select_masks():
     def get_data_source(*args, **kwargs):
         return make_batch_select_masks(*args, **kwargs)
+
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=None, seed=1234)
         with pipe:
-            polygons, vertices, selected_masks=fn.external_source(
+            polygons, vertices, selected_masks = fn.external_source(
                 num_outputs=3, device=device, source=input_data
             )
             out_polygons, out_vertices = fn.segmentation.select_masks(
@@ -1002,6 +1016,7 @@ def test_optical_flow():
     input_data = [[load_frames() for _ in range(bs)] for bs in bach_sizes]
     check_pipeline(input_data, pipeline_fn=pipe, devices=["gpu"], input_layout="FHWC")
 
+
 def test_tensor_subscript():
     def pipe(max_batch_size, input_data, device, input_layout):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -1015,6 +1030,7 @@ def test_tensor_subscript():
                    pipeline_fn=pipe, input_layout="HWC")
     check_pipeline(generate_data(31, 13, (5, 160, 80, 3), lo=0, hi=255, dtype=np.uint8),
                    pipeline_fn=pipe, input_layout="FHWC")
+
 
 def test_subscript_dim_check():
     check_pipeline(generate_data(31, 13, array_1d_shape_generator, lo=0, hi=255, dtype=np.uint8),
@@ -1203,9 +1219,10 @@ excluded_methods = [
     "experimental.readers.video",    # readers do not support variable batch size yet
 ]
 
+
 def test_coverage():
     methods = module_functions(fn, remove_prefix="nvidia.dali.fn")
-    methods += module_functions(dmath, remove_prefix = "nvidia.dali")
+    methods += module_functions(dmath, remove_prefix="nvidia.dali")
     exclude = "|".join(["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)" for x in excluded_methods])
     exclude = re.compile(exclude)
     methods = [x for x in methods if not exclude.match(x)]

@@ -15,7 +15,9 @@
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+
 from test_utils import check_batch, dali_type
+
 
 def make_param(kind, shape):
     if kind == "input":
@@ -29,12 +31,14 @@ def make_param(kind, shape):
     else:
         return None
 
-def clip(value, type = None):
+
+def clip(value, type=None):
     try:
         info = np.iinfo(type)
         return np.clip(value, info.min, info.max)
-    except:
+    except AttributeError:
         return value
+
 
 def make_data_batch(batch_size, in_dim, type):
     np.random.seed(1234)
@@ -48,16 +52,20 @@ def make_data_batch(batch_size, in_dim, type):
         hi = min(info.max / 2, 1000000)
 
     for i in range(batch_size):
-        batch.append((np.random.rand(np.random.randint(0, 10000), in_dim)*(hi-lo) + lo).astype(type))
+        batch.append(
+            (np.random.rand(np.random.randint(0, 10000), in_dim) * (hi - lo) + lo).astype(type))
     return batch
+
 
 def get_data_source(batch_size, in_dim, type):
     return lambda: make_data_batch(batch_size, in_dim, type)
 
+
 def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, T_kind):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
-        X = fn.external_source(source=get_data_source(batch_size, in_dim, in_dtype), device=device, layout = "NX")
+        X = fn.external_source(source=get_data_source(batch_size, in_dim, in_dtype), device=device,
+                               layout="NX")
         M = None
         T = None
         MT = None
@@ -67,12 +75,13 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
             M = make_param(M_kind, [out_dim, in_dim])
             T = make_param(T_kind, [out_dim])
 
-        Y = fn.coord_transform(X,
-                               MT = MT.flatten().tolist() if isinstance(MT, np.ndarray) else MT,
-                               M = M.flatten().tolist() if isinstance(M, np.ndarray) else M,
-                               T = T.flatten().tolist() if isinstance(T, np.ndarray) else T,
-                               dtype = dali_type(out_dtype)
-                               )
+        Y = fn.coord_transform(
+            X,
+            MT=MT.flatten().tolist() if isinstance(MT, np.ndarray) else MT,
+            M=M.flatten().tolist() if isinstance(M, np.ndarray) else M,
+            T=T.flatten().tolist() if isinstance(T, np.ndarray) else T,
+            dtype=dali_type(out_dtype)
+        )
         if M is None:
             M = 1
         if T is None:
@@ -80,7 +89,10 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
         if MT is None:
             MT = 0
 
-        M, T, MT = (x if isinstance(x, dali.data_node.DataNode) else dali.types.Constant(x, dtype=dali.types.FLOAT) for x in (M, T, MT))
+        M, T, MT = (
+            x if isinstance(x, dali.data_node.DataNode)
+            else dali.types.Constant(x, dtype=dali.types.FLOAT)
+            for x in (M, T, MT))
 
         pipe.set_outputs(X, Y, M, T, MT)
 
@@ -98,16 +110,16 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
                     M = MT
                     T = 0
                 else:
-                    M = MT[:,:-1]
-                    T = MT[:,-1]
+                    M = MT[:, :-1]
+                    T = MT[:, -1]
             else:
                 M = outputs[2].at(idx)
                 T = outputs[3].at(idx)
 
             if M.size == 1:
-               Y = X.astype(np.float32) * M + T
+                Y = X.astype(np.float32) * M + T
             else:
-               Y = np.matmul(X.astype(np.float32), M.transpose()) + T
+                Y = np.matmul(X.astype(np.float32), M.transpose()) + T
 
             if np.issubdtype(out_dtype, np.integer):
                 info = np.iinfo(out_dtype)
@@ -120,45 +132,52 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
         if out_dtype != np.float32:  # headroom for rounding
             avg += 0.33
             eps += 0.5
-        check_batch(outputs[1], ref, batch_size, eps, eps, expected_layout="NX", compare_layouts=True)
+        check_batch(outputs[1], ref, batch_size, eps, eps, expected_layout="NX")
 
 
 def test_all():
     for device in ["cpu", "gpu"]:
         for M_kind in [None, "vector", "scalar", "input", "scalar input"]:
             for T_kind in [None, "vector", "scalar", "input", "scalar input"]:
-                for batch_size in [1,3]:
-                    yield _run_test, device, batch_size, 3, 3, np.float32, np.float32, M_kind, T_kind
+                for batch_size in [1, 3]:
+                    yield _run_test, device, batch_size, 3, 3, np.float32, np.float32, M_kind, \
+                          T_kind
 
     for device in ["cpu", "gpu"]:
         for in_dtype in [np.uint8, np.uint16, np.int16, np.int32, np.float32]:
             for out_dtype in set([in_dtype, np.float32]):
-                for batch_size in [1,8]:
+                for batch_size in [1, 8]:
                     yield _run_test, device, batch_size, 3, 3, in_dtype, out_dtype, "input", "input"
 
     for device in ["cpu", "gpu"]:
         for M_kind in ["input", "vector", None]:
-            for in_dim in [1,2,3,4,5,6]:
-                out_dims = [1,2,3,4,5,6] if M_kind == "vector" or M_kind == "input" else [in_dim]
+            for in_dim in [1, 2, 3, 4, 5, 6]:
+                if M_kind == "vector" or M_kind == "input":
+                    out_dims = [1, 2, 3, 4, 5, 6]
+                else:
+                    out_dims = [in_dim]
                 for out_dim in out_dims:
-                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, M_kind, "vector"
+                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, M_kind, \
+                          "vector"
 
     for device in ["cpu", "gpu"]:
         for MT_kind in ["vector", "input", "scalar"]:
-            for in_dim in [1,2,3,4,5,6]:
-                out_dims = [1,2,3,4,5,6] if MT_kind == "vector" or MT_kind == "input" else [in_dim]
+            for in_dim in [1, 2, 3, 4, 5, 6]:
+                if MT_kind == "vector" or MT_kind == "input":
+                    out_dims = [1, 2, 3, 4, 5, 6]
+                else:
+                    out_dims = [in_dim]
                 for out_dim in out_dims:
-                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, "fused"
+                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, \
+                          "fused"
 
 
 def _test_empty_input(device):
     pipe = dali.pipeline.Pipeline(batch_size=2, num_threads=4, device_id=0, seed=1234)
     with pipe:
-        X = fn.external_source(source=[[np.zeros([0,3]), np.zeros([0, 3])]], device="cpu", layout="AB")
-        Y = fn.coord_transform(X,
-                               M = (1,2,3,4,5,6),
-                               T = (1,2)
-                               )
+        X = fn.external_source(source=[[np.zeros([0, 3]), np.zeros([0, 3])]], device="cpu",
+                               layout="AB")
+        Y = fn.coord_transform(X, M=(1, 2, 3, 4, 5, 6), T=(1, 2))
         pipe.set_outputs(Y)
     pipe.build()
     o = pipe.run()
@@ -166,6 +185,7 @@ def _test_empty_input(device):
     assert len(o[0]) == 2
     for i in range(len(o[0])):
         assert o[0].at(0).size == 0
+
 
 def test_empty_input():
     for device in ["cpu", "gpu"]:

@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose tensorflow-gpu"
+pip_packages='${python_test_runner_package} tensorflow-gpu'
 target_dir=./dali/test/python
 
 # reduce the lenght of the sanitizers tests as much as possible
@@ -19,21 +19,21 @@ test_body() {
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
 
     # No plugin installed, should fail
-    nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadFail
+    ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadFail
 
     # Installing "current" dali tf (built against installed TF)
     pip install ../../../nvidia-dali-tf-plugin*.tar.gz
-    nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
+    ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 
     # DALI TF run
-    nosetests --verbose test_dali_tf_plugin_run.py
+    ${python_invoke_test} test_dali_tf_plugin_run.py
 
     # DALI TF DATASET run
-    nosetests --verbose test_dali_tf_dataset.py
+    ${python_invoke_test} test_dali_tf_dataset.py
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-        nosetests --verbose test_dali_tf_dataset_shape.py
-        nosetests --verbose test_dali_tf_dataset_eager.py
-        nosetests --verbose test_dali_tf_dataset_graph.py
+        ${python_invoke_test} test_dali_tf_dataset_shape.py
+        ${python_invoke_test} test_dali_tf_dataset_eager.py
+        ${python_invoke_test} test_dali_tf_dataset_graph.py
     fi
 }
 

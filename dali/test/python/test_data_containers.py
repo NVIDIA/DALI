@@ -21,69 +21,75 @@ import argparse
 import os
 from test_utils import get_dali_extra_path
 
+
 class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
         super(CommonPipeline, self).__init__(batch_size, num_threads, device_id)
 
-        self.decode_gpu = ops.decoders.Image(device = "mixed", output_type = types.RGB)
-        self.decode_host = ops.decoders.Image(device = "cpu", output_type = types.RGB)
+        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
+        self.decode_host = ops.decoders.Image(device="cpu", output_type=types.RGB)
 
     def base_define_graph(self, inputs, labels):
         images_gpu = self.decode_gpu(inputs)
         images_host = self.decode_host(inputs)
         return (images_gpu, images_host, labels)
 
+
 class MXNetReaderPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(MXNetReaderPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.MXNet(path = data_paths[0], index_path=data_paths[1],
-                                       shard_id = device_id, num_shards = num_gpus,
+        self.input = ops.readers.MXNet(path=data_paths[0], index_path=data_paths[1],
+                                       shard_id=device_id, num_shards=num_gpus,
                                        dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
 
+
 class CaffeReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(CaffeReadPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.Caffe(path = data_paths[0], shard_id = device_id,
-                                       num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.Caffe(path=data_paths[0], shard_id=device_id,
+                                       num_shards=num_gpus, dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 class Caffe2ReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(Caffe2ReadPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.Caffe2(path = data_paths[0], shard_id = device_id,
-                                        num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.Caffe2(path=data_paths[0], shard_id=device_id,
+                                        num_shards=num_gpus, dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 class FileReadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(FileReadPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.File(file_root = data_paths[0], shard_id = device_id,
-                                      num_shards = num_gpus, dont_use_mmap=dont_use_mmap)
+        self.input = ops.readers.File(file_root=data_paths[0], shard_id=device_id,
+                                      num_shards=num_gpus, dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 class TFRecordPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(TFRecordPipeline, self).__init__(batch_size, num_threads, device_id)
         tfrecord = sorted(glob.glob(data_paths[0]))
         tfrecord_idx = sorted(glob.glob(data_paths[1]))
-        self.input = ops.readers.TFRecord(path = tfrecord,
-                                          index_path = tfrecord_idx,
-                                          shard_id = device_id,
-                                          num_shards = num_gpus,
-                                          features = {"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
+        self.input = ops.readers.TFRecord(path=tfrecord,
+                                          index_path=tfrecord_idx,
+                                          shard_id=device_id,
+                                          num_shards=num_gpus,
+                                          features={"image/encoded" : tfrec.FixedLenFeature((), tfrec.string, ""),
                                                       "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64,  -1)
                                           }, dont_use_mmap=dont_use_mmap)
 
@@ -93,16 +99,18 @@ class TFRecordPipeline(CommonPipeline):
         labels = inputs["image/class/label"]
         return self.base_define_graph(images, labels)
 
+
 class COCOReaderPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, dont_use_mmap):
         super(COCOReaderPipeline, self).__init__(batch_size, num_threads, device_id)
-        self.input = ops.readers.COCO(file_root = data_paths[0], annotations_file=data_paths[1],
-                                      shard_id = device_id, num_shards = num_gpus,
+        self.input = ops.readers.COCO(file_root=data_paths[0], annotations_file=data_paths[1],
+                                      shard_id=device_id, num_shards=num_gpus,
                                       dont_use_mmap=dont_use_mmap)
 
     def define_graph(self):
         images, bb, labels = self.input(name="Reader")
         return self.base_define_graph(images, labels)
+
 
 test_data = {
             FileReadPipeline: [["/data/imagenet/train-jpeg"],

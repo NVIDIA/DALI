@@ -8,8 +8,14 @@ set -x
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
 source $topdir/qa/setup_test_common.sh
 
+# Set runner for python tests
+python_test_runner_package="nose"
+python_test_runner="python -m nose"
+python_test_args="--verbose -s"
+python_invoke_test="${python_test_runner} ${python_test_args}"
+
 # Set proper CUDA version for packages, like MXNet, requiring it
-pip_packages=$(echo ${pip_packages} | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
+pip_packages=$(eval "echo \"${pip_packages}\"" | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
 install_pip_pkg() {

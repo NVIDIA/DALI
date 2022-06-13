@@ -33,21 +33,25 @@ from nvidia.dali.types import \
         ScalarConstant as _ScalarConstant, \
         Constant as _Constant
 
+
 cupy = None
 def _setup_cupy():
     global cupy
     if cupy is None:
         import cupy as cupy
 
+
 _cpu_ops = set({})
 _gpu_ops = set({})
 _mixed_ops = set({})
 
-def _numpydoc_formatter(name, type, doc, optional = False):
+
+def _numpydoc_formatter(name, type, doc, optional=False):
     indent = "\n" + " " * 4
     if optional:
         type += ", optional"
     return "`{}` : {}{}{}".format(name, type, indent, doc.replace("\n", indent))
+
 
 def _get_inputs_doc(schema):
     # Inputs section
@@ -140,8 +144,10 @@ def _get_kwargs(schema):
         ret += '\n'
     return ret
 
+
 def _schema_name(cls):
     return getattr(cls, 'schema_name', cls.__name__)
+
 
 def _docstring_generator_main(cls, api):
     """
@@ -156,7 +162,7 @@ def _docstring_generator_main(cls, api):
         use_instead = _op_name(schema.DeprecatedInFavorOf(), api)
         ret += ".. warning::\n\n   This operator is now deprecated"
         if use_instead:
-            ret +=". Use :meth:`" + use_instead + "` instead."
+            ret += ". Use :meth:`" + use_instead + "` instead."
         explanation = schema.DeprecationMessage()
         if explanation:
             indent = "\n" + " " * 3
@@ -206,6 +212,7 @@ Supported backends
     ret += "\n"
     return ret
 
+
 def _docstring_generator(cls):
     op_name = _schema_name(cls)
     schema = _b.GetSchema(op_name)
@@ -225,6 +232,7 @@ def _supported_layouts_str(supported_layouts):
         return ""
     return " (" + ", ".join(["\'" + str(layout) + "\'" for layout in supported_layouts]) + ")"
 
+
 def _docstring_prefix_from_inputs(op_name):
     """
         Generate start of the docstring for `__call__` of Operator `op_name`
@@ -240,6 +248,7 @@ def _docstring_prefix_from_inputs(op_name):
     # Args section
     ret += _get_inputs_doc(schema)
     return ret
+
 
 def _docstring_prefix_auto(op_name):
     """
@@ -277,7 +286,7 @@ def _docstring_generator_call(op_name):
     if schema.HasCallDox():
         ret = schema.GetCallDox()
     elif schema.HasInputDox():
-        ret =_docstring_prefix_from_inputs(op_name)
+        ret = _docstring_prefix_from_inputs(op_name)
     elif schema.CanUseAutoInputDox():
         ret = _docstring_prefix_auto(op_name)
     else:
@@ -294,6 +303,7 @@ Keyword Args
             ret += tensor_kwargs
     return ret
 
+
 def _docstring_generator_fn(cls):
     op_name = _schema_name(cls)
     schema = _b.GetSchema(op_name)
@@ -308,10 +318,12 @@ Keyword args
     ret += _get_kwargs(schema)
     return ret
 
+
 class _OpCounter(object):
     #pylint: disable=too-few-public-methods
     _lock = threading.Lock()
     _op_count = count(0)
+
     def __init__(self):
         with self._lock:
             self._id = next(self._op_count)
@@ -319,6 +331,7 @@ class _OpCounter(object):
     @property
     def id(self):
         return self._id
+
 
 def _instantiate_constant_node(device, constant):
     return _Constant(device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape)
@@ -336,6 +349,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
     """
     def is_arg_input_type(x):
         return isinstance(x, arg_input_type)
+
     def is_call_arg(name, value):
         if name == "device":
             return False
@@ -362,6 +376,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
 
     return init_args, call_args
 
+
 def _add_spec_args(schema, spec, kwargs):
     for key, value in kwargs.items():
         if value is None:
@@ -376,6 +391,7 @@ def _add_spec_args(schema, spec, kwargs):
                 continue
         converted_value = _type_convert_value(dtype, value)
         spec.AddArg(key, converted_value)
+
 
 class _OperatorInstance(object):
     def __init__(self, inputs, op, **kwargs):
@@ -449,7 +465,7 @@ class _OperatorInstance(object):
             msg = "WARNING: `{}` is now deprecated".format(_op_name(type(self._op).__name__, "fn"))
             use_instead = _op_name(self._op.schema.DeprecatedInFavorOf(), "fn")
             if use_instead:
-                msg +=". Use `" + use_instead + "` instead."
+                msg += ". Use `" + use_instead + "` instead."
             explanation = self._op.schema.DeprecationMessage()
             if explanation:
                 msg += "\n" + explanation
@@ -525,10 +541,12 @@ class _OperatorInstance(object):
     def append_output(self, output):
         self._outputs.append(output)
 
+
 class _DaliOperatorMeta(type):
     @property
     def __doc__(self):
         return _docstring_generator(self)
+
 
 def _check_arg_input(schema, op_name, name):
     if name == "name":
@@ -538,7 +556,7 @@ def _check_arg_input(schema, op_name, name):
             name, op_name, _type_name_convert_to_string(schema.GetArgumentType(name), False)))
 
 
-def python_op_factory(name, schema_name = None):
+def python_op_factory(name, schema_name=None):
     class Operator(metaclass=_DaliOperatorMeta):
         def __init__(self, *, device="cpu", **kwargs):
             schema_name = _schema_name(type(self))
@@ -730,6 +748,7 @@ def _process_op_name(op_schema_name, make_hidden=False):
         submodule = (*submodule, 'hidden')
     return op_full_name, submodule, op_name
 
+
 def _op_name(op_schema_name, api="fn"):
     full_name, submodule, op_name = _process_op_name(op_schema_name)
     if api == "fn":
@@ -740,8 +759,9 @@ def _op_name(op_schema_name, api="fn"):
         raise ValueError('{} is not a valid DALI api name, try one of {"fn", "ops"}'.format(api))
 
 
-def _wrap_op(op_class, submodule = [], parent_module=None):
+def _wrap_op(op_class, submodule=[], parent_module=None):
     return _functional._wrap_op(op_class, submodule, parent_module, _docstring_generator_fn(op_class))
+
 
 def _load_ops():
     global _cpu_ops
@@ -772,11 +792,13 @@ def _load_ops():
                 parent_module = _internal.get_submodule(ops_module, submodule[:-1])
                 setattr(parent_module, op_name, op_class)
 
+
 def Reload():
     _load_ops()
 
-# custom wrappers around ops
+
 class _TFRecordReaderImpl():
+    """ custom wrappers around ops """
 
     def __init__(self, path, index_path, features, **kwargs):
         if isinstance(path, list):
@@ -844,6 +866,7 @@ class _TFRecordReaderImpl():
         op_instance.spec.AddArg("feature_names", feature_names)
         op_instance.spec.AddArg("features", features)
         return outputs
+
 
 def _load_readers_tfrecord():
     _TFRecordReaderImpl.__call__.__doc__ = _docstring_generator_call("readers__TFRecord")
@@ -944,6 +967,7 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
+
 def _dlpack_to_array(dlpack):
     return nvidia.dali.python_function_plugin.DLTensorToArray(dlpack)
 
@@ -990,6 +1014,7 @@ class PythonFunction(PythonFunctionBase):
         arr_outs = function(*arrays)
         if arr_outs is None:
             return
+
         def convert_batch(batch):
             if isinstance(batch, list):
                 return [to_dlpack(x) for x in batch]
@@ -1074,6 +1099,7 @@ class DLTensorPythonFunction(PythonFunctionBase):
                                                      batch_processing=batch_processing,
                                                      **kwargs)
 
+
 _wrap_op(PythonFunction)
 _wrap_op(DLTensorPythonFunction)
 
@@ -1086,6 +1112,7 @@ def _choose_device(inputs):
         elif getattr(input, "device", None) == "gpu":
             return "gpu"
     return "cpu"
+
 
 def _preprocess_inputs(inputs, op_name, device, schema=None):
     if isinstance(inputs, tuple):
@@ -1118,6 +1145,7 @@ Attempt to convert it to a constant node failed."""
         inputs[idx] = inp
     return inputs
 
+
 def _is_boolean_like(input):
     if type(input) == bool:
         return True
@@ -1127,6 +1155,8 @@ def _is_boolean_like(input):
     return False
 
 # Boolean and integer types are considered integer-like
+
+
 def _is_integer_like(input):
     if _is_boolean_like(input):
         return True
@@ -1137,6 +1167,7 @@ def _is_integer_like(input):
             return True
     return False
 
+
 def _is_real_like(input):
     if type(input) == float:
         return True
@@ -1145,8 +1176,9 @@ def _is_real_like(input):
             return True
     return False
 
-# <type> description required by ArithmeticGenericOp
+
 def _to_type_desc(input):
+    """ <type> description required by ArithmeticGenericOp """
     if type(input) == bool:
         return "bool"
     if type(input) == int:
@@ -1204,9 +1236,12 @@ def _group_inputs(inputs):
         reals = None
     return (categories_idxs, edges, integers, reals)
 
-# Generate the list of <input> subexpression as specified
-# by grammar for ArithmeticGenericOp
+
 def _generate_input_desc(categories_idx, integers, reals):
+    """
+    Generate the list of <input> subexpression as specified
+    by grammar for ArithmeticGenericOp
+    """
     input_desc = ""
     for i, (category, idx) in enumerate(categories_idx):
         if category == "edge":
@@ -1219,16 +1254,19 @@ def _generate_input_desc(categories_idx, integers, reals):
             input_desc += " "
     return input_desc
 
-# Create arguments for ArithmeticGenericOp and call it with supplied inputs.
-# Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
+
 def _arithm_op(name, *inputs):
+    """
+    Create arguments for ArithmeticGenericOp and call it with supplied inputs.
+    Select the `gpu` device if at least one of the inputs is `gpu`, otherwise `cpu`.
+    """
     categories_idxs, edges, integers, reals = _group_inputs(inputs)
     input_desc = _generate_input_desc(categories_idxs, integers, reals)
     expression_desc = "{}({})".format(name, input_desc)
     dev = _choose_device(edges)
     # Create "instance" of operator
-    op = ArithmeticGenericOp(device = dev, expression_desc = expression_desc,
-                             integer_constants = integers, real_constants = reals)
+    op = ArithmeticGenericOp(device=dev, expression_desc=expression_desc,
+                             integer_constants=integers, real_constants=reals)
     # If we are on gpu, we must mark all inputs as gpu
     if dev == "gpu":
         dev_inputs = list(edge.gpu() for edge in edges)
@@ -1241,8 +1279,10 @@ def _arithm_op(name, *inputs):
 def cpu_ops():
     return _cpu_ops
 
+
 def gpu_ops():
     return _gpu_ops
+
 
 def mixed_ops():
     return _mixed_ops
@@ -1257,10 +1297,12 @@ def register_gpu_op(name):
     global _gpu_ops
     _gpu_ops = _gpu_ops.union({name})
 
+
 # This must go at the end - the purpose of these imports is to expose the operators in
 # nvidia.dali.ops module
 from nvidia.dali.external_source import ExternalSource
 ExternalSource.__module__ = __name__
+
 
 class _CompoundOp:
     def __init__(self, op_list):
@@ -1285,6 +1327,7 @@ class _CompoundOp:
                 inputs = [inputs]
 
         return inputs[0] if len(inputs) == 1 else inputs
+
 
 def Compose(op_list):
     """Returns a meta-operator that chains the operations in op_list.
@@ -1315,6 +1358,7 @@ example, ``Compose`` automatically arranges copying the data to GPU memory.
     This is an experimental feature, subject to change without notice.
 """
     return op_list[0] if len(op_list) == 1 else _CompoundOp(op_list)
+
 
 _cpu_ops = _cpu_ops.union({"Compose"})
 _gpu_ops = _gpu_ops.union({"Compose"})

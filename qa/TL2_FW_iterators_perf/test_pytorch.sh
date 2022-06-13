@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="pillow torchvision torch opencv-python"
+pip_packages='pillow torchvision torch opencv-python'
 target_dir=./dali/test/python
 one_config_only=true
 

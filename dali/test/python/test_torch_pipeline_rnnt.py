@@ -32,6 +32,8 @@ npy_files = [os.path.splitext(fpath)[0] + '.npy' for fpath in audio_files]
 npy_files_sr = 16000
 
 # From DeepLearningExamples
+
+
 def _convert_samples_to_float32(samples):
     """Convert sample type to float32.
     Audio sample type is usually integer or float-point.
@@ -47,6 +49,7 @@ def _convert_samples_to_float32(samples):
         raise TypeError("Unsupported sample type: %s." % samples.dtype)
     return float32_samples
 
+
 torch_windows = {
     'hann': torch.hann_window,
     'hamming': torch.hamming_window,
@@ -54,6 +57,7 @@ torch_windows = {
     'bartlett': torch.bartlett_window,
     'none': None,
 }
+
 
 def stack_subsample_frames(x, stacking=1, subsampling=1):
     """ Stacks frames together across feature dim, and then subsamples
@@ -69,6 +73,7 @@ def stack_subsample_frames(x, stacking=1, subsampling=1):
         seq.append(tmp)
     x = torch.cat(seq, dim=1)[:, :, ::subsampling]
     return x
+
 
 class FilterbankFeatures():
     def __init__(self, sample_rate=16000, window_size=0.02, window_stride=0.01, window="hann", normalize="per_feature",
@@ -166,15 +171,18 @@ class FilterbankFeatures():
         x = x.masked_fill(mask.unsqueeze(1).to(device=x.device), 0)
         return x.to(dtype)
 
+
 def dali_run(pipe, device):
     pipe.build()
     outs = pipe.run()
     return to_array(outs[0])[0]
 
+
 def win_args(sample_rate, window_size_sec, window_stride_sec):
     win_length = int(sample_rate * window_size_sec)  # frame size
     hop_length = int(sample_rate * window_stride_sec)
     return win_length, hop_length
+
 
 def torch_spectrogram(audio, sample_rate, device='cpu',
                       window_size=0.02, window_stride=0.01,
@@ -195,6 +203,7 @@ def torch_spectrogram(audio, sample_rate, device='cpu',
     spectrogram = spectrogram.cpu().numpy()
     return spectrogram
 
+
 def torch_mel_fbank(spectrogram, sample_rate, device='cpu',
                     nfilt=64, lowfreq=0, highfreq=None):
     spectrogram = torch.tensor(spectrogram, dtype=torch.float32)
@@ -209,6 +218,7 @@ def torch_mel_fbank(spectrogram, sample_rate, device='cpu',
     mel_spectrogram = mel_spectrogram.cpu().numpy()
     return mel_spectrogram
 
+
 def torch_log(x, device='cpu'):
     x = torch.tensor(x, dtype=torch.float32)
     if device == 'gpu':
@@ -217,6 +227,7 @@ def torch_log(x, device='cpu'):
     log_x = log_x.cpu().numpy()
     return log_x
 
+
 def torch_preemphasis(x, preemph, device='cpu'):
     x = torch.tensor(x, dtype=torch.float32)
     if device == 'gpu':
@@ -224,6 +235,7 @@ def torch_preemphasis(x, preemph, device='cpu'):
     y = torch.cat((x[0].unsqueeze(0), x[1:] - preemph * x[:-1]), dim=0)
     y = y.cpu().numpy()
     return y
+
 
 def torch_normalize(mel_spec, normalize_type, seq_len=None, device='cpu'):
     mel_spec = torch.tensor(mel_spec, dtype=torch.float32).unsqueeze(0)
@@ -236,6 +248,7 @@ def torch_normalize(mel_spec, normalize_type, seq_len=None, device='cpu'):
     out = out.cpu().numpy().squeeze(0)
     return out
 
+
 def torch_frame_splicing(mel_spec, stacking=1, subsampling=1, device='cpu'):
     mel_spec = torch.tensor(mel_spec, dtype=torch.float32).unsqueeze(0)
     if device == 'gpu':
@@ -243,6 +256,7 @@ def torch_frame_splicing(mel_spec, stacking=1, subsampling=1, device='cpu'):
     out = stack_subsample_frames(mel_spec, stacking=stacking, subsampling=subsampling)
     out = out.cpu().numpy().squeeze(0)
     return out
+
 
 def dali_frame_splicing_graph(x, nfeatures, x_len, stacking=1, subsampling=1):
     if stacking > 1:
@@ -260,6 +274,7 @@ def dali_frame_splicing_graph(x, nfeatures, x_len, stacking=1, subsampling=1):
         x = fn.reshape(x, rel_shape=[1, 1], layout="ft")
     return x
 
+
 def torch_reflect_pad(x, pad_amount, device='cpu'):
     x = torch.tensor(x, dtype=torch.float32).unsqueeze(0)
     if device == 'gpu':
@@ -269,6 +284,7 @@ def torch_reflect_pad(x, pad_amount, device='cpu'):
     ).squeeze(1)
     x = x.cpu().numpy().squeeze(0)
     return x
+
 
 def dali_reflect_pad_graph(x, x_len, pad_amount):
     def flip_1d(x):
@@ -280,10 +296,11 @@ def dali_reflect_pad_graph(x, x_len, pad_amount):
     pad_start = fn.slice(x, 1, pad_amount, axes=(0,))
     pad_start = flip_1d(pad_start)
 
-    pad_end = fn.slice(x, x_len-pad_amount-1, pad_amount, axes=(0,))
+    pad_end = fn.slice(x, x_len - pad_amount - 1, pad_amount, axes=(0,))
     pad_end = flip_1d(pad_end)
     x = fn.cat(pad_start, x, pad_end, axis=0)
     return x
+
 
 @pipeline_def(batch_size=1, device_id=0, num_threads=3)
 def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
@@ -307,7 +324,7 @@ def rnnt_train_pipe(files, sample_rate, pad_amount=0, preemph_coeff=.97,
 
     # Speed perturbation 0.85x - 1.15x
     if speed_perturb:
-        target_sr_factor = fn.random.uniform(device="cpu", range=(1/1.15, 1/0.85))
+        target_sr_factor = fn.random.uniform(device="cpu", range=(1 / 1.15, 1 / 0.85))
         audio = fn.experimental.audio_resample(audio, scale=target_sr_factor)
 
     # Silence trimming
@@ -370,6 +387,8 @@ nrecordings = len(recordings)
 # from DALI data pipeline. There are few modification of native data pipeline
 # comparing to the reference: random operations (i.e. dither and presampling
 # aka "speed perturbation") are turned off
+
+
 def _testimpl_rnnt_data_pipeline(device, pad_amount=0, preemph_coeff=.97, window_size=.02, window_stride=.01,
                                  window="hann", nfeatures=64, n_fft=512, frame_splicing_stack=1, frame_splicing_subsample=1,
                                  lowfreq=0.0, highfreq=None, normalize_type='per_feature', batch_size=32):
@@ -454,14 +473,14 @@ def _testimpl_rnnt_data_pipeline(device, pad_amount=0, preemph_coeff=.97, window
 
 
 def test_rnnt_data_pipeline():
-    preemph_coeff=.97
-    window_size=.02
-    window_stride=.01
-    window="hann"
-    nfeatures=64
-    n_fft=512
-    lowfreq=0.0
-    highfreq=None
+    preemph_coeff = .97
+    window_size = .02
+    window_stride = .01
+    window = "hann"
+    nfeatures = 64
+    n_fft = 512
+    lowfreq = 0.0
+    highfreq = None
     for device in ['cpu', 'gpu']:
         for frame_splicing_stack, frame_splicing_subsample in [(1, 1), (3, 2)]:
             for normalize_type in ['per_feature', 'all_features']:
@@ -469,6 +488,7 @@ def test_rnnt_data_pipeline():
                 yield _testimpl_rnnt_data_pipeline, device, \
                     pad_amount, preemph_coeff, window_size, window_stride, window, nfeatures, n_fft, \
                     frame_splicing_stack, frame_splicing_subsample, lowfreq, highfreq, normalize_type
+
 
 @nottest  # To be run manually to check perf
 def test_rnnt_data_pipeline_throughput(pad_amount=0, preemph_coeff=.97, window_size=.02, window_stride=.01,

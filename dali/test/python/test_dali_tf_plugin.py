@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,18 @@
 
 import unittest
 
+
 class TestDaliTfPluginLoadOk(unittest.TestCase):
     def test_import_dali_tf_ok(self):
-        import nvidia.dali.plugin.tf as dali_tf
+        import nvidia.dali.plugin.tf as dali_tf  # noqa: F401
         assert True
+
 
 class TestDaliTfPluginLoadFail(unittest.TestCase):
     def test_import_dali_tf_load_fail(self):
         with self.assertRaises(Exception):
-            import nvidia.dali.plugin.tf as dali_tf
+            import nvidia.dali.plugin.tf as dali_tf  # noqa: F401
+
 
 if __name__ == '__main__':
     unittest.main()

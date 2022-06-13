@@ -33,28 +33,32 @@ caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 c2lmdb_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb')
 c2lmdb_no_label_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb_no_label')
 
+
 class CaffeReaderPipeline(Pipeline):
     def __init__(self, path, batch_size, num_threads=1, device_id=0, num_gpus=1):
         super(CaffeReaderPipeline, self).__init__(batch_size,
                                            num_threads,
                                            device_id)
-        self.input = ops.readers.Caffe(path = path, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path=path, shard_id=device_id, num_shards=num_gpus)
 
-        self.decode = ops.decoders.ImageCrop(device = "cpu",
-                                             crop = (224, 224),
-                                             crop_pos_x = 0.3,
-                                             crop_pos_y = 0.2,
-                                             output_type = types.RGB)
+        self.decode = ops.decoders.ImageCrop(device="cpu",
+                                             crop=(224, 224),
+                                             crop_pos_x=0.3,
+                                             crop_pos_y=0.2,
+                                             output_type=types.RGB)
+
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
 
         images = self.decode(inputs)
         return images, labels
 
-# test: compare caffe_db_folder with [caffe_db_folder] and [caffe_db_folder, caffe_db_folder],
-# with different batch_size and num_threads
-def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, num_threads2):
 
+def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, num_threads2):
+    """
+    test: compare caffe_db_folder with [caffe_db_folder] and [caffe_db_folder, caffe_db_folder],
+    with different batch_size and num_threads
+    """
     pipe1 = CaffeReaderPipeline(caffe_db_folder, batch_size1, num_threads1)
     pipe1.build()
 
@@ -77,6 +81,7 @@ def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, nu
         assert_array_equal(image1, image2)
         assert_array_equal(label1, label2)
 
+
 def test_reader_path_vs_paths():
     for paths in [[caffe_db_folder], [caffe_db_folder, caffe_db_folder]]:
         for batch_size1 in {1}:
@@ -87,17 +92,20 @@ def test_reader_path_vs_paths():
                           batch_size1, batch_size2, num_threads1, num_threads2
 
 
-batch_size_alias_test=64
+batch_size_alias_test = 64
+
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def caffe_pipe(caffe_op, path):
-    data, label = caffe_op(path = path)
+    data, label = caffe_op(path=path)
     return data, label
+
 
 def test_caffe_reader_alias():
     new_pipe = caffe_pipe(fn.readers.caffe, caffe_db_folder)
     legacy_pipe = caffe_pipe(fn.caffe_reader, caffe_db_folder)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def caffe2_pipe(caffe2_op, path, label_type):
@@ -108,11 +116,13 @@ def caffe2_pipe(caffe2_op, path, label_type):
         data, label = caffe2_op(path=path, label_type=label_type)
         return data, label
 
+
 def check_caffe2(label_type):
     path = c2lmdb_no_label_db_folder if label_type == 4 else c2lmdb_db_folder
     new_pipe = caffe2_pipe(fn.readers.caffe2, path, label_type)
     legacy_pipe = caffe2_pipe(fn.caffe2_reader, path, label_type)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
 
 def test_caffe2_reader_alias():
     for label_type in [0, 4]:

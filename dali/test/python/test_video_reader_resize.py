@@ -12,17 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from functools import partial
-
+import gc
 import numpy as np
 import nvidia.dali as dali
-import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import test_utils
-from nvidia.dali.pipeline import Pipeline
-import gc
-
 
 video_directory = '/tmp/labelled_videos/'
 video_directory_multiple_resolutions = '/tmp/video_resolution/'
@@ -32,7 +25,6 @@ pipeline_params = {
     'device_id': 0,
     'seed': 0
 }
-
 
 video_reader_params = [{
     'device': 'gpu',
@@ -45,7 +37,6 @@ video_reader_params = [{
     'sequence_length': 8,
     'random_shuffle': False
 }]
-
 
 resize_params = [{
     'resize_x': 300,
@@ -85,12 +76,9 @@ resize_params = [{
 
 def video_reader_pipeline_base(
         video_reader, batch_size, video_reader_params, resize_params={}):
-    pipeline = dali.pipeline.Pipeline(
-        batch_size=batch_size, **pipeline_params)
-
+    pipeline = dali.pipeline.Pipeline(batch_size=batch_size, **pipeline_params)
     with pipeline:
-        outputs = video_reader(
-            **video_reader_params, **resize_params)
+        outputs = video_reader(**video_reader_params, **resize_params)
         if type(outputs) == list:
             outputs = outputs[0]
         pipeline.set_outputs(outputs)
@@ -100,13 +88,12 @@ def video_reader_pipeline_base(
 
 
 def video_reader_resize_pipeline(batch_size, video_reader_params, resize_params):
-    return video_reader_pipeline_base(
-        dali.fn.readers.video_resize, batch_size, video_reader_params, resize_params)
+    return video_reader_pipeline_base(dali.fn.readers.video_resize, batch_size, video_reader_params,
+                                      resize_params)
 
 
 def video_reader_pipeline(batch_size, video_reader_params):
-    return video_reader_pipeline_base(
-        dali.fn.readers.video, batch_size, video_reader_params)
+    return video_reader_pipeline_base(dali.fn.readers.video, batch_size, video_reader_params)
 
 
 def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
@@ -119,8 +106,7 @@ def ground_truth_pipeline(batch_size, video_reader_params, resize_params):
             for frame in range(video_reader_params['sequence_length']):
                 yield [np.expand_dims(sequences_out[sample][frame], 0)]
 
-    gt_pipeline = dali.pipeline.Pipeline(
-        batch_size=1, **pipeline_params)
+    gt_pipeline = dali.Pipeline(batch_size=1, **pipeline_params)
 
     with gt_pipeline:
         resized_frame = dali.fn.external_source(
@@ -148,18 +134,17 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
             if gt_frame.shape == frame.shape:
                 assert (gt_frame == frame).all(), "Images are not equal"
             else:
-                assert (gt_frame.shape == frame.shape), "Shapes are not equal: {} != {}".format(
-                            gt_frame.shape, frame.shape)
+                assert gt_frame.shape == frame.shape, \
+                    f"Shapes are not equal: {gt_frame.shape} != {frame.shape}"
+
 
 def run_for_params(batch_size, video_reader_params, resize_params):
-    pipeline = video_reader_resize_pipeline(
-        batch_size, video_reader_params, resize_params)
+    pipeline = video_reader_resize_pipeline(batch_size, video_reader_params, resize_params)
 
-    gt_pipeline = ground_truth_pipeline(
-        batch_size, video_reader_params, resize_params)
+    gt_pipeline = ground_truth_pipeline(batch_size, video_reader_params, resize_params)
 
-    compare_video_resize_pipelines(
-        pipeline, gt_pipeline, batch_size, video_reader_params['sequence_length'])
+    compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size,
+                                   video_reader_params['sequence_length'])
 
     # The intermediate pipeline from ground_truth_pipeline gets entangled in cell objects
     # and is not automatically destroyed. The pipeline outputs are kept alive,

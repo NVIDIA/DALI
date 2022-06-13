@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from nvidia.dali import pipeline_def, fn
-import os, glob
+import os
+import glob
 from test_utils import get_dali_extra_path
 
 test_data_root = os.path.join(get_dali_extra_path(), "db", "webdataset", "legacy_index_formats")

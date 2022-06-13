@@ -98,7 +98,7 @@ def lint(dali_root_dir, file_list, process_includes, n_subproc):
     n_subprocesses: how many subprocesses to use for linter processing
     Returns: 0 if lint passed, 1 otherwise
     """
-    if len(file_list)==0:
+    if len(file_list) == 0:
         return 0
     cmds = []
     diff = int(len(file_list) / n_subproc)
@@ -109,7 +109,8 @@ def lint(dali_root_dir, file_list, process_includes, n_subproc):
     cmds.append(gen_cmd(dali_root_dir=dali_root_dir,
                         file_list=file_list[(n_subproc - 1) * diff:],
                         process_includes=process_includes))
-    subprocesses = [subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for cmd in cmds]
+    subprocesses = [subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for cmd in
+                    cmds]
     success = True
     for subproc in subprocesses:
         stdout, stderr = subproc.communicate()
@@ -147,10 +148,12 @@ def main(dali_root_dir, n_subproc=1, file_list=None):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Run linter check for DALI files. "
-             "Gather all code-files (h, cuh, cc, cu, inc, inl) and perform linter check on them.")
+    parser = argparse.ArgumentParser(
+        description="Run linter check for DALI files. Gather all code-files "
+                    "(h, cuh, cc, cu, inc, inl, py) and perform linter check on them.")
     parser.add_argument('dali_root_path', type=str,
-                        help='Root path of DALI repository (pointed directory should contain `.git` folder)')
+                        help='Root path of DALI repository '
+                             '(pointed directory should contain `.git` folder)')
     parser.add_argument('--nproc', type=int, default=1,
                         help='Number of processes to spawn for linter verification')
     parser.add_argument('--file-list', nargs='*',

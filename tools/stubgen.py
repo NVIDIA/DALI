@@ -22,8 +22,8 @@
 # Usage:
 #     ./stubgen.py path/to/header.h > stub.c
 
-import sys
 import re
+import sys
 
 COPYRIGHT_NOTICE = """
 // Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
@@ -45,6 +45,7 @@ COPYRIGHT_NOTICE = """
 
 """
 
+
 def stubgen(header_filepath, out_file=sys.stdout):
     header_text = ""
     with open(header_filepath, "r") as file:
@@ -53,7 +54,7 @@ def stubgen(header_filepath, out_file=sys.stdout):
     print(COPYRIGHT_NOTICE, file=out_file)
     print("#include \"{}\"\n\n".format(header_filepath), file=out_file)
 
-    FUNCTION_DECL_PATTERN = "DLL_PUBLIC[\s]+(.*)[\s]+(.*)\(([^\)]*?)\);"
+    FUNCTION_DECL_PATTERN = r"DLL_PUBLIC[\s]+(.*)[\s]+(.*)\(([^\)]*?)\);"
     for entry in re.finditer(FUNCTION_DECL_PATTERN, header_text):
         ret_type = entry.group(1)
         func_name = entry.group(2)
@@ -63,8 +64,10 @@ def stubgen(header_filepath, out_file=sys.stdout):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='Produces an empty stub implementation of a C header')
-    parser.add_argument('header_filepath', metavar='header', type=str, help='Path to the header file')
+    parser = argparse.ArgumentParser(
+        description='Produces an empty stub implementation of a C header')
+    parser.add_argument('header_filepath', metavar='header', type=str,
+                        help='Path to the header file')
     parser.add_argument('--output', metavar='output', type=str, help='Path to the output file')
     args = parser.parse_args()
 

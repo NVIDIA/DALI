@@ -32,26 +32,27 @@ test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
 
+
 class CropPipeline(Pipeline):
-    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, crop_shape=(224, 224), crop_x = 0.3, crop_y = 0.2,
+    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, crop_shape=(224, 224), crop_x=0.3, crop_y=0.2,
                  is_fused_decoder=False,):
         super(CropPipeline, self).__init__(batch_size, num_threads, device_id)
         self.is_fused_decoder = is_fused_decoder
         self.device = device
-        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
+        self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
 
         if self.is_fused_decoder:
-            self.decode = ops.decoders.ImageCrop(device = "cpu",
-                                                 crop = crop_shape,
-                                                 crop_pos_x = crop_x,
-                                                 crop_pos_y = crop_y,
-                                                 output_type = types.RGB)
+            self.decode = ops.decoders.ImageCrop(device="cpu",
+                                                 crop=crop_shape,
+                                                 crop_pos_x=crop_x,
+                                                 crop_pos_y=crop_y,
+                                                 output_type=types.RGB)
         else:
-            self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
-            self.crop = ops.Crop(device = self.device,
-                                 crop = crop_shape,
-                                 crop_pos_x = crop_x,
-                                 crop_pos_y = crop_y)
+            self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
+            self.crop = ops.Crop(device=self.device,
+                                 crop=crop_shape,
+                                 crop_pos_x=crop_x,
+                                 crop_pos_y=crop_y)
 
     def define_graph(self):
         inputs, _ = self.input(name="Reader")
@@ -66,24 +67,29 @@ class CropPipeline(Pipeline):
             out = self.crop(images)
             return out
 
+
 def check_crop_vs_fused_decoder(device, batch_size):
     compare_pipelines(CropPipeline(device, batch_size, is_fused_decoder=True),
                       CropPipeline(device, batch_size, is_fused_decoder=False),
                       batch_size=batch_size, N_iterations=3)
+
 
 def test_crop_vs_fused_decoder():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 32}:
             yield check_crop_vs_fused_decoder, device, batch_size
 
+
 def check_crop_cpu_vs_gpu(batch_size):
     compare_pipelines(CropPipeline('cpu', batch_size),
                       CropPipeline('gpu', batch_size),
                       batch_size=batch_size, N_iterations=3)
 
+
 def test_crop_cpu_vs_gpu():
     for batch_size in {1, 32}:
         yield check_crop_cpu_vs_gpu, batch_size
+
 
 class CropSequencePipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0):
@@ -94,10 +100,10 @@ class CropSequencePipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.crop = ops.Crop(device = self.device,
-                             crop = (224, 224),
-                             crop_pos_x = 0.3,
-                             crop_pos_y = 0.2)
+        self.crop = ops.Crop(device=self.device,
+                             crop=(224, 224),
+                             crop_pos_x=0.3,
+                             crop_pos_y=0.2)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -109,6 +115,7 @@ class CropSequencePipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
+
 class CropSequencePythonOpPipeline(Pipeline):
     def __init__(self, function, batch_size, layout, iterator, num_threads=1, device_id=0):
         super(CropSequencePythonOpPipeline, self).__init__(batch_size,
@@ -119,7 +126,7 @@ class CropSequencePythonOpPipeline(Pipeline):
         self.layout = layout
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
-        self.crop = ops.PythonFunction(function = function, output_layouts=layout)
+        self.crop = ops.PythonFunction(function=function, output_layouts=layout)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -130,7 +137,8 @@ class CropSequencePythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
-def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 224, crop_w = 224):
+
+def crop_func_help(image, layout, crop_y=0.2, crop_x=0.3, crop_h=224, crop_w=224):
     if layout == "FHWC":
         assert len(image.shape) == 4
         H = image.shape[1]
@@ -155,11 +163,14 @@ def crop_func_help(image, layout, crop_y = 0.2, crop_x = 0.3, crop_h = 224, crop
     else:
         assert(False)  # should not happen
 
+
 def crop_NFHWC_func(image):
     return crop_func_help(image, "FHWC")
 
+
 def crop_NHWC_func(image):
     return crop_func_help(image, "HWC")
+
 
 def check_crop_NFHWC_vs_python_op_crop(device, batch_size):
     eii1 = RandomDataIterator(batch_size, shape=(10, 300, 400, 3))
@@ -168,10 +179,12 @@ def check_crop_NFHWC_vs_python_op_crop(device, batch_size):
                       CropSequencePythonOpPipeline(crop_NFHWC_func, batch_size, "FHWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=3)
 
+
 def test_crop_NFHWC_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
             yield check_crop_NFHWC_vs_python_op_crop, device, batch_size
+
 
 def check_crop_NHWC_vs_python_op_crop(device, batch_size):
     eii1 = RandomDataIterator(batch_size, shape=(300, 400, 3))
@@ -180,10 +193,12 @@ def check_crop_NHWC_vs_python_op_crop(device, batch_size):
                       CropSequencePythonOpPipeline(crop_NHWC_func, batch_size, "HWC", iter(eii2)),
                       batch_size=batch_size, N_iterations=3)
 
+
 def test_crop_NHWC_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
             yield check_crop_NHWC_vs_python_op_crop, device, batch_size
+
 
 class CropCastPipeline(Pipeline):
     def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, should_perform_cast=False):
@@ -192,26 +207,26 @@ class CropCastPipeline(Pipeline):
                                                device_id)
         self.should_perform_cast = should_perform_cast
         self.device = device
-        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.decoders.Image(device = "cpu",
-                                         output_type = types.RGB)
+        self.input = ops.readers.Caffe(path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
+        self.decode = ops.decoders.Image(device="cpu",
+                                         output_type=types.RGB)
 
         if self.should_perform_cast:
-            self.crop = ops.Crop(device = self.device,
-                                crop = (224, 224),
-                                crop_pos_x = 0.3,
-                                crop_pos_y = 0.2,
-                                dtype = types.FLOAT)
-            self.crop2 = ops.Crop(device = self.device,
-                                  crop = (224, 224),
-                                  crop_pos_x = 0.0,
-                                  crop_pos_y = 0.0,
-                                  dtype = types.UINT8)
+            self.crop = ops.Crop(device=self.device,
+                                crop=(224, 224),
+                                crop_pos_x=0.3,
+                                crop_pos_y=0.2,
+                                dtype=types.FLOAT)
+            self.crop2 = ops.Crop(device=self.device,
+                                  crop=(224, 224),
+                                  crop_pos_x=0.0,
+                                  crop_pos_y=0.0,
+                                  dtype=types.UINT8)
         else:
-            self.crop = ops.Crop(device = self.device,
-                    crop = (224, 224),
-                    crop_pos_x = 0.3,
-                    crop_pos_y = 0.2)
+            self.crop = ops.Crop(device=self.device,
+                    crop=(224, 224),
+                    crop_pos_x=0.3,
+                    crop_pos_y=0.2)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -225,15 +240,18 @@ class CropCastPipeline(Pipeline):
             images = self.crop(images)
         return images
 
+
 def check_crop_no_cast_vs_cast_to_float_and_back(device, batch_size):
     compare_pipelines(CropCastPipeline(device, batch_size, should_perform_cast=False),
                       CropCastPipeline(device, batch_size, should_perform_cast=True),
                       batch_size=batch_size, N_iterations=3)
 
+
 def test_crop_no_cast_vs_cast_to_float_and_back():
     for device in {'cpu', 'gpu'}:
         for batch_size in {1, 4}:
             yield check_crop_no_cast_vs_cast_to_float_and_back, device, batch_size
+
 
 class Crop3dPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, data_shape, data_layout, num_threads=1, device_id=0, crop_seq_as_depth=False):
@@ -257,13 +275,13 @@ class Crop3dPipeline(Pipeline):
         else:
             assert(False)
 
-        self.crop = ops.Crop(device = self.device,
-                             crop_pos_z = 0.1,
-                             crop_pos_y = 0.2,
-                             crop_pos_x = 0.3,
-                             crop_d = D * 0.91,
-                             crop_h = H * 0.85,
-                             crop_w = W * 0.75)
+        self.crop = ops.Crop(device=self.device,
+                             crop_pos_z=0.1,
+                             crop_pos_y=0.2,
+                             crop_pos_x=0.3,
+                             crop_d=D * 0.91,
+                             crop_h=H * 0.85,
+                             crop_w=W * 0.75)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -274,6 +292,7 @@ class Crop3dPipeline(Pipeline):
     def iter_setup(self):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.data_layout)
+
 
 class Crop3dPythonOpPipeline(Pipeline):
     def __init__(self, function, batch_size, iterator, data_shape, data_layout, num_threads=1, device_id=0):
@@ -301,6 +320,7 @@ class Crop3dPythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.data_layout)
 
+
 def crop_3d_func(image, layout, shape, crop_anchor=(0.1, 0.2, 0.3), crop_shape=(0.91, 0.85, 0.75)):
     assert len(image.shape) == 4
     assert len(crop_anchor) == 3
@@ -313,7 +333,7 @@ def crop_3d_func(image, layout, shape, crop_anchor=(0.1, 0.2, 0.3), crop_shape=(
     else:
         assert(False)
 
-    crop_d, crop_h, crop_w = int(crop_shape[0]*D), int(crop_shape[1]*H), int(crop_shape[2]*W),
+    crop_d, crop_h, crop_w = int(crop_shape[0] * D), int(crop_shape[1] * H), int(crop_shape[2] * W),
     assert D >= crop_d
     assert H >= crop_h
     assert W >= crop_w
@@ -333,12 +353,14 @@ def crop_3d_func(image, layout, shape, crop_anchor=(0.1, 0.2, 0.3), crop_shape=(
     else:
         assert(False)
 
+
 def check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
     compare_pipelines(Crop3dPipeline(device, batch_size, iter(eii1), data_shape=shape, data_layout=layout),
                       Crop3dPythonOpPipeline(crop_3d_func, batch_size, iter(eii2), data_shape=shape, data_layout=layout),
                       batch_size=batch_size, N_iterations=3)
+
 
 def test_crop_3d_vs_python_op_crop():
     for device in {'cpu', 'gpu'}:
@@ -350,7 +372,7 @@ def test_crop_3d_vs_python_op_crop():
                                   ("CDHW", (3, 300, 100, 10)),
                                   ("CDHW", (3, 300, 10, 100)),
                                   ("CDHW", (8, 30, 10, 50))}:
-               yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape
+                yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape
 
 
 def check_crop_sequence_length(device, batch_size, dtype, input_layout, input_shape):
@@ -387,6 +409,8 @@ def check_crop_sequence_length(device, batch_size, dtype, input_layout, input_sh
             "Shape mismatch {} != {}".format(out_data.at(i).shape, crop_shape)
 
 # Tests cropping along the sequence dimension as if it was depth
+
+
 def test_cmn_crop_sequence_length():
     input_configs = {("FHWC", (10, 60, 80, 3)),
                      ("FCHW", (10, 3, 60, 80))}
@@ -397,6 +421,7 @@ def test_cmn_crop_sequence_length():
                     assert len(input_layout) == len(input_shape)
                     yield check_crop_sequence_length, device, batch_size, dtype, \
                         input_layout, input_shape
+
 
 class CropSynthPipe(Pipeline):
     def __init__(self, device, batch_size, data_iterator, num_threads=1, device_id=0, num_gpus=1, crop_shape=(224, 224), crop_x=0.3, crop_y=0.2,
@@ -409,12 +434,12 @@ class CropSynthPipe(Pipeline):
         self.data_iterator = data_iterator
         self.layout = layout
 
-        self.crop = ops.Crop(device = self.device,
-                                crop = crop_shape,
-                                crop_pos_x = crop_x,
-                                crop_pos_y = crop_y,
-                                out_of_bounds_policy = out_of_bounds_policy,
-                                fill_values = fill_values)
+        self.crop = ops.Crop(device=self.device,
+                                crop=crop_shape,
+                                crop_pos_x=crop_x,
+                                crop_pos_y=crop_y,
+                                out_of_bounds_policy=out_of_bounds_policy,
+                                fill_values=fill_values)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -443,9 +468,9 @@ def check_crop_with_out_of_bounds_policy_support(device, batch_size, input_shape
     crop_y = 0.5
     crop_x = 0.5
     pipe = CropSynthPipe(device, batch_size, iter(eii),
-                         layout = layout,
-                         crop_shape = crop_shape,
-                         crop_x = crop_y, crop_y = crop_x,
+                         layout=layout,
+                         crop_shape=crop_shape,
+                         crop_x=crop_y, crop_y=crop_x,
                          out_of_bounds_policy=out_of_bounds_policy,
                          fill_values=fill_values,
                          extra_outputs=True)
@@ -472,6 +497,7 @@ def check_crop_with_out_of_bounds_policy_support(device, batch_size, input_shape
             abs_start, abs_end, abs_slice_shape = abs_slice_start_and_end(in_shape[:2], crop_anchor_abs, crop_shape, False, False)
             check_slice_output(sample_in, sample_out, crop_anchor_abs, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values)
 
+
 def test_crop_with_out_of_bounds_policy_support():
     in_shape = (40, 80, 3)
     for out_of_bounds_policy in ['pad', 'trim_to_shape']:
@@ -480,6 +506,7 @@ def test_crop_with_out_of_bounds_policy_support():
                 for fill_values in [None, (0x76, 0xb0, 0x00)]:
                     yield check_crop_with_out_of_bounds_policy_support, \
                         device, batch_size, in_shape, out_of_bounds_policy, fill_values
+
 
 def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
@@ -491,14 +518,15 @@ def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 20
     crop_y = 0.5
     crop_x = 0.5
     pipe = CropSynthPipe(device, batch_size, iter(eii),
-                         layout = layout,
-                         crop_shape = crop_shape,
-                         crop_x = crop_x, crop_y = crop_y,
+                         layout=layout,
+                         crop_shape=crop_shape,
+                         crop_x=crop_x, crop_y=crop_y,
                          out_of_bounds_policy="error")
 
     pipe.build()
     with assert_raises(RuntimeError, glob="Slice can't be placed out of bounds with current policy."):
         outs = pipe.run()
+
 
 def test_slice_with_out_of_bounds_error():
     in_shape = (40, 80, 3)
@@ -510,6 +538,7 @@ def test_slice_with_out_of_bounds_error():
 
 def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layout="ABC"):
     assert len(layout) == len(input_shape)
+
     @pipeline_def
     def get_pipe():
         def get_data():
@@ -522,12 +551,14 @@ def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layou
     with assert_raises(RuntimeError, glob=f"The layout \"{layout}\" does not match any of the allowed layouts"):
         pipe.run()
 
+
 def test_crop_wrong_layout():
     in_shape = (40, 80, 3)
     batch_size = 3
     for device in ['gpu', 'cpu']:
         for layout in ['ABC']:
             yield check_crop_wrong_layout, device, batch_size, in_shape, layout
+
 
 def check_crop_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
     @pipeline_def
@@ -542,6 +573,7 @@ def check_crop_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
     data, = pipe.run()
     for i in range(batch_size):
         assert as_array(data[i]).shape == (10, 20, 3)
+
 
 def test_crop_empty_layout():
     in_shape = (40, 80, 3)

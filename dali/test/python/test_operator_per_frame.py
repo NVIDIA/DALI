@@ -79,3 +79,22 @@ def test_not_a_sequence_layout():
     for device in ["cpu", "gpu"]:
         for num_dim in (1, 2, 3):
             yield _test_not_a_sequence_layout, device, num_dim, "XYZ"[:num_dim]
+
+
+def _test_pass_through():
+    @pipeline_def
+    def pipeline():
+        rng = fn.external_source(lambda info: np.array(
+            [info.iteration, info.iteration + 1], dtype=np.float32), batch=False)
+        return fn.per_frame(fn.random.uniform(range=rng, device="gpu", shape=(1, 1, 1), seed=42))
+
+    pipe = pipeline(batch_size=1, num_threads=4, device_id=0)
+    pipe.build()
+    for i in range(5):
+        (out,) = pipe.run()
+        [sample] = [np.array(s) for s in out.as_cpu()]
+        assert i <= sample[0] < i + 1
+
+def test_pass_through():
+    for _ in range(50):  # repeat the test as if it is wrong it does not manifest deterministically
+        _test_pass_through()

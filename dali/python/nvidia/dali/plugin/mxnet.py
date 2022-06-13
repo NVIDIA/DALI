@@ -35,7 +35,8 @@ def _wait_to_write(arr):
         raise RuntimeError("Can only wait for NDArray")
     mx.base._LIB.MXNDArrayWaitToWrite(arr.handle)
 
-def feed_ndarray(dali_tensor, arr, cuda_stream = None):
+
+def feed_ndarray(dali_tensor, arr, cuda_stream=None):
     """
     Copy contents of DALI tensor to MXNet's NDArray.
 
@@ -54,7 +55,7 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
     dali_type = types.to_numpy_type(dali_tensor.dtype)
 
     assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
-	        " doesn't match the element type of the target MXNet NDArray: {} vs {}".format(dali_type, np.dtype(arr.dtype)))
+                " doesn't match the element type of the target MXNet NDArray: {} vs {}".format(dali_type, np.dtype(arr.dtype)))
 
     # Wait until arr is no longer used by the engine
     _wait_to_write(arr)
@@ -69,14 +70,17 @@ def feed_ndarray(dali_tensor, arr, cuda_stream = None):
 
     # Copy data from DALI tensor to ptr
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
-        dali_tensor.copy_to_external(ptr, None if cuda_stream is None else ctypes.c_void_p(cuda_stream))
+        stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
+        dali_tensor.copy_to_external(ptr, stream, non_blocking=True)
     else:
         dali_tensor.copy_to_external(ptr)
+
 
 class _DALIMXNetIteratorBase(mx.io.DataIter, _DaliBaseIterator):
     """
     Base class with methods shared by both DALIGenericIterator and DALIGluonIterator.
     """
+
     def __init__(self,
                  pipelines,
                  size=-1,
@@ -109,6 +113,7 @@ class _DALIMXNetIteratorBase(mx.io.DataIter, _DaliBaseIterator):
         and will ignore such request.
         """
         _DaliBaseIterator.reset(self)
+
 
 def get_mx_array(shape, ctx=None, dtype=None):
     # WAR
@@ -215,6 +220,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
 
     last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  output_map,
@@ -339,9 +345,9 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
             d = []
             l = []
             for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.DATA_TAG]):
-                d.append(get_mx_array(shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype = dtype))
+                d.append(get_mx_array(shape, category_device[DALIGenericIterator.DATA_TAG][j], dtype=dtype))
             for j, (shape, dtype) in enumerate(category_info[DALIGenericIterator.LABEL_TAG]):
-                l.append(get_mx_array(shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype = dtype))
+                l.append(get_mx_array(shape, category_device[DALIGenericIterator.LABEL_TAG][j], dtype=dtype))
 
             data_batches[i] = mx.io.DataBatch(data=d, label=l)
 
@@ -387,6 +393,7 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
 
     DATA_TAG = "data"
     LABEL_TAG = "label"
+
 
 class DALIClassificationIterator(DALIGenericIterator):
     """
@@ -485,6 +492,7 @@ class DALIClassificationIterator(DALIGenericIterator):
 
     last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  size=-1,
@@ -506,12 +514,12 @@ class DALIClassificationIterator(DALIGenericIterator):
                                                          reader_name=reader_name,
                                                          data_layout=data_layout,
                                                          fill_last_batch=fill_last_batch,
-                                                         auto_reset = auto_reset,
+                                                         auto_reset=auto_reset,
                                                          squeeze_labels=squeeze_labels,
                                                          dynamic_shape=dynamic_shape,
-                                                         last_batch_padded = last_batch_padded,
-                                                         last_batch_policy = last_batch_policy,
-                                                         prepare_first_batch = prepare_first_batch)
+                                                         last_batch_padded=last_batch_padded,
+                                                         last_batch_policy=last_batch_policy,
+                                                         prepare_first_batch=prepare_first_batch)
 
 ###############################################
 ###############################################
@@ -599,6 +607,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
 
     last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  size=-1,
@@ -625,7 +634,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
             last_batch_padded,
             auto_reset,
             last_batch_policy,
-            prepare_first_batch = prepare_first_batch)
+            prepare_first_batch=prepare_first_batch)
 
         self._first_batch = None
         if self._prepare_first_batch:
@@ -691,7 +700,7 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 # First calculate how much data is required to return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter - self._size)
                 # Figure out how many GPUs to grab from.
-                numGPUs_tograb = int(np.ceil(diff/self.batch_size))
+                numGPUs_tograb = int(np.ceil(diff / self.batch_size))
                 # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to
                 # bring us right up to self._size).
                 mod_diff = diff % self.batch_size

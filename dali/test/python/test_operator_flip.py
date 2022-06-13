@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,15 +27,18 @@ caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 
 
 class FlipPipeline(Pipeline):
-    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1, is_vertical=0, is_horizontal=1 ):
+    def __init__(self, device, batch_size, num_threads=1, device_id=0, num_gpus=1,
+                 is_vertical=0, is_horizontal=1):
         super(FlipPipeline, self).__init__(batch_size,
                                            num_threads,
                                            device_id)
         self.device = device
-        self.input = ops.readers.Caffe(path = caffe_db_folder, shard_id = device_id, num_shards = num_gpus)
-        self.decode = ops.decoders.Image(device = "cpu", output_type = types.RGB)
-        self.flip = ops.Flip(device = self.device, vertical=is_vertical, horizontal=is_horizontal)
-
+        self.input = ops.readers.Caffe(
+            path=caffe_db_folder, shard_id=device_id, num_shards=num_gpus)
+        self.decode = ops.decoders.Image(
+            device="cpu", output_type=types.RGB)
+        self.flip = ops.Flip(
+            device=self.device, vertical=is_vertical, horizontal=is_horizontal)
 
     def define_graph(self):
         inputs, labels = self.input(name="Reader")
@@ -45,6 +48,7 @@ class FlipPipeline(Pipeline):
             images = images.gpu()
         images = self.flip(images)
         return images
+
 
 class SynthFlipPipeline(Pipeline):
     def __init__(self, batch_size, layout, data_iterator, device):
@@ -79,9 +83,7 @@ def numpy_flip(data, h_dim, v_dim, d_dim, hor, ver, depth):
 
 
 def find_dims(layout):
-    return layout.find("W"), \
-           layout.find("H"), \
-           layout.find("D")
+    return layout.find("W"), layout.find("H"), layout.find("D")
 
 
 class SynthPythonFlipPipeline(Pipeline):
@@ -94,7 +96,7 @@ class SynthPythonFlipPipeline(Pipeline):
         self.input = ops.ExternalSource()
         self.coin = ops.random.CoinFlip(seed=1234)
         h_dim, v_dim, d_dim = find_dims(layout)
-        fun = lambda d, hor, ver, depth: numpy_flip(d, h_dim, v_dim, d_dim, hor, ver, depth)
+        def fun(d, hor, ver, depth): return numpy_flip(d, h_dim, v_dim, d_dim, hor, ver, depth)
         self.python_flip = ops.PythonFunction(function=fun, output_layouts=layout)
 
     def define_graph(self):

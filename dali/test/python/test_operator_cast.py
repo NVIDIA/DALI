@@ -33,11 +33,13 @@ def ref_cast(x, dtype):
     else:
         return x.astype(dtype)
 
+
 def random_shape(rng, ndim: int, max_size: int):
     if ndim == 0:
         return []
-    max_size = int(max_size ** (1/ndim))
+    max_size = int(max_size ** (1 / ndim))
     return list(rng.integers(0, max_size, [ndim]))
+
 
 def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.dtype):
     lo, hi = -1000, 1000
@@ -64,11 +66,14 @@ def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.
             x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.Infinity)
     return out
 
+
 rng = np.random.default_rng(1234)
+
 
 @nottest
 def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
     src = lambda: generate(rng, ndim, batch_size, in_dtype, out_dtype)
+
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
     def cast_pipe():
         inp = fn.external_source(src)
@@ -79,7 +84,7 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device):
     pipe.build()
     for _ in range(10):
         inp, out = pipe.run()
-        if device=='gpu':
+        if device == 'gpu':
             out = out.as_cpu()
         ref = [ref_cast(np.array(x), out_dtype) for x in inp]
 

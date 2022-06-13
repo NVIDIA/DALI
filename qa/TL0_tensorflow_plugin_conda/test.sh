@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # used pip packages
 # use TF that is installed from conda when DALI is installed
-pip_packages="nose"
+pip_packages='${python_test_runner_package}'
 target_dir=./dali/test/python
 
 # populate epilog and prolog with variants to enable/disable conda
@@ -10,15 +10,15 @@ prolog=(enable_conda)
 epilog=(disable_conda)
 
 test_body() {
-    nosetests --verbose test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
+    ${python_invoke_test} test_dali_tf_plugin.py:TestDaliTfPluginLoadOk
 
     # DALI TF run
-    nosetests --verbose test_dali_tf_plugin_run.py
+    ${python_invoke_test} test_dali_tf_plugin_run.py
 
     # DALI TF DATASET run
-    nosetests --verbose test_dali_tf_dataset.py
+    ${python_invoke_test} test_dali_tf_dataset.py
 
-    nosetests --verbose test_dali_tf_dataset_shape.py
+    ${python_invoke_test} test_dali_tf_dataset_shape.py
 }
 
 pushd ../..

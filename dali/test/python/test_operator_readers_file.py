@@ -22,18 +22,22 @@ from nvidia.dali import Pipeline, pipeline_def
 from test_utils import compare_pipelines
 from nose_utils import assert_raises
 
+
 def ref_contents(path):
-    fname = path[path.rfind('/')+1:]
+    fname = path[path.rfind('/') + 1:]
     return "Contents of " + fname + ".\n"
+
 
 def populate(root, files):
     for fname in files:
         with open(os.path.join(root, fname), "w") as f:
             f.write(ref_contents(fname))
 
+
 g_root = None
 g_tmpdir = None
 g_files = None
+
 
 def setup_module():
     global g_root
@@ -42,8 +46,9 @@ def setup_module():
 
     g_tmpdir = tempfile.TemporaryDirectory()
     g_root = g_tmpdir.__enter__()
-    g_files = [str(i)+' x.dat' for i in range(10)]  # name with a space in the middle!
+    g_files = [str(i) + ' x.dat' for i in range(10)]  # name with a space in the middle!
     populate(g_root, g_files)
+
 
 def teardown_module():
     global g_root
@@ -54,6 +59,7 @@ def teardown_module():
     g_tmpdir = None
     g_root = None
     g_files = None
+
 
 def _test_reader_files_arg(use_root, use_labels, shuffle):
     root = g_root
@@ -81,11 +87,13 @@ def _test_reader_files_arg(use_root, use_labels, shuffle):
             index = label - 10000 if use_labels else label
             assert contents == ref_contents(fnames[index])
 
+
 def test_file_reader():
     for use_root in [False, True]:
         for use_labels in [False, True]:
             for shuffle in [False, True]:
                 yield _test_reader_files_arg, use_root, use_labels, shuffle
+
 
 def test_file_reader_relpath():
     batch_size = 3
@@ -104,6 +112,7 @@ def test_file_reader_relpath():
             contents = bytes(out_f.at(j)).decode('utf-8')
             index = out_l.at(j)[0]
             assert contents == ref_contents(fnames[index])
+
 
 def test_file_reader_relpath_file_list():
     batch_size = 3
@@ -163,12 +172,15 @@ def test_file_reader_filters():
     yield _test_file_reader_filter, ['*.JPG'], ['*.jpg', '*.jpG', '*.jPg', '*.jPG', '*.Jpg', '*.JpG', '*.JPg', '*.JPG'], \
         3, 1, 'db/single/case_sensitive', False
 
+
 batch_size_alias_test = 64
+
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def file_pipe(file_op, file_list):
     files, labels = file_op(file_list=file_list)
     return files, labels
+
 
 def test_file_reader_alias():
     fnames = g_files
@@ -180,6 +192,7 @@ def test_file_reader_alias():
     new_pipe = file_pipe(fn.readers.file, file_list)
     legacy_pipe = file_pipe(fn.file_reader, file_list)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+
 
 def test_invalid_number_of_shards():
     @pipeline_def(batch_size=1, device_id=0, num_threads=4)

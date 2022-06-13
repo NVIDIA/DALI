@@ -23,6 +23,7 @@ from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 
+
 class PowerSpectrumPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, axis, nfft, num_threads=1, device_id=0):
         super(PowerSpectrumPipeline, self).__init__(batch_size, num_threads, device_id)
@@ -41,13 +42,14 @@ class PowerSpectrumPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
+
 def power_spectrum_numpy(nfft, axis, waveform):
     fft_out = np.fft.fft(waveform, axis=axis, n=nfft)
     power_spectrum = fft_out.real ** 2 + fft_out.imag ** 2
     shape = waveform.shape
 
     out_shape = list(shape)
-    out_shape[axis] = nfft//2+1
+    out_shape[axis] = nfft // 2 + 1
     out_shape = tuple(out_shape)
 
     if len(out_shape) == 1:
@@ -57,6 +59,7 @@ def power_spectrum_numpy(nfft, axis, waveform):
     elif len(out_shape) == 3:
         out = power_spectrum[0:out_shape[0], 0:out_shape[1], 0:out_shape[2]]
     return out
+
 
 class PowerSpectrumNumpyPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, axis, nfft,
@@ -80,6 +83,7 @@ class PowerSpectrumNumpyPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
+
 def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
@@ -87,6 +91,7 @@ def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
         PowerSpectrumPipeline(device, batch_size, iter(eii1), axis=axis, nfft=nfft),
         PowerSpectrumNumpyPipeline(device, batch_size, iter(eii2), axis=axis, nfft=nfft),
         batch_size=batch_size, N_iterations=3, eps=1e-04)
+
 
 def test_operator_power_spectrum():
     for device in ['cpu']:

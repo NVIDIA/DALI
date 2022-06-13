@@ -20,12 +20,14 @@ import warnings
 from enum import Enum, unique
 from collections.abc import Iterable
 
+
 def _iterator_deprecation_warning():
     warnings.warn("Please set `reader_name` and don't set last_batch_padded and size manually " +
                   "whenever possible. This may lead, in some situations, to missing some " +
                   "samples or returning duplicated ones. Check the Sharding section of the "
                   "documentation for more details.",
                   Warning, stacklevel=2)
+
 
 @unique
 class LastBatchPolicy(Enum):
@@ -42,6 +44,7 @@ class LastBatchPolicy(Enum):
     FILL = 0
     DROP = 1
     PARTIAL = 2
+
 
 class _DaliBaseIterator(object):
     """
@@ -116,6 +119,7 @@ class _DaliBaseIterator(object):
 
     last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
     """
+
     def __init__(self,
                  pipelines,
                  size=-1,

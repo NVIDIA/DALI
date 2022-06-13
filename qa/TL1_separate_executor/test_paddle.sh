@@ -1,5 +1,5 @@
 #!/bin/bash -e
-pip_packages="paddlepaddle-gpu"
+pip_packages='paddlepaddle-gpu'
 target_dir=./dali/test/python
 one_config_only=true
 

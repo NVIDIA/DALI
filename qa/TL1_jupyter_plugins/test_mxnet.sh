@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib mxnet"
+pip_packages='jupyter matplotlib mxnet'
 target_dir=./docs/examples/
 
 do_once() {

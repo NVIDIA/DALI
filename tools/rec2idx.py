@@ -23,16 +23,17 @@ from mxnet.base import check_call
 import mxnet as mx
 import argparse
 
+
 class IndexCreator(mx.recordio.MXRecordIO):
     """Reads `RecordIO` data format, and creates index file
     that enables random access.
 
     Example usage:
     ----------
-    >>> creator = IndexCreator('data/test.rec','data/test.idx')
-    >>> record.create_index()
-    >>> record.close()
-    >>> !ls data/
+    >> creator = IndexCreator('data/test.rec','data/test.idx')
+    >> record.create_index()
+    >> record.close()
+    >> !ls data/
     test.rec  test.idx
 
     Parameters
@@ -44,6 +45,7 @@ class IndexCreator(mx.recordio.MXRecordIO):
     key_type : type
         Data type for keys (optional, default = int).
     """
+
     def __init__(self, uri, idx_path, key_type=int):
         self.key_type = key_type
         self.fidx = None
@@ -83,8 +85,9 @@ class IndexCreator(mx.recordio.MXRecordIO):
             if cont is None:
                 break
             key = self.key_type(counter)
-            self.fidx.write('%s\t%d\n'%(str(key), pos))
+            self.fidx.write('%s\t%d\n' % (str(key), pos))
             counter = counter + 1
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -97,11 +100,13 @@ def parse_args():
     args.index = os.path.abspath(args.index)
     return args
 
+
 def main():
     args = parse_args()
     creator = IndexCreator(args.record, args.index)
     creator.create_index()
     creator.close()
+
 
 if __name__ == '__main__':
     main()

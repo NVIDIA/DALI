@@ -171,10 +171,11 @@ Parameters
     If the ``output_ndim`` value is a single value (not a list), it will be broadcast to the
     number of outputs from the pipeline.
 """
-    def __init__(self, batch_size = -1, num_threads = -1, device_id = -1, seed = -1,
+
+    def __init__(self, batch_size=-1, num_threads=-1, device_id=-1, seed=-1,
                  exec_pipelined=True, prefetch_queue_depth=2,
                  exec_async=True, bytes_per_sample=0,
-                 set_affinity=False, max_streams=-1, default_cuda_stream_priority = 0,
+                 set_affinity=False, max_streams=-1, default_cuda_stream_priority=0,
                  *,
                  enable_memory_stats=False, py_num_workers=1, py_start_method="fork",
                  py_callback_pickler=None, output_dtype=None, output_ndim=None):
@@ -212,7 +213,7 @@ Parameters
         if py_callback_pickler is not None and py_start_method == "fork":
             raise ValueError("``py_callback_pickler`` should not be set when 'fork' start method is used.")
         if py_callback_pickler is None and py_start_method == "spawn":
-           py_callback_pickler = dali_pickle._DaliPickle
+            py_callback_pickler = dali_pickle._DaliPickle
         self._py_callback_pickler = py_callback_pickler
         self._api_type = None
         self._skip_api_check = False
@@ -361,7 +362,7 @@ Parameters
         """Number of dimensions expected at the outputs."""
         return [elem if elem != -1 else None for elem in self._pipe.output_ndim()]
 
-    def epoch_size(self, name = None):
+    def epoch_size(self, name=None):
         """Epoch size of a pipeline.
 
         If the `name` parameter is `None`, returns a dictionary of pairs
@@ -404,7 +405,7 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.executor_statistics()
 
-    def reader_meta(self, name = None):
+    def reader_meta(self, name=None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides
         a dictionary with data for all readers as {reader_name : meta}
 
@@ -726,7 +727,7 @@ Parameters
         if not self._py_pool_started:
             self._start_py_workers()
 
-    def build(self, define_graph = None):
+    def build(self, define_graph=None):
         """Build the pipeline.
 
         Pipeline needs to be built in order to run it standalone.
@@ -776,7 +777,7 @@ Parameters
         else:
             self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
-    def feed_input(self, data_node, data, layout = None, cuda_stream = None, use_copy_kernel = False):
+    def feed_input(self, data_node, data, layout=None, cuda_stream=None, use_copy_kernel=False):
         """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by feed_input. See ``cuda_stream`` parameter for details.
@@ -1188,8 +1189,8 @@ Parameters
         self._pipe.Build()
         self._built = True
 
-    def save_graph_to_dot_file(self, filename, show_tensors = False, show_ids = False,
-                               use_colors = False):
+    def save_graph_to_dot_file(self, filename, show_tensors=False, show_ids=False,
+                               use_colors=False):
         """Saves the pipeline graph to a file.
 
         Parameters
@@ -1405,6 +1406,7 @@ def pipeline_def(fn=None, **pipeline_kwargs):
 def _pipeline_def_experimental(fn=None, **pipeline_kwargs):
     from nvidia.dali._debug_mode import _PipelineDebug
     pipeline_debug =  pipeline_kwargs.pop('debug', False)
+
     def actual_decorator(func):
         @functools.wraps(func)
         def create_pipeline(*args, **kwargs):
@@ -1436,5 +1438,6 @@ def _insert_experimental_pipeline_def():
     experimental_module = internal.get_submodule(current_module, 'experimental')
     _pipeline_def_experimental.__module__ = experimental_module
     setattr(experimental_module, 'pipeline_def', _pipeline_def_experimental)
+
 
 _insert_experimental_pipeline_def()

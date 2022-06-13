@@ -22,6 +22,7 @@ from nvidia.dali import pipeline_def
 
 audio_files = test_utils.get_files(os.path.join('db', 'audio', 'wav'), 'wav')
 
+
 def trim_ref(cutoff_db, ref, frame_length, hop_length, input_data):
     yt, index = librosa.effects.trim(y=input_data, top_db=-cutoff_db, ref=ref,
                                      frame_length=frame_length,
@@ -33,6 +34,7 @@ def trim_ref(cutoff_db, ref, frame_length, hop_length, input_data):
     if length != 0:
         length += frame_length - 1
     return np.array(begin), np.array(length)
+
 
 @pipeline_def
 def nonsilent_region_pipe(cutoff_value, window_size, reference_power, reset_interval):
@@ -49,6 +51,7 @@ def nonsilent_region_pipe(cutoff_value, window_size, reference_power, reset_inte
         reset_interval=reset_interval
     )
     return audio, begin_cpu, len_cpu, begin_gpu, len_gpu
+
 
 def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_power,
                               reset_interval, eps):
@@ -75,6 +78,7 @@ def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_p
             np.testing.assert_allclose(ref_begin, begin_gpu, atol=eps)
             np.testing.assert_allclose(ref_len, len_cpu, atol=eps)
             np.testing.assert_allclose(ref_len, len_gpu, atol=eps)
+
 
 def test_nonsilence_operator():
     batch_size = 3

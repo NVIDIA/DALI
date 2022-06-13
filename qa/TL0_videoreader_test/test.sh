@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages="nose numpy"
+pip_packages='${python_test_runner_package} numpy'
 target_dir=./docs/examples/sequence_processing/video
 
 do_once() {
@@ -47,8 +47,8 @@ test_body() {
     python video_label_example.py
 
     echo $(pwd)
-    nosetests --verbose ../../../../dali/test/python/test_video_pipeline.py
-    nosetests --verbose ../../../../dali/test/python/test_video_reader_resize.py
+    ${python_invoke_test} ../../../../dali/test/python/test_video_pipeline.py
+    ${python_invoke_test} ../../../../dali/test/python/test_video_reader_resize.py
 }
 
 pushd ../..

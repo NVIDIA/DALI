@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages="jupyter matplotlib paddlepaddle-gpu"
+pip_packages='jupyter matplotlib paddlepaddle-gpu'
 target_dir=./docs/examples/
 
 do_once() {

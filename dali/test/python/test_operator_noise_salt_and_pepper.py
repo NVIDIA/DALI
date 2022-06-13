@@ -27,6 +27,7 @@ test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'single', 'png')
 dump_images = False
 
+
 def salt_and_pepper_noise_ref(x, prob, salt_vs_pepper, per_channel, salt_val, pepper_val):
     x = np.array(x, dtype=np.float32)
     salt_prob = prob * salt_vs_pepper
@@ -38,6 +39,7 @@ def salt_and_pepper_noise_ref(x, prob, salt_vs_pepper, per_channel, salt_val, pe
         mask = np.stack([mask] * nchannels, axis=-1)
     y = np.where(np.isnan(mask), x, mask).astype(np.uint8)
     return y
+
 
 @pipeline_def
 def pipe_salt_and_pepper_noise(prob, salt_vs_pepper, channel_first, per_channel, salt_val, pepper_val, device='cpu'):
@@ -54,6 +56,7 @@ def pipe_salt_and_pepper_noise(prob, salt_vs_pepper, channel_first, per_channel,
         salt_val=salt_val, pepper_val=pepper_val
     )
     return in_data, out_data, prob_arg, salt_vs_pepper_arg
+
 
 def verify_salt_and_pepper(output, input, prob, salt_vs_pepper, per_channel, salt_val, pepper_val):
     assert output.shape == input.shape
@@ -81,6 +84,7 @@ def verify_salt_and_pepper(output, input, prob, salt_vs_pepper, per_channel, sal
     actual_salt_vs_pepper = salt_count / (salt_count + pepper_count)
     np.testing.assert_allclose(actual_noise_prob, prob, atol=1e-2)
     np.testing.assert_allclose(actual_salt_vs_pepper, salt_vs_pepper, atol=1e-1)
+
 
 def _testimpl_operator_noise_salt_and_pepper(device, per_channel, prob, salt_vs_pepper, channel_first, salt_val, pepper_val, batch_size, niter):
     pipe = pipe_salt_and_pepper_noise(prob, salt_vs_pepper, channel_first, per_channel,
@@ -118,6 +122,7 @@ def _testimpl_operator_noise_salt_and_pepper(device, per_channel, prob, salt_vs_
                 cv2.imwrite(f"./snp_noise_out_p{suffix_str}.png", cv2.cvtColor(sample_out, cv2.COLOR_BGR2RGB))
             verify_salt_and_pepper(sample_out, sample_in, prob, salt_vs_pepper, per_channel, salt_val, pepper_val)
             np.testing.assert_allclose(psnr_out, psnr_ref, atol=1)
+
 
 def test_operator_noise_salt_and_pepper():
     niter = 3

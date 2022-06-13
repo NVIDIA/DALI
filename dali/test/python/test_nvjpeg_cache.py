@@ -28,6 +28,7 @@ img_root = get_dali_extra_path()
 image_dir = img_root + "/db/single/jpeg"
 batch_size = 20
 
+
 def compare(tl1, tl2):
     tl1_cpu = tl1.as_cpu()
     tl2_cpu = tl2.as_cpu()
@@ -36,19 +37,21 @@ def compare(tl1, tl2):
     for i in range(0, len(tl1_cpu)):
         assert_array_equal(tl1_cpu.at(i), tl2_cpu.at(i), "cached and non-cached images differ")
 
+
 class HybridDecoderPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, cache_size):
-        super(HybridDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed = seed)
-        self.input = ops.readers.File(file_root = image_dir)
+        super(HybridDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed=seed)
+        self.input = ops.readers.File(file_root=image_dir)
         policy = None
         if cache_size > 0:
-          policy = "threshold"
-        self.decode = ops.decoders.Image(device = 'mixed', output_type = types.RGB, cache_debug = False, cache_size = cache_size, cache_type = policy, cache_batch_copy = True)
+            policy = "threshold"
+        self.decode = ops.decoders.Image(device='mixed', output_type=types.RGB, cache_debug=False, cache_size=cache_size, cache_type=policy, cache_batch_copy=True)
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")
         images = self.decode(jpegs)
         return (images, labels)
+
 
 def test_nvjpeg_cached():
     ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0)
@@ -57,20 +60,22 @@ def test_nvjpeg_cached():
     cached_pipe.build()
     epoch_size = ref_pipe.epoch_size("Reader")
 
-    for i in range(0, (2*epoch_size + batch_size - 1) // batch_size):
-      print("Batch %d-%d / %d"%(i*batch_size, (i+1)*batch_size, epoch_size))
-      ref_images, _ = ref_pipe.run()
-      out_images, _ = cached_pipe.run()
-      compare(ref_images, out_images)
-      ref_images, _ = ref_pipe.run()
-      out_images, _ = cached_pipe.run()
-      compare(ref_images, out_images)
-      ref_images, _ = ref_pipe.run()
-      out_images, _ = cached_pipe.run()
-      compare(ref_images, out_images)
+    for i in range(0, (2 * epoch_size + batch_size - 1) // batch_size):
+        print("Batch %d-%d / %d" % (i * batch_size, (i + 1) * batch_size, epoch_size))
+        ref_images, _ = ref_pipe.run()
+        out_images, _ = cached_pipe.run()
+        compare(ref_images, out_images)
+        ref_images, _ = ref_pipe.run()
+        out_images, _ = cached_pipe.run()
+        compare(ref_images, out_images)
+        ref_images, _ = ref_pipe.run()
+        out_images, _ = cached_pipe.run()
+        compare(ref_images, out_images)
+
 
 def main():
     test_nvjpeg_cached()
+
 
 if __name__ == '__main__':
     main()

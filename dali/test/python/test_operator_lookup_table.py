@@ -20,6 +20,7 @@ import random
 from test_utils import compare_pipelines
 from test_utils import RandomlyShapedDataIterator
 
+
 class LookupTablePipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, data_shape, data_layout, dtype, num_threads=1,
                  device_id=0, dictionary={}, default_value=0.0):
@@ -35,15 +36,15 @@ class LookupTablePipeline(Pipeline):
         if dictionary:
             keys = [k for k in dictionary.keys()]
             values = [dictionary[k] for k in keys]
-            self.lookup = ops.LookupTable(device = self.device,
-                                        dtype = dtype,
-                                        default_value = default_value,
-                                        keys = keys,
-                                        values = values)
+            self.lookup = ops.LookupTable(device=self.device,
+                                        dtype=dtype,
+                                        default_value=default_value,
+                                        keys=keys,
+                                        values=values)
         else:
-            self.lookup = ops.LookupTable(device = self.device,
-                                          dtype = dtype,
-                                          default_value = default_value)
+            self.lookup = ops.LookupTable(device=self.device,
+                                          dtype=dtype,
+                                          default_value=default_value)
 
     def define_graph(self):
         self.data = self.inputs()
@@ -54,6 +55,7 @@ class LookupTablePipeline(Pipeline):
     def iter_setup(self):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.data_layout)
+
 
 class LookupTablePythonOpPipeline(Pipeline):
     def __init__(self, function, batch_size, iterator, data_shape, data_layout, dtype,
@@ -85,12 +87,14 @@ class LookupTablePythonOpPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.data_layout)
 
+
 def lookup_func(image, dictionary, default_value):
     arr = [default_value for k in range(0x1000)]
     for k in dictionary.keys():
         arr[k] = dictionary[k]
     lut = np.array(arr)
     return lut[image]
+
 
 def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dtype, dictionary_type, default_value):
     eii1 = RandomlyShapedDataIterator(batch_size, max_shape=shape)
@@ -112,6 +116,7 @@ def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dtype, di
                                                   dictionary=dictionary,
                                                   default_value=default_value),
                       batch_size=batch_size, N_iterations=3)
+
 
 def test_lookup_table_vs_python_op():
     layout = types.NHWC

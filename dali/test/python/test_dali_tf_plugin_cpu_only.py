@@ -25,22 +25,25 @@ except Exception:
     # Older TF versions don't have compat.v1 layer
     from tensorflow import Session
 
+
 @pipeline_def()
 def get_dali_pipe(value):
     data = types.Constant(value)
     return data
+
 
 def get_data(batch_size, value):
     pipe = get_dali_pipe(batch_size=batch_size, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1, value=value)
     daliop = dali_tf.DALIIterator()
     out = []
     with tf.device('/cpu'):
-        data = daliop(pipeline = pipe,
-            shapes = [(batch_size)],
-            dtypes = [tf.int32],
-            device_id = types.CPU_ONLY_DEVICE_ID)
+        data = daliop(pipeline=pipe,
+            shapes=[(batch_size)],
+            dtypes=[tf.int32],
+            device_id=types.CPU_ONLY_DEVICE_ID)
         out.append(data)
     return [out]
+
 
 def test_dali_tf_op_cpu_only():
     try:

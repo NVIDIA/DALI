@@ -13,6 +13,13 @@
 # limitations under the License.
 
 from webdataset_base import *
+from nose.tools import assert_equal
+from nose_utils import assert_raises
+import os
+import math
+from glob import glob
+from test_utils import compare_pipelines, get_dali_extra_path
+import nvidia.dali as dali
 
 def test_return_empty():
     global test_batch_size
@@ -280,6 +287,7 @@ def test_pax_format():
             test_batch_size,
             math.ceil(num_samples / num_shards / test_batch_size) * 2,
         )
+
 
 def test_index_generation():
     global test_batch_size

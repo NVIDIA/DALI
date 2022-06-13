@@ -88,7 +88,7 @@ __global__ void ResampleGPUKernel(const SampleDesc *samples) {
     // position, keeping the floats small in order to keep precision. `in_block_f`, used to
     // calculate the reference for distance (in_block_i) needs to be calculated in double precision.
     double in_block_f = out_block_start * scale;
-    int64_t in_block_i = floor(in_block_f);
+    int64_t in_block_i = ::floor(in_block_f);
     float in_pos_start = in_block_f - in_block_i;
     const In* in_blk_ptr = in + in_block_i * nchannels;
     float in_pos = in_pos_start + fscale * threadIdx.x;

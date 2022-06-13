@@ -21,6 +21,7 @@ import nvidia.dali.types as types
 from test_utils import RandomDataIterator
 import random
 
+
 def dali_type_to_np(dtype):
     if dtype == types.FLOAT:
         return np.single
@@ -32,6 +33,7 @@ def dali_type_to_np(dtype):
         return np.ubyte
     else:
         assert False
+
 
 @pipeline_def()
 def ColorTwistPipeline(data_iterator, is_input_float, out_dtype):
@@ -48,11 +50,13 @@ def ColorTwistPipeline(data_iterator, is_input_float, out_dtype):
     out_gpu = fn.color_twist(imgs.gpu(), hue=H, saturation=S, brightness=brightness, contrast=contrast, dtype=out_dtype)
     return imgs, out_cpu, out_gpu, H, S, brightness, contrast
 
+
 rgb2yiq = np.array([[.299,  .587,  .114],
                     [.596, -.274, -.321],
                     [.211, -.523,  .311]])
 
 yiq2rgb = np.linalg.inv(rgb2yiq)
+
 
 def convert_sat(data, out_dtype):
     clipped = data
@@ -63,6 +67,7 @@ def convert_sat(data, out_dtype):
         clipped = np.round(clipped)
     return clipped.astype(out_dtype)
 
+
 def ref_color_twist(img, H, S, brightness, contrast, out_dtype):
     inp_dtype = img.dtype
     angle = math.radians(H)
@@ -70,8 +75,8 @@ def ref_color_twist(img, H, S, brightness, contrast, out_dtype):
     # Rotate the color components by angle and scale by S.
     # The fun part is that it doesn't really matter that much which
     hmat = np.array([[1,    0,    0],
-                     [0,  c*S,  s*S],
-                     [0, -s*S,  c*S]])
+                     [0,  c * S,  s * S],
+                     [0, -s * S,  c * S]])
 
     m = np.matmul(yiq2rgb, np.matmul(hmat, rgb2yiq))
 
@@ -88,18 +93,20 @@ def ref_color_twist(img, H, S, brightness, contrast, out_dtype):
 
     return convert_sat(img, out_dtype)
 
+
 def check(input, out_cpu, out_gpu, H, S, brightness, contrast, out_dtype):
     ref = ref_color_twist(input, H, S, brightness, contrast, out_dtype)
     if np.issubdtype(out_dtype, np.floating):
         rel_err = 1e-3
         abs_err = 1e-3
     else:
-        rel_err = 1/512
+        rel_err = 1 / 512
         # due to rounding error for integer out type can be off by 1
         abs_err = 1
 
     assert np.allclose(out_cpu, ref, rel_err, abs_err)
     assert np.allclose(out_gpu, ref, rel_err, abs_err)
+
 
 def check_ref(inp_dtype, out_dtype, has_3_dims):
     batch_size = 32
@@ -116,6 +123,7 @@ def check_ref(inp_dtype, out_dtype, has_3_dims):
         for i in range(batch_size):
             h, s, b, c = H.at(i), S.at(i), B.at(i), C.at(i)
             check(inp.at(i), out_cpu.at(i), out_gpu.at(i), h, s, b, c, dali_type_to_np(out_dtype))
+
 
 def test_color_twist():
     for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:

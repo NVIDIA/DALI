@@ -284,6 +284,45 @@ void ExposeTensorLayout(py::module &m) {
 enum DALIDataTypePlaceholder {};
 
 /**
+ * @brief Copies the contents of the source DALI batch to an external buffer
+ *
+ * The function schedules a copy of the contents of src to the target destination buffer.
+ * The copy will be scheduled on the provided `cuda_stream` or, if left out, on an internal DALI
+ * stream.
+ * If a non-blocking copy is requested, the function will synchronize the source buffer's
+ * associated access order with the provided stream; otherwise, the function will wait until the
+ * copy completes.
+ *
+ * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorVector)
+ * @param src             Source batch
+ * @param dst_ptr         Destination pointer, wrapped in a C void_ptr Python type
+ * @param cuda_stream     CUDA stream, wrapped in a C void_ptr type
+ * @param non_blocking    whether the function should wait on host for the copy to complete
+ * @param use_copy_kernel if true, the copy will be done using a kernel instead of cudaMemcpyAsync
+ */
+template <typename SourceObject>
+void CopyToExternalImplGPU(SourceObject &src,
+                           py::object dst_ptr, py::object cuda_stream,
+                           bool non_blocking, bool use_copy_kernel) {
+  CUDAStreamLease lease;
+  AccessOrder copy_order;
+  AccessOrder wait_order = non_blocking ? src.order() : AccessOrder::host();
+  int device = src.device_id();
+  if (!cuda_stream.is_none()) {
+    cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+    copy_order = AccessOrder(stream, device);
+  } else {
+    lease = CUDAStreamPool::instance().Get(device);
+    copy_order = AccessOrder(lease, device);
+  }
+
+  void *ptr = ctypes_void_ptr(dst_ptr);
+  CopyToExternal<mm::memory_kind::device>(ptr, src, copy_order, use_copy_kernel);
+
+  wait_order.wait(copy_order);
+}
+
+/**
  * Pipeline output descriptor.
  */
 using OutputDesc = std::tuple<std::string  /* name */,
@@ -541,14 +580,7 @@ void ExposeTensor(py::module &m) {
     .def("copy_to_external",
         [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
-          void *ptr = ctypes_void_ptr(p);
-          cudaStream_t stream = cuda_stream.is_none()
-                ? UserStream::Get()->GetStream(t)
-                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternal<mm::memory_kind::device>(ptr, t, stream, use_copy_kernel);
-          if (!non_blocking) {
-            CUDA_CALL(cudaStreamSynchronize(stream));
-          }
+          CopyToExternalImplGPU(t, p, cuda_stream, non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
@@ -589,53 +621,6 @@ void ExposeTensor(py::module &m) {
       to be passed as an input to DALI.
 
       It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_.)code";
-}
-
-void ExposeEagerOperator(py::module &m) {
-  py::class_<EagerOperator<CPUBackend>>(m, "EagerOperatorCPU")
-      .def(py::init([](const OpSpec &op_spec) {
-             return std::make_unique<EagerOperator<CPUBackend>>(op_spec);
-           }),
-           "op_spec"_a)
-      .def("__call__",
-           [](EagerOperator<CPUBackend> &op,
-              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
-              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run(inputs, kwargs); });
-
-  py::class_<EagerOperator<GPUBackend>>(m, "EagerOperatorGPU")
-      .def(py::init([](const OpSpec &op_spec) {
-             return std::make_unique<EagerOperator<GPUBackend>>(op_spec);
-           }),
-           "op_spec"_a)
-      .def("__call__",
-           [](EagerOperator<GPUBackend> &op,
-              const std::vector<std::shared_ptr<TensorList<GPUBackend>>> &inputs,
-              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run(inputs, kwargs); });
-
-  py::class_<EagerOperator<MixedBackend>>(m, "EagerOperatorMixed")
-      .def(py::init([](const OpSpec &op_spec) {
-             return std::make_unique<EagerOperator<MixedBackend>>(op_spec);
-           }),
-           "op_spec"_a)
-      .def("__call__",
-           [](EagerOperator<MixedBackend> &op,
-              const std::vector<std::shared_ptr<TensorList<CPUBackend>>> &inputs,
-              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run(inputs, kwargs); });
-}
-
-void ExposePipelineDebug(py::module &m) {
-  py::class_<PipelineDebug>(m, "PipelineDebug")
-      .def(py::init([](int batch_size, int num_threads, int device_id, bool set_affinity = false) {
-        return std::make_unique<PipelineDebug>(batch_size, num_threads, device_id, set_affinity);
-      }))
-      .def("AddOperator", &PipelineDebug::AddOperator)
-      .def("AddMultipleOperators", &PipelineDebug::AddMultipleOperators)
-      .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend>)
-      .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend>)
-      .def("RunOperatorMixed", &PipelineDebug::RunOperator<MixedBackend>);
 }
 
 template <typename Backend>
@@ -1084,14 +1069,7 @@ void ExposeTensorList(py::module &m) {
     .def("copy_to_external",
         [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
-          void *ptr = ctypes_void_ptr(p);
-          cudaStream_t stream = cuda_stream.is_none()
-                ? UserStream::Get()->GetStream(t)
-                : static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-          CopyToExternal<mm::memory_kind::device>(ptr, t, stream, use_copy_kernel);
-          if (!non_blocking) {
-            CUDA_CALL(cudaStreamSynchronize(stream));
-          }
+          CopyToExternalImplGPU(t, p, cuda_stream, non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
@@ -1320,6 +1298,39 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
     d[stat.first.c_str()] = op_dict;
   }
   return d;
+}
+
+template <typename Backend>
+void ExposeEagerOperator(py::module &m, const char *name) {
+  py::class_<EagerOperator<Backend>>(m, name)
+      .def(py::init([](const OpSpec &op_spec) {
+             return std::make_unique<EagerOperator<Backend>>(op_spec);
+           }),
+           "op_spec"_a)
+      .def("__call__",
+           [](EagerOperator<Backend> &op,
+              const std::vector<
+                  std::shared_ptr<TensorList<typename Backend2Types<Backend>::InBackend>>> &inputs,
+              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
+                  &kwargs) { return op.Run(inputs, kwargs); })
+      .def("reader_meta",
+           [](EagerOperator<Backend> &op) { return ReaderMetaToDict(op.GetReaderMeta()); });
+}
+
+void ExposePipelineDebug(py::module &m) {
+  py::class_<PipelineDebug>(m, "PipelineDebug")
+      .def(py::init([](int batch_size, int num_threads, int device_id, bool set_affinity = false) {
+        return std::make_unique<PipelineDebug>(batch_size, num_threads, device_id, set_affinity);
+      }),
+      "batch_size"_a,
+      "num_threads"_a,
+      "device_id"_a,
+      "set_affinity"_a = false)
+      .def("AddOperator", &PipelineDebug::AddOperator)
+      .def("AddMultipleOperators", &PipelineDebug::AddMultipleOperators)
+      .def("RunOperatorCPU", &PipelineDebug::RunOperator<CPUBackend>)
+      .def("RunOperatorGPU", &PipelineDebug::RunOperator<GPUBackend>)
+      .def("RunOperatorMixed", &PipelineDebug::RunOperator<MixedBackend>);
 }
 
 template <typename Backend>
@@ -1878,7 +1889,11 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
-  ExposeEagerOperator(m);
+
+  ExposeEagerOperator<CPUBackend>(m, "EagerOperatorCPU");
+  ExposeEagerOperator<GPUBackend>(m, "EagerOperatorGPU");
+  ExposeEagerOperator<MixedBackend>(m, "EagerOperatorMixed");
+
   ExposePipelineDebug(m);
 
   types_m.attr("NHWC") = "HWC";

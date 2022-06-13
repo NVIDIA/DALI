@@ -22,6 +22,7 @@ from torch.utils.dlpack import to_dlpack
 import ctypes
 from nvidia.dali.backend import CheckDLPackCapsule
 
+
 def convert_to_torch(tensor, device="cuda", dtype=None, size=None):
     if size is None:
         size = [3, 5, 6]
@@ -30,11 +31,13 @@ def convert_to_torch(tensor, device="cuda", dtype=None, size=None):
     tensor.copy_to_external(c_type_pointer)
     return dali_torch_tensor
 
+
 def test_dlpack_tensor_gpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
     tensor = TensorGPU(to_dlpack(arr))
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
     assert(torch.all(arr.eq(dali_torch_tensor)))
+
 
 def test_dlpack_tensor_gpu_to_cpu():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
@@ -42,11 +45,13 @@ def test_dlpack_tensor_gpu_to_cpu():
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
     assert(torch.all(arr.cpu().eq(dali_torch_tensor.cpu())))
 
+
 def test_dlpack_tensor_list_gpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
     tensor_list = TensorListGPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert(torch.all(arr.eq(dali_torch_tensor)))
+
 
 def test_dlpack_tensor_list_gpu_to_cpu():
     arr = torch.rand(size=[3, 5, 6], device="cuda")
@@ -54,22 +59,26 @@ def test_dlpack_tensor_list_gpu_to_cpu():
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert(torch.all(arr.cpu().eq(dali_torch_tensor.cpu())))
 
+
 def check_dlpack_types_gpu(t):
     arr = torch.tensor([[-0.39, 1.5], [-1.5, 0.33]], device="cuda", dtype=t)
     tensor = TensorGPU(to_dlpack(arr), "NHWC")
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape())
     assert(torch.all(arr.eq(dali_torch_tensor)))
 
+
 def test_dlpack_interface_types():
     for t in [torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
               torch.float64, torch.float32, torch.float16]:
         yield check_dlpack_types_gpu, t
+
 
 def test_dlpack_tensor_cpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cpu")
     tensor = TensorCPU(to_dlpack(arr))
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype)
     assert(torch.all(arr.eq(dali_torch_tensor)))
+
 
 def test_dlpack_tensor_list_cpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cpu")
@@ -78,6 +87,7 @@ def test_dlpack_tensor_list_cpu_direct_creation():
     assert(torch.all(arr.eq(dali_torch_tensor)))
 
 # Check if dlpack tensors behave correctly when created from temporary objects
+
 
 def test_tensor_cpu_from_dlpack():
     def create_tmp(idx):
@@ -88,6 +98,7 @@ def test_tensor_cpu_from_dlpack():
     for i, t in enumerate(out):
         np.testing.assert_array_equal(np.array(t), np.full((4, 4), i))
 
+
 def test_tensor_list_cpu_from_dlpack():
     def create_tmp(idx):
         a = np.full((4, 4), idx)
@@ -97,6 +108,7 @@ def test_tensor_list_cpu_from_dlpack():
     for i, tl in enumerate(out):
         np.testing.assert_array_equal(tl.as_array(), np.full((4, 4), i))
 
+
 def test_tensor_gpu_from_dlpack():
     def create_tmp(idx):
         a = np.full((4, 4), idx)
@@ -105,6 +117,7 @@ def test_tensor_gpu_from_dlpack():
     out = [create_tmp(i) for i in range(4)]
     for i, t in enumerate(out):
         np.testing.assert_array_equal(np.array(t.as_cpu()), np.full((4, 4), i))
+
 
 def test_tensor_list_gpu_from_dlpack():
     def create_tmp(idx):
@@ -122,19 +135,23 @@ def check_dlpack_types_cpu(t):
     dali_torch_tensor = convert_to_torch(tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape())
     assert(torch.all(arr.eq(dali_torch_tensor)))
 
+
 def test_dlpack_interface_types_cpu():
     for t in [torch.bool, torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8,
               torch.float64, torch.float32]:
         yield check_dlpack_types_cpu, t
 
+
 def test_CheckDLPackCapsuleNone():
     info = CheckDLPackCapsule(None)
     assert info == (False, False)
+
 
 def test_CheckDLPackCapsuleCpu():
     arr = torch.rand(size=[3, 5, 6], device="cpu")
     info = CheckDLPackCapsule(to_dlpack(arr))
     assert info == (True, False)
+
 
 def test_CheckDLPackCapsuleGpu():
     arr = torch.rand(size=[3, 5, 6], device="cuda")

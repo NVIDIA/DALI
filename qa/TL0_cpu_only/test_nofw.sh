@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages="nose numpy>=1.17 numba scipy librosa==0.8.1"
+pip_packages='${python_test_runner_package} numpy>=1.17 numba scipy librosa==0.8.1'
 
 target_dir=./dali/test/python
 
@@ -33,7 +33,7 @@ test_body() {
     "$FULLPATH" --gtest_filter="*CpuOnly*:*CApi*/0.*-*0.UseCopyKernel:*ForceNoCopyFail:*daliOutputCopySamples"
   done
 
-  nosetests --verbose --attr '!pytorch' test_dali_cpu_only.py
+  ${python_invoke_test} --attr '!pytorch' test_dali_cpu_only.py
 }
 
 pushd ../..

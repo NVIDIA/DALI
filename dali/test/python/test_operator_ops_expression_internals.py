@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 import nvidia.dali.ops as ops
 from nvidia.dali.types import Constant
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 from nose.tools import assert_equal
 from nose_utils import assert_raises
 
@@ -36,7 +35,6 @@ def test_group_inputs():
     assert_equal(None, none_reals)
 
 
-
 def test_generate_input_desc():
     desc0 = ops._generate_input_desc([("edge", 0)], [], [])
     desc1 = ops._generate_input_desc(
@@ -55,7 +53,8 @@ def test_generate_input_desc():
         [int(), c.uint8(), c.uint16(), c.uint32(), c.uint64(), c.int8(), c.int16(),
          c.int32(), c.int64()],
         [])
-    assert_equal("$0:int32 $1:uint8 $2:uint16 $3:uint32 $4:uint64 $5:int8 $6:int16 $7:int32 $8:int64", desc3)
+    assert_equal(
+        "$0:int32 $1:uint8 $2:uint16 $3:uint32 $4:uint64 $5:int8 $6:int16 $7:int32 $8:int64", desc3)
 
     desc4 = ops._generate_input_desc(
         [("real", 0), ("real", 1), ("real", 2), ("real", 3)],

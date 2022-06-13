@@ -30,6 +30,7 @@ import math
 
 audio_files = get_files('db/audio/wav', 'wav')
 
+
 class SpectrogramPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfft, window_length, window_step,
                  window=None, center=None, num_threads=1, device_id=0):
@@ -63,6 +64,7 @@ class SpectrogramPipeline(Pipeline):
 
         self.feed_input(self.data, data)
 
+
 def hann_win(n):
     hann = np.ones([n], dtype=np.float32)
     a = (2.0 * math.pi / n)
@@ -71,9 +73,11 @@ def hann_win(n):
         hann[t] = 0.5 * (1.0 - math.cos(phase))
     return hann
 
+
 def cos_win(n):
     phase = (np.arange(n) + 0.5) * (math.pi / n)
     return np.sin(phase).astype(np.float32)
+
 
 def spectrogram_func_librosa(nfft, win_len, win_step, window, center, input_data):
     # Squeeze to 1d
@@ -91,6 +95,7 @@ def spectrogram_func_librosa(nfft, win_len, win_step, window, center, input_data
     #     y=input_data, n_fft=nfft, hop_length=win_step, window=hann_win, power=2)
 
     return out
+
 
 class SpectrogramPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfft, window_length, window_step, window=None, center=None,
@@ -114,6 +119,7 @@ class SpectrogramPythonPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data)
 
+
 def check_operator_spectrogram_vs_python(device, batch_size, input_shape,
                                          nfft, window_length, window_step, center):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
@@ -124,6 +130,7 @@ def check_operator_spectrogram_vs_python(device, batch_size, input_shape,
         SpectrogramPythonPipeline(device, batch_size, iter(eii2), window=None, nfft=nfft,
                                   window_length=window_length, window_step=window_step, center=center),
         batch_size=batch_size, N_iterations=3, eps=1e-04)
+
 
 def test_operator_spectrogram_vs_python():
     for device in ['cpu', 'gpu']:
@@ -139,6 +146,7 @@ def test_operator_spectrogram_vs_python():
                                                                 ]:
                     yield check_operator_spectrogram_vs_python, device, batch_size, shape, \
                         nfft, window_length, window_step, center
+
 
 def check_operator_spectrogram_vs_python_wave_1d(device, batch_size, input_length,
                                                  nfft, window_length, window_step, window, center):
@@ -158,6 +166,7 @@ def check_operator_spectrogram_vs_python_wave_1d(device, batch_size, input_lengt
                                   window=window, center=center),
         batch_size=batch_size, N_iterations=3, eps=1e-04)
 
+
 def test_operator_spectrogram_vs_python_wave():
     for device in ['cpu', 'gpu']:
         for window in [None, hann_win, cos_win]:
@@ -171,6 +180,7 @@ def test_operator_spectrogram_vs_python_wave():
                     for center in [False, True] if nfft == window_length else [True]:
                         yield check_operator_spectrogram_vs_python_wave_1d, device, batch_size, \
                             length, nfft, window_length, window_step, window, center
+
 
 class AudioSpectrogramPipeline(Pipeline):
     def __init__(self, device, batch_size, nfft, window_length, window_step, center, layout="ft",

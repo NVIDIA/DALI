@@ -69,8 +69,8 @@ def feed_ndarray(dali_tensor, ptr, cuda_stream=None):
 
     c_type_pointer = ctypes.c_void_p(ptr)
     if isinstance(dali_tensor, (TensorGPU, TensorListGPU)):
-        dali_tensor.copy_to_external(
-            c_type_pointer, None if cuda_stream is None else ctypes.c_void_p(cuda_stream))
+        stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
+        dali_tensor.copy_to_external(c_type_pointer, stream, non_blocking=True)
     else:
         dali_tensor.copy_to_external(c_type_pointer)
     return ptr
