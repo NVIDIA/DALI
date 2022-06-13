@@ -514,7 +514,7 @@ graph even if its outputs are not used.)code", false);
                  bool enable_tensor_input = false,
                  bool support_per_frame_input = false) {
     static_assert(!std::is_same<T, DALIDataType>::value,
-      R"(`Use `AddOptionalTypeArg` instead. AddOptionalArg` with a default value should not be
+      R"(Use `AddOptionalTypeArg` instead. `AddOptionalArg` with a default value should not be
 used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc, nullptr)`)");
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
