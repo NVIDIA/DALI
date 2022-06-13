@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,8 @@
 # limitations under the License.
 
 from nvidia.dali import pipeline_def
-from nvidia.dali.backend_impl import TensorListGPU
-import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import random
-import numpy as np
 import os
 from test_utils import get_dali_extra_path, check_batch
 
@@ -63,4 +59,3 @@ def test_operator_noise_gaussian_vs_add_normal_dist():
             for mean, stddev, variable_dist_params in [(10.0, 57.0, False), (0.0, 0.0, True)]:
                 yield _testimpl_operator_noise_gaussian_vs_add_normal_dist, \
                     device, mean, stddev, variable_dist_params, batch_size, niter
-

@@ -33,7 +33,8 @@ def _test_large_sample(start_method):
     def create_pipeline():
         large = fn.external_source(
             large_sample_cb, batch=False, parallel=True, prefetch_queue_depth=1)
-        # iteration over array in Python is too slow, so reduce the number of elements to iterate over
+        # iteration over array in Python is too slow, so reduce the number of elements
+        # to iterate over
         reduced = fn.reductions.sum(large, axes=(1, 2))
         return reduced
 
@@ -49,9 +50,9 @@ def _test_large_sample(start_method):
             a = np.array(out[idx_in_batch])
             assert a.shape == (512,), "Expected shape (512,) but got {}".format(a.shape)
             for val in a.flat:
-                assert val == expected_val, \
-                    "Unexpected value in batch: got {}, expected {}, for batch {}, sample {}".format(
-                        val, expected_val, batch_idx, idx_in_batch)
+                assert val == expected_val, (
+                    f"Unexpected value in batch: got {val}, expected {expected_val}, "
+                    f"for batch {batch_idx}, sample {idx_in_batch}")
 
 
 def test_large_sample():
