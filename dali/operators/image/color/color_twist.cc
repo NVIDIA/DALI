@@ -44,7 +44,7 @@ they would in case of rotation.)code",
     .AddOptionalArg(color::kValue,
                     R"code(The value multiplier.)code",
                     1.0f, true)
-    .AddOptionalArg(color::kOutputType, R"code(The output data type.
+    .AddOptionalTypeArg(color::kOutputType, R"code(The output data type.
 
 If a value is not set, the input type is used.)code",
                     DALI_UINT8)
@@ -55,7 +55,7 @@ DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
     .AddOptionalArg("image_type",
         R"code(The color space of the input and the output image.)code", DALI_RGB)
-    .AddOptionalArg(color::kOutputType, R"code(Output data type.
+    .AddOptionalTypeArg(color::kOutputType, R"code(Output data type.
 
 If not set, the input type is used.)code",
                     DALI_UINT8)

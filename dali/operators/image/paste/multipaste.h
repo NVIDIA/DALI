@@ -67,7 +67,6 @@ class MultiPasteOp : public Operator<Backend> {
 
   explicit MultiPasteOp(const OpSpec &spec)
       : Operator<Backend>(spec)
-      , output_type_arg_(spec.GetArgument<DALIDataType>("dtype"))
       , output_type_(DALI_NO_TYPE)
       , input_type_(DALI_NO_TYPE)
       , output_size_("output_size", spec)
@@ -75,6 +74,7 @@ class MultiPasteOp : public Operator<Backend> {
       , in_anchors_("in_anchors", spec)
       , shapes_("shapes", spec)
       , out_anchors_("out_anchors", spec) {
+    spec.TryGetArgument(output_type_arg_, "dtype");
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1);
     } else {
@@ -280,7 +280,9 @@ class MultiPasteOp : public Operator<Backend> {
   }
 
   USE_OPERATOR_MEMBERS();
-  DALIDataType output_type_arg_, output_type_, input_type_;
+  DALIDataType output_type_arg_ = DALI_NO_TYPE;
+  DALIDataType output_type_ = DALI_NO_TYPE;
+  DALIDataType input_type_ = DALI_NO_TYPE;
 
   ArgValue<int, 1> output_size_;
 

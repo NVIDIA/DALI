@@ -54,8 +54,8 @@ data, excluding channels.
 If not provided, all anchors are zero.)code", nullptr, true)
 .AddArg("output_size",
 R"code(Shape of the output.)code", DALI_INT_VEC, true)
-.AddOptionalArg("dtype",
-R"code(Output data type. If not set, the input type is used.)code", DALI_NO_TYPE)
+.AddOptionalTypeArg("dtype",
+R"code(Output data type. If not set, the input type is used.)code")
 .NumOutput(1);
 
 template <typename OutputType, typename InputType>

@@ -99,7 +99,7 @@ Here is a practical example, considering the table defined above::
   .NumOutput(1)
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg("dtype",
+  .AddOptionalTypeArg("dtype",
     R"code(Output data type.)code",
     DALI_FLOAT)
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev

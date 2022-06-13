@@ -1,4 +1,4 @@
-// Copyright (c) 2020 NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@ DALI_SCHEMA(PeekImageShape)
   .DocStr(R"code(Obtains the shape of the encoded image.)code")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("type", R"code(Data type, to which the sizes are converted.)code", DALI_INT64);
+  .AddOptionalTypeArg("dtype",
+    R"code(Data type, to which the sizes are converted.)code", DALI_INT64)
+  .DeprecateArgInFavorOf("type", "dtype");  // deprecated since 1.16dev
 
 DALI_REGISTER_OPERATOR(PeekImageShape, PeekImageShape, CPU);
 

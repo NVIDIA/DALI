@@ -58,12 +58,10 @@ the ``shape`` and ``dtype``, will be taken from the array.
 .. note::
     ``fdata`` and ``idata`` are mutually exclusive, and one of them is required.)code",
                   std::vector<int>())
-  .AddOptionalArg("dtype",
-                  R"code(Output data type.
+  .AddOptionalTypeArg("dtype", R"code(Output data type.
 
 If this value is not set, the output is float if the fdata argument is used and
-int if idata is used.)code",
-                  DALI_NO_TYPE)
+int if idata is used.)code")
   .AddOptionalArg("layout",
                   R"code(Layout info.
 

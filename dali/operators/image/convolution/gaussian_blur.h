@@ -41,7 +41,9 @@ template <typename Backend>
 class GaussianBlur : public SequenceOperator<Backend> {
  public:
   inline explicit GaussianBlur(const OpSpec& spec)
-      : SequenceOperator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
+      : SequenceOperator<Backend>(spec) {
+    spec.TryGetArgument(dtype_, "dtype");
+  }
 
   DISABLE_COPY_MOVE_ASSIGN(GaussianBlur);
 

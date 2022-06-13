@@ -62,9 +62,9 @@ class BrightnessContrastOp : public Operator<Backend> {
  protected:
   explicit BrightnessContrastOp(const OpSpec &spec)
       : Operator<Backend>(spec),
-        output_type_arg_(spec.GetArgument<DALIDataType>("dtype")),
         output_type_(DALI_NO_TYPE),
         input_type_(DALI_NO_TYPE) {
+    spec.TryGetArgument(output_type_arg_, "dtype");
     if (spec.HasArgument("contrast_center"))
       contrast_center_ = spec.GetArgument<float>("contrast_center");
 
@@ -139,7 +139,9 @@ class BrightnessContrastOp : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
   std::vector<float> brightness_, brightness_shift_, contrast_;
-  DALIDataType output_type_arg_, output_type_, input_type_;
+  DALIDataType output_type_arg_ = DALI_NO_TYPE;
+  DALIDataType output_type_ = DALI_NO_TYPE;
+  DALIDataType input_type_ = DALI_NO_TYPE;
   float contrast_center_ = std::nanf("");
   kernels::KernelManager kernel_manager_;
 };

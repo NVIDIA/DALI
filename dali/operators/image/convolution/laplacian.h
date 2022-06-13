@@ -42,7 +42,9 @@ template <typename Backend>
 class Laplacian : public SequenceOperator<Backend> {
  public:
   inline explicit Laplacian(const OpSpec& spec)
-      : SequenceOperator<Backend>(spec), dtype_(spec.GetArgument<DALIDataType>("dtype")) {}
+      : SequenceOperator<Backend>(spec) {
+    spec.TryGetArgument(dtype_, "dtype");
+  }
 
   DISABLE_COPY_MOVE_ASSIGN(Laplacian);
 
@@ -73,7 +75,7 @@ class Laplacian : public SequenceOperator<Backend> {
   void RunImpl(workspace_t<Backend>& ws) override;
 
  private:
-  DALIDataType dtype_;
+  DALIDataType dtype_ = DALI_NO_TYPE;
   USE_OPERATOR_MEMBERS();
   std::unique_ptr<OpImplBase<Backend>> impl_;
   DALIDataType impl_in_dtype_ = DALI_NO_TYPE;

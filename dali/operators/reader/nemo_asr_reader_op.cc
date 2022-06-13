@@ -85,7 +85,7 @@ This reader produces between 1 and 3 outputs:
     "If True, downmix all input channels to mono. "
     "If downmixing is turned on, decoder will produce always 1-D output",
     true)
-  .AddOptionalArg("dtype",
+  .AddOptionalTypeArg("dtype",
     R"code(Output data type.
 
 Supported types: ``INT16``, ``INT32``, and ``FLOAT``.)code",

@@ -42,7 +42,7 @@ Normalization takes the input images and produces the output by using the follow
   .SupportVolumetric()
   .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
   .DeprecateArg("image_type")  // deprecated since 0.24dev
-  .AddOptionalArg("dtype",
+  .AddOptionalTypeArg("dtype",
        R"code(Output data type.
 
 Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.

@@ -94,8 +94,8 @@ class ColorTwistBase : public Operator<Backend> {
  protected:
   explicit ColorTwistBase(const OpSpec &spec)
       : Operator<Backend>(spec),
-        output_type_arg_(spec.GetArgument<DALIDataType>(color::kOutputType)),
         output_type_(DALI_NO_TYPE) {
+    spec.TryGetArgument(output_type_arg_, color::kOutputType);
     if (std::is_same<Backend, GPUBackend>::value) {
       kernel_manager_.Resize(1);
     } else {
@@ -187,7 +187,7 @@ class ColorTwistBase : public Operator<Backend> {
   std::vector<float> hue_, saturation_, value_, brightness_, contrast_;
   std::vector<mat3> tmatrices_;
   std::vector<vec3> toffsets_;
-  DALIDataType output_type_arg_, output_type_;
+  DALIDataType output_type_arg_ = DALI_NO_TYPE, output_type_ = DALI_NO_TYPE;
   kernels::KernelManager kernel_manager_;
 };
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ template <typename Backend>
 class CoordTransform : public Operator<Backend>, private MTTransformAttr {
  public:
   explicit CoordTransform(const OpSpec &spec) : Operator<Backend>(spec), MTTransformAttr(spec) {
-    dtype_ = spec_.template GetArgument<DALIDataType>("dtype");
+    spec_.TryGetArgument(dtype_, "dtype");
   }
 
   bool CanInferOutputs() const override { return true; }
@@ -130,7 +130,7 @@ class CoordTransform : public Operator<Backend>, private MTTransformAttr {
   template <typename OutputType, typename InputType, int out_dim, int in_dim>
   void RunTyped(workspace_t<Backend> &ws);
 
-  DALIDataType dtype_;
+  DALIDataType dtype_ = DALI_NO_TYPE;
 
   kernels::KernelManager kmgr_;
 };
