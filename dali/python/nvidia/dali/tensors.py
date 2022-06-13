@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-name-in-module, unused-import
-import nvidia.dali.backend
+# pylint: disable=no-name-in-module, unused-import
 from nvidia.dali.backend import TensorCPU
 from nvidia.dali.backend import TensorListCPU
 from nvidia.dali.backend import TensorGPU
