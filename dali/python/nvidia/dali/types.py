@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-name-in-module,unused-import
+# pylint: disable=no-name-in-module,unused-import
 from enum import Enum, unique
 import re
 
-from nvidia.dali.backend_impl.types import *
+from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, DALIInterpType
 try:
     from nvidia.dali import tfrecord as tfrec
     _tfrecord_support = True
@@ -25,11 +25,13 @@ except ImportError:
 
 
 def _to_list(func):
+
     def _to_list_instance(val):
         if isinstance(val, (list, tuple)):
             return [func(v) for v in val]
         else:
             return [func(val)]
+
     return _to_list_instance
 
 
@@ -38,46 +40,49 @@ def _not_implemented(val):
 
 
 _known_types = {
-        DALIDataType.INT8 : ("int", int),
-        DALIDataType.INT16 : ("int", int),
-        DALIDataType.INT32 : ("int", int),
-        DALIDataType.INT64 : ("int", int),
-        DALIDataType.UINT8 : ("int", int),
-        DALIDataType.UINT16 : ("int", int),
-        DALIDataType.UINT32 : ("int", int),
-        # DALIDataType.UINT64 : ("int", int), # everything else fits into the Python int
-        DALIDataType.FLOAT : ("float", float),
-        DALIDataType.BOOL : ("bool", bool),
-        DALIDataType.STRING : ("str", str),
-        DALIDataType._BOOL_VEC : ("bool", _to_list(bool)),
-        DALIDataType._INT32_VEC : ("int", _to_list(int)),
-        DALIDataType._STRING_VEC : ("str", _to_list(str)),
-        DALIDataType._FLOAT_VEC : ("float", _to_list(float)),
-        DALIDataType.IMAGE_TYPE : ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
-        DALIDataType.DATA_TYPE : ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
-        DALIDataType.INTERP_TYPE : ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
-        DALIDataType.TENSOR_LAYOUT : (":ref:`layout str<layout_str_doc>`", lambda x: str(x)),
-        DALIDataType.PYTHON_OBJECT : ("object", lambda x: x),
-        DALIDataType._TENSOR_LAYOUT_VEC : (":ref:`layout str<layout_str_doc>`", _to_list(lambda x: str(x))),
-        DALIDataType._DATA_TYPE_VEC : ("nvidia.dali.types.DALIDataType", _to_list(lambda x: DALIDataType(int(x))))
-        }
+    DALIDataType.INT8: ("int", int),
+    DALIDataType.INT16: ("int", int),
+    DALIDataType.INT32: ("int", int),
+    DALIDataType.INT64: ("int", int),
+    DALIDataType.UINT8: ("int", int),
+    DALIDataType.UINT16: ("int", int),
+    DALIDataType.UINT32: ("int", int),
+    # DALIDataType.UINT64: ("int", int), # everything else fits into the Python int
+    DALIDataType.FLOAT: ("float", float),
+    DALIDataType.BOOL: ("bool", bool),
+    DALIDataType.STRING: ("str", str),
+    DALIDataType._BOOL_VEC: ("bool", _to_list(bool)),
+    DALIDataType._INT32_VEC: ("int", _to_list(int)),
+    DALIDataType._STRING_VEC: ("str", _to_list(str)),
+    DALIDataType._FLOAT_VEC: ("float", _to_list(float)),
+    DALIDataType.IMAGE_TYPE: ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
+    DALIDataType.DATA_TYPE: ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
+    DALIDataType.INTERP_TYPE:
+    ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
+    DALIDataType.TENSOR_LAYOUT: (":ref:`layout str<layout_str_doc>`", lambda x: str(x)),
+    DALIDataType.PYTHON_OBJECT: ("object", lambda x: x),
+    DALIDataType._TENSOR_LAYOUT_VEC:
+    (":ref:`layout str<layout_str_doc>`", _to_list(lambda x: str(x))),
+    DALIDataType._DATA_TYPE_VEC: ("nvidia.dali.types.DALIDataType",
+                                  _to_list(lambda x: DALIDataType(int(x))))
+}
 
 _vector_types = {
-        DALIDataType._BOOL_VEC : DALIDataType.BOOL,
-        DALIDataType._INT32_VEC : DALIDataType.INT32,
-        DALIDataType._STRING_VEC : DALIDataType.STRING,
-        DALIDataType._FLOAT_VEC : DALIDataType.FLOAT,
-        DALIDataType._TENSOR_LAYOUT_VEC : DALIDataType.TENSOR_LAYOUT,
-        DALIDataType._DATA_TYPE_VEC : DALIDataType.DATA_TYPE
-        }
+    DALIDataType._BOOL_VEC: DALIDataType.BOOL,
+    DALIDataType._INT32_VEC: DALIDataType.INT32,
+    DALIDataType._STRING_VEC: DALIDataType.STRING,
+    DALIDataType._FLOAT_VEC: DALIDataType.FLOAT,
+    DALIDataType._TENSOR_LAYOUT_VEC: DALIDataType.TENSOR_LAYOUT,
+    DALIDataType._DATA_TYPE_VEC: DALIDataType.DATA_TYPE
+}
 
 if _tfrecord_support:
     _known_types[DALIDataType.FEATURE] = ("nvidia.dali.tfrecord.Feature", tfrec.Feature)
-    _known_types[DALIDataType._FEATURE_VEC] = ("nvidia.dali.tfrecord.Feature or " \
-                                            "list of nvidia.dali.tfrecord.Feature",
-                                            _to_list(tfrec.Feature))
+    _known_types[DALIDataType._FEATURE_VEC] = ("nvidia.dali.tfrecord.Feature or "
+                                               "list of nvidia.dali.tfrecord.Feature",
+                                               _to_list(tfrec.Feature))
     _known_types[DALIDataType._FEATURE_DICT] = ("dict of (string, nvidia.dali.tfrecord.Feature)",
-            _not_implemented)
+                                                _not_implemented)
 
 
 def _type_name_convert_to_string(dtype, allow_tensors):
@@ -129,18 +134,15 @@ def to_numpy_type(dali_type):
     global _numpy_types
     if _numpy_types is None:
         _numpy_types = {
-            DALIDataType.UINT8   : np.uint8,
-            DALIDataType.UINT16  : np.uint16,
-            DALIDataType.UINT32  : np.uint32,
-            DALIDataType.UINT64  : np.uint64,
-            DALIDataType.INT8    : np.int8,
-            DALIDataType.INT16   : np.int16,
-            DALIDataType.INT32   : np.int32,
-            DALIDataType.INT64   : np.int64,
-            DALIDataType.FLOAT16 : np.float16,
-            DALIDataType.FLOAT   : np.float32,
-            DALIDataType.FLOAT64 : np.float64,
-            DALIDataType.BOOL    : np.bool_
+            DALIDataType.UINT8: np.uint8,
+            DALIDataType.UINT16: np.uint16,
+            DALIDataType.UINT32: np.uint32,
+            DALIDataType.UINT64: np.uint64,
+            DALIDataType.INT8: np.int8,
+            DALIDataType.INT16: np.int16,
+            DALIDataType.FLOAT: np.float32,
+            DALIDataType.FLOAT64: np.float64,
+            DALIDataType.BOOL: np.bool_
         }
 
     return _numpy_types[dali_type]
@@ -168,8 +170,10 @@ class CUDAStream:
 
 
 _bool_types = [DALIDataType.BOOL]
-_int_types = [DALIDataType.INT8, DALIDataType.INT16, DALIDataType.INT32, DALIDataType.INT64,
-              DALIDataType.UINT8, DALIDataType.UINT16, DALIDataType.UINT32, DALIDataType.UINT64]
+_int_types = [
+    DALIDataType.INT8, DALIDataType.INT16, DALIDataType.INT32, DALIDataType.INT64,
+    DALIDataType.UINT8, DALIDataType.UINT16, DALIDataType.UINT32, DALIDataType.UINT64
+]
 _float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
 
 _int_like_types = _bool_types + _int_types
@@ -219,8 +223,8 @@ dtype: DALIDataType, optional
 
         if not isinstance(value, (bool, int, float)):
             raise TypeError(
-                "Expected scalar value of type 'bool', 'int' or 'float', got {}."
-                .format(str(type(value))))
+                "Expected scalar value of type 'bool', 'int' or 'float', got {}.".format(
+                    str(type(value))))
 
         if dtype:
             self.dtype = dtype
@@ -231,8 +235,8 @@ dtype: DALIDataType, optional
             elif self.dtype in _float_types:
                 self.value = float(value)
             else:
-                raise TypeError("DALI ScalarConstant can only hold one of: {} types."
-                        .format(_all_types))
+                raise TypeError(
+                    "DALI ScalarConstant can only hold one of: {} types.".format(_all_types))
         elif isinstance(value, bool):
             self.value = value
             self.dtype = DALIDataType.BOOL
@@ -242,8 +246,6 @@ dtype: DALIDataType, optional
         elif isinstance(value, float):
             self.value = value
             self.dtype = DALIDataType.FLOAT
-
-
 
     def bool(self):
         return ScalarConstant(self.value, DALIDataType.BOOL)
@@ -297,19 +299,19 @@ dtype: DALIDataType, optional
         if self.dtype in _int_like_types:
             return bool(self.value)
         raise TypeError(("DALI ScalarConstant must be converted to one of bool or int types: ({}) "
-                "explicitly before casting to builtin `bool`.").format(_int_like_types))
+                         "explicitly before casting to builtin `bool`.").format(_int_like_types))
 
     def __int__(self):
         if self.dtype in _int_like_types:
             return int(self.value)
         raise TypeError(("DALI ScalarConstant must be converted to one of bool or int types: ({}) "
-                "explicitly before casting to builtin `int`.").format(_int_like_types))
+                         "explicitly before casting to builtin `int`.").format(_int_like_types))
 
     def __float__(self):
         if self.dtype in _float_types:
             return self.value
         raise TypeError(("DALI ScalarConstant must be converted to one of the float types: ({}) "
-                "explicitly before casting to builtin `float`.").format(_float_types))
+                         "explicitly before casting to builtin `float`.").format(_float_types))
 
     def __str__(self):
         return "{}:{}".format(self.value, self.dtype)
@@ -337,10 +339,10 @@ def _is_torch_tensor(value):
 
 def _is_numpy_array(value):
     type_name = str(type(value))
-    return  'numpy.ndarray' in type_name or \
-            'numpy.int' in type_name or \
-            'numpy.uint' in type_name or \
-            'numpy.float' in type_name
+    return 'numpy.ndarray' in type_name or \
+           'numpy.int' in type_name or \
+           'numpy.uint' in type_name or \
+           'numpy.float' in type_name
 
 
 def _raw_cuda_stream(stream_obj):
@@ -380,7 +382,7 @@ def _get_device_id_for_array(array):
         return None
 
 
-_cupy_array_type_regex = re.compile('.*cupy\..*\.ndarray.*')
+_cupy_array_type_regex = re.compile('.*cupy\..*\.ndarray.*')        # noqa: W605
 
 
 def _is_cupy_array(value):
@@ -389,34 +391,29 @@ def _is_cupy_array(value):
 
 # common type names used by numpy, torch and possibly
 _type_name_to_dali_type = {
-    'bool'    : DALIDataType.BOOL,
-    'boolean' : DALIDataType.BOOL,
-
-    'int8'    : DALIDataType.INT8,
-    'sbyte'   : DALIDataType.INT8,
-    'uint8'   : DALIDataType.UINT8,
-    'byte'    : DALIDataType.UINT8,
-    'ubyte'   : DALIDataType.UINT8,
-
-    'int16'   : DALIDataType.INT16,
-    'short'   : DALIDataType.INT16,
-    'uint16'  : DALIDataType.UINT16,
-    'ushort'  : DALIDataType.UINT16,
-
-    'int32'   : DALIDataType.INT32,
-    'uint32'  : DALIDataType.UINT32,
-
-    'int64'   : DALIDataType.INT64,
-    'long'    : DALIDataType.INT64,
-    'uint64'  : DALIDataType.UINT64,
-    'ulong'   : DALIDataType.UINT64,
-
-    'half'    : DALIDataType.FLOAT16,
-    'float16' : DALIDataType.FLOAT16,
-    'float'   : DALIDataType.FLOAT,
-    'float32' : DALIDataType.FLOAT,
-    'float64' : DALIDataType.FLOAT64,
-    'double'  : DALIDataType.FLOAT64,
+    'bool': DALIDataType.BOOL,
+    'boolean': DALIDataType.BOOL,
+    'int8': DALIDataType.INT8,
+    'sbyte': DALIDataType.INT8,
+    'uint8': DALIDataType.UINT8,
+    'byte': DALIDataType.UINT8,
+    'ubyte': DALIDataType.UINT8,
+    'int16': DALIDataType.INT16,
+    'short': DALIDataType.INT16,
+    'uint16': DALIDataType.UINT16,
+    'ushort': DALIDataType.UINT16,
+    'int32': DALIDataType.INT32,
+    'uint32': DALIDataType.UINT32,
+    'int64': DALIDataType.INT64,
+    'long': DALIDataType.INT64,
+    'uint64': DALIDataType.UINT64,
+    'ulong': DALIDataType.UINT64,
+    'half': DALIDataType.FLOAT16,
+    'float16': DALIDataType.FLOAT16,
+    'float': DALIDataType.FLOAT,
+    'float32': DALIDataType.FLOAT,
+    'float64': DALIDataType.FLOAT64,
+    'double': DALIDataType.FLOAT64,
 }
 
 dali_type_converters = []
@@ -428,7 +425,8 @@ def to_dali_type(framework_type):
         t = t[6:]
     t = _type_name_to_dali_type.get(t)
     if t is None:
-        raise TypeError("'{}' could not be converted into any known DALIDataType.".format(framework_type));
+        raise TypeError(
+            "'{}' could not be converted into any known DALIDataType.".format(framework_type))
     return t
 
 
@@ -469,6 +467,7 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
             shape = list(value.shape)  # torch uses torch.Size instead of list
         data = value.flatten().tolist()
     else:
+
         def _type_from_value_or_list(v):
             if not isinstance(v, (list, tuple)):
                 v = [v]
@@ -520,9 +519,8 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         call_args["name"] = name
         del constructor_args["name"]
 
-    op = ops.Constant(device=device, fdata=fdata, idata=idata,
-                      shape=shape, dtype=dtype, layout=layout,
-                      **constructor_args)
+    op = ops.Constant(device=device, fdata=fdata, idata=idata, shape=shape, dtype=dtype,
+                      layout=layout, **constructor_args)
     return op(**call_args)
 
 
@@ -573,11 +571,11 @@ device: string, optional, "cpu" or "gpu"
     """
 
     if device is not None or \
-        (_is_compatible_array_type(value) and not _is_true_scalar(value)) or \
-        isinstance(value, (list, tuple)) or \
-        not _is_scalar_shape(shape) or \
-        kwargs or \
-        layout is not None:
+       (_is_compatible_array_type(value) and not _is_true_scalar(value)) or \
+       isinstance(value, (list, tuple)) or \
+       not _is_scalar_shape(shape) or \
+       kwargs or \
+       layout is not None:
         return ConstantNode(device, value, dtype, shape, layout, **kwargs)
     else:
         return ScalarConstant(value, dtype)
