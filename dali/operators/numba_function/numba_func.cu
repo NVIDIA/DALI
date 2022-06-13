@@ -62,7 +62,7 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
   batch_processing_ = spec.GetArgument<bool>("batch_processing");
   DALI_ENFORCE(batch_processing_ == false,
-    make_string("Currently batch processing is not supported."));
+    make_string("Currently batch processing for GPU is not supported."));
 
   out_types_ = spec.GetRepeatedArgument<DALIDataType>("out_types");
   DALI_ENFORCE(out_types_.size() <= 6,

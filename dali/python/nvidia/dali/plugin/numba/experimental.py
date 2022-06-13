@@ -314,9 +314,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
 
-        assert batch_processing == False, "Currently batch processing is not supported."
-        
         if device == 'gpu':
+            assert batch_processing == False, "Currently batch processing for GPU is not supported."
             assert len(blocks) == 3, f"`blocks` array should contain 3 numbers, while received: {len(blocks)}"
             for i, block_dim in enumerate(blocks):
                 assert block_dim > 0, f"All dimensions should be positive. Value specified in `blocks` at index {i} is nonpositive: {block_dim}"
