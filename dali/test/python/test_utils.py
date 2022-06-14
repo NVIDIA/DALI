@@ -640,19 +640,24 @@ def as_array(tensor):
 def python_function(*inputs, function, **kwargs):
     """
     Convenience wrapper around fn.python_function.
-    If you need to pass to the fn.python_function mix of datanodes and parameters that are not produced
-    by the pipeline, you probably need to proceed along the lines of:
-    `dali.fn.python_function(data_node, function=lambda data:my_function(data, non_pipeline_data))`.
-    This utility separates the data nodes from non data nodes automatically, so that you can simply call
-    `python_function(data_node, non_pipeline_data, function=my_function)`.
+    If you need to pass to the fn.python_function mix of datanodes and parameters
+    that are not produced by the pipeline, you probably need to proceed along the lines of:
+    `dali.fn.python_function(data_node, function=lambda data:my_fun(data, non_pipeline_data))`.
+    This utility separates the data nodes from non data nodes automatically,
+    so that you can simply call `python_function(data_node, non_pipeline_data, function=my_fun)`.
     """
     node_inputs = [inp for inp in inputs if isinstance(inp, dali.data_node.DataNode)]
     const_inputs = [inp for inp in inputs if not isinstance(inp, dali.data_node.DataNode)]
+
+    def is_data_node(input):
+        return isinstance(input, dali.data_node.DataNode)
+
     def wrapper(*exec_inputs):
         iter_exec_inputs = (inp for inp in exec_inputs)
         iter_const_inputs = (inp for inp in const_inputs)
         iteration_inputs = [
-            next(iter_exec_inputs if isinstance(inp, dali.data_node.DataNode) else iter_const_inputs)
+            next(iter_exec_inputs if is_data_node(inp) else iter_const_inputs)
             for inp in inputs]
         return function(*iteration_inputs)
+
     return dali.fn.python_function(*node_inputs, function=wrapper, **kwargs)

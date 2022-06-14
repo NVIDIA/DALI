@@ -127,8 +127,9 @@ def bricon_ref_pipe(data_iterator, contrast_center, dtype, has_3_dims=False):
         contrast_center = contrast_center_param()
     inp = fn.external_source(source=data_iterator)
     layout = "FHWC" if has_3_dims else "HWC"
-    return python_function(inp, brightness, brightness_shift, contrast, contrast_center, dali_type_to_np(dtype),
-                           function=bricon_ref, output_layouts=layout)
+    return python_function(
+        inp, brightness, brightness_shift, contrast, contrast_center, dali_type_to_np(dtype),
+        function=bricon_ref, output_layouts=layout)
 
 
 def check_equivalence(device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center):
@@ -162,7 +163,8 @@ def test_equivalence():
                 for op in ['brightness', 'contrast']:
                     for (has_3_dims, use_const_contr_center) in rng.sample([
                             (b1, b2) for b1 in [True, False] for b2 in [True, False]], 2):
-                        yield check_equivalence, device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center
+                        yield check_equivalence, device, inp_dtype, out_dtype, op, has_3_dims, \
+                            use_const_contr_center
 
 
 def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center):
@@ -190,7 +192,8 @@ def test_vs_ref():
             for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
                 for (has_3_dims, use_const_contr_center) in rng.sample([
                         (b1, b2) for b1 in [True, False] for b2 in [True, False]], 2):
-                    yield check_vs_ref, device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center
+                    yield check_vs_ref, device, inp_dtype, out_dtype, has_3_dims, \
+                        use_const_contr_center
 
 
 def test_video():
@@ -207,16 +210,35 @@ def test_video():
         return np.float32(sample_desc.rng.random())
 
     video_test_cases = [
-        (fn.brightness, {'dtype': types.INT32}, [ArgCb("brightness", brightness, True)]),
-        (fn.brightness, {'dtype': types.UINT8}, [
-         ArgCb("brightness_shift", brightness_shift, True), ArgCb("brightness", brightness, False)]),
-        (fn.contrast, {'dtype': types.FLOAT}, [
-         ArgCb("contrast", contrast, True), ArgCb("contrast_center", contrast_center, False)]),
-        (fn.contrast, {'dtype': types.UINT8}, [ArgCb("contrast_center", contrast_center, True)]),
-        (fn.brightness_contrast, {'dtype': types.UINT8}, [ArgCb("contrast", contrast, False), ArgCb(
-            "contrast", contrast_center, True), ArgCb("brightness", brightness, True)]),
-        (fn.brightness_contrast, {}, [ArgCb("brightness", brightness, True), ArgCb("brightness_shift", brightness_shift, True), ArgCb(
-            "contrast", contrast, True), ArgCb("contrast_center", contrast_center, True)]),
+        (fn.brightness, {
+            'dtype': types.INT32
+        }, [ArgCb("brightness", brightness, True)]),
+        (fn.brightness, {
+            'dtype': types.UINT8
+        }, [
+            ArgCb("brightness_shift", brightness_shift, True),
+            ArgCb("brightness", brightness, False)
+        ]),
+        (fn.contrast, {
+            'dtype': types.FLOAT
+        }, [ArgCb("contrast", contrast, True),
+            ArgCb("contrast_center", contrast_center, False)]),
+        (fn.contrast, {
+            'dtype': types.UINT8
+        }, [ArgCb("contrast_center", contrast_center, True)]),
+        (fn.brightness_contrast, {
+            'dtype': types.UINT8
+        }, [
+            ArgCb("contrast", contrast, False),
+            ArgCb("contrast", contrast_center, True),
+            ArgCb("brightness", brightness, True)
+        ]),
+        (fn.brightness_contrast, {}, [
+            ArgCb("brightness", brightness, True),
+            ArgCb("brightness_shift", brightness_shift, True),
+            ArgCb("contrast", contrast, True),
+            ArgCb("contrast_center", contrast_center, True)
+        ]),
     ]
 
     yield from video_suite_helper(video_test_cases, test_channel_first=False)

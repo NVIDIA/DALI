@@ -40,7 +40,8 @@ def dali_type_to_np(dtype):
 def ColorTwistPipeline(data_iterator, is_input_float, inp_dtype, out_dtype):
     imgs = fn.external_source(source=data_iterator)
     o_dtype = dali_type_to_np(out_dtype)
-    # converting float inputs to integer outs leads to binary images as input is in -1 to 1 range in such case
+    # converting float inputs to integer outs leads to binary images as
+    # input is in -1 to 1 range in such case
     if is_input_float and not np.issubdtype(o_dtype, np.floating):
         imgs *= 255
     H = fn.random.uniform(range=[-20, 20])
@@ -163,14 +164,24 @@ def test_video():
     video_test_cases = [
         (fn.hue, {}, [ArgCb("hue", hue, True)]),
         (fn.saturation, {}, [ArgCb("saturation", saturation, True)]),
-        (fn.hsv, {}, [ArgCb("hue", hue, True), ArgCb(
-            "saturation", saturation, True), ArgCb("value", value, True)]),
-        (fn.hsv, {}, [ArgCb("hue", hue, False), ArgCb(
-            "saturation", saturation, True), ArgCb("value", value, False)]),
-        (fn.color_twist, {}, [ArgCb("brightness", brightness, True), ArgCb("hue", hue, True), ArgCb(
-            "saturation", saturation, True), ArgCb("contrast", contrast, True), ]),
+        (fn.hsv, {}, [
+            ArgCb("hue", hue, True),
+            ArgCb("saturation", saturation, True),
+            ArgCb("value", value, True)
+        ]),
+        (fn.hsv, {}, [
+            ArgCb("hue", hue, False),
+            ArgCb("saturation", saturation, True),
+            ArgCb("value", value, False)
+        ]),
         (fn.color_twist, {}, [
-         ArgCb("brightness", brightness, True), ArgCb("hue", hue, False)]),
+            ArgCb("brightness", brightness, True),
+            ArgCb("hue", hue, True),
+            ArgCb("saturation", saturation, True),
+            ArgCb("contrast", contrast, True),
+        ]),
+        (fn.color_twist, {}, [ArgCb("brightness", brightness, True),
+                              ArgCb("hue", hue, False)]),
     ]
 
     yield from video_suite_helper(video_test_cases, test_channel_first=False)
