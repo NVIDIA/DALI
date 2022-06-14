@@ -45,7 +45,7 @@ void ColorTwistGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   using Kernel = kernels::LinearTransformationGpu<OutputType, InputType, 3, 3, 2>;
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
-  kernel_manager_.Initialize<Kernel>();
+  kernel_manager_.template Resize<Kernel>(sh.num_samples());
 
   auto tmatrices = make_cspan(tmatrices_);
   auto toffsets = make_cspan(toffsets_);

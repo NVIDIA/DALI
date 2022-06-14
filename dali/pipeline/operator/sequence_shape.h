@@ -21,6 +21,7 @@
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/data/sequence_utils.h"
 
 namespace dali {
 
@@ -111,35 +112,6 @@ class ExpandDesc {
 };
 
 namespace sequence_utils {
-
-template <typename Range>
-class RangeIterator {
-  using IndexType = typename Range::IndexType;
-  using ValueType = typename Range::ValueType;
-
- public:
-  RangeIterator(const Range &range, IndexType idx) : range_{range}, idx_{idx} {}
-
-  ValueType operator*() const {
-    return range_[idx_];
-  }
-
-  bool operator==(const RangeIterator &other) const {
-    return idx_ == other.idx_;
-  }
-
-  bool operator!=(const RangeIterator &other) const {
-    return !(*this == other);
-  }
-
-  void operator++() {
-    ++idx_;
-  }
-
- private:
-  const Range &range_;
-  IndexType idx_;
-};
 
 struct SliceView {
   uint8_t *ptr;

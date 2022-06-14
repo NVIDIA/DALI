@@ -29,14 +29,15 @@ void BrightnessContrastGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto sh = input.shape();
   int num_samples = input.num_samples();
+  const auto &contrast_center = GetContrastCenter<InputType>(ws, num_samples);
   auto num_dims = sh.sample_dim();
 
   addends_.resize(num_samples);
   multipliers_.resize(num_samples);
   for (int i = 0; i < num_samples; i++) {
-    OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i],
-                                              brightness_[i], brightness_shift_[i],
-                                              contrast_[i]);
+    OpArgsToKernelArgs<OutputType, InputType>(addends_[i], multipliers_[i], brightness_[i],
+                                              brightness_shift_[i], contrast_[i],
+                                              contrast_center[i]);
   }
 
   TensorListView<StorageGPU, const InputType, 3> tvin;
@@ -53,7 +54,7 @@ void BrightnessContrastGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   using Kernel = kernels::MultiplyAddGpu<OutputType, InputType, 3>;
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
-  kernel_manager_.Initialize<Kernel>();
+  kernel_manager_.template Resize<Kernel>(1);
 
   kernel_manager_.Setup<Kernel>(0, ctx, tvin, brightness_, contrast_);
   kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, addends_, multipliers_);
