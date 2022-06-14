@@ -39,7 +39,7 @@ The value of ``X_border`` depends on the ``border`` argument::
     .NumInput(1)
     .NumOutput(detail::kNumOutputs)
     .AddOptionalArg(detail::kCoeff, R"code(Preemphasis coefficient ``coeff``.)code", 0.97f, true)
-    .AddOptionalArg(arg_names::kDtype, R"code(Data type for the output.)code", DALI_FLOAT)
+    .AddOptionalTypeArg(arg_names::kDtype, R"code(Data type for the output.)code", DALI_FLOAT)
     .AddOptionalArg(detail::kBorder,
       R"(Border value policy. Possible values are \"zero\", \"clamp\", \"reflect\".)",
       "clamp");

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nose_utils
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
@@ -65,9 +66,15 @@ def CVWarp(output_type, input_type, warp_matrix=None, inv_map=False):
         matrix = ToCVMatrix(matrix)
         if output_type == dali.types.FLOAT or input_type == dali.types.FLOAT:
             img = np.float32(img)
-        out = cv2.warpAffine(
-            img, matrix, size, borderMode=cv2.BORDER_CONSTANT, borderValue=[42, 42, 42],
-            flags=(cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) if inv_map else cv2.INTER_LINEAR)
+
+        fill = 12.5 if output_type == dali.types.FLOAT else 42
+        out = cv2.warpAffine(img,
+                             matrix,
+                             size,
+                             borderMode=cv2.BORDER_CONSTANT,
+                             borderValue=[fill, fill, fill],
+                             flags=((cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
+                                    if inv_map else cv2.INTER_LINEAR))
         if output_type == dali.types.UINT8 and input_type == dali.types.FLOAT:
             out = np.uint8(np.clip(out, 0, 255))
         return out
@@ -100,15 +107,25 @@ class WarpPipeline(Pipeline):
 
         static_size = None if self.use_dynamic_size else (240, 320)
 
+        fill = 12.5 if output_type == types.FLOAT else 42
+        output_type_arg = output_type if output_type != input_type else None
+
         if use_input:
             self.transform_source = ops.ExternalSource(
                 lambda: gen_transforms(self.max_batch_size, 10))
-            self.warp = ops.WarpAffine(device=device, size=static_size, fill_value=42,
-                                       dtype=output_type, inverse_map=inv_map)
+            self.warp = ops.WarpAffine(device=device,
+                                       size=static_size,
+                                       fill_value=fill,
+                                       dtype=output_type_arg,
+                                       inverse_map=inv_map)
         else:
             warp_matrix = (0.1, 0.9, 10, 0.8, -0.2, -20)
-            self.warp = ops.WarpAffine(device=device, size=static_size, matrix=warp_matrix,
-                                       fill_value=42, dtype=output_type, inverse_map=inv_map)
+            self.warp = ops.WarpAffine(device=device,
+                                       size=static_size,
+                                       matrix=warp_matrix,
+                                       fill_value=fill,
+                                       dtype=output_type_arg,
+                                       inverse_map=inv_map)
 
         self.iter = 0
 
@@ -244,7 +261,7 @@ def test_gpu_vs_cpu():
                                             inv_map=inv_map)
                 gpu_pipeline.build()
 
-                compare(cpu_pipeline, gpu_pipeline, 1)
+                compare(cpu_pipeline, gpu_pipeline, 1.0001)
 
 
 def _test_extremely_large_data(device):

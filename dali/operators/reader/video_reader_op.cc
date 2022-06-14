@@ -143,7 +143,7 @@ This parameter can be used to trade off memory usage with performance.)code",
   .AddOptionalArg("image_type",
       R"(The color space of the output frames (RGB or YCbCr).)",
       DALI_RGB)
-  .AddOptionalArg("dtype",
+  .AddOptionalTypeArg("dtype",
       R"(Output data type.
 
 Supported types: ``UINT8`` or ``FLOAT``.)",

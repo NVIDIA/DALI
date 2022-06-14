@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ as scalars is not supported if ``axis`` argument is specified.)code")
   .AddOptionalArg<int>("axis", R"code(Dimension to place the one-hot encoding axis of `num_classes`
 size. By default it's appended as the last dimension for non-scalar inputs. For scalar inputs,
 it becomes the only dimension.)code", -1)
-  .AddOptionalArg(arg_names::kDtype, R"code(Output data type.)code", DALI_FLOAT)
+  .AddOptionalTypeArg(arg_names::kDtype, R"code(Output data type.)code", DALI_FLOAT)
   .AddOptionalArg("on_value",
                   R"code(Value that will be used to fill the output to indicate given class
 in the corresponding input coordinate.

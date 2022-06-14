@@ -37,10 +37,10 @@ This operator can also change the type of data.)code")
 For signed types, 1.0 represents the maximum positive value that can be represented by
 the type.)code",
                     kDefaultBrightnessShift, true)
-    .AddOptionalArg("dtype",
+    .AddOptionalTypeArg("dtype",
                     R"code(Output data type.
 
-If not set, the input type is used.)code", DALI_NO_TYPE)
+If not set, the input type is used.)code")
     .AllowSequences()
     .SupportVolumetric()
     .InputLayout({"FHWC", "DHWC", "HWC"});
@@ -63,10 +63,10 @@ the uniform grey.)code",
 This is the value that all pixels assume when the contrast is zero. When not set,
 the half of the input type's positive range (or 0.5 for ``float``) is used.)code",
                     brightness_contrast::HalfRange<float>(), false)
-    .AddOptionalArg("dtype",
+    .AddOptionalTypeArg("dtype",
                     R"code(Output data type.
 
-If not set, the input type is used.)code", DALI_NO_TYPE)
+If not set, the input type is used.)code")
     .AllowSequences()
     .SupportVolumetric()
     .InputLayout({"FHWC", "DHWC", "HWC"});

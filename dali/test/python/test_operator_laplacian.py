@@ -139,6 +139,8 @@ def laplacian_pipe(device, window_size, in_type, out_type, normalize, grayscale)
         imgs = fn.cast(imgs, dtype=in_type)
     if device == "gpu":
         imgs = imgs.gpu()
+    if out_type == in_type:
+        out_type = None
     edges = fn.laplacian(imgs, window_size=window_size, smoothing_size=smoothing_size,
                          normalized_kernel=normalize, dtype=out_type, device=device)
     return edges, imgs

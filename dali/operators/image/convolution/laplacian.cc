@@ -94,10 +94,9 @@ Smoothing size must be odd and between 1 and 23.)code",
         "If set to True, automatically scales partial derivatives kernels. Must be False "
         "if ``scale`` is specified.",
         laplacian::normalizeArgDefault)
-    .AddOptionalArg("dtype", R"code(Output data type.
+    .AddOptionalTypeArg("dtype", R"code(Output data type.
 
-Supported type: `FLOAT`. If not set, the input type is used.)code",
-                    DALI_NO_TYPE);
+Supported type: `FLOAT`. If not set, the input type is used.)code");
 
 
 namespace laplacian {
