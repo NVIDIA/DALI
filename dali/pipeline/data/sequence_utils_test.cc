@@ -89,7 +89,7 @@ TYPED_TEST(UnfoldTensorViewTest, UnfoldDynamic) {
   this->TestUnfolding(view, slice_shape, num_slices, slice_stride);
 }
 
-TEST(UnfoldTensorViewTest, LadingZeroVol) {
+TEST(UnfoldTensorViewTest, LeadingZeroVol) {
   float val;
   const TensorView<StorageCPU, float, 4> view(&val, {0, 100, 100, 3});
   auto range_0 = sequence_utils::unfolded_view_range<0>(view);
