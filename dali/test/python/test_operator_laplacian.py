@@ -207,7 +207,8 @@ def test_vs_open_cv():
             # different from the result of running cv2.laplacian with floats and then
             # clamping the results)
             for window_size in range(1, 13, 2):
-                yield _test_vs_open_cv, device, batch_size, window_size, types.UINT8, None, normalize, grayscale
+                yield _test_vs_open_cv, device, batch_size, window_size, types.UINT8, None, \
+                    normalize, grayscale
 
 
 @attr('slow')
@@ -218,7 +219,8 @@ def test_vs_open_cv_slow():
         for normalize, grayscale in ((True, False), (False, True)):
             for in_type, out_type in ((types.UINT8, types.FLOAT), (types.FLOAT, None)):
                 for window_size in [1] + list(range(3, max_window_size + 2, 4)):
-                    yield _test_vs_open_cv, device, batch_size, window_size, in_type, out_type, normalize, grayscale
+                    yield _test_vs_open_cv, device, batch_size, window_size, in_type, out_type, \
+                        normalize, grayscale
 
 
 def laplacian_sp(input, out_type):
@@ -321,7 +323,9 @@ def get_window_sizes(window_size, smoothing_size, axes):
         return [[window_sizes[i]] * axes for i in range(axes)]
     else:
         smoothing_sizes = spread_values(smoothing_size, axes)
-        return [[window_sizes[j] if i == j else smoothing_sizes[j] for j in range(axes)] for i in range(axes)]
+        return [
+            [window_sizes[j] if i == j else smoothing_sizes[j] for j in range(axes)]
+            for i in range(axes)]
 
 
 def laplacian_baseline(img, out_type, window_size, smoothing_size, scale, axes, skip_axes=0):
@@ -355,7 +359,8 @@ def count_skip_axes(layout):
 
 
 @pipeline_def
-def laplacian_per_sample_pipeline(device, iterator, layout, window_dim, smoothing_dim, axes, normalize, out_type):
+def laplacian_per_sample_pipeline(device, iterator, layout, window_dim, smoothing_dim, axes,
+                                  normalize, out_type):
     data = fn.external_source(iterator, layout=layout)
     if window_dim is None:
         window_size = 3
@@ -420,14 +425,18 @@ def check_per_sample_laplacian(device, batch_size, window_dim, smoothing_dim, no
             edges = edges.as_cpu()
             data = data.as_cpu()
         edges, data, window_size, smoothing_size, scale = [
-            to_batch(out, batch_size) for out in (edges, data, window_size, smoothing_size, scale)]
+            to_batch(out, batch_size)
+            for out in (edges, data, window_size, smoothing_size, scale)]
         baseline = []
         for i in range(batch_size):
             skip_axes = count_skip_axes(layout)
-            baseline.append(laplacian_baseline(
-                data[i], out_type or in_type, window_size[i], smoothing_size[i], scale[i], axes, skip_axes))
+            sample_baseline = laplacian_baseline(
+                data[i], out_type or in_type, window_size[i], smoothing_size[i],
+                scale[i], axes, skip_axes)
+            baseline.append(sample_baseline)
         if out_type == np.float32:
-            # Normalized abs values are up to 2 * `axes` * 255 so it still gives over 5 decimal digits of precision
+            # Normalized abs values are up to 2 * `axes` * 255 so it still gives
+            # over 5 decimal digits of precision
             max_error = 1e-3
         else:
             max_error = 1
@@ -459,11 +468,13 @@ def test_per_sample_laplacian_slow():
                     for window_dim in full_test if in_type == np.float32 else [1]:
                         for smoothing_dim in full_test if in_type == np.float32 else [1]:
                             for normalize in [True, False]:
-                                yield check_per_sample_laplacian, device, batch_size, window_dim, smoothing_dim, \
-                                    normalize, shape, layout, axes, in_type, out_type
+                                yield check_per_sample_laplacian, device, batch_size, window_dim, \
+                                    smoothing_dim, normalize, shape, layout, axes, in_type, \
+                                    out_type
 
 
-def check_fixed_param_laplacian(device, batch_size, in_type, out_type, shape, layout, axes, window_size, smoothing_size, scales, normalize):
+def check_fixed_param_laplacian(device, batch_size, in_type, out_type, shape, layout, axes,
+                                window_size, smoothing_size, scales, normalize):
 
     iterator = RandomlyShapedDataIterator(
         batch_size, max_shape=shape, dtype=in_type)
@@ -495,14 +506,17 @@ def check_fixed_param_laplacian(device, batch_size, in_type, out_type, shape, la
         baseline = []
         for i in range(batch_size):
             skip_axes = count_skip_axes(layout)
-            window_size = np.array([]) if window_size is None else np.array(window_size, dtype=np.int32)
-            smoothing_size = np.array([]) if smoothing_size is None else np.array(smoothing_size, dtype=np.int32)
+            window_size = np.array([]) if window_size is None else np.array(
+                window_size, dtype=np.int32)
+            smoothing_size = np.array([]) if smoothing_size is None else np.array(
+                smoothing_size, dtype=np.int32)
             if normalize:
                 all_sizes = get_window_sizes(window_size, smoothing_size, axes)
                 scales = [2.**(-sum(sizes) + axes + 2) for sizes in all_sizes]
             scales = np.array(scales, dtype=np.float32)
             sample = laplacian_baseline(
-                data[i], out_type or in_type, window_size, smoothing_size, scales, axes, skip_axes)
+                data[i], out_type or in_type, window_size, smoothing_size,
+                scales, axes, skip_axes)
             baseline.append(sample)
         if out_type == np.float32:
             max_error = 1e-3
@@ -543,24 +557,28 @@ def test_fixed_params_laplacian():
                     continue
                 for shape, layout, axes in shape_layout_axes_cases:
                     for window_sizes in window_size_cases[axes]:
-                        for smoothing_sizes in smoothing_size_cases[axes]:
+                        for smooth_sizes in smoothing_size_cases[axes]:
                             for normalize in [True, False]:
                                 if normalize:
                                     scale_cases = [None]
                                 else:
-                                    scale_cases = window_scales(window_sizes, smoothing_sizes, axes)
+                                    scale_cases = window_scales(window_sizes, smooth_sizes, axes)
                                 for scales in scale_cases:
-                                    yield check_fixed_param_laplacian, device, batch_size, in_type, out_type, shape,\
-                                        layout, axes, window_sizes, smoothing_sizes, scales, normalize
+                                    yield check_fixed_param_laplacian, device, batch_size, \
+                                        in_type, out_type, shape, layout, axes, \
+                                        window_sizes, smooth_sizes, scales, normalize
 
 
-def check_build_time_fail(device, batch_size, shape, layout, axes, window_size, smoothing_size, scale, normalize, err_regex):
+def check_build_time_fail(device, batch_size, shape, layout, axes, window_size, smoothing_size,
+                          scale, normalize, err_regex):
     with assert_raises(RuntimeError, regex=err_regex):
         check_fixed_param_laplacian(
-            device, batch_size, np.uint8, None, shape, layout, axes, window_size, smoothing_size, scale, normalize)
+            device, batch_size, np.uint8, None, shape, layout, axes, window_size,
+            smoothing_size, scale, normalize)
 
 
-def check_tensor_input_fail(device, batch_size, shape, layout, window_size, smoothing_size, scale, normalize, dtype, err_regex):
+def check_tensor_input_fail(device, batch_size, shape, layout, window_size, smoothing_size,
+                            scale, normalize, dtype, err_regex):
     iterator = RandomlyShapedDataIterator(
         batch_size, max_shape=shape, dtype=np.uint8)
 
@@ -588,50 +606,52 @@ def check_tensor_input_fail(device, batch_size, shape, layout, window_size, smoo
 def test_fail_laplacian():
     args = [
         ((20, 20, 30, 3), "DHCW", 3,
-            "Only channel-first or channel-last layouts are supported, got: .*\."),
+            "Only channel-first or channel-last layouts are supported, got: .*\\."),
         ((5, 20, 30, 3), "HFWC", 2,
-            "For sequences, layout should begin with 'F' or 'C', got: .*\."),
+            "For sequences, layout should begin with 'F' or 'C', got: .*\\."),
         ((5, 10, 10, 10, 7, 3), "FWXYZC", 4,
-            "Too many dimensions, found: \d+ data axes, maximum supported is: 3\."),
+            "Too many dimensions, found: \\d+ data axes, maximum supported is: 3\\."),
         ((5, 3, 20, 3, 30), "FCHCW", 2,
-            "Only channel-first or channel-last layouts are supported, got: .*\."),
+            "Only channel-first or channel-last layouts are supported, got: .*\\."),
         ((5, 3, 20, 3, 30), "FCCHW", 2,
-            "Found more the one occurrence of 'F' or 'C' axes in layout: .*\."),
+            "Found more the one occurrence of 'F' or 'C' axes in layout: .*\\."),
         ((5, 3), "CF", 2, "No spatial axes found in the layout"),
     ]
     for device in "cpu", "gpu":
         for shape, layout, axes, err_regex in args:
-            yield check_build_time_fail, device, 10, shape, layout, axes, 11, 11, 1., False, err_regex
-        yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 11, 11, 1., False, types.UINT16, \
-            "Output data type must be same as input, FLOAT or skipped"
+            yield check_build_time_fail, device, 10, shape, layout, axes, 11, 11, 1., \
+                False, err_regex
+        yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 11, 11, 1., False, \
+            types.UINT16, "Output data type must be same as input, FLOAT or skipped"
 
         yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 11, 11, 1., True, \
             "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True"
         for window_size in [-3, 10, max_window_size + 1]:
-            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, window_size, 5, 1., False, \
-                "Window size must be an odd integer between 3 and \d"
-            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", window_size, 5, 1., False, types.FLOAT, \
-                "Window size must be an odd integer between 3 and \d"
+            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, window_size, 5, 1., \
+                False, "Window size must be an odd integer between 3 and \\d"
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", window_size, 5, 1., \
+                False, types.FLOAT, "Window size must be an odd integer between 3 and \\d"
         for window_size in [[3, 6], -1, max_window_size + 1]:
-            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 3, window_size, 1., False, \
-                "Smoothing window size must be an odd integer between 1 and \d"
+            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 3, window_size, 1., \
+                False, "Smoothing window size must be an odd integer between 1 and \\d"
         for window_size in [6, -1, max_window_size + 1]:
-            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 3, window_size, 1., False, types.FLOAT, \
-                "Smoothing window size must be an odd integer between 1 and \d"
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 3, window_size, 1., \
+                False, types.FLOAT, \
+                "Smoothing window size must be an odd integer between 1 and \\d"
         for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
-            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, window_size, 11, 1., False, \
-                "Argument \"window_size\" expects either a single value or a list of 2 elements. {} given".format(
-                    len(window_size))
-            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", window_size, 11, 1., False, types.FLOAT, \
-                "Argument window_size for sample 0 is expected to have 1 or 2 elements, got: {}".format(
-                    len(window_size))
+            yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, window_size, 11, 1., \
+                False, (f"Argument \"window_size\" expects either a single value "
+                        f"or a list of 2 elements. {window_size} given")
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", window_size, 11, 1., \
+                False, types.FLOAT, (f"Argument window_size for sample 0 is expected to have "
+                                     f"1 or 2 elements, got: {window_size}")
         for scale in [[3, 7, 3], [7, 7, 7, 7, 7]]:
             yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 3, 3, scale, False, \
-                "Argument \"scale\" expects either a single value or a list of 2 elements. {} given.".format(
-                    len(scale))
-            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 5, 5, scale, False, types.FLOAT, \
-                "Argument scale for sample 0 is expected to have 1 or 2 elements, got: {}".format(
-                    len(scale))
+                (f"Argument \"scale\" expects either a single value or a list "
+                 f"of 2 elements. {scale} given.")
+            yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 5, 5, scale, False, \
+                types.FLOAT, (f"Argument scale for sample 0 is expected to have "
+                              f"1 or 2 elements, got: {scale}")
 
 
 def test_per_frame():
