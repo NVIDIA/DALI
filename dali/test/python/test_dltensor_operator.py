@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,13 +27,15 @@ images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
 def setup_pytorch():
     global torch_dlpack
     global torch
-    import torch as torch
+    import torch
+    import torch.utils.dlpack as torch_dlpack
     global torch_stream
     torch_stream = torch.cuda.Stream()
 
 
 def setup_mxnet():
     global mxnd
+    from mxnet import ndarray as mxnd
 
 
 def setup_cupy():
