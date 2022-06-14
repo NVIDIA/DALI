@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nose_utils
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
@@ -260,7 +261,7 @@ def test_gpu_vs_cpu():
                                             inv_map=inv_map)
                 gpu_pipeline.build()
 
-                compare(cpu_pipeline, gpu_pipeline, 1)
+                compare(cpu_pipeline, gpu_pipeline, 1.0001)
 
 
 def _test_extremely_large_data(device):
