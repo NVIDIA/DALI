@@ -108,8 +108,10 @@ This function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
   .AddArg("in_types", R"code(Types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
-  .AddOptionalArg("blocks", "", DALI_INT_VEC, {})
-  .AddOptionalArg("threads_per_block", "", DALI_INT_VEC, {})
+  .AddOptionalArg("blocks", R"code(3-item list specifying the number of blocks per grid used to 
+  execute a CUDA kernel)code", DALI_INT_VEC, {})
+  .AddOptionalArg("threads_per_block", R"code(3-item list specifying the number of threads per 
+  block used to execute a CUDA kernel)code", DALI_INT_VEC, {})
   .AddOptionalArg("setup_fn", R"code(Setup function setting shapes for outputs.
 This function is invoked once per batch. Also this function must work in Numba ``nopython`` mode.)code",
                   DALI_PYTHON_OBJECT, nullptr)
