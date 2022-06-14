@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@ import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import torch
-from nvidia.dali import Pipeline
 from nvidia.dali.backend_impl import *  # noqa: F401, F403
+from nvidia.dali import Pipeline
 from torch.utils.dlpack import to_dlpack, from_dlpack
 
 from test_utils import check_output
