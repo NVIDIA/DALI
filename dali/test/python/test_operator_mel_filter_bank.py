@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,16 +14,10 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 from functools import partial
-from test_utils import check_batch
 from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
 from test_utils import RandomlyShapedDataIterator
-import math
 import librosa as librosa
 
 
@@ -81,7 +75,8 @@ def mel_fbank_func(nfilter, sample_rate, freq_low, freq_high, normalize, mel_for
 
 class MelFilterBankPythonPipeline(Pipeline):
     def __init__(self, device, batch_size, iterator, nfilter, sample_rate, freq_low, freq_high,
-                 normalize, mel_formula, layout='ft', num_threads=1, device_id=0, func=mel_fbank_func):
+                 normalize, mel_formula, layout='ft', num_threads=1, device_id=0,
+                 func=mel_fbank_func):
         super(MelFilterBankPythonPipeline, self).__init__(
               batch_size, num_threads, device_id,
               seed=12345, exec_async=False, exec_pipelined=False)
@@ -121,15 +116,19 @@ def check_operator_mel_filter_bank_vs_python(device, batch_size, max_shape,
     f_axis = layout.find('f')
     min_shape = [1 for _ in max_shape]
     min_shape[f_axis] = max_shape[f_axis]
-    eii1 = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
-    eii2 = RandomlyShapedDataIterator(batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
+    eii1 = RandomlyShapedDataIterator(
+        batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
+    eii2 = RandomlyShapedDataIterator(
+        batch_size, min_shape=min_shape, max_shape=max_shape, dtype=np.float32)
     compare_pipelines(
-        MelFilterBankPipeline(device, batch_size, iter(eii1),
-                              nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
-                              normalize=normalize, mel_formula=mel_formula, layout=layout),
-        MelFilterBankPythonPipeline(device, batch_size, iter(eii2),
-                                    nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
-                                    normalize=normalize, mel_formula=mel_formula, layout=layout),
+        MelFilterBankPipeline(
+            device, batch_size, iter(eii1),
+            nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
+            normalize=normalize, mel_formula=mel_formula, layout=layout),
+        MelFilterBankPythonPipeline(
+            device, batch_size, iter(eii2),
+            nfilter=nfilter, sample_rate=sample_rate, freq_low=freq_low, freq_high=freq_high,
+            normalize=normalize, mel_formula=mel_formula, layout=layout),
         batch_size=batch_size, N_iterations=3, eps=1e-03)
 
 
@@ -148,4 +147,5 @@ def test_operator_mel_filter_bank_vs_python():
                          (128, 44100.0, 0.0, 22050.0, (513, 100), 'tf'),
                          (128, 44100.0, 1000.0, 22050.0, (513, 100), 'tf')]:
                         yield check_operator_mel_filter_bank_vs_python, device, batch_size, shape, \
-                            nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, layout
+                            nfilter, sample_rate, freq_low, freq_high, normalize, mel_formula, \
+                            layout
