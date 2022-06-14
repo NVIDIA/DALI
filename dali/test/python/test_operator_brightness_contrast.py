@@ -221,6 +221,9 @@ def test_video():
         ]),
         (fn.contrast, {
             'dtype': types.FLOAT
+        }, [ArgCb("contrast", contrast, True)]),
+        (fn.contrast, {
+            'dtype': types.FLOAT
         }, [ArgCb("contrast", contrast, True),
             ArgCb("contrast_center", contrast_center, False)]),
         (fn.contrast, {
@@ -230,7 +233,7 @@ def test_video():
             'dtype': types.UINT8
         }, [
             ArgCb("contrast", contrast, False),
-            ArgCb("contrast", contrast_center, True),
+            ArgCb("contrast_center", contrast_center, True),
             ArgCb("brightness", brightness, True)
         ]),
         (fn.brightness_contrast, {}, [
