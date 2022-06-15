@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import inspect
+import math
 import traceback
+import warnings
 from queue import Queue
 
 import nvidia.dali.backend as _b
@@ -141,8 +143,8 @@ class _ExternalSourceDebug:
     """Debug mode version of ExternalSource operator."""
 
     def __init__(
-            self, source=None, num_outputs=None, batch_size=-1, cycle=None, name=None, layout=None,
-            batch=None, batch_info=None):
+            self, source=None, num_outputs=None, batch_size=-1, cycle=None, name=None, device='cpu',
+            layout=None, batch=None, batch_info=None, **kwargs):
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
 
@@ -154,6 +156,7 @@ class _ExternalSourceDebug:
         self._batch = batch
         self._batch_size = batch_size
         self._callback = callback
+        self._device = device
         self._source_desc = source_desc
         self._batch_info = batch_info
         self._current_iter = 0
@@ -210,9 +213,14 @@ class _ExternalSourceDebug:
 
         def to_data_node_debug(data):
             data = _transform_data_to_tensorlist(data, self._batch_size, layout)
-            device = 'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu'
-
-            return DataNodeDebug(data, self._name, device, self._source_desc)
+            
+            if self._device == 'gpu' and isinstance(data, _tensors.TensorListCPU):
+                data = data._as_gpu()
+            elif self._device == 'cpu' and isinstance(data, _tensors.TensorListGPU):
+                data = data.as_cpu()
+                warnings.warn('Loading GPU-originated data into CPU ExternalSource operator is '
+                              'discouraged and might be inefficient', Warning)
+            return DataNodeDebug(data, self._name, self._device, self._source_desc)
 
         if self._callback is not None:
             callback_out = self._get_batch(epoch_idx)
@@ -446,7 +454,8 @@ class _OperatorManager:
             self._check_device_classification(
                 self._kwargs_classification[key].device, classification.device, 'Argument', key)
 
-            if not classification.is_batch and classification.data != self._init_args[key]:
+            if not classification.is_batch and classification.data != self._init_args[key] and \
+                    not (math.isnan(classification.data) and math.isnan(self._init_args[key])):
                 raise RuntimeError(f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
                                    f" value from '{self._init_args[key]}' to '{classification.data}'")
             if classification.is_batch:
