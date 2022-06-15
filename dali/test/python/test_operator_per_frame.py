@@ -66,11 +66,13 @@ def test_verify_layout():
 
 
 def test_zero_dim_not_allowed():
+    expected_msg = "Cannot mark zero-dimensional input as a sequence"
     for device in ["cpu", "gpu"]:
-        yield raises(RuntimeError, "Cannot mark zero-dimensional input as a sequence")(run_pipeline), device, 0
+        yield raises(RuntimeError, expected_msg)(run_pipeline), device, 0
 
 
-@raises(RuntimeError, " Per-frame argument input must be a sequence. The input layout should start with 'F'")
+@raises(RuntimeError, "Per-frame argument input must be a sequence. "
+                      "The input layout should start with 'F'")
 def _test_not_a_sequence_layout(device, num_dim, layout):
     run_pipeline(device, num_dim=num_dim, layout=layout)
 
@@ -94,6 +96,7 @@ def _test_pass_through():
         (out,) = pipe.run()
         [sample] = [np.array(s) for s in out.as_cpu()]
         assert i <= sample[0] < i + 1
+
 
 def test_pass_through():
     for _ in range(50):  # repeat the test as if it is wrong it does not manifest deterministically

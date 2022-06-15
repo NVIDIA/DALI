@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,10 @@ np.random.seed(1234)
 
 
 def input_generator(num_inputs, batch_size, ndim, variable_axis=None):
-    max_extent = int(math.ceil(math.pow(1e+6 / (batch_size * num_inputs), 1 / ndim))) if ndim > 0 else 1
+    if ndim <= 0:
+        max_extent = 1
+    else:
+        max_extent = int(math.ceil(math.pow(1e+6 / (batch_size * num_inputs), 1 / ndim)))
 
     def gen():
         if ndim == 0:
@@ -33,7 +36,7 @@ def input_generator(num_inputs, batch_size, ndim, variable_axis=None):
 
         inputs = [[] for _ in range(num_inputs)]
         for i in range(batch_size):
-            base_shape = np.random.randint(1,max_extent,[ndim])
+            base_shape = np.random.randint(1, max_extent, [ndim])
             for j in range(num_inputs):
                 shape = list(base_shape)
                 if variable_axis is not None:
@@ -47,13 +50,13 @@ def test_cat_different_length():
     pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=3, device_id=0)
     with pipe:
         src1 = dali.types.Constant(np.array(
-            [[1, 2, 3 ,4],
+            [[1, 2, 3, 4],
              [5, 6, 7, 8],
-             [9,10,11,12]]))
+             [9, 10, 11, 12]]))
         src2 = dali.types.Constant(np.array(
-            [[13,14,15],
-             [16,17,18],
-             [19,20,21]]))
+            [[13, 14, 15],
+             [16, 17, 18],
+             [19, 20, 21]]))
         out_cpu = fn.cat(src1, src2, axis=1)
         out_gpu = fn.cat(src1.gpu(), src2.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
@@ -62,11 +65,11 @@ def test_cat_different_length():
     o = pipe.run()
 
     o = list(o)
-    o[1] = o[1].as_cpu();
+    o[1] = o[1].as_cpu()
 
-    ref = np.array([[1, 2, 3, 4,13,14,15],
-                    [5, 6, 7, 8,16,17,18],
-                    [9,10,11,12,19,20,21]])
+    ref = np.array([[1, 2, 3, 4, 13, 14, 15],
+                    [5, 6, 7, 8, 16, 17, 18],
+                    [9, 10, 11, 12, 19, 20, 21]])
     assert np.array_equal(o[0].at(0), ref)
     assert np.array_equal(o[1].at(0), ref)
 
@@ -75,17 +78,17 @@ def test_cat_empty_input():
     pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=3, device_id=0)
     with pipe:
         src1 = dali.types.Constant(np.array(
-            [[1, 2, 3 ,4],
+            [[1, 2, 3, 4],
              [5, 6, 7, 8],
-             [9,10,11,12]]))
+             [9, 10, 11, 12]]))
         src2 = dali.types.Constant(np.array(
             [[],
              [],
              []], dtype=np.int32))
         src3 = dali.types.Constant(np.array(
-            [[13,14,15],
-             [16,17,18],
-             [19,20,21]]))
+            [[13, 14, 15],
+             [16, 17, 18],
+             [19, 20, 21]]))
         out_cpu = fn.cat(src1, src2, src3, axis=1)
         out_gpu = fn.cat(src1.gpu(), src2.gpu(), src3.gpu(), axis=1)
         pipe.set_outputs(out_cpu, out_gpu)
@@ -94,11 +97,11 @@ def test_cat_empty_input():
     o = pipe.run()
 
     o = list(o)
-    o[1] = o[1].as_cpu();
+    o[1] = o[1].as_cpu()
 
-    ref = np.array([[1, 2, 3, 4,13,14,15],
-                    [5, 6, 7, 8,16,17,18],
-                    [9,10,11,12,19,20,21]])
+    ref = np.array([[1, 2, 3, 4, 13, 14, 15],
+                    [5, 6, 7, 8, 16, 17, 18],
+                    [9, 10, 11, 12, 19, 20, 21]])
     assert np.array_equal(o[0].at(0), ref)
     assert np.array_equal(o[1].at(0), ref)
 
@@ -118,7 +121,7 @@ def test_cat_all_empty():
     o = pipe.run()
 
     o = list(o)
-    o[1] = o[1].as_cpu();
+    o[1] = o[1].as_cpu()
 
     ref = np.array([[], [], []], dtype=np.int32)
     assert np.array_equal(o[0].at(0), ref)
@@ -156,10 +159,12 @@ def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
 
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
     with pipe:
-        inputs = fn.external_source(input_generator(num_inputs, batch_size, ndim, ref_axis), num_outputs=num_inputs, layout=layout)
+        inputs = fn.external_source(
+            input_generator(num_inputs, batch_size, ndim, ref_axis),
+            num_outputs=num_inputs, layout=layout)
         out_cpu = fn.cat(*inputs,                    axis=axis_arg, axis_name=axis_name)
         out_gpu = fn.cat(*(x.gpu() for x in inputs), axis=axis_arg, axis_name=axis_name)
-        pipe.set_outputs(out_cpu, out_gpu, *inputs);
+        pipe.set_outputs(out_cpu, out_gpu, *inputs)
     pipe.build()
 
     for iter in range(num_iter):
@@ -184,10 +189,12 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
 
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
     with pipe:
-        inputs  = fn.external_source(input_generator(num_inputs, batch_size, ndim), num_outputs=num_inputs, layout=layout)
+        inputs = fn.external_source(
+            input_generator(num_inputs, batch_size, ndim),
+            num_outputs=num_inputs, layout=layout)
         out_cpu = fn.stack(*inputs,                    axis=axis, axis_name=axis_name)
         out_gpu = fn.stack(*(x.gpu() for x in inputs), axis=axis, axis_name=axis_name)
-        pipe.set_outputs(out_cpu, out_gpu, *inputs);
+        pipe.set_outputs(out_cpu, out_gpu, *inputs)
     pipe.build()
 
     for _ in range(num_iter):
@@ -199,7 +206,9 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
 
 def test_cat():
     for num_inputs in [1, 2, 3, 100]:
-        for layout, ndim in [(None, 0), (None, 1), ('A', 1), (None, 2), ('HW', 2), (None, 3), ('DHW', 3)]:
+        for layout, ndim in [
+            (None, 0), (None, 1), ('A', 1), (None, 2), ('HW', 2), (None, 3), ('DHW', 3)
+        ]:
             for axis in range(ndim):
                 axis_name = layout[axis] if layout else None
                 yield _run_test_cat, num_inputs, layout, ndim, axis, axis_name
@@ -207,7 +216,9 @@ def test_cat():
 
 def test_stack():
     for num_inputs in [1, 2, 3, 100]:
-        for layout, ndim in [(None, 0), (None, 1), ('A', 1), (None, 2), ('HW', 2), (None, 3), ('DHW', 3)]:
+        for layout, ndim in [
+            (None, 0), (None, 1), ('A', 1), (None, 2), ('HW', 2), (None, 3), ('DHW', 3)
+        ]:
             for axis in range(ndim + 1):
                 axis_names = [None] if layout is None and ndim > 0 else [None, 'C']
                 for axis_name in axis_names:

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import backend
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
 import numpy as np
 from test_utils import dali_type
 
@@ -30,7 +29,6 @@ def normalize(x, axes=None, mean=None, stddev=None, ddof=0, eps=0):
         mean = x.mean(axis=axes, keepdims=True)
         if stddev is None and eps == 0 and num_reduced > ddof:
             stddev = np.std(x, axis=axes, ddof=ddof, keepdims=True)
-
 
     if stddev is None:
         factor = num_reduced - ddof
@@ -136,7 +134,9 @@ def generate_data(dims, batch_size, batch_norm, axes, dtype=None):
         dtype = np.float32
     elif dtype is not np.float32:
         scale = 255
-    return [(scale * (np.random.rand(*s).astype(np.float32) * (1 + i) - i)).astype(dtype) for i,s in enumerate(shapes)]
+    return [
+        (scale * (np.random.rand(*s).astype(np.float32) * (1 + i) - i)).astype(dtype)
+        for i, s in enumerate(shapes)]
 
 
 def custom_mean(batch_norm, axes):
@@ -216,16 +216,18 @@ def shift_scale(batch, shift, scale):
 class NormalizePipeline(Pipeline):
     def __init__(self, device, batch_size, dims, axes, axis_names, batch=False,
                  out_type=None, in_type=None, shift=None, scale=None,
-                num_threads=3, device_id=0, num_gpus=1):
-        super(NormalizePipeline, self).__init__(batch_size, num_threads, device_id, seed=7865, exec_async=False, exec_pipelined=False)
+                 num_threads=3, device_id=0, num_gpus=1):
+        super(NormalizePipeline, self).__init__(
+            batch_size, num_threads, device_id, seed=7865,
+            exec_async=False, exec_pipelined=False)
         common_args = {
-            "device" : device,
-            "axes" : axes,
-            "axis_names" : axis_names,
-            "batch" : batch,
-            "dtype" : dali_type(out_type),
-            "shift" : shift,
-            "scale" : scale
+            "device": device,
+            "axes": axes,
+            "axis_names": axis_names,
+            "batch": batch,
+            "dtype": dali_type(out_type),
+            "shift": shift,
+            "scale": scale
         }
         self.in_type = in_type
         self.out_type = out_type
@@ -261,7 +263,6 @@ class NormalizePipeline(Pipeline):
         self.scalar_stddev = ops.Normalize(**common_args, stddev=2, epsilon=self.eps)
         self.scalar_params = ops.Normalize(**common_args, mean=1, stddev=2)
 
-
     def define_graph(self):
         data = self.input_data = self.input()
         if self.add_layout is not None:
@@ -290,8 +291,8 @@ class NormalizePipeline(Pipeline):
         return out
 
     def check_batch(self, data, mean, stddev, normalized, scalar_mean=None, scalar_stddev=None,
-                ext_mean=None, ext_stddev=None, ext_all=None,
-                scalar_mean_ext=None, scalar_stddev_ext=None, scalar_params=None):
+                    ext_mean=None, ext_stddev=None, ext_all=None,
+                    scalar_mean_ext=None, scalar_stddev_ext=None, scalar_params=None):
         axes = self.axes
         if type(axes) is list:
             axes = tuple(axes)
@@ -300,7 +301,6 @@ class NormalizePipeline(Pipeline):
         stddev_func = custom_stddev(batch, axes)
         scale = 1 if self.scale is None else self.scale
         shift = 0 if self.shift is None else self.shift
-
 
         def check(l1, l2):
             if self.is_integral:
@@ -326,8 +326,10 @@ class NormalizePipeline(Pipeline):
             ref_ext_mean = normalize_list(batch, data, axes, mean=mean, ddof=self.ddof)
             ref_ext_stddev = normalize_list(batch, data, axes, stddev=stddev, ddof=self.ddof)
             ref_ext_all = normalize_list(batch, data, axes, mean=mean, stddev=stddev)
-            ref_scalar_mean_ext = normalize_list(batch, data, axes, mean=1, stddev=stddev, ddof=self.ddof, eps=self.eps)
-            ref_scalar_stddev_ext = normalize_list(batch, data, axes, mean=mean, stddev=2, eps=self.eps)
+            ref_scalar_mean_ext = normalize_list(
+                batch, data, axes, mean=1, stddev=stddev, ddof=self.ddof, eps=self.eps)
+            ref_scalar_stddev_ext = normalize_list(
+                batch, data, axes, mean=mean, stddev=2, eps=self.eps)
 
             shift_scale(ref_ext_mean, shift, scale)
             shift_scale(ref_ext_stddev, shift, scale)
@@ -347,7 +349,8 @@ class NormalizePipeline(Pipeline):
             check(scalar_params, ref_scalar_params)
 
     def iter_setup(self):
-        self.feed_input(self.input_data, generate_data(self.dims, self.batch_size, self.batch, self.axes, dtype=self.in_type))
+        data = generate_data(self.dims, self.batch_size, self.batch, self.axes, dtype=self.in_type)
+        self.feed_input(self.input_data, data)
 
 
 def to_list(tensor_list):
@@ -380,7 +383,7 @@ def all_axes(dim):
 
 
 def _run_test(device, batch_size, dim, axes, axis_names, batch_norm,
-             out_type=None, in_type=None, shift=None, scale=None):
+              out_type=None, in_type=None, shift=None, scale=None):
     kind = "inter-sample" if batch_norm else "per-sample"
     msg = "{0}, {1}, batch = {2}, dim = {3}".format(device, kind, batch_size, dim)
     if axes is not None:
@@ -393,7 +396,8 @@ def _run_test(device, batch_size, dim, axes, axis_names, batch_norm,
         msg += " input = {}".format(in_type)
     print(msg)
 
-    pipe = NormalizePipeline(device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale)
+    pipe = NormalizePipeline(
+        device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale)
     pipe.build()
     for iter in range(2):
         out = pipe.run()
@@ -428,9 +432,9 @@ def test_types():
     out_type = np.uint8
     in_type = None
     for device in ["cpu", "gpu"]:
-        for out_type, scale, shift in [(np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)]:
+        for out_type, scale, shift in [
+            (np.uint8, 64, 128), (np.int16, 1000, 0), (np.float32, 0.5, 0.5)
+        ]:
             for in_type in [None, np.uint8, np.int16, np.float32]:
-                yield _run_test, device, batch_size, dim, axes, None, False, out_type, in_type, shift, scale
-
-
-import nvidia.dali.fn as fn
+                yield _run_test, device, batch_size, dim, axes, None, False, \
+                    out_type, in_type, shift, scale
