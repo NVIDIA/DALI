@@ -67,8 +67,8 @@ def test_cat_different_length():
     o = list(o)
     o[1] = o[1].as_cpu()
 
-    ref = np.array([[1, 2, 3, 4, 13, 14, 15],
-                    [5, 6, 7, 8, 16, 17, 18],
+    ref = np.array([[1, 2,  3,  4,  13, 14, 15],
+                    [5, 6,  7,  8,  16, 17, 18],
                     [9, 10, 11, 12, 19, 20, 21]])
     assert np.array_equal(o[0].at(0), ref)
     assert np.array_equal(o[1].at(0), ref)
@@ -78,8 +78,8 @@ def test_cat_empty_input():
     pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=3, device_id=0)
     with pipe:
         src1 = dali.types.Constant(np.array(
-            [[1, 2, 3, 4],
-             [5, 6, 7, 8],
+            [[1, 2,  3,  4],
+             [5, 6,  7,  8],
              [9, 10, 11, 12]]))
         src2 = dali.types.Constant(np.array(
             [[],
@@ -99,8 +99,8 @@ def test_cat_empty_input():
     o = list(o)
     o[1] = o[1].as_cpu()
 
-    ref = np.array([[1, 2, 3, 4, 13, 14, 15],
-                    [5, 6, 7, 8, 16, 17, 18],
+    ref = np.array([[1, 2,  3,  4,  13, 14, 15],
+                    [5, 6,  7,  8,  16, 17, 18],
                     [9, 10, 11, 12, 19, 20, 21]])
     assert np.array_equal(o[0].at(0), ref)
     assert np.array_equal(o[1].at(0), ref)
