@@ -15,23 +15,23 @@
 from . import math  # noqa: F401
 
 
-class enable_arithm_op:
+class set_arithm_op_enabled:
     """Context-manager that enables arithmetic operators and slicing  on TensorLists.
     Can also be used as a function.
     """
 
-    def __init__(self):
-        self.prev = enable_arithm_op._arithm_op_enabled
-        enable_arithm_op._arithm_op_enabled = True
+    def __init__(self, mode=True):
+        self.prev = set_arithm_op_enabled._arithm_op_enabled
+        set_arithm_op_enabled._arithm_op_enabled = mode
 
     def __enter__(self):
         pass
 
     def __exit__(self, type, value, traceback):
-        enable_arithm_op._arithm_op_enabled = False
+        set_arithm_op_enabled._arithm_op_enabled = self.prev
 
     _arithm_op_enabled = False
 
 
 def is_arithm_op_enabled():
-    return enable_arithm_op._arithm_op_enabled
+    return set_arithm_op_enabled._arithm_op_enabled

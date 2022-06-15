@@ -202,6 +202,10 @@ def _slice_tensorlist(data, size):
 
 
 def _arithm_op(name, *inputs):
+    """ Arithmetic operator function wrapper around ``eager.arithmetic_generic_op``. It is used
+    for implementation of eager operators that are injected to TensorLists and for eager math
+    operators.
+    """
     batch_size = _choose_batch_size(inputs)
     inputs = [_Classification(input, f'Input {i}', arg_constant_len=batch_size).data
               for i, input in enumerate(inputs)]
@@ -215,7 +219,7 @@ def _arithm_op(name, *inputs):
             input, _tensors.TensorListCPU) else input for input in inputs)
 
     init_args = {
-        'device': _ops._choose_device(inputs),
+        'device': device,
         'expression_desc': f'{name}({input_desc})',
         'integer_constants': integers,
         'real_constants': reals,
@@ -225,6 +229,7 @@ def _arithm_op(name, *inputs):
     return arithmetic_generic_op(*inputs, **init_args)
 
 
+# Implementations of TensorList operators, they are used directly in the backend.
 def _add(self, other):
     return _arithm_op('add', self, other)
 
@@ -566,7 +571,7 @@ _wrap_stateless.disqualified_arguments = {
 
 def _wrap_iterator(op_class, op_name, wrapper_name):
     """Wraps reader Eager Operator in a Python iterator.
-    
+
     Example:
         >>> for file, label in eager.readers.file(file_root=file_path, batch_size=8):
         ...     # file and label are batches of size 8 (TensorLists).

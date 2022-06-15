@@ -22,8 +22,8 @@ import nvidia.dali.fn as fn
 import nvidia.dali.tensors as tensors
 import nvidia.dali.types as types
 from nvidia.dali._utils.eager_utils import _slice_tensorlist
-from test_dali_cpu_only_utils import pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu, \
-    setup_test_numpy_reader_cpu
+from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,
+                                      setup_test_numpy_reader_cpu)
 from test_utils import check_batch, get_dali_extra_path, get_files
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
@@ -120,7 +120,8 @@ def reader_pipeline(op, kwargs):
     return out
 
 
-def check_reader(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=2, **kwargs):
+def check_reader(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size,
+                 N_iterations=2, **kwargs):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = reader_pipeline(fn_op, kwargs)
     pipe.build()
@@ -371,6 +372,6 @@ def eager_arithm_ops(data):
 
 
 def test_arithm_ops_cpu():
-    eager.enable_arithm_op()
+    eager.set_arithm_op_enabled()
     pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size, num_threads=4, device_id=None)
     compare_eager_with_pipeline(pipe, eager_op=eager_arithm_ops)

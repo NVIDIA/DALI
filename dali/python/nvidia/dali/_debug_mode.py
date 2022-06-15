@@ -26,9 +26,8 @@ import nvidia.dali.types as _types
 from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
-from nvidia.dali._utils.external_source_impl import \
-    get_callback_from_source as _get_callback_from_source, \
-    accepted_arg_count as _accepted_arg_count
+from nvidia.dali._utils.external_source_impl import (get_callback_from_source as _get_callback_from_source,
+                                                     accepted_arg_count as _accepted_arg_count)
 
 
 class DataNodeDebug(_DataNode):
@@ -407,7 +406,14 @@ class _OperatorManager:
                 len(classification.data), self._source_context, self._op_name, input_idx)
 
     def _check_call_arg_meta_data(self, expected_data, actual_data, arg_type, value):
-        """ Check for changes in layout, ndim and dtype. """
+        """ Check for changes in layout, ndim and dtype. 
+        
+        Args:
+            expected_data: Expected value of the data.
+            actual_data: Actual value of the data.
+            arg_type (str): String representation of the argument type, e.g. 'Input', 'Argument'.
+            value (str): Argument name for keyword arguments and a number for inputs.
+        """
 
         def raise_err(meta_name, actual_value, expected_value):
             raise RuntimeError(

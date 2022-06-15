@@ -284,21 +284,46 @@ void ExposeTensorLayout(py::module &m) {
 // Placeholder enum for defining __call__ on dtype member of Tensor (to be deprecated).
 enum DALIDataTypePlaceholder {};
 
-auto ExtractPythonAttr(py::detail::str_attr_accessor &&cur_attr, const char *next_attr_name) {
-  return cur_attr.attr(next_attr_name);
+/**
+ * @brief Extracts attribute named `attr_name` from the python object.
+ *
+ * @param object python object.
+ * @param attr_name name of the requested attribute.
+ */
+auto ExtractPythonAttr(py::object &&object, const char *attr_name) {
+  return object.attr(attr_name);
 }
 
+/**
+ * @brief Extracts nested attribute from the python object.
+ *
+ * @param object python object.
+ * @param attr_name name of the next requested attribute.
+ * @param rest rest of the requested attributes names.
+ */
 template <typename... Args>
-auto ExtractPythonAttr(py::detail::str_attr_accessor &&cur_attr, const char *next_attr_name,
-                       Args... rest) {
-  return ExtractPythonAttr(cur_attr.attr(next_attr_name), rest...);
+auto ExtractPythonAttr(py::object &&object, const char *attr_name, Args... rest) {
+  return ExtractPythonAttr(object.attr(attr_name), rest...);
 }
 
+/**
+ * @brief Extracts nested attribute from imported python module.
+ *
+ * @param python_module name of the python module.
+ * @param attr_name outer most attribute name.
+ * @param attr_names rest of the attribute names.
+ */
 template <typename... Args>
 auto FromPythonTrampoline(const char *python_module, const char *attr_name, Args... attr_names) {
   return ExtractPythonAttr(py::module::import(python_module).attr(attr_name), attr_names...);
 }
 
+/**
+ * @brief Extracts attribute from imported python module.
+ *
+ * @param python_module name of the python module.
+ * @param attr_name name of the attribute.
+ */
 auto FromPythonTrampoline(const char *python_module, const char *attr_name) {
   return py::module::import(python_module).attr(attr_name);
 }

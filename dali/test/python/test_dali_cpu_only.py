@@ -27,11 +27,12 @@ from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 from nose_utils import assert_raises
 from segmentation_test_utils import make_batch_select_masks
-from test_dali_cpu_only_utils import pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu, \
-    setup_test_numpy_reader_cpu
+from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,
+                                      setup_test_numpy_reader_cpu)
 from test_detection_pipeline import coco_anchors
 from test_utils import get_dali_extra_path, get_files, module_functions
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
+
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
