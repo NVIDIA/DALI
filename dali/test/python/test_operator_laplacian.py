@@ -641,17 +641,17 @@ def test_fail_laplacian():
         for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
             yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, window_size, 11, 1., \
                 False, (f"Argument \"window_size\" expects either a single value "
-                        f"or a list of 2 elements. {window_size} given")
+                        f"or a list of 2 elements. {len(window_size)} given")
             yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", window_size, 11, 1., \
                 False, types.FLOAT, (f"Argument window_size for sample 0 is expected to have "
-                                     f"1 or 2 elements, got: {window_size}")
+                                     f"1 or 2 elements, got: {len(window_size)}")
         for scale in [[3, 7, 3], [7, 7, 7, 7, 7]]:
             yield check_build_time_fail, device, 10, (10, 10, 3), "HWC", 2, 3, 3, scale, False, \
                 (f"Argument \"scale\" expects either a single value or a list "
-                 f"of 2 elements. {scale} given.")
+                 f"of 2 elements. {len(scale)} given.")
             yield check_tensor_input_fail, device, 10, (10, 10, 3), "HWC", 5, 5, scale, False, \
                 types.FLOAT, (f"Argument scale for sample 0 is expected to have "
-                              f"1 or 2 elements, got: {scale}")
+                              f"1 or 2 elements, got: {len(scale)}")
 
 
 def test_per_frame():
