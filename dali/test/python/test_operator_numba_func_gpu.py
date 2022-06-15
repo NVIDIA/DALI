@@ -88,6 +88,6 @@ def test_batch_processing_assertion():
     _testimpl_numba_func([(10, 5)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 255, dtype=np.uint8)])
 
 
-@raises(RuntimeError, regex="Shape of input sample at index [0-9]+ in dimension [0-9]+ doesn't match the shape of first sample")
+@raises(RuntimeError, regex="Shape of input [0-9]+, sample at index [0-9]+ doesn't match the shape of first sample")
 def test_samples_shapes_assertion():
     _testimpl_numba_func([(10, 20), (10, 10), (10, 20)], np.float32, set_consecutive_values_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [20, 10, 1], None, False, [np.arange(20*10, dtype=np.float32).reshape((20, 10)), np.arange(20*10, dtype=np.float32).reshape((20, 10))])

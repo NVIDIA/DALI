@@ -135,15 +135,11 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       " doesn't match the number of dimensions of the input data: ",
       in_shapes_[in_id].sample_dim(), " != ", ins_ndim_[in_id]));
 
-    ssize_t in_ndim = in_shapes_[in_id].sample_dim();
     for (int i = 1; i < in_shapes_[in_id].num_samples(); i++) {
-      for (int j = 0; j < in_ndim; j++) {
-          DALI_ENFORCE(in_shapes_[in_id].shapes[j] == in_shapes_[in_id].shapes[j + i * in_ndim],
-          make_string(
-            "Shape of input sample at index ", i, " in dimension ", in_id,
-            " doesn't match the shape of first sample: ",
-            in_shapes_[in_id].shapes[j], " != ", in_shapes_[in_id].shapes[j + i * in_ndim]));
-      }
+      DALI_ENFORCE(in_shapes_[in_id][0] == in_shapes_[in_id][i], make_string(
+        "Shape of input ", in_id, ", sample at index ", i,
+        " doesn't match the shape of first sample: ",
+        in_shapes_[in_id][0], " != ", in_shapes_[in_id][i]));
     }
 
     DALI_ENFORCE(in.type() == in_types_[in_id], make_string(
