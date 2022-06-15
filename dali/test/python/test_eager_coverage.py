@@ -162,7 +162,8 @@ def no_input_pipeline(op, kwargs):
     return out
 
 
-def check_no_input(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5, **kwargs):
+def check_no_input(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5,
+                   **kwargs):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = no_input_pipeline(fn_op, kwargs)
     pipe.build()
@@ -233,7 +234,8 @@ def reader_op_pipeline(op, kwargs, source=None, layout=None):
 
 def test_image_decoder_cpu():
     check_single_input('decoders.image', pipe_fun=reader_op_pipeline, fn_source=images_dir,
-                       eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir), output_type=types.RGB)
+                       eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
+                       output_type=types.RGB)
 
 
 def test_rotate_cpu():
@@ -387,8 +389,9 @@ def test_power_spectrum_cpu():
 
 def test_spectrogram_cpu():
     get_data = GetData(audio_data)
-    check_single_input('spectrogram', fn_source=get_data.fn_source, eager_source=get_data.eager_source,
-                       layout=None, nfft=60, window_length=50, window_step=25)
+    check_single_input('spectrogram', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None, nfft=60, window_length=50,
+                       window_step=25)
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -468,12 +471,14 @@ def audio_decoder_pipeline():
 
 def test_audio_decoder_cpu():
     compare_eager_with_pipeline(audio_decoder_pipeline(), eager.decoders.audio,
-                                eager_source=PipelineInput(file_reader_pipeline, files=audio_files))
+                                eager_source=PipelineInput(file_reader_pipeline,
+                                files=audio_files))
 
 
 def test_coord_flip_cpu():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 2], dtype=np.uint8) /
-                       255).astype(dtype=np.float32)for _ in range(batch_size)] for _ in range(data_size)])
+                       255).astype(dtype=np.float32)for _ in range(batch_size)]
+                       for _ in range(data_size)])
 
     check_single_input('coord_flip', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, layout=None)
@@ -481,7 +486,8 @@ def test_coord_flip_cpu():
 
 def test_bb_flip_cpu():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) /
-                       255).astype(dtype=np.float32)for _ in range(batch_size)] for _ in range(data_size)])
+                       255).astype(dtype=np.float32)for _ in range(batch_size)]
+                       for _ in range(data_size)])
 
     check_single_input('bb_flip', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, layout=None)
@@ -500,7 +506,8 @@ def test_lookup_table_cpu():
                        for _ in range(batch_size)] for _ in range(data_size)])
 
     check_single_input('lookup_table', keys=[1, 3], values=[
-                       10, 50], fn_source=get_data.fn_source, eager_source=get_data.eager_source, layout=None)
+                       10, 50], fn_source=get_data.fn_source, eager_source=get_data.eager_source,
+                       layout=None)
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -515,9 +522,11 @@ def slice_pipeline(get_anchor, get_shape):
 
 def test_slice_cpu():
     get_anchors = GetData([[(rng.integers(1, 256, size=[2], dtype=np.uint8) /
-                             255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+                             255).astype(dtype=np.float32) for _ in range(batch_size)]
+                           for _ in range(data_size)])
     get_shapes = GetData([[(rng.integers(1, 256, size=[2], dtype=np.uint8) /
-                            255).astype(dtype=np.float32) for _ in range(batch_size)]for _ in range(data_size)])
+                            255).astype(dtype=np.float32) for _ in range(batch_size)]
+                          for _ in range(data_size)])
 
     def eager_source(i, _):
         return get_data_eager(i), get_anchors.eager_source(i), get_shapes.eager_source(i)
@@ -539,15 +548,18 @@ def image_decoder_slice_pipeline(get_anchors, get_shape):
 
 def test_image_decoder_slice_cpu():
     get_anchors = GetData([[(rng.integers(1, 128, size=[2], dtype=np.uint8) /
-                             255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+                             255).astype(dtype=np.float32) for _ in range(batch_size)]
+                           for _ in range(data_size)])
     get_shapes = GetData([[(rng.integers(1, 128, size=[2], dtype=np.uint8) /
-                            255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+                            255).astype(dtype=np.float32) for _ in range(batch_size)]
+                          for _ in range(data_size)])
 
     eager_input = file_reader_pipeline({'file_root': images_dir})
     eager_input.build()
 
     def eager_source(i, _):
-        return eager_input.run()[0], get_anchors.eager_source(i, None), get_shapes.eager_source(i, None)
+        return (eager_input.run()[0], get_anchors.eager_source(i, None),
+                get_shapes.eager_source(i, None))
 
     pipe = image_decoder_slice_pipeline(get_anchors.fn_source, get_shapes.fn_source)
     compare_eager_with_pipeline(pipe, eager.decoders.image_slice, eager_source=eager_source)
@@ -616,17 +628,20 @@ def test_element_extract_cpu():
 
 def test_bbox_paste_cpu():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) /
-                          255).astype(dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
-    check_single_input('bbox_paste', fn_source=get_data.fn_source, eager_source=get_data.eager_source,
-                       layout=None, paste_x=0.25, paste_y=0.25, ratio=1.5)
+                          255).astype(dtype=np.float32) for _ in range(batch_size)]
+                        for _ in range(data_size)])
+    check_single_input('bbox_paste', fn_source=get_data.fn_source,
+                       eager_source=get_data.eager_source, layout=None, paste_x=0.25,
+                       paste_y=0.25, ratio=1.5)
 
 
 def test_sequence_rearrange_cpu():
     get_data = GetData([[rng.integers(0, 255, size=[5, 10, 20, 3], dtype=np.uint8)
                        for _ in range(batch_size)] for _ in range(data_size)])
 
-    check_single_input('sequence_rearrange', new_order=[0, 4, 1, 3, 2], fn_source=get_data.fn_source,
-                       eager_source=get_data.eager_source, layout='FHWC')
+    check_single_input('sequence_rearrange', new_order=[0, 4, 1, 3, 2],
+                       fn_source=get_data.fn_source, eager_source=get_data.eager_source,
+                       layout='FHWC')
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -638,8 +653,9 @@ def box_encoder_pipeline(get_boxes, get_labels):
 
 
 def test_box_encoder_cpu():
-    get_boxes = GetData([[(rng.integers(0, 255, size=[20, 4], dtype=np.uint8) / 255).astype(dtype=np.float32)
-                          for _ in range(batch_size)] for _ in range(data_size)])
+    get_boxes = GetData([[(rng.integers(0, 255, size=[20, 4], dtype=np.uint8) / 255)
+                        .astype(dtype=np.float32) for _ in range(batch_size)]
+                        for _ in range(data_size)])
     get_labels = GetData([[rng.integers(0, 255, size=[20, 1], dtype=np.int32)
                          for _ in range(batch_size)] for _ in range(data_size)])
 
@@ -1025,7 +1041,8 @@ def test_coverage():
     methods = module_functions(eager, remove_prefix="nvidia.dali.experimental.eager")
     # TODO(ksztenderski): Add coverage for math module and for GPU operators.
     exclude = "|".join(
-        ["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)" for x in excluded_methods])
+        ["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)"  # noqa: W605
+         for x in excluded_methods])
     exclude = re.compile(exclude)
     methods = [x for x in methods if not exclude.match(x)]
 
