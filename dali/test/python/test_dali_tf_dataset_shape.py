@@ -173,7 +173,11 @@ def dali_pipe_multiple_out(shapes, types, batch):
 def test_multiple_input_valid_shapes():
     for batch in [1, 10]:
         for shapes in [
-            None, (None, None), ((batch, 200, 200, 3), None), (None, (batch, 1)), (None, (batch,))
+            None,
+            (None, None),
+            ((batch, 200, 200, 3), None),
+            (None, (batch, 1)),
+            (None, (batch,))
         ]:
             yield dali_pipe_multiple_out, shapes, (tf.uint8, tf.int32), batch
 
@@ -212,7 +216,10 @@ def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
 def test_artificial_match():
     for batch in [1, 10]:
         for shape in [
-            (None, None, None, None), (None, None, 2), (batch, None, None, None), (batch, None, 2)
+            (None, None, None, None),
+            (None, None, 2),
+            (batch, None, None, None),
+            (batch, None, 2)
         ]:
             yield dali_pipe_artificial_shape, shape, tf.uint8, dali_types.UINT8, batch
     yield dali_pipe_artificial_shape, (10, 2), tf.uint8, dali_types.UINT8, 10
@@ -335,5 +342,5 @@ def test_deprecated_double_def():
 def test_no_output_dtypes():
     expected_msg = ("`output_dtypes` should be provided as single tf.DType value or a tuple of "
                     "tf.DType values")
-    yield raises(TypeError, expected_msg)(dali_pipe_deprecated), {"shapes": 2}, 2, tf.uint8, \
-        dali_types.UINT8, 1, 2
+    yield raises(TypeError, expected_msg)(dali_pipe_deprecated), \
+        {"shapes": 2}, 2, tf.uint8, dali_types.UINT8, 1, 2

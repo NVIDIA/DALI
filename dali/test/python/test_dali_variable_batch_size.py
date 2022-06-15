@@ -234,8 +234,8 @@ def float_array_helper(operator_fn, opfn_args={}):
 
 
 def sequence_op_helper(operator_fn, opfn_args={}):
-    data = generate_data(31, 13, custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3), lo=0,
-                         hi=255, dtype=np.uint8)
+    data = generate_data(31, 13, custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3),
+                         lo=0, hi=255, dtype=np.uint8)
     check_pipeline(data, pipeline_fn=single_op_pipeline, input_layout="FHWC",
                    operator_fn=operator_fn, **opfn_args)
 
@@ -317,14 +317,18 @@ ops_image_custom_args = [
     (fn.expand_dims, {'axes': 1, 'new_axis_names': "Z"}),
     (fn.grid_mask, {'angle': 2.6810782, 'ratio': 0.38158387, 'tile': 51}),
     (numba_function, {
-        'batch_processing': True, 'devices': ['cpu'], 'in_types': [types.UINT8],
-        'ins_ndim': [3], 'out_types': [types.UINT8],  'outs_ndim': [3],
-        'run_fn': numba_set_all_values_to_255_batch,  'setup_fn': numba_setup_out_shape
+        'batch_processing': True, 'devices': ['cpu'],
+        'in_types': [types.UINT8], 'ins_ndim': [3],
+        'out_types': [types.UINT8],  'outs_ndim': [3],
+        'run_fn': numba_set_all_values_to_255_batch,
+        'setup_fn': numba_setup_out_shape
         }),
     (numba_function, {
-        'batch_processing': False, 'devices': ['cpu'], 'in_types': [types.UINT8],
-        'ins_ndim': [3], 'out_types': [types.UINT8],  'outs_ndim': [3],
-        'run_fn': numba_set_all_values_to_255_batch,  'setup_fn': numba_setup_out_shape
+        'batch_processing': False, 'devices': ['cpu'],
+        'in_types': [types.UINT8], 'ins_ndim': [3],
+        'out_types': [types.UINT8],  'outs_ndim': [3],
+        'run_fn': numba_set_all_values_to_255_batch,
+        'setup_fn': numba_setup_out_shape
         }),
     (fn.multi_paste, {'in_ids': np.zeros([31], dtype=np.int32), 'output_size': [300, 300, 3]})
 ]
