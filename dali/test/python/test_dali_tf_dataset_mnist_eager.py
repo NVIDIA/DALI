@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import tensorflow as tf
 from nose.tools import with_setup
 
 import test_dali_tf_dataset_mnist as mnist
+from test_utils_tensorflow import skip_for_incompatible_tf
 from nose_utils import raises
 
 tf.compat.v1.enable_eager_execution()
@@ -33,7 +34,7 @@ def test_keras_single_cpu():
     mnist.run_keras_single_device('cpu', 0)
 
 
-@with_setup(mnist.skip_for_incompatible_tf)
+@with_setup(skip_for_incompatible_tf)
 @raises(Exception, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_gpu():
     with tf.device('cpu:0'):
@@ -46,7 +47,7 @@ def test_keras_wrong_placement_gpu():
         steps_per_epoch=mnist.ITERATIONS)
 
 
-@with_setup(mnist.skip_for_incompatible_tf)
+@with_setup(skip_for_incompatible_tf)
 @raises(Exception, "TF device and DALI device mismatch")
 def test_keras_wrong_placement_cpu():
     with tf.device('gpu:0'):
@@ -59,7 +60,7 @@ def test_keras_wrong_placement_cpu():
         steps_per_epoch=mnist.ITERATIONS)
 
 
-@with_setup(mnist.skip_for_incompatible_tf)
+@with_setup(skip_for_incompatible_tf)
 def test_keras_multi_gpu_mirrored_strategy():
     strategy = tf.distribute.MirroredStrategy(devices=mnist.available_gpus())
 
