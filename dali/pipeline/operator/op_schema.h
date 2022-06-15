@@ -246,7 +246,7 @@ graph even if its outputs are not used.)code", false);
   }
 
   /**
-   * @brief Gets the supported input device for ginen input
+   * @brief Gets the supported input device for given input
    */
   DLL_PUBLIC dali::InputDevice GetInputDevice(int index) const {
     return input_devices_[index];
