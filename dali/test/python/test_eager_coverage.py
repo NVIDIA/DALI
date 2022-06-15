@@ -1023,7 +1023,7 @@ def test_coverage():
     """
 
     methods = module_functions(eager, remove_prefix="nvidia.dali.experimental.eager")
-    # TODO(ksztenderski): Add coverage for math module.
+    # TODO(ksztenderski): Add coverage for math module and for GPU operators.
     exclude = "|".join(
         ["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)" for x in excluded_methods])
     exclude = re.compile(exclude)
