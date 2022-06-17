@@ -249,4 +249,5 @@ def test_sequences():
         (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "gpu")], ["cpu"], "MT"),
     ]
 
-    yield from sequence_suite_helper(rng, "F", [("F**", input_mt_data)], input_broadcast_cases, num_iters)
+    yield from sequence_suite_helper(
+        rng, "F", [("F**", input_mt_data)], input_broadcast_cases, num_iters)

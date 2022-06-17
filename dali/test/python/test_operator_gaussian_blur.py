@@ -396,9 +396,9 @@ def test_per_frame():
 
 # test if SequenceOperator properly errors out on per-frame argument when input is expanded only
 # because of channel-first layout (but there are no frames on the input)
-@raises(RuntimeError, "Tensor input for argument window_size is specified per frame (got F layout). "
-        "In that case, samples in the input 0 must contain frames too. "
-        "Got layout `CHW` that does not contain frames.")
+@raises(RuntimeError, "Tensor input for argument window_size is specified per frame "
+                      "(got F layout). In that case, samples in the input 0 must contain "
+                      "frames too. Got layout `CHW` that does not contain frames.")
 def test_fail_per_frame_no_frames():
     @pipeline_def
     def pipeline():

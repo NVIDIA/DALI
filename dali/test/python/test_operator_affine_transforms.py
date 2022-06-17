@@ -26,7 +26,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 
 from sequences_test_utils import sequence_suite_helper, ArgCb, ParamsProvider
-from nose_utils import assert_raises, raises
+from nose_utils import assert_raises
 
 
 def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
@@ -639,7 +639,8 @@ def test_combine_shape_mismatch():
     batch0_inp = [mt() for _ in range(batch_size)]
     batch1_inp = [mt()[i:] for i in range(batch_size)]
 
-    with assert_raises(RuntimeError, glob="The input 0 and the input 1 have different number of frames for sample 1"):
+    expected_msg = "The input 0 and the input 1 have different number of frames for sample 1"
+    with assert_raises(RuntimeError, glob=expected_msg):
         @pipeline_def
         def pipeline():
             mts0, mts1 = fn.external_source(lambda _: (batch0_inp, batch1_inp), num_outputs=2)
