@@ -12,26 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from webdataset_base import *
-import os
 import math
+import os
 from glob import glob
-from test_utils import compare_pipelines, get_dali_extra_path
 
-def cross_check(
-    dont_use_mmap,
-    batch_size,
-    num_shards,
-    shard_id,
-    skip_cached_images,
-    pad_last_batch,
-    stick_to_shard,
-):
+from test_utils import compare_pipelines, get_dali_extra_path
+from webdataset_base import *
+
+
+def cross_check(dont_use_mmap, batch_size, num_shards, shard_id, skip_cached_images, pad_last_batch,
+                stick_to_shard, ):
     num_multiplications = 4
     num_samples = 20 * num_multiplications
-    tar_file_paths = [
-        os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/cross.tar")
-    ] * num_multiplications
+    tar_file_paths = [os.path.join(get_dali_extra_path(),
+                                   "db/webdataset/sample-tar/cross.tar")] * num_multiplications
     index_files = [generate_temp_index_file(tar_file_path) for tar_file_path in tar_file_paths]
 
     extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
@@ -39,7 +33,7 @@ def cross_check(
         (
             sorted(
                 glob(extract_dir.name + "/*"),
-                key=lambda s: (int(s[s.rfind("/") + 1 : s.find(".")]), s),
+                key=lambda s: (int(s[s.rfind("/") + 1: s.find(".")]), s),
             )
             for extract_dir in extract_dirs
         ),

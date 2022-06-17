@@ -18,9 +18,8 @@
 # so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
 
 import torch
-from nose_utils import raises
 
-from test_pool_utils import *
+from nose_utils import raises
 from test_external_source_parallel_utils import *
 
 
@@ -37,8 +36,7 @@ def test_pytorch_cuda_context():
     cuda0 = torch.device('cuda:0')
     _ = torch.ones([1, 1], dtype=torch.float32, device=cuda0)
     callback = ExtCallback((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
-                       py_start_method='fork', parallel=True)
+    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6, py_start_method='fork', parallel=True)
     pipe.start_py_workers()
 
 
@@ -56,6 +54,5 @@ class ExtCallbackTorchCuda(ExtCallback):
                    "Got*PyTorch GPU tensor")
 def test_pytorch_cuda():
     callback = ExtCallbackTorchCuda((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
-                       py_start_method='spawn', parallel=True)
+    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6, py_start_method='spawn', parallel=True)
     build_and_run_pipeline(pipe)

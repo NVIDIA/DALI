@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali import pipeline, pipeline_def
+from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import nvidia.dali as dali
 from random import shuffle
 import numpy as np
 from test_utils import as_array
-from numpy.testing import assert_array_equal, assert_allclose
 import os
 import cv2
 
@@ -72,11 +70,13 @@ def _compare_to_cv_distortion(in_img, out_img, q, no):
     decoded_img = cv2.cvtColor(decoded_img_bgr, cv2.COLOR_BGR2RGB)
 
     diff = cv2.absdiff(out_img, decoded_img)
-    diff_in_range = np.average(diff) < 5, f"Absolute difference with the reference is too big: {np.average(diff)}"
+    diff_in_range = np.average(
+        diff) < 5, f"Absolute difference with the reference is too big: {np.average(diff)}"
 
     if dump_images or (dump_broken and not diff_in_range):
         i, j = no
-        cv2.imwrite(f"./reference_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB))
+        cv2.imwrite(f"./reference_q{q}_sample{i}_{j}.bmp",
+                    cv2.cvtColor(decoded_img, cv2.COLOR_BGR2RGB))
         cv2.imwrite(f"./output_q{q}_sample{i}_{j}.bmp", cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB))
 
     assert diff_in_range, f"Absolute difference with the reference is too big: {np.average(diff)}"
@@ -98,8 +98,8 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
         out_tensors = fn.jpeg_compression_distortion(inputs, quality=quality)
         return (out_tensors, in_tensors, quality)
 
-    pipe = jpeg_distortion_pipe(device=device, quality=quality,
-                                batch_size=batch_size, num_threads=2, device_id=0)
+    pipe = jpeg_distortion_pipe(device=device, quality=quality, batch_size=batch_size,
+                                num_threads=2, device_id=0)
     pipe.build()
     for _ in range(3):
         out = pipe.run()

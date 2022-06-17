@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
-from nvidia.dali.ops import _DataNode
-import nvidia.dali.ops as ops
-import nvidia.dali.fn as fn
-import nvidia.dali.types as types
-import numpy
-import random
-from PIL import Image, ImageEnhance
-import os
+import cv2
 import glob
+import numpy
+import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
+import nvidia.dali.types as types
+import os
+import random
 import tempfile
 import time
-import cv2
+from PIL import Image, ImageEnhance
+from nvidia.dali.ops import _DataNode
+from nvidia.dali.pipeline import Pipeline
+
 from nose_utils import raises
 from test_utils import get_dali_extra_path
 
@@ -50,8 +51,8 @@ def resize(image):
 
 class CommonPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, _seed, image_dir):
-        super(CommonPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=False,
-                                             exec_pipelined=False)
+        super().__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=False,
+                         exec_pipelined=False)
         self.input = ops.readers.File(file_root=image_dir)
         self.decode = ops.decoders.Image(device='cpu', output_type=types.RGB)
         self.resize = ops.PythonFunction(function=resize, output_layouts='HWC')
@@ -68,7 +69,7 @@ class CommonPipeline(Pipeline):
 
 class BasicPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
-        super(BasicPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
 
     def define_graph(self):
         images, labels = self.load()
@@ -77,7 +78,7 @@ class BasicPipeline(CommonPipeline):
 
 class PythonOperatorPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
-        super(PythonOperatorPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.python_function = ops.PythonFunction(function=function)
 
     def define_graph(self):
@@ -89,8 +90,7 @@ class PythonOperatorPipeline(CommonPipeline):
 
 class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function):
-        super(PythonOperatorInvalidPipeline, self).__init__(batch_size, num_threads, device_id,
-                                                            seed, image_dir, function)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir, function)
         self.python_function = ops.PythonFunction(function=function)
 
     def define_graph(self):
@@ -101,7 +101,7 @@ class PythonOperatorInvalidPipeline(PythonOperatorPipeline):
 
 class FlippingPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
-        super(FlippingPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.flip = ops.Flip(horizontal=1)
 
     def define_graph(self):
@@ -111,9 +111,9 @@ class FlippingPipeline(CommonPipeline):
 
 
 class TwoOutputsPythonOperatorPipeline(CommonPipeline):
-    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function, op=ops.PythonFunction):
-        super(TwoOutputsPythonOperatorPipeline, self).__init__(batch_size, num_threads,
-                                                               device_id, seed, image_dir)
+    def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function,
+                 op=ops.PythonFunction):
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.python_function = op(function=function, num_outputs=2)
 
     def define_graph(self):
@@ -127,8 +127,7 @@ class TwoOutputsPythonOperatorPipeline(CommonPipeline):
 class MultiInputMultiOutputPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir, function,
                  batch_processing=False):
-        super(MultiInputMultiOutputPipeline, self).__init__(batch_size, num_threads,
-                                                            device_id, seed, image_dir)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.python_function = ops.PythonFunction(function=function, num_outputs=3,
                                                   batch_processing=batch_processing)
 
@@ -144,8 +143,7 @@ class MultiInputMultiOutputPipeline(CommonPipeline):
 
 class DoubleLoadPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
-        super(DoubleLoadPipeline, self).__init__(batch_size, num_threads,
-                                                 device_id, seed, image_dir)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
 
     def define_graph(self):
         images1, labels1 = self.load()
@@ -155,7 +153,7 @@ class DoubleLoadPipeline(CommonPipeline):
 
 class SinkTestPipeline(CommonPipeline):
     def __init__(self, batch_size, device_id, seed, image_dir, function):
-        super(SinkTestPipeline, self).__init__(batch_size, 1, device_id, seed, image_dir)
+        super().__init__(batch_size, 1, device_id, seed, image_dir)
         self.python_function = ops.PythonFunction(function=function, num_outputs=0)
 
     def define_graph(self):
@@ -255,7 +253,7 @@ def test_python_operator_flip():
 
 class RotatePipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
-        super(RotatePipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.rotate = ops.Rotate(angle=90.0, interp_type=types.INTERP_NN)
 
     def define_graph(self):
@@ -266,7 +264,7 @@ class RotatePipeline(CommonPipeline):
 
 class BrightnessPipeline(CommonPipeline):
     def __init__(self, batch_size, num_threads, device_id, seed, image_dir):
-        super(BrightnessPipeline, self).__init__(batch_size, num_threads, device_id, seed, image_dir)
+        super().__init__(batch_size, num_threads, device_id, seed, image_dir)
         self.brightness = ops.BrightnessContrast(device="gpu", brightness=0.5)
 
     def define_graph(self):
@@ -277,7 +275,8 @@ class BrightnessPipeline(CommonPipeline):
 
 def test_python_operator_rotate():
     dali_rotate = RotatePipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
-    numpy_rotate = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Rotate)
+    numpy_rotate = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
+                                          Rotate)
     dali_rotate.build()
     numpy_rotate.build()
     for it in range(ITERS):
@@ -292,7 +291,8 @@ def test_python_operator_rotate():
 
 def test_python_operator_brightness():
     dali_brightness = BrightnessPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir)
-    numpy_brightness = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, Brightness)
+    numpy_brightness = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
+                                              Brightness)
     dali_brightness.build()
     numpy_brightness.build()
     for it in range(ITERS):
@@ -319,7 +319,6 @@ def test_python_operator_invalid_pipeline():
     invalid_pipe = PythonOperatorInvalidPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
                                                  images_dir, Rotate)
     invalid_pipe.build()
-
 
 
 def split_red_blue(image):
@@ -439,7 +438,8 @@ def test_not_a_tuple():
 @raises(Exception, "must be a tuple")
 def test_not_a_tuple_dl():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
-                                                    images_dir, dlflip_batch, op=ops.DLTensorPythonFunction)
+                                                    images_dir, dlflip_batch,
+                                                    op=ops.DLTensorPythonFunction)
     invalid_pipe.build()
     invalid_pipe.run()
 
@@ -459,7 +459,8 @@ def test_wrong_outputs_number():
 @raises(Exception, glob="Unexpected number of outputs*got 3*expected 2")
 def test_wrong_outputs_number_dl():
     invalid_pipe = TwoOutputsPythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED,
-                                                    images_dir, three_outputs, op=ops.DLTensorPythonFunction)
+                                                    images_dir, three_outputs,
+                                                    op=ops.DLTensorPythonFunction)
     invalid_pipe.build()
     invalid_pipe.run()
 
@@ -487,6 +488,8 @@ def test_sink():
 
 
 counter = 0
+
+
 def func_with_side_effects(images):
     global counter
     counter = counter + 1
@@ -497,10 +500,10 @@ def func_with_side_effects(images):
 
 
 def test_func_with_side_effects():
-    pipe_one = PythonOperatorPipeline(
-        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func_with_side_effects)
-    pipe_two = PythonOperatorPipeline(
-        BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir, func_with_side_effects)
+    pipe_one = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
+                                      func_with_side_effects)
+    pipe_two = PythonOperatorPipeline(BATCH_SIZE, NUM_WORKERS, DEVICE_ID, SEED, images_dir,
+                                      func_with_side_effects)
 
     pipe_one.build()
     pipe_two.build()
@@ -524,8 +527,8 @@ def test_func_with_side_effects():
 
 class AsyncPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, _seed):
-        super(AsyncPipeline, self).__init__(batch_size, num_threads, device_id, seed=_seed,
-                                            exec_async=True, exec_pipelined=True)
+        super().__init__(batch_size, num_threads, device_id, seed=_seed, exec_async=True,
+                         exec_pipelined=True)
         self.op = ops.PythonFunction(function=lambda: numpy.zeros([2, 2, 2]))
 
     def define_graph(self):
@@ -542,36 +545,29 @@ def test_output_layout():
     pipe = CommonPipeline(1, 1, 0, 999, images_dir)
     with pipe:
         images, _ = pipe.load()
-        out1, out2 = fn.python_function(images,
-                                        function=lambda x: (x, x.mean(2)),
-                                        num_outputs=2,
+        out1, out2 = fn.python_function(images, function=lambda x: (x, x.mean(2)), num_outputs=2,
                                         output_layouts=['ABC', 'DE'])
-        out3, out4 = fn.python_function(images,
-                                        function=lambda x: (x, x / 2),
-                                        num_outputs=2,
+        out3, out4 = fn.python_function(images, function=lambda x: (x, x / 2), num_outputs=2,
                                         output_layouts='FGH')
-        out5, out6 = fn.python_function(images,
-                                        function=lambda x: (x, x / 2),
-                                        num_outputs=2,
+        out5, out6 = fn.python_function(images, function=lambda x: (x, x / 2), num_outputs=2,
                                         output_layouts=['IJK'])
 
         pipe.set_outputs(out1, out2, out3, out4, out5, out6)
     pipe.build()
     out1, out2, out3, out4, out5, out6 = pipe.run()
-    assert(out1.layout() == 'ABC')
-    assert(out2.layout() == 'DE')
-    assert(out3.layout() == 'FGH')
-    assert(out4.layout() == 'FGH')
-    assert(out5.layout() == 'IJK')
-    assert(out6.layout() == '')
+    assert (out1.layout() == 'ABC')
+    assert (out2.layout() == 'DE')
+    assert (out3.layout() == 'FGH')
+    assert (out4.layout() == 'FGH')
+    assert (out5.layout() == 'IJK')
+    assert (out6.layout() == '')
 
 
 @raises(RuntimeError, "*length of*output_layouts*greater than*")
 def test_invalid_layouts_arg():
     pipe = Pipeline(1, 1, 0, 999, exec_async=False, exec_pipelined=False)
     with pipe:
-        out = fn.python_function(function=lambda: np.zeros((1, 1)),
-                                 output_layouts=['HW', 'HWC'])
+        out = fn.python_function(function=lambda: np.zeros((1, 1)), output_layouts=['HW', 'HWC'])
         pipe.set_outputs(out)
     pipe.build()
     pipe.run()

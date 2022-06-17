@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nose_utils
-from nvidia.dali import pipeline_def
-import nvidia.dali as dali
+import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import numpy as np
 from nose.tools import nottest
+from nvidia.dali import pipeline_def
 
-from test_utils import check_batch, np_type_to_dali
+from test_utils import np_type_to_dali
 
 
 def ref_cast(x, dtype):
@@ -102,8 +100,8 @@ def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.
             hi = min(np.finfo(in_dtype).max, hi)
 
     max_size = 100000 // batch_size
-    out = [rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype) for _ in range(batch_size)]
-    out = replace_with_empty_volumes(rng, out, empty_volume_policy)
+    out = [rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype) for _ in
+           range(batch_size)]
     if np.issubdtype(in_dtype, np.floating) and np.issubdtype(out_dtype, np.integer):
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU
@@ -119,7 +117,8 @@ rng = np.random.default_rng(1234)
 def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_volume_policy=None):
     src = lambda: generate(rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy)
 
-    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
+    @pipeline_def(batch_size=batch_size, num_threads=4,
+                  device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
     def cast_pipe():
         inp = fn.external_source(src)
         inp_dev = inp.gpu() if device == 'gpu' else inp
@@ -136,7 +135,8 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
         # work around a bug in numpy: when the argument is a scalar fp32 or fp16, nextafter
         # promotes it to fp64, resulting in insufficient epsilon - we want an epsilon of the
         # type specified in out_dtype
-        eps = 0 if np.issubdtype(out_dtype, np.integer) else (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
+        eps = 0 if np.issubdtype(out_dtype, np.integer) else \
+        (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
 
         for i in range(batch_size):
             if not np.allclose(out[i], ref[i], eps):
@@ -157,7 +157,8 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
 
 
 def test_operator_cast():
-    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float16, np.float32]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64,
+             np.float16, np.float32]
     for device in ['cpu', 'gpu']:
         for in_type in types:
             for out_type in types:
