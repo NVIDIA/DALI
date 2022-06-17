@@ -206,8 +206,8 @@ def test_image_decoder_memory_stats():
         data_path = os.path.join(test_data_root, good_path, img_type)
         # largest allocation should match our (in this case) memory padding settings
         # (assuming no reallocation was needed here as the hint is big enough)
-        pattern = 'Device memory: \d+ allocations, largest = 16777216 bytes\n.*' \
-                  'Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n'
+        pattern = r'Device memory: \d+ allocations, largest = 16777216 bytes\n.*' \
+                  r'Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n'
         with check_output_pattern(pattern):
             run_decode(data_path, size, device, threads, memory_stats=True)
 
