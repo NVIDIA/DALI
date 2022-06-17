@@ -14,6 +14,7 @@
 
 import numpy as np
 import os
+import torch
 from nose.plugins.attrib import attr
 
 import nvidia.dali.fn as fn
@@ -608,6 +609,25 @@ def test_external_source_unused_args():
     kwargs_list = [{'parallel': True}, {'foo': 123, 'bar': 'BAR'}]
     for kwargs in kwargs_list:
         yield _test_es_unused_args, kwargs
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def es_device_change_pipeline(source, device):
+    return fn.external_source(source=source, device=device)
+
+
+def _test_es_device_change(source, device):
+    pipe = es_device_change_pipeline(source, device)
+    pipe.build()
+    res, = pipe.run()
+    assert device in str(type(res)).lower()
+
+
+def test_es_device_change():
+    cpu_data = np.zeros((8, 1))
+    gpu_data = torch.zeros((8, 1), device='cuda')
+    for data, device in zip([cpu_data, gpu_data], ['gpu', 'cpu']):
+        yield _test_es_device_change, data, device
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
