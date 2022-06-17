@@ -358,7 +358,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   void SetupSequenceOperator(const workspace_t<Backend> &ws) {
     auto num_inputs = ws.NumInput();
     input_expand_desc_.clear();
-    input_expand_desc_.reserve(num_inputs + 1);
+    input_expand_desc_.reserve(num_inputs);
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
       const auto &layout = GetInputLayout(ws, input_idx);
