@@ -120,8 +120,8 @@ class ParamsProviderBase:
         unfolded_input = unfold_batches(self.input_data.data, num_expand)
         unfolded_layout = input_desc.layout if not input_desc.layout else input_desc.layout[num_expand:]
         self.unfolded_input = ArgData(
-            ArgDesc(input_desc.name, "", input_desc.dest_device, unfolded_layout),
-            unfolded_input)
+            desc=ArgDesc(input_desc.name, "", input_desc.dest_device, unfolded_layout),
+            data=unfolded_input)
         return self.unfolded_input
 
     def compute_params(self) -> List[ArgData]:
@@ -147,8 +147,8 @@ class ParamsProvider(ParamsProviderBase):
     def expand_params(self) -> List[ArgData]:
         self.expanded_params_data = [
             ArgData(
-                ArgDesc(arg_data.desc.name, "", arg_data.desc.dest_device),
-                expand_arg_input(self.input_data, arg_data))
+                desc=ArgDesc(arg_data.desc.name, "", arg_data.desc.dest_device),
+                data=expand_arg_input(self.input_data, arg_data))
             for arg_data in self.arg_input_data
         ]
         return self.expanded_params_data
@@ -230,6 +230,9 @@ def expand_arg(expandable_layout, arg_has_frames, input_batch, arg_batch):
 
 
 def expand_arg_input(input_data: ArgData, arg_data: ArgData):
+    """
+    Expands the `arg_data` to match the sequence shape of input_data.
+    """
     assert arg_data.desc.expandable_prefix in ["F", ""]
     assert len(input_data.data) == len(arg_data.data)
     arg_has_frames = arg_data.desc.expandable_prefix == "F"
@@ -239,13 +242,10 @@ def expand_arg_input(input_data: ArgData, arg_data: ArgData):
 
 def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_data: ArgData, rng):
     @pipeline_def
-    def pipeline(input_data: ArgData, args_data: List[ArgData]):
+    def pipeline(args_data: List[ArgData]):
         pos_args = [
             arg_data for arg_data in args_data if arg_data.desc.is_positional_arg]
-        num_pos_nodes = len(pos_args)
-        if input_data.desc.is_positional_arg:
-            num_pos_nodes += 1
-        pos_nodes = [None] * num_pos_nodes
+        pos_nodes = [None] * len(pos_args)
         for arg_data in pos_args:
             assert 0 <= arg_data.desc.name < len(pos_nodes)
             assert pos_nodes[arg_data.desc.name] is None
@@ -255,12 +255,6 @@ def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_da
         arg_nodes = {
             arg_data.desc.name: arg_data_node(arg_data)
             for arg_data in named_args}
-        if not input_data.desc.is_positional_arg:
-            arg_nodes[input_data.desc.name] = arg_data_node(input_data)
-        else:
-            [input_idx] = [i for i, pos_input in enumerate(
-                pos_nodes) if pos_input is None]  # there should be exactly one
-            pos_nodes[input_idx] = arg_data_node(input_data)
         output = operator_fn(*pos_nodes, **fixed_params, **arg_nodes)
         return output
 
@@ -271,15 +265,13 @@ def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_da
         input_params, ParamsProviderBase) else ParamsProvider(input_params)
     params_provider.setup(input_data, fixed_params, rng)
     args_data = params_provider.compute_params()
-    seq_pipe = pipeline(input_data=input_data,
-                        args_data=args_data,
+    seq_pipe = pipeline(args_data=[input_data, *args_data],
                         batch_size=max_batch_size, num_threads=4,
                         device_id=0)
     unfolded_input = params_provider.unfold_input()
     expanded_args_data = params_provider.expand_params()
     max_uf_batch_size = max(len(batch) for batch in unfolded_input.data)
-    baseline_pipe = pipeline(input_data=unfolded_input,
-                             args_data=expanded_args_data,
+    baseline_pipe = pipeline(args_data=[unfolded_input, *expanded_args_data],
                              batch_size=max_uf_batch_size, num_threads=4,
                              device_id=0)
     seq_pipe.build()
@@ -327,12 +319,16 @@ def compute_input_params_data(input_data: ArgData, rng, input_params: List[ArgCb
             return get_input_arg_per_frame(
                 input_data, arg_cb.cb, rng, not arg_cb.desc.is_positional_arg)
         return get_input_arg_per_sample(input_data, arg_cb.cb, rng)
-    return [ArgData(arg_cb.desc, input_param_data(arg_cb)) for arg_cb in input_params]
+    return [
+        ArgData(desc=arg_cb.desc, data=input_param_data(arg_cb))
+        for arg_cb in input_params]
 
 
 def input_desc(layout, batches, expandable_extents, dest_device, input_name=0):
     num_expand = get_layout_prefix_len(layout, expandable_extents)
-    return ArgData(ArgDesc(input_name, layout[:num_expand], dest_device, layout), batches)
+    return ArgData(
+        desc=ArgDesc(input_name, layout[:num_expand], dest_device, layout),
+        data=batches)
 
 
 def sequence_suite_helper(rng, expandable_extents, input_cases, ops_test_cases, num_iters=4):
