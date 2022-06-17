@@ -763,7 +763,8 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
 #endif
 
 template <typename Backend>
-using tensor_list_py_class_t = py::class_<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>>;
+using tensor_list_py_class_t =
+    py::class_<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>>;
 
 template <typename Backend>
 void EagerArithmOp(tensor_list_py_class_t<Backend> &py_class, std::string &op_name) {
