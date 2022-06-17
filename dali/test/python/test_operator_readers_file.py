@@ -169,13 +169,14 @@ def test_file_reader_filters():
     for filters in [['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
         num_threads = random.choice([1, 2, 4, 8])
         batch_size = random.choice([1, 3, 10])
-        yield _test_file_reader_filter, filters, filters, batch_size, num_threads, 'db/single/mixed', False
+        yield _test_file_reader_filter, filters, filters, batch_size, num_threads, \
+            'db/single/mixed', False
 
     yield _test_file_reader_filter, ['*.jPg', '*.JPg'], \
-          ['*.jPg', '*.JPg'], 3, 1, 'db/single/case_sensitive', True
+        ['*.jPg', '*.JPg'], 3, 1, 'db/single/case_sensitive', True
     yield _test_file_reader_filter, ['*.JPG'], \
-          ['*.jpg', '*.jpG', '*.jPg', '*.jPG', '*.Jpg', '*.JpG', '*.JPg', '*.JPG'], \
-          3, 1, 'db/single/case_sensitive', False
+        ['*.jpg', '*.jpG', '*.jPg', '*.jPG', '*.Jpg', '*.JpG', '*.JPg', '*.JPG'], \
+        3, 1, 'db/single/case_sensitive', False
 
 
 batch_size_alias_test = 64
@@ -208,4 +209,4 @@ def test_invalid_number_of_shards():
 
     pipe = get_test_pipe()
     assert_raises(RuntimeError, pipe.build,
-                  glob="The number of input samples: *, needs to be at least equal to the requested number of shards:*.")
+                  glob="The number of input samples: *, needs to be at least equal to the requested number of shards:*.")  # noqa: E501

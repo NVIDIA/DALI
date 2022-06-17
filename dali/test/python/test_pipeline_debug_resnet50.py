@@ -86,8 +86,10 @@ def test_rn50_benchmark(pipe_fun=rn50_pipeline, batch_size=8, num_threads=2, num
     avg_speed_stand = num_samples / full_stand
 
     print(
-        f'Stand pipeline --- time: {full_stand:8.5f} [s] --- build + 1st iter time: {build_stand:.5f} [s] --- '
-        f'avg iter time per sample: {iter_time_stand:7.5f} [s] --- avg speed: {avg_speed_stand:8.3f} [img/s]')
+        f'Stand pipeline --- time: {full_stand:8.5f} [s] --- '
+        f'build + 1st iter time: {build_stand:.5f} [s] --- '
+        f'avg iter time per sample: {iter_time_stand:7.5f} [s] --- '
+        f'avg speed: {avg_speed_stand:8.3f} [img/s]')
 
     full_debug, build_debug, times_debug = run_benchmark(pipe_fun, batch_size, num_threads,
                                                          num_samples, True, data_path)
@@ -95,8 +97,10 @@ def test_rn50_benchmark(pipe_fun=rn50_pipeline, batch_size=8, num_threads=2, num
     avg_speed_debug = num_samples / full_debug
 
     print(
-        f'Debug pipeline --- time: {full_debug:8.5f} [s] --- build + 1st iter time: {build_debug:.5f} [s] --- '
-        f'avg iter time per sample: {iter_time_debug:7.5f} [s] --- avg speed: {avg_speed_debug:8.3f} [img/s]')
+        f'Debug pipeline --- time: {full_debug:8.5f} [s] --- '
+        f'build + 1st iter time: {build_debug:.5f} [s] --- '
+        f'avg iter time per sample: {iter_time_debug:7.5f} [s] --- '
+        f'avg speed: {avg_speed_debug:8.3f} [img/s]')
 
     if save_df is not None:
         df = pd.DataFrame({'type': ['standard_sync', 'debug_old'],

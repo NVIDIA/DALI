@@ -212,7 +212,7 @@ def dlflip(image):
     image = ops._dlpack_to_array(image)
     out = numpy.fliplr(image)
     out = ops._dlpack_from_array(out)
-    return out;
+    return out
 
 
 def dlflip_batch(images):
@@ -284,8 +284,8 @@ def test_python_operator_rotate():
         dali_output, = dali_rotate.run()
         for i in range(len(numpy_output)):
             if not numpy.array_equal(numpy_output.at(i), dali_output.at(i)):
-                cv2.imwrite("numpy.png", numpy_output.at(i));
-                cv2.imwrite("dali.png", dali_output.at(i));
+                cv2.imwrite("numpy.png", numpy_output.at(i))
+                cv2.imwrite("dali.png", dali_output.at(i))
                 assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
 
 
@@ -303,7 +303,7 @@ def test_python_operator_brightness():
 
 
 def invalid_function(image):
-    return img
+    return img  # noqa: F821. This shall be an invalid function.
 
 
 @raises(RuntimeError, "img*not defined")
@@ -567,7 +567,7 @@ def test_output_layout():
 def test_invalid_layouts_arg():
     pipe = Pipeline(1, 1, 0, 999, exec_async=False, exec_pipelined=False)
     with pipe:
-        out = fn.python_function(function=lambda: np.zeros((1, 1)), output_layouts=['HW', 'HWC'])
+        out = fn.python_function(function=lambda: numpy.zeros((1, 1)), output_layouts=['HW', 'HWC'])
         pipe.set_outputs(out)
     pipe.build()
     pipe.run()

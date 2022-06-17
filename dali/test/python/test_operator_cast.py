@@ -38,6 +38,7 @@ def random_shape(rng, ndim: int, max_size: int):
     max_size = int(max_size ** (1 / ndim))
     return list(rng.integers(1, max_size, [ndim]))
 
+
 def replace_with_empty_volumes(rng, input, empty_volume_policy):
     """Replaces samples with 0-volumed ones if possible.
 
@@ -115,7 +116,8 @@ rng = np.random.default_rng(1234)
 
 @nottest
 def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_volume_policy=None):
-    src = lambda: generate(rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy)
+    def src():
+        return generate(rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy)
 
     @pipeline_def(batch_size=batch_size, num_threads=4,
                   device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
@@ -136,23 +138,17 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
         # promotes it to fp64, resulting in insufficient epsilon - we want an epsilon of the
         # type specified in out_dtype
         eps = 0 if np.issubdtype(out_dtype, np.integer) else \
-        (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
+            (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
 
         for i in range(batch_size):
             if not np.allclose(out[i], ref[i], eps):
-                print("At sample", i)
-                I = np.array(inp[i])
-                O = np.array(out[i])
-                R = ref[i]
-                print(I)
-                print(R)
-                print(O)
-                mask = np.logical_not(np.isclose(O, R, eps))
-                print("Differences at", mask)
-                print(I[mask])
-                print(R[mask])
-                print(O[mask])
-                print(np.count_nonzero(mask), "wrong values out of", mask.size)
+                matI = np.array(inp[i])
+                matO = np.array(out[i])
+                matR = ref[i]
+                mask = np.logical_not(np.isclose(matO, matR, eps))
+                print(f"At sample {i}:\nI:\n{matI}\nO\n{matO}\nR\n{matR}")
+                print(f"Differences at {mask}:\nI:\n{matI[mask]}\nO\n{matO[mask]}\nR\n{matR[mask]}")
+                print(f"Result: {np.count_nonzero(mask)} wrong values out of {mask.size}.")
                 assert np.array_equal(out[i], ref[i])
 
 
@@ -176,7 +172,7 @@ def test_operator_cast_empty_volumes():
 
                 batch_size = rng.integers(12, 64)
                 for empty_volume_policy in [
-                        rng.choice(["left", "right", "middle", "mixed"]), "all"
+                    rng.choice(["left", "right", "middle", "mixed"]), "all"
                 ]:
                     yield (_test_operator_cast, ndim, batch_size, in_type, out_type, device,
                            empty_volume_policy)

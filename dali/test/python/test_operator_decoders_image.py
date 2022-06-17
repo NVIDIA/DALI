@@ -164,17 +164,20 @@ def test_image_decoder_fused():
         create_decoder_crop_pipeline,
         create_decoder_random_crop_pipeline
     ]:
-        # before CUDA 11.4 HW decoder API doesn't support ROI so we get slightly different results HW decoder + slice vs
-        # fused which in this case is executed by the hybrid backend
-        if test_fun == create_decoder_random_crop_pipeline or nvidia.dali.backend.GetNvjpegVersion() < 11040:
-            # random_resized_crop can properly handle border as it has pixels that are cropped out, while
-            # plain resize following image_decoder_random_crop cannot do that and must duplicate the border pixels
-            validation_fun = lambda x, y: np.mean(np.abs(x - y) < 0.5)
+        # before CUDA 11.4 HW decoder API doesn't support ROI so we get slightly different results
+        # HW decoder + slice vs fused which in this case is executed by the hybrid backend
+        if test_fun == create_decoder_random_crop_pipeline or \
+                nvidia.dali.backend.GetNvjpegVersion() < 11040:
+            # random_resized_crop can properly handle border as it has pixels that are cropped out,
+            # while plain resize following image_decoder_random_crop cannot do that
+            # and must duplicate the border pixels
+            validation_fun = lambda x, y: np.mean(np.abs(x - y) < 0.5)  # noqa: E731
         else:
-            validation_fun = lambda x, y: np.allclose(x, y)
+            validation_fun = lambda x, y: np.allclose(x, y)  # noqa: E731
         for device in {'cpu', 'mixed'}:
             for img_type in test_good_path:
-                yield run_decode_fused, test_fun, good_path, img_type, batch_size, device, threads, validation_fun
+                yield run_decode_fused, test_fun, good_path, img_type, batch_size, \
+                      device, threads, validation_fun
 
 
 def check_FastDCT_body(batch_size, img_type, device):
@@ -265,9 +268,7 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
         out = out.as_cpu()
     out = np.array(out[0])
     shape = np.array(shape[0])
-    expected_channels = 4 if out_type == types.ANY_DATA else \
-                        1 if out_type == types.GRAY else \
-                        3
+    expected_channels = 4 if out_type == types.ANY_DATA else 1 if out_type == types.GRAY else 3
     assert out.shape[2] == expected_channels, \
         f"Expected {expected_channels} but got {out.shape[2]}"
 

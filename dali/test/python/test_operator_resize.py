@@ -461,10 +461,10 @@ def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_inpu
 
 def _tests(dim, device):
     batch_size = 2 if dim == 3 else 10
-    # 1. Cannot test linear against PIL, because PIL uses triangular filter when downscaling
-    # 2. Cannot test Nearest Neighbor because rounding errors cause gross discrepancies (pixel shift)
+    # - Cannot test linear against PIL, because PIL uses triangular filter when downscaling
+    # - Cannot test Nearest Neighbor because rounding errors cause gross discrepancies (pixel shift)
     for mode in ["default", "stretch", "not_smaller", "not_larger"]:
-        for interp, dtype, channel_first, use_size_arg, use_size_input, w_input, h_input, d_input, use_roi in [
+        for interp, dtype, channel_first, use_size_arg, use_size_input, w_input, h_input, d_input, use_roi in [  # noqa: E501
             (0, types.UINT8, True, False, False, False, False, False, False),
             (1, types.FLOAT, False, False, False, False, True, True, True),
             (0, types.FLOAT, True, False, False, True, True, False, True),
@@ -473,7 +473,8 @@ def _tests(dim, device):
             (1, types.UINT8, False, True, True, False, False, False, False)
         ]:
             interp = [types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3][interp]
-            yield _test_ND, device, dim, batch_size, False, mode, interp, dtype, w_input, h_input, d_input, use_size_arg, use_size_input, use_roi
+            yield _test_ND, device, dim, batch_size, False, mode, interp, dtype, \
+                w_input, h_input, d_input, use_size_arg, use_size_input, use_roi
 
 
 def test_2D_gpu():

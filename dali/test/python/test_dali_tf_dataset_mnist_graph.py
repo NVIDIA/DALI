@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tensorflow as tf
+import tensorflow.compat.v1 as tf_v1
+from nose import with_setup
+
 import test_dali_tf_dataset_mnist as mnist
 from nose_utils import raises
-from nose import with_setup
 
 mnist.tf.compat.v1.disable_eager_execution()
 
@@ -64,7 +67,8 @@ def test_graph_single_other_gpu():
     mnist.run_graph_single_device('gpu', 1)
 
 
-# This function is copied form: https://github.com/tensorflow/models/blob/master/tutorials/image/cifar10/cifar10_multi_gpu_train.py#L102
+# This function is copied form:
+# github.com/tensorflow/models/blob/master/tutorials/image/cifar10/cifar10_multi_gpu_train.py#L102
 def average_gradients(tower_grads):
     average_grads = []
     for grad_and_vars in zip(*tower_grads):
@@ -73,14 +77,14 @@ def average_gradients(tower_grads):
         grads = []
         for g, _ in grad_and_vars:
             # Add 0 dimension to the gradients to represent the tower.
-            expanded_g = mnist.tf_v1.expand_dims(g, 0)
+            expanded_g = tf_v1.expand_dims(g, 0)
 
             # Append on a 'tower' dimension which we will average over below.
             grads.append(expanded_g)
 
         # Average over the 'tower' dimension.
-        grad = mnist.tf_v1.concat(grads, 0)
-        grad = mnist.tf_v1.reduce_mean(grad, 0)
+        grad = tf_v1.concat(grads, 0)
+        grad = tf_v1.reduce_mean(grad, 0)
 
         # Keep in mind that the Variables are redundant because they are shared
         # across towers. So .. we will just return the first tower's pointer to
@@ -102,29 +106,28 @@ def test_graph_multi_gpu():
             with tf.device('/gpu:{}'.format(i)):
                 daliset = mnist.get_dataset('gpu', i, i, mnist.num_available_gpus())
 
-                iterator = mnist.tf_v1.data.make_initializable_iterator(daliset)
+                iterator = tf_v1.data.make_initializable_iterator(daliset)
                 iterator_initializers.append(iterator.initializer)
                 images, labels = iterator.get_next()
 
-                images = mnist.tf_v1.reshape(images, [mnist.BATCH_SIZE,
-                                                      mnist.IMAGE_SIZE * mnist.IMAGE_SIZE])
-                labels = mnist.tf_v1.reshape(mnist.tf_v1.one_hot(labels, mnist.NUM_CLASSES),
-                                             [mnist.BATCH_SIZE, mnist.NUM_CLASSES])
+                images = tf_v1.reshape(images,
+                                       [mnist.BATCH_SIZE, mnist.IMAGE_SIZE * mnist.IMAGE_SIZE])
+                labels = tf_v1.reshape(tf_v1.one_hot(labels, mnist.NUM_CLASSES),
+                                       [mnist.BATCH_SIZE, mnist.NUM_CLASSES])
 
                 logits_train = mnist.graph_model(images, reuse=(i != 0), is_training=True)
                 logits_test = mnist.graph_model(images, reuse=True, is_training=False)
 
-                loss_op = mnist.tf_v1.reduce_mean(
-                    mnist.tf_v1.nn.softmax_cross_entropy_with_logits(logits=logits_train,
-                                                                     labels=labels))
-                optimizer = mnist.tf_v1.train.AdamOptimizer()
+                loss_op = tf_v1.reduce_mean(
+                    tf_v1.nn.softmax_cross_entropy_with_logits(logits=logits_train, labels=labels))
+                optimizer = tf_v1.train.AdamOptimizer()
                 grads = optimizer.compute_gradients(loss_op)
 
                 if i == 0:
-                    correct_pred = mnist.tf_v1.equal(mnist.tf_v1.argmax(logits_test, 1),
-                                                     mnist.tf_v1.argmax(labels, 1))
-                    accuracy = mnist.tf_v1.reduce_mean(
-                        mnist.tf_v1.cast(correct_pred, mnist.tf_v1.float32))
+                    correct_pred = tf_v1.equal(tf_v1.argmax(logits_test, 1),
+                                               tf_v1.argmax(labels, 1))
+                    accuracy = tf_v1.reduce_mean(
+                        tf_v1.cast(correct_pred, tf_v1.float32))
 
                 tower_grads.append(grads)
 

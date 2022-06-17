@@ -20,6 +20,7 @@ import nvidia.dali.types as types
 import random
 from nvidia.dali import pipeline_def
 
+from sequences_test_utils import ArgCb, video_suite_helper
 from test_utils import RandomDataIterator
 
 
@@ -50,7 +51,9 @@ def ColorTwistPipeline(data_iterator, is_input_float, inp_dtype, out_dtype):
     contrast = fn.random.uniform(range=[0, 2])
 
     out_dtype_arg = out_dtype if out_dtype != inp_dtype else None
-    out_cpu, out_gpu = (fn.color_twist(input,                                       hue=H, saturation=S,                                       brightness=brightness, contrast=contrast,                                       dtype=out_dtype_arg)                        for input in (imgs, imgs.gpu()))
+    out_cpu, out_gpu = (
+        fn.color_twist(input, hue=H, saturation=S, brightness=brightness, contrast=contrast,
+                       dtype=out_dtype_arg) for input in (imgs, imgs.gpu()))
     return imgs, out_cpu, out_gpu, H, S, brightness, contrast
 
 
