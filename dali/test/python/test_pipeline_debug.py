@@ -591,3 +591,41 @@ def test_variable_batch_size():
     pipe = incorrect_variable_batch_size_pipeline()
     pipe.build()
     pipe.run()
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def unused_arg_es_pipeline(kwargs):
+    return fn.external_source(np.zeros((2, 8, 1)), **kwargs)
+
+
+def _test_es_unused_args(kwargs):
+    pipe = unused_arg_es_pipeline(kwargs)
+    pipe.build()
+    pipe.run()
+
+
+def test_external_source_unused_args():
+    kwargs_list = [{'parallel': True}, {'foo': 123, 'bar': 'BAR'}]
+    for kwargs in kwargs_list:
+        yield _test_es_unused_args, kwargs
+
+
+@pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
+def nan_check_pipeline(source):
+    return fn.constant(fdata=next(source))
+
+
+def _test_nan_check(values):
+    pipe = nan_check_pipeline(iter(values))
+    pipe.build()
+    for _ in range(2):
+        pipe.run()
+
+
+def test_nan_check():
+    err_msg = "Argument 'fdata' for operator 'constant' unexpectedly changed value from*"
+    for values in [[np.nan, 1], [1, np.nan]]:
+        yield raises(RuntimeError, glob=err_msg)(_test_nan_check), values
+
+    for values in [[1, 1], [np.nan, np.nan]]:
+        yield _test_nan_check, values
