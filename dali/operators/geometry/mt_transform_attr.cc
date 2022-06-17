@@ -130,8 +130,7 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
     }
     Repeat(per_sample_mtx_, mtx_, N);
     if (is_fused) {
-      translation_.resize(output_pt_dim_, 0);
-      Repeat(per_sample_translation_, translation_, N);
+      per_sample_translation_.resize(output_pt_dim_ * N, 0);
     }
   }
 }
