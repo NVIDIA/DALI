@@ -15,7 +15,7 @@
 # pylint: disable=no-member
 
 import sys
-from . import _utils
+from ._utils.hacks import not_iterable
 
 
 def _arithm_op(*args, **kwargs):
@@ -233,7 +233,7 @@ class DataNode(object):
             return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
 
 
-_utils.hacks.not_iterable(DataNode)
+not_iterable(DataNode)
 
 
 def _check(maybe_node):

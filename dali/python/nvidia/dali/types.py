@@ -17,6 +17,10 @@ from enum import Enum, unique
 import re
 
 from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, DALIInterpType
+
+# TODO: Handle forwarding imports from backend_impl
+from nvidia.dali.backend_impl.types import *        # noqa: F401, F403
+
 try:
     from nvidia.dali import tfrecord as tfrec
     _tfrecord_support = True
