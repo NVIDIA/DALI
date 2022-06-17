@@ -100,10 +100,10 @@ class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
  * To enter 'expanding' mode, the SequenceOperator needs an input that
  * contains expandable leading extents that serve as a reference to
  * unfold/broadcast other inputs and named arguments.
- * By default, with `allow_named_arg_ref=false,  only positional input can be used as such a
- * reference.
+ * By default, with `allow_non_positional_arg_ref=false,  only positional input can be used as such
+ * a reference.
  */
-template <typename Backend, bool allow_named_arg_ref = false>
+template <typename Backend, bool allow_non_positional_arg_ref = false>
 class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<Backend> {
  public:
   inline explicit SequenceOperator(const OpSpec &spec) : Operator<Backend>{spec} {}
@@ -368,28 +368,38 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     expand_like_ = InferReferenceExpandDesc(ws);
   }
 
-  const ExpandDesc *InferNamedReferenceExpandDesc(const workspace_t<Backend> &ws) {
+  const ExpandDesc *InferReferenceExpandDesc(const workspace_t<Backend> &ws) {
+    int input_idx = InferPositionalReferenceExpandDesc(ws);
+    if (input_idx >= 0) {
+      return &GetInputExpandDesc(input_idx);
+    }
+    if (allow_non_positional_arg_ref) {
+      non_positional_expand_desc_ = InferNonPositionalReferenceExpandDesc(ws);
+      return non_positional_expand_desc_.get();
+    }
+    return nullptr;
+  }
+
+  virtual int InferPositionalReferenceExpandDesc(const workspace_t<Backend> &ws) {
+    (void) ws;
+    for (size_t input_idx = 0; input_idx < input_expand_desc_.size(); input_idx++) {
+      if (input_expand_desc_[input_idx].NumDimsToExpand() > 0) {
+        return input_idx;
+      }
+    }
+    return -1;
+  }
+
+  virtual std::unique_ptr<ExpandDesc> InferNonPositionalReferenceExpandDesc(
+      const workspace_t<Backend> &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
       const std::string &name = arg_input.first;
       const auto &batch = *shared_tvec;
       if (IsPerFrameArg(name, batch)) {
-        input_expand_desc_.emplace_back(name, batch.shape(), batch.GetLayout(), false);
-        return &input_expand_desc_.back();
+        return std::make_unique<ExpandDesc>(name, batch.shape(), batch.GetLayout(), false);
       }
-    }
-    return nullptr;
-  }
-
-  const ExpandDesc *InferReferenceExpandDesc(const workspace_t<Backend> &ws) {
-    for (const auto &expand_desc : input_expand_desc_) {
-      if (expand_desc.NumDimsToExpand() > 0) {
-        return &expand_desc;
-      }
-    }
-    if (allow_named_arg_ref) {
-      return InferNamedReferenceExpandDesc(ws);
     }
     return nullptr;
   }
@@ -692,6 +702,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
 
  private:
   const ExpandDesc *expand_like_ = nullptr;
+  std::unique_ptr<ExpandDesc> non_positional_expand_desc_;
   bool is_expanding_ = false;
   bool is_expanded_ws_initialized_ = false;
   workspace_t<Backend> expanded_;
