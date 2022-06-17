@@ -241,9 +241,8 @@ def test_operator_erase_with_out_of_bounds_roi_coords():
     axis_names = "HW"
     anchor_arg = (4, 10, 10, 4)
     shape_arg = (40, 50, 50, 40)
-    anchor_norm_arg = (
-        4 / 60.0, 10 / 80.0, 2000, 2000, 10 / 60.0, 4 / 80.0
-    )  # second region is completely out of bounds
+    # second region is completely out of bounds
+    anchor_norm_arg = (4 / 60.0, 10 / 80.0, 2000, 2000, 10 / 60.0, 4 / 80.0)
     shape_norm_arg = (40 / 60.0, 50 / 80.0, 200, 200, 50 / 60.0, 40 / 80.0)
     yield (check_operator_erase_with_normalized_coords,
            device, batch_size,

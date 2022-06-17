@@ -1278,5 +1278,5 @@ def test_coverage():
     exclude = re.compile(exclude)
     methods = [x for x in methods if not exclude.match(x)]
     # we are fine with covering more we can easily list, like numba
-    assert set(methods).difference(set(tested_methods)) == set(), "Test doesn't cover:\n {}".format(
-        set(methods) - set(tested_methods))
+    assert set(methods).difference(set(tested_methods)) == set(), \
+        "Test doesn't cover:\n {}".format(set(methods) - set(tested_methods))

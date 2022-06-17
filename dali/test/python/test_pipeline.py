@@ -29,10 +29,9 @@ import sys
 import warnings
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
-from test_utils import check_batch
-from test_utils import compare_pipelines
-from test_utils import get_dali_extra_path
-from test_utils import RandomDataIterator
+from test_utils import (
+    check_batch, as_array, compare_pipelines,
+    get_dali_extra_path, RandomDataIterator)
 from nose_utils import raises
 from nose_utils import assert_raises
 from nose.plugins.skip import SkipTest
@@ -1209,12 +1208,6 @@ class DupPipeline(Pipeline):
         return images, images_2, images, decoded_images
 
 
-def as_cpu(tensor_list):
-    if isinstance(tensor_list[0], dali.backend_impl.TensorGPU):
-        return tensor_list.as_cpu()
-    return tensor_list
-
-
 def check_duplicated_outs_pipeline(first_device, second_device):
     batch_size = 5
     pipe = DupPipeline(batch_size=batch_size, num_threads=2, device_id=0,
@@ -1224,9 +1217,9 @@ def check_duplicated_outs_pipeline(first_device, second_device):
     assert len(out) == 4
     for i in range(batch_size):
         assert isinstance(out[3][0], dali.backend_impl.TensorGPU) or first_device == "cpu"
-        out1 = as_cpu(out[0]).at(i)
-        out2 = as_cpu(out[1]).at(i)
-        out3 = as_cpu(out[2]).at(i)
+        out1 = as_array(out[0].at(i))
+        out2 = as_array(out[1].at(i))
+        out3 = as_array(out[2].at(i))
 
         np.testing.assert_array_equal(out1, out2)
         np.testing.assert_array_equal(out1, out3)
@@ -1253,9 +1246,9 @@ def check_serialized_outs_duplicated_pipeline(first_device, second_device):
     assert len(out) == 4
     for i in range(batch_size):
         assert isinstance(out[3][0], dali.backend_impl.TensorGPU) or first_device == "cpu"
-        out1 = as_cpu(out[0]).at(i)
-        out2 = as_cpu(out[1]).at(i)
-        out3 = as_cpu(out[2]).at(i)
+        out1 = as_array(out[0].at(i))
+        out2 = as_array(out[1].at(i))
+        out3 = as_array(out[2].at(i))
 
         np.testing.assert_array_equal(out1, out2)
         np.testing.assert_array_equal(out1, out3)

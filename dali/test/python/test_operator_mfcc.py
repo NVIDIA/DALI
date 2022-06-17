@@ -139,9 +139,11 @@ def test_operator_mfcc_wrong_args():
             (1, True, 0, 20, 0.0, (100, 100),
              "Ortho-normalization is not supported for DCT type I"),
             # axis out of bounds
-            (2, False, -1, 20, 0.0, (100, 100), "Provided axis cannot be negative"),
+            (2, False, -1, 20, 0.0, (100, 100),
+             "Provided axis cannot be negative"),
             # axis out of bounds
-            (2, False, 2, 20, 0.0, (100, 100), "Axis [\\d]+ is out of bounds \\[[\\d]+,[\\d]+\\)"),
+            (2, False, 2, 20, 0.0, (100, 100),
+             "Axis [\\d]+ is out of bounds \\[[\\d]+,[\\d]+\\)"),
             # not supported DCT type
             (10, False, 0, 20, 0.0, (100, 100),
              "Unsupported DCT type: 10. Supported types are: 1, 2, 3, 4"),
