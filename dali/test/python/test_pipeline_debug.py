@@ -153,7 +153,13 @@ def test_injection_torch():
 @attr('cupy')
 def test_injection_cupy():
     import cupy
-    _test_injection('gpu', 'cupy array', lambda xs: [cupy.array(x) for x in xs])
+
+    def get_data(xs):
+        res = [cupy.array(x) for x in xs]
+        cupy.cuda.Device().synchronize()
+        return res
+    
+    _test_injection('gpu', 'cupy array', get_data)
 
 
 def test_injection_dali_types():
