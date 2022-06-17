@@ -14,10 +14,10 @@
 
 import numpy as np
 import os
-import torch
 from nose.plugins.attrib import attr
 
 import nvidia.dali.fn as fn
+import nvidia.dali.tensors as tensors
 import nvidia.dali.types as types
 from nvidia.dali.pipeline.experimental import pipeline_def
 from nose_utils import raises
@@ -625,8 +625,8 @@ def _test_es_device_change(source, device):
 
 def test_es_device_change():
     cpu_data = np.zeros((8, 1))
-    gpu_data = torch.zeros((8, 1), device='cuda')
-    for data, device in zip([cpu_data, gpu_data], ['gpu', 'cpu']):
+    gpu_data = tensors.TensorListCPU(cpu_data)._as_gpu()
+    for data, device in zip([gpu_data], ['cpu']):
         yield _test_es_device_change, data, device
 
 

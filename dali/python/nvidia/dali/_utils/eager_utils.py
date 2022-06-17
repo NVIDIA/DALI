@@ -17,7 +17,7 @@ from nvidia.dali import types as _types
 from nvidia.dali.external_source import _prep_data_for_feed_input
 
 
-def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=None):
+def _transform_data_to_tensorlist(data, batch_size, layout=None, device_id=-1):
     data = _prep_data_for_feed_input(data, batch_size, layout, device_id)
 
     if isinstance(data, list):

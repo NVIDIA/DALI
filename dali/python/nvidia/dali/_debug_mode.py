@@ -144,7 +144,7 @@ class _ExternalSourceDebug:
 
     def __init__(
             self, source=None, num_outputs=None, batch_size=-1, cycle=None, name=None, device='cpu',
-            layout=None, batch=None, batch_info=None, **kwargs):
+            device_id=-1, layout=None, batch=None, batch_info=None, **kwargs):
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
 
@@ -157,6 +157,7 @@ class _ExternalSourceDebug:
         self._batch_size = batch_size
         self._callback = callback
         self._device = device
+        self._device_id = device_id
         self._source_desc = source_desc
         self._batch_info = batch_info
         self._current_iter = 0
@@ -212,7 +213,7 @@ class _ExternalSourceDebug:
         """Fetches data from callback or provided with feed_input."""
 
         def to_data_node_debug(data):
-            data = _transform_data_to_tensorlist(data, self._batch_size, layout)
+            data = _transform_data_to_tensorlist(data, self._batch_size, layout, self._device_id)
             
             if self._device == 'gpu' and isinstance(data, _tensors.TensorListCPU):
                 data = data._as_gpu()
@@ -292,7 +293,8 @@ class _OperatorManager:
     Uses :class:`ops.Operator` to create OpSpec and handle input sets.
     """
 
-    def __init__(self, op_class, op_name, pipe, source_context, next_logical_id, batch_size, seed, inputs, kwargs):
+    def __init__(self, op_class, op_name, pipe, source_context, next_logical_id, batch_size,
+                 device_id, seed, inputs, kwargs):
         """Creates direct operator."""
 
         self._batch_size = batch_size
@@ -324,6 +326,7 @@ class _OperatorManager:
             self._init_args['seed'] = seed
 
         self._device = self._init_args.get('device', 'cpu')
+        self._device_id = device_id
         self._expected_inputs_size = len(inputs)
         self.op_helper = op_class(**self._init_args)
         self._op_name = op_name
@@ -412,7 +415,7 @@ class _OperatorManager:
             if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)) and \
                     not (isinstance(input, list) and
                          all([isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU)) for elem in input])):
-                inputs[i] = _transform_data_to_tensorlist(input, len(input))
+                inputs[i] = _transform_data_to_tensorlist(input, len(input), device_id=self._device_id)
 
         return self.op_helper._build_input_sets(inputs)
 
@@ -577,7 +580,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         """Creates direct operator."""
         self._operators[key] = _OperatorManager(
             op_class, op_name, self, cur_context, self._next_logical_id, self._max_batch_size,
-            self._seed_generator.integers(0, 2**32), inputs, kwargs)
+            self._device_id, self._seed_generator.integers(0, 2**32), inputs, kwargs)
 
         self._pipe.AddMultipleOperators(
             self._operators[key].op_spec, self._operators[key].logical_ids)
@@ -595,7 +598,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         cur_frame = inspect.currentframe().f_back.f_back
         key = inspect.getframeinfo(cur_frame)[:3] + (self._cur_operator_id,)
         if not self._operators_built:
-            es = _ExternalSourceDebug(batch_size=self._max_batch_size, name=name, **kwargs)
+            es = _ExternalSourceDebug(batch_size=self._max_batch_size, device_id=self._device_id, name=name, **kwargs)
 
             # feed_input all data collected after build and before run
             for (data, fi_kwargs) in self._feed_input_data.pop(name, []):
