@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ def test_python_operator_not_allowed_in_tf_dataset_error():
     dtypes = (tf.float32)
 
     with tf.device('/cpu:0'):
-        daliset = dali_tf.DALIDataset(
+        _ = dali_tf.DALIDataset(
             pipeline=pipeline,
             batch_size=1,
             output_shapes=shapes,

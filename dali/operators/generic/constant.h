@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,8 +34,7 @@ class Constant : public Operator<Backend> {
 
   explicit Constant(const OpSpec &spec) : Operator<Backend>(spec) {
     bool has_shape = spec.ArgumentDefined("shape");
-    spec.TryGetRepeatedArgument<int>(shape_arg_, "shape");
-    output_type_ = spec.GetArgument<DALIDataType>("dtype");
+    spec.TryGetRepeatedArgument(shape_arg_, "shape");
     if (spec.HasArgument("fdata")) {
       DALI_ENFORCE(!spec.HasArgument("idata"), "Constant node: `fdata` and `idata` arguments are "
         "mutually exclusive");
@@ -47,14 +46,12 @@ class Constant : public Operator<Backend> {
           "The number of values does not match the shape specified");
       }
 
-      if (!spec.HasArgument("dtype"))
-        output_type_ = DALI_FLOAT;
+      output_type_ = DALI_FLOAT;
     } else {
       DALI_ENFORCE(spec.HasArgument("idata"),
           "Constant node: either `fdata` or `idata` must be present.");
 
-      if (!spec.HasArgument("dtype"))
-        output_type_ = DALI_INT32;
+      output_type_ = DALI_INT32;
 
       idata_ = spec.GetRepeatedArgument<int>("idata");
       if (!has_shape) {
@@ -64,6 +61,8 @@ class Constant : public Operator<Backend> {
           "The number of values does not match the shape specified");
       }
     }
+    spec.TryGetArgument(output_type_, "dtype");
+
     layout_ = spec.GetArgument<TensorLayout>("layout");
     if (!layout_.empty()) {
       DALI_ENFORCE(layout_.size() == static_cast<int>(shape_arg_.size()), make_string(

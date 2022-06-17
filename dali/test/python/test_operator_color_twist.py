@@ -19,6 +19,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
 from test_utils import RandomDataIterator
+from sequences_test_utils import ArgCb, video_suite_helper
 import random
 
 
@@ -36,18 +37,24 @@ def dali_type_to_np(dtype):
 
 
 @pipeline_def()
-def ColorTwistPipeline(data_iterator, is_input_float, out_dtype):
+def ColorTwistPipeline(data_iterator, is_input_float, inp_dtype, out_dtype):
     imgs = fn.external_source(source=data_iterator)
     o_dtype = dali_type_to_np(out_dtype)
-    # converting float inputs to integer outs leads to binary images as input is in -1 to 1 range in such case
+    # converting float inputs to integer outs leads to binary images as
+    # input is in -1 to 1 range in such case
     if is_input_float and not np.issubdtype(o_dtype, np.floating):
         imgs *= 255
     H = fn.random.uniform(range=[-20, 20])
     S = fn.random.uniform(range=[0, 2])
     brightness = fn.random.uniform(range=[0, 2])
     contrast = fn.random.uniform(range=[0, 2])
-    out_cpu = fn.color_twist(imgs, hue=H, saturation=S, brightness=brightness, contrast=contrast, dtype=out_dtype)
-    out_gpu = fn.color_twist(imgs.gpu(), hue=H, saturation=S, brightness=brightness, contrast=contrast, dtype=out_dtype)
+
+    out_dtype_arg = out_dtype if out_dtype != inp_dtype else None
+    out_cpu, out_gpu = (fn.color_twist(input,
+                                       hue=H, saturation=S,
+                                       brightness=brightness, contrast=contrast,
+                                       dtype=out_dtype_arg)
+                        for input in (imgs, imgs.gpu()))
     return imgs, out_cpu, out_gpu, H, S, brightness, contrast
 
 
@@ -112,10 +119,16 @@ def check_ref(inp_dtype, out_dtype, has_3_dims):
     batch_size = 32
     n_iters = 8
     shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
-    in_dtype = dali_type_to_np(inp_dtype)
-    ri1 = RandomDataIterator(batch_size, shape=shape, dtype=in_dtype)
-    pipe = ColorTwistPipeline(seed=2139, batch_size=batch_size, num_threads=4, device_id=0, data_iterator=ri1,
-                              is_input_float=np.issubdtype(in_dtype, np.floating), out_dtype=out_dtype)
+    inp_dtype = dali_type_to_np(inp_dtype)
+    ri1 = RandomDataIterator(batch_size, shape=shape, dtype=inp_dtype)
+    pipe = ColorTwistPipeline(seed=2139,
+                              batch_size=batch_size,
+                              num_threads=4,
+                              device_id=0,
+                              data_iterator=ri1,
+                              is_input_float=np.issubdtype(inp_dtype, np.floating),
+                              inp_dtype=inp_dtype,
+                              out_dtype=out_dtype)
     pipe.build()
     for _ in range(n_iters):
         inp, out_cpu, out_gpu, H, S, B, C = pipe.run()
@@ -130,3 +143,45 @@ def test_color_twist():
         for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
             has_3_dims = random.choice([False, True])
             yield check_ref, inp_dtype, out_dtype, has_3_dims
+
+
+def test_video():
+    def hue(sample_desc):
+        return np.float32(360 * sample_desc.rng.random())
+
+    def saturation(sample_desc):
+        return np.float32(sample_desc.rng.random())
+
+    def value(sample_desc):
+        return np.float32(sample_desc.rng.random())
+
+    def contrast(sample_desc):
+        return np.float32(2 * sample_desc.rng.random())
+
+    def brightness(sample_desc):
+        return np.float32(2 * sample_desc.rng.random())
+
+    video_test_cases = [
+        (fn.hue, {}, [ArgCb("hue", hue, True)]),
+        (fn.saturation, {}, [ArgCb("saturation", saturation, True)]),
+        (fn.hsv, {}, [
+            ArgCb("hue", hue, True),
+            ArgCb("saturation", saturation, True),
+            ArgCb("value", value, True)
+        ]),
+        (fn.hsv, {}, [
+            ArgCb("hue", hue, False),
+            ArgCb("saturation", saturation, True),
+            ArgCb("value", value, False)
+        ]),
+        (fn.color_twist, {}, [
+            ArgCb("brightness", brightness, True),
+            ArgCb("hue", hue, True),
+            ArgCb("saturation", saturation, True),
+            ArgCb("contrast", contrast, True),
+        ]),
+        (fn.color_twist, {}, [ArgCb("brightness", brightness, True),
+                              ArgCb("hue", hue, False)]),
+    ]
+
+    yield from video_suite_helper(video_test_cases, test_channel_first=False)

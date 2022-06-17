@@ -19,12 +19,13 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "dali/core/format.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/core/format.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 
 #define BRIGHTNESS_CONTRAST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float)
 
@@ -53,7 +54,7 @@ const float kDefaultBrightnessShift = 0;
 const float kDefaultContrast = 1.f;
 
 template <typename Backend>
-class BrightnessContrastOp : public Operator<Backend> {
+class BrightnessContrastOp : public SequenceOperator<Backend> {
  public:
   ~BrightnessContrastOp() override = default;
 
@@ -61,30 +62,27 @@ class BrightnessContrastOp : public Operator<Backend> {
 
  protected:
   explicit BrightnessContrastOp(const OpSpec &spec)
-      : Operator<Backend>(spec),
-        output_type_arg_(spec.GetArgument<DALIDataType>("dtype")),
+      : SequenceOperator<Backend>(spec),
         output_type_(DALI_NO_TYPE),
         input_type_(DALI_NO_TYPE) {
-    if (spec.HasArgument("contrast_center"))
-      contrast_center_ = spec.GetArgument<float>("contrast_center");
-
-    if (std::is_same<Backend, GPUBackend>::value) {
-      kernel_manager_.Resize(1);
-    } else {
-      kernel_manager_.Resize(max_batch_size_);
-    }
+    spec.TryGetArgument(output_type_arg_, "dtype");
   }
 
   bool CanInferOutputs() const override {
     return true;
   }
 
+  // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
+  // the number of samples and parameters unnecessarily for FHWC when there are no
+  // per-frame parameters provided.
+  bool ShouldExpand(const workspace_t<Backend> &ws) override {
+    return SequenceOperator<Backend>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
+  }
+
   template <typename OutputType, typename InputType>
-  void OpArgsToKernelArgs(float &addend, float &multiplier,
-    float brightness, float brightness_shift, float contrast) {
-    float contrast_center = std::isnan(contrast_center_)
-      ? brightness_contrast::HalfRange<InputType>()
-      : contrast_center_;
+  void OpArgsToKernelArgs(float &addend, float &multiplier, float brightness,
+                          float brightness_shift, float contrast,
+                          float contrast_center) {
     float brightness_range = brightness_contrast::FullRange<OutputType>();
     // The formula is:
     // out = brightness_shift * brightness_range +
@@ -123,10 +121,20 @@ class BrightnessContrastOp : public Operator<Backend> {
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : input_type_;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
+  template <typename InputType>
+  const vector<float> &GetContrastCenter(const workspace_t<Backend> &ws, int num_samples) {
+    if (this->spec_.ArgumentDefined("contrast_center")) {
+      this->GetPerSampleArgument(contrast_center_, "contrast_center", ws, num_samples);
+    } else {
+      // argument cannot stop being defined in a built pipeline,
+      // so just fill in missing samples if needed
+      contrast_center_.resize(num_samples, brightness_contrast::HalfRange<InputType>());
+    }
+    return contrast_center_;
+  }
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     const auto &input = ws.template Input<Backend>(0);
-    const auto &output = ws.template Output<Backend>(0);
     AcquireArguments(ws);
 
     auto sh = input.shape();
@@ -138,9 +146,10 @@ class BrightnessContrastOp : public Operator<Backend> {
   }
 
   USE_OPERATOR_MEMBERS();
-  std::vector<float> brightness_, brightness_shift_, contrast_;
-  DALIDataType output_type_arg_, output_type_, input_type_;
-  float contrast_center_ = std::nanf("");
+  std::vector<float> brightness_, brightness_shift_, contrast_, contrast_center_;
+  DALIDataType output_type_arg_ = DALI_NO_TYPE;
+  DALIDataType output_type_ = DALI_NO_TYPE;
+  DALIDataType input_type_ = DALI_NO_TYPE;
   kernels::KernelManager kernel_manager_;
 };
 
@@ -154,7 +163,7 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
    * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
    */
-  using Operator<CPUBackend>::RunImpl;
+  using SequenceOperator<CPUBackend>::RunImpl;
 
   ~BrightnessContrastCpu() override = default;
 
@@ -163,7 +172,7 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
  protected:
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
-  template <typename OutputType, typename InputType>
+  template <typename OutputType, typename InputType, int ndim>
   void RunImplHelper(workspace_t<CPUBackend> &ws);
 };
 

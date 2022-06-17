@@ -78,7 +78,7 @@ class DynamicScratchpadImplT {
 
   template <typename Kind>
   mm::memory_resource<Kind> *get_upstream() const {
-    std::get<mm::monotonic_memory_resource<Kind>>(resources_)->get_upstream();
+    return std::get<mm::monotonic_memory_resource<Kind>>(resources_)->get_upstream();
   }
 
   template <typename Kind>

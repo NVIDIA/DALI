@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,12 +63,13 @@ def to_batch(tl, batch_size):
     return [np.array(tl[i]) for i in range(batch_size)]
 
 
-def check_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu", layout=""):
+def check_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu",
+                             layout=""):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
-        input = fn.external_source(lambda : get_sequences(batch_size, shape), layout=layout)
+        input = fn.external_source(lambda: get_sequences(batch_size, shape), layout=layout)
         frames = input.gpu() if op_type == "gpu" else input
-        order = fn.external_source(lambda : reorders) if persample_reorder else reorders
+        order = fn.external_source(lambda: reorders) if persample_reorder else reorders
         rearranged = fn.sequence_rearrange(frames, new_order=order, device=op_type)
         pipe.set_outputs(rearranged, input)
     pipe.build()
@@ -82,8 +83,18 @@ def check_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True
 
 
 order_0 = ([3, 2, 1, 0], False)
-order_1 = ([np.int32([3, 0]), np.int32([2, 1]), np.int32([1, 1]), np.int32([0, 1, 2]), np.int32([3])], True)
-order_2 = ([np.int32([0]), np.int32([1]), np.int32([2]), np.int32([3]), np.int32([0, 1, 2, 3])], True)
+
+order_1 = ([np.int32([3, 0]),
+            np.int32([2, 1]),
+            np.int32([1, 1]),
+            np.int32([0, 1, 2]),
+            np.int32([3])], True)
+
+order_2 = ([np.int32([0]),
+            np.int32([1]),
+            np.int32([2]),
+            np.int32([3]),
+            np.int32([0, 1, 2, 3])], True)
 
 
 def test_sequence_rearrange():
@@ -94,7 +105,8 @@ def test_sequence_rearrange():
                     yield check_sequence_rearrange, 5, shape, new_order, per_sample, dev, layout
 
 
-def check_fail_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True, op_type="cpu", layout=""):
+def check_fail_sequence_rearrange(batch_size, shape, reorders, persample_reorder=True,
+                                  op_type="cpu", layout=""):
     check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout)
 
 
@@ -110,12 +122,12 @@ def test_fail_sequence_rearrange():
         ([np.int32([[1], [2]]), np.int32([[1], [2]])], True)
     ]
     error_msgs = [
-        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',
-        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',
+        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',  # noqa:E501
+        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',  # noqa:E501
         'Empty result sequences are not allowed',
         'Empty `new_order` for sample * is not allowed',
-        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',
-        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',
+        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',  # noqa:E501
+        'new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *',  # noqa:E501
         'Input with dimension * cannot be converted to dimension *'
     ]
 
@@ -123,7 +135,10 @@ def test_fail_sequence_rearrange():
 
     for dev in ["cpu", "gpu"]:
         for [new_order, per_sample], error_msg in zip(orders, error_msgs):
-            yield raises(RuntimeError, glob=error_msg)(check_fail_sequence_rearrange), 2, shape, new_order, per_sample, dev
+            yield raises(
+                RuntimeError,
+                glob=error_msg
+            )(check_fail_sequence_rearrange), 2, shape, new_order, per_sample, dev
 
 
 def test_wrong_layouts_sequence_rearrange():
@@ -134,5 +149,6 @@ def test_wrong_layouts_sequence_rearrange():
         for layout in ["HF", "HW"]:
             yield raises(
                 RuntimeError,
-                glob='Expected sequence as the input, where outermost dimension represents frames dimension `F`, ''got data with layout = "H[WF]"')(
-                    check_fail_sequence_rearrange), 5, shape, new_order, per_sample, dev, layout
+                glob=('Expected sequence as the input, where outermost dimension represents'
+                      ' frames dimension `F`, got data with layout = "H[WF]"')
+            )(check_fail_sequence_rearrange), 5, shape, new_order, per_sample, dev, layout

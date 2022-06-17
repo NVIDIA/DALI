@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,9 +40,8 @@ layout `"FHWC"` is equivalent to specifying ``axes=[1,2]``. This argument cannot
     false);
 
 DALI_SCHEMA(ReduceWithOutputType)
-  .AddOptionalArg("dtype",
-    R"code(Output data type. This type is used to accumulate the result.)code",
-    DALI_NO_TYPE)
+  .AddOptionalTypeArg("dtype",
+    R"code(Output data type. This type is used to accumulate the result.)code")
   .AddParent("ReduceBase");
 
   DALI_SCHEMA(ReduceWithMeanInput)

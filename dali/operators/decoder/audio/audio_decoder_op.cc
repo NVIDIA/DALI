@@ -36,7 +36,7 @@ This operator produces the following outputs:
 
 If downmixing is turned on, the decoder output is 1D.
 If downmixing is turned off, it produces 2D output with interleaved channels.)code", false)
-  .AddOptionalArg("dtype", R"code(Output data type.
+  .AddOptionalTypeArg("dtype", R"code(Output data type.
 
 Supported types: ``INT16``, ``INT32``, ``FLOAT``.)code", DALI_FLOAT)
   .AddOptionalArg("sample_rate",

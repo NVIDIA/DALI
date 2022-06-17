@@ -88,7 +88,7 @@ def input_coco(
         output_type=dali.types.RGB,
     )
 
-    shape = dali.fn.peek_image_shape(encoded, type=dali.types.FLOAT)
+    shape = dali.fn.peek_image_shape(encoded, dtype=dali.types.FLOAT)
     heights = shape[0]
     widths = shape[1]
 

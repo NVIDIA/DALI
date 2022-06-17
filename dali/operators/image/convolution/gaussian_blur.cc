@@ -66,11 +66,9 @@ The same input can be provided as per-sample tensors.
                          std::vector<int>{0}, true, true)
     .AddOptionalArg<float>(kSigmaArgName, "Sigma value for the Gaussian Kernel.",
                            std::vector<float>{0.f}, true, true)
-    .AddOptionalArg(
-        "dtype", R"code(Output data type.
+    .AddOptionalTypeArg("dtype", R"code(Output data type.
 
-Supported type: `FLOAT`. If not set, the input type is used.)code",
-        DALI_NO_TYPE);
+Supported type: `FLOAT`. If not set, the input type is used.)code");
 
 
 namespace gaussian_blur {

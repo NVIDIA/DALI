@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
 import nvidia.dali.fn as fn
 import numpy as np
 from functools import partial
@@ -26,7 +25,7 @@ SEED = 12345
 
 def preemph_func(border, coeff, signal):
     in_shape = signal.shape
-    assert(len(in_shape) == 1)  # 1D
+    assert (len(in_shape) == 1)  # 1D
     out = np.copy(signal)
     # nothing to do for border == 'zero'
     if border == 'clamp':
@@ -38,7 +37,8 @@ def preemph_func(border, coeff, signal):
 
 
 class PreemphasisPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, border='clamp', preemph_coeff=0.97, per_sample_coeff=False, num_threads=4, device_id=0):
+    def __init__(self, device, batch_size, iterator, border='clamp', preemph_coeff=0.97,
+                 per_sample_coeff=False, num_threads=4, device_id=0):
         super(PreemphasisPipeline, self).__init__(batch_size, num_threads, device_id, seed=SEED)
         self.device = device
         self.iterator = iterator
@@ -47,7 +47,8 @@ class PreemphasisPipeline(Pipeline):
         if self.per_sample_coeff:
             self.preemph = ops.PreemphasisFilter(device=device, border=border)
         else:
-            self.preemph = ops.PreemphasisFilter(device=device, border=border, preemph_coeff=preemph_coeff)
+            self.preemph = ops.PreemphasisFilter(device=device, border=border,
+                                                 preemph_coeff=preemph_coeff)
 
     def define_graph(self):
         data = fn.external_source(lambda: next(self.iterator))
@@ -60,10 +61,11 @@ class PreemphasisPipeline(Pipeline):
 
 
 class PreemphasisPythonPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, border='clamp', preemph_coeff=0.97, per_sample_coeff=False,
-                 num_threads=4, device_id=0):
-        super(PreemphasisPythonPipeline, self).__init__(batch_size, num_threads, device_id, seed=SEED,
-                                                        exec_async=False, exec_pipelined=False)
+    def __init__(self, device, batch_size, iterator, border='clamp', preemph_coeff=0.97,
+                 per_sample_coeff=False, num_threads=4, device_id=0):
+        super(PreemphasisPythonPipeline,
+              self).__init__(batch_size, num_threads, device_id, seed=SEED, exec_async=False,
+                             exec_pipelined=False)
         self.device = "cpu"
         self.iterator = iterator
         self.per_sample_coeff = per_sample_coeff
@@ -84,11 +86,15 @@ class PreemphasisPythonPipeline(Pipeline):
 
 
 def check_preemphasis_operator(device, batch_size, border, preemph_coeff, per_sample_coeff):
-    eii1 = RandomlyShapedDataIterator(batch_size, min_shape=(100, ), max_shape=(10000, ), dtype=np.float32)
-    eii2 = RandomlyShapedDataIterator(batch_size, min_shape=(100, ), max_shape=(10000, ), dtype=np.float32)
+    eii1 = RandomlyShapedDataIterator(batch_size, min_shape=(100, ), max_shape=(10000, ),
+                                      dtype=np.float32)
+    eii2 = RandomlyShapedDataIterator(batch_size, min_shape=(100, ), max_shape=(10000, ),
+                                      dtype=np.float32)
     compare_pipelines(
-        PreemphasisPipeline(device, batch_size, iter(eii1), border=border, preemph_coeff=preemph_coeff, per_sample_coeff=per_sample_coeff),
-        PreemphasisPythonPipeline(device, batch_size, iter(eii2), border=border, preemph_coeff=preemph_coeff, per_sample_coeff=per_sample_coeff),
+        PreemphasisPipeline(device, batch_size, iter(eii1), border=border,
+                            preemph_coeff=preemph_coeff, per_sample_coeff=per_sample_coeff),
+        PreemphasisPythonPipeline(device, batch_size, iter(eii2), border=border,
+                                  preemph_coeff=preemph_coeff, per_sample_coeff=per_sample_coeff),
         batch_size=batch_size, N_iterations=3)
 
 
@@ -97,4 +103,5 @@ def test_preemphasis_operator():
         for batch_size in [1, 3, 128]:
             for border in ['zero', 'clamp', 'reflect']:
                 for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]:
-                    yield check_preemphasis_operator, device, batch_size, border, coef, per_sample_coeff
+                    yield (check_preemphasis_operator, device, batch_size, border, coef,
+                           per_sample_coeff)

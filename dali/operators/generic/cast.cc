@@ -71,6 +71,6 @@ DALI_SCHEMA(Cast)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddArg("dtype", R"code(Output data type.)code", DALI_DATA_TYPE);
+    .AddTypeArg("dtype", R"code(Output data type.)code");
 
 }  // namespace dali

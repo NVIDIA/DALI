@@ -14,6 +14,7 @@
 
 #include "dali/operators/image/color/brightness_contrast.h"
 #include "dali/kernels/imgproc/pointwise/multiply_add.h"
+#include "dali/pipeline/data/sequence_utils.h"
 
 namespace dali {
 
@@ -31,16 +32,16 @@ This operator can also change the type of data.)code")
     .NumOutput(1)
     .AddOptionalArg("brightness",
                     "Brightness mutliplier.",
-                    kDefaultBrightness, true)
+                    kDefaultBrightness, true, true)
     .AddOptionalArg("brightness_shift", R"code(The brightness shift.
 
 For signed types, 1.0 represents the maximum positive value that can be represented by
 the type.)code",
-                    kDefaultBrightnessShift, true)
-    .AddOptionalArg("dtype",
+                    kDefaultBrightnessShift, true, true)
+    .AddOptionalTypeArg("dtype",
                     R"code(Output data type.
 
-If not set, the input type is used.)code", DALI_NO_TYPE)
+If not set, the input type is used.)code")
     .AllowSequences()
     .SupportVolumetric()
     .InputLayout({"FHWC", "DHWC", "HWC"});
@@ -57,16 +58,16 @@ This operator can also change the type of data.)code")
     .NumOutput(1)
     .AddOptionalArg("contrast", R"code(The contrast multiplier, where 0.0 produces
 the uniform grey.)code",
-                    kDefaultContrast, true)
+                    kDefaultContrast, true, true)
     .AddOptionalArg("contrast_center", R"code(The intensity level that is unaffected by contrast.
 
 This is the value that all pixels assume when the contrast is zero. When not set,
 the half of the input type's positive range (or 0.5 for ``float``) is used.)code",
-                    brightness_contrast::HalfRange<float>(), false)
-    .AddOptionalArg("dtype",
+                    brightness_contrast::HalfRange<float>(), true, true)
+    .AddOptionalTypeArg("dtype",
                     R"code(Output data type.
 
-If not set, the input type is used.)code", DALI_NO_TYPE)
+If not set, the input type is used.)code")
     .AllowSequences()
     .SupportVolumetric()
     .InputLayout({"FHWC", "DHWC", "HWC"});
@@ -94,45 +95,34 @@ DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastCpu, CPU);
 DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastCpu, CPU);
 
 
-template <typename OutputType, typename InputType>
+template <typename OutputType, typename InputType, int ndim>
 void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
-  auto out_shape = output.shape();
   auto& tp = ws.GetThreadPool();
-  TensorListShape<> sh = input.shape();
-  auto num_dims = sh.sample_dim();
-  int num_samples = input.shape().num_samples();
+  int num_samples = input.num_samples();
+  const auto &contrast_center = GetContrastCenter<InputType>(ws, num_samples);
 
   using Kernel = kernels::MultiplyAddCpu<OutputType, InputType, 3>;
-  kernel_manager_.Initialize<Kernel>();
+  kernel_manager_.template Resize<Kernel>(1);
 
+  auto in_view = view<const InputType, ndim>(input);
+  auto out_view = view<OutputType, ndim>(output);
   for (int sample_id = 0; sample_id < num_samples; sample_id++) {
-    auto sample_shape = out_shape.tensor_shape_span(sample_id);
-    auto vol = volume(sample_shape.begin() + num_dims - 3, sample_shape.end());
     float add, mul;
-    OpArgsToKernelArgs<OutputType, InputType>(add, mul,
-                                              brightness_[sample_id],
-                                              brightness_shift_[sample_id],
-                                              contrast_[sample_id]);
-    if (num_dims == 4) {
-      int num_frames = sample_shape[0];
-      for (int frame_id = 0; frame_id < num_frames; frame_id++) {
-        tp.AddWork([&, sample_id, frame_id, add, mul](int thread_id) {
+    OpArgsToKernelArgs<OutputType, InputType>(add, mul, brightness_[sample_id],
+                                              brightness_shift_[sample_id], contrast_[sample_id],
+                                              contrast_center[sample_id]);
+    auto planes_range =
+        sequence_utils::unfolded_views_range<ndim - 3>(out_view[sample_id], in_view[sample_id]);
+    const auto &in_range = planes_range.template get<1>();
+    for (auto &&views : planes_range) {
+      tp.AddWork([&, views, add, mul](int thread_id) {
           kernels::KernelContext ctx;
-          auto tvin = subtensor(view<const InputType, 4>(input[sample_id]), frame_id);
-          auto tvout = subtensor(view<OutputType, 4>(output[sample_id]), frame_id);
+          auto &[tvout, tvin] = views;
           kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, add, mul);
-        }, vol);
-      }
-    } else {
-      tp.AddWork([&, sample_id, add, mul](int thread_id) {
-        kernels::KernelContext ctx;
-        auto tvin = view<const InputType, 3>(input[sample_id]);
-        auto tvout = view<OutputType, 3>(output[sample_id]);
-        kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, add, mul);
-      });
+        }, in_range.SliceSize());
     }
   }
   tp.RunAll();
@@ -142,9 +132,11 @@ void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
+      VALUE_SWITCH(input.sample_dim(), NDim, (3, 4), (
       {
-        RunImplHelper<OutputType, InputType>(ws);
+        RunImplHelper<OutputType, InputType, NDim>(ws);
       }
+      ), DALI_FAIL(make_string("Unsupported sample dimensionality: ", input.sample_dim())))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }

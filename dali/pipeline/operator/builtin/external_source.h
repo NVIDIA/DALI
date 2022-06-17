@@ -221,11 +221,11 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         blocking_(spec.GetArgument<bool>("blocking")),
         no_copy_(spec.GetArgument<bool>("no_copy")),
         device_id_(spec.GetArgument<int>("device_id")),
-        dtype_(spec.GetArgument<DALIDataType>("dtype")),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
         layout_(),
         sync_worker_(device_id_, false, "ExternalSource syncworker") {
+    spec.TryGetArgument(dtype_, "dtype");
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
                    "). Use positive values for tensors or 0 for scalars."));
@@ -612,8 +612,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   bool blocking_ = true;
   bool no_copy_ = false;
   int device_id_;
-  DALIDataType dtype_;
-  DALIDataType previous_dtype_;
+  DALIDataType dtype_ = DALI_NO_TYPE;
+  DALIDataType previous_dtype_ = DALI_NO_TYPE;
   int ndim_;
   TensorLayout layout_;
 

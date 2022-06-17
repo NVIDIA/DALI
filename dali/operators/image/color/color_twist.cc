@@ -14,6 +14,7 @@
 
 #include "dali/operators/image/color/color_twist.h"
 #include "dali/kernels/imgproc/pointwise/linear_transformation_cpu.h"
+#include "dali/pipeline/data/sequence_utils.h"
 
 namespace dali {
 
@@ -37,14 +38,14 @@ and restored to the original color space.)code")
 
 The hue component can be interpreted as an angle and values outside 0-360 range wrap around, as
 they would in case of rotation.)code",
-                    0.0f, true)
+                    0.0f, true, true)
     .AddOptionalArg(color::kSaturation,
                     R"code(The saturation multiplier.)code",
-                    1.0f, true)
+                    1.0f, true, true)
     .AddOptionalArg(color::kValue,
                     R"code(The value multiplier.)code",
-                    1.0f, true)
-    .AddOptionalArg(color::kOutputType, R"code(The output data type.
+                    1.0f, true, true)
+    .AddOptionalTypeArg(color::kOutputType, R"code(The output data type.
 
 If a value is not set, the input type is used.)code",
                     DALI_UINT8)
@@ -55,7 +56,7 @@ DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
     .AddOptionalArg("image_type",
         R"code(The color space of the input and the output image.)code", DALI_RGB)
-    .AddOptionalArg(color::kOutputType, R"code(Output data type.
+    .AddOptionalTypeArg(color::kOutputType, R"code(Output data type.
 
 If not set, the input type is used.)code",
                     DALI_UINT8)
@@ -66,8 +67,7 @@ DALI_SCHEMA(Hue)
     .DocStr(R"code(Changes the hue level of the image.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("hue",
-        R"code(The hue change in degrees.)code", 0.f, true)
+    .AddOptionalArg("hue", R"code(The hue change in degrees.)code", 0.f, true, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
@@ -86,7 +86,7 @@ Example values:
 
 - `0` - Completely desaturated image.
 - `1` - No change to image's saturation.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
@@ -96,8 +96,7 @@ DALI_SCHEMA(ColorTwist)
     .DocStr(R"code(Adjusts hue, saturation, brightness and contrast of the image.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddOptionalArg("hue",
-        R"code(Hue change, in degrees.)code", 0.f, true)
+    .AddOptionalArg("hue", R"code(Hue change, in degrees.)code", 0.f, true, true)
     .AddOptionalArg("saturation",
                     R"code(Saturation change factor.
 
@@ -107,7 +106,7 @@ Example values:
 
 - `0` - Completely desaturated image.
 - `1` - No change to image's saturation.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddOptionalArg("contrast",
                     R"code(Contrast change factor.
 
@@ -118,7 +117,7 @@ Example values:
 * `0` - Uniform grey image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddOptionalArg("brightness",
                     R"code(Brightness change factor.
 
@@ -129,7 +128,7 @@ Example values:
 * `0` - Black image.
 * `1` - No change.
 * `2` - Increase brightness twice.
-)code", 1.f, true)
+)code", 1.f, true, true)
     .AddParent("ColorTransformBase")
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
     .AllowSequences()
@@ -141,8 +140,7 @@ DALI_REGISTER_OPERATOR(Hue, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(Saturation, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
 
-
-template <typename OutputType, typename InputType>
+template <typename OutputType, typename InputType, int ndim>
 void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
@@ -150,33 +148,21 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
   using Kernel = kernels::LinearTransformationCpu<OutputType, InputType, 3, 3, 3>;
-  kernel_manager_.Initialize<Kernel>();
-  TensorListShape<> sh = input.shape();
-  auto num_dims = sh.sample_dim();
-  assert(num_dims == 3 || num_dims == 4);
-  int num_samples = input.shape().num_samples();
+  int num_samples = input.num_samples();
+  kernel_manager_.template Resize<Kernel>(num_samples);
+  auto in_view = view<const InputType, ndim>(input);
+  auto out_view = view<OutputType, ndim>(output);
   for (int i = 0; i < num_samples; i++) {
-    auto sample_shape = out_shape.tensor_shape_span(i);
-    auto vol = volume(sample_shape.begin() + num_dims - 3, sample_shape.end());
-    if (num_dims == 4) {
-      int num_frames = sample_shape[0];
-      for (int frame_id = 0; frame_id < num_frames; frame_id++) {
-        tp.AddWork([&, i, frame_id](int thread_id) {
-          kernels::KernelContext ctx;
-          auto tvin = subtensor(view<const InputType, 4>(input[i]), frame_id);
-          auto tvout = subtensor(view<OutputType, 4>(output[i]), frame_id);
-          kernel_manager_.Run<Kernel>(i, ctx, tvout, tvin,
-                                      tmatrices_[i], toffsets_[i]);
-        }, vol);
-      }
-    } else {
-      tp.AddWork([&, i](int thread_id) {
-        kernels::KernelContext ctx;
-        auto tvin = view<const InputType, 3>(input[i]);
-        auto tvout = view<OutputType, 3>(output[i]);
-        kernel_manager_.Run<Kernel>(i, ctx, tvout, tvin,
-                                    tmatrices_[i], toffsets_[i]);
-      }, vol);
+    auto planes_range = sequence_utils::unfolded_views_range<ndim - 3>(out_view[i], in_view[i]);
+    const auto &in_range = planes_range.template get<1>();
+    for (auto &&views : planes_range) {
+      tp.AddWork(
+          [&, i, views](int thread_id) {
+            kernels::KernelContext ctx;
+            auto &[tvout, tvin] = views;
+            kernel_manager_.Run<Kernel>(i, ctx, tvout, tvin, tmatrices_[i], toffsets_[i]);
+          },
+          in_range.SliceSize());
     }
   }
   tp.RunAll();
@@ -186,9 +172,11 @@ void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
+      VALUE_SWITCH(input.sample_dim(), NDim, (3, 4), (
       {
-        RunImplHelper<OutputType, InputType>(ws);
+        RunImplHelper<OutputType, InputType, NDim>(ws);
       }
+      ), DALI_FAIL(make_string("Unsupported sample dimensionality: ", input.sample_dim())))  // NOLINT
     ), DALI_FAIL(make_string("Unsupported output type: ", output_type_)))  // NOLINT
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
 }

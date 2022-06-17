@@ -57,7 +57,7 @@ class AxesHelper {
   bool has_axes_arg_;
   bool has_axis_names_arg_;
   bool has_empty_axes_arg_;
-  vector<int> axes_;
+  SmallVector<int, 6> axes_;
   TensorLayout axis_names_;
 };
 

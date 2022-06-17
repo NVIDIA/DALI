@@ -246,7 +246,7 @@ graph even if its outputs are not used.)code", false);
   }
 
   /**
-   * @brief Gets the supported input device for ginen input
+   * @brief Gets the supported input device for given input
    */
   DLL_PUBLIC dali::InputDevice GetInputDevice(int index) const {
     return input_devices_[index];
@@ -366,6 +366,15 @@ graph even if its outputs are not used.)code", false);
       tensor_arguments_[s] = {support_per_frame_input};
     }
     return *this;
+  }
+
+
+  /**
+   * @brief Adds a required argument of type DALIDataType
+   */
+  DLL_PUBLIC inline OpSchema& AddTypeArg(const std::string &s,
+                                         const std::string &doc) {
+    return AddArg(s, doc, DALI_DATA_TYPE);
   }
 
   /**
@@ -504,6 +513,9 @@ graph even if its outputs are not used.)code", false);
                  T default_value,
                  bool enable_tensor_input = false,
                  bool support_per_frame_input = false) {
+    static_assert(!std::is_same<T, DALIDataType>::value,
+      R"(Use `AddOptionalTypeArg` instead. `AddOptionalArg` with a default value should not be
+used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc, nullptr)`)");
     CheckArgument(s);
     auto to_store = Value::construct(default_value);
     optional_arguments_[s] = {doc, type2id<T>::value, to_store.get()};
@@ -512,6 +524,29 @@ graph even if its outputs are not used.)code", false);
       tensor_arguments_[s] = {support_per_frame_input};
     }
     return *this;
+  }
+
+
+
+  /**
+   * @brief Adds an optional argument of type DALIDataType with a default value
+   */
+  DLL_PUBLIC inline OpSchema &AddOptionalTypeArg(const std::string &s,
+                                                const std::string &doc,
+                                                DALIDataType default_value) {
+    CheckArgument(s);
+    auto to_store = Value::construct(default_value);
+    optional_arguments_[s] = {doc, DALI_DATA_TYPE, to_store.get()};
+    optional_arguments_unq_.push_back(std::move(to_store));
+    return *this;
+  }
+
+  /**
+   * @brief Adds an optional argument of type DALIDataType without a default value
+   */
+  DLL_PUBLIC inline OpSchema &AddOptionalTypeArg(const std::string &s,
+                                                 const std::string &doc) {
+    return AddOptionalArg<DALIDataType>(s, doc, nullptr);
   }
 
   DLL_PUBLIC inline OpSchema &AddOptionalArg(const std::string &s,

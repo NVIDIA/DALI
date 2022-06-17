@@ -186,6 +186,7 @@ def check_generic_gaussian_blur(
         batch_size, min_shape=min_shape, max_shape=shape, dtype=in_dtype)
     # Extract the numpy type from DALI, we can have float32 or the same as input
     if out_dtype == types.NO_TYPE:
+        out_dtype = None
         result_type = in_dtype
     elif dali_type(in_dtype) == out_dtype:
         result_type = in_dtype

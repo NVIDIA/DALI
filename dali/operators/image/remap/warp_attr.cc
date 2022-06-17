@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,15 +26,15 @@ Non-integer sizes are rounded to nearest integer. The channel dimension should
 be excluded (for example, for RGB images, specify ``(480,640)``, not ``(480,640,3)``.
 )code",
       vector<float>(), true)
-  .AddOptionalArg("fill_value", R"code(Value used to fill areas that are outside the source image.
+  .AddOptionalArg<float>("fill_value",
+                         R"code(Value used to fill areas that are outside the source image.
 
 If a value is not specified, the source coordinates are clamped and the border pixel is
-repeated.)code", DALI_FLOAT)
-  .AddOptionalArg("dtype",
+repeated.)code", nullptr)
+  .AddOptionalTypeArg("dtype",
       R"code(Output data type.
 
-If not set, the input type is used.)code",
-      DALI_NO_TYPE)
+If not set, the input type is used.)code")
   .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",

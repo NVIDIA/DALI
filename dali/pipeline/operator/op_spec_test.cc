@@ -182,12 +182,16 @@ TEST(OpSpecTest, GetArgumentVec) {
         .AddArg("max_batch_size", 2);
 
     ASSERT_THROW(spec0.GetRepeatedArgument<int32_t>(arg_name), std::runtime_error);
-    std::vector<int32_t> result;
-    ASSERT_FALSE(spec0.TryGetRepeatedArgument(result, arg_name));
+    std::vector<int32_t> result_v;
+    ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_v, arg_name));
+    SmallVector<int32_t, 1> result_sv;
+    ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_sv, arg_name));
 
     ASSERT_THROW(spec0.GetRepeatedArgument<float>(arg_name), std::runtime_error);
-    std::vector<float> tmp;
-    ASSERT_FALSE(spec0.TryGetRepeatedArgument(tmp, arg_name));
+    std::vector<float> tmp_v;
+    ASSERT_FALSE(spec0.TryGetRepeatedArgument(tmp_v, arg_name));
+    SmallVector<float, 1> tmp_sv;
+    ASSERT_FALSE(spec0.TryGetRepeatedArgument(tmp_sv, arg_name));
   }
 
   {
@@ -211,7 +215,9 @@ TEST(OpSpecTest, GetArgumentNonExisting) {
 
   ASSERT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), DALIException);
   std::vector<int> result_vec;
-  ASSERT_FALSE(spec0.TryGetRepeatedArgument<int>(result_vec, "<no_such_argument>"));
+  ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_vec, "<no_such_argument>"));
+  SmallVector<int, 1> result_sv;
+  ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_sv, "<no_such_argument>"));
 }
 
 TEST(OpSpecTest, DeprecatedArgs) {

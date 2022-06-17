@@ -92,11 +92,11 @@ The buffer contents are not copied.)")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddOptionalArg("dtype", R"code(Output data type.
+  .AddOptionalTypeArg("dtype", R"code(Output data type.
 
 The total size, in bytes, of the output must match the input. If no shape is provided,
 the innermost dimension is adjusted accordingly. If the byte size of the innermost
-dimension is not divisible by the size of the target type, an error occurs.)code", DALI_NO_TYPE)
+dimension is not divisible by the size of the target type, an error occurs.)code")
   .AddParent("Reshape");
 
 template <typename Backend>

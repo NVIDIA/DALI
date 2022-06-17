@@ -37,12 +37,11 @@ This operator can be used for many operations. Here's the (incomplete) list:
 )")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("dtype", R"(Data type of the output coordinates.
+  .AddOptionalTypeArg("dtype", R"(Data type of the output coordinates.
 
 If an integral type is used, the output values are rounded to the nearest integer and clamped
 to the dynamic range of this type.)",
-    DALI_FLOAT,
-    false)
+    DALI_FLOAT)
   .AddParent("MTTransformAttr");
 
 template <>
