@@ -16,7 +16,7 @@ import tensorflow as tf
 from nose.tools import with_setup
 
 import test_dali_tf_dataset_mnist as mnist
-from test_utils_tensorflow import skip_for_incompatible_tf
+from test_utils_tensorflow import skip_for_incompatible_tf, available_gpus
 from nose_utils import raises
 
 tf.compat.v1.enable_eager_execution()
@@ -62,7 +62,7 @@ def test_keras_wrong_placement_cpu():
 
 @with_setup(skip_for_incompatible_tf)
 def test_keras_multi_gpu_mirrored_strategy():
-    strategy = tf.distribute.MirroredStrategy(devices=mnist.available_gpus())
+    strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
 
     with strategy.scope():
         model = mnist.keras_model()
