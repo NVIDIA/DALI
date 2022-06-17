@@ -360,7 +360,45 @@ def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
     return EagerOperatorBase
 
 
-def _stateless_op_factory(op_class, op_name, num_inputs, call_args_names):
+def _create_module_class():
+    class Module:
+        @classmethod
+        def _submodule(cls, name):
+            if name not in cls._submodules:
+                cls._submodules[name] = _create_state_submodule(name)
+
+            return cls._submodules[name]
+
+        _submodules = {}
+
+    return Module
+
+
+class rng_state(_create_module_class()):
+    def __init__(self, seed=None):
+        import numpy as np
+
+        self._operator_cache = {}
+        self._seed_generator = np.random.default_rng(seed)
+
+        for name, submodule_class in rng_state._submodules.items():
+            setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
+
+
+def _create_state_submodule(name):
+    class StateSubmodule(_create_module_class()):
+        def __init__(self, operator_cache, seed_generator):
+            self._operator_cache = operator_cache
+            self._seed_generator = seed_generator
+
+            for name, submodule_class in StateSubmodule._submodules.items():
+                setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
+
+    StateSubmodule.__name__ = name
+    return StateSubmodule
+
+
+def _callable_op_factory(op_class, op_name, num_inputs, call_args_names):
     class EagerOperator(_eager_op_base_factory(op_class, op_name, num_inputs, call_args_names)):
         def __call__(self, inputs, kwargs):
             # Here all kwargs are supposed to be TensorLists.
@@ -372,6 +410,13 @@ def _stateless_op_factory(op_class, op_name, num_inputs, call_args_names):
             return output
 
     return EagerOperator
+
+
+_callable_op_factory.disqualified_arguments = {
+    'bytes_per_sample_hint',
+    'preserve',
+    'seed'
+}
 
 
 def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
@@ -423,6 +468,12 @@ def _iterator_op_factory(op_class, op_name, num_inputs, call_args_names):
             return self._num_iters
 
     return EagerOperator
+
+
+_iterator_op_factory.disqualified_arguments = {
+    'bytes_per_sample_hint',
+    'preserve',
+}
 
 
 def _choose_device(op_name, wrapper_name, inputs, device_param):
@@ -547,14 +598,14 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
     """
     def wrapper(*inputs, **kwargs):
         inputs, init_args, call_args = _prep_args(
-            inputs, kwargs, op_name, wrapper_name, _wrap_stateless.disqualified_arguments)
+            inputs, kwargs, op_name, wrapper_name, _callable_op_factory.disqualified_arguments)
 
         # Creating cache key consisting of operator name, description of inputs, input arguments
         # and init args. Each call arg is described by dtype, layout and dim.
         key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
 
         if key not in _stateless_operators_cache:
-            _stateless_operators_cache[key] = _stateless_op_factory(
+            _stateless_operators_cache[key] = _callable_op_factory(
                 op_class, wrapper_name, len(inputs), call_args.keys())(**init_args)
 
         return _stateless_operators_cache[key](inputs, call_args)
@@ -562,11 +613,25 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
     return wrapper
 
 
-_wrap_stateless.disqualified_arguments = {
-    'bytes_per_sample_hint',
-    'preserve',
-    'seed'
-}
+def _wrap_stateful(op_class, op_name, wrapper_name):
+    """Wraps stateful Eager Operator as method of a class. Callable the same way as functions in
+    fn API, but directly with TensorLists.
+    """
+
+    def wrapper(self, *inputs, **kwargs):
+        inputs, init_args, call_args = _prep_args(
+            inputs, kwargs, op_name, wrapper_name, _callable_op_factory.disqualified_arguments)
+
+        key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
+
+        if key not in self._operator_cache:
+            seed = self._seed_generator.integers(2**32)
+            self._operator_cache[key] = _callable_op_factory(
+                op_class, wrapper_name, len(inputs), call_args.keys())(**init_args, seed=seed)
+
+        return self._operator_cache[key](inputs, call_args)
+
+    return wrapper
 
 
 def _wrap_iterator(op_class, op_name, wrapper_name):
@@ -582,7 +647,7 @@ def _wrap_iterator(op_class, op_name, wrapper_name):
             raise ValueError("Iterator type eager operators should not receive any inputs.")
 
         inputs, init_args, call_args = _prep_args(
-            inputs, kwargs, op_name, wrapper_name, _wrap_iterator.disqualified_arguments)
+            inputs, kwargs, op_name, wrapper_name, _iterator_op_factory.disqualified_arguments)
 
         op = _iterator_op_factory(op_class, wrapper_name, len(inputs),
                                   call_args.keys())(call_args, **init_args)
@@ -590,12 +655,6 @@ def _wrap_iterator(op_class, op_name, wrapper_name):
         return op
 
     return wrapper
-
-
-_wrap_iterator.disqualified_arguments = {
-    'bytes_per_sample_hint',
-    'preserve',
-}
 
 
 def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden):
@@ -614,32 +673,42 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
     """
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
-    if op_schema.IsDeprecated() or op_name in _excluded_operators or op_name in _stateful_operators:
-        # TODO(ksztenderski): For now only exposing stateless and iterator operators.
-        return
-    elif op_name in _iterator_operators:
-        wrapper = _wrap_iterator(op_class, op_name, wrapper_name)
-    else:
-        # If operator is not stateful or a generator expose it as stateless.
-        wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
-    if parent_module is None:
-        # Exposing to nvidia.dali.experimental.eager module.
-        parent_module = _internal.get_submodule('nvidia.dali', 'experimental.eager')
-    else:
-        # Exposing to experimental.eager submodule of the specified parent module.
-        parent_module = _internal.get_submodule(sys.modules[parent_module], 'experimental.eager')
+    if op_name in _stateful_operators:
+        wrapper = _wrap_stateful(op_class, op_name, wrapper_name)
+        last_module = rng_state
+        for cur_module_name in submodule:
+            cur_module = last_module._submodule(cur_module_name)
+            last_module = cur_module
 
-    if make_hidden:
-        op_module = _internal.get_submodule(parent_module, submodule[:-1])
+        op_module = last_module
     else:
-        op_module = _internal.get_submodule(parent_module, submodule)
+        if op_schema.IsDeprecated() or op_name in _excluded_operators:
+            return
+        elif op_name in _iterator_operators:
+            wrapper = _wrap_iterator(op_class, op_name, wrapper_name)
+        else:
+            # If operator is not stateful, generator, deprecated or excluded expose it as stateless.
+            wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
+
+        if parent_module is None:
+            # Exposing to experimental.eager module.
+            parent_module = sys.modules[__name__]
+        else:
+            # Exposing to experimental.eager submodule of the specified parent module.
+            parent_module = _internal.get_submodule(
+                sys.modules[parent_module], 'experimental.eager')
+
+        if make_hidden:
+            op_module = _internal.get_submodule(parent_module, submodule[:-1])
+        else:
+            op_module = _internal.get_submodule(parent_module, submodule)
 
     if not hasattr(op_module, wrapper_name):
         wrapper.__name__ = wrapper_name
         wrapper.__qualname__ = wrapper_name
         wrapper.__doc__ = wrapper_doc
-        wrapper._schema_name = op_schema
+        wrapper._schema_name = op_name
 
         if submodule:
             wrapper.__module__ = op_module.__name__
