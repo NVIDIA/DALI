@@ -16,7 +16,7 @@ import numpy as np
 
 import nvidia.dali.experimental.eager as eager
 import nvidia.dali.tensors as tensors
-from nose_utils import raises
+from nose_utils import assert_raises, raises
 
 
 @raises(RuntimeError, glob=f"Argument '*' is not supported by eager operator 'crop'.")
@@ -28,3 +28,60 @@ def _test_disqualified_argument(key):
 def test_disqualified_arguments():
     for arg in ['bytes_per_sample_hint', 'preserve', 'seed']:
         yield _test_disqualified_argument, arg
+
+
+@raises(TypeError, glob="unsupported operand type*")
+def test_arithm_op_context_manager_disabled():
+    tl_1 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+    tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+
+    tl_1 + tl_2
+
+
+def test_arithm_op_context_manager_enabled():
+    eager.set_arithm_op_enabled()
+    tl_1 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+    tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+
+    assert np.array_equal((tl_1 + tl_2).as_array(), np.full(shape=(8, 16, 16), fill_value=2))
+
+
+def test_arithm_op_context_manager_nested():
+    tl_1 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+    tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+    expected_sum = np.full(shape=(8, 16, 16), fill_value=2)
+
+    with eager.set_arithm_op_enabled():
+        assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
+
+        with eager.set_arithm_op_enabled(False):
+            with assert_raises(TypeError, glob="unsupported operand type*"):
+                tl_1 + tl_2
+
+        assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
+
+
+def test_arithm_op_context_manager_deep_nested():
+    tl_1 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+    tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
+    expected_sum = np.full(shape=(8, 16, 16), fill_value=2)
+
+    eager.set_arithm_op_enabled()
+
+    assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
+
+    with eager.set_arithm_op_enabled(False):
+        with assert_raises(TypeError, glob="unsupported operand type*"):
+            tl_1 + tl_2
+
+        with eager.set_arithm_op_enabled(True):
+            np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
+
+            with eager.set_arithm_op_enabled(False):
+                with assert_raises(TypeError, glob="unsupported operand type*"):
+                    tl_1 + tl_2
+
+        with assert_raises(TypeError, glob="unsupported operand type*"):
+            tl_1 + tl_2
+
+    assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
