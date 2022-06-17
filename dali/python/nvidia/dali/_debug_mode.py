@@ -26,8 +26,9 @@ import nvidia.dali.types as _types
 from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
-from nvidia.dali._utils.external_source_impl import (get_callback_from_source as _get_callback_from_source,
-                                                     accepted_arg_count as _accepted_arg_count)
+from nvidia.dali._utils.external_source_impl import (
+    get_callback_from_source as _get_callback_from_source,
+    accepted_arg_count as _accepted_arg_count)
 
 
 class DataNodeDebug(_DataNode):
@@ -314,7 +315,7 @@ class _OperatorManager:
                 if input_set_len == -1:
                     input_set_len = len(classification.is_batch)
                 elif input_set_len != len(classification.is_batch):
-                    raise ValueError("All argument lists for Multipile Input Sets used "
+                    raise ValueError("All argument lists for Multiple Input Sets used "
                                      f"with operator '{op_name}' must have the same length.")
             self._inputs_classification.append(classification)
         self.expected_inputs_size = len(inputs)
@@ -426,6 +427,11 @@ class _OperatorManager:
                                f"to be an input set.")
 
         if isinstance(actual_data, list):
+            if len(actual_data) != len(expected_data):
+                raise RuntimeError(
+                    f"{arg_type} {value} expected to be used as Multiple Input Set with "
+                    f"length = {len(expected_data)}, but has length = {len(actual_data)}.")
+
             # Checking input set.
             for expected_elem, actual_elem in zip(expected_data, actual_data):
                self._check_call_arg_meta_data(expected_elem, actual_elem, arg_type, value)

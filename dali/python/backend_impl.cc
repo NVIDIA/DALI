@@ -763,10 +763,10 @@ py::tuple TensorListGetItemSliceImpl(TensorList<Backend> &t, py::slice slice) {
 #endif
 
 template <typename Backend>
-using backend_to_py_class_t = py::class_<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>>;
+using tensor_list_py_class_t = py::class_<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>>;
 
 template <typename Backend>
-void EagerArithmOp(backend_to_py_class_t<Backend> &py_class, std::string &op_name) {
+void EagerArithmOp(tensor_list_py_class_t<Backend> &py_class, std::string &op_name) {
   py_class.def(("__" + op_name + "__").c_str(), [impl_name = "_" + op_name](py::args &args) {
     bool arithm_ops_enabled =
         FromPythonTrampoline("nvidia.dali.experimental.eager", "is_arithm_op_enabled")()
@@ -787,7 +787,7 @@ void EagerArithmOp(backend_to_py_class_t<Backend> &py_class, std::string &op_nam
 }
 
 template <typename Backend>
-void ExposeTensorListOperators(backend_to_py_class_t<Backend> &py_class) {
+void ExposeTensorListOperators(tensor_list_py_class_t<Backend> &py_class) {
   static std::vector<std::string> arithm_op_list{
       "add",      "radd",     "sub",       "rsub", "mul", "rmul", "pow", "rpow", "truediv",
       "rtruediv", "floordiv", "rfloordiv", "eq",   "ne",  "lt",   "le",  "gt",   "ge",

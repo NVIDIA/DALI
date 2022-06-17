@@ -478,7 +478,7 @@ def test_cpu_operator_after_gpu():
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
-def input_sets_statefull_op_pipeline():
+def input_sets_stateful_op_pipeline():
     set_size = 5
     jpegs = [fn.readers.file(file_root=file_root, seed=42, random_shuffle=True)[0]
              for _ in range(set_size)]
@@ -490,8 +490,8 @@ def input_sets_statefull_op_pipeline():
 
 
 def test_input_sets():
-    pipe_standard = input_sets_statefull_op_pipeline()
-    pipe_debug = input_sets_statefull_op_pipeline(debug=True)
+    pipe_standard = input_sets_stateful_op_pipeline()
+    pipe_debug = input_sets_stateful_op_pipeline(debug=True)
     compare_pipelines(pipe_standard, pipe_debug, 8, 10)
 
 
@@ -504,7 +504,7 @@ def incorrect_input_sets_pipeline():
     return tuple(output)
 
 
-@raises(ValueError, glob=("All argument lists for Multipile Input Sets used with operator"
+@raises(ValueError, glob=("All argument lists for Multiple Input Sets used with operator"
                           " 'cat' must have the same length."))
 def test_incorrect_input_sets():
     pipe = incorrect_input_sets_pipeline()

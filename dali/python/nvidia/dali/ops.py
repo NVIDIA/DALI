@@ -659,7 +659,7 @@ def python_op_factory(name, schema_name=None):
             for input in inputs:
                 if isinstance(input, list):
                     if len(input) != arg_list_len:
-                        raise ValueError(("All argument lists for Multpile Input Sets used " +
+                        raise ValueError(("All argument lists for Multiple Input Sets used " +
                                           "with operator {} must have the same length")
                                           .format(type(self).__name__))
             return arg_list_len
