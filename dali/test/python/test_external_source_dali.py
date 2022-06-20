@@ -396,7 +396,7 @@ def test_layout_changing():
     src_pipe.feed_input("input", [np.zeros((1))], layout="H")
 
 
-def _test_partially_utilized_external_source_fail(usage_mask, source_type):
+def _test_partially_utilized_external_source_warning(usage_mask, source_type):
     np_rng = np.random.default_rng(12345)
     max_batch_size = 8
     num_outputs = len(usage_mask)
@@ -454,13 +454,14 @@ def _test_partially_utilized_external_source_fail(usage_mask, source_type):
         pruned_str = f"output at the index {pruned_idx_str} is"
     else:
         pruned_str = f"outputs at the indices {pruned_idx_str} are"
-    expected_error_msg = (f"The external source '*{source_type}*' produces {num_outputs} outputs, "
-                          f"but the {pruned_str} not used.")
+    expected_error_msg = (
+        f"The external source node '*{source_type}*' produces {num_outputs} outputs, "
+        f"but the {pruned_str} not used.")
     with assert_warns(Warning, glob=expected_error_msg):
         pipe.build()
 
 
-def test_partially_utilized_external_source_fail():
+def test_partially_utilized_external_source_warning():
     rng = random.Random(42)
 
     def sources():
@@ -475,7 +476,7 @@ def test_partially_utilized_external_source_fail():
         for num_unused in range(1, num_outputs):
             unused = rng.sample(list(range(num_outputs)), num_unused)
             usage_mask = [i not in unused for i in range(num_outputs)]
-            yield _test_partially_utilized_external_source_fail, usage_mask, next(source_type)
+            yield _test_partially_utilized_external_source_warning, usage_mask, next(source_type)
 
 
 def _test_partially_utilized_es_old_style(usage_mask):
@@ -485,6 +486,7 @@ def _test_partially_utilized_es_old_style(usage_mask):
     num_outputs = len(usage_mask)
     batch_size = 16
     batch = np.array(list(range(batch_size * 1024))).reshape(batch_size, 16, 16, 4)
+
     class OldStylePipe(Pipeline):
 
         def __init__(self, *args, **kwargs):
@@ -495,7 +497,8 @@ def _test_partially_utilized_es_old_style(usage_mask):
         def define_graph(self):
             self.all_inputs = self.inp()
             assert len(self.all_inputs) == num_outputs
-            self.utilized_inputs = [inp for inp, is_used in zip(self.all_inputs, usage_mask) if is_used]
+            self.utilized_inputs = [
+                inp for inp, is_used in zip(self.all_inputs, usage_mask) if is_used]
             return tuple(self.gb(inp) for inp in self.utilized_inputs)
 
         def iter_setup(self):
@@ -525,7 +528,9 @@ def _test_non_utilized_external_source_pruning(num_outputs):
 
     @pipeline_def
     def pipeline():
-        outputs = fn.external_source(source=sample_cb_source, batch=False, num_outputs=num_outputs)
+        outputs = fn.external_source(  # noqa F841
+            source=sample_cb_source, batch=False,
+            num_outputs=num_outputs)
         data = fn.random.uniform(range=(0, 255), shape=(300, 100, 3))
         img = fn.reshape(data, layout="HWC")
         return fn.gaussian_blur(img, window_size=3)
