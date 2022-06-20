@@ -144,6 +144,9 @@ def to_numpy_type(dali_type):
             DALIDataType.UINT64: np.uint64,
             DALIDataType.INT8: np.int8,
             DALIDataType.INT16: np.int16,
+            DALIDataType.INT32: np.int32,
+            DALIDataType.INT64: np.int64,
+            DALIDataType.FLOAT16: np.float16,
             DALIDataType.FLOAT: np.float32,
             DALIDataType.FLOAT64: np.float64,
             DALIDataType.BOOL: np.bool_
