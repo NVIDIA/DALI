@@ -291,6 +291,8 @@ ops_image_custom_args = [
     (fn.cast, {'dtype': types.INT32}),
     (fn.color_space_conversion, {'image_type': types.BGR, 'output_type': types.RGB}),
     (fn.coord_transform, {'M': .5, 'T': 2}),
+    (fn.coord_transform, {'T': 2}),
+    (fn.coord_transform, {'M': .5}),
     (fn.crop, {'crop': (5, 5)}),
     (fn.erase, {'anchor': [0.3], 'axis_names': "H", 'normalized_anchor': True,
                 'shape': [0.1], 'normalized_shape': True}),

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -127,11 +127,10 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
     if (static_cast<int>(mtx_.size()) != output_pt_dim_ * input_pt_dim_) {
       mtx_.resize(output_pt_dim_ * input_pt_dim_, 0);
       MakeDiagonalMatrix(mtx_, 1);
-      Repeat(per_sample_mtx_, mtx_, N);
-      if (is_fused) {
-        translation_.resize(output_pt_dim_, 0);
-        Repeat(per_sample_translation_, translation_, N);
-      }
+    }
+    Repeat(per_sample_mtx_, mtx_, N);
+    if (is_fused) {
+      per_sample_translation_.resize(output_pt_dim_ * N, 0);
     }
   }
 }
