@@ -702,9 +702,9 @@ Parameters
                 else:
                     pruned_str = f"output at the index {pruned_idx_str} is"
                 warnings.warn(
-                    f"The external source '{source_str}' produces {num_outputs} outputs, but "
-                    f"the {pruned_str} not used. For best performance, adjust your callback so "
-                    "that it computes only the needed outputs.",
+                    f"The external source node '{source_str}' produces {num_outputs} outputs, "
+                    f"but the {pruned_str} not used. For best performance, adjust your "
+                    f"callback so that it computes only the needed outputs.",
                     Warning
                 )
 

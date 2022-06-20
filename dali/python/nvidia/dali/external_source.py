@@ -165,7 +165,7 @@ class _ExternalSourceGroup(object):
         if len(pruned_mask) != len(self.instances):
             raise RuntimeError(
                 f"Mask of the pruned outputs of the external source must have the length matching "
-                f"the number of outputs of the external source. The external source node have "
+                f"the number of outputs of the external source. The external source node has "
                 f"{len(self.instances)} outputs, but received mask of length {len(pruned_mask)}.")
         self.utilized_instances = [
             instance for instance, is_pruned
