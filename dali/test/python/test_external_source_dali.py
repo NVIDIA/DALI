@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
-from nose_utils import raises
+from nose_utils import raises, assert_warns
 from nvidia.dali.types import DALIDataType
 
 
@@ -392,3 +394,153 @@ def test_layout_changing():
     src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))], layout="W")
     src_pipe.feed_input("input", [np.zeros((1))], layout="H")
+
+
+def _test_partially_utilized_external_source_warning(usage_mask, source_type):
+    np_rng = np.random.default_rng(12345)
+    max_batch_size = 8
+    num_outputs = len(usage_mask)
+
+    def rand_batch():
+        batch_size = np.int32(np_rng.uniform(1, max_batch_size + 1))
+        return np.float32(np_rng.uniform(-1, 1, shape=(batch_size, 10, 100, 3)))
+
+    def rand_tuple(rand_elem):
+        return tuple(rand_elem() for _ in range(num_outputs))
+
+    def sample_cb_source(sample_info):
+
+        def rand_sample():
+            return np.float32(np_rng.uniform(-1, 1, shape=(10, 100, 3)))
+
+        return rand_tuple(rand_sample)
+
+    def batch_cb_source():
+        return rand_tuple(rand_batch)
+
+    def gen_fun_source():
+        while True:
+            yield rand_tuple(rand_batch)
+
+    class IteratorSource:
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            return rand_tuple(rand_batch)
+
+    sources = {
+        'sample_cb_source': sample_cb_source,
+        'batch_cb_source': batch_cb_source,
+        'gen_fun_source': gen_fun_source,
+        'generator': gen_fun_source(),
+        'IteratorSource': IteratorSource()
+    }
+
+    @pipeline_def
+    def pipeline():
+        outputs = fn.external_source(source=sources[source_type], num_outputs=num_outputs,
+                                     batch=source_type != "sample_cb_source")
+        assert len(outputs) == num_outputs
+        utilized_outputs = (out for out, is_used in zip(outputs, usage_mask) if is_used)
+        return tuple(fn.gaussian_blur(out, window_size=3) for out in utilized_outputs)
+
+    pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+    unused_output_idxs = [i for i, is_used in enumerate(usage_mask) if not is_used]
+    assert len(unused_output_idxs) > 0
+    pruned_idx_str = ", ".join(str(idx) for idx in unused_output_idxs)
+    if len(unused_output_idxs) == 1:
+        pruned_str = f"output at the index {pruned_idx_str} is"
+    else:
+        pruned_str = f"outputs at the indices {pruned_idx_str} are"
+    expected_error_msg = (
+        f"The external source node '*{source_type}*' produces {num_outputs} outputs, "
+        f"but the {pruned_str} not used.")
+    with assert_warns(Warning, glob=expected_error_msg):
+        pipe.build()
+
+
+def test_partially_utilized_external_source_warning():
+    rng = random.Random(42)
+
+    def sources():
+        while True:
+            for source in ('sample_cb_source', 'batch_cb_source', 'gen_fun_source', 'generator',
+                           'IteratorSource'):
+                yield source
+
+    source_type = sources()
+
+    for num_outputs in (2, 3, 4):
+        for num_unused in range(1, num_outputs):
+            unused = rng.sample(list(range(num_outputs)), num_unused)
+            usage_mask = [i not in unused for i in range(num_outputs)]
+            yield _test_partially_utilized_external_source_warning, usage_mask, next(source_type)
+
+
+def _test_partially_utilized_es_old_style(usage_mask):
+    # check that the build time error on unused external source does not interfere
+    # with external sources that are manually fed by user provided code
+
+    num_outputs = len(usage_mask)
+    batch_size = 16
+    batch = np.array(list(range(batch_size * 1024))).reshape(batch_size, 16, 16, 4)
+
+    class OldStylePipe(Pipeline):
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.inp = ops.ExternalSource(num_outputs=num_outputs)
+            self.gb = ops.GaussianBlur(window_size=3)
+
+        def define_graph(self):
+            self.all_inputs = self.inp()
+            assert len(self.all_inputs) == num_outputs
+            self.utilized_inputs = [
+                inp for inp, is_used in zip(self.all_inputs, usage_mask) if is_used]
+            return tuple(self.gb(inp) for inp in self.utilized_inputs)
+
+        def iter_setup(self):
+            assert len(self.utilized_inputs) == sum(usage_mask)
+            for out in self.utilized_inputs:
+                self.feed_input(out, batch)
+
+    pipe = OldStylePipe(batch_size=batch_size, num_threads=4, device_id=0)
+    pipe.build()
+    pipe.run()
+
+
+def test_partially_utilized_es_old_style():
+    rng = random.Random(42)
+    for num_outputs in (2, 3, 4):
+        for num_unused in range(1, num_outputs):
+            unused = rng.sample(list(range(num_outputs)), num_unused)
+            usage_mask = [i not in unused for i in range(num_outputs)]
+            yield _test_partially_utilized_es_old_style, usage_mask
+
+
+def _test_non_utilized_external_source_pruning(num_outputs):
+    max_batch_size = 16
+
+    def sample_cb_source(sample_info):
+        return None
+
+    @pipeline_def
+    def pipeline():
+        outputs = fn.external_source(  # noqa F841
+            source=sample_cb_source, batch=False,
+            num_outputs=num_outputs)
+        data = fn.random.uniform(range=(0, 255), shape=(300, 100, 3))
+        img = fn.reshape(data, layout="HWC")
+        return fn.gaussian_blur(img, window_size=3)
+
+    pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+    pipe.build()
+    pipe.run()
+
+
+def test_non_utilized_external_source_pruning():
+    # if all outputs are unused, ES should simply be pruned not preventing pipeline from operation
+    for num_outputs in (None, 1, 2, 3, 4):
+        yield _test_non_utilized_external_source_pruning, num_outputs
