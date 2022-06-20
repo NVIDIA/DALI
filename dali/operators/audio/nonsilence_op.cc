@@ -82,9 +82,12 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
  protected:
   void RunImpl(workspace_t<CPUBackend> &ws) override {
     const auto &input = ws.template Input<CPUBackend>(0);
-    TYPE_SWITCH(input.type(), type2id, InputType, NONSILENCE_TYPES, (
-            RunImplTyped<InputType>(ws);
-    ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
+
+    TYPE_SWITCH(input.type(), type2id, InputType, (NONSILENCE_TYPES),
+      (RunImplTyped<InputType>(ws);),
+      (DALI_FAIL(
+          make_string("Unsupported input type: ", input.type(),
+                      "\nSupported types are : ", ListTypeNames<NONSILENCE_TYPES>()));));
   }
 
  private:
@@ -93,6 +96,8 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
     const auto &input = ws.template Input<CPUBackend>(0);
     auto &output_begin = ws.Output<CPUBackend>(0);
     auto &output_length = ws.Output<CPUBackend>(1);
+    assert(output_begin.sample_dim() == 0);
+    assert(output_length.sample_dim() == 0);
     auto curr_batch_size = ws.GetInputBatchSize(0);
     auto &tp = ws.GetThreadPool();
     auto in_shape = input.shape();
@@ -106,8 +111,7 @@ class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
                     args.reference_power = reference_power_[sample_id];
                   }
                   args.reference_max = reference_max_;
-                  args.window_length = window_length_ < args.input.num_elements() ?
-                                                        window_length_ : args.input.num_elements();
+                  args.window_length = std::min<int>(window_length_, args.input.num_elements());
                   args.reset_interval = reset_interval_;
 
                   auto res = DetectNonsilenceRegion(intermediate_buffers_[thread_id], args);

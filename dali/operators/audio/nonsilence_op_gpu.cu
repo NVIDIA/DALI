@@ -65,13 +65,14 @@ __global__ void NonsilentRegionPostprocess(NonsilentRegionPostprocessArgs<Idx> *
        idx += blockDim.x * gridDim.x) {
     auto &sample_args = args[idx];
     auto region = *(sample_args.region);
-    // Begin it's calculated as first - window, meaning that we start counting from the
-    // beginning of the sliding window. The lenght of the region needs to be increased by the same
-    // factor. We also limit the region to the bounds of the input.
-    Idx start = cuda_max(static_cast<Idx>(region.x - window), Idx(0));
+    // `begin` is calculated as `first - window + 1`, meaning that we start counting from the
+    // beginning of the sliding window. The length of the region needs to be extended by the same
+    // amount. We also limit the region to the bounds of the input.
+    Idx start = cuda_max(static_cast<Idx>(region.x - window + 1), Idx(0));
+    Idx end = static_cast<Idx>(region.y);
+
     *(sample_args.begin) = start;
-    *(sample_args.len) = cuda_min(static_cast<Idx>(region.y + window),
-                                  static_cast<Idx>(sample_args.input_len - start));
+    *(sample_args.len) = end - start;
   }
 }
 
@@ -88,9 +89,11 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
  protected:
   void RunImpl(workspace_t<GPUBackend> &ws) override {
     auto dtype = ws.template Input<GPUBackend>(0).type();
-    TYPE_SWITCH(dtype, type2id, T, NONSILENCE_TYPES, (
-      RunImplTyped<T>(ws);
-    ), DALI_FAIL(make_string("Unsupported input type: ", dtype));)  // NOLINT
+    TYPE_SWITCH(dtype, type2id, T, (NONSILENCE_TYPES),
+      (RunImplTyped<T>(ws);),
+      (DALI_FAIL(
+          make_string("Unsupported input type: ", dtype,
+                      "\nSupported types are : ", ListTypeNames<NONSILENCE_TYPES>()));));
   }
 
  private:
@@ -102,8 +105,14 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
    * @brief Computes mean moving mean squre of an audio signal
    */
   template <typename T>
-  void CalcMMS(kernels::KernelContext &ctx, TensorListView<StorageGPU, float, 1> &mms,
-               const TensorListView<StorageGPU, const T, 1> &in) {
+  void CalcMMS(TensorListView<StorageGPU, float, 1> &mms,
+               const TensorListView<StorageGPU, const T, 1> &in,
+               cudaStream_t stream) {
+    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::KernelContext ctx;
+    ctx.gpu.stream = stream;
+    ctx.scratchpad = &scratchpad;
+
     kernels::signal::MovingMeanSquareGpu<T> kernel;
     kernels::signal::MovingMeanSquareArgs args{window_length_, -1};
     kernel.Run(ctx, mms, in, args);
@@ -112,8 +121,14 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   /**
    * @brief Calculates the maximum value of an input
    */
-  void CalcMax(kernels::KernelContext &ctx, TensorListView<StorageGPU, float, 0> &max,
-               const TensorListView<StorageGPU, float, 1> &in) {
+  void CalcMax(TensorListView<StorageGPU, float, 0> &max,
+               const TensorListView<StorageGPU, float, 1> &in,
+               cudaStream_t stream) {
+    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::KernelContext ctx;
+    ctx.gpu.stream = stream;
+    ctx.scratchpad = &scratchpad;
+
     std::array<int, 1> axes = { 0 };
     max_kernel_.Setup(ctx, in.shape, make_cspan(axes), false, false);
     max_kernel_.Run(ctx, max, in);
@@ -122,10 +137,15 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   /**
    * @brief Calculates the beginning and length of the nonsilent region
    */
-  void CalcNonsilentRegion(kernels::KernelContext &ctx,
-                           TensorListView<StorageGPU, int32_t, 0> &begin,
+  void CalcNonsilentRegion(TensorListView<StorageGPU, int32_t, 0> &begin,
                            TensorListView<StorageGPU, int32_t, 0> &len,
-                           TensorListView<StorageGPU, float, 1> &mms) {
+                           TensorListView<StorageGPU, float, 1> &mms,
+                           cudaStream_t stream) {
+    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::KernelContext ctx;
+    ctx.gpu.stream = stream;
+    ctx.scratchpad = &scratchpad;
+
     int nsamples = mms.num_samples();
     int G = div_ceil(nsamples, 256), B = 256;  // for the simpler kernels
 
@@ -149,7 +169,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
       // Predicates need to initialized on the device, because reference power is on the GPU
       // (needs to be calculated as a pre-step)
       auto max_mms = ctx.scratchpad->AllocTensorList<mm::memory_kind::device, float>(scalar_sh);
-      CalcMax(ctx, max_mms, mms);
+      CalcMax(max_mms, mms, stream);
 
       auto init_predicate_args =
           ctx.scratchpad->Allocate<mm::memory_kind::pinned, InitPredicateSampleArgs>(nsamples);
@@ -190,23 +210,19 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
 
   template <typename T>
   void RunImplTyped(workspace_t<GPUBackend> &ws) {
-    kernels::DynamicScratchpad scratchpad({}, ws.stream());
-    kernels::KernelContext ctx;
-    ctx.gpu.stream = ws.stream();
-    ctx.scratchpad = &scratchpad;
-
     auto input = view<const T, 1>(ws.template Input<GPUBackend>(0));
     int nsamples = input.shape.num_samples();
     auto out_begin = view<int32_t, 0>(ws.template Output<GPUBackend>(0));
     auto out_len = view<int32_t, 0>(ws.template Output<GPUBackend>(1));
 
     // 1. Compute MMS
+    kernels::DynamicScratchpad scratchpad({}, ws.stream());
     auto mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 1>(input.shape);
-    CalcMMS(ctx, mms, input);
+    CalcMMS(mms, input, ws.stream());
 
     // 2. Find the non silent region as the begin and length of the region where the energy is above
     // a given value.
-    CalcNonsilentRegion(ctx, out_begin, out_len, mms);
+    CalcNonsilentRegion(out_begin, out_len, mms, ws.stream());
   }
 };
 

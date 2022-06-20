@@ -81,10 +81,10 @@ class FindRegionTestGPU : public ::testing::Test {
     // Input 4:  0 1 2 3 4 5 ... 5 4 3 2 1 0
     //                 ^             ^
     ref_region_.cpu()[0].data[0] = {0, 0};
-    ref_region_.cpu()[1].data[0] = {3, 4};
-    ref_region_.cpu()[2].data[0] = {3, 3};
-    ref_region_.cpu()[3].data[0] = {3, 1};
-    ref_region_.cpu()[4].data[0] = {3, 1494};
+    ref_region_.cpu()[1].data[0] = {3, 7};
+    ref_region_.cpu()[2].data[0] = {3, 6};
+    ref_region_.cpu()[3].data[0] = {3, 4};
+    ref_region_.cpu()[4].data[0] = {3, 1497};
   }
 
   void RunTest() {

@@ -27,7 +27,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/operator.h"
 
-#define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
+#define NONSILENCE_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float  // NOLINT
 
 namespace dali {
 namespace detail {
