@@ -103,6 +103,7 @@ def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.
     max_size = 100000 // batch_size
     out = [rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype) for _ in
            range(batch_size)]
+    out = replace_with_empty_volumes(rng, out, empty_volume_policy)
     if np.issubdtype(in_dtype, np.floating) and np.issubdtype(out_dtype, np.integer):
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU

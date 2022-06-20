@@ -29,7 +29,7 @@ def get_min_shape_helper(batch, max_shape):
     `batch` can also be a string "dataset" that indicates we passed a Dataset object as input
     without specifying the batch mode through: Input(dataset, batch=...)
     """
-    if batch is None or batch:
+    if batch is None or batch == True:  # noqa: E712
         return max_shape
     else:
         return None
@@ -134,7 +134,7 @@ def external_source_converter_with_fixed_value(shape, dtype, tensor, batch="data
 
         with tf.device('/cpu:0'):
             input_dataset = tf.data.Dataset.from_tensors(tensor).repeat()
-            if batch is None or batch:
+            if batch is None or batch == True:  # noqa: E712
                 input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
             # If we place DALIDataset on GPU we need the remote call + manual data transfer
             if "gpu" in device_str:
@@ -177,7 +177,7 @@ def external_source_converter_with_callback(
             tf_type = tf.dtypes.as_dtype(dtype)
             input_dataset = tf.data.Dataset.from_generator(
                 input_iterator, output_types=tf_type, output_shapes=out_shape, args=_args)
-            if batch is None or batch:
+            if batch is None or batch == True:  # noqa: E712
                 input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
             # If we place DALIDataset on GPU we need the remote call + manual data transfer
             if "gpu" in device_str:
@@ -269,7 +269,7 @@ def external_source_converter_multiple(start_values, input_names, batches):
                 input_dataset = tf.data.Dataset.from_generator(
                     InfiniteSampleIterator, output_types=tf_type, output_shapes=shape,
                     args=(value,))
-                if batch is None or batch:
+                if batch is None or batch == True:  # noqa: E712
                     input_dataset = input_dataset.batch(dataset_pipeline.max_batch_size)
                 # If we place DALIDataset on GPU we need the remote call + manual data transfer
                 if "gpu" in device_str:

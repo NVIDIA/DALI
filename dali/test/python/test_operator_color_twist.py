@@ -80,8 +80,8 @@ def ref_color_twist(img, H, S, brightness, contrast, out_dtype):
     s, c = math.sin(angle), math.cos(angle)
     # Rotate the color components by angle and scale by S.
     # The fun part is that it doesn't really matter that much which
-    hmat = np.array([[1, 0, 0],
-                     [0, c * S, s * S],
+    hmat = np.array([[1,    0,     0],
+                     [0,  c * S, s * S],
                      [0, -s * S, c * S]])
 
     m = np.matmul(yiq2rgb, np.matmul(hmat, rgb2yiq))

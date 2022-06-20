@@ -171,9 +171,15 @@ def test_image_decoder_fused():
             # random_resized_crop can properly handle border as it has pixels that are cropped out,
             # while plain resize following image_decoder_random_crop cannot do that
             # and must duplicate the border pixels
-            validation_fun = lambda x, y: np.mean(np.abs(x - y) < 0.5)  # noqa: E731
+            def mean_close(x, y):
+                return np.mean(np.abs(x - y) < 0.5)
+
+            validation_fun = mean_close
         else:
-            validation_fun = lambda x, y: np.allclose(x, y)  # noqa: E731
+            def mean_close(x, y):
+                return np.allclose(x, y)
+
+            validation_fun = mean_close
         for device in {'cpu', 'mixed'}:
             for img_type in test_good_path:
                 yield run_decode_fused, test_fun, good_path, img_type, batch_size, \

@@ -555,12 +555,12 @@ def test_output_layout():
         pipe.set_outputs(out1, out2, out3, out4, out5, out6)
     pipe.build()
     out1, out2, out3, out4, out5, out6 = pipe.run()
-    assert (out1.layout() == 'ABC')
-    assert (out2.layout() == 'DE')
-    assert (out3.layout() == 'FGH')
-    assert (out4.layout() == 'FGH')
-    assert (out5.layout() == 'IJK')
-    assert (out6.layout() == '')
+    assert out1.layout() == 'ABC'
+    assert out2.layout() == 'DE'
+    assert out3.layout() == 'FGH'
+    assert out4.layout() == 'FGH'
+    assert out5.layout() == 'IJK'
+    assert out6.layout() == ''
 
 
 @raises(RuntimeError, "*length of*output_layouts*greater than*")
