@@ -25,7 +25,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 
-from sequences_test_utils import sequence_suite_helper, ArgCb, ParamsProvider
+from sequences_test_utils import ArgData, ArgDesc, sequence_suite_helper, ArgCb, ParamsProvider
 from nose_utils import assert_raises
 
 
@@ -579,8 +579,6 @@ def test_sequences():
             for _ in rand_range(max_batch_size)]
             for _ in range(num_iters)]
 
-    mt_seq_input = per_frame_input(mt)
-
     test_cases = [
         (fn.transforms.rotation, {}, TransformsParamsProvider(
             [ArgCb("angle", angle, True)]), ["cpu"]),
@@ -616,7 +614,11 @@ def test_sequences():
     ]
 
     seq_cases = test_cases + only_with_seq_input_cases
-    yield from sequence_suite_helper(rng, "F", [("F**", mt_seq_input)], seq_cases, num_iters)
+    main_input = ArgData(
+        desc=ArgDesc(0, "F", "", "F**"),
+        data=per_frame_input(mt)
+    )
+    yield from sequence_suite_helper(rng, [main_input], seq_cases, num_iters)
 
     # transform the test cases to test the transforms with per-frame args but:
     # 1. with the positional input that does not contain frames
@@ -625,20 +627,22 @@ def test_sequences():
         [main_source, *rest_cbs] = params_provider.input_params
         if main_source.desc.expandable_prefix != "F":
             continue
+        broadcast_0_pos_case_params = TransformsParamsProvider([ArgCb(0, mt, False), *rest_cbs])
+        broadcast_0_pos_case = (tested_fn, fixed_params, broadcast_0_pos_case_params, devices)
+        if any(source.desc.is_positional_arg for source in params_provider.input_params):
+            cases = [broadcast_0_pos_case]
+        else:
+            no_pos_case_params = TransformsParamsProvider(rest_cbs)
+            no_pos_input_case = (tested_fn, fixed_params, no_pos_case_params, devices)
+            cases = [broadcast_0_pos_case, no_pos_input_case]
         per_frame_data = per_frame_input(main_source.cb)
         data_dim = len(per_frame_data[0][0].shape)
         assert data_dim > 0
         data_layout = "F" + "*" * (data_dim - 1)
-        broadcast_test_case = (tested_fn, fixed_params, TransformsParamsProvider(
-            [ArgCb(0, mt, False), *rest_cbs]), devices, main_source.desc.name)
-        if any(source.desc.is_positional_arg for source in params_provider.input_params):
-            cases = [broadcast_test_case]
-        else:
-            no_input_test_case = (tested_fn, fixed_params, TransformsParamsProvider(
-                rest_cbs), devices, main_source.desc.name)
-            cases = [broadcast_test_case, no_input_test_case]
-        main_data_input = [(data_layout, per_frame_data)]
-        yield from sequence_suite_helper(rng, "F", main_data_input, cases, num_iters)
+        main_input = ArgData(
+            desc=ArgDesc(main_source.desc.name, "F", "", data_layout),
+            data=per_frame_data)
+        yield from sequence_suite_helper(rng, [main_input], cases, num_iters)
 
 
 def test_combine_shape_mismatch():

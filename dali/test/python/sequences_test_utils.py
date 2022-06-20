@@ -49,7 +49,7 @@ class ArgDesc:
     layout: Optional[str] = None
 
     def __post_init__(self):
-        assert self.is_positional_arg or self.dest_device == "cpu", "Named arguments on GPU are not supported"
+        assert self.is_positional_arg or self.dest_device != "gpu", "Named arguments on GPU are not supported"
         assert not self.layout or self.layout.startswith(self.expandable_prefix)
 
     @property
@@ -324,29 +324,60 @@ def compute_input_params_data(input_data: ArgData, rng, input_params: List[ArgCb
         for arg_cb in input_params]
 
 
-def input_desc(layout, batches, expandable_extents, dest_device, input_name=0):
-    num_expand = get_layout_prefix_len(layout, expandable_extents)
-    return ArgData(
-        desc=ArgDesc(input_name, layout[:num_expand], dest_device, layout),
-        data=batches)
-
-
-def sequence_suite_helper(rng, expandable_extents, input_cases, ops_test_cases, num_iters=4):
+def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_iters=4):
+    """
+    Generates suite of test cases for a sequence processing operator.
+    The operator should meet the SequenceOperator assumptions, i.e.
+    1. process frames (and possibly channels) independently,
+    2. support per-frame tensor arguments.
+    Each test case consists of two pipelines, one fed with the batch of sequences
+    and one fed with the batch of frames, the test compares if the processing of
+    corresponding frames in both pipelines gives the same result. In other words, if
+    given batch = [sequence, ...], the following holds:
+    fn.op([frame for sequence in batch for frame in sequence])
+        == [frame for sequence in fn.op(batch) for frame in sequence]
+    ----------
+    `input_cases`: List[ArgData].
+        Each ArgData instance describes a single parameter (positional or named) that will be
+        passed to the pipeline and serve as a source of truth (regarding the number of expandable
+        dimensions and sequence shape). Based on it, all other inputs defined through ArgCb
+        in `ops_test_cases` will be computed.
+        Note the `.desc.device` argument is ignored in favour of `ops_test_case` devices list.
+    `ops_test_cases` : List[Tuple[
+            Operator,
+            Dict[str, Any],
+            ParamProviderBase|List[ArgCb]]
+        ]]
+        List of operators and their parameters that should be tested.
+        Each element is expected to be a tuple of the form: (
+            fn.operator,
+            {fixed_param_name: fixed_param_value},
+            [ArgCb(tensor_arg_name, single_arg_cb, is_per_frame, dest_device)]
+        )
+        where the first element is ``fn.operator``, the second one is a dictionary of fixed
+        arguments that should be passed to the operator and the third one is a list of ArgCb
+        instances describing tensor input arguments or custom params provider instance
+        (see `ParamsProvider`). The tuple can optionally have fourth element: a list of devices
+        where the main input (from `input_cases`) should be placed.
+    """
     class OpTestCase:
         def __init__(self, operator_fn, fixed_params, input_params, devices=None, input_name=0):
             self.operator_fn = operator_fn
             self.fixed_params = fixed_params
             self.input_params = input_params
             self.devices = ["cpu", "gpu"] if devices is None else devices
-            self.input_name = input_name
+
     for test_case_args in ops_test_cases:
         test_case = OpTestCase(*test_case_args)
         for device in test_case.devices:
-            for (input_layout, input_batches) in input_cases:
-                input_data = input_desc(
-                    input_layout, input_batches, expandable_extents, device, test_case.input_name)
+            for input_case in input_cases:
+                input_desc = input_case.desc
+                arg_desc = ArgDesc(
+                    input_desc.name, input_desc.expandable_prefix,
+                    device, input_desc.layout)
+                arg_data = ArgData(arg_desc, input_case.data)
                 yield _test_seq_input, num_iters, test_case.operator_fn, test_case.fixed_params,\
-                    test_case.input_params, input_data, rng
+                    test_case.input_params, arg_data, rng
 
 
 def get_video_input_cases(seq_layout, rng, larger_shape=(512, 288), smaller_shape=(384, 216)):
@@ -415,30 +446,16 @@ def vid_source(batch_size, num_batches, num_frames, width, height, seq_layout):
 def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=False, rng=None):
     """
     Generates suite of video test cases for a sequence processing operator.
-    The operator should meet the SequenceOperator assumptions, i.e.
-    1. process frames (and possibly channels) independently,
-    2. support per-frame tensor arguments.
-    Each test case consists of two pipelines, one fed with the batch of sequences
-    and one fed with the batch of frames, the test compares if the processing of
-    corresponding frames in both pipelines gives the same result. In other words, if
-    given batch = [sequence, ...], the following holds:
-    fn.op([frame for sequence in batch for frame in sequence])
-        == [frame for sequence in fn.op(batch) for frame in sequence]
-
-    For testing operator with different input than the video, consider using `sequence_suite_helper` directly.
+    The function prepares video input to be passed as a main input for `sequence_suite_helper`.
+    For testing operator with different input than the video,
+    consider using `sequence_suite_helper` directly.
     ----------
-    `ops_test_cases` : List[Tuple[Operator, Dict[str, Any], ParamProviderBase|List[ArgCb]]]
-        List of operators and their parameters that should be tested.
-        Each element is expected to be a triple of the form:
-        [(fn.operator, {fixed_param_name: fixed_param_value}, [ArgCb(tensor_arg_name, single_arg_cb, is_per_frame, dest_device)])]
-        where the first element is ``fn.operator``, the second one is a dictionary of fixed arguments that should
-        be passed to the operator and the last one is a list of ArgCb instances describing tensor input arguments
-        or custom params provider instance (see `ParamsProvider`).
+    `ops_test_cases` : (see `sequence_suite_helper`).
     `test_channel_first` : bool
         If True, the "FCHW" layout is tested.
     `expand_channels` : bool
-        If True, for the "FCHW" layout the first two (and not just one) dims are expanded, and "CFHW" layout is tested.
-        Requires `test_channel_first` to be True.
+        If True, for the "FCHW" layout the first two (and not just one) dims are expanded,
+        and "CFHW" layout is tested. Requires `test_channel_first` to be True.
     """
     rng = rng or random.Random(42)
     expandable_extents = "FC" if expand_channels else "F"
@@ -449,8 +466,16 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
         layouts.append("FCHW")
         if expand_channels:
             layouts.append("CFHW")
+
+    def input_data_desc(layout, input_data):
+        num_expand = get_layout_prefix_len(layout, expandable_extents)
+        return ArgData(
+            desc=ArgDesc(0, layout[:num_expand], "", layout),
+            data=input_data
+        )
+
     input_cases = [
-        (input_layout, input_data)
+        input_data_desc(input_layout, input_data)
         for input_layout in layouts
         for input_data in get_video_input_cases(input_layout, rng)]
-    yield from sequence_suite_helper(rng, expandable_extents, input_cases, ops_test_cases)
+    yield from sequence_suite_helper(rng, input_cases, ops_test_cases)

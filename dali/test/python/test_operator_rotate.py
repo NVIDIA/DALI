@@ -366,8 +366,11 @@ def test_video():
 
     rng = random.Random(42)
     video_cases = get_video_input_cases("FHWC", rng, larger_shape=(512, 287))
-    input_cases = [("FHWC", input_data) for input_data in video_cases]
-    yield from sequence_suite_helper(rng, "F", input_cases, video_test_cases)
+    input_cases = [
+        ArgData(ArgDesc(0, "F", "", "FHWC"), input_data)
+        for input_data in video_cases
+    ]
+    yield from sequence_suite_helper(rng, input_cases, video_test_cases)
 
 
 def test_3d_sequence():
@@ -386,7 +389,10 @@ def test_3d_sequence():
     def get_random_batch():
         return [get_random_sample() for _ in range(rng.randint(1, max_batch_size))]
 
-    input_cases = [(input_layout, [get_random_batch() for _ in range(num_batches)])]
+    input_cases = [
+        ArgData(desc=ArgDesc(0, "F", "", input_layout),
+                data=[get_random_batch() for _ in range(num_batches)])
+    ]
 
     def random_angle(sample_desc):
         return np.array(sample_desc.rng.uniform(-180., 180.), dtype=np.float32)
@@ -401,4 +407,4 @@ def test_3d_sequence():
       (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True),
                                                          ArgCb("axis", random_axis, True)])),
     ]
-    yield from sequence_suite_helper(rng, "F", input_cases, test_cases)
+    yield from sequence_suite_helper(rng, input_cases, test_cases)

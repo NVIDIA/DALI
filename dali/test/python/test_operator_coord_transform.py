@@ -18,7 +18,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
 from test_utils import check_batch, dali_type
-from sequences_test_utils import sequence_suite_helper, ArgCb
+from sequences_test_utils import ArgData, ArgDesc, sequence_suite_helper, ArgCb
 
 
 def make_param(kind, shape):
@@ -223,11 +223,6 @@ def test_sequences():
     def mt(sample_desc):
         return np.append(m(sample_desc), t(sample_desc).reshape(-1, 1), axis=1)
 
-    input_seq_data = [[
-        np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
-        for _ in rand_range(max_batch_size)]
-        for _ in range(num_iters)]
-
     input_cases = [
         (fn.coord_transform, {}, [ArgCb("M", m, True)]),
         (fn.coord_transform, {}, [ArgCb("T", t, True)]),
@@ -237,17 +232,29 @@ def test_sequences():
         (fn.coord_transform, {}, [ArgCb("M", m, False), ArgCb("T", t, True)]),
     ]
 
-    yield from sequence_suite_helper(rng, "F", [("F**", input_seq_data)], input_cases, num_iters)
+    input_seq_data = [[
+        np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
+        for _ in rand_range(max_batch_size)]
+        for _ in range(num_iters)]
+
+    main_input = ArgData(
+        desc=ArgDesc(0, "F", "", "F**"),
+        data=input_seq_data)
+
+    yield from sequence_suite_helper(rng, [main_input], input_cases, num_iters)
+
+    input_broadcast_cases = [
+        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "cpu")], ["cpu"]),
+        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "gpu")], ["cpu"]),
+    ]
 
     input_mt_data = [[
         np.array([mt(None) for _ in rand_range(max_num_frames)], dtype=np.float32)
         for _ in rand_range(max_batch_size)]
         for _ in range(num_iters)]
 
-    input_broadcast_cases = [
-        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "cpu")], ["cpu"], "MT"),
-        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "gpu")], ["cpu"], "MT"),
-    ]
+    main_input = ArgData(
+        desc=ArgDesc("MT", "F", "", "F**"),
+        data=input_mt_data)
 
-    yield from sequence_suite_helper(
-        rng, "F", [("F**", input_mt_data)], input_broadcast_cases, num_iters)
+    yield from sequence_suite_helper(rng, [main_input], input_broadcast_cases, num_iters)
