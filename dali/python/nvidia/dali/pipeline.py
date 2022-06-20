@@ -630,7 +630,7 @@ Parameters
         self._ops = ops
         self._graph_outputs = outputs
         self._setup_input_callbacks()
-        self._check_ext_source_groups_in_graph()
+        self._disable_pruned_external_source_instances()
         self._py_graph_built = True
 
     def _setup_pipe_pool_dependency(self):
@@ -681,7 +681,7 @@ Parameters
         self._backend_prepared = True
         self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
 
-    def _check_ext_source_groups_in_graph(self):
+    def _disable_pruned_external_source_instances(self):
         def truncate_str(obj, max_len=103):
             obj_str = str(obj)
             if len(obj_str) <= max_len:
@@ -690,15 +690,23 @@ Parameters
 
         graph_op_ids = set(op.id for op in self._ops)
         for group in self._input_callbacks:
-            for i, op in enumerate(group.instances):
-                if op.id not in graph_op_ids:
-                    num_outputs = len(group.instances)
-                    source_str = truncate_str(group.source_desc.source)
-                    raise RuntimeError(
-                        f"The external source '{source_str}' produces {num_outputs} outputs, but "
-                        f"the output at the index {i} is not used. Please make sure all outputs "
-                        f"of the external source operator contribute to the pipeline output "
-                        f"or adjust the external source to return only the needed outputs.")
+            pruned_mask = [op.id not in graph_op_ids for op in group.instances]
+            if any(pruned_mask):
+                group.disable_pruned_instances(pruned_mask)
+                pruned_idx = [i for i, is_pruned in enumerate(pruned_mask) if is_pruned]
+                source_str = truncate_str(group.source_desc.source)
+                num_outputs = len(group.instances)
+                pruned_idx_str = ", ".join(str(idx) for idx in pruned_idx)
+                if len(pruned_idx) > 1:
+                    pruned_str = f"outputs at the indices {pruned_idx_str} are"
+                else:
+                    pruned_str = f"output at the index {pruned_idx_str} is"
+                warnings.warn(
+                    f"The external source '{source_str}' produces {num_outputs} outputs, but "
+                    f"the {pruned_str} not used. For best performance, adjust your callback so "
+                    "that it computes only the needed outputs.",
+                    Warning
+                )
 
     def _setup_input_callbacks(self):
         from nvidia.dali.external_source import _is_external_source_with_callback
