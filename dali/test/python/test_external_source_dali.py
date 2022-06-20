@@ -19,7 +19,7 @@ import nvidia.dali.types as types
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
-from nose_utils import raises, assert_raises
+from nose_utils import raises, assert_warns
 from nvidia.dali.types import DALIDataType
 
 
@@ -447,10 +447,16 @@ def _test_partially_utilized_external_source_fail(usage_mask, source_type):
         return tuple(fn.gaussian_blur(out, window_size=3) for out in utilized_outputs)
 
     pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
-    first_unused = next(i for i, is_used in enumerate(usage_mask) if not is_used)
+    unused_output_idxs = [i for i, is_used in enumerate(usage_mask) if not is_used]
+    assert len(unused_output_idxs) > 0
+    pruned_idx_str = ", ".join(str(idx) for idx in unused_output_idxs)
+    if len(unused_output_idxs) == 1:
+        pruned_str = f"output at the index {pruned_idx_str} is"
+    else:
+        pruned_str = f"outputs at the indices {pruned_idx_str} are"
     expected_error_msg = (f"The external source '*{source_type}*' produces {num_outputs} outputs, "
-                          f"but the output at the index {first_unused} is not used.")
-    with assert_raises(RuntimeError, glob=expected_error_msg):
+                          f"but the {pruned_str} not used.")
+    with assert_warns(Warning, glob=expected_error_msg):
         pipe.build()
 
 
