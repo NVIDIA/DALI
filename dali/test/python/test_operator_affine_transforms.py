@@ -588,13 +588,19 @@ def test_sequences():
             [ArgCb("center", shift, True), ArgCb("angle", angle, False)]), ["cpu"]),
         (fn.transforms.scale, {}, TransformsParamsProvider(
             [ArgCb("scale", scale, True), ArgCb("center", shift, False)]), ["cpu"]),
+        (fn.transforms.scale, {
+            "center": np.array([-50, 100], dtype=np.float32)
+        }, TransformsParamsProvider([ArgCb("scale", scale, True)]), ["cpu"]),
         (fn.transforms.translation, {}, TransformsParamsProvider(
             [ArgCb("offset", shift, True)]), ["cpu"]),
         (fn.transforms.shear, {}, TransformsParamsProvider(
             [ArgCb("angles", shear_angles, True)]), ["cpu"]),
         (fn.transforms.shear, {}, TransformsParamsProvider(
             [ArgCb("shear", shift, True)]), ["cpu"]),
-
+        (fn.transforms.combine, {}, TransformsParamsProvider(
+            [ArgCb(2, mt, True), ArgCb(1, mt, False)]), ["cpu"]),
+        (fn.transforms.combine, {}, TransformsParamsProvider(
+            [ArgCb(1, mt, True)]), ["cpu"]),
     ]
     only_with_seq_input_cases = [
         (fn.transforms.combine, {}, TransformsParamsProvider(
@@ -603,6 +609,10 @@ def test_sequences():
             [ArgCb(1, mt, False)]), ["cpu"]),
         (fn.transforms.translation, {}, TransformsParamsProvider(
             [ArgCb("offset", shift, False)]), ["cpu"]),
+        (fn.transforms.rotation, {
+            'reverse_order': True,
+            "angle": 92.
+        }, TransformsParamsProvider([]), ["cpu"]),
     ]
 
     seq_cases = test_cases + only_with_seq_input_cases
@@ -615,15 +625,18 @@ def test_sequences():
         [main_source, *rest_cbs] = params_provider.input_params
         if main_source.desc.expandable_prefix != "F":
             continue
-        broadcast_test_case = (tested_fn, fixed_params, TransformsParamsProvider(
-            [ArgCb(0, mt, False), *rest_cbs]), devices, main_source.desc.name)
-        no_input_test_case = (tested_fn, fixed_params, TransformsParamsProvider(
-            rest_cbs), devices, main_source.desc.name)
         per_frame_data = per_frame_input(main_source.cb)
         data_dim = len(per_frame_data[0][0].shape)
-        assert(data_dim > 0)
+        assert data_dim > 0
         data_layout = "F" + "*" * (data_dim - 1)
-        cases = [broadcast_test_case, no_input_test_case]
+        broadcast_test_case = (tested_fn, fixed_params, TransformsParamsProvider(
+            [ArgCb(0, mt, False), *rest_cbs]), devices, main_source.desc.name)
+        if any(source.desc.is_positional_arg for source in params_provider.input_params):
+            cases = [broadcast_test_case]
+        else:
+            no_input_test_case = (tested_fn, fixed_params, TransformsParamsProvider(
+                rest_cbs), devices, main_source.desc.name)
+            cases = [broadcast_test_case, no_input_test_case]
         main_data_input = [(data_layout, per_frame_data)]
         yield from sequence_suite_helper(rng, "F", main_data_input, cases, num_iters)
 
