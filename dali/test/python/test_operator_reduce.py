@@ -45,7 +45,7 @@ class Batch1D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([1,  2,  3,  4], dtype=self._data_type),
+                np.array([1,   2,  3,  4], dtype=self._data_type),
                 np.array([33,  2, 10, 10], dtype=self._data_type)
             ], [
                 np.array([10, 20, 30, 20], dtype=self._data_type),
@@ -61,11 +61,11 @@ class Batch2D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([[1,  0,  2], [3,  1,  4]], dtype=self._data_type),
-                np.array([[5,  0,  6], [7,  0,  8]], dtype=self._data_type)
+                np.array([[1,   0,  2], [3,   1,  4]], dtype=self._data_type),
+                np.array([[5,   0,  6], [7,   0,  8]], dtype=self._data_type)
             ], [
                 np.array([[13, 23, 22], [23, 21, 14]], dtype=self._data_type),
-                np.array([[23,  3,  6], [7,  0, 20]], dtype=self._data_type)
+                np.array([[23,  3,  6], [7,   0, 20]], dtype=self._data_type)
             ]]
 
     def valid_axes(self):
@@ -191,8 +191,11 @@ def test_reduce():
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [
-        np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32,
-        np.uint64, np.int64, np.float32
+        np.uint8, np.int8,
+        np.uint16, np.int16,
+        np.uint32, np.int32,
+        np.uint64, np.int64,
+        np.float32
     ]
 
     for keep_dims in [False, True]:
@@ -293,8 +296,11 @@ def test_reduce_with_mean_input():
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [
-        np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32,
-        np.uint64, np.int64, np.float32
+        np.uint8, np.int8,
+        np.uint16, np.int16,
+        np.uint32, np.int32,
+        np.uint64, np.int64,
+        np.float32
     ]
 
     for keep_dims in [False, True]:

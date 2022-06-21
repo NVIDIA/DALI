@@ -50,10 +50,13 @@ class VideoPipe(Pipeline):
                  num_shards=1, dtype=types.FLOAT, sequence_length=COUNT):
         super().__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
         self.input = ops.readers.Video(device="gpu", filenames=data,
-                                       sequence_length=sequence_length, shard_id=0,
-                                       num_shards=num_shards, random_shuffle=shuffle,
-                                       normalized=True, image_type=types.YCbCr, dtype=dtype,
-                                       step=step, stride=stride)
+                                       sequence_length=sequence_length,
+                                       shard_id=0, num_shards=num_shards,
+                                       random_shuffle=shuffle,
+                                       normalized=True,
+                                       image_type=types.YCbCr,
+                                       dtype=dtype, step=step,
+                                       stride=stride)
 
     def define_graph(self):
         output = self.input(name="Reader")

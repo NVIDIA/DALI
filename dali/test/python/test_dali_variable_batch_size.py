@@ -667,12 +667,10 @@ def test_box_encoder_op():
         obj_num = random.randint(1, 20)
         test_box_shape = [obj_num, 4]
         test_lables_shape = [obj_num, 1]
-        bboxes = [
-            np.random.random(size=test_box_shape).astype(dtype=np.float32)
-            for _ in range(batch_size)]
-        labels = [
-            np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32)
-            for _ in range(batch_size)]
+        bboxes = [np.random.random(size=test_box_shape).astype(dtype=np.float32)
+                  for _ in range(batch_size)]
+        labels = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32)
+                  for _ in range(batch_size)]
         return (bboxes, labels)
 
     input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
@@ -695,12 +693,10 @@ def test_random_bbox_crop_op():
         obj_num = random.randint(1, 20)
         test_box_shape = [obj_num, 4]
         test_lables_shape = [obj_num, 1]
-        bboxes = [
-            np.random.random(size=test_box_shape).astype(dtype=np.float32)
-            for _ in range(batch_size)]
-        labels = [
-            np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32)
-            for _ in range(batch_size)]
+        bboxes = [np.random.random(size=test_box_shape).astype(dtype=np.float32)
+                  for _ in range(batch_size)]
+        labels = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32)
+                  for _ in range(batch_size)]
         return (bboxes, labels)
 
     input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
@@ -722,15 +718,12 @@ def test_ssd_random_crop_op():
         test_data_shape = [50, 20, 3]
         test_box_shape = [obj_num, 4]
         test_lables_shape = [obj_num]
-        data = [
-            np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
-            for _ in range(batch_size)]
-        bboxes = [
-            np.random.random(size=test_box_shape).astype(dtype=np.float32)
-            for _ in range(batch_size)]
-        labels = [
-            np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32)
-            for _ in range(batch_size)]
+        data = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+                for _ in range(batch_size)]
+        bboxes = [np.random.random(size=test_box_shape).astype(dtype=np.float32)
+                  for _ in range(batch_size)]
+        labels = [np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32)
+                  for _ in range(batch_size)]
         return (data, bboxes, labels)
 
     input_data = [get_data(random.randint(5, 31)) for _ in range(13)]

@@ -915,15 +915,19 @@ class CachedPipeline(Pipeline):
             tfrecord = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*[!i][!d][!x]')))
             tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_db_folder, '*idx')))
             self.input = ops.readers.TFRecord(
-                path=tfrecord, index_path=tfrecord_idx, shard_id=0, num_shards=num_shards,
-                stick_to_shard=True, skip_cached_images=skip_cached_images, features={
+                path=tfrecord,
+                index_path=tfrecord_idx,
+                shard_id=0,
+                num_shards=num_shards,
+                stick_to_shard=True,
+                skip_cached_images=skip_cached_images,
+                features={
                     "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
                     "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)
                 })
         elif reader_type == "readers.Webdataset":
-            wds = [
-                os.path.join(webdataset_db_folder, archive)
-                for archive in ['devel-1.tar', 'devel-2.tar', 'devel-0.tar']]
+            wds = [os.path.join(webdataset_db_folder, archive)
+                   for archive in ['devel-1.tar', 'devel-2.tar', 'devel-0.tar']]
             self.wds_index_files = [generate_temp_wds_index(archive) for archive in wds]
             self.input = ops.readers.Webdataset(
                 paths=wds, index_paths=[idx.name for idx in self.wds_index_files],
@@ -958,10 +962,10 @@ class CachedPipeline(Pipeline):
 
 def test_nvjpeg_cached_batch_copy_pipelines():
     batch_size = 26
-    for reader_type in {
+    for reader_type in [
             "readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord",
             "readers.Webdataset"
-    }:
+    ]:
         compare_pipelines(
             CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
             CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
@@ -970,10 +974,10 @@ def test_nvjpeg_cached_batch_copy_pipelines():
 
 def test_nvjpeg_cached_pipelines():
     batch_size = 26
-    for reader_type in {
+    for reader_type in [
             "readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.TFRecord",
             "readers.Webdataset"
-    }:
+    ]:
         compare_pipelines(CachedPipeline(reader_type, batch_size, is_cached=False),
                           CachedPipeline(reader_type, batch_size, is_cached=True),
                           batch_size=batch_size, N_iterations=20)
@@ -981,9 +985,9 @@ def test_nvjpeg_cached_pipelines():
 
 def test_skip_cached_images():
     batch_size = 1
-    for reader_type in {
+    for reader_type in [
             "readers.MXNet", "readers.Caffe", "readers.Caffe2", "readers.File", "readers.Webdataset"
-    }:
+    ]:
         compare_pipelines(
             CachedPipeline(reader_type, batch_size, is_cached=False),
             CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
@@ -1217,9 +1221,9 @@ def check_duplicated_outs_pipeline(first_device, second_device):
     assert len(out) == 4
     for i in range(batch_size):
         assert isinstance(out[3][0], dali.backend_impl.TensorGPU) or first_device == "cpu"
-        out1 = as_array(out[0].at(i))
-        out2 = as_array(out[1].at(i))
-        out3 = as_array(out[2].at(i))
+        out1 = as_array(out[0][i])
+        out2 = as_array(out[1][i])
+        out3 = as_array(out[2][i])
 
         np.testing.assert_array_equal(out1, out2)
         np.testing.assert_array_equal(out1, out3)
@@ -1246,9 +1250,9 @@ def check_serialized_outs_duplicated_pipeline(first_device, second_device):
     assert len(out) == 4
     for i in range(batch_size):
         assert isinstance(out[3][0], dali.backend_impl.TensorGPU) or first_device == "cpu"
-        out1 = as_array(out[0].at(i))
-        out2 = as_array(out[1].at(i))
-        out3 = as_array(out[2].at(i))
+        out1 = as_array(out[0][i])
+        out2 = as_array(out[1][i])
+        out3 = as_array(out[2][i])
 
         np.testing.assert_array_equal(out1, out2)
         np.testing.assert_array_equal(out1, out3)

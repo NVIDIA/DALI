@@ -459,11 +459,11 @@ def test_numpy_reader_roi():
         ([1, 2], None, [20, 9], None, None, None, [0, 1], "trim_to_shape"),
         ([-10, 2], None, [8, 9], None, None, None, [0, 1], "trim_to_shape"),
         (fn.random.uniform(range=(0, 2), shape=(2, ), dtype=types.INT32), None,
-         fn.random.uniform(range=(7, 10), shape=(2, ),
-                           dtype=types.INT32), None, None, None, (0, 1), None),
+         fn.random.uniform(range=(7, 10), shape=(2, ),dtype=types.INT32),
+         None, None, None, (0, 1), None),
         (fn.random.uniform(range=(0, 2), shape=(1, ), dtype=types.INT32), None,
-         fn.random.uniform(range=(7, 10), shape=(1, ),
-                           dtype=types.INT32), None, None, None, (1, ), None),
+         fn.random.uniform(range=(7, 10), shape=(1, ), dtype=types.INT32),
+         None, None, None, (1, ), None),
         (None, fn.random.uniform(range=(0.0, 0.2), shape=(1, )), None,
          fn.random.uniform(range=(0.8, 1.0), shape=(1, )), None, None, (1, ), None),
     ]
@@ -497,9 +497,11 @@ def test_numpy_reader_roi():
 
 
 def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device,
-                                     fortran_order=False, file_filter="*.npy", roi_start=None,
-                                     rel_roi_start=None, roi_end=None, rel_roi_end=None,
-                                     roi_shape=None, rel_roi_shape=None, roi_axes=None,
+                                     fortran_order=False, file_filter="*.npy",
+                                     roi_start=None, rel_roi_start=None,
+                                     roi_end=None, rel_roi_end=None,
+                                     roi_shape=None, rel_roi_shape=None,
+                                     roi_axes=None,
                                      out_of_bounds_policy=None, fill_value=None):
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
