@@ -29,3 +29,6 @@
 [submodule "third_party/libcudacxx"]
 	path = third_party/libcudacxx
 	url = https://github.com/mzient/libcudacxx.git
+[submodule "tl-optional"]
+	path = third_party/tl-optional
+	url = git@github.com:TartanLlama/optional.git

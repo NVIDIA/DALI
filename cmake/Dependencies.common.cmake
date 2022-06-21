@@ -177,6 +177,11 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/boost/preprocessor/include
 include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
 
 ##################################################################
+# tl-optional
+##################################################################
+include_directories(${PROJECT_SOURCE_DIR}/third_party/tl-optional/include)
+
+##################################################################
 # FFTS
 ##################################################################
 if (BUILD_FFTS)
