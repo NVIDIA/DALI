@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,10 +34,10 @@
       - cmake
       - make
     host:
-      - libjpeg-turbo >=2.1.1
-      - libtiff >=4.3.0
-      - openjpeg >=2.4.0
+      - libjpeg-turbo
+      - libtiff
+      - openjpeg
     run:
-      - libjpeg-turbo >=2.1.1
-      - libtiff >=4.3.0
-      - openjpeg >=2.4.0
+      - libjpeg-turbo
+      - libtiff
+      - openjpeg
