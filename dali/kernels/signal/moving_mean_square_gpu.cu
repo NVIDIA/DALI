@@ -123,8 +123,12 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
  * @brief Calculates a running sum of a 1D signal using a sliding window of an arbitrary size.
  *
  * The implementation computes the output on a shared memory buffer of size `logical_block + window`
- * which corresponds to an output region of `logical_block` size. We need to load `window` extra samples
- * to be able to compute the first elements of the output.
+ * which corresponds to an output region of `logical_block` size.
+ *
+ * The kernel assumes the same output size as the input, and it pads with zeros at the beginning of
+ * the signal so that we can calculate the same number of windows as elements in the input.
+ * The input is NOT padded at the end to match every possible window overlap, since we are interested in
+ * having an output of the same size as the input.
  *
  * @tparam Out Output data type
  * @tparam In Input data type

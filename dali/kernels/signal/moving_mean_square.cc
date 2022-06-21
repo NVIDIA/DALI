@@ -45,7 +45,13 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
   return req;
 }
 
-
+ /**
+  * @brief Calculates MMS on the input, producing the same number of elements in the output as the input.
+  * The signal is padded with zeros at the beginning so that we can calculate the same number
+  * of windows as elements in the input.
+  * The signal is NOT padded at the end to match every possible window overlap, since we are interested in
+  * having an output of the same size as the input.
+  */
 template<typename T>
 void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float mean_factor,
                           int window_size, int reset_interval = -1) {
