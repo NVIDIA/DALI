@@ -214,7 +214,7 @@ class _ExternalSourceDebug:
 
         def to_data_node_debug(data):
             data = _transform_data_to_tensorlist(data, self._batch_size, layout, self._device_id)
-            
+
             if self._device == 'gpu' and isinstance(data, _tensors.TensorListCPU):
                 data = data._as_gpu()
             elif self._device == 'cpu' and isinstance(data, _tensors.TensorListGPU):
@@ -415,7 +415,8 @@ class _OperatorManager:
             if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)) and \
                     not (isinstance(input, list) and
                          all([isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU)) for elem in input])):
-                inputs[i] = _transform_data_to_tensorlist(input, len(input), device_id=self._device_id)
+                inputs[i] = _transform_data_to_tensorlist(
+                    input, len(input), device_id=self._device_id)
 
         return self.op_helper._build_input_sets(inputs)
 
@@ -496,7 +497,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._operators = {}
         self._operators_built = False
         self._cur_iter_batch_info = _IterBatchInfo(-1, None)  # Used for variable batch sizes.
-        
+
         device_id = self._device_id if self._device_id is not None else _types.CPU_ONLY_DEVICE_ID
         self._pipe = _b.PipelineDebug(
             self._max_batch_size, self._num_threads, device_id, self._set_affinity)
@@ -598,7 +599,8 @@ class _PipelineDebug(_pipeline.Pipeline):
         cur_frame = inspect.currentframe().f_back.f_back
         key = inspect.getframeinfo(cur_frame)[:3] + (self._cur_operator_id,)
         if not self._operators_built:
-            es = _ExternalSourceDebug(batch_size=self._max_batch_size, device_id=self._device_id, name=name, **kwargs)
+            es = _ExternalSourceDebug(batch_size=self._max_batch_size,
+                                      device_id=self._device_id, name=name, **kwargs)
 
             # feed_input all data collected after build and before run
             for (data, fi_kwargs) in self._feed_input_data.pop(name, []):

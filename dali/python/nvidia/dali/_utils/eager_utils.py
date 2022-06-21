@@ -109,7 +109,8 @@ class _Classification:
                 return is_batch_list, device_list[0], data_list
             if not any(is_batch_list):
                 # Converting to TensorList.
-                return True, device_list[0], _transform_data_to_tensorlist(data_list, len(data_list))
+                return True, device_list[0], _transform_data_to_tensorlist(
+                    data_list, len(data_list))
             else:
                 raise RuntimeError(f'{type_name} has inconsistent batch classification.')
 
