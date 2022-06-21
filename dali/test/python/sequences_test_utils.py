@@ -16,7 +16,7 @@ import os
 import random
 import numpy as np
 from typing import List, Union, Callable, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
@@ -85,7 +85,7 @@ class ArgCb:
 @dataclass
 class ArgData:
     desc: ArgDesc
-    data: List[List[np.ndarray]]
+    data: List[List[np.ndarray]] = field(repr=False)
 
 
 class ParamsProviderBase:
@@ -152,6 +152,10 @@ class ParamsProvider(ParamsProviderBase):
             for arg_data in self.arg_input_data
         ]
         return self.expanded_params_data
+
+    def __repr__(self):
+        class_name = repr(self.__class__.__name__).strip("'")
+        return f"{class_name}({repr(self.input_params)})"
 
 
 def arg_data_node(arg_data: ArgData):
