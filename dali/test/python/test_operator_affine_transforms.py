@@ -12,16 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+import warnings
+
+import numpy as np
+from scipy.spatial.transform import Rotation as scipy_rotate
+
 from nvidia.dali.pipeline import Pipeline
 # Just to verify that import works as expected
 import nvidia.dali.ops.transforms as _unused_import  # noqa:F401
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
-import numpy as np
+from nvidia.dali import pipeline_def
 
-import warnings
-
-from scipy.spatial.transform import Rotation as scipy_rotate
+from sequences_test_utils import ArgData, ArgDesc, sequence_suite_helper, ArgCb, ParamsProvider
+from nose_utils import assert_raises
 
 
 def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
@@ -534,3 +539,169 @@ def verify_deprecation(callback):
 def test_transform_translation_deprecation():
     verify_deprecation(lambda: fn.transform_translation(offset=(0, 0)))
     verify_deprecation(lambda: ops.TransformTranslation(offset=(0, 0))())
+
+
+def test_sequences():
+    np_rng = np.random.default_rng(12345)
+    rng = random.Random(42)
+    num_iters = 4
+    max_num_frames = 50
+    max_batch_size = 12
+
+    class TransformsParamsProvider(ParamsProvider):
+        def unfold_output_layout(self, layout):
+            unfolded = super().unfold_output_layout(layout)
+            if unfolded == "**":
+                return ""
+            return unfolded
+
+    def rand_range(limit):
+        return range(rng.randint(1, limit) + 1)
+
+    def mt(desc):
+        return np.float32(np_rng.uniform(-20, 20, (2, 3)))
+
+    def scale(desc):
+        return np.array([rng.randint(0, 5), rng.randint(-50, 20)], dtype=np.float32)
+
+    def shift(desc):
+        return np.array([rng.randint(-100, 200), rng.randint(-50, 20)], dtype=np.float32)
+
+    def shear_angles(desc):
+        return np.array([rng.randint(-90, 90), rng.randint(-90, 90)], dtype=np.float32)
+
+    def angle(desc):
+        return np.array(rng.uniform(-180, 180), dtype=np.float32)
+
+    def per_frame_input(frame_cb):
+        return [[
+            np.array([frame_cb(None) for _ in rand_range(max_num_frames)], dtype=np.float32)
+            for _ in rand_range(max_batch_size)]
+            for _ in range(num_iters)]
+
+    test_cases = [
+        (fn.transforms.rotation, {}, TransformsParamsProvider(
+            [ArgCb("angle", angle, True)]), ["cpu"]),
+        (fn.transforms.rotation, {'reverse_order': True}, TransformsParamsProvider(
+            [ArgCb("center", shift, True), ArgCb("angle", angle, False)]), ["cpu"]),
+        (fn.transforms.scale, {}, TransformsParamsProvider(
+            [ArgCb("scale", scale, True), ArgCb("center", shift, False)]), ["cpu"]),
+        (fn.transforms.scale, {
+            "center": np.array([-50, 100], dtype=np.float32)
+        }, TransformsParamsProvider([ArgCb("scale", scale, True)]), ["cpu"]),
+        (fn.transforms.translation, {}, TransformsParamsProvider(
+            [ArgCb("offset", shift, True)]), ["cpu"]),
+        (fn.transforms.shear, {}, TransformsParamsProvider(
+            [ArgCb("angles", shear_angles, True)]), ["cpu"]),
+        (fn.transforms.shear, {}, TransformsParamsProvider(
+            [ArgCb("shear", shift, True)]), ["cpu"]),
+        (fn.transforms.combine, {}, TransformsParamsProvider(
+            [ArgCb(2, mt, True), ArgCb(1, mt, False)]), ["cpu"]),
+        (fn.transforms.combine, {}, TransformsParamsProvider(
+            [ArgCb(1, mt, True)]), ["cpu"]),
+    ]
+    only_with_seq_input_cases = [
+        (fn.transforms.combine, {}, TransformsParamsProvider(
+            [ArgCb(1, mt, True), ArgCb(2, mt, True)]), ["cpu"]),
+        (fn.transforms.combine, {}, TransformsParamsProvider(
+            [ArgCb(1, mt, False)]), ["cpu"]),
+        (fn.transforms.translation, {}, TransformsParamsProvider(
+            [ArgCb("offset", shift, False)]), ["cpu"]),
+        (fn.transforms.rotation, {
+            'reverse_order': True,
+            "angle": 92.
+        }, TransformsParamsProvider([]), ["cpu"]),
+    ]
+
+    seq_cases = test_cases + only_with_seq_input_cases
+    main_input = ArgData(
+        desc=ArgDesc(0, "F", "", "F**"),
+        data=per_frame_input(mt)
+    )
+    yield from sequence_suite_helper(rng, [main_input], seq_cases, num_iters)
+
+    # transform the test cases to test the transforms with per-frame args but:
+    # 1. with the positional input that does not contain frames
+    # 2. without the positional input
+    for tested_fn, fixed_params, params_provider, devices in test_cases:
+        [main_source, *rest_cbs] = params_provider.input_params
+        if main_source.desc.expandable_prefix != "F":
+            continue
+        broadcast_0_pos_case_params = TransformsParamsProvider([ArgCb(0, mt, False), *rest_cbs])
+        broadcast_0_pos_case = (tested_fn, fixed_params, broadcast_0_pos_case_params, devices)
+        if any(source.desc.is_positional_arg for source in params_provider.input_params):
+            cases = [broadcast_0_pos_case]
+        else:
+            no_pos_case_params = TransformsParamsProvider(rest_cbs)
+            no_pos_input_case = (tested_fn, fixed_params, no_pos_case_params, devices)
+            cases = [broadcast_0_pos_case, no_pos_input_case]
+        per_frame_data = per_frame_input(main_source.cb)
+        data_dim = len(per_frame_data[0][0].shape)
+        assert data_dim > 0
+        data_layout = "F" + "*" * (data_dim - 1)
+        main_input = ArgData(
+            desc=ArgDesc(main_source.desc.name, "F", "", data_layout),
+            data=per_frame_data)
+        yield from sequence_suite_helper(rng, [main_input], cases, num_iters)
+
+
+def test_combine_shape_mismatch():
+    np_rng = np.random.default_rng(42)
+    batch_size = 8
+    num_frames = 50
+
+    def mt():
+        return np.float32(np_rng.uniform(-100, 250, (num_frames, 2, 3)))
+
+    batch0_inp = [mt() for _ in range(batch_size)]
+    batch1_inp = [mt()[i:] for i in range(batch_size)]
+
+    expected_msg = "The input 0 and the input 1 have different number of frames for sample 1"
+    with assert_raises(RuntimeError, glob=expected_msg):
+        @pipeline_def
+        def pipeline():
+            mts0, mts1 = fn.external_source(lambda _: (batch0_inp, batch1_inp), num_outputs=2)
+            return fn.transforms.combine(fn.per_frame(mts0), fn.per_frame(mts1))
+
+        pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+        pipe.build()
+        pipe.run()
+
+
+def test_rotate_shape_mismatch():
+    np_rng = np.random.default_rng(42)
+    batch_size = 8
+    num_frames = 50
+
+    def mt():
+        return np.float32(np_rng.uniform(-100, 250, (num_frames, 2, 3)))
+
+    mts_inp = [mt() for _ in range(batch_size)]
+    angles_inp = [np.array([angle for angle in range(num_frames - i)],
+                           dtype=np.float32) for i in range(batch_size)]
+    centers_inp = [np.array([c for c in range(num_frames + i)], dtype=np.float32)
+                   for i in range(batch_size)]
+
+    with assert_raises(RuntimeError, glob="The sample 1 of tensor argument `angle` "
+                       "contains 49 per-frame parameters, but there are 50 frames in "
+                       "the corresponding sample of input 0."):
+        @pipeline_def
+        def pipeline():
+            mts, angles = fn.external_source(lambda _: (mts_inp, angles_inp), num_outputs=2)
+            return fn.transforms.rotation(fn.per_frame(mts), angle=fn.per_frame(angles))
+
+        pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+        pipe.build()
+        pipe.run()
+
+    with assert_raises(RuntimeError, glob="The sample 1 of tensor argument `center` contains 51 "
+                       "per-frame parameters, but there are 49 frames in the corresponding sample "
+                       "of argument `angle`"):
+        @pipeline_def
+        def pipeline():
+            angles, centers = fn.external_source(lambda _: (angles_inp, centers_inp), num_outputs=2)
+            return fn.transforms.rotation(angle=fn.per_frame(angles), center=fn.per_frame(centers))
+
+        pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+        pipe.build()
+        pipe.run()

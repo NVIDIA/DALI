@@ -321,20 +321,23 @@ class RotatePerFrameParamsProvider(ParamsProvider):
         super().__init__(input_params)
 
     def expand_params(self):
-        assert self.num_expand == 1
+        assert self.input_data.desc.expandable_prefix == "F"
         expanded_params = super().expand_params()
         params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
         expanded_angles = params_dict.get('angle')
         expanded_axis = params_dict.get('axis')
         assert (expanded_angles is not None and 'size' not in self.fixed_params
                 and 'size' not in params_dict)
-        sequence_extents = [[sample.shape[0] for sample in input_batch]
-                            for input_batch in self.input_data]
-        output_size_params = (sequence_extents, self.unfolded_input, expanded_angles.data)
+        sequence_extents = [
+          [sample.shape[0] for sample in input_batch]
+          for input_batch in self.input_data.data]
+        output_size_params = (sequence_extents, self.unfolded_input.data, expanded_angles.data)
         if expanded_axis is not None:
-            output_size_params += (expanded_axis.data, )
-        output_sizes = [sequence_batch_output_size(*args) for args in zip(*output_size_params)]
-        expanded_params.append(ArgData(ArgDesc("size", False, "cpu"), output_sizes))
+            output_size_params += (expanded_axis.data,)
+        output_sizes = [
+            sequence_batch_output_size(*args)
+            for args in zip(*output_size_params)]
+        expanded_params.append(ArgData(ArgDesc("size", "", "cpu"), output_sizes))
         return expanded_params
 
     def __repr__(self):
@@ -363,8 +366,11 @@ def test_video():
 
     rng = random.Random(42)
     video_cases = get_video_input_cases("FHWC", rng, larger_shape=(512, 287))
-    input_cases = [("FHWC", input_data) for input_data in video_cases]
-    yield from sequence_suite_helper(rng, "F", input_cases, video_test_cases)
+    input_cases = [
+        ArgData(ArgDesc(0, "F", "", "FHWC"), input_data)
+        for input_data in video_cases
+    ]
+    yield from sequence_suite_helper(rng, input_cases, video_test_cases)
 
 
 def test_3d_sequence():
@@ -383,7 +389,10 @@ def test_3d_sequence():
     def get_random_batch():
         return [get_random_sample() for _ in range(rng.randint(1, max_batch_size))]
 
-    input_cases = [(input_layout, [get_random_batch() for _ in range(num_batches)])]
+    input_cases = [
+        ArgData(desc=ArgDesc(0, "F", "", input_layout),
+                data=[get_random_batch() for _ in range(num_batches)])
+    ]
 
     def random_angle(sample_desc):
         return np.array(sample_desc.rng.uniform(-180., 180.), dtype=np.float32)
@@ -398,4 +407,4 @@ def test_3d_sequence():
       (dali.fn.rotate, {}, RotatePerFrameParamsProvider([ArgCb("angle", random_angle, True),
                                                          ArgCb("axis", random_axis, True)])),
     ]
-    yield from sequence_suite_helper(rng, "F", input_cases, test_cases)
+    yield from sequence_suite_helper(rng, input_cases, test_cases)

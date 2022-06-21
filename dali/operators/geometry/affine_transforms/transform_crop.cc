@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ If another transform matrix is passed as an input, the operator applies the tran
     If left empty, a vector of zeros will be assumed.
     If a single value is provided, it will be repeated to match the number of dimensions
 )code",
-    std::vector<float>{0.0}, true)
+    std::vector<float>{0.0}, true, true)
   .AddOptionalArg(
     "from_end",
     R"code(The upper bound of the original coordinate space.
@@ -45,7 +45,7 @@ If another transform matrix is passed as an input, the operator applies the tran
     If left empty, a vector of ones will be assumed.
     If a single value is provided, it will be repeated to match the number of dimensions
 )code",
-    std::vector<float>{1.0}, true)
+    std::vector<float>{1.0}, true, true)
   .AddOptionalArg(
     "to_start",
     R"code(The lower bound of the destination coordinate space.
@@ -54,7 +54,7 @@ If another transform matrix is passed as an input, the operator applies the tran
     If left empty, a vector of zeros will be assumed.
     If a single value is provided, it will be repeated to match the number of dimensions
 )code",
-    std::vector<float>{0.0}, true)
+    std::vector<float>{0.0}, true, true)
   .AddOptionalArg(
     "to_end",
     R"code(The upper bound of the destination coordinate space.
@@ -63,13 +63,14 @@ If another transform matrix is passed as an input, the operator applies the tran
     If left empty, a vector of ones will be assumed.
     If a single value is provided, it will be repeated to match the number of dimensions
 )code",
-    std::vector<float>{1.0}, true)
+    std::vector<float>{1.0}, true, true)
   .AddOptionalArg(
     "absolute",
     R"code(If set to true, start and end coordinates will be swapped if start > end.)code",
     false)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 /**

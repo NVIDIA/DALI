@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ direction of the second axis.
     This argument is mutually exclusive with ``angles``.
     If provided, the number of dimensions of the transform is inferred from this argument.
 )code",
-    nullptr, true)
+    nullptr, true, true)
   .AddOptionalArg<std::vector<float>>(
     "angles",
     R"code(The shear angles, in degrees.
@@ -62,15 +62,16 @@ A shear angle is translated to a shear factor as follows::
     This argument is mutually exclusive with ``shear``.
     If provided, the number of dimensions of the transform is inferred from this argument.
 )code",
-    nullptr, true)
+    nullptr, true, true)
   .AddOptionalArg<std::vector<float>>(
     "center",
     R"code(The center of the shear operation.
 
 If provided, the number of elements should match the dimensionality of the transform.)code",
-    nullptr, true)
+    nullptr, true, true)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 /**

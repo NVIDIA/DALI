@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
 from test_utils import check_batch, dali_type
+from sequences_test_utils import ArgData, ArgDesc, sequence_suite_helper, ArgCb
 
 
 def make_param(kind, shape):
@@ -190,3 +192,69 @@ def _test_empty_input(device):
 def test_empty_input():
     for device in ["cpu", "gpu"]:
         yield _test_empty_input, device
+
+
+def test_sequences():
+    rng = random.Random(42)
+    np_rng = np.random.default_rng(12345)
+    max_batch_size = 64
+    max_num_frames = 50
+    num_points = 30
+    num_iters = 4
+
+    def points():
+        return np.float32(np_rng.uniform(-100, 250, (num_points, 2)))
+
+    def rand_range(limit):
+        return range(rng.randint(1, limit) + 1)
+
+    def m(sample_desc):
+        angles = np_rng.uniform(-np.pi, np.pi, 2)
+        scales = np_rng.uniform(0, 5, 2)
+        c = np.cos(angles[0])
+        s = np.sin(angles[1])
+        return np.array([
+            [c * scales[0], -s],
+            [s,  c * scales[1]]], dtype=np.float32)
+
+    def t(sample_desc):
+        return np.float32(np_rng.uniform(-100, 250, 2))
+
+    def mt(sample_desc):
+        return np.append(m(sample_desc), t(sample_desc).reshape(-1, 1), axis=1)
+
+    input_cases = [
+        (fn.coord_transform, {}, [ArgCb("M", m, True)]),
+        (fn.coord_transform, {}, [ArgCb("T", t, True)]),
+        (fn.coord_transform, {}, [ArgCb("MT", mt, True)]),
+        (fn.coord_transform, {}, [ArgCb("MT", mt, False)]),
+        (fn.coord_transform, {}, [ArgCb("M", m, True), ArgCb("T", t, True)]),
+        (fn.coord_transform, {}, [ArgCb("M", m, False), ArgCb("T", t, True)]),
+    ]
+
+    input_seq_data = [[
+        np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
+        for _ in rand_range(max_batch_size)]
+        for _ in range(num_iters)]
+
+    main_input = ArgData(
+        desc=ArgDesc(0, "F", "", "F**"),
+        data=input_seq_data)
+
+    yield from sequence_suite_helper(rng, [main_input], input_cases, num_iters)
+
+    input_broadcast_cases = [
+        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "cpu")], ["cpu"]),
+        (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "gpu")], ["cpu"]),
+    ]
+
+    input_mt_data = [[
+        np.array([mt(None) for _ in rand_range(max_num_frames)], dtype=np.float32)
+        for _ in rand_range(max_batch_size)]
+        for _ in range(num_iters)]
+
+    main_input = ArgData(
+        desc=ArgDesc("MT", "F", "", "F**"),
+        data=input_mt_data)
+
+    yield from sequence_suite_helper(rng, [main_input], input_broadcast_cases, num_iters)

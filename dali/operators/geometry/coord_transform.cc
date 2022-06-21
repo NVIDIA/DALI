@@ -42,6 +42,7 @@ This operator can be used for many operations. Here's the (incomplete) list:
 If an integral type is used, the output values are rounded to the nearest integer and clamped
 to the dynamic range of this type.)",
     DALI_FLOAT)
+  .AllowSequences()
   .AddParent("MTTransformAttr");
 
 template <>

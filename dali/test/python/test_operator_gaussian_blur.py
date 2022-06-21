@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
+
 
 import numpy as np
 import cv2
 from scipy.ndimage import convolve1d
 import os
-from nose_utils import assert_raises
+from nose_utils import assert_raises, raises
 from nose.plugins.attrib import attr
 
 from sequences_test_utils import video_suite_helper, ArgCb
@@ -391,3 +392,20 @@ def test_per_frame():
     ]
 
     yield from video_suite_helper(video_test_cases, expand_channels=True)
+
+
+# test if SequenceOperator properly errors out on per-frame argument when input is expanded only
+# because of channel-first layout (but there are no frames on the input)
+@raises(RuntimeError, "Tensor input for argument window_size is specified per frame "
+                      "(got F layout). In that case, samples in the input 0 must contain "
+                      "frames too. Got layout `CHW` that does not contain frames.")
+def test_fail_per_frame_no_frames():
+    @pipeline_def
+    def pipeline():
+        blob = fn.random.uniform(range=[0, 1], shape=(3, 200, 100))
+        image = fn.reshape(blob, layout="CHW")
+        per_channel = np.array([3, 5, 7])
+        return fn.gaussian_blur(image, window_size=fn.per_frame(per_channel))
+    pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
+    pipe.build()
+    pipe.run()
