@@ -70,7 +70,6 @@ __global__ void NonsilentRegionPostprocess(NonsilentRegionPostprocessArgs<Idx> *
     // amount. We also limit the region to the bounds of the input.
     Idx start = cuda_max(static_cast<Idx>(region.x - window + 1), Idx(0));
     Idx end = static_cast<Idx>(region.y);
-
     *(sample_args.begin) = start;
     *(sample_args.len) = end - start;
   }
@@ -102,7 +101,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   kernels::FindRegionGPU<float, Predicate> find_region_;
 
   /**
-   * @brief Computes mean moving mean squre of an audio signal
+   * @brief Computes mean moving mean square of an audio signal
    */
   template <typename T>
   void CalcMMS(TensorListView<StorageGPU, float, 1> &mms,

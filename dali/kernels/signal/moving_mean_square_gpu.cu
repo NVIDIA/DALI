@@ -184,8 +184,10 @@ __global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int64_t log
     // Step 3: Compute the output, the sum in window, by subtracting two values of the prefix sum
     // and adding the input value at the current position.
     for (int pos = threadIdx.x; pos < logical_block_sz; pos += blockDim.x) {
-      acc_t<In> out_val = pre(logical_block_in_ptr[pos]) + temp[shm_pos(window + pos)] -
-                          temp[shm_pos(pos)];
+      acc_t<In> x = logical_block_in_ptr[pos];
+      acc_t<In> out_val = pre(x)                          // current element
+                          + temp[shm_pos(window + pos)]   // prefix sum @ pos
+                          - temp[shm_pos(pos + 1)];       // prefix sum @ pos - (window-1)
       logical_block_out_ptr[pos] = ConvertSat<Out>(post(out_val));
     }
   }

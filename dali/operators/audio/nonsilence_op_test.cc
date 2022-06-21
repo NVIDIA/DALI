@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,30 +65,27 @@ TEST_F(NonsilenceOpTest, DetectNonsilenceRegionTest) {
 
 TEST_F(NonsilenceOpTest, LeadTrailThreshTest) {
   std::vector<float> t0 = {0, 0, 0, 0, 0, 1.5, -100, 1.5};
-  EXPECT_EQ(detail::LeadTrailThresh(make_cspan(t0), .5f),
-            std::make_pair(5, 3));
+  using detail::LeadTrailThresh;
+
+  EXPECT_EQ(LeadTrailThresh(make_cspan(t0), .5f), std::make_pair(5_i64, 3_i64));
 
   std::vector<float> t1 = {1.5, -100, 1.5, 0, 0, 0, 0};
-  EXPECT_EQ(detail::LeadTrailThresh(make_cspan(t1), .5f),
-            std::make_pair(0, 3));
+  EXPECT_EQ(LeadTrailThresh(make_cspan(t1), .5f), std::make_pair(0_i64, 3_i64));
 
   std::vector<float> t2 = {0, 0, 0, 0, 0, 1.5, -100, -100, 1.5, 0, 0, 0, 0};
-  EXPECT_EQ(detail::LeadTrailThresh(make_cspan(t2), 1.5f),
-            std::make_pair(5, 4));
+  EXPECT_EQ(LeadTrailThresh(make_cspan(t2), 1.5f), std::make_pair(5_i64, 4_i64));
 
   std::vector<int> t3 = {23, 62, 46, 12, 53};
-  EXPECT_EQ(detail::LeadTrailThresh(make_cspan(t3), 100),
-            std::make_pair(0, 0));
+  EXPECT_EQ(LeadTrailThresh(make_cspan(t3), 100), std::make_pair(0_i64, 0_i64));
 
   std::vector<int64_t> t4 = {623, 45, 62, 46, 23};
-  EXPECT_EQ(detail::LeadTrailThresh(make_cspan(t4), 10L),
-            std::make_pair(0, 5));
+  EXPECT_EQ(LeadTrailThresh(make_cspan(t4), 10L), std::make_pair(0_i64, 5_i64));
 
   std::vector<int> t5 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  EXPECT_EQ(detail::LeadTrailThresh(make_cspan(t5), 1), std::make_pair(0, 0));
+  EXPECT_EQ(LeadTrailThresh(make_cspan(t5), 1), std::make_pair(0_i64, 0_i64));
 
   std::vector<int> t6 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  EXPECT_EQ(detail::LeadTrailThresh(make_cspan(t6), 0), std::make_pair(0, 12));
+  EXPECT_EQ(LeadTrailThresh(make_cspan(t6), 0), std::make_pair(0_i64, 12_i64));
 }
 
 }  // namespace testing

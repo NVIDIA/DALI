@@ -27,16 +27,6 @@ acc_t<T> Square(const T &val) {
   return res * res;
 }
 
-
-template<typename T>
-acc_t<T> CalcSumSquared(span<const T> values) {
-  acc_t<T> sumsq = 0;
-  for (const auto &val : values) {
-    sumsq += Square(val);
-  }
-  return sumsq;
-}
-
 }  // namespace
 
 template<typename T>
@@ -51,9 +41,7 @@ MovingMeanSquareCpu<T>::Setup(KernelContext &context, const InTensorCPU<T, 1> &i
                make_string("window_size can't be bigger than input buffer. Received: window_size=",
                            args.window_size, ", input_size=", in.num_elements()));
   KernelRequirements req;
-  TensorShape<> out_shape = {in.shape[0] - args.window_size + 1};
-  std::vector<TensorShape<DynamicDimensions>> tmp = {out_shape};  // workaround for clang-6 bug
-  req.output_shapes = {TensorListShape<DynamicDimensions>(tmp)};
+  req.output_shapes.push_back(uniform_list_shape<>(1, in.shape));
   return req;
 }
 
@@ -62,14 +50,24 @@ template<typename T>
 void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float mean_factor,
                           int window_size, int reset_interval = -1) {
   reset_interval = reset_interval == -1 ? length : reset_interval;
-  acc_t<T> sumsq = 0;
-  for (int window_begin = 0; window_begin <= length - window_size;) {
-    sumsq = CalcSumSquared(make_span(&in[window_begin], window_size));
-    out[window_begin] = sumsq * mean_factor;
-    auto interval_end = std::min(window_begin + reset_interval, length) - window_size + 1;
-    for (window_begin++; window_begin < interval_end; window_begin++) {
-      sumsq += Square(in[window_begin + window_size - 1]) - Square(in[window_begin - 1]);
-      out[window_begin] = sumsq * mean_factor;
+
+  assert(out.size() == in.size());
+  assert(out.size() == length);
+  for (int64_t out_pos = 0; out_pos < length; out_pos++) {
+    acc_t<T> sumsq = 0;
+    int64_t win_begin = out_pos - window_size + 1;
+    for (int64_t pos = std::max<int64_t>(win_begin, 0); pos <= out_pos; pos++) {
+      sumsq += Square(in[pos]);
+    }
+    out[out_pos] = sumsq * mean_factor;
+    int64_t interval_end = std::min<int64_t>(length, out_pos + reset_interval);
+    for ( ; out_pos < interval_end; ) {
+      out_pos++;
+      win_begin++;
+      sumsq += Square(in[out_pos]);
+      if (win_begin > 0)
+        sumsq -= Square(in[win_begin - 1]);
+      out[out_pos] = sumsq * mean_factor;
     }
   }
 }

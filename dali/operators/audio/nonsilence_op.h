@@ -44,8 +44,6 @@ struct Args {
   int reset_interval;
 };
 
-
-
 template<typename T, int ndims>
 T max_element(const TensorView<StorageCPU, const T, ndims> &tv) {
   T max = tv.data[0];
@@ -72,18 +70,18 @@ T max_element(const TensorView<StorageCPU, const T, ndims> &tv) {
  * @return (begin_idx, length)
  */
 template<typename T>
-std::pair<int, int> LeadTrailThresh(span<const T> buffer, T cutoff) {
+std::pair<int64_t, int64_t> LeadTrailThresh(span<const T> buffer, T cutoff) {
   assert(buffer.size() > 0);
-  int end = buffer.size();
-  int begin = end;
-  for (int i = 0; i < end; i++) {
+  int64_t end = buffer.size();
+  int64_t begin = end;
+  for (int64_t i = 0; i < end; i++) {
     if (buffer[i] >= cutoff) {
       begin = i;
       break;
     }
   }
   if (begin == end) return {0, 0};  // Rest is silence
-  for (int i = end - 1; i >= begin; i--) {
+  for (int64_t i = end - 1; i >= begin; i--) {
     if (buffer[i] >= cutoff) {
       end = i;
       break;
@@ -116,12 +114,15 @@ DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<Input
   auto signal_mms = view<const float>(intermediate_buffer);
   kernels::signal::DecibelToMagnitude<float> db2mag(
       10.f, args.reference_max ? max_element(signal_mms) : args.reference_power);
+
   auto ret = LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),
                              db2mag(args.cutoff_db));
   // If the buffer is not silent, add window length to the actual result,
   // since we don't know where in the window the non-silent signal is
-  if (ret.second != 0) {
-    ret.second += args.window_length - 1;
+  if (ret.first != 0 && ret.second != 0) {
+    int new_start = std::max<int>(ret.first - (args.window_length - 1), 0);
+    ret.second += ret.first - new_start;
+    ret.first = new_start;
   }
   return ret;
 }
