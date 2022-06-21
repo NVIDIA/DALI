@@ -99,6 +99,7 @@ def test_nonsilence_operator():
 
 def test_cpu_vs_gpu():
     batch_size = 8
+
     @pipeline_def
     def nonsilent_pipe(data_arr=None, window_size=256, cutoff_value=-10, reference_power=None):
         if data_arr is None:
@@ -119,21 +120,24 @@ def test_cpu_vs_gpu():
 
     audio_arr = np.zeros([10 + 1 + 10], dtype=np.int16)
     audio_arr[10] = 3000
-    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=1, cutoff_value=-80, batch_size=1, num_threads=3, device_id=0)
+    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=1, cutoff_value=-80,
+                          batch_size=1, num_threads=3, device_id=0)
     pipe.build()
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 1
 
     audio_arr[10:15] = 3000
-    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=1, batch_size=1, num_threads=3, device_id=0)
+    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=1,
+                          batch_size=1, num_threads=3, device_id=0)
     pipe.build()
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 5
 
-    window=5
-    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=5, batch_size=1, num_threads=3, device_id=0)
+    window = 5
+    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=5,
+                          batch_size=1, num_threads=3, device_id=0)
     pipe.build()
     outputs = pipe.run()
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in outputs]
