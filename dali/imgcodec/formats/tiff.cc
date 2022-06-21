@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/format/jpeg2000.h"
+#include "dali/imgcodec/formats/tiff.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo Jpeg2000Parser::GetInfo(EncodedImage *encoded) const {
+ImageInfo TiffParser::GetInfo(EncodedImage *encoded) const {
   ImageInfo info;
-  info.format = ImageFormat::Jpeg2000;
   // info.shape = {h, w, c};   // TODO(janton)
   return info;
 }
 
-bool Jpeg2000Parser::CanParse(EncodedImage *encoded) const {
+bool TiffParser::CanParse(EncodedImage *encoded) const {
   if (encoded->GetKind() != InputKind::HostMemory)
     return false;
   return false;  // TODO(janton)

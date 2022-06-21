@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/format/png.h"
+#include "dali/imgcodec/formats/pnm.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo PngParser::GetInfo(EncodedImage *encoded) const {
+ImageInfo PnmParser::GetInfo(EncodedImage *encoded) const {
   ImageInfo info;
-  info.format = ImageFormat::Png;
   // info.shape = {h, w, c};   // TODO(janton)
   return info;
 }
 
-bool PngParser::CanParse(EncodedImage *encoded) const {
+bool PnmParser::CanParse(EncodedImage *encoded) const {
   if (encoded->GetKind() != InputKind::HostMemory)
     return false;
   return false;  // TODO(janton)

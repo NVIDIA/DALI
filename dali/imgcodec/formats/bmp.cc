@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/format/bmp.h"
+#include "dali/imgcodec/formats/bmp.h"
 #include "dali/core/byte_io.h"
 #include "dali/core/format.h"
 
@@ -123,7 +123,6 @@ ImageInfo BmpParser::GetInfo(EncodedImage *encoded) const {
   }
 
   ImageInfo info;
-  info.format = ImageFormat::Bmp;
   info.shape = {h, w, c};
   return info;
 }

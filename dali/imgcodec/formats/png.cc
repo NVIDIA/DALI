@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/format/webp.h"
+#include "dali/imgcodec/formats/png.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo WebpParser::GetInfo(EncodedImage *encoded) const {
+ImageInfo PngParser::GetInfo(EncodedImage *encoded) const {
   ImageInfo info;
-  info.format = ImageFormat::Webp;
   // info.shape = {h, w, c};   // TODO(janton)
   return info;
 }
 
-bool WebpParser::CanParse(EncodedImage *encoded) const {
+bool PngParser::CanParse(EncodedImage *encoded) const {
   if (encoded->GetKind() != InputKind::HostMemory)
     return false;
   return false;  // TODO(janton)

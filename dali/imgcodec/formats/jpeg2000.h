@@ -12,23 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/format/pnm.h"
+#ifndef DALI_IMGCODEC_FORMATS_JPEG2000_H_
+#define DALI_IMGCODEC_FORMATS_JPEG2000_H_
+
+#include "dali/imgcodec/image_format.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo PnmParser::GetInfo(EncodedImage *encoded) const {
-  ImageInfo info;
-  info.format = ImageFormat::Pnm;
-  // info.shape = {h, w, c};   // TODO(janton)
-  return info;
-}
+class DLL_PUBLIC Jpeg2000Parser : public ImageParser {
+ public:
+  ImageInfo GetInfo(EncodedImage *encoded) const override;
+  bool CanParse(EncodedImage *encoded) const override;
+};
 
-bool PnmParser::CanParse(EncodedImage *encoded) const {
-  if (encoded->GetKind() != InputKind::HostMemory)
-    return false;
-  return false;  // TODO(janton)
-}
+#endif  // DALI_IMGCODEC_FORMATS_JPEG2000_H_
 
 }  // namespace imgcodec
 }  // namespace dali

@@ -20,7 +20,7 @@
 #include <vector>
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/imgcodec/format/image_format.h"
+#include "dali/imgcodec/image_format.h"
 #include "dali/pipeline/data/sample_view.h"
 
 namespace dali {

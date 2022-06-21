@@ -15,13 +15,13 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "dali/imgcodec/format/bmp.h"
-#include "dali/imgcodec/format/jpeg.h"
-#include "dali/imgcodec/format/jpeg2000.h"
-#include "dali/imgcodec/format/png.h"
-#include "dali/imgcodec/format/pnm.h"
-#include "dali/imgcodec/format/tiff.h"
-#include "dali/imgcodec/format/webp.h"
+#include "dali/imgcodec/formats/bmp.h"
+#include "dali/imgcodec/formats/jpeg.h"
+#include "dali/imgcodec/formats/jpeg2000.h"
+#include "dali/imgcodec/formats/png.h"
+#include "dali/imgcodec/formats/pnm.h"
+#include "dali/imgcodec/formats/tiff.h"
+#include "dali/imgcodec/formats/webp.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
 
@@ -59,7 +59,6 @@ TEST_F(ImageFormatTest, DISABLED_Jpeg) {
   auto filename = testing::dali_extra_path() + "/db/single/jpeg/372/baboon-174073_1280.jpg";
   auto img = this->LoadImage(filename.c_str());
   auto image_info = this->image_parser_mgr_.Parse(&img);
-  ASSERT_EQ(ImageFormat::Jpeg, image_info.format);
   ASSERT_EQ(TensorShape<>(720, 1280, 3), image_info.shape);
 }
 
@@ -67,7 +66,6 @@ TEST_F(ImageFormatTest, DISABLED_Png) {
   auto filename = testing::dali_extra_path() + "/db/single/png/0/cat-3504008_640.png";
   auto img = this->LoadImage(filename.c_str());
   auto image_info = this->image_parser_mgr_.Parse(&img);
-  ASSERT_EQ(ImageFormat::Png, image_info.format);
   ASSERT_EQ(TensorShape<>(425, 640, 3), image_info.shape);
 }
 
@@ -75,7 +73,6 @@ TEST_F(ImageFormatTest, Bmp) {
   auto filename = testing::dali_extra_path() + "/db/single/bmp/0/cat-1046544_640.bmp";
   auto img = this->LoadImage(filename.c_str());
   auto image_info = this->image_parser_mgr_.Parse(&img);
-  ASSERT_EQ(ImageFormat::Bmp, image_info.format);
   ASSERT_EQ(TensorShape<>(475, 640, 3), image_info.shape);
 }
 
@@ -83,7 +80,6 @@ TEST_F(ImageFormatTest, DISABLED_Tiff) {
   auto filename = testing::dali_extra_path() + "/db/single/tiff/0/cat-1245673_640.tiff";
   auto img = this->LoadImage(filename.c_str());
   auto image_info = this->image_parser_mgr_.Parse(&img);
-  ASSERT_EQ(ImageFormat::Tiff, image_info.format);
   ASSERT_EQ(TensorShape<>(423, 640, 3), image_info.shape);
 }
 
@@ -91,7 +87,6 @@ TEST_F(ImageFormatTest, DISABLED_Pnm) {
   auto filename = testing::dali_extra_path() + "/db/single/pnm/0/cat-300572_640.pnm";
   auto img = this->LoadImage(filename.c_str());
   auto image_info = this->image_parser_mgr_.Parse(&img);
-  ASSERT_EQ(ImageFormat::Pnm, image_info.format);
   ASSERT_EQ(TensorShape<>(536, 640, 3), image_info.shape);
 }
 
@@ -99,7 +94,6 @@ TEST_F(ImageFormatTest, DISABLED_Jpeg2000) {
   auto filename = testing::dali_extra_path() + "/db/single/jpeg2k/0/cat-3113513_640.jp2";
   auto img = this->LoadImage(filename.c_str());
   auto image_info = this->image_parser_mgr_.Parse(&img);
-  ASSERT_EQ(ImageFormat::Jpeg2000, image_info.format);
   ASSERT_EQ(TensorShape<>(299, 640, 3), image_info.shape);
 }
 
@@ -107,7 +101,6 @@ TEST_F(ImageFormatTest, DISABLED_Webp) {
   auto filename = testing::dali_extra_path() + "/db/single/webp/lossy/cat-1245673_640.webp";
   auto img = this->LoadImage(filename.c_str());
   auto image_info = this->image_parser_mgr_.Parse(&img);
-  ASSERT_EQ(ImageFormat::Webp, image_info.format);
   ASSERT_EQ(TensorShape<>(423, 640, 3), image_info.shape);
 }
 

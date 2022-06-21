@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_FORMAT_IMAGE_FORMAT_H_
-#define DALI_IMGCODEC_FORMAT_IMAGE_FORMAT_H_
+#ifndef DALI_IMGCODEC_IMAGE_FORMAT_H_
+#define DALI_IMGCODEC_IMAGE_FORMAT_H_
 
 #include <fstream>
 #include <stdexcept>
@@ -26,19 +26,7 @@
 namespace dali {
 namespace imgcodec {
 
-enum ImageFormat : int {
-  Unknown = 0,
-  Jpeg = 1,
-  Png = 2,
-  Bmp = 3,
-  Tiff = 4,
-  Pnm = 5,
-  Jpeg2000 = 6,
-  Webp = 7,
-};
-
 struct ImageInfo {
-  ImageFormat format = ImageFormat::Unknown;
   TensorShape<> shape;
   struct {
     int rotate;
@@ -137,7 +125,25 @@ class ImageParserManager {
   std::vector<std::shared_ptr<ImageParser>> parsers_;
 };
 
+class ImageCodec;
+
+class ImageFormat {
+ public:
+  ImageFormat(const char *name, shared_ptr<ImageParser> parser);
+  bool Matches(EncodedImage *encoded) const;
+  ImageParser *Parser() const;
+  span<ImageCodec *> Codecs();
+  void RegisterCodec(std::shared_ptr<ImageCodec> decoder, float priority);
+};
+
+class ImageFormatRegistry {
+ public:
+  void RegisterFormat(ImageFormat format);
+  ImageFormat *GetImageFormat(EncodedImage *image) const;
+  span<ImageFormat *> Formats() const;
+};
+
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_FORMAT_IMAGE_FORMAT_H_
+#endif  // DALI_IMGCODEC_IMAGE_FORMAT_H_
