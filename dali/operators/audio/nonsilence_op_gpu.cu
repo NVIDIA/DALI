@@ -68,8 +68,8 @@ __global__ void NonsilentRegionPostprocess(NonsilentRegionPostprocessArgs<Idx> *
     // `begin` is calculated as `first - window + 1`, meaning that we start counting from the
     // beginning of the sliding window. The length of the region needs to be extended by the same
     // amount. We also limit the region to the bounds of the input.
-    Idx start = cuda_max(static_cast<Idx>(region.x - window + 1), Idx(0));
-    Idx end = static_cast<Idx>(region.y);
+    Idx start = cuda_max<Idx>(region.x - window + 1, 0);
+    Idx end = region.y;
     *(sample_args.begin) = start;
     *(sample_args.len) = end - start;
   }
