@@ -365,7 +365,7 @@ def test_numba_func_cpu():
         out0[0][:] = 255
 
     def setup_out_shape(out_shape, in_shape):
-        out_shape = in_shape  # noqa: F841
+        pass
 
     check_single_input(numba_function, run_fn=set_all_values_to_255_batch, out_types=[types.UINT8],
                        in_types=[types.UINT8], outs_ndim=[3], ins_ndim=[3],

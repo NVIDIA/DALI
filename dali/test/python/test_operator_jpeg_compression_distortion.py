@@ -70,8 +70,7 @@ def _compare_to_cv_distortion(in_img, out_img, q, no):
     decoded_img = cv2.cvtColor(decoded_img_bgr, cv2.COLOR_BGR2RGB)
 
     diff = cv2.absdiff(out_img, decoded_img)
-    diff_in_range = np.average(
-        diff) < 5, f"Absolute difference with the reference is too big: {np.average(diff)}"
+    diff_in_range = np.average(diff) < 5
 
     if dump_images or (dump_broken and not diff_in_range):
         i, j = no
