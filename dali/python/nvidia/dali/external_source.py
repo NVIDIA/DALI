@@ -56,7 +56,7 @@ def _check_data_batch(data, batch_size, layout):
             raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(layout, dim))
 
 
-def _prep_data_for_feed_input(data, batch_size, layout, device_id=-1):
+def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
     def to_numpy(x):
         if _types._is_mxnet_array(x):
             return x.asnumpy()
