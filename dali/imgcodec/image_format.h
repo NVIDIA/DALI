@@ -15,10 +15,10 @@
 #ifndef DALI_IMGCODEC_IMAGE_FORMAT_H_
 #define DALI_IMGCODEC_IMAGE_FORMAT_H_
 
-#include <fstream>
-#include <stdexcept>
-#include <vector>
 #include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/sample_view.h"
@@ -103,44 +103,33 @@ class ImageParser {
   virtual bool CanParse(EncodedImage *encoded) const = 0;
 };
 
-class ImageParserManager {
- public:
-  void RegisterParser(std::shared_ptr<ImageParser> parser, int position = -1) {
-    if (position < 0)
-      parsers_.push_back(parser);
-    else
-      parsers_.insert(parsers_.begin() + position, parser);
-  }
-
-  ImageInfo Parse(EncodedImage *encoded) const {
-    for (auto &parser : parsers_) {
-      if (parser->CanParse(encoded)) {
-        return parser->GetInfo(encoded);
-      }
-    }
-    return {};  // TODO(janton): error?
-  }
-
- private:
-  std::vector<std::shared_ptr<ImageParser>> parsers_;
-};
-
 class ImageCodec;
 
-class ImageFormat {
+class DLL_PUBLIC ImageFormat {
  public:
   ImageFormat(const char *name, shared_ptr<ImageParser> parser);
   bool Matches(EncodedImage *encoded) const;
-  ImageParser *Parser() const;
-  span<ImageCodec *> Codecs();
-  void RegisterCodec(std::shared_ptr<ImageCodec> decoder, float priority);
+  ImageParser* Parser() const;
+  const std::string& Name() const;
+  span<ImageCodec*> Codecs();
+  void RegisterCodec(std::shared_ptr<ImageCodec> codec, float priority);
+
+ private:
+  std::string name_;
+  std::shared_ptr<ImageParser> parser_;
+  std::vector<std::shared_ptr<ImageCodec>> codecs_;
+  mutable std::vector<ImageCodec*> codecs_ptrs_;
 };
 
-class ImageFormatRegistry {
+class DLL_PUBLIC ImageFormatRegistry {
  public:
-  void RegisterFormat(ImageFormat format);
-  ImageFormat *GetImageFormat(EncodedImage *image) const;
-  span<ImageFormat *> Formats() const;
+  void RegisterFormat(std::shared_ptr<ImageFormat> format);
+  ImageFormat* GetImageFormat(EncodedImage *image) const;
+  span<ImageFormat*> Formats() const;
+
+ private:
+  std::vector<std::shared_ptr<ImageFormat>> formats_;
+  mutable std::vector<ImageFormat*> formats_ptrs_;
 };
 
 }  // namespace imgcodec
