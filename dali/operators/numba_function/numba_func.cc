@@ -137,8 +137,10 @@ DALI_SCHEMA(NumbaFuncImpl)
   .AddArg("in_types", R"code(DALI types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
-  .AddOptionalArg("blocks", "", DALI_INT_VEC, {})
-  .AddOptionalArg("threads_per_block", "", DALI_INT_VEC, {})
+  .AddOptionalArg("blocks", R"code(3-item list specifying the number of blocks per grid used to
+execute a CUDA kernel)code", DALI_INT_VEC, {})
+  .AddOptionalArg("threads_per_block", R"code(3-item list specifying the number of threads per
+block used to execute a CUDA kernel)code", DALI_INT_VEC, {})
   .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs.
 This function is invoked once per batch.)code", 0)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
