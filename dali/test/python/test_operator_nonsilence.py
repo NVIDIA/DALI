@@ -80,7 +80,7 @@ def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_p
             np.testing.assert_allclose(ref_len, len_gpu, atol=eps)
 
             np.testing.assert_allclose(begin_cpu, begin_gpu, atol=1)
-            np.testing.assert_allclose(len_cpu, len_gpu, atol=6)
+            np.testing.assert_allclose(len_cpu, len_gpu, atol=10)
 
 
 def test_nonsilence_operator():
