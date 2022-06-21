@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,10 +80,12 @@ def check_operator_to_decibels_vs_python(device, batch_size, input_shape,
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
-        ToDecibelsPipeline(device, batch_size, iter(eii1),
-                          multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
-        ToDecibelsPythonPipeline(device, batch_size, iter(eii2),
-                          multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
+        ToDecibelsPipeline(
+            device, batch_size, iter(eii1),
+            multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
+        ToDecibelsPythonPipeline(
+            device, batch_size, iter(eii2),
+            multiplier=multiplier, reference=reference, cutoff_db=cutoff_db),
         batch_size=batch_size, N_iterations=3, eps=1e-04)
 
 
@@ -98,7 +100,8 @@ def test_operator_to_decibels_vs_python():
 
 
 class NaturalLogarithmPipeline(Pipeline):
-    def __init__(self, device, iterator, batch_size, num_threads=1, exec_async=True, exec_pipelined=True):
+    def __init__(self, device, iterator, batch_size, num_threads=1, exec_async=True,
+                 exec_pipelined=True):
         super(NaturalLogarithmPipeline, self).__init__(batch_size, num_threads, device_id=0,
                                                        seed=42, exec_async=exec_async,
                                                        exec_pipelined=exec_pipelined)

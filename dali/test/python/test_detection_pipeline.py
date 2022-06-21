@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import argparse
-import itertools
 import os
 from math import ceil, sqrt
 
@@ -91,7 +90,7 @@ def normalize_ref(image):
     normalization_mean = [0.485, 0.456, 0.406]
     normalization_std = [0.229, 0.224, 0.225]
 
-    image = image.astype(dtype=np.float).transpose((2,0,1)) / 255
+    image = image.astype(dtype=np.float).transpose((2, 0, 1)) / 255
     for plane, (m, s) in zip(range(len(image)), zip(normalization_mean, normalization_std)):
         image[plane] = (image[plane] - m) / s
     return image
@@ -124,8 +123,14 @@ class DetectionPipeline(Pipeline):
         self.decode_cpu = ops.decoders.Image(device="cpu", output_type=types.RGB)
         self.decode_crop = ops.decoders.ImageSlice(device="cpu", output_type=types.RGB)
 
-        self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB, hw_decoder_load=0)
-        self.decode_gpu_crop = ops.decoders.ImageSlice(device="mixed", output_type=types.RGB, hw_decoder_load=0)
+        self.decode_gpu = ops.decoders.Image(
+            device="mixed",
+            output_type=types.RGB,
+            hw_decoder_load=0)
+        self.decode_gpu_crop = ops.decoders.ImageSlice(
+            device="mixed",
+            output_type=types.RGB,
+            hw_decoder_load=0)
 
         self.ssd_crop = ops.SSDRandomCrop(
             device="cpu", num_attempts=1, seed=args.seed)
@@ -430,9 +435,11 @@ def run_for_dataset(args, dataset):
             encoded_labels_offset = compare(encoded_offset_labels_cpu, encoded_offset_labels_gpu)
             encoded_labels_cpu = compare(encoded_labels_cpu, encoded_offset_labels_cpu)
             encoded_labels_gpu = compare(encoded_labels_gpu, encoded_offset_labels_gpu)
-            box_encoder = encoded_boxes and encoded_boxes_offset and encoded_labels and encoded_labels_offset and encoded_labels_cpu and encoded_labels_gpu
+            box_encoder = encoded_boxes and encoded_boxes_offset and encoded_labels \
+                and encoded_labels_offset and encoded_labels_cpu and encoded_labels_gpu
 
-            if not labels or not crop or not resize or not normalize or not twist or not flip or not box_encoder:
+            if not labels or not crop or not resize or not normalize or not twist \
+                    or not flip or not box_encoder:
                 print('Error during iteration', iter)
                 print('Labels = ', labels)
 
@@ -503,7 +510,8 @@ def make_parser():
     parser.add_argument(
         '-p', '--prefetch', default=2, type=int, metavar='N',
         help='prefetch queue depth (default: %(default)s)')
-    parser.add_argument('--use_full_coco', action='store_true',
+    parser.add_argument(
+        '--use_full_coco', action='store_true',
         help='Use full COCO data set for this test')
 
     return parser

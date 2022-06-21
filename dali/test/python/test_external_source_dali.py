@@ -26,17 +26,20 @@ from nvidia.dali.types import DALIDataType
 def build_src_pipe(device, layout=None):
     if layout is None:
         layout = "XY"
-    batches = [[
-        np.array([[1,2,3],[4,5,6]], dtype=np.float32),
-        np.array([[10,20], [30,40], [50,60]], dtype=np.float32)
-    ],
-    [
-        np.array([[9,10],[11,12]], dtype=np.float32),
-        np.array([[100,200,300,400,500]], dtype=np.float32)
-    ]]
+    batches = [
+        [
+            np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32),
+            np.array([[10, 20], [30, 40], [50, 60]], dtype=np.float32)
+        ],
+        [
+            np.array([[9, 10], [11, 12]], dtype=np.float32),
+            np.array([[100, 200, 300, 400, 500]], dtype=np.float32)
+        ]
+    ]
 
     src_pipe = Pipeline(len(batches), 1, 0)
-    src_pipe.set_outputs(fn.external_source(source=batches, device=device, cycle=True, layout=layout))
+    out_batches = fn.external_source(source=batches, device=device, cycle=True, layout=layout)
+    src_pipe.set_outputs(out_batches)
     src_pipe.build()
     return src_pipe, len(batches)
 
@@ -69,7 +72,8 @@ def _test_callback(device, as_tensors, change_layout_to=None):
         tl = src_pipe.run()[0]
         return [tl[i] for i in range(len(tl))] if as_tensors else tl
 
-    dst_pipe.set_outputs(fn.external_source(source=get_from_src, device=device, layout=change_layout_to))
+    outs = fn.external_source(source=get_from_src, device=device, layout=change_layout_to)
+    dst_pipe.set_outputs(outs)
     dst_pipe.build()
 
     for iter in range(3):
@@ -89,7 +93,8 @@ def _test_scalar(device, as_tensors):
     """Test propagation of scalars from external source"""
     batch_size = 4
     src_pipe = Pipeline(batch_size, 1, 0)
-    src_ext = fn.external_source(source=lambda i: [np.float32(i * 10 + i + 1) for i in range(batch_size)], device=device)
+    src_ext = fn.external_source(
+        source=lambda i: [np.float32(i * 10 + i + 1) for i in range(batch_size)], device=device)
     src_pipe.set_outputs(src_ext)
 
     src_pipe.build()
@@ -122,7 +127,8 @@ class BatchCb:
 
     def __call__(self, arg):
         if self.batch_info:
-            assert isinstance(arg, types.BatchInfo), "Expected BatchInfo instance as cb argument, got {}".format(arg)
+            assert isinstance(arg, types.BatchInfo), \
+                f"Expected BatchInfo instance as cb argument, got {arg}"
             iteration = arg.iteration
             epoch_idx = arg.epoch_idx
         else:
@@ -162,7 +168,8 @@ def test_batch_info_flag_default():
     cb_int = BatchCb(False, batch_size, 1)
     yield _test_batch_info_flag_default, cb_int, batch_size
     cb_batch_info = BatchCb(True, batch_size, 1)
-    yield raises(AssertionError, "Expected BatchInfo instance as cb argument")(_test_batch_info_flag_default), cb_batch_info, batch_size
+    yield raises(AssertionError, "Expected BatchInfo instance as cb argument")(
+        _test_batch_info_flag_default), cb_batch_info, batch_size
 
 
 def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
@@ -186,7 +193,7 @@ def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
                 np.testing.assert_array_equal(sample, expected)
         try:
             pipe.run()
-        except:
+        except StopIteration:
             pipe.reset()
         else:
             assert False, "expected StopIteration"
@@ -294,13 +301,15 @@ def test_ndim_arg_multioutput():
          [np.ones((120, 120), dtype=np.float32)] * batch_size]
     ]
     src_pipe = Pipeline(batch_size, 1, 0)
-    src1_ext, src1_ext2 = fn.external_source(source=src_data, num_outputs=2,
-                                           dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
-                                           ndim=[3, 2])
+    src1_ext, src1_ext2 = fn.external_source(
+        source=src_data, num_outputs=2,
+        dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
+        ndim=[3, 2])
 
-    src2_ext, src2_ext2 = fn.external_source(source=src_data, num_outputs=2,
-                                           dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
-                                           layout=["HWC", "HW"])
+    src2_ext, src2_ext2 = fn.external_source(
+        source=src_data, num_outputs=2,
+        dtype=[DALIDataType.UINT8, DALIDataType.FLOAT],
+        layout=["HWC", "HW"])
 
     src_pipe.set_outputs(src1_ext, src1_ext2, src2_ext, src2_ext2)
     src_pipe.build()
@@ -360,9 +369,9 @@ def test_ndim_data_mismatch():
     src_pipe.run()
 
 
-@raises(RuntimeError, glob="Number of dimensions of the data fed to the external source has changed "
-                           "from previous iteration. Dimensionality in the previous iteration "
-                           "was 3 and the current is 2.")
+@raises(RuntimeError, glob="Number of dimensions of the data fed to the external source has "
+                           "changed from previous iteration. Dimensionality in the previous "
+                           "iteration was 3 and the current is 2.")
 def test_ndim_changing():
     batch_size = 2
     src_data = [
@@ -386,8 +395,8 @@ def test_layout_data_mismatch():
 
 
 @raises(RuntimeError, glob="Layout of the data fed to the external source has changed from "
-                            "previous iteration. Layout in the previous iteration was \"W\" "
-                            "and the current is \"H\".")
+                           "previous iteration. Layout in the previous iteration was \"W\" "
+                           "and the current is \"H\".")
 def test_layout_changing():
     src_pipe = Pipeline(1, 1, 0)
     src_pipe.set_outputs(fn.external_source(name="input"))

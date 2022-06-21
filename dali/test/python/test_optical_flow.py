@@ -56,7 +56,8 @@ def is_of_supported(device_id=0):
         print("NVML not found")
 
     # there is an issue with OpticalFlow driver in R495 and newer on aarch64 platform
-    is_of_supported_var = get_arch(device_id) >= 7.5 and (platform.machine() == "x86_64" or driver_version_major < 495)
+    is_of_supported_var = get_arch(device_id) >= 7.5 and (
+        platform.machine() == "x86_64" or driver_version_major < 495)
     return is_of_supported_var
 
 
@@ -72,8 +73,8 @@ def get_mapping(shape):
     dexp2 = dnorm * (9 / np.sqrt(w * w + h * h))
     mag = np.exp(-dexp1 ** 2) - np.exp(-dexp2 ** 2)
     od = d + 0
-    od[:,:,0] = d[:,:,0] * (1 - mag) + d[:,:,1] * mag
-    od[:,:,1] = d[:,:,1] * (1 - mag) + d[:,:,0] * mag
+    od[:, :, 0] = d[:, :, 0] * (1 - mag) + d[:, :, 1] * mag
+    od[:, :, 1] = d[:, :, 1] * (1 - mag) + d[:, :, 0] * mag
 
     ofs = od - d
 
@@ -84,10 +85,12 @@ def load_frames(sample_info=types.SampleInfo(0, 0, 0, 0), hint_grid=None):
     img = cv2.imread(os.path.join(images_dir, 'alley.png'))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     if sample_info.idx_in_epoch % 2:
-        img = cv2.resize(img, dsize=(img.shape[0] // 2, img.shape[1] // 2), interpolation=cv2.INTER_AREA)
+        img = cv2.resize(
+            img, dsize=(img.shape[0] // 2, img.shape[1] // 2),
+            interpolation=cv2.INTER_AREA)
 
     xy, ofs = get_mapping(img.shape[:2])
-    remap = (xy + ofs - np.array([[[0.5,0.5]]])).astype(np.float32)
+    remap = (xy + ofs - np.array([[[0.5, 0.5]]])).astype(np.float32)
 
     warped = cv2.remap(img, remap, None, interpolation=cv2.INTER_LINEAR)
     result = np.array([img, warped])
@@ -101,14 +104,20 @@ def load_frames(sample_info=types.SampleInfo(0, 0, 0, 0), hint_grid=None):
 @pipeline_def(batch_size=1, seed=16)
 def of_pipeline(output_grid=1, hint_grid=1, use_temporal_hints=False):
     if hint_grid is not None:
-        seq, hint = fn.external_source(lambda info: load_frames(info, hint_grid), layout=["FHWC", "FHWC"], batch=False, num_outputs=2)
+        seq, hint = fn.external_source(
+            lambda info: load_frames(info, hint_grid),
+            layout=["FHWC", "FHWC"], batch=False, num_outputs=2)
 
-        of = fn.optical_flow(seq.gpu(), hint.gpu(), device="gpu", output_grid=output_grid,
-                             hint_grid=hint_grid, enable_temporal_hints=use_temporal_hints)
+        of = fn.optical_flow(
+            seq.gpu(), hint.gpu(), device="gpu", output_grid=output_grid,
+            hint_grid=hint_grid, enable_temporal_hints=use_temporal_hints)
     else:
-        seq = fn.external_source(lambda info: load_frames(info, hint_grid), layout="FHWC", batch=False)
-        of = fn.optical_flow(seq.gpu(), device="gpu", output_grid=output_grid,
-                             enable_temporal_hints=use_temporal_hints)
+        seq = fn.external_source(
+            lambda info: load_frames(info, hint_grid),
+            layout="FHWC", batch=False)
+        of = fn.optical_flow(
+            seq.gpu(), device="gpu", output_grid=output_grid,
+            enable_temporal_hints=use_temporal_hints)
     return seq, of
 
 
@@ -239,9 +248,11 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
     pipe.build()
     if get_arch() < 8:
         if output_grid != 4 and (hint_grid in [4, 8, None]):
-            assert_raises(RuntimeError, pipe.run, glob="grid size: * is not supported, supported are:")
+            assert_raises(RuntimeError, pipe.run,
+                          glob="grid size: * is not supported, supported are:")
         if output_grid == 4 and hint_grid not in [4, 8, None]:
-            assert_raises(RuntimeError, pipe.run, glob="hint grid size: * is not supported, supported are:")
+            assert_raises(RuntimeError, pipe.run,
+                          glob="hint grid size: * is not supported, supported are:")
     else:
         for _ in range(2):
             out = pipe.run()
@@ -259,10 +270,10 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
                     cv2.imshow("dif", flow_to_color(ref_field - out_field, None, True))
                     cv2.waitKey(0)
                 err = np.linalg.norm(ref_field - out_field, ord=2, axis=2)
-                assert(np.mean(err) < 1)   # average error of less than one pixel
-                assert(np.max(err) < 100)  # no point more than 100px off
-                assert(np.sum(err > 1) / np.prod(err.shape) < 0.1)  # 90% are within 1px
-                assert(np.sum(err > 2) / np.prod(err.shape) < 0.05)  # 95% are within 2px
+                assert np.mean(err) < 1  # average error of less than one pixel
+                assert np.max(err) < 100  # no point more than 100px off
+                assert np.sum(err > 1) / np.prod(err.shape) < 0.1  # 90% are within 1px
+                assert np.sum(err > 2) / np.prod(err.shape) < 0.05  # 95% are within 2px
 
 
 def test_optflow():

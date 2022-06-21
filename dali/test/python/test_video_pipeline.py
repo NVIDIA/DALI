@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,14 +22,13 @@ from nvidia.dali.pipeline import Pipeline, pipeline_def
 import nvidia.dali.fn as fn
 import numpy as np
 import tempfile
-import math
 
 from nose_utils import assert_raises, raises
 
 VIDEO_DIRECTORY = "/tmp/video_files"
 PLENTY_VIDEO_DIRECTORY = "/tmp/many_video_files"
 VIDEO_FILES = os.listdir(VIDEO_DIRECTORY)
-PLENTY_VIDEO_FILES =  os.listdir(PLENTY_VIDEO_DIRECTORY)
+PLENTY_VIDEO_FILES = os.listdir(PLENTY_VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + '/' + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + '/' + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
@@ -47,13 +46,17 @@ COUNT = 5
 
 
 class VideoPipe(Pipeline):
-    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0, num_shards=1,
-                 dtype=types.FLOAT, sequence_length=COUNT):
-        super(VideoPipe, self).__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
-        self.input = ops.readers.Video(device="gpu", filenames=data, sequence_length=sequence_length,
-                                       shard_id=0, num_shards=num_shards, random_shuffle=shuffle,
-                                       normalized=True, image_type=types.YCbCr, dtype=dtype,
-                                       step=step, stride=stride)
+    def __init__(self, batch_size, data, shuffle=False, stride=1, step=-1, device_id=0,
+                 num_shards=1, dtype=types.FLOAT, sequence_length=COUNT):
+        super().__init__(batch_size, num_threads=2, device_id=device_id, seed=12)
+        self.input = ops.readers.Video(device="gpu", filenames=data,
+                                       sequence_length=sequence_length,
+                                       shard_id=0, num_shards=num_shards,
+                                       random_shuffle=shuffle,
+                                       normalized=True,
+                                       image_type=types.YCbCr,
+                                       dtype=dtype, step=step,
+                                       stride=stride)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -63,10 +66,11 @@ class VideoPipe(Pipeline):
 class VideoPipeList(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT, step=-1, stride=1,
                  file_list_frame_num=True, file_list_include_preceding_frame=False):
-        super(VideoPipeList, self).__init__(batch_size, num_threads=2, device_id=device_id)
-        self.input = ops.readers.Video(device="gpu", file_list=data, sequence_length=sequence_length,
-                                       step=step, stride=stride, file_list_frame_num=file_list_frame_num,
-                                       file_list_include_preceding_frame=file_list_include_preceding_frame)
+        super().__init__(batch_size, num_threads=2, device_id=device_id)
+        self.input = ops.readers.Video(
+            device="gpu", file_list=data, sequence_length=sequence_length, step=step,
+            stride=stride, file_list_frame_num=file_list_frame_num,
+            file_list_include_preceding_frame=file_list_include_preceding_frame)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -75,9 +79,9 @@ class VideoPipeList(Pipeline):
 
 class VideoPipeRoot(Pipeline):
     def __init__(self, batch_size, data, device_id=0, sequence_length=COUNT):
-        super(VideoPipeRoot, self).__init__(batch_size, num_threads=2, device_id=device_id)
-        self.input = ops.readers.Video(device="gpu", file_root=data, sequence_length=sequence_length,
-                                       random_shuffle=True)
+        super().__init__(batch_size, num_threads=2, device_id=device_id)
+        self.input = ops.readers.Video(
+            device="gpu", file_root=data, sequence_length=sequence_length, random_shuffle=True)
 
     def define_graph(self):
         output = self.input(name="Reader")
@@ -90,7 +94,7 @@ def test_simple_videopipeline():
     for i in range(ITER):
         print("Iter " + str(i))
         out = pipe.run()
-        assert(out[0].layout() == "FHWC")
+        assert out[0].layout() == "FHWC"
     del pipe
 
 
@@ -154,7 +158,8 @@ def _test_file_list_starts_videopipeline(start, end):
     if end is None:
         list_file.write("{} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start))
     else:
-        list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end))
+        list_file.write(
+            "{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end))
     list_file.close()
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1)
@@ -173,7 +178,8 @@ def _test_file_list_starts_videopipeline(start, end):
         elif end < 0:
             expected_seq_num += end
 
-    assert expected_seq_num == seq_num, "Reference is {}, expected is {}, obtained {}".format(reference_seq_num, expected_seq_num, seq_num)
+    assert expected_seq_num == seq_num, "Reference is {}, expected is {}, obtained {}".format(
+        reference_seq_num, expected_seq_num, seq_num)
     os.remove(list_file.name)
 
 
@@ -196,11 +202,13 @@ def _create_file_list_include_preceding_frame_pipe(file_list_include_preceding_f
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     # make sure that this is close enough to show only one frame
-    list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, 0.111, 0.112))
+    list_file.write(
+        "{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, 0.111, 0.112))
     list_file.close()
 
-    pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1, file_list_frame_num=False,
-                         file_list_include_preceding_frame=file_list_include_preceding_frame)
+    pipe = VideoPipeList(
+        batch_size=BATCH_SIZE, data=list_file.name, sequence_length=1, file_list_frame_num=False,
+        file_list_include_preceding_frame=file_list_include_preceding_frame)
 
     return pipe, list_file.name
 
@@ -221,7 +229,8 @@ def test_file_list_include_preceding_frame_fail():
     pipe, list_file_name = _create_file_list_include_preceding_frame_pipe(False)
 
     # there should be no valid sequences
-    with assert_raises(RuntimeError, glob='Start time number should be lesser or equal to end time for a file'):
+    expected_msg = "Start time number should be lesser or equal to end time for a file"
+    with assert_raises(RuntimeError, glob=expected_msg):
         pipe.build()
     os.remove(list_file_name)
 
@@ -232,11 +241,13 @@ def _test_file_list_invalid_range(start, end):
     if end is None:
         list_file.write("{} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start))
     else:
-        list_file.write("{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end))
+        list_file.write(
+            "{} {} {} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0, start, end))
     list_file.close()
 
     pipe = VideoPipeList(batch_size=BATCH_SIZE, data=list_file.name)
-    with assert_raises(RuntimeError, glob='Start frame number should be lesser or equal to end frame number for a file'):
+    expected_msg = "Start frame number should be lesser or equal to end frame number for a file"
+    with assert_raises(RuntimeError, glob=expected_msg):
         pipe.build()
     os.remove(list_file.name)
 
@@ -298,16 +309,21 @@ def test_multiple_resolution_videopipeline():
 
 def test_multi_gpu_video_pipeline():
     gpus = get_gpu_num()
-    pipes = [VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, device_id=d, num_shards=gpus) for d in range(gpus)]
+    pipes = [
+        VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, device_id=d, num_shards=gpus)
+        for d in range(gpus)]
     for p in pipes:
         p.build()
         p.run()
 
 
 def test_plenty_of_video_files():
-    """ checks if the readers.Video can handle more than OS max open file limit of opened files at once """
+    """
+    checks if the readers.Video can handle more than OS max open file limit of opened files at once
+    """
     # make sure that there is one sequence per video file
-    pipe = VideoPipe(batch_size=BATCH_SIZE, data=PLENTY_VIDEO_FILES, step=1000000, sequence_length=1)
+    pipe = VideoPipe(
+        batch_size=BATCH_SIZE, data=PLENTY_VIDEO_FILES, step=1000000, sequence_length=1)
     pipe.build()
     iters = math.ceil(len(os.listdir(PLENTY_VIDEO_DIRECTORY)) / BATCH_SIZE)
     for i in range(iters):
@@ -315,9 +331,11 @@ def test_plenty_of_video_files():
         pipe.run()
 
 
-@raises(RuntimeError, glob='Could not open file * because of Invalid data found when processing input')
+@raises(RuntimeError,
+        glob='Could not open file * because of Invalid data found when processing input')
 def check_corrupted_videos():
-    corrupted_videos = [corrupted_video_data_root + '/' + f for f in os.listdir(corrupted_video_data_root)]
+    corrupted_videos = [
+        corrupted_video_data_root + '/' + f for f in os.listdir(corrupted_video_data_root)]
     for corrupted in corrupted_videos:
         pipe = Pipeline(batch_size=BATCH_SIZE, num_threads=4, device_id=0)
         with pipe:
@@ -352,21 +370,23 @@ def test_container():
 
 
 def test_pad_sequence():
+
     def get_epoch_size(pipe):
         meta = pipe.reader_meta()
         return list(meta.values())[0]['epoch_size']
 
     @pipeline_def(batch_size=1, num_threads=4, device_id=0)
     def create_video_pipe(filenames, sequence_length=1, stride=1, step=-1, pad_sequences=False):
-        fr, lab, fr_num, time_stamp = fn.readers.video(device="gpu", filenames=filenames, labels=[],
-                                                       sequence_length=sequence_length,
-                                                       shard_id=0, num_shards=1, enable_timestamps=True,
-                                                       enable_frame_num=True, random_shuffle=False,
-                                                       skip_vfr_check=True, step=step, stride=stride,
-                                                       pad_last_batch=True, pad_sequences=pad_sequences)
+        fr, lab, fr_num, time_stamp = fn.readers.video(
+            device="gpu", filenames=filenames, labels=[], sequence_length=sequence_length,
+            shard_id=0, num_shards=1, enable_timestamps=True, enable_frame_num=True,
+            random_shuffle=False, skip_vfr_check=True, step=step, stride=stride,
+            pad_last_batch=True, pad_sequences=pad_sequences)
         return fr, lab, fr_num, time_stamp
 
-    video_filename = [os.path.join(video_data_root, 'sintel', 'video_files', 'sintel_trailer-720p_2.mp4')]
+    video_filename = [
+        os.path.join(video_data_root, 'sintel', 'video_files', 'sintel_trailer-720p_2.mp4')
+    ]
     dali_pipe = create_video_pipe(video_filename)
     dali_pipe.build()
     total_number_of_frames = get_epoch_size(dali_pipe)
@@ -376,8 +396,9 @@ def test_pad_sequence():
     batch_size = 2
     # second sequence should have only half of the frames
     step = total_number_of_frames - (stride * sequence_length // 2 - 1)
-    dali_pipe = create_video_pipe(batch_size=batch_size, filenames=video_filename, sequence_length=sequence_length,
-                                  stride=stride, step=step, pad_sequences=True)
+    dali_pipe = create_video_pipe(
+        batch_size=batch_size, filenames=video_filename, sequence_length=sequence_length,
+        stride=stride, step=step, pad_sequences=True)
     dali_pipe.build()
     assert get_epoch_size(dali_pipe) == 2
 
@@ -393,12 +414,15 @@ def test_pad_sequence():
     assert np.all(np.array(out[0].as_cpu()[padded_sampl])[last_sample_frame_count + 1:]) == 0
     assert np.array(out[2].as_cpu()[padded_sampl]) == step
     # non padded samples should have non negative timestamps
-    assert np.all(np.array(out[3].as_cpu()[padded_sampl])[0:last_sample_frame_count] != np.array([-1] * last_sample_frame_count))
+    non_padded = np.array(out[3].as_cpu()[padded_sampl])[0:last_sample_frame_count]
+    assert np.all(non_padded != np.array([-1] * last_sample_frame_count))
     # while padded one only -1
-    assert np.all(np.array(out[3].as_cpu()[padded_sampl])[last_sample_frame_count + 1:] == np.array([-1] * (sequence_length - last_sample_frame_count)))
+    padded = np.array(out[3].as_cpu()[padded_sampl])[last_sample_frame_count + 1:]
+    assert np.all(padded == np.array([-1] * (sequence_length - last_sample_frame_count)))
 
-    dali_pipe = create_video_pipe(batch_size=2, filenames=video_filename, sequence_length=sequence_length,
-                                  stride=stride, step=step, pad_sequences=False)
+    dali_pipe = create_video_pipe(
+        batch_size=2, filenames=video_filename, sequence_length=sequence_length,
+        stride=stride, step=step, pad_sequences=False)
     dali_pipe.build()
     # when sequence padding if off we should get only one valid sample in the epoch
     assert get_epoch_size(dali_pipe) == 1
@@ -417,8 +441,9 @@ def test_pad_sequence():
     ref_sequence_length = divisor_generator(get_epoch_size(dali_pipe), 30)
 
     # extract frames from the test video without padding and compare with one from padded pipeline
-    dali_pipe = create_video_pipe(batch_size=1, filenames=video_filename, sequence_length=ref_sequence_length,
-                                  stride=1, pad_sequences=False)
+    dali_pipe = create_video_pipe(
+        batch_size=1, filenames=video_filename, sequence_length=ref_sequence_length,
+        stride=1, pad_sequences=False)
     dali_pipe.build()
     ts_index = 0
     sampl_idx = 0
@@ -429,14 +454,20 @@ def test_pad_sequence():
             # if we get into padded samples break
             if np.array(out[3].as_cpu()[sampl_idx])[ts_index] == -1:
                 break
-            # if there is a match compare frames itself and move to next timestamp/sample from the tested batch
-            if np.array(out[3].as_cpu()[sampl_idx])[ts_index] == np.array(ref_out[3].as_cpu()[0])[ref_idx]:
-                assert np.all(np.array(out[0].as_cpu()[sampl_idx])[ts_index] == np.array(ref_out[0].as_cpu()[0])[ref_idx])
+            # if there is a match compare frames itself and move to next timestamp/sample
+            # from the tested batch
+            sample_stamp = np.array(out[3].as_cpu()[sampl_idx])
+            ref_sample_stamp = np.array(ref_out[3].as_cpu()[0])
+            if sample_stamp[ts_index] == ref_sample_stamp[ref_idx]:
+                sample = np.array(out[0].as_cpu()[sampl_idx])
+                sample_ref = np.array(ref_out[0].as_cpu()[0])
+                assert np.all(sample[ts_index] == sample_ref[ref_idx])
                 ts_index += 1
                 if ts_index == sequence_length:
                     ts_index = 0
                     sampl_idx += 1
-                # it should break earlier and not get here at all, as we expect to have padded sample in the tested pipeline
+                # it should break earlier and not get here at all, as we expect to have padded
+                # sample in the tested pipeline
                 if sampl_idx == batch_size:
                     assert False
 

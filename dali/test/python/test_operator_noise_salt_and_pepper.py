@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,14 +13,12 @@
 # limitations under the License.
 
 from nvidia.dali import pipeline_def
-from nvidia.dali.backend_impl import TensorListGPU
-import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import random
 import numpy as np
 import os
-from test_utils import get_dali_extra_path, check_batch
+from test_utils import get_dali_extra_path
 from test_noise_utils import PSNR
 
 test_data_root = get_dali_extra_path()
@@ -34,7 +32,8 @@ def salt_and_pepper_noise_ref(x, prob, salt_vs_pepper, per_channel, salt_val, pe
     pepper_prob = prob * (1.0 - salt_vs_pepper)
     nchannels = x.shape[-1]
     mask_sh = x.shape if per_channel else x.shape[:-1]
-    mask = np.random.choice([pepper_val, np.nan, salt_val], p=[pepper_prob, 1 - prob, salt_prob], size=mask_sh)
+    mask = np.random.choice(
+        [pepper_val, np.nan, salt_val], p=[pepper_prob, 1 - prob, salt_prob], size=mask_sh)
     if not per_channel:
         mask = np.stack([mask] * nchannels, axis=-1)
     y = np.where(np.isnan(mask), x, mask).astype(np.uint8)
@@ -42,7 +41,8 @@ def salt_and_pepper_noise_ref(x, prob, salt_vs_pepper, per_channel, salt_val, pe
 
 
 @pipeline_def
-def pipe_salt_and_pepper_noise(prob, salt_vs_pepper, channel_first, per_channel, salt_val, pepper_val, device='cpu'):
+def pipe_salt_and_pepper_noise(prob, salt_vs_pepper, channel_first, per_channel,
+                               salt_val, pepper_val, device='cpu'):
     encoded, _ = fn.readers.file(file_root=images_dir)
     in_data = fn.decoders.image(encoded, output_type=types.RGB)
     if device == 'gpu':
@@ -86,7 +86,9 @@ def verify_salt_and_pepper(output, input, prob, salt_vs_pepper, per_channel, sal
     np.testing.assert_allclose(actual_salt_vs_pepper, salt_vs_pepper, atol=1e-1)
 
 
-def _testimpl_operator_noise_salt_and_pepper(device, per_channel, prob, salt_vs_pepper, channel_first, salt_val, pepper_val, batch_size, niter):
+def _testimpl_operator_noise_salt_and_pepper(device, per_channel, prob, salt_vs_pepper,
+                                             channel_first, salt_val, pepper_val, batch_size,
+                                             niter):
     pipe = pipe_salt_and_pepper_noise(prob, salt_vs_pepper, channel_first, per_channel,
                                       salt_val, pepper_val,
                                       device=device, batch_size=batch_size,
@@ -118,9 +120,14 @@ def _testimpl_operator_noise_salt_and_pepper(device, per_channel, prob, salt_vs_
                 suffix_str = f"{prob}_{salt_vs_pepper}_s{s}"
                 if not per_channel:
                     suffix_str = suffix_str + "_monochrome"
-                cv2.imwrite(f"./snp_noise_ref_p{suffix_str}.png", cv2.cvtColor(sample_ref, cv2.COLOR_BGR2RGB))
-                cv2.imwrite(f"./snp_noise_out_p{suffix_str}.png", cv2.cvtColor(sample_out, cv2.COLOR_BGR2RGB))
-            verify_salt_and_pepper(sample_out, sample_in, prob, salt_vs_pepper, per_channel, salt_val, pepper_val)
+                cv2.imwrite(
+                    f"./snp_noise_ref_p{suffix_str}.png",
+                    cv2.cvtColor(sample_ref, cv2.COLOR_BGR2RGB))
+                cv2.imwrite(
+                    f"./snp_noise_out_p{suffix_str}.png",
+                    cv2.cvtColor(sample_out, cv2.COLOR_BGR2RGB))
+            verify_salt_and_pepper(
+                sample_out, sample_in, prob, salt_vs_pepper, per_channel, salt_val, pepper_val)
             np.testing.assert_allclose(psnr_out, psnr_ref, atol=1)
 
 
@@ -136,4 +143,5 @@ def test_operator_noise_salt_and_pepper():
                         salt_and_pepper_prob = random.choice(salt_and_pepper_probs)
                         batch_size = random.choice([1, 3])
                         yield _testimpl_operator_noise_salt_and_pepper, \
-                            device, per_channel, prob, salt_and_pepper_prob, channel_first, salt_val, pepper_val, batch_size, niter
+                            device, per_channel, prob, salt_and_pepper_prob, channel_first, \
+                            salt_val, pepper_val, batch_size, niter

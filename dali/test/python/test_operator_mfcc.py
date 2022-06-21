@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,10 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 from functools import partial
-from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
-import math
 import librosa as librosa
 from nose_utils import assert_raises
 
@@ -139,11 +134,19 @@ def check_operator_mfcc_wrong_args(device, batch_size, input_shape,
 def test_operator_mfcc_wrong_args():
     batch_size = 3
     for device in ['cpu', 'gpu']:
-        for dct_type, norm, axis, n_mfcc, lifter, shape, msg in \
-            [(1, True, 0, 20, 0.0, (100, 100), "Ortho-normalization is not supported for DCT type I"),  # DCT-I ortho-normalization is not supported
-             (2, False, -1, 20, 0.0, (100, 100), "Provided axis cannot be negative"),  # axis out of bounds
-             (2, False, 2, 20, 0.0, (100, 100), "Axis [\d]+ is out of bounds \[[\d]+,[\d]+\)"),  # axis out of bounds
-             (10, False, 0, 20, 0.0, (100, 100), "Unsupported DCT type: 10. Supported types are: 1, 2, 3, 4"),  # not supported DCT type
-            ]:
+        for dct_type, norm, axis, n_mfcc, lifter, shape, msg in [
+            # DCT-I ortho-normalization is not supported
+            (1, True, 0, 20, 0.0, (100, 100),
+             "Ortho-normalization is not supported for DCT type I"),
+            # axis out of bounds
+            (2, False, -1, 20, 0.0, (100, 100),
+             "Provided axis cannot be negative"),
+            # axis out of bounds
+            (2, False, 2, 20, 0.0, (100, 100),
+             "Axis [\\d]+ is out of bounds \\[[\\d]+,[\\d]+\\)"),
+            # not supported DCT type
+            (10, False, 0, 20, 0.0, (100, 100),
+             "Unsupported DCT type: 10. Supported types are: 1, 2, 3, 4"),
+        ]:
             yield check_operator_mfcc_wrong_args, device, batch_size, shape, \
                 axis, dct_type, lifter, n_mfcc, norm, msg
