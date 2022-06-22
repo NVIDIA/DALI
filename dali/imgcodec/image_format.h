@@ -21,6 +21,7 @@
 #include <vector>
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/stream.h"
 #include "dali/pipeline/data/sample_view.h"
 
 namespace dali {
@@ -36,8 +37,8 @@ struct ImageInfo {
 
 enum class InputKind : int {
   None = 0,
-  // abstract interface that reads data from a custom source
-  ReadInterface = 1,
+  // abstract stream interface that reads data from a custom file-like source
+  StreamInterface = 1,
   // bitstream loaded into host memory
   HostMemory = 2,
   // bitstream loaded into device memory
@@ -56,11 +57,11 @@ constexpr InputKind operator&(InputKind a, InputKind b) {
 
 class EncodedImage {
  public:
+  virtual ~EncodedImage() = default;
   virtual void *GetRawData() const = 0;
   virtual size_t GetSize() const = 0;
   virtual const char *GetFilename() const = 0;
-  virtual ssize_t Read(void *buf, size_t count) = 0;
-  virtual ssize_t Seek(ssize_t pos) = 0;
+  virtual InputStream *GetStream() const = 0;
   virtual InputKind GetKind() = 0;
 };
 
@@ -80,16 +81,12 @@ class EncodedImageHostMemory : public EncodedImage {
     throw std::runtime_error("Not supported interface");
   }
 
-  ssize_t Read(void *buf, size_t count) override {
-    throw std::runtime_error("Not supported interface");
-  }
-
-  ssize_t Seek(ssize_t pos) override {
-    throw std::runtime_error("Not supported interface");
-  }
-
   InputKind GetKind() override {
     return InputKind::HostMemory;
+  }
+
+  InputStream *GetStream() const override {
+    return nullptr;
   }
 
  private:
@@ -99,6 +96,7 @@ class EncodedImageHostMemory : public EncodedImage {
 
 class ImageParser {
  public:
+  virtual ~ImageParser() = default;
   virtual ImageInfo GetInfo(EncodedImage *encoded) const = 0;
   virtual bool CanParse(EncodedImage *encoded) const = 0;
 };

@@ -51,9 +51,9 @@ struct ImageCodecProperties {
   bool fallback = true;
 };
 
-template <typename OutputBackend, typename InputBackend>  // ?
 class ImageCodecInstance {
  public:
+  virtual ~ImageCodecInstance() = default;
   virtual bool CanDecode(EncodedImage *in, DecodeParams opts);
   virtual std::vector<bool> CanDecode(span<EncodedImage *> in, span<DecodeParams> opts);
   virtual DecodeResult Decode(SampleView<CPUBackend> out, EncodedImage *in, DecodeParams opts);
