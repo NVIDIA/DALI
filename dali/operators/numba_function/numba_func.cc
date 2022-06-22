@@ -108,6 +108,10 @@ This function must work in Numba ``nopython`` mode.)code", DALI_PYTHON_OBJECT)
   .AddArg("in_types", R"code(Types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
+  .AddOptionalArg("blocks", R"code(3-item list specifying the number of blocks per grid used to 
+  execute a CUDA kernel)code", DALI_INT_VEC, {})
+  .AddOptionalArg("threads_per_block", R"code(3-item list specifying the number of threads per 
+  block used to execute a CUDA kernel)code", DALI_INT_VEC, {})
   .AddOptionalArg("setup_fn", R"code(Setup function setting shapes for outputs.
 This function is invoked once per batch. Also this function must work in Numba ``nopython`` mode.)code",
                   DALI_PYTHON_OBJECT, nullptr)
@@ -133,13 +137,17 @@ DALI_SCHEMA(NumbaFuncImpl)
   .AddArg("in_types", R"code(DALI types of inputs.)code", DALI_DATA_TYPE_VEC)
   .AddArg("outs_ndim", R"code(Number of dimensions which outputs shapes should have.)code", DALI_INT_VEC)
   .AddArg("ins_ndim", R"code(Number of dimensions which inputs shapes should have.)code", DALI_INT_VEC)
+  .AddOptionalArg("blocks", R"code(3-item list specifying the number of blocks per grid used to
+execute a CUDA kernel)code", DALI_INT_VEC, {})
+  .AddOptionalArg("threads_per_block", R"code(3-item list specifying the number of threads per
+block used to execute a CUDA kernel)code", DALI_INT_VEC, {})
   .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs.
 This function is invoked once per batch.)code", 0)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
 separately for each sample in the batch.)code", false);
 
-template <typename Backend>
-NumbaFuncImpl<Backend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
+template <>
+NumbaFuncImpl<CPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
   run_fn_ = spec.GetArgument<uint64_t>("run_fn");
   setup_fn_ = spec.GetArgument<uint64_t>("setup_fn");
   batch_processing_ = spec.GetArgument<bool>("batch_processing");
