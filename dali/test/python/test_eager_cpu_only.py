@@ -372,6 +372,7 @@ def eager_arithm_ops(data):
 
 
 def test_arithm_ops_cpu():
-    eager.set_arithm_op_enabled()
-    pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size, num_threads=4, device_id=None)
-    compare_eager_with_pipeline(pipe, eager_op=eager_arithm_ops)
+    with eager.arithmetic():
+        pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size,
+                                       num_threads=4, device_id=None)
+        compare_eager_with_pipeline(pipe, eager_op=eager_arithm_ops)

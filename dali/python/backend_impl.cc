@@ -770,7 +770,7 @@ template <typename Backend>
 void EagerArithmOp(tensor_list_py_class_t<Backend> &py_class, std::string &op_name) {
   py_class.def(("__" + op_name + "__").c_str(), [impl_name = "_" + op_name](py::args &args) {
     bool arithm_ops_enabled =
-        FromPythonTrampoline("nvidia.dali.experimental.eager", "is_arithm_op_enabled")()
+        FromPythonTrampoline("nvidia.dali.experimental.eager", "arithmetic", "enabled")
             .cast<bool>();
 
     if (arithm_ops_enabled) {
@@ -782,7 +782,10 @@ void EagerArithmOp(tensor_list_py_class_t<Backend> &py_class, std::string &op_na
         types_ss << " and " << args[i].get_type();
       }
       throw py::type_error(
-          make_string("unsupported operand type(s) for _", impl_name, "__: ", types_ss.str()));
+          make_string("unsupported operand type(s) for _", impl_name, "__: ", types_ss.str(),
+                      "\nIf you want to use TensorList operators directly, enable them with "
+                      "'nvidia.dali.experimental.eager.arithmetic'. Eager operators may be slower "
+                      "than pipeline's."));
     }
   });
 }

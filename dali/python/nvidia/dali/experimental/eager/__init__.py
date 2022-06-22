@@ -14,24 +14,43 @@
 
 from . import math  # noqa: F401
 
+""" Eager module implements eager versions of standard DALI operators.
+Eager distinguishes 3 types of operators:
+    stateless: callable directly as functions. Example:
+        >>> dali.experimental.eager.crop(input, crop=(5, 5))
+    stateful: operators that require a state, used as method of the `rng_state`. Example:
+        >>> rng_state = dali.experimental.eager.rng_state(seed=42)
+        >>> rng_state.random.normal(shape=(10, 10), batch_size=8))
+    iterators: reader operators as python iterables. Example:
+        >>> for file, label in eager.readers.file(file_root=file_path, batch_size=8):
+        ...     # file and label are batches of size 8 (TensorLists).
+        ...     print(file)
+"""
 
-class set_arithm_op_enabled:
-    """Context-manager that enables arithmetic operators and slicing  on TensorLists.
-    Can also be used as a function.
+
+class _MetaArithmetic(type):
+    @property
+    def enabled(cls):
+        return cls._enabled
+
+
+class arithmetic(metaclass=_MetaArithmetic):
+    """ Context-manager that enabled/disables arithmetic operators on TensorLists.
+    Can also be used as a function with global setting.
     """
 
-    def __init__(self, mode=True):
-        self.prev = set_arithm_op_enabled._arithm_op_enabled
-        set_arithm_op_enabled._arithm_op_enabled = mode
+    def __init__(self, enabled=True):
+        self.prev = arithmetic._enabled
+        arithmetic._enabled = enabled
+
+    @property
+    def enabled(self):
+        return type(self)._enabled
 
     def __enter__(self):
         pass
 
     def __exit__(self, type, value, traceback):
-        set_arithm_op_enabled._arithm_op_enabled = self.prev
+        arithmetic._enabled = self.prev
 
-    _arithm_op_enabled = False
-
-
-def is_arithm_op_enabled():
-    return set_arithm_op_enabled._arithm_op_enabled
+    _enabled = False
