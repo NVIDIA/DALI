@@ -60,7 +60,7 @@ class VideoReaderResize : public VideoReader,
     const auto &type = batch_output.type_info();
     single_output.ShareData(std::shared_ptr<void>(raw_output, [](void *) {}),
                             shape.num_elements() * type.size(), batch_output.is_pinned(), shape,
-                            type.id());
+                            type.id(), batch_output.device_id());
   }
 
   void ProcessVideo(
@@ -74,7 +74,7 @@ class VideoReaderResize : public VideoReader,
       input.ShareData(std::shared_ptr<void>(video_batch.raw_mutable_tensor(data_idx), [](void*){}),
                       volume(video_batch.tensor_shape(data_idx)) * video_batch.type_info().size(),
                       video_batch.is_pinned(),
-                      input_shape, video_batch.type());
+                      input_shape, video_batch.type(), video_batch.device_id());
 
       TensorList<GPUBackend> output;
       ShareSingleOutputAsTensorList(data_idx, video_output, output);

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/core/common.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
@@ -103,13 +104,13 @@ TEST_P(FlipTest, BasicTest) {
     auto shape = TensorListShape<>{
         {{kDataHeight, kDataWidth, kDataChannels}, {kDataHeight, kDataWidth, kDataChannels}}};
     tl.ShareData(std::shared_ptr<void>(nhwc_tensor_list_data.ptr(), [](void *) {}), 2 * data_size,
-                 false, shape, DALI_FLOAT);
+                 false, shape, DALI_FLOAT, CPU_ONLY_DEVICE_ID);
     tl.SetLayout("HWC");
   } else {
     auto shape = TensorListShape<>{
         {{kDataChannels, kDataHeight, kDataWidth}, {kDataChannels, kDataHeight, kDataWidth}}};
     tl.ShareData(std::shared_ptr<void>(nchw_tensor_list_data.ptr(), [](void *) {}), 2 * data_size,
-                 false, shape, DALI_FLOAT);
+                 false, shape, DALI_FLOAT, CPU_ONLY_DEVICE_ID);
     tl.SetLayout("CHW");
   }
   TensorListWrapper tlout;

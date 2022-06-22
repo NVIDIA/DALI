@@ -104,6 +104,9 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
     order = AccessOrder(stream);
   else
     order = AccessOrder::host();
+
+  int device_id = order.is_device() ? order.device_id() : dali::CPU_ONLY_DEVICE_ID;
+
   // data.set_order(order);
 
   // DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
@@ -111,7 +114,7 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   //                           AccessOrder order = {}, const TensorLayout &layout = "");
   data.ShareData(std::shared_ptr<void>(const_cast<void *>(data_ptr), [](void *) {}),
                  tl_shape.num_elements() * elem_sizeof, flags & DALI_ext_pinned, tl_shape, type_id,
-                 order, layout);
+                 device_id, order, layout);
   // data.Resize(tl_shape, type_id);
   // data.SetLayout(layout);
   pipeline->SetExternalInput(name, data, order,
@@ -144,11 +147,14 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   else
     order = AccessOrder::host();
 
+  int device_id = order.is_device() ? order.device_id() : dali::CPU_ONLY_DEVICE_ID;
+
   dali::TensorVector<Backend> data(curr_batch_size);
   data.set_pinned(flags & DALI_ext_pinned);
   data.set_sample_dim(sample_dim);
   data.set_type(type_id);
   data.set_order(order);
+  data.set_device_id(device_id);
   data.SetLayout(layout);
 
   for (int i = 0; i < curr_batch_size; i++) {
@@ -157,7 +163,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     // The vector that we pass to pipeline is const.
     std::shared_ptr<void> ptr(const_cast<void *>(data_ptr[i]), [](void *){});  // no deleter
     data.UnsafeSetSample(i, ptr, tl_shape[i].num_elements() * elem_sizeof, flags & DALI_ext_pinned,
-                         tl_shape[i], type_id, order, layout);
+                         tl_shape[i], type_id, device_id, order, layout);
   }
   pipeline->SetExternalInput(name, data, order,
                              flags & DALI_ext_force_sync,

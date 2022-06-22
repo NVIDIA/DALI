@@ -19,6 +19,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
@@ -252,8 +253,7 @@ Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new
                   new_shape.num_elements(), " expected: ", shape().num_elements()));
   Tensor<Backend> result;
   result.ShareData(contiguous_buffer_.get_data_ptr(), contiguous_buffer_.capacity(),
-                   contiguous_buffer_.is_pinned(), new_shape, type(), order());
-  result.set_device_id(device_id());
+                   contiguous_buffer_.is_pinned(), new_shape, type(), device_id(), order());
   auto result_layout = GetLayout();
   if (!GetLayout().empty()) {
     result_layout = TensorLayout("N") + result_layout;
@@ -347,14 +347,15 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend
 template <typename Backend>
 void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr,
                                             size_t bytes, bool pinned, const TensorShape<> &shape,
-                                            DALIDataType type, AccessOrder order,
+                                            DALIDataType type, int device_id, AccessOrder order,
                                             const TensorLayout &layout) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
-  // TODO(klecki): device_id - can we just infer it from order? do we really need separate member?
-  VerifySampleShareConformance(type, shape.sample_dim(), layout, pinned, order, order.device_id(),
+  // TODO(klecki), TODO(mzient): (order - device_id mismatch) - can we just infer device_id from
+  // order or do we really need separate member?
+  VerifySampleShareConformance(type, shape.sample_dim(), layout, pinned, order, device_id,
                                make_string(" for ", sample_idx, "."));
 
   DALI_ENFORCE(!IsContiguous());
@@ -362,7 +363,7 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
 
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
-  tensors_[sample_idx].ShareData(ptr, bytes, pinned, shape, type, order);
+  tensors_[sample_idx].ShareData(ptr, bytes, pinned, shape, type, device_id, order);
 }
 
 
@@ -516,8 +517,6 @@ void TensorVector<Backend>::set_order(AccessOrder order, bool synchronize) {
   for (auto &t : tensors_)
     t.set_order(order, false);
   order_ = order;
-  // TODO(klecki), TODO(mzient): apparently you can set order with device other than the current
-  // device id without changing it
 }
 
 
@@ -561,7 +560,7 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
   if (state_.IsContiguous()) {
     contiguous_buffer_.resize(new_shape.num_elements(), new_type);
     order_ = contiguous_buffer_.order();  // propagate order after allocation, it might have changed
-    device_ = contiguous_buffer_.device_;
+    device_ = contiguous_buffer_.device_id();
     recreate_views();
     return;
   }
@@ -728,8 +727,7 @@ void TensorVector<Backend>::recreate_views() {
 
     std::shared_ptr<void> sample_alias(contiguous_buffer_.get_data_ptr(), base_ptr);
     tensors_[i].ShareData(sample_alias, tensor_size * type_info().size(), is_pinned(), shape()[i],
-                          type(), order());
-    tensors_[i].set_device_id(device_id());
+                          type(), device_id(), order());
     base_ptr += tensor_size * type_info().size();
   }
 }
@@ -944,9 +942,10 @@ void TensorVector<Backend>::ShareData(const TensorVector<Backend> &tv) {
 template <typename Backend>
 void TensorVector<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                                       const TensorListShape<> &shape, DALIDataType type,
-                                      AccessOrder order, const TensorLayout &layout) {
-  contiguous_buffer_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements());
-  contiguous_buffer_.set_order(order);
+                                      int device_id, AccessOrder order,
+                                      const TensorLayout &layout) {
+  contiguous_buffer_.set_backing_allocation(ptr, bytes, pinned, shape.num_elements(), type,
+                                            device_id, order);
   buffer_bkp_.reset();
   tensors_.clear();
   tensors_.resize(shape.num_samples());
@@ -958,13 +957,8 @@ void TensorVector<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes,
   shape_ = shape;
   layout_ = layout;
   pinned_ = pinned;
+  device_ = device_id;
   order_ = order;
-  if (order.is_device() && order.device_id() >= 0) {
-    device_ = order.device_id();
-  } else {
-    // device id not provided, it's expected to be set separately
-    device_ = CPU_ONLY_DEVICE_ID;
-  }
   recreate_views();
 }
 

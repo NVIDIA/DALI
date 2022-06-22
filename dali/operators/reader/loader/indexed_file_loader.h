@@ -75,7 +75,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       auto p = current_file_->Get(size);
       DALI_ENFORCE(p != nullptr, "Error reading from a file " + uris_[current_file_index_]);
       // Wrap the raw data in the Tensor object.
-      tensor.ShareData(p, size, false, {size}, DALI_UINT8);
+      tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
     } else {
       if (tensor.shares_data()) {
         tensor.Reset();

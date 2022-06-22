@@ -215,8 +215,6 @@ TensorLayout unfolded_sample_layout(const BatchType &batch, int ndims_to_unfold)
 template <typename BatchType>
 void setup_expanded_like(BatchType &expanded_batch, const BatchType &batch) {
   expanded_batch.set_pinned(batch.is_pinned());
-  expanded_batch.set_order(batch.order());
-  expanded_batch.set_device_id(batch.device_id());
 }
 
 template <typename BatchType>
@@ -238,7 +236,7 @@ struct TensorVectorBuilder {
     assert(NextSampleIdx() < tv_.num_samples());
     std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter
     tv_.UnsafeSetSample(next_++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
-                        view.shape, tv_.type(), tv_.order(), tv_.GetLayout());
+                        view.shape, tv_.type(), tv_.device_id(), tv_.order(), tv_.GetLayout());
   }
 
   int NextSampleIdx() const {
@@ -256,6 +254,12 @@ TensorVectorBuilder<Backend> tv_builder_like(TensorVector<Backend> &expanded_bat
                                              int num_expanded_samples, int ndims_to_unfold = 0) {
   assert(batch.sample_dim() >= ndims_to_unfold);
   expanded_batch.Reset();
+  // Even though Reset doesn't affect the order and device id, we need to do it in the Run
+  // as the `setup_expanded_like` would happen in Setup before the first allocation.
+  // We acquire the current device doing the first allocation and we need to make sure it's
+  // correctly propagated
+  expanded_batch.set_order(batch.order(), false);
+  expanded_batch.set_device_id(batch.device_id());
   expanded_batch.SetSize(num_expanded_samples);
   expanded_batch.set_sample_dim(batch.sample_dim() - ndims_to_unfold);
   expanded_batch.set_type(batch.type());

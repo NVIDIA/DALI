@@ -231,7 +231,7 @@ class Tensor : public Buffer<Backend> {
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                         const TensorShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE,
+                        DALIDataType type, int device_id,
                         AccessOrder order = {}) {
     Index new_size = volume(shape);
     DALI_ENFORCE(new_size == 0 || type != DALI_NO_TYPE,
@@ -243,7 +243,6 @@ class Tensor : public Buffer<Backend> {
     // Set the new order, if provided.
     if (order) {
       this->set_order(order);
-      device_ = order.device_id();
     }
 
     // Save our new pointer and bytes. Reset our type, shape, and size
@@ -253,6 +252,7 @@ class Tensor : public Buffer<Backend> {
     type_ = TypeTable::GetTypeInfo(type);
     shape_ = shape;
     size_ = new_size;
+    device_ = device_id;
 
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
@@ -276,8 +276,8 @@ class Tensor : public Buffer<Backend> {
    * in use by the Tensor.
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, const TensorShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE, AccessOrder order = {}) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, order);
+                        DALIDataType type, int device_id, AccessOrder order = {}) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, device_id, order);
   }
 
   /**
@@ -297,10 +297,10 @@ class Tensor : public Buffer<Backend> {
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
    */
-  inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
-                        DALIDataType type = DALI_NO_TYPE,
+  inline void ShareData(void *ptr, size_t bytes, bool pinned,
+                        DALIDataType type, int device_id,
                         AccessOrder order = {}) {
-    ShareData(ptr, bytes, pinned, { 0 }, type, order);
+    ShareData(ptr, bytes, pinned, { 0 }, type, device_id, order);
   }
 
   inline void Reset(AccessOrder order = {}) {

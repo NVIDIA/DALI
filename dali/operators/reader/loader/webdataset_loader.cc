@@ -19,6 +19,7 @@
 #include <memory>
 #include <tuple>
 #include <utility>
+#include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include "dali/pipeline/data/types.h"
@@ -291,6 +292,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     if (copy_read_data_) {
       uint8_t* shared_tensor_data = nullptr;
       bool shared_tensor_is_pinned = false;
+      int device_id = CPU_ONLY_DEVICE_ID;
       for (auto& output : component.outputs) {
         if (!shared_tensor_data) {
           if (sample[output].shares_data()) {
@@ -301,11 +303,12 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
               dtypes_[output]);
           shared_tensor_data = reinterpret_cast<uint8_t*>(sample[output].raw_mutable_data());
           shared_tensor_is_pinned = sample[output].is_pinned();
+          device_id = sample[output].device_id();
         } else {
           sample[output].ShareData(
               shared_tensor_data, component.size, shared_tensor_is_pinned,
               {static_cast<int64_t>(component.size / sample[output].type_info().size())},
-              sample[output].type());
+              sample[output].type(), device_id);
         }
       }
       DALI_ENFORCE(current_wds_shard->Read(shared_tensor_data, component.size) == component.size,
@@ -317,7 +320,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
         sample[output].ShareData(
             data, component.size, false,
             {static_cast<int64_t>(component.size / sample[output].type_info().size())},
-            sample[output].type());
+            sample[output].type(), CPU_ONLY_DEVICE_ID);
       }
     }
   }
