@@ -47,20 +47,20 @@ struct FindRegionPreprocess {
 };
 
 /**
- * @brief Converts the reduced {min_i, -max_i} pair to a {begin, length} representation
+ * @brief Converts the reduced {min_i, -max_i} pair to a {begin, end} representation
  */
 struct FindRegionPostprocess {
   DALI_HOST_DEV DALI_FORCEINLINE i64vec2 operator()(i64vec2 acc) const {
     if (acc == i64vec2(max_value<int64_t>()))
       return i64vec2(0);  // empty region
     else
-      // begin = min_i, length = -(min_i + (-max_i)) + 1 = max_i - min_i + 1
-      return i64vec2(acc.x, -(acc.x + acc.y) + 1);
+      // begin = min_i, end = -(-max_i) + 1 = max_i + 1
+      return i64vec2(acc.x, -acc.y + 1);
   }
 };
 
 /**
- * @brief Finds region (begin, length) satisfying a predicate
+ * @brief Finds region (begin, end) satisfying a predicate
  */
 template <typename In, typename Predicate>
 class FindRegionGPU

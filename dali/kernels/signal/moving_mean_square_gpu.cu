@@ -123,8 +123,12 @@ __device__ void PrefixSumSharedMem(T *buffer, int pow2, SharedMemPos shm_pos = {
  * @brief Calculates a running sum of a 1D signal using a sliding window of an arbitrary size.
  *
  * The implementation computes the output on a shared memory buffer of size `logical_block + window`
- * which corresponds to an output region of `logical_block` size. We need to load `window` extra samples
- * to be able to compute the first elements of the output.
+ * which corresponds to an output region of `logical_block` size.
+ *
+ * The kernel assumes the same output size as the input, and it pads with zeros at the beginning of
+ * the signal so that we can calculate the same number of windows as elements in the input.
+ * The input is NOT padded at the end to match every possible window overlap, since we are interested in
+ * having an output of the same size as the input.
  *
  * @tparam Out Output data type
  * @tparam In Input data type
@@ -184,8 +188,10 @@ __global__ void SlidingWindowSum(const SampleDesc<Out, In> *samples, int64_t log
     // Step 3: Compute the output, the sum in window, by subtracting two values of the prefix sum
     // and adding the input value at the current position.
     for (int pos = threadIdx.x; pos < logical_block_sz; pos += blockDim.x) {
-      acc_t<In> out_val = pre(logical_block_in_ptr[pos]) + temp[shm_pos(window + pos)] -
-                          temp[shm_pos(pos)];
+      acc_t<In> x = logical_block_in_ptr[pos];
+      acc_t<In> out_val = pre(x)                          // current element
+                          + temp[shm_pos(window + pos)]   // prefix sum @ pos
+                          - temp[shm_pos(pos + 1)];       // prefix sum @ pos - (window-1)
       logical_block_out_ptr[pos] = ConvertSat<Out>(post(out_val));
     }
   }
@@ -232,7 +238,12 @@ void MovingMeanSquareGpu<InputType>::Run(KernelContext &ctx, const OutListGPU<fl
   // If reset interval is given, selects the logical block so that is close to it
   // effectively clearing accummulation error every `reset_interval` samples.
   if (needs_reset<InputType>::value && args.reset_interval > 0 && args.reset_interval < pow2) {
-    pow2 = prev_pow2(args.reset_interval);
+    auto p = prev_pow2(args.reset_interval);
+    auto n = next_pow2(args.reset_interval);
+    if (p > window_len)
+      pow2 = p;
+    else if (n < pow2)
+      pow2 = n;
   }
 
   int shm_sz = shm_pos(pow2) * sizeof(acc_t<InputType>);

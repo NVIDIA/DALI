@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,12 +19,8 @@
 
 namespace dali {
 namespace kernels {
+namespace signal {
 namespace test {
-
-namespace {
-const int kNDims = 1;
-}
-
 
 template<class InputType>
 class MovingMeanSquareCpuTest : public ::testing::Test {
@@ -46,19 +42,20 @@ class MovingMeanSquareCpuTest : public ::testing::Test {
   int window_size_ = 2048;
   int buffer_length_ = 16000;
   int reset_interval_ = 5001;
-  TensorShape<kNDims> shape_ = {buffer_length_};
-  TensorShape<kNDims> out_shape_ = {buffer_length_ - window_size_ + 1};
+  TensorShape<1> shape_ = {buffer_length_};
+  TensorShape<1> out_shape_ = {buffer_length_};
 
  private:
   void calc_output() {
-    ref_output_.resize(buffer_length_ - window_size_ + 1);
-    for (int i = 0; i < buffer_length_ - window_size_ + 1; i++) {
-      float sumsq = 0;
-      for (int j = 0; j < window_size_; j++) {
-        auto val = static_cast<float>(input_[i + j]);
-        sumsq += val * val;
+    ref_output_.resize(buffer_length_);
+    float factor = 1.0f / window_size_;
+    for (int i = 0; i < buffer_length_; i++) {
+      acc_t<InputType> sum = 0;
+      for (int j = std::max(0, i - window_size_ + 1); j <= i; j++) {
+        acc_t<InputType> x = input_[j];
+        sum += (x * x);
       }
-      ref_output_[i] = sumsq / window_size_;
+      ref_output_[i] = ConvertSat<float>(factor * sum);
     }
   }
 
@@ -85,7 +82,7 @@ using signal::MovingMeanSquareCpu;
 TYPED_TEST(MovingMeanSquareCpuTest, SetupTest) {
   MovingMeanSquareCpu<TypeParam> kernel;
   KernelContext ctx;
-  InTensorCPU<TypeParam, kNDims> in(this->input_.data(), this->shape_);
+  InTensorCPU<TypeParam, 1> in(this->input_.data(), this->shape_);
   auto reqs = kernel.Setup(ctx, in, {this->window_size_});
   ASSERT_EQ(this->out_shape_, reqs.output_shapes[0][0]) << "Kernel::Setup provides incorrect shape";
 }
@@ -94,14 +91,14 @@ TYPED_TEST(MovingMeanSquareCpuTest, SetupTest) {
 TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
   MovingMeanSquareCpu<TypeParam> kernel;
   KernelContext ctx;
-  InTensorCPU<TypeParam, kNDims> in(this->input_.data(), this->shape_);
+  InTensorCPU<TypeParam, 1> in(this->input_.data(), this->shape_);
 
   auto reqs = kernel.Setup(ctx, in, {this->window_size_});
 
   auto out_shape = reqs.output_shapes[0][0];
   std::vector<float> output;
   output.resize(out_shape.num_elements());
-  OutTensorCPU<float, kNDims> out(output.data(), out_shape.template to_static<kNDims>());
+  OutTensorCPU<float, 1> out(output.data(), out_shape.template to_static<1>());
 
   kernel.Run(ctx, out, in, {this->window_size_, this->reset_interval_});
 
@@ -111,5 +108,6 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
 
 
 }  // namespace test
+}  // namespace signal
 }  // namespace kernels
 }  // namespace dali

@@ -27,6 +27,8 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/operator.h"
 
+#define NONSILENCE_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float  // NOLINT
+
 namespace dali {
 namespace detail {
 
@@ -41,8 +43,6 @@ struct Args {
   int window_length;
   int reset_interval;
 };
-
-
 
 template<typename T, int ndims>
 T max_element(const TensorView<StorageCPU, const T, ndims> &tv) {
@@ -70,18 +70,18 @@ T max_element(const TensorView<StorageCPU, const T, ndims> &tv) {
  * @return (begin_idx, length)
  */
 template<typename T>
-std::pair<int, int> LeadTrailThresh(span<const T> buffer, T cutoff) {
+std::pair<int64_t, int64_t> LeadTrailThresh(span<const T> buffer, T cutoff) {
   assert(buffer.size() > 0);
-  int end = buffer.size();
-  int begin = end;
-  for (int i = 0; i < end; i++) {
+  int64_t end = buffer.size();
+  int64_t begin = end;
+  for (int64_t i = 0; i < end; i++) {
     if (buffer[i] >= cutoff) {
       begin = i;
       break;
     }
   }
   if (begin == end) return {0, 0};  // Rest is silence
-  for (int i = end - 1; i >= begin; i--) {
+  for (int64_t i = end - 1; i >= begin; i--) {
     if (buffer[i] >= cutoff) {
       end = i;
       break;
@@ -114,12 +114,15 @@ DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<Input
   auto signal_mms = view<const float>(intermediate_buffer);
   kernels::signal::DecibelToMagnitude<float> db2mag(
       10.f, args.reference_max ? max_element(signal_mms) : args.reference_power);
+
   auto ret = LeadTrailThresh(make_cspan(signal_mms.data, signal_mms.num_elements()),
                              db2mag(args.cutoff_db));
   // If the buffer is not silent, add window length to the actual result,
   // since we don't know where in the window the non-silent signal is
-  if (ret.second != 0) {
-    ret.second += args.window_length - 1;
+  if (ret.first != 0 && ret.second != 0) {
+    int new_start = std::max<int>(ret.first - (args.window_length - 1), 0);
+    ret.second += ret.first - new_start;
+    ret.first = new_start;
   }
   return ret;
 }
@@ -142,6 +145,18 @@ class NonsilenceOperator : public Operator<Backend> {
     return true;
   }
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    AcquireArgs(spec_, ws);
+    TensorShape<> scalar_shape = {};
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+
+    output_desc.resize(detail::kNumOutputs);
+    for (int i = 0; i < detail::kNumOutputs; i++) {
+      output_desc[i].shape = uniform_list_shape(curr_batch_size, scalar_shape);
+      output_desc[i].type = DALI_INT32;
+    }
+    return true;
+  }
 
   void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
@@ -175,66 +190,6 @@ class NonsilenceOperator : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
 };
-
-
-class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
- public:
-  explicit NonsilenceOperatorCpu(const OpSpec &spec) :
-          NonsilenceOperator<CPUBackend>(spec) {
-    intermediate_buffers_.resize(num_threads_);
-    for (auto &b : intermediate_buffers_) {
-      b.set_pinned(false);
-    }
-  }
-
-
-  ~NonsilenceOperatorCpu() override = default;
-
-  DISABLE_COPY_MOVE_ASSIGN(NonsilenceOperatorCpu);
-
- protected:
-  bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<CPUBackend> &ws) override;
-
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
-
- private:
-  template<typename InputType>
-  void RunImplTyped(workspace_t<CPUBackend> &ws) {
-    const auto &input = ws.template Input<CPUBackend>(0);
-    auto &output_begin = ws.Output<CPUBackend>(0);
-    auto &output_length = ws.Output<CPUBackend>(1);
-    auto curr_batch_size = ws.GetInputBatchSize(0);
-    auto &tp = ws.GetThreadPool();
-    auto in_shape = input.shape();
-    for (int sample_id = 0; sample_id < curr_batch_size; sample_id++) {
-      tp.AddWork(
-              [&, sample_id](int thread_id) {
-                  detail::Args<InputType> args;
-                  args.input = view<const InputType, 1>(input[sample_id]);
-                  args.cutoff_db = cutoff_db_[sample_id];
-                  if (!reference_max_) {
-                    args.reference_power = reference_power_[sample_id];
-                  }
-                  args.reference_max = reference_max_;
-                  args.window_length = window_length_ < args.input.num_elements() ?
-                                                        window_length_ : args.input.num_elements();
-                  args.reset_interval = reset_interval_;
-
-                  auto res = DetectNonsilenceRegion(intermediate_buffers_[thread_id], args);
-                  auto *beg_ptr = output_begin.mutable_tensor<int>(sample_id);
-                  auto *len_ptr = output_length.mutable_tensor<int>(sample_id);
-                  *beg_ptr = res.first;
-                  *len_ptr = res.second;
-              }, in_shape.tensor_size(sample_id));
-    }
-    tp.RunAll();
-  }
-
-
-  std::vector<Tensor<CPUBackend>> intermediate_buffers_;
-};
-
 
 }  // namespace dali
 
