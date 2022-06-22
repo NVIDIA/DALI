@@ -66,36 +66,68 @@ If ``reset_interval == -1``, or the input type allows exact calculation, the ave
 reset. The default value can be used for most of the use cases.)code",
                   8192);
 
-DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
-
-
-bool NonsilenceOperatorCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                      const workspace_t<CPUBackend> &ws) {
-  AcquireArgs(spec_, ws);
-  TensorShape<> scalar_shape = {};
-  auto curr_batch_size = ws.GetInputBatchSize(0);
-
-  output_desc.resize(detail::kNumOutputs);
-  for (int i = 0; i < detail::kNumOutputs; i++) {
-    output_desc[i].shape = uniform_list_shape(curr_batch_size, scalar_shape);
-    output_desc[i].type = DALI_INT32;
+class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
+ public:
+  explicit NonsilenceOperatorCpu(const OpSpec &spec) :
+          NonsilenceOperator<CPUBackend>(spec) {
+    intermediate_buffers_.resize(num_threads_);
+    for (auto &b : intermediate_buffers_) {
+      b.set_pinned(false);
+    }
   }
-  return true;
-}
 
+  ~NonsilenceOperatorCpu() override = default;
+  DISABLE_COPY_MOVE_ASSIGN(NonsilenceOperatorCpu);
 
-#define NONSILENCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
+ protected:
+  void RunImpl(workspace_t<CPUBackend> &ws) override {
+    const auto &input = ws.template Input<CPUBackend>(0);
 
+    TYPE_SWITCH(input.type(), type2id, InputType, (NONSILENCE_TYPES),
+      (RunImplTyped<InputType>(ws);),
+      (DALI_FAIL(
+          make_string("Unsupported input type: ", input.type(),
+                      "\nSupported types are : ", ListTypeNames<NONSILENCE_TYPES>()));));
+  }
 
-void NonsilenceOperatorCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
-  TYPE_SWITCH(input.type(), type2id, InputType, NONSILENCE_TYPES, (
-          RunImplTyped<InputType>(ws);
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
-}
+ private:
+  template<typename InputType>
+  void RunImplTyped(workspace_t<CPUBackend> &ws) {
+    const auto &input = ws.template Input<CPUBackend>(0);
+    auto &output_begin = ws.Output<CPUBackend>(0);
+    auto &output_length = ws.Output<CPUBackend>(1);
+    assert(output_begin.sample_dim() == 0);
+    assert(output_length.sample_dim() == 0);
+    auto curr_batch_size = ws.GetInputBatchSize(0);
+    auto &tp = ws.GetThreadPool();
+    auto in_shape = input.shape();
+    for (int sample_id = 0; sample_id < curr_batch_size; sample_id++) {
+      tp.AddWork(
+              [&, sample_id](int thread_id) {
+                  detail::Args<InputType> args;
+                  args.input = view<const InputType, 1>(input[sample_id]);
+                  args.cutoff_db = cutoff_db_[sample_id];
+                  if (!reference_max_) {
+                    args.reference_power = reference_power_[sample_id];
+                  }
+                  args.reference_max = reference_max_;
+                  args.window_length = std::min<int>(window_length_, args.input.num_elements());
+                  args.reset_interval = reset_interval_;
 
+                  auto res = DetectNonsilenceRegion(intermediate_buffers_[thread_id], args);
+                  auto *beg_ptr = output_begin.mutable_tensor<int>(sample_id);
+                  auto *len_ptr = output_length.mutable_tensor<int>(sample_id);
+                  *beg_ptr = res.first;
+                  *len_ptr = res.second;
+              }, in_shape.tensor_size(sample_id));
+    }
+    tp.RunAll();
+  }
 
-#undef NONSILENCE_TYPES
+  std::vector<Tensor<CPUBackend>> intermediate_buffers_;
+};
+
+DALI_REGISTER_OPERATOR(NonsilentRegion, NonsilenceOperatorCpu, CPU);
 
 
 }  // namespace dali
