@@ -1106,8 +1106,8 @@ class DLTensorPythonFunction(PythonFunctionBase):
                  batch_processing=True, **kwargs):
 
         def func(*ts):
-            DLTensorPythonFunction._function_wrapper_dlpack(batch_processing, function, num_outputs,
-                                                            *ts)
+            return DLTensorPythonFunction._function_wrapper_dlpack(
+                batch_processing, function, num_outputs, *ts)
 
         super(DLTensorPythonFunction,
               self).__init__(impl_name="DLTensorPythonFunctionImpl", function=func,
