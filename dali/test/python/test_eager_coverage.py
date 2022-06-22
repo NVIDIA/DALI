@@ -17,11 +17,11 @@ import os
 import re
 from functools import reduce
 
-from nvidia.dali import pipeline_def
 import nvidia.dali.experimental.eager as eager
 import nvidia.dali.fn as fn
 import nvidia.dali.tensors as tensors
 import nvidia.dali.types as types
+from nvidia.dali import pipeline_def
 from nvidia.dali._utils.eager_utils import _slice_tensorlist
 from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,
                                       setup_test_numpy_reader_cpu)
@@ -29,6 +29,13 @@ from test_detection_pipeline import coco_anchors
 from test_utils import check_batch, get_dali_extra_path, get_files, module_functions
 from segmentation_test_utils import make_batch_select_masks
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
+
+""" Tests of coverage of eager operators. For each operator results from standard pipeline and
+eager version are compared across a couple of iterations.
+If you have added a new operator you should add a test here for an eager version of it. Also make
+sure you have correctly classified the operator in `nvidia.dali.experimental.eager` as stateless,
+stateful or iterator.
+"""
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
@@ -47,30 +54,42 @@ rng = np.random.default_rng()
 batch_size = 2
 data_size = 10
 sample_shape = [20, 20, 3]
+
+# Sample data of image-like shape and type, used in many tests to avoid multiple object creation.
 data = [[rng.integers(0, 255, size=sample_shape, dtype=np.uint8)
          for _ in range(batch_size)] for _ in range(data_size)]
 
-audio_data = [[rng.random(size=[200]).astype(dtype=np.float32)
+# Sample data for audio operators.
+audio_data = [[rng.random(size=[200], dtype=np.float32)
                for _ in range(batch_size)] for _ in range(data_size)]
 
+# Sample data with single non-batch dimension.
 flat_data = [[rng.integers(0, 255, size=[200], dtype=np.uint8)
               for _ in range(batch_size)] for _ in range(data_size)]
 
 
 def get_tl(data, layout='HWC'):
+    """ Utility function to create a TensorListCPU with given data and layout. """
     layout = '' if layout is None or (data.ndim != 4 and layout == 'HWC') else layout
     return tensors.TensorListCPU(data, layout=layout)
 
 
 def get_data(i):
+    """ Callback function to access data (numpy array) at given index. Used for generating inputs
+    for standard pipelines.
+    """
     return data[i]
 
 
 def get_data_eager(i, layout='HWC'):
+    """ Callback function to access data at given index returned as TensorListCPU. Used for
+    generating inputs for eager operators.
+    """
     return get_tl(np.array(get_data(i)), layout)
 
 
 def get_multi_data_eager(n):
+    """ Used for generating multiple inputs for eager operators. """
     def get(i, _):
         return tuple(get_data_eager(i) for _ in range(n))
 
@@ -78,6 +97,14 @@ def get_multi_data_eager(n):
 
 
 class PipelineInput:
+    """ Class for generating inputs for pipeline.
+
+    Args:
+        pipe_fun: pipeline definition function.
+        args: arguments for the pipeline creation.
+        kwargs: possible keyword arguments used inside pipeline definition function. 
+    """
+
     def __init__(self, pipe_fun, *args, **kwargs) -> None:
         if kwargs:
             self.pipe = pipe_fun(*args, kwargs)
@@ -90,6 +117,10 @@ class PipelineInput:
 
 
 class GetData:
+    """ Utility class implementing callback functions for pipeline and eager operators from
+    a single dataset.
+    """
+
     def __init__(self, data) -> None:
         self.data = data
 
@@ -101,6 +132,8 @@ class GetData:
 
 
 def get_ops(op_path, fn_op=None, eager_op=None):
+    """ Get fn and eager versions of operators from given path. """
+
     import_path = op_path.split('.')
     if fn_op is None:
         fn_op = reduce(getattr, [fn] + import_path)
@@ -111,6 +144,10 @@ def get_ops(op_path, fn_op=None, eager_op=None):
 
 def compare_eager_with_pipeline(pipe, eager_op, *, eager_source=get_data_eager, layout='HWC',
                                 batch_size=batch_size, N_iterations=5, **kwargs):
+    """ Compares outputs from standard pipeline `pipe` and eager operator `eager_op` across
+    `N_iterations`.
+    """
+
     pipe.build()
     for i in range(N_iterations):
         input_tl = eager_source(i, layout)
@@ -232,85 +269,85 @@ def reader_op_pipeline(op, kwargs, source=None, layout=None):
     return out
 
 
-def test_image_decoder_cpu():
+def test_image_decoder():
     check_single_input('decoders.image', pipe_fun=reader_op_pipeline, fn_source=images_dir,
                        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir),
                        output_type=types.RGB)
 
 
-def test_rotate_cpu():
+def test_rotate():
     check_single_input('rotate', angle=25)
 
 
-def test_brightness_contrast_cpu():
+def test_brightness_contrast():
     check_single_input('brightness_contrast')
 
 
-def test_hue_cpu():
+def test_hue():
     check_single_input('hue')
 
 
-def test_brightness_cpu():
+def test_brightness():
     check_single_input('brightness')
 
 
-def test_contrast_cpu():
+def test_contrast():
     check_single_input('contrast')
 
 
-def test_hsv_cpu():
+def test_hsv():
     check_single_input('hsv')
 
 
-def test_color_twist_cpu():
+def test_color_twist():
     check_single_input('color_twist')
 
 
-def test_saturation_cpu():
+def test_saturation():
     check_single_input('saturation')
 
 
-def test_shapes_cpu():
+def test_shapes():
     check_single_input('shapes')
 
 
-def test_crop_cpu():
+def test_crop():
     check_single_input('crop', crop=(5, 5))
 
 
-def test_color_space_coversion_cpu():
+def test_color_space_coversion():
     check_single_input('color_space_conversion', image_type=types.BGR, output_type=types.RGB)
 
 
-def test_cast_cpu():
+def test_cast():
     check_single_input('cast', dtype=types.INT32)
 
 
-def test_resize_cpu():
+def test_resize():
     check_single_input('resize', resize_x=50, resize_y=50)
 
 
-def test_per_frame_cpu():
+def test_per_frame():
     check_single_input('per_frame', replace=True)
 
 
-def test_gaussian_blur_cpu():
+def test_gaussian_blur():
     check_single_input('gaussian_blur', window_size=5)
 
 
-def test_laplacian_cpu():
+def test_laplacian():
     check_single_input('laplacian', window_size=5)
 
 
-def test_crop_mirror_normalize_cpu():
+def test_crop_mirror_normalize():
     check_single_input('crop_mirror_normalize')
 
 
-def test_flip_cpu():
+def test_flip():
     check_single_input('flip', horizontal=True)
 
 
-def test_jpeg_compression_distortion_cpu():
+def test_jpeg_compression_distortion():
     check_single_input('jpeg_compression_distortion', quality=10)
 
 
@@ -320,50 +357,50 @@ def test_image_decoder_crop_device():
                        output_type=types.RGB, crop=(10, 10))
 
 
-def test_reshape_cpu():
+def test_reshape():
     new_shape = sample_shape.copy()
     new_shape[0] //= 2
     new_shape[1] *= 2
     check_single_input('reshape', shape=new_shape)
 
 
-def test_reinterpret_cpu():
+def test_reinterpret():
     check_single_input('reinterpret', rel_shape=[0.5, 1, -1])
 
 
-def test_water_cpu():
+def test_water():
     check_single_input('water')
 
 
-def test_sphere_cpu():
+def test_sphere():
     check_single_input('sphere')
 
 
-def test_erase_cpu():
+def test_erase():
     check_single_input('erase', anchor=[0.3], axis_names='H',
                        normalized_anchor=True, shape=[0.1], normalized_shape=True)
 
 
-def test_expand_dims_cpu():
+def test_expand_dims():
     check_single_input('expand_dims', axes=1, new_axis_names='Z')
 
 
-def test_coord_transform_cpu():
+def test_coord_transform():
     M = [0, 0, 1,
          0, 1, 0,
          1, 0, 0]
     check_single_input('coord_transform', M=M, dtype=types.UINT8)
 
 
-def test_grid_mask_cpu():
+def test_grid_mask():
     check_single_input('grid_mask', tile=51, ratio=0.38158387, angle=2.6810782)
 
 
-def test_multi_paste_cpu():
+def test_multi_paste():
     check_single_input('multi_paste', in_ids=np.array([0, 1]), output_size=sample_shape)
 
 
-def test_nonsilent_region_cpu():
+def test_nonsilent_region():
     data = [[rng.integers(0, 255, size=[200], dtype=np.uint8)
              for _ in range(batch_size)]] * data_size
     data[0][0][0] = 0
@@ -375,19 +412,19 @@ def test_nonsilent_region_cpu():
                        eager_source=get_data.eager_source, layout='')
 
 
-def test_preemphasis_filter_cpu():
+def test_preemphasis_filter():
     get_data = GetData(audio_data)
     check_single_input('preemphasis_filter', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, layout=None)
 
 
-def test_power_spectrum_cpu():
+def test_power_spectrum():
     get_data = GetData(audio_data)
     check_single_input('power_spectrum', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, layout=None)
 
 
-def test_spectrogram_cpu():
+def test_spectrogram():
     get_data = GetData(audio_data)
     check_single_input('spectrogram', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, layout=None, nfft=60, window_length=50,
@@ -409,12 +446,12 @@ def mel_filter_input_pipeline(source):
     return spectrum
 
 
-def test_mel_filter_bank_cpu():
+def test_mel_filter_bank():
     compare_eager_with_pipeline(mel_filter_pipeline(audio_data), eager.mel_filter_bank,
                                 eager_source=PipelineInput(mel_filter_input_pipeline, audio_data))
 
 
-def test_to_decibels_cpu():
+def test_to_decibels():
     get_data = GetData(audio_data)
     check_single_input('to_decibels', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, layout=None)
@@ -447,18 +484,18 @@ def mfcc_input_pipeline(source):
     return dec
 
 
-def test_mfcc_cpu():
+def test_mfcc():
     compare_eager_with_pipeline(mfcc_pipeline(audio_data), eager.mfcc,
                                 eager_source=PipelineInput(mfcc_input_pipeline, audio_data))
 
 
-def test_one_hot_cpu():
+def test_one_hot():
     get_data = GetData(flat_data)
     check_single_input('one_hot', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, num_classes=256, layout=None)
 
 
-def test_transpose_cpu():
+def test_transpose():
     check_single_input('transpose', perm=[2, 0, 1])
 
 
@@ -469,13 +506,13 @@ def audio_decoder_pipeline():
     return tuple(out)
 
 
-def test_audio_decoder_cpu():
+def test_audio_decoder():
     compare_eager_with_pipeline(audio_decoder_pipeline(), eager.decoders.audio,
                                 eager_source=PipelineInput(file_reader_pipeline,
                                 files=audio_files))
 
 
-def test_coord_flip_cpu():
+def test_coord_flip():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 2], dtype=np.uint8) /
                        255).astype(dtype=np.float32)for _ in range(batch_size)]
                        for _ in range(data_size)])
@@ -484,7 +521,7 @@ def test_coord_flip_cpu():
                        eager_source=get_data.eager_source, layout=None)
 
 
-def test_bb_flip_cpu():
+def test_bb_flip():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) /
                        255).astype(dtype=np.float32)for _ in range(batch_size)]
                        for _ in range(data_size)])
@@ -493,15 +530,15 @@ def test_bb_flip_cpu():
                        eager_source=get_data.eager_source, layout=None)
 
 
-def test_warp_affine_cpu():
+def test_warp_affine():
     check_single_input('warp_affine', matrix=(0.1, 0.9, 10, 0.8, -0.2, -20))
 
 
-def test_normalize_cpu():
+def test_normalize():
     check_single_input('normalize', batch=True)
 
 
-def test_lookup_table_cpu():
+def test_lookup_table():
     get_data = GetData([[rng.integers(0, 5, size=[100], dtype=np.uint8)
                        for _ in range(batch_size)] for _ in range(data_size)])
 
@@ -520,7 +557,7 @@ def slice_pipeline(get_anchor, get_shape):
     return processed
 
 
-def test_slice_cpu():
+def test_slice():
     get_anchors = GetData([[(rng.integers(1, 256, size=[2], dtype=np.uint8) /
                              255).astype(dtype=np.float32) for _ in range(batch_size)]
                            for _ in range(data_size)])
@@ -546,7 +583,7 @@ def image_decoder_slice_pipeline(get_anchors, get_shape):
     return processed
 
 
-def test_image_decoder_slice_cpu():
+def test_image_decoder_slice():
     get_anchors = GetData([[(rng.integers(1, 128, size=[2], dtype=np.uint8) /
                              255).astype(dtype=np.float32) for _ in range(batch_size)]
                            for _ in range(data_size)])
@@ -565,7 +602,7 @@ def test_image_decoder_slice_cpu():
     compare_eager_with_pipeline(pipe, eager.decoders.image_slice, eager_source=eager_source)
 
 
-def test_pad_cpu():
+def test_pad():
     get_data = GetData([[rng.integers(0, 255, size=[5, 4, 3], dtype=np.uint8)
                          for _ in range(batch_size)] for _ in range(data_size)])
 
@@ -573,16 +610,16 @@ def test_pad_cpu():
                        eager_source=get_data.eager_source, fill_value=-1, axes=(0,), shape=(10,))
 
 
-def test_file_reader_cpu():
+def test_file_reader():
     check_reader('readers.file', file_root=images_dir)
 
 
-def test_mxnet_reader_cpu():
+def test_mxnet_reader():
     check_reader('readers.mxnet', path=os.path.join(recordio_dir, 'train.rec'),
                  index_path=os.path.join(recordio_dir, 'train.idx'), shard_id=0, num_shards=1)
 
 
-def test_webdataset_reader_cpu():
+def test_webdataset_reader():
     webdataset = os.path.join(webdataset_dir, 'MNIST', 'devel-0.tar')
     webdataset_idx = generate_temp_wds_index(webdataset)
     check_reader('readers.webdataset',
@@ -592,20 +629,20 @@ def test_webdataset_reader_cpu():
                  shard_id=0, num_shards=1)
 
 
-def test_coco_reader_cpu():
+def test_coco_reader():
     check_reader('readers.coco', file_root=coco_dir,
                  annotations_file=coco_annotation, shard_id=0, num_shards=1)
 
 
-def test_caffe_reader_cpu():
+def test_caffe_reader():
     check_reader('readers.caffe', path=caffe_dir, shard_id=0, num_shards=1)
 
 
-def test_caffe2_reader_cpu():
+def test_caffe2_reader():
     check_reader('readers.caffe2', path=caffe2_dir, shard_id=0, num_shards=1)
 
 
-def test_nemo_asr_reader_cpu():
+def test_nemo_asr_reader():
     tmp_dir, nemo_asr_manifest = setup_test_nemo_asr_reader_cpu()
 
     with tmp_dir:
@@ -618,15 +655,15 @@ def test_video_reader():
                  labels=[0, 1], sequence_length=10)
 
 
-def test_copy_cpu():
+def test_copy():
     check_single_input('copy')
 
 
-def test_element_extract_cpu():
+def test_element_extract():
     check_single_input('element_extract', element_map=[0, 3], layout=None)
 
 
-def test_bbox_paste_cpu():
+def test_bbox_paste():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) /
                           255).astype(dtype=np.float32) for _ in range(batch_size)]
                         for _ in range(data_size)])
@@ -635,7 +672,7 @@ def test_bbox_paste_cpu():
                        paste_y=0.25, ratio=1.5)
 
 
-def test_sequence_rearrange_cpu():
+def test_sequence_rearrange():
     get_data = GetData([[rng.integers(0, 255, size=[5, 10, 20, 3], dtype=np.uint8)
                        for _ in range(batch_size)] for _ in range(data_size)])
 
@@ -652,7 +689,7 @@ def box_encoder_pipeline(get_boxes, get_labels):
     return tuple(out)
 
 
-def test_box_encoder_cpu():
+def test_box_encoder():
     get_boxes = GetData([[(rng.integers(0, 255, size=[20, 4], dtype=np.uint8) / 255)
                         .astype(dtype=np.float32) for _ in range(batch_size)]
                         for _ in range(data_size)])
@@ -667,41 +704,41 @@ def test_box_encoder_cpu():
                                 eager_source=eager_source, anchors=coco_anchors())
 
 
-def test_numpy_reader_cpu():
+def test_numpy_reader():
     with setup_test_numpy_reader_cpu() as test_data_root:
         check_reader('readers.numpy', file_root=test_data_root)
 
 
-def test_constant_cpu():
+def test_constant():
     check_no_input('constant', fdata=(1.25, 2.5, 3))
 
 
-def test_dump_image_cpu():
+def test_dump_image():
     check_single_input('dump_image')
 
 
-def test_sequence_reader_cpu():
+def test_sequence_reader():
     check_reader('readers.sequence', file_root=sequence_dir,
                  sequence_length=2, shard_id=0, num_shards=1)
 
 
-def test_affine_translate_cpu():
+def test_affine_translate():
     check_no_input('transforms.translation', offset=(2, 3))
 
 
-def test_affine_scale_cpu():
+def test_affine_scale():
     check_no_input('transforms.scale', scale=(2, 3))
 
 
-def test_affine_rotate_cpu():
+def test_affine_rotate():
     check_no_input('transforms.rotation', angle=30.0)
 
 
-def test_affine_shear_cpu():
+def test_affine_shear():
     check_no_input('transforms.shear', shear=(2., 1.))
 
 
-def test_affine_crop_cpu():
+def test_affine_crop():
     check_no_input('transforms.crop', from_start=(0.1, 0.2), from_end=(1., 1.2),
                    to_start=(0.2, 0.3), to_end=(0.5, 0.6))
 
@@ -725,20 +762,20 @@ def combine_transforms_input_pipeline():
     return t, r, s
 
 
-def test_combine_transforms_cpu():
+def test_combine_transforms():
     compare_eager_with_pipeline(combine_transforms_pipeline(), eager.transforms.combine,
                                 eager_source=PipelineInput(combine_transforms_input_pipeline))
 
 
-def test_reduce_min_cpu():
+def test_reduce_min():
     check_single_input('reductions.min')
 
 
-def test_reduce_max_cpu():
+def test_reduce_max():
     check_single_input('reductions.max')
 
 
-def test_reduce_sum_cpu():
+def test_reduce_sum():
     check_single_input('reductions.sum')
 
 
@@ -769,15 +806,15 @@ def test_segmentation_select_masks():
         segmentation_select_masks_input_pipeline, data))
 
 
-def test_reduce_mean_cpu():
+def test_reduce_mean():
     check_single_input('reductions.mean')
 
 
-def test_reduce_mean_square_cpu():
+def test_reduce_mean_square():
     check_single_input('reductions.mean_square')
 
 
-def test_reduce_root_mean_square_cpu():
+def test_reduce_root_mean_square():
     check_single_input('reductions.rms')
 
 
@@ -798,13 +835,13 @@ def reduce_input_pipeline():
     return data, mean
 
 
-def test_reduce_std_cpu():
+def test_reduce_std():
     pipe = reduce_pipeline(fn.reductions.std_dev)
     compare_eager_with_pipeline(pipe, eager_op=eager.reductions.std_dev,
                                 eager_source=PipelineInput(reduce_input_pipeline))
 
 
-def test_reduce_variance_cpu():
+def test_reduce_variance():
     pipe = reduce_pipeline(fn.reductions.variance)
     compare_eager_with_pipeline(pipe, eager_op=eager.reductions.variance,
                                 eager_source=PipelineInput(reduce_input_pipeline))
@@ -818,30 +855,30 @@ def multi_input_pipeline(op, n):
     return out
 
 
-def test_cat_cpu():
+def test_cat():
     num_inputs = 3
     compare_eager_with_pipeline(multi_input_pipeline(fn.cat, num_inputs), eager_op=eager.cat,
                                 eager_source=get_multi_data_eager(num_inputs))
 
 
-def test_stack_cpu():
+def test_stack():
     num_inputs = 3
     compare_eager_with_pipeline(multi_input_pipeline(fn.stack, num_inputs), eager_op=eager.stack,
                                 eager_source=get_multi_data_eager(num_inputs))
 
 
-def test_batch_permute_cpu():
+def test_batch_permute():
     check_single_input('permute_batch', indices=rng.permutation(batch_size).tolist())
 
 
-def test_squeeze_cpu():
+def test_squeeze():
     get_data = GetData([[np.zeros(shape=[10, 20, 3, 1, 1], dtype=np.uint8)
                        for _ in range(batch_size)]]*data_size)
     check_single_input('squeeze', fn_source=get_data.fn_source, eager_source=get_data.eager_source,
                        axis_names='YZ', layout='HWCYZ')
 
 
-def test_peek_image_shape_cpu():
+def test_peek_image_shape():
     check_single_input('peek_image_shape', pipe_fun=reader_op_pipeline, fn_source=images_dir,
                        eager_source=PipelineInput(file_reader_pipeline, file_root=images_dir))
 
