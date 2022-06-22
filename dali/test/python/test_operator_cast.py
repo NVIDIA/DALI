@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nose_utils
-from nvidia.dali import pipeline_def
-import nvidia.dali as dali
+import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import numpy as np
 from nose.tools import nottest
+from nvidia.dali import pipeline_def
 
-from test_utils import check_batch, np_type_to_dali
+from test_utils import np_type_to_dali
 
 
 def ref_cast(x, dtype):
@@ -39,6 +37,7 @@ def random_shape(rng, ndim: int, max_size: int):
         return []
     max_size = int(max_size ** (1 / ndim))
     return list(rng.integers(1, max_size, [ndim]))
+
 
 def replace_with_empty_volumes(rng, input, empty_volume_policy):
     """Replaces samples with 0-volumed ones if possible.
@@ -102,7 +101,8 @@ def generate(rng, ndim: int, batch_size: int, in_dtype: np.dtype, out_dtype: np.
             hi = min(np.finfo(in_dtype).max, hi)
 
     max_size = 100000 // batch_size
-    out = [rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype) for _ in range(batch_size)]
+    out = [rng.uniform(lo, hi, size=random_shape(rng, ndim, max_size)).astype(in_dtype) for _ in
+           range(batch_size)]
     out = replace_with_empty_volumes(rng, out, empty_volume_policy)
     if np.issubdtype(in_dtype, np.floating) and np.issubdtype(out_dtype, np.integer):
         for x in out:
@@ -117,9 +117,11 @@ rng = np.random.default_rng(1234)
 
 @nottest
 def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_volume_policy=None):
-    src = lambda: generate(rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy)
+    def src():
+        return generate(rng, ndim, batch_size, in_dtype, out_dtype, empty_volume_policy)
 
-    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
+    @pipeline_def(batch_size=batch_size, num_threads=4,
+                  device_id=types.CPU_ONLY_DEVICE_ID if device == 'cpu' else 0)
     def cast_pipe():
         inp = fn.external_source(src)
         inp_dev = inp.gpu() if device == 'gpu' else inp
@@ -136,28 +138,24 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
         # work around a bug in numpy: when the argument is a scalar fp32 or fp16, nextafter
         # promotes it to fp64, resulting in insufficient epsilon - we want an epsilon of the
         # type specified in out_dtype
-        eps = 0 if np.issubdtype(out_dtype, np.integer) else (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
+        eps = 0 if np.issubdtype(out_dtype, np.integer) else \
+            (np.nextafter(out_dtype([1]), 2) - 1.0)[0]
 
         for i in range(batch_size):
             if not np.allclose(out[i], ref[i], eps):
-                print("At sample", i)
-                I = np.array(inp[i])
-                O = np.array(out[i])
-                R = ref[i]
-                print(I)
-                print(R)
-                print(O)
-                mask = np.logical_not(np.isclose(O, R, eps))
-                print("Differences at", mask)
-                print(I[mask])
-                print(R[mask])
-                print(O[mask])
-                print(np.count_nonzero(mask), "wrong values out of", mask.size)
+                matI = np.array(inp[i])
+                matO = np.array(out[i])
+                matR = ref[i]
+                mask = np.logical_not(np.isclose(matO, matR, eps))
+                print(f"At sample {i}:\nI:\n{matI}\nO\n{matO}\nR\n{matR}")
+                print(f"Differences at {mask}:\nI:\n{matI[mask]}\nO\n{matO[mask]}\nR\n{matR[mask]}")
+                print(f"Result: {np.count_nonzero(mask)} wrong values out of {mask.size}.")
                 assert np.array_equal(out[i], ref[i])
 
 
 def test_operator_cast():
-    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float16, np.float32]
+    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64,
+             np.float16, np.float32]
     for device in ['cpu', 'gpu']:
         for in_type in types:
             for out_type in types:
@@ -175,7 +173,7 @@ def test_operator_cast_empty_volumes():
 
                 batch_size = rng.integers(12, 64)
                 for empty_volume_policy in [
-                        rng.choice(["left", "right", "middle", "mixed"]), "all"
+                    rng.choice(["left", "right", "middle", "mixed"]), "all"
                 ]:
                     yield (_test_operator_cast, ndim, batch_size, in_type, out_type, device,
                            empty_volume_policy)

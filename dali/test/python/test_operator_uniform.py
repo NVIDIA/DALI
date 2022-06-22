@@ -13,13 +13,10 @@
 # limitations under the License.
 
 import nvidia.dali as dali
-import nvidia.dali.ops as ops
-import nvidia.dali.types as types
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
 import scipy.stats as st
-import math
 
 
 def check_uniform_default(device='cpu', batch_size=32, shape=[1e5], val_range=None, niter=3):

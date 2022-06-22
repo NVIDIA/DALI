@@ -12,34 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from webdataset_base import *
-import os
 import math
+import os
 from glob import glob
+
+import webdataset_base as base
 from test_utils import compare_pipelines, get_dali_extra_path
 
-def cross_check(
-    dont_use_mmap,
-    batch_size,
-    num_shards,
-    shard_id,
-    skip_cached_images,
-    pad_last_batch,
-    stick_to_shard,
-):
+
+def cross_check(dont_use_mmap, batch_size, num_shards, shard_id, skip_cached_images, pad_last_batch,
+                stick_to_shard, ):
     num_multiplications = 4
     num_samples = 20 * num_multiplications
-    tar_file_paths = [
-        os.path.join(get_dali_extra_path(), "db/webdataset/sample-tar/cross.tar")
-    ] * num_multiplications
-    index_files = [generate_temp_index_file(tar_file_path) for tar_file_path in tar_file_paths]
+    tar_file_paths = [os.path.join(get_dali_extra_path(),
+                                   "db/webdataset/sample-tar/cross.tar")] * num_multiplications
+    index_files = [base.generate_temp_index_file(tar_file_path) for tar_file_path in tar_file_paths]
 
-    extract_dirs = [generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
+    extract_dirs = [base.generate_temp_extract(tar_file_path) for tar_file_path in tar_file_paths]
     equivalent_files = sum(
         (
             sorted(
                 glob(extract_dir.name + "/*"),
-                key=lambda s: (int(s[s.rfind("/") + 1 : s.find(".")]), s),
+                key=lambda s: (int(s[s.rfind("/") + 1: s.find(".")]), s),
             )
             for extract_dir in extract_dirs
         ),
@@ -47,7 +41,7 @@ def cross_check(
     )
 
     compare_pipelines(
-        webdataset_raw_pipeline(
+        base.webdataset_raw_pipeline(
             tar_file_paths,
             [index_file.name for index_file in index_files],
             ["a.a;a.b;a.a;a.b", "b.a;b.b;b.a;b.b"],
@@ -62,7 +56,7 @@ def cross_check(
             pad_last_batch=pad_last_batch,
             stick_to_shard=stick_to_shard,
         ),
-        file_reader_pipeline(
+        base.file_reader_pipeline(
             equivalent_files,
             ["a.a", "b.a"],
             batch_size=batch_size,
@@ -76,7 +70,7 @@ def cross_check(
             stick_to_shard=stick_to_shard,
         ),
         batch_size,
-        math.ceil(num_samples / test_batch_size),
+        math.ceil(num_samples / base.test_batch_size),
     )
 
 
