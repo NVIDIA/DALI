@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
+import nose.case
+import nose.inspector
+import nose.loader
+import nose.suite
+import collections
+if not hasattr(collections, "Callable"):
+    nose.case.collections = collections.abc
+    nose.inspector.collections = collections.abc
+    nose.loader.collections = collections.abc
+    nose.suite.collections = collections.abc
+
 import nose.tools as tools
 import re
 import fnmatch
