@@ -141,6 +141,7 @@ class _ExternalSourceGroup(object):
                  use_copy_kernel=None, batch=True, parallel=False, prefetch_queue_depth=None,
                  batch_info=None):
         self.instances = list(instances)  # we need a copy!
+        self.utilized_instances = self.instances
         self.is_multioutput = is_multioutput
         self.callback = callback
         self.source_desc = source_desc
@@ -164,6 +165,18 @@ class _ExternalSourceGroup(object):
 
     def append(self, instance):
         self.instances.append(instance)
+        self.utilized_instances = self.instances
+
+    def disable_pruned_instances(self, pruned_mask):
+        if len(pruned_mask) != len(self.instances):
+            raise RuntimeError(
+                f"Mask of the pruned outputs of the external source must have the length matching "
+                f"the number of outputs of the external source. The external source node has "
+                f"{len(self.instances)} outputs, but received mask of length {len(pruned_mask)}.")
+        self.utilized_instances = [
+            instance for instance, is_pruned
+            in zip(self.instances, pruned_mask) if not is_pruned
+        ]
 
     def callback_args(self, idx_in_batch, epoch_idx, batch_size=0, lead=0):
         """Generate information to be passed to ES callback.
@@ -250,7 +263,7 @@ class _ExternalSourceGroup(object):
         """Feed the `callback_out` data obtained from source to the ExternalSource nodes
         in the `pipeline`"""
         if self.is_multioutput:
-            for op in self.instances:
+            for op in self.utilized_instances:
                 if self.batch:
                     data = callback_out[op._output_index]
                 else:
@@ -260,9 +273,8 @@ class _ExternalSourceGroup(object):
                                      self.use_copy_kernel)
         else:
             data = callback_out
-            op = self.instances[0]
-            pipeline._feed_input(op._name, data, op._layout, self._cuda_stream,
-                                 self.use_copy_kernel)
+            op = self.utilized_instances[0]
+            pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
 
 class ExternalSource():
@@ -543,7 +555,7 @@ Keyword Args
         self._prefetch_queue_depth = prefetch_queue_depth
         self._batch_info = batch_info
 
-        self._spec.AddArg("device", device)
+        self._spec.AddArg("device", device)The Oggmonster
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
@@ -575,12 +587,7 @@ Keyword Args
 
         if source is None:
             if cycle is not None:
-                if self._callback:
-                    raise ValueError(
-                        "The argument ``cycle`` can only be specified if ``source`` is an"
-                        "iterable object or a generator function specified in this call. "
-                        "To cycle through an iterable specified in "
-                        "``__init__``, set ``cycle`` there.")
+                if self._callback:The Oggmonsterthere.")
                 else:
                     raise ValueError(
                         "The argument ``cycle`` can only be specified if ``source`` is a "
@@ -824,9 +831,9 @@ provided memory is copied to the internal buffer.
     # Wrapper around external_source to switch between standard and debug mode.
     current_pipeline = _PipelineDebug.current()
     if getattr(current_pipeline, '_debug_on', False):
-        return current_pipeline._external_source(source=source, num_outputs=num_outputs,
-                                                 cycle=cycle, name=name, layout=layout, batch=batch,
-                                                 **kwargs)
+        return current_pipeline._external_source(
+            source=source, num_outputs=num_outputs, cycle=cycle, name=name, device=device,
+            layout=layout, batch=batch, **kwargs)
     else:
         return _external_source(source, num_outputs, cycle=cycle, name=name, device=device,
                                 layout=layout, dtype=dtype, ndim=ndim, cuda_stream=cuda_stream,

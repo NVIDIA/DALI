@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
+import nose.case
+import nose.inspector
+import nose.loader
+import nose.suite
+import collections
+if not hasattr(collections, "Callable"):
+    nose.case.collections = collections.abc
+    nose.inspector.collections = collections.abc
+    nose.loader.collections = collections.abc
+    nose.suite.collections = collections.abc
+
 import nose.tools as tools
 import re
 import fnmatch
+
+
+def glob_to_regex(glob):
+    if not isinstance(glob, str):
+        raise ValueError("Glob pattern must be a string")
+    pattern = fnmatch.translate(glob)
+    # fnmatch adds special character to match the end of the string, so that when used
+    # with re.match it, by default, matches the whole string. Here, it's going to be used
+    # with re.search so it would be weird to enforce matching the suffix, but not the prefix.
+    if pattern[-2:] == r"\Z":
+        pattern = pattern[:-2]
+    return pattern
+
+
+def get_pattern(glob=None, regex=None, match_case=None):
+    assert glob is not None or regex is not None
+
+    if glob is not None and regex is not None:
+        raise ValueError(
+            "You should specify at most one of `glob` and `regex` parameters but not both")
+
+    if glob is not None:
+        pattern = glob_to_regex(glob)
+    else:  # regex is not None
+        if match_case is not None and not isinstance(regex, str):
+            raise ValueError(
+                "Regex must be a string if `match_case` is specified when "
+                "calling assert_raises_pattern")
+        pattern = regex
+
+    if isinstance(pattern, str) and not match_case:  # ignore case by default
+        pattern = re.compile(pattern, re.IGNORECASE)
+
+    return pattern
 
 
 def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kwargs):
 
     """
     Wrapper combining `nose.tools.assert_raises` and `nose.tools.assert_raises_regex`.
-    Specify ``regex=pattern`` or ``glob=pattern`` to check error message of expected exception against the pattern.
+    Specify ``regex=pattern`` or ``glob=pattern`` to check error message of expected exception
+    against the pattern.
     Value for `glob` must be a string, `regex` can be either a literal or compiled regex pattern.
     By default, the check will ignore case, if called with `glob` or a literal for `regex`.
     To enforce case sensitive check pass ``match_case=True``.
@@ -31,27 +78,17 @@ def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kw
     if glob is None and regex is None:
         return tools.assert_raises(exception, *args, **kwargs)
 
-    if glob is not None and regex is not None:
-        raise ValueError("You should specify at most one of `glob` and `regex` parameters but not both")
-
-    if glob is not None:
-        if not isinstance(glob, str):
-            raise ValueError("Glob pattern must be a string")
-        pattern = fnmatch.translate(glob)
-        # fnmatch adds special character to match the end of the string, so that when used
-        # with re.match it, by default, matches the whole string. Here, it's going to be used
-        # with re.search so it would be weird to enforce matching the suffix, but not the prefix.
-        if pattern[-2:] == r"\Z":
-            pattern = pattern[:-2]
-    else: # regex is not None
-        if match_case is not None and not isinstance(regex, str):
-            raise ValueError("Regex must be a string if `match_case` is specified when calling assert_raises_pattern")
-        pattern = regex
-
-    if isinstance(pattern, str) and not match_case: # ignore case by default
-        pattern = re.compile(pattern, re.IGNORECASE)
-
+    pattern = get_pattern(glob, regex, match_case)
     return tools.assert_raises_regex(exception, pattern, *args, **kwargs)
+
+
+def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=None, **kwargs):
+
+    if glob is None and regex is None:
+        return tools.assert_warns(exception, *args, **kwargs)
+
+    pattern = get_pattern(glob, regex, match_case)
+    return tools.assert_warns_regex(exception, pattern, *args, **kwargs)
 
 
 def raises(exception, glob=None, regex=None, match_case=None):

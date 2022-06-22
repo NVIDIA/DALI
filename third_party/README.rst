@@ -56,8 +56,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |dlpack| replace:: DLPack
 .. _dlpack: https://github.com/dmlc/dlpack
-.. |dlpackver| replace:: 0.6
-.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.6
+.. |dlpackver| replace:: 0.7
+.. _dlpackver: https://github.com/dmlc/dlpack/releases/tag/v0.7
 .. |dlpacklic| replace:: Apache License 2.0
 .. _dlpacklic: https://github.com/dmlc/dlpack/blob/main/LICENSE
 
@@ -91,7 +91,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (April 20, 2022)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/fcb23c2dbf561ec0798529be4f66394d3e4996d8
+.. |rapidjsonver| replace:: Top-of-tree (May 24, 2022)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/232389d4f1012dddec4ef84861face2d2ba85709
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,9 +30,10 @@ If another transform matrix is passed as an input, the operator applies translat
     R"code(The translation vector.
 
 The number of dimensions of the transform is inferred from this argument.)code",
-    DALI_FLOAT_VEC, true)
+    DALI_FLOAT_VEC, true, true)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 DALI_SCHEMA(TransformTranslation)  // Deprecated in 0.28.0dev

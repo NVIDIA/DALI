@@ -12,20 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+import numpy
 import nvidia.dali.ops as ops
+import nvidia.dali.plugin.pytorch as dalitorch
 import nvidia.dali.types as types
 import os
-import random
 import torch
-import nvidia.dali.plugin.pytorch as dalitorch
-import numpy
-from test_utils import get_dali_extra_path
+from nvidia.dali.pipeline import Pipeline
 
+from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
-
 
 DEVICE_ID = 0
 BATCH_SIZE = 8
@@ -36,8 +34,7 @@ NUM_WORKERS = 6
 class CommonPipeline(Pipeline):
     def __init__(self, batch_size=BATCH_SIZE, num_threads=NUM_WORKERS, device_id=DEVICE_ID,
                  image_dir=images_dir):
-        super(CommonPipeline, self).__init__(batch_size, num_threads, device_id,
-                                             exec_async=False, exec_pipelined=False)
+        super().__init__(batch_size, num_threads, device_id, exec_async=False, exec_pipelined=False)
         self.input = ops.readers.File(file_root=image_dir)
         self.decode = ops.decoders.Image(device='cpu', output_type=types.RGB)
 
@@ -50,7 +47,7 @@ class CommonPipeline(Pipeline):
 class BasicPipeline(CommonPipeline):
     def __init__(self, batch_size=BATCH_SIZE, num_threads=NUM_WORKERS, device_id=DEVICE_ID,
                  image_dir=images_dir):
-        super(BasicPipeline, self).__init__(batch_size, num_threads, device_id, image_dir)
+        super().__init__(batch_size, num_threads, device_id, image_dir)
 
     def define_graph(self):
         images, labels = self.load()
@@ -60,12 +57,10 @@ class BasicPipeline(CommonPipeline):
 class TorchPythonFunctionPipeline(CommonPipeline):
     def __init__(self, function, device, bp=False, batch_size=BATCH_SIZE, num_threads=NUM_WORKERS,
                  device_id=DEVICE_ID, image_dir=images_dir):
-        super(TorchPythonFunctionPipeline, self).__init__(batch_size, num_threads, device_id,
-                                                          image_dir)
+        super().__init__(batch_size, num_threads, device_id, image_dir)
         self.device = device
         self.torch_function = dalitorch.TorchPythonFunction(function=function, num_outputs=2,
-                                                            device=device,
-                                                            batch_processing=bp)
+                                                            device=device, batch_processing=bp)
 
     def define_graph(self):
         images, labels = self.load()
@@ -108,8 +103,7 @@ def test_pytorch_operator():
 
 def check_pytorch_operator_batch_processing(device):
     pipe = BasicPipeline()
-    pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, device,
-                                          True)
+    pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, device, True)
     pipe.build()
     pt_pipe.build()
     for it in range(ITERS):

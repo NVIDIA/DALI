@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,14 +35,14 @@ If a scalar value is provided, ``M`` is assumed to be a square matrix with that 
 diagonal. The size of the matrix is then assumed to match the number of components in the
 input vectors.)",
     nullptr,  // no default value
-    true)
+    true, true)
   .AddOptionalArg<vector<float>>("T", R"(The translation vector.
 
 If left unspecified, no translation is applied unless MT argument is used.
 
 The number of components of this vector must match the number of rows in matrix ``M``.
 If a scalar value is provided, that value is broadcast to all components of ``T`` and the number
-of components is chosen to match the number of rows in ``M``.)", nullptr, true)
+of components is chosen to match the number of rows in ``M``.)", nullptr, true, true)
   .AddOptionalArg<vector<float>>("MT", R"(A block matrix [M T] which combines the arguments
 ``M`` and ``T``.
 
@@ -51,8 +51,7 @@ M and leaving T unspecified.
 
 The number of columns must be one more than the number of components in the input.
 This argument is mutually exclusive with ``M`` and ``T``.)",
-    nullptr,
-    true);
+    nullptr, true, true);
 
 void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspace &ws, int N) {
   bool is_fused = HasFusedMT();
@@ -127,11 +126,10 @@ void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspa
     if (static_cast<int>(mtx_.size()) != output_pt_dim_ * input_pt_dim_) {
       mtx_.resize(output_pt_dim_ * input_pt_dim_, 0);
       MakeDiagonalMatrix(mtx_, 1);
-      Repeat(per_sample_mtx_, mtx_, N);
-      if (is_fused) {
-        translation_.resize(output_pt_dim_, 0);
-        Repeat(per_sample_translation_, translation_, N);
-      }
+    }
+    Repeat(per_sample_mtx_, mtx_, N);
+    if (is_fused) {
+      per_sample_translation_.resize(output_pt_dim_ * N, 0);
     }
   }
 }

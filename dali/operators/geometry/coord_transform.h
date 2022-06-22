@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@
 #include "dali/core/geom/mat.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/pipeline/operator/operator.h"
 #include "dali/operators/geometry/mt_transform_attr.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 
 namespace dali {
 
@@ -29,16 +30,17 @@ namespace dali {
 #define COORD_TRANSFORM_DIMS (1, 2, 3, 4, 5, 6)
 
 template <typename Backend>
-class CoordTransform : public Operator<Backend>, private MTTransformAttr {
+class CoordTransform : public SequenceOperator<Backend, true>, private MTTransformAttr {
  public:
-  explicit CoordTransform(const OpSpec &spec) : Operator<Backend>(spec), MTTransformAttr(spec) {
+  using Base = SequenceOperator<Backend, true>;
+  explicit CoordTransform(const OpSpec &spec) : Base(spec), MTTransformAttr(spec) {
     dtype_ = spec_.template GetArgument<DALIDataType>("dtype");
   }
 
   bool CanInferOutputs() const override { return true; }
 
  protected:
-  using Operator<Backend>::spec_;
+  using Base::spec_;
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
     auto &input = ws.template Input<Backend>(0);     // get a reference to the input tensor list
     const auto &input_shape = input.shape();         // get a shape - use const-ref to avoid copying

@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tempfile
-import os
 import glob
-import random
 import numpy as np
 import nvidia.dali.fn as fn
+import os
+import random
+import tempfile
 from nvidia.dali import Pipeline, pipeline_def
-from test_utils import compare_pipelines
+
 from nose_utils import assert_raises
+from test_utils import compare_pipelines
 
 
 def ref_contents(path):
@@ -74,7 +75,8 @@ def _test_reader_files_arg(use_root, use_labels, shuffle):
 
     batch_size = 3
     pipe = Pipeline(batch_size, 1, 0)
-    files, labels = fn.readers.file(file_root=root, files=fnames, labels=lbl, random_shuffle=shuffle)
+    files, labels = fn.readers.file(file_root=root, files=fnames, labels=lbl,
+                                    random_shuffle=shuffle)
     pipe.set_outputs(files, labels)
     pipe.build()
 
@@ -138,11 +140,12 @@ def test_file_reader_relpath_file_list():
             assert contents == ref_contents(fnames[index])
 
 
-def _test_file_reader_filter(filters, glob_filters, batch_size, num_threads, subpath, case_sensitive_filter):
+def _test_file_reader_filter(filters, glob_filters, batch_size, num_threads, subpath,
+                             case_sensitive_filter):
     pipe = Pipeline(batch_size, num_threads, 0)
     root = os.path.join(os.environ['DALI_EXTRA_PATH'], subpath)
-    files, labels = fn.readers.file(
-        file_root=root, file_filters=filters, case_sensitive_filter=case_sensitive_filter)
+    files, labels = fn.readers.file(file_root=root, file_filters=filters,
+                                    case_sensitive_filter=case_sensitive_filter)
     pipe.set_outputs(files, labels)
     pipe.build()
 
@@ -166,10 +169,13 @@ def test_file_reader_filters():
     for filters in [['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
         num_threads = random.choice([1, 2, 4, 8])
         batch_size = random.choice([1, 3, 10])
-        yield _test_file_reader_filter, filters, filters, batch_size, num_threads, 'db/single/mixed', False
+        yield _test_file_reader_filter, filters, filters, batch_size, num_threads, \
+            'db/single/mixed', False
 
-    yield _test_file_reader_filter, ['*.jPg', '*.JPg'], ['*.jPg', '*.JPg'], 3, 1, 'db/single/case_sensitive', True
-    yield _test_file_reader_filter, ['*.JPG'], ['*.jpg', '*.jpG', '*.jPg', '*.jPG', '*.Jpg', '*.JpG', '*.JPg', '*.JPG'], \
+    yield _test_file_reader_filter, ['*.jPg', '*.JPg'], \
+        ['*.jPg', '*.JPg'], 3, 1, 'db/single/case_sensitive', True
+    yield _test_file_reader_filter, ['*.JPG'], \
+        ['*.jpg', '*.jpG', '*.jPg', '*.jPG', '*.Jpg', '*.JpG', '*.JPg', '*.JPG'], \
         3, 1, 'db/single/case_sensitive', False
 
 
@@ -202,4 +208,5 @@ def test_invalid_number_of_shards():
         return files, labels
 
     pipe = get_test_pipe()
-    assert_raises(RuntimeError, pipe.build, glob="The number of input samples: *, needs to be at least equal to the requested number of shards:*.")
+    assert_raises(RuntimeError, pipe.build,
+                  glob="The number of input samples: *, needs to be at least equal to the requested number of shards:*.")  # noqa: E501

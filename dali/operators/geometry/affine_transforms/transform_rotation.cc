@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ The number of dimensions is assumed to be 3 if a rotation axis is provided or 2 
   .AddArg(
     "angle",
     R"code(Angle, in degrees.)code",
-    DALI_FLOAT, true)
+    DALI_FLOAT, true, true)
   .AddOptionalArg<std::vector<float>>(
     "axis",
     R"code(Axis of rotation (applies **only** to 3D transforms).
@@ -40,15 +40,16 @@ The number of dimensions is assumed to be 3 if a rotation axis is provided or 2 
 The vector does not need to be normalized, but it must have a non-zero length.
 
 Reversing the vector is equivalent to changing the sign of ``angle``.)code",
-    nullptr, true)
+    nullptr, true, true)
   .AddOptionalArg<std::vector<float>>(
     "center",
     R"code(The center of the rotation.
 
 If provided, the number of elements should match the dimensionality of the transform.)code",
-    nullptr, true)
+    nullptr, true, true)
   .NumInput(0, 1)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
 /**

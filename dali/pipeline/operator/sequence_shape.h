@@ -34,8 +34,28 @@ namespace dali {
  */
 class ExpandDesc {
  public:
-  ExpandDesc(const TensorListShape<> &shape, TensorLayout layout, bool should_expand_channels)
-      : layout_{std::move(layout)},
+  class InputSource {
+   public:
+    InputSource(int input_idx) : input_idx_{input_idx} {}              // NOLINT
+    InputSource(const std::string &arg_name) : arg_name_{arg_name} {}  // NOLINT
+
+    int InputIdx() const {
+      return input_idx_;
+    }
+
+    const std::string &ArgName() const {
+      return arg_name_;
+    }
+
+   private:
+    int input_idx_ = -1;
+    std::string arg_name_;
+  };
+
+  ExpandDesc(InputSource source, const TensorListShape<> &shape, TensorLayout layout,
+             bool should_expand_channels)
+      : source_{std::move(source)},
+        layout_{std::move(layout)},
         frames_dim_{VideoLayoutInfo::FrameDimIndex(layout_)},
         channels_dim_{VideoLayoutInfo::ChannelDimIndex(layout_)},
         expand_frames_{frames_dim_ == 0 ||
@@ -45,6 +65,10 @@ class ExpandDesc {
         is_channel_first_{num_expand_dims_ == 2 && channels_dim_ < frames_dim_},
         dims_to_expand_{shape.first(num_expand_dims_)},
         num_expanded_{dims_to_expand_.num_elements()} {}
+
+  const InputSource &SourceInfo() const {
+    return source_;
+  }
 
   bool ExpandChannels() const {
     return expand_channels_;
@@ -100,6 +124,7 @@ class ExpandDesc {
   }
 
  private:
+  InputSource source_;
   TensorLayout layout_;
   int frames_dim_;
   int channels_dim_;
@@ -110,6 +135,15 @@ class ExpandDesc {
   TensorListShape<> dims_to_expand_;
   int64_t num_expanded_;
 };
+
+inline std::ostream &operator<<(std::ostream &os, const ExpandDesc::InputSource &arg_source) {
+  if (arg_source.InputIdx() == -1) {
+    os << "argument `" << arg_source.ArgName() << "`";
+  } else {
+    os << "input " << arg_source.InputIdx();
+  }
+  return os;
+}
 
 namespace sequence_utils {
 

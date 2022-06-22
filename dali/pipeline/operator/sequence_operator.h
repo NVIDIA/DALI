@@ -96,8 +96,14 @@ class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
  *
  * The operator must infer output shapes in the setup stage and must not manually
  * resize the outputs.
+ *
+ * To enter 'expanding' mode, the SequenceOperator needs an input that
+ * contains expandable leading extents that serve as a reference to
+ * unfold/broadcast other inputs and named arguments.
+ * By default, with `allow_non_positional_arg_ref=false,  only positional input can be used as such
+ * a reference.
  */
-template <typename Backend>
+template <typename Backend, bool allow_non_positional_arg_ref = false>
 class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<Backend> {
  public:
   inline explicit SequenceOperator(const OpSpec &spec) : Operator<Backend>{spec} {}
@@ -127,6 +133,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
         InitializeExpandedWorkspace(ws);
         is_expanded_ws_initialized_ = true;
       }
+      expanded_.SetBatchSizes(GetReferenceExpandDesc().NumExpanded());
       ExpandInputs(ws);
       ExpandArguments(ws);
       is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
@@ -151,9 +158,8 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   bool IsExpandable() const {
-    auto expand_like_idx = GetReferenceInputIdx();
-    assert(expand_like_idx == -1 || GetInputExpandDesc(expand_like_idx).NumDimsToExpand() > 0);
-    return expand_like_idx >= 0;
+    assert(expand_like_ == nullptr || expand_like_->NumDimsToExpand() > 0);
+    return expand_like_ != nullptr;
   }
 
  protected:
@@ -205,22 +211,14 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   /**
    * @brief Gets the ExpandDesc instance that describes the expandable prefix of the output layout
    * and corresponding prefixes of the shapes in the batch. By default, the sequence shape and
-   * expandable layout are assumed to be the same for the output and the expandable input. If that's
-   * not the case, the method may be overriden to provide different ExpandDesc instance.
+   * expandable layout are assumed to be the same for the output and the referential expandable
+   * input. If that's not the case, the method may be overriden to provide different ExpandDesc
+   * instance.
    */
   virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws,
                                                 int output_idx) const {
     (void)output_idx;
-    return GetInputExpandDesc(GetReferenceInputIdx());
-  }
-
-  /**
-   * @brief Returns the index of the operator input which is expandable and given argument input
-   * should be expanded or broadcast in a manner consistent with the input.
-   */
-  virtual int GetArgExpandDescInputIdx(const std::string &arg_name) const {
-    (void)arg_name;
-    return GetReferenceInputIdx();
+    return GetReferenceExpandDesc();
   }
 
   virtual void InitializeExpandedArgument(const workspace_t<Backend> &ws,
@@ -246,8 +244,8 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
                               const TensorVector<CPUBackend> &arg_input) {
     assert(IsExpandable());
-    auto input_idx = GetArgExpandDescInputIdx(arg_name);
-    ExpandArgumentLikeInput(ExpandedArg(arg_name), arg_input, arg_name, input_idx);
+    const auto &ref_expand_desc = GetReferenceExpandDesc();
+    ExpandArgumentLikeRef(ExpandedArg(arg_name), arg_input, arg_name, ref_expand_desc);
   }
 
   virtual void InitializeExpandedInput(const workspace_t<Backend> &ws, int input_idx) {
@@ -274,8 +272,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    */
   virtual void ExpandInput(const workspace_t<Backend> &ws, int input_idx) {
     assert(IsExpandable());
-    int ref_input_idx = GetReferenceInputIdx();
-    const auto &ref_expand_desc = GetInputExpandDesc(ref_input_idx);
+    const auto &ref_expand_desc = GetReferenceExpandDesc();
     const auto &input_desc = GetInputExpandDesc(input_idx);
     int num_expand_dims = input_desc.NumDimsToExpand();
     if (num_expand_dims == 0) {
@@ -284,8 +281,8 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
         BroadcastBatch(expanded_input, input, ref_expand_desc);
       });
     } else {
-      if (ref_input_idx != input_idx) {
-        VerifyExpansionConsistency(ref_input_idx, ref_expand_desc, input_idx, input_desc);
+      if (ref_expand_desc.SourceInfo().InputIdx() != input_idx) {
+        VerifyExpansionConsistency(ref_expand_desc, input_desc);
       }
       ProcessInput(ws, input_idx, [&](const auto &input) {
         auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
@@ -365,14 +362,27 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
       const auto &layout = GetInputLayout(ws, input_idx);
-      input_expand_desc_.emplace_back(input_shape, layout, ShouldExpandChannels(input_idx));
+      input_expand_desc_.emplace_back(input_idx, input_shape, layout,
+                                      ShouldExpandChannels(input_idx));
     }
-    expand_like_idx_ = InferExpandableInputIdx(ws);
+    expand_like_ = InferReferenceExpandDesc(ws);
   }
 
-  int InferExpandableInputIdx(const workspace_t<Backend> &ws) {
-    auto num_inputs = ws.NumInput();
-    for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
+  const ExpandDesc *InferReferenceExpandDesc(const workspace_t<Backend> &ws) {
+    int input_idx = InferPositionalReferenceExpandDesc(ws);
+    if (input_idx >= 0) {
+      return &GetInputExpandDesc(input_idx);
+    }
+    if (allow_non_positional_arg_ref) {
+      non_positional_expand_desc_ = InferNonPositionalReferenceExpandDesc(ws);
+      return non_positional_expand_desc_.get();
+    }
+    return nullptr;
+  }
+
+  virtual int InferPositionalReferenceExpandDesc(const workspace_t<Backend> &ws) {
+    (void) ws;
+    for (size_t input_idx = 0; input_idx < input_expand_desc_.size(); input_idx++) {
       if (input_expand_desc_[input_idx].NumDimsToExpand() > 0) {
         return input_idx;
       }
@@ -380,13 +390,28 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return -1;
   }
 
+  virtual std::unique_ptr<ExpandDesc> InferNonPositionalReferenceExpandDesc(
+      const workspace_t<Backend> &ws) {
+    for (const auto &arg_input : ws) {
+      auto &shared_tvec = arg_input.second.tvec;
+      assert(shared_tvec);
+      const std::string &name = arg_input.first;
+      const auto &batch = *shared_tvec;
+      if (IsPerFrameArg(name, batch)) {
+        return std::make_unique<ExpandDesc>(name, batch.shape(), batch.GetLayout(), false);
+      }
+    }
+    return nullptr;
+  }
+
   /**
-   * @brief Returns the index of the operator input which is expandable and other
-   * inputs should be expanded or broadcast in a manner consistent with the
-   * given input. If no input is expandable, returns -1.
+   * @brief Returns referential expansion description of a positional or named input.
+   * I.e. other inputs and arguments should be expanded or broadcast in a manner consistent
+   * with the given input.
    */
-  int GetReferenceInputIdx() const {
-    return expand_like_idx_;
+  const ExpandDesc &GetReferenceExpandDesc() const {
+    assert(IsExpandable());
+    return *expand_like_;
   }
 
   void ExpandInputs(const workspace_t<Backend> &ws) {
@@ -428,36 +453,36 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return schema.ArgSupportsPerFrameInput(arg_name) && detail::is_per_frame(arg_input);
   }
 
-  void VerifyExpansionConsistency(int expand_idx, const ExpandDesc &expand_desc, int input_idx,
-                                  const ExpandDesc &input_desc) {
+  void VerifyExpansionConsistency(const ExpandDesc &expand_desc, const ExpandDesc &input_desc) {
     // TODO(ktokarski) consider mix of expansion and broadcasting similar to handling of
     // per-frame arguments for "FC" or "CF" layouts. Consider agreeing "FC" and "CF" inputs.
     DALI_ENFORCE(
         input_desc.ExpandedLayout() == expand_desc.ExpandedLayout(),
-        make_string("Failed to match expanding of sequence-like inputs for multiple-input "
-                    "operator. For the ",
-                    expand_idx, " input with layout ", expand_desc.Layout(),
+        make_string("Failed to match expanding of sequence-like input. For the ",
+                    expand_desc.SourceInfo(), " with layout ", expand_desc.Layout(),
                     " the following outermost dimension(s) should be expanded into samples: `",
-                    expand_desc.ExpandedLayout(), "`. The input ", input_idx, " with layout ",
-                    input_desc.Layout(),
+                    expand_desc.ExpandedLayout(), "`. The ", input_desc.SourceInfo(),
+                    " with layout ", input_desc.Layout(),
                     " is expected to either: have no outermost dimensions planned for expanding or "
                     "have exactly the same outermost dimensions to expand. However, got `",
                     input_desc.ExpandedLayout(), "` planned for expanding."));
     for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
       assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
       if (expand_desc.ExpandFrames()) {
-        DALI_ENFORCE(expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
-                     make_string("Inputs ", expand_idx, " and ", input_idx,
-                                 " have different number of frames for sample ", sample_idx,
-                                 ", respectively: ", expand_desc.NumFrames(sample_idx), " and ",
-                                 input_desc.NumFrames(sample_idx)));
+        DALI_ENFORCE(
+            expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
+            make_string("The ", expand_desc.SourceInfo(), " and the ", input_desc.SourceInfo(),
+                        " have different number of frames for sample ", sample_idx,
+                        ", respectively: ", expand_desc.NumFrames(sample_idx), " and ",
+                        input_desc.NumFrames(sample_idx)));
       }
       if (expand_desc.ExpandChannels()) {
-        DALI_ENFORCE(expand_desc.NumChannels(sample_idx) == input_desc.NumChannels(sample_idx),
-                     make_string("Inputs ", expand_idx, " and ", input_idx,
-                                 " have different number of channels for sample ", sample_idx,
-                                 ", respectively: ", expand_desc.NumChannels(sample_idx), " and ",
-                                 input_desc.NumChannels(sample_idx)));
+        DALI_ENFORCE(
+            expand_desc.NumChannels(sample_idx) == input_desc.NumChannels(sample_idx),
+            make_string("The ", expand_desc.SourceInfo(), " and the ", input_desc.SourceInfo(),
+                        " have different number of channels for sample ", sample_idx,
+                        ", respectively: ", expand_desc.NumChannels(sample_idx), " and ",
+                        input_desc.NumChannels(sample_idx)));
       }
     }
   }
@@ -583,29 +608,26 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     BroadcastSamples(expanded_batch, batch, expand_desc, expanded_);
   }
 
-  void ExpandArgumentLikeInput(TensorVector<CPUBackend> &expanded_arg_input,
-                               const TensorVector<CPUBackend> &arg_input,
-                               const std::string &arg_name, int input_idx) {
-    const auto &expand_desc = GetInputExpandDesc(input_idx);
+  /* Expands the arg to match the referential `expand_desc` */
+  void ExpandArgumentLikeRef(TensorVector<CPUBackend> &expanded_arg_input,
+                             const TensorVector<CPUBackend> &arg_input, const std::string &arg_name,
+                             const ExpandDesc &expand_desc) {
     assert(expand_desc.NumDimsToExpand() > 0);
-    DALI_ENFORCE(arg_input.num_samples() == expand_desc.NumSamples(),
-                 make_string("Number of samples passed for argument ", arg_name, " (got ",
-                             arg_input.num_samples(),
-                             ") does not match the number of samples in the input (got ",
-                             expand_desc.NumSamples(), ")."));
+    DALI_ENFORCE(
+        arg_input.num_samples() == expand_desc.NumSamples(),
+        make_string("Number of samples passed for argument ", arg_name, " (got ",
+                    arg_input.num_samples(), ") does not match the number of samples in the ",
+                    expand_desc.SourceInfo(), " (got ", expand_desc.NumSamples(), ")."));
     VerifyExpandedBatchSizeNumericLimit(expand_desc);
     if (!IsPerFrameArg(arg_name, arg_input)) {
       BroadcastSamples(expanded_arg_input, arg_input, expand_desc, expanded_);
     } else {
       DALI_ENFORCE(
           expand_desc.ExpandFrames(),
-          make_string(
-              "Tensor input for argument ", arg_name, " is specified per frame (got ",
-              arg_input.GetLayout(),
-              " layout), but samples in the input batch do not contain frames (expected input "
-              "layout that starts with 'F'",
-              ShouldExpandChannels(input_idx) ? " or 'CF'" : "", "). Got layout ",
-              expand_desc.Layout(), " for operator intput ", input_idx, "."));
+          make_string("Tensor input for argument ", arg_name, " is specified per frame (got ",
+                      arg_input.GetLayout(), " layout). In that case, samples in the ",
+                      expand_desc.SourceInfo(), " must contain frames too. Got layout `",
+                      expand_desc.Layout(), "` that does not contain frames."));
       UnfoldBroadcastArgument(expanded_arg_input, arg_input, arg_name, expand_desc);
     }
   }
@@ -624,11 +646,10 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
       auto num_arg_frames = frames_range.NumSlices();
       DALI_ENFORCE(
           num_arg_frames == 1 || num_input_frames == num_arg_frames,
-          make_string("The tensor argument ", arg_name, " for sample ", sample_idx,
-                      " should either be a single argument to be reused accross all frames in the "
-                      "sample or should be specified per each frame. Got ",
-                      num_arg_frames, " arguments for the sample but there are ", num_input_frames,
-                      " frames in the sample."));
+          make_string("The sample ", sample_idx, " of tensor argument `", arg_name, "` contains ",
+                      num_arg_frames, " per-frame parameters, but there are ", num_input_frames,
+                      " frames in the corresponding sample of ", expand_desc.SourceInfo(),
+                      ". The numbers should match."));
       if (num_arg_frames == 1) {  // broadcast the sample
         auto slice = frames_range[0];
         for (int j = 0; j < expand_desc.NumExpanded(sample_idx); j++) {
@@ -680,7 +701,8 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   USE_OPERATOR_MEMBERS();
 
  private:
-  int expand_like_idx_ = -1;
+  const ExpandDesc *expand_like_ = nullptr;
+  std::unique_ptr<ExpandDesc> non_positional_expand_desc_;
   bool is_expanding_ = false;
   bool is_expanded_ws_initialized_ = false;
   workspace_t<Backend> expanded_;

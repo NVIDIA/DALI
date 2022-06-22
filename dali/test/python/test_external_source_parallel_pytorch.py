@@ -15,16 +15,17 @@
 # it is enough to just import all functions from test_internals_operator_external_source
 # nose will query for the methods available and will run them
 # the test_internals_operator_external_source is 99% the same for cupy and numpy tests
-# so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
+# so it is better to store everything in one file and just call
+# use_cupy` to switch between the default numpy and cupy
 
+import numpy as np
 import torch
+
+import test_external_source_parallel_utils as utils
 from nose_utils import raises
 
-from test_pool_utils import *
-from test_external_source_parallel_utils import *
 
-
-class ExtCallbackTorch(ExtCallback):
+class ExtCallbackTorch(utils.ExtCallback):
     def __call__(self, sample_info):
         return torch.tensor(super().__call__(sample_info))
 
@@ -36,17 +37,17 @@ def test_pytorch_cuda_context():
     # Create a dummy torch CUDA tensor so we acquire CUDA context
     cuda0 = torch.device('cuda:0')
     _ = torch.ones([1, 1], dtype=torch.float32, device=cuda0)
-    callback = ExtCallback((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
-                       py_start_method='fork', parallel=True)
+    callback = utils.ExtCallback((4, 5), 10, np.int32)
+    pipe = utils.create_pipe(callback, 'cpu', 5, py_num_workers=6, py_start_method='fork',
+                             parallel=True)
     pipe.start_py_workers()
 
 
 def test_pytorch():
-    yield from check_spawn_with_callback(ExtCallbackTorch)
+    yield from utils.check_spawn_with_callback(ExtCallbackTorch)
 
 
-class ExtCallbackTorchCuda(ExtCallback):
+class ExtCallbackTorchCuda(utils.ExtCallback):
     def __call__(self, sample_info):
         return torch.tensor(super().__call__(sample_info), device=torch.device('cuda:0'))
 
@@ -56,6 +57,6 @@ class ExtCallbackTorchCuda(ExtCallback):
                    "Got*PyTorch GPU tensor")
 def test_pytorch_cuda():
     callback = ExtCallbackTorchCuda((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
-                       py_start_method='spawn', parallel=True)
-    build_and_run_pipeline(pipe)
+    pipe = utils.create_pipe(callback, 'cpu', 5, py_num_workers=6, py_start_method='spawn',
+                             parallel=True)
+    utils.build_and_run_pipeline(pipe)

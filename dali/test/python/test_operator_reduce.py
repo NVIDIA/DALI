@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import nvidia.dali.fn as fn
-import nvidia.dali.types as types
-import nvidia.dali.ops as ops
 from nvidia.dali.pipeline import Pipeline
 
 import numpy as np
@@ -29,7 +27,7 @@ class Batch:
 
     def __call__(self):
         batch = self._data[self._index]
-        self._index = (self._index + 1 ) % self.batch_size()
+        self._index = (self._index + 1) % self.batch_size()
         return batch
 
     def batch_size(self):
@@ -47,7 +45,7 @@ class Batch1D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([ 1,  2,  3,  4], dtype=self._data_type),
+                np.array([1,   2,  3,  4], dtype=self._data_type),
                 np.array([33,  2, 10, 10], dtype=self._data_type)
             ], [
                 np.array([10, 20, 30, 20], dtype=self._data_type),
@@ -63,11 +61,11 @@ class Batch2D(Batch):
         super().__init__(data_type)
         self._data = [
             [
-                np.array([[  1,  0,  2], [  3,  1,  4]], dtype=self._data_type),
-                np.array([[  5,  0,  6], [  7,  0,  8]], dtype=self._data_type)
+                np.array([[1,   0,  2], [3,   1,  4]], dtype=self._data_type),
+                np.array([[5,   0,  6], [7,   0,  8]], dtype=self._data_type)
             ], [
-                np.array([[ 13, 23, 22], [ 23, 21, 14]], dtype=self._data_type),
-                np.array([[ 23,  3,  6], [  7,  0, 20]], dtype=self._data_type)
+                np.array([[13, 23, 22], [23, 21, 14]], dtype=self._data_type),
+                np.array([[23,  3,  6], [7,   0, 20]], dtype=self._data_type)
             ]]
 
     def valid_axes(self):
@@ -111,7 +109,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input=F
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
 
-    args = { 'keep_dims': keep_dims, 'axes': axes}
+    args = {'keep_dims': keep_dims, 'axes': axes}
     if output_type is not None:
         args['dtype'] = np_type_to_dali(output_type)
 
@@ -141,7 +139,7 @@ def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input=F
 
 def run_numpy(reduce_fn, batch_fn, keep_dims, axes, output_type, ddof=None):
     result = []
-    args = { 'keepdims': keep_dims, 'axis': axes}
+    args = {'keepdims': keep_dims, 'axis': axes}
     if output_type is not None:
         args['dtype'] = output_type
 
@@ -187,11 +185,18 @@ def run_reduce(keep_dims, reduce_fns, batch_gen, input_type, output_type=None):
 
 
 def test_reduce():
-    reductions = [(fn.reductions.sum, np.sum), (fn.reductions.min, np.min), (fn.reductions.max, np.max)]
+    reductions = [
+        (fn.reductions.sum, np.sum), (fn.reductions.min, np.min), (fn.reductions.max, np.max)
+    ]
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [
-        np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float32]
+        np.uint8, np.int8,
+        np.uint16, np.int16,
+        np.uint32, np.int32,
+        np.uint64, np.int64,
+        np.float32
+    ]
 
     for keep_dims in [False, True]:
         for reduce_fns in reductions:
@@ -264,18 +269,20 @@ def run_reduce_with_mean_input(keep_dims, reduce_fns, batch_gen, input_type, out
     for axes in batch_fn.valid_axes():
         if axes == ():
             valid_ddofs = [0]
-        elif axes == None:
+        elif axes is None:
             valid_ddofs = [0, 1, 2, 3]
         else:
             valid_ddofs = [0, 1]
         for ddof in valid_ddofs:
             dali_res_cpu, dali_res_gpu = run_dali(
-                dali_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type, add_mean_input=True, ddof=ddof)
+                dali_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type,
+                add_mean_input=True, ddof=ddof)
 
             batch_fn.reset()
 
             np_res = run_numpy(
-                numpy_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes, output_type=output_type, ddof=ddof)
+                numpy_reduce_fn, batch_fn, keep_dims=keep_dims, axes=axes,
+                output_type=output_type, ddof=ddof)
 
             for iteration in range(batch_fn.num_iter()):
                 compare(dali_res_cpu[iteration], np_res[iteration])
@@ -288,13 +295,20 @@ def test_reduce_with_mean_input():
         (fn.reductions.variance, np.var)]
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
-    types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64, np.int64, np.float32]
+    types = [
+        np.uint8, np.int8,
+        np.uint16, np.int16,
+        np.uint32, np.int32,
+        np.uint64, np.int64,
+        np.float32
+    ]
 
     for keep_dims in [False, True]:
         for reduce_fns in reductions:
             for batch_gen in batch_gens:
                 for type_id in types:
-                    yield run_reduce_with_mean_input, keep_dims, reduce_fns, batch_gen, type_id, None
+                    yield run_reduce_with_mean_input, keep_dims, reduce_fns, batch_gen, \
+                        type_id, None
 
 
 def run_and_compare_with_layout(batch_gen, pipe):
@@ -306,8 +320,7 @@ def run_and_compare_with_layout(batch_gen, pipe):
         assert np.array_equal(reduced, reduced_by_name)
 
 
-def run_reduce_with_layout(
-    batch_size, get_batch, reduction, axes, axis_names, batch_fn):
+def run_reduce_with_layout(batch_size, get_batch, reduction, axes, axis_names, batch_fn):
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
@@ -321,8 +334,8 @@ def run_reduce_with_layout(
     run_and_compare_with_layout(batch_fn, pipe)
 
 
-def run_reduce_with_layout_with_mean_input(
-    batch_size, get_batch, reduction, axes, axis_names, batch_fn):
+def run_reduce_with_layout_with_mean_input(batch_size, get_batch, reduction, axes,
+                                           axis_names, batch_fn):
 
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
@@ -367,6 +380,8 @@ def test_reduce_axis_names():
 
     for axes, axis_names in axes_and_names:
         for reduction in reductions:
-            yield run_reduce_with_layout, batch_size, get_batch, reduction, axes, axis_names, batch_fn
+            yield run_reduce_with_layout, batch_size, get_batch, reduction, axes, \
+                axis_names, batch_fn
         for reduction in reductions_with_mean_input:
-            yield run_reduce_with_layout_with_mean_input, batch_size, get_batch, reduction, axes, axis_names, batch_fn
+            yield run_reduce_with_layout_with_mean_input, batch_size, get_batch, reduction, \
+                axes, axis_names, batch_fn

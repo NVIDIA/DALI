@@ -39,6 +39,12 @@ class NumbaFuncImpl : public Operator<Backend> {
  private:
   using NumbaPtr = uint64_t;
 
+  vector<vector<ssize_t>> in_sizes_;
+  vector<vector<ssize_t>> out_sizes_;
+  vector<vector<void*>> in_memory_ptrs_;
+  vector<vector<void*>> out_memory_ptrs_;
+  SmallVector<int, 3> blocks_;
+  SmallVector<int, 3> threads_per_block_;
   NumbaPtr run_fn_;
   NumbaPtr setup_fn_;
   bool batch_processing_;

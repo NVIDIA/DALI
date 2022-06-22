@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 
 #define TRANSFORM_INPUT_TYPES (float)
 
@@ -45,12 +46,13 @@ Example: combining [T1, T2, T3] is equivalent to T3(T2(T1(...))) for default ord
 )code")
   .NumInput(2, 99)
   .NumOutput(1)
+  .AllowSequences()
   .AddParent("TransformAttr");
 
-class CombineTransformsCPU : public Operator<CPUBackend> {
+class CombineTransformsCPU : public SequenceOperator<CPUBackend> {
  public:
   explicit CombineTransformsCPU(const OpSpec &spec) :
-      Operator<CPUBackend>(spec),
+      SequenceOperator<CPUBackend>(spec),
       reverse_order_(spec.GetArgument<bool>("reverse_order")) {
   }
 
@@ -149,6 +151,18 @@ class CombineTransformsCPU : public Operator<CPUBackend> {
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
       RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
+  }
+
+  void PostprocessOutputs(workspace_t<CPUBackend> &ws) override {
+    if (this->IsExpanding()) {
+      auto &out = ws.template Output<CPUBackend>(0);
+      int sample_dim = out.sample_dim();
+      assert(sample_dim > 0);
+      TensorLayout layout;
+      layout.resize(sample_dim, '*');
+      layout[0] = 'F';
+      out.SetLayout(layout);
+    }
   }
 
  private:
