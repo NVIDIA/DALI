@@ -52,7 +52,7 @@ class MovingMeanSquareGPU : public ::testing::Test {
    */
   Out naive_moving_mean_square(In *start, In *pos, int window_size) {
     float factor = 1.0f / window_size;
-    In *ptr = pos - window_size;
+    In *ptr = pos - window_size + 1;
     if (ptr < start)
       ptr = start;
     acc_t<In> sum = 0;
