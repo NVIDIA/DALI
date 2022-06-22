@@ -44,10 +44,7 @@ inline bool is_per_frame(const TensorVector<CPUBackend> &arg_input) {
 // broadcasting on gpu requires some extra state, so separate broadcasting from the
 // sequence operator and derive from appropriate specialization
 template <typename Backend>
-class SampleBroadcasting;
-
-template <>
-class SampleBroadcasting<CPUBackend> {
+class SampleBroadcasting {
  protected:
   template <typename DataBackend>
   void BroadcastSamples(TensorVector<DataBackend> &expanded_batch,
@@ -59,27 +56,26 @@ class SampleBroadcasting<CPUBackend> {
   }
 };
 
-template <>
-class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
- protected:
-  using SampleBroadcasting<CPUBackend>::BroadcastSamples;
+// template <>
+// class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
+//  protected:
+//   using SampleBroadcasting<CPUBackend>::BroadcastSamples;
 
-  void BroadcastSamples(TensorList<GPUBackend> &expanded_batch, const TensorList<GPUBackend> &batch,
-                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
-    sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
-                                      expand_desc.DimsToExpand(), scatter_gather_,
-                                      expanded.stream());
-  }
+//   void BroadcastSamples(TensorList<GPUBackend> &expanded_batch, const TensorList<GPUBackend> &batch,
+//                         const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
+//     sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
+//                                       expand_desc.DimsToExpand());
+//   }
 
-  void BroadcastSamples(TensorList<CPUBackend> &expanded_batch, const TensorList<CPUBackend> &batch,
-                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
-    (void)expanded;
-    sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
-                                      expand_desc.DimsToExpand());
-  }
+//   void BroadcastSamples(TensorList<CPUBackend> &expanded_batch, const TensorList<CPUBackend> &batch,
+//                         const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
+//     (void)expanded;
+//     sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
+//                                       expand_desc.DimsToExpand());
+//   }
 
-  kernels::ScatterGatherGPU scatter_gather_;
-};
+//   kernels::ScatterGatherGPU scatter_gather_;
+// };
 
 /**
  * @brief SequenceOperator

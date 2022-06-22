@@ -359,11 +359,8 @@ class TensorListBroadcastTestBase<GPUBackend> {
 
   void BroadcastSamples(TensorList<GPUBackend> &expanded_batch, const TensorList<GPUBackend> &batch,
                         const TensorListShape<> &expand_extents) {
-    broadcast_samples(expanded_batch, batch, expand_extents.num_elements(), expand_extents,
-                      scatter_gather_, batch.order().get());
+    broadcast_samples(expanded_batch, batch, expand_extents.num_elements(), expand_extents);
   }
-
-  kernels::ScatterGatherGPU scatter_gather_;
   TensorList<CPUBackend> batch_;
   TensorList<CPUBackend> expanded_batch_;
 };
