@@ -170,26 +170,17 @@ std::vector<std::pair<std::string, std::function<void(TensorVector<Backend> &)>>
 SetRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout, bool pinned,
                    int device_id) {
   return {
-    {"sample dim", [sample_dim](TensorVector<Backend> &t) {
-      t.set_sample_dim(sample_dim);
-    }},
-    {"type", [type](TensorVector<Backend> &t) {
-      t.set_type(type);
-    }},
-    {"layout", [layout](TensorVector<Backend> &t) {
-      t.SetLayout(layout);
-    }},
-    {"device id", [device_id](TensorVector<Backend> &t) {
-      t.set_device_id(device_id);
-    }},
-    {"pinned", [pinned](TensorVector<Backend> &t) {
-      t.set_pinned(pinned);
-    }},
-    {"order", [device_id](TensorVector<Backend> &t) {
-      constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
-      const auto order = is_device ? AccessOrder(cuda_stream, device_id) : AccessOrder::host();
-      t.set_order(order);
-    }},
+      {"sample dim", [sample_dim](TensorVector<Backend> &t) { t.set_sample_dim(sample_dim); }},
+      {"type", [type](TensorVector<Backend> &t) { t.set_type(type); }},
+      {"layout", [layout](TensorVector<Backend> &t) { t.SetLayout(layout); }},
+      {"device id", [device_id](TensorVector<Backend> &t) { t.set_device_id(device_id); }},
+      {"pinned", [pinned](TensorVector<Backend> &t) { t.set_pinned(pinned); }},
+      {"order",
+       [device_id](TensorVector<Backend> &t) {
+         constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
+         const auto order = is_device ? AccessOrder(cuda_stream, device_id) : AccessOrder::host();
+         t.set_order(order);
+       }},
   };
 }
 
@@ -227,14 +218,12 @@ TYPED_TEST(TensorVectorSuite, NewPartialSetupSetMultiGPU) {
       try {
         tv.UnsafeSetSample(0, t);
         FAIL() << "Exception was expected with excluded: " << setups[excluded].first;
-      } catch(std::runtime_error &e) {
+      } catch (std::runtime_error &e) {
         auto expected = "Sample must have the same " + setups[excluded].first;
         EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
             << expected << "\n====\nvs\n====\n"
             << e.what();
-      } catch (...) {
-        FAIL() << "Unexpected exception";
-      }
+      } catch (...) { FAIL() << "Unexpected exception"; }
     } while (std::next_permutation(idxs.begin(), idxs.end()));
   }
 }
@@ -243,17 +232,9 @@ TYPED_TEST(TensorVectorSuite, NewPartialSetupSetMultiGPU) {
 template <typename Backend>
 std::vector<std::pair<std::string, std::function<void(TensorVector<Backend> &)>>>
 CopyRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout) {
-  return {
-    {"sample dim", [sample_dim](TensorVector<Backend> &t) {
-      t.set_sample_dim(sample_dim);
-    }},
-    {"type", [type](TensorVector<Backend> &t) {
-      t.set_type(type);
-    }},
-    {"layout", [layout](TensorVector<Backend> &t) {
-      t.SetLayout(layout);
-    }}
-  };
+  return {{"sample dim", [sample_dim](TensorVector<Backend> &t) { t.set_sample_dim(sample_dim); }},
+          {"type", [type](TensorVector<Backend> &t) { t.set_type(type); }},
+          {"layout", [layout](TensorVector<Backend> &t) { t.SetLayout(layout); }}};
 }
 
 
@@ -290,14 +271,12 @@ TYPED_TEST(TensorVectorSuite, NewPartialSetupCopyMultiGPU) {
       try {
         tv.UnsafeCopySample(0, t);
         FAIL() << "Exception was expected with excluded: " << setups[excluded].first;
-      } catch(std::runtime_error &e) {
+      } catch (std::runtime_error &e) {
         auto expected = "Sample must have the same " + setups[excluded].first;
         EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
             << expected << "\n====\nvs\n====\n"
             << e.what();
-      } catch (...) {
-        FAIL() << "Unexpected exception";
-      }
+      } catch (...) { FAIL() << "Unexpected exception"; }
     } while (std::next_permutation(idxs.begin(), idxs.end()));
   }
 }
@@ -365,7 +344,7 @@ TYPED_TEST(TensorVectorSuite, NewResizeSetSize) {
   tv.Resize(new_shape);
   tv.SetLayout("HWC");
 
-  const auto *base = static_cast<const uint8_t*>(unsafe_sample_owner(tv, 0).get());
+  const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
 
   for (int i = 0; i < 3; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);
@@ -386,7 +365,7 @@ TYPED_TEST(TensorVectorSuite, NewResizeSetSize) {
   tv.SetSize(2);
   tv.SetSize(3);
 
-  base = static_cast<const uint8_t*>(unsafe_sample_owner(tv, 0).get());
+  base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
 
   for (int i = 0; i < 2; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);
@@ -435,7 +414,7 @@ TYPED_TEST(TensorVectorSuite, NewContiguousResize) {
     tv.UnsafeCopySample(i, tv, i);
   }
 
-  const auto *base = static_cast<const uint8_t*>(unsafe_sample_owner(tv, 0).get());
+  const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
 
   for (int i = 0; i < 3; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);
@@ -491,7 +470,7 @@ TEST(TensorVectorSuite, NewContiguousResizeCpu) {
     tv.UnsafeCopySample(i, tv, i);
   }
 
-  const auto *base = static_cast<const uint8_t*>(unsafe_sample_owner(tv, 0).get());
+  const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
 
   for (int i = 0; i < 3; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);

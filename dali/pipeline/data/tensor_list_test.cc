@@ -64,8 +64,7 @@ class TensorListTest : public DALITest {
    * Initialize & check a TensorList based on an input shape
    * Allocate it as float
    */
-  void SetupTensorList(TensorList<Backend> *tensor_list,
-                       const TensorListShape<>& shape,
+  void SetupTensorList(TensorList<Backend> *tensor_list, const TensorListShape<> &shape,
                        vector<Index> *offsets) {
     const int num_tensor = shape.size();
 
@@ -85,13 +84,11 @@ class TensorListTest : public DALITest {
     for (int i = 0; i < num_tensor; ++i) {
       ASSERT_NE(tensor_list->template mutable_tensor<float>(i), nullptr);
       ASSERT_EQ(tensor_list->tensor_shape(i), shape[i]);
-      ASSERT_EQ(tensor_list->tensor_offset(i), (*offsets)[i]);
     }
   }
 };
 
-typedef ::testing::Types<CPUBackend,
-                         GPUBackend> Backends;
+typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
 TYPED_TEST_SUITE(TensorListTest, Backends);
 
 // Note: A TensorList in a valid state has a type. To get to a valid state, we
@@ -110,7 +107,7 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   // Give the tensor a type
   tl.template set_type<float>();
 
-  ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_EQ(tl.shape().num_elements(), 0);
   ASSERT_EQ(tl.nbytes(), 0);
   ASSERT_FALSE(tl.has_data());
 
@@ -130,15 +127,14 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   // Validate the internals
   ASSERT_TRUE(tl.has_data());
   ASSERT_EQ(tl.num_samples(), num_tensor);
-  ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.shape().num_elements(), size);
+  ASSERT_EQ(tl.nbytes(), size * sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
   tl.reserve(shape.num_elements() * sizeof(float));
 
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tl.raw_tensor(i), nullptr);
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
   }
 }
 
@@ -152,13 +148,13 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   ASSERT_TRUE(tl.has_data());
   ASSERT_EQ(tl.capacity(), shape.num_elements() * sizeof(float));
   ASSERT_EQ(tl.nbytes(), 0);
-  ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_EQ(tl.shape().num_elements(), 0);
   ASSERT_NE(unsafe_raw_data(tl), nullptr);
 
   // Give the tensor a type
   tl.template set_type<float>();
 
-  ASSERT_EQ(tl._num_elements(), 0);
+  ASSERT_EQ(tl.shape().num_elements(), 0);
   ASSERT_EQ(tl.nbytes(), 0);
   ASSERT_TRUE(tl.has_data());
 
@@ -176,14 +172,13 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   // Validate the internals
   ASSERT_TRUE(tl.has_data());
   ASSERT_EQ(tl.num_samples(), num_tensor);
-  ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.shape().num_elements(), size);
+  ASSERT_EQ(tl.nbytes(), size * sizeof(float));
   ASSERT_TRUE(IsType<float>(tl.type()));
 
 
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tl.raw_tensor(i), nullptr);
-    ASSERT_EQ(tl.tensor_offset(i), offsets[i]);
   }
 }
 
@@ -207,6 +202,7 @@ TYPED_TEST(TensorListTest, TestSetNoType) {
 
 TYPED_TEST(TensorListTest, TestGetContiguousPointer) {
   TensorList<TypeParam> tl;
+  tl.SetContiguous(BatchState::Contiguous);
 
   // Give the tensor a size and a type - uniform allocation
   auto shape = this->GetRandShape();
@@ -216,7 +212,7 @@ TYPED_TEST(TensorListTest, TestGetContiguousPointer) {
   int64_t volume = shape.num_elements();
 
   // Verify the internals
-  ASSERT_EQ(tl._num_elements(), volume);
+  ASSERT_EQ(tl.shape().num_elements(), volume);
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_EQ(tl.nbytes(), volume * sizeof(uint32_t));
   ASSERT_EQ(tl.type(), DALI_UINT32);
@@ -247,8 +243,8 @@ TYPED_TEST(TensorListTest, TestGetBytesThenNoAlloc) {
   for (int i = 0; i < tl.num_samples(); i++) {
     ASSERT_EQ(tl.raw_tensor(i), sharer.raw_tensor(i));
   }
-  ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.shape().num_elements(), size);
+  ASSERT_EQ(tl.nbytes(), size * sizeof(float));
   ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
@@ -282,8 +278,8 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAlloc) {
   for (int i = 0; i < tl.num_samples(); i++) {
     ASSERT_EQ(tl.raw_tensor(i), sharer.raw_tensor(i));
   }
-  ASSERT_EQ(tl._num_elements(), size);
-  ASSERT_EQ(tl.nbytes(), size*sizeof(float));
+  ASSERT_EQ(tl.shape().num_elements(), size);
+  ASSERT_EQ(tl.nbytes(), size * sizeof(float));
   ASSERT_EQ(tl.type(), sharer.type());
   ASSERT_EQ(tl.num_samples(), num_tensor);
   ASSERT_TRUE(tl.shares_data());
@@ -303,7 +299,7 @@ TYPED_TEST(TensorListTest, TestZeroSizeResize) {
 
   ASSERT_FALSE(tensor_list.has_data());
   ASSERT_EQ(tensor_list.nbytes(), 0);
-  ASSERT_EQ(tensor_list._num_elements(), 0);
+  ASSERT_EQ(tensor_list.shape().num_elements(), 0);
   ASSERT_FALSE(tensor_list.shares_data());
 }
 
@@ -311,20 +307,19 @@ TYPED_TEST(TensorListTest, TestMultipleZeroSizeResize) {
   TensorList<TypeParam> tensor_list;
 
   int num_tensor = this->RandInt(0, 128);
-  auto shape = uniform_list_shape(num_tensor, TensorShape<>{ 0 });
+  auto shape = uniform_list_shape(num_tensor, TensorShape<>{0});
   tensor_list.Resize(shape, DALI_FLOAT);
 
   ASSERT_FALSE(tensor_list.has_data());
   ASSERT_EQ(tensor_list.nbytes(), 0);
   ASSERT_EQ(tensor_list.num_samples(), num_tensor);
-  ASSERT_EQ(tensor_list._num_elements(), 0);
+  ASSERT_EQ(tensor_list.shape().num_elements(), 0);
   ASSERT_FALSE(tensor_list.shares_data());
 
   ASSERT_EQ(tensor_list.num_samples(), num_tensor);
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_EQ(tensor_list.template tensor<float>(i), nullptr);
-    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{ 0 });
-    ASSERT_EQ(tensor_list.tensor_offset(i), 0);
+    ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{0});
   }
 }
 
@@ -337,14 +332,13 @@ TYPED_TEST(TensorListTest, TestFakeScalarResize) {
   tensor_list.Resize(shape);
 
   ASSERT_TRUE(tensor_list.has_data());
-  ASSERT_EQ(tensor_list.nbytes(), num_scalar*sizeof(float));
-  ASSERT_EQ(tensor_list._num_elements(), num_scalar);
+  ASSERT_EQ(tensor_list.nbytes(), num_scalar * sizeof(float));
+  ASSERT_EQ(tensor_list.shape().num_elements(), num_scalar);
   ASSERT_FALSE(tensor_list.shares_data());
 
   for (int i = 0; i < num_scalar; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{1});  // {1} on purpose
-    ASSERT_EQ(tensor_list.tensor_offset(i), i);
   }
 }
 
@@ -357,14 +351,13 @@ TYPED_TEST(TensorListTest, TestTrueScalarResize) {
   tensor_list.Resize(shape);
 
   ASSERT_TRUE(tensor_list.has_data());
-  ASSERT_EQ(tensor_list.nbytes(), num_scalar*sizeof(float));
-  ASSERT_EQ(tensor_list._num_elements(), num_scalar);
+  ASSERT_EQ(tensor_list.nbytes(), num_scalar * sizeof(float));
+  ASSERT_EQ(tensor_list.shape().num_elements(), num_scalar);
   ASSERT_FALSE(tensor_list.shares_data());
 
   for (int i = 0; i < num_scalar; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), TensorShape<>{});
-    ASSERT_EQ(tensor_list.tensor_offset(i), i);
   }
 }
 
@@ -410,7 +403,6 @@ TYPED_TEST(TensorListTest, TestMultipleResize) {
   for (int i = 0; i < num_tensor; ++i) {
     ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
     ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
   }
 }
 TYPED_TEST(TensorListTest, TestCopy) {
@@ -473,6 +465,7 @@ TYPED_TEST(TensorListTest, TestTypeChangeError) {
 
 TYPED_TEST(TensorListTest, TestTypeChange) {
   TensorList<TypeParam> tensor_list;
+  tensor_list.SetContiguous(BatchState::Contiguous);
 
   // Setup shape and offsets
   auto shape = this->GetRandShape();
@@ -573,7 +566,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_TRUE(tensor_list2.shares_data());
 
   // Verify the default dims of the tensor_list 2
-  ASSERT_EQ(tensor_list2._num_elements(), tensor_list._num_elements());
+  ASSERT_EQ(tensor_list2.shape().num_elements(), tensor_list.shape().num_elements());
 
   // Resize the tensor_list2 to match the shape of tensor_list
   tensor_list2.Resize(shape);
@@ -582,11 +575,10 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_TRUE(tensor_list2.shares_data());
   ASSERT_EQ(tensor_list2.nbytes(), tensor_list.nbytes());
   ASSERT_EQ(tensor_list2.num_samples(), tensor_list.num_samples());
-  ASSERT_EQ(tensor_list2._num_elements(), tensor_list._num_elements());
+  ASSERT_EQ(tensor_list2.shape().num_elements(), tensor_list.shape().num_elements());
   for (int i = 0; i < tensor_list.num_samples(); ++i) {
     ASSERT_EQ(tensor_list.raw_tensor(i), tensor_list2.raw_tensor(i));
     ASSERT_EQ(tensor_list2.tensor_shape(i), shape[i]);
-    ASSERT_EQ(tensor_list2.tensor_offset(i), offsets[i]);
   }
 
   // Trigger allocation through buffer API, verify we cannot do that
@@ -595,7 +587,7 @@ TYPED_TEST(TensorListTest, TestShareData) {
   ASSERT_FALSE(tensor_list2.shares_data());
 
   // Check the internals
-  ASSERT_EQ(tensor_list2._num_elements(), 0);
+  ASSERT_EQ(tensor_list2.shape().num_elements(), 0);
   ASSERT_EQ(tensor_list2.nbytes(), 0);
   ASSERT_EQ(tensor_list2.num_samples(), 0);
   ASSERT_EQ(tensor_list2.shape(), TensorListShape<>());

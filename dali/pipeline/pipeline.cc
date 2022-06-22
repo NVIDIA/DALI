@@ -343,6 +343,17 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
       DALI_ENFORCE(output_device == "cpu", "Only CPU operators can produce CPU outputs." +
                                             error_str);
     } else if (device == "gpu") {
+      // TODO(klecki): is this case ever possible with DALI to have GPU device op that returns
+      // CPU data?
+      // Not really. In Python layer, it is actually specified as (when creating spec in
+      // generate_outputs, ops.py:456):
+      // ```
+      //  if self._op.device == "gpu" or self._op.device == "mixed":
+      //       output_device = "gpu"
+      //   else:
+      //       output_device = "cpu"
+      // ```
+      // so this means that only ops with device="cpu" can produce cpu outputs.
       if (output_device == "cpu") {
         mark_explicitly_contiguous = true;
       }
@@ -501,7 +512,9 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
           .AddInput(name, "cpu")
-          .AddOutput("contiguous_" + name, "cpu");
+          .AddOutput("contiguous_" + name, "cpu");  // TODO(klecki): [cpu output of mixed]
+        // This is a hack, never in other places can we produce CPU out of mixed operator
+        // due to how specs are created in Python
         PrepareOpSpec(&spec, GetNextInternalLogicalId());
 
         graph_.AddOp(spec, "__MakeContiguous_" + name);
@@ -647,7 +660,8 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_
       OpSpec("MakeContiguous")
       .AddArg("device", "mixed")
       .AddInput(it->first, "cpu")
-      .AddOutput("contiguous_" + it->first, "cpu");
+      .AddOutput("contiguous_" + it->first, "cpu");  // TODO(klecki): [cpu output of mixed]
+    // this is second place where this happens
     // don't put it into op_specs_for_serialization_, only op_specs_
     AddToOpSpecs("__MakeContiguous_" + it->first, make_contiguous_spec, GetNextInternalLogicalId());
     it->second.has_contiguous = true;

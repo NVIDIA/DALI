@@ -91,7 +91,7 @@ void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
   }
 
   MemCopy(
-    labels_output.AsTensor()->raw_mutable_data(),
+    labels_output.AsTensor().raw_mutable_data(),  // TODO(klecki) - rework
     labels_cpu.data(),
     batch_size * sizeof(DALI_INT32),
     ws.stream());

@@ -698,7 +698,7 @@ class DALISingleOpTest : public DALITest {
     for (int i = 0; i < t1->num_samples(); i++) {
       ASSERT_EQ(t1->tensor_shape(i), t2->tensor_shape(i));
     }
-    ASSERT_EQ(t1->_num_elements(), t2->_num_elements());
+    ASSERT_EQ(t1->shape().num_elements(), t2->shape().num_elements());
 
     const bool floatType = IsType<float>(t1->type());
     if (!floatType && !IsType<unsigned char>(t1->type()))

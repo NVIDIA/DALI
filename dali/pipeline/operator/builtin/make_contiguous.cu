@@ -52,6 +52,17 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   }
 }
 
+void MakeContiguousGPU::RunImpl(DeviceWorkspace &ws) {
+  const auto& input = ws.template Input<GPUBackend>(0);
+  auto& output = ws.template Output<GPUBackend>(0);
+  if (IsPassThrough()) {
+    output.ShareData(input);
+  } else {
+    output.Copy(input);
+  }
+}
+
+
 DALI_REGISTER_OPERATOR(MakeContiguous, MakeContiguousMixed, Mixed);
 
 }  // namespace dali

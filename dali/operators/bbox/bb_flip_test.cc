@@ -129,7 +129,7 @@ std::vector<Roi> FromTensorWrapper(TensorListWrapper tw) {
   if (tw.has<Backend>()) {
     auto *tl =  tw.get<Backend>();
     ASSERT_NE(nullptr, tl), std::vector<Roi>();
-    ASSERT_LE(kBbStructSize, tl->_num_elements()), std::vector<Roi>();
+    ASSERT_LE(kBbStructSize, tl->shape().num_elements()), std::vector<Roi>();
     return FromTensorListPtr(tl);
   } else {
     return FromTensorListPtr(tw.CopyTo<Backend>().get());

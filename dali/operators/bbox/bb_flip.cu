@@ -76,9 +76,9 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
 
   DALI_ENFORCE(IsType<float>(input.type()),
                make_string("Expected input data as float; got ", input.type()));
-  DALI_ENFORCE(input._num_elements() % 4 == 0,
+  DALI_ENFORCE(input.shape().num_elements() % 4 == 0,
                make_string("Input data size must be a multiple of 4 if it contains bounding",
-                           " boxes;  got ", input._num_elements()));
+                           " boxes;  got ", input.shape().num_elements()));
 
 
   for (int sample = 0; sample < nsamples; sample++) {
@@ -99,7 +99,7 @@ void BbFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
 
   auto stream = ws.stream();
 
-  const auto num_boxes = input._num_elements() / 4;
+  const auto num_boxes = input.shape().num_elements() / 4;
 
   if (num_boxes == 0) {
     return;

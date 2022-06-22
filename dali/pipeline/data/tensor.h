@@ -31,7 +31,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
-#include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
@@ -120,25 +119,6 @@ class Tensor : public Buffer<Backend> {
     this->SetSkipSample(other.ShouldSkipSample());
     type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
         other.raw_data(), this->size(), order.stream());
-    order_.wait(order);
-  }
-
-  /**
-   * @brief Loads the Tensor at index idx from the input TensorList.
-   */
-  template <typename InBackend>
-  inline void Copy(const TensorList<InBackend> &other, int idx, AccessOrder order = {}) {
-    if (!order)
-      order = other.order() ? other.order() : order_;
-    this->Resize(shape_, other.type());
-    shape_ = other.tensor_shape(idx);
-    device_ = other.device_id();
-    this->SetLayout(other.GetLayout());
-    this->SetSourceInfo(other.GetSourceInfo(idx));
-    this->SetSkipSample(other.ShouldSkipSample(idx));
-    order.wait(order_);
-    type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-        other.raw_tensor(idx), this->size(), order.stream());
     order_.wait(order);
   }
 
