@@ -27,10 +27,10 @@ class NonsilenceOpTest : public ::testing::Test {
   void SetUp() final {
   }
 
-
-  std::vector<float> input_{0, 0, 0, 0, 1000, -1000, 1000, 0, 0, 0};
   int window_size_ = 3;
-  std::vector<float> mms_ref_{0, 0, 333333.344, 666666.688, 1000000, 666666.688, 333333.344, 0};
+  std::vector<float> input_{0, 0, 0, 0, 1000, -1000, 1000, 0, 0, 0};
+  std::vector<float> mms_ref_{0,          0,       0,          0,          333333.344,
+                              666666.688, 1000000, 666666.688, 333333.344, 0};
   std::pair<int, int> nonsilence_region_ref_{2, 5};
   int buffer_length_ = 10;
   TensorShape<1> shape_ = {buffer_length_};
