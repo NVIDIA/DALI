@@ -143,14 +143,9 @@ class DataNodeDebug(_DataNode):
 class _ExternalSourceDebug:
     """Debug mode version of ExternalSource operator."""
 
-<<<<<<< HEAD
-    def __init__(self, source=None, num_outputs=None, batch_size=-1, cycle=None, name=None,
-                 layout=None, batch=None, batch_info=None):
-=======
     def __init__(
             self, source=None, num_outputs=None, batch_size=-1, cycle=None, name=None, device='cpu',
             device_id=-1, layout=None, batch=None, batch_info=None, **kwargs):
->>>>>>> nvidia/main
         if name is not None and num_outputs is not None:
             raise ValueError("`num_outputs` is not compatible with named `ExternalSource`")
 
@@ -303,13 +298,8 @@ class _OperatorManager:
     Uses :class:`ops.Operator` to create OpSpec and handle input sets.
     """
 
-<<<<<<< HEAD
-    def __init__(self, op_class, op_name, pipe, source_context, next_logical_id, batch_size, seed,
-                 inputs, kwargs):
-=======
     def __init__(self, op_class, op_name, pipe, source_context, next_logical_id, batch_size,
                  device_id, seed, inputs, kwargs):
->>>>>>> nvidia/main
         """Creates direct operator."""
 
         self._batch_size = batch_size
@@ -436,20 +426,11 @@ class _OperatorManager:
             # Transforming any convertable datatype to
             # TensorList (DataNodeDebugs are already unpacked).
             # Additionally accepting input sets, but only as list of TensorList.
-<<<<<<< HEAD
-            if (not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU))
-                    and not (isinstance(input, list) and all([
-                        isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU))
-                        for elem in input
-                    ]))):
-                inputs[i] = _transform_data_to_tensorlist(input, len(input))
-=======
             if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)) and \
                     not (isinstance(input, list) and
                          all([isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU)) for elem in input])):
                 inputs[i] = _transform_data_to_tensorlist(
                     input, len(input), device_id=self._device_id)
->>>>>>> nvidia/main
 
         return self.op_helper._build_input_sets(inputs)
 
@@ -493,17 +474,10 @@ class _OperatorManager:
             self._check_device_classification(self._kwargs_classification[key].device,
                                               classification.device, 'Argument', key)
 
-<<<<<<< HEAD
-            if not classification.is_batch and classification.data != self._init_args[key]:
-                raise RuntimeError(
-                    f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
-                    f" value from '{self._init_args[key]}' to '{classification.data}'")
-=======
             if not classification.is_batch and classification.data != self._init_args[key] and \
                     not (math.isnan(classification.data) and math.isnan(self._init_args[key])):
                 raise RuntimeError(f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
                                    f" value from '{self._init_args[key]}' to '{classification.data}'")
->>>>>>> nvidia/main
             if classification.is_batch:
                 call_args[key] = classification.data
 
