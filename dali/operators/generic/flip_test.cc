@@ -100,17 +100,17 @@ TEST_P(FlipTest, BasicTest) {
   auto data_size = kDataWidth * kDataHeight * kDataChannels * sizeof(float);
   TensorList<CPUBackend> tl;
   if (hwc) {
-    tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
+    auto shape = TensorListShape<>{
+        {{kDataHeight, kDataWidth, kDataChannels}, {kDataHeight, kDataWidth, kDataChannels}}};
+    tl.ShareData(std::shared_ptr<void>(nhwc_tensor_list_data.ptr(), [](void *) {}), 2 * data_size,
+                 false, shape, DALI_FLOAT);
     tl.SetLayout("HWC");
-    auto shape = TensorListShape<>{{
-        {kDataHeight, kDataWidth, kDataChannels},
-        {kDataHeight, kDataWidth, kDataChannels}}};
-    tl.Resize(shape, DALI_FLOAT);
   } else {
-    tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size);
+    auto shape = TensorListShape<>{
+        {{kDataChannels, kDataHeight, kDataWidth}, {kDataChannels, kDataHeight, kDataWidth}}};
+    tl.ShareData(std::shared_ptr<void>(nchw_tensor_list_data.ptr(), [](void *) {}), 2 * data_size,
+                 false, shape, DALI_FLOAT);
     tl.SetLayout("CHW");
-    tl.Resize({{{kDataChannels, kDataHeight, kDataWidth},
-              {kDataChannels, kDataHeight, kDataWidth}}}, DALI_FLOAT);
   }
   TensorListWrapper tlout;
   this->RunTest(&tl, tlout, args, FlipVerify);

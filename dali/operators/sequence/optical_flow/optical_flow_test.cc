@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,7 +62,8 @@ TEST(OpticalFlowUtilsTest, ImageToTensorListCpu) {
   // Just one sample
   ASSERT_EQ(tl->num_samples(), 1u);
   const auto *tl_ptr = tl->template tensor<uint8_t>(0);
-  ASSERT_EQ(img.rows * img.cols * img.channels(), tl->_num_elements()) << "Sizes don't match";
+  ASSERT_EQ(img.rows * img.cols * img.channels(), tl->shape().num_elements())
+      << "Sizes don't match";
   for (int i = 0; i < img.cols * img.rows * img.channels(); i++) {
     ASSERT_EQ(img_ptr[i], tl_ptr[i]) << "Test failed at i=" << i;
   }

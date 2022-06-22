@@ -30,12 +30,17 @@
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_list.h"
+// #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 
 
 namespace dali {
 
+template <typename Backend>
+class DLL_PUBLIC TensorVector;
+
+template <typename Backend>
+using TensorList = TensorVector<Backend>;
 
 /**
  * @brief Merges TensorList<Backend> and std::vector<std::shared_ptr<Tensor<Backend>>> APIs
@@ -259,9 +264,9 @@ class DLL_PUBLIC TensorVector {
     SetupLikeImpl(other);
   }
 
-  void SetupLike(const TensorList<Backend> &other) {
-    SetupLikeImpl(other);
-  }
+  // void SetupLike(const TensorList<Backend> &other) {
+  //   SetupLikeImpl(other);
+  // }
   // @}
 
   void set_type(DALIDataType new_type);
@@ -324,8 +329,8 @@ class DLL_PUBLIC TensorVector {
 
   void Reset();
 
-  template <typename SrcBackend>
-  void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order = {});
+  // template <typename SrcBackend>
+  // void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order = {});
 
   template <typename SrcBackend>
   void Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order = {},
@@ -550,6 +555,34 @@ class DLL_PUBLIC TensorVector {
   // with different template types
   template <typename InBackend>
   friend class TensorVector;
+
+  /**
+   * @brief Return an un-typed pointer to the underlying storage.
+   * The TensorList must be either empty or have a valid type and be contiguous.
+   */
+  friend void *unsafe_raw_mutable_data(TensorVector<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
+    return batch.contiguous_buffer_.raw_mutable_data();
+  }
+
+  /**
+   * @brief Return an un-typed const pointer to the underlying storage.
+   * The TensorList must be either empty or have a valid type and be contiguous.
+   */
+  friend const void *unsafe_raw_data(const TensorVector<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
+    return batch.contiguous_buffer_.raw_data();
+  }
+
+  /**
+   * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
+   * with.
+   */
+  friend shared_ptr<void> unsafe_sample_owner(TensorVector<Backend> &batch, int sample_idx) {
+    // create new aliasing pointer to current data allocation, so we share the use count
+    // and the deleter correctly.
+    return {batch.tensors_[sample_idx].get_data_ptr(), batch.raw_mutable_tensor(sample_idx)};
+  }
 };
 
 }  // namespace dali

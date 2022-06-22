@@ -69,8 +69,8 @@ inline void CopyToExternalImpl(void* dst,
   }
 
   if (src.IsContiguous()) {
-    type_info.template Copy<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), src._num_elements(),
-                                                    order.stream(), use_copy_kernel);
+    type_info.template Copy<DstBackend, SrcBackend>(
+        dst, unsafe_raw_data(src), src.shape().num_elements(), order.stream(), use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();
     SmallVector<const void *, 256> from;

@@ -584,8 +584,8 @@ class DLL_PUBLIC Buffer {
     shares_data_ = false;
   }
 
-  template <typename>
-  friend class TensorList;
+  // template <typename>
+  // friend class TensorList;
 
   template <typename>
   friend class TensorVector;
