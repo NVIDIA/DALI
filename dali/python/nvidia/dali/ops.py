@@ -1144,8 +1144,10 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
 
     for idx, inp in enumerate(inputs):
         if not is_input(inp):
-            input_device = schema.GetInputDevice(
-                idx) or default_input_device if schema else default_input_device
+            if schema:
+                input_device = schema.GetInputDevice(idx) or default_input_device
+            else:
+                input_device = default_input_device
             if not isinstance(inp, nvidia.dali.types.ScalarConstant):
                 try:
                     inp = _Constant(inp, device=input_device)

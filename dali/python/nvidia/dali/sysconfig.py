@@ -70,4 +70,3 @@ def get_link_flags():
     flags.append('-L%s' % get_lib_dir())
     flags.append('-ldali')
     return flags
-    

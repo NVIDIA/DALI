@@ -154,12 +154,12 @@ class DataNode(object):
 
     def __bool__(self):
         raise TypeError(
-            ("\"DataNode\" is a symbolic representation of TensorList used for defining"
-             " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
-             " in regular Python context. Bool conversion in Pipeline can be achieved"
-             " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
-             " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
-             " section of DALI documentation."))
+            "\"DataNode\" is a symbolic representation of TensorList used for defining"
+            " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
+            " in regular Python context. Bool conversion in Pipeline can be achieved"
+            " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
+            " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
+            " section of DALI documentation.")
 
     def __getitem__(self, val):
         idxs = []
@@ -238,6 +238,6 @@ not_iterable(DataNode)
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
-        raise TypeError(("Expected outputs of type compatible with \"DataNode\"."
-                         " Received output type with name \"{}\" that does not match.").format(
+        raise TypeError("Expected outputs of type compatible with \"DataNode\"."
+                        " Received output type with name \"{}\" that does not match.".format(
                              type(maybe_node).__name__))

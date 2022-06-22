@@ -274,7 +274,8 @@ class _ExternalSourceGroup(object):
         else:
             data = callback_out
             op = self.utilized_instances[0]
-            pipeline._feed_input(op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
+            pipeline._feed_input(
+                op._name, data, op._layout, self._cuda_stream, self.use_copy_kernel)
 
 
 class ExternalSource():
@@ -555,7 +556,7 @@ Keyword Args
         self._prefetch_queue_depth = prefetch_queue_depth
         self._batch_info = batch_info
 
-        self._spec.AddArg("device", device)The Oggmonster
+        self._spec.AddArg("device", device)
         for key, value in kwargs.items():
             self._spec.AddArg(key, value)
 
@@ -587,7 +588,12 @@ Keyword Args
 
         if source is None:
             if cycle is not None:
-                if self._callback:The Oggmonsterthere.")
+                if self._callback:
+                    raise ValueError(
+                        "The argument ``cycle`` can only be specified if ``source`` is an"
+                        "iterable object or a generator function specified in this call. "
+                        "To cycle through an iterable specified in "
+                        "``__init__``, set ``cycle`` there.")
                 else:
                     raise ValueError(
                         "The argument ``cycle`` can only be specified if ``source`` is a "
@@ -634,20 +640,20 @@ Keyword Args
                 no_copy = True
             if not no_copy:
                 raise ValueError("The argument ``no_copy`` cannot be specified to False "
-                                 + " when used with ``parallel=True``.")
+                                 " when used with ``parallel=True``.")
             if prefetch_queue_depth < 1:
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
             if source_desc.kind == _SourceKind.CALLABLE:
                 if not source_desc.has_inputs:
-                    raise TypeError((
+                    raise TypeError(
                         "Callable passed to External Source in parallel mode "
                         "(when `parallel=True`) must accept exactly one argument: "
                         "`nvidia.dali.types.SampleInfo` if run with `batch=False` or "
                         "either `nvidia.dali.types.BatchInfo` or integer that "
                         "represents the index of the batch within the epoch if `batch=True`. "
-                        "Got a callable that does not accept arguments instead."))
+                        "Got a callable that does not accept arguments instead.")
             elif not batch:
                 if source_desc.kind == _SourceKind.ITERABLE:
                     what = "an iterable"
@@ -660,7 +666,7 @@ Keyword Args
         else:
             if prefetch_queue_depth is not None:
                 raise ValueError("The argument `prefetch_queue_depth` is valid only for "
-                                 + "parallel external sources (when ``parallel`` is True).")
+                                 "parallel external sources (when ``parallel`` is True).")
 
         if self._layout is not None:
             if layout is not None:

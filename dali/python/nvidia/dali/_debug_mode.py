@@ -426,9 +426,11 @@ class _OperatorManager:
             # Transforming any convertable datatype to
             # TensorList (DataNodeDebugs are already unpacked).
             # Additionally accepting input sets, but only as list of TensorList.
-            if not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU)) and \
-                    not (isinstance(input, list) and
-                         all([isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU)) for elem in input])):
+            if (not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU))
+                    and not (isinstance(input, list) and all([
+                        isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU))
+                        for elem in input
+                    ]))):
                 inputs[i] = _transform_data_to_tensorlist(
                     input, len(input), device_id=self._device_id)
 
@@ -476,8 +478,9 @@ class _OperatorManager:
 
             if not classification.is_batch and classification.data != self._init_args[key] and \
                     not (math.isnan(classification.data) and math.isnan(self._init_args[key])):
-                raise RuntimeError(f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
-                                   f" value from '{self._init_args[key]}' to '{classification.data}'")
+                raise RuntimeError(
+                    f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
+                    f" value from '{self._init_args[key]}' to '{classification.data}'")
             if classification.is_batch:
                 call_args[key] = classification.data
 
