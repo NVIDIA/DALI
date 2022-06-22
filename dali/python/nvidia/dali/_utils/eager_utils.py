@@ -333,6 +333,64 @@ def _rxor(self, other):
 _stateless_operators_cache = {}
 
 
+def _create_backend_op(spec, device, num_inputs, call_args_names, op_name):
+    for i in range(num_inputs):
+        spec.AddInput(op_name + f'[{i}]', device)
+
+    for arg_name in call_args_names:
+        spec.AddArgumentInput(arg_name, '')
+
+    if device == 'cpu':
+        backend_op = _b.EagerOperatorCPU(spec)
+    elif device == 'gpu':
+        backend_op = _b.EagerOperatorGPU(spec)
+    elif device == 'mixed':
+        backend_op = _b.EagerOperatorMixed(spec)
+    else:
+        raise ValueError(
+            f"Incorrect device type '{device}' in eager operator '{op_name}'.")
+
+    return backend_op
+
+
+def _eager_op_object_factory(op_class, op_name):
+    class EagerOperator(op_class):
+        def __init__(self, **kwargs):
+            self._batch_size = getattr(kwargs, 'batch_size', -1)
+
+            # Workaround for batch size deduction in _prep_args as we don't have inputs yet.
+            kwargs['batch_size'] = 0
+
+            _, init_args, _ = _prep_args(
+                [], kwargs, op_name, op_name, _callable_op_factory.disqualified_arguments)
+            device_id = init_args.pop('device_id')
+            init_args.pop('max_batch_size')
+
+            super().__init__(**init_args)
+
+            self._spec.AddArg('device_id', device_id)
+            self.built = False
+
+        def __call__(self, *inputs, **kwargs):
+            inputs, init_args, call_args = _prep_args(
+                inputs, kwargs, op_name, op_name, _callable_op_factory.disqualified_arguments)
+
+            if not self.built:
+                self._spec.AddArg('max_batch_size', init_args['max_batch_size'])
+                self._backend_op = _create_backend_op(
+                    self._spec, self._device, len(inputs), call_args.keys(), op_name)
+                self.built = True
+
+            output = self._backend_op(inputs, kwargs)
+
+            if len(output) == 1:
+                return output[0]
+
+            return output
+
+    return EagerOperator
+
+
 def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
     class EagerOperatorBase(op_class):
         def __init__(self, *, max_batch_size, device_id, **kwargs):
@@ -341,30 +399,23 @@ def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
             self._spec.AddArg('device_id', device_id)
             self._spec.AddArg('max_batch_size', max_batch_size)
 
-            for i in range(num_inputs):
-                self._spec.AddInput(op_name + f'[{i}]', self._device)
-
-            for arg_name in call_args_names:
-                self._spec.AddArgumentInput(arg_name, '')
-
-            if self._device == 'cpu':
-                self._backend_op = _b.EagerOperatorCPU(self._spec)
-            elif self._device == 'gpu':
-                self._backend_op = _b.EagerOperatorGPU(self._spec)
-            elif self._device == 'mixed':
-                self._backend_op = _b.EagerOperatorMixed(self._spec)
-            else:
-                raise ValueError(
-                    f"Incorrect device type '{self._device}' in eager operator '{op_name}'.")
+            self._backend_op = _create_backend_op(
+                self.spec, self._device, num_inputs, call_args_names, op_name)
 
     return EagerOperatorBase
 
 
 def _create_module_class():
+    """ Creates a class imitating a module. Used for `rng_state` so we can have nested methods.
+    E.g. `rng_state.random.normal`.
+    """
     class Module:
         @classmethod
         def _submodule(cls, name):
+            """ Returns submodule, creates new if it does not exist. """
             if name not in cls._submodules:
+                # Register a new submodule class (object representing submodule will be created in
+                # the rng_state's constructor).
                 cls._submodules[name] = _create_state_submodule(name)
 
             return cls._submodules[name]
@@ -375,6 +426,10 @@ def _create_module_class():
 
 
 class rng_state(_create_module_class()):
+    """ Manager class for stateful operators. Methods of this class correspond to the appropriate
+    functions in the fn API, they are created by :func:`_wrap_stateful` and are added dynamically.
+    """
+
     def __init__(self, seed=None):
         import numpy as np
 
@@ -382,16 +437,22 @@ class rng_state(_create_module_class()):
         self._seed_generator = np.random.default_rng(seed)
 
         for name, submodule_class in rng_state._submodules.items():
+            # Create attributes imitating submodules, e.g. `random`, `noise`.
             setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
 
 
 def _create_state_submodule(name):
+    """ Creates a class imitating a submodule. It can contain methods and nested submodules.
+    Used for submodules of rng_state, e.g. `rng_state.random`, `rng_state.noise`.
+    """
+
     class StateSubmodule(_create_module_class()):
         def __init__(self, operator_cache, seed_generator):
             self._operator_cache = operator_cache
             self._seed_generator = seed_generator
 
             for name, submodule_class in StateSubmodule._submodules.items():
+                # Adds nested submodules.
                 setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
 
     StateSubmodule.__name__ = name
@@ -657,6 +718,16 @@ def _wrap_iterator(op_class, op_name, wrapper_name):
     return wrapper
 
 
+def _expose_eager_op_as_object(op_class, submodule):
+    """ Exposes eager operators as objects. Can be used if we decide to change eager API from
+    functional to objective."""
+
+    op_name = op_class.schema_name
+    module = _internal.get_submodule('nvidia.dali.experimental.eager', submodule)
+    op = _eager_op_object_factory(op_class, op_name)
+    setattr(module, op_name, op)
+
+
 def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden):
     """Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
     Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
@@ -678,6 +749,7 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
         wrapper = _wrap_stateful(op_class, op_name, wrapper_name)
         last_module = rng_state
         for cur_module_name in submodule:
+            # If nonexistent registers rng_state's submodule.
             cur_module = last_module._submodule(cur_module_name)
             last_module = cur_module
 
