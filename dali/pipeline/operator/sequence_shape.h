@@ -320,44 +320,44 @@ void broadcast_samples(TensorVector<Backend> &expanded_batch, const TensorVector
   assert(expanded_builder.NextSampleIdx() == expanded_batch.num_samples());
 }
 
-inline void broadcast_samples(TensorList<GPUBackend> &expanded_batch,
-                              const TensorList<GPUBackend> &batch, int num_expanded_samples,
-                              const TensorListShape<> &expand_extents,
-                              kernels::ScatterGatherGPU &sg, cudaStream_t stream) {
-  assert(expand_extents.num_samples() == batch.num_samples());
-  const auto &shape = batch.shape();
-  auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
-  expanded_batch.SetLayout(batch.GetLayout());
-  expanded_batch.set_order(stream);
-  expanded_batch.Resize(broadcast_shape, batch.type());
-  auto type_size = batch.type_info().size();
-  for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
-    auto sample_size = type_size * volume(shape[sample_idx]);
-    for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
-      sg.AddCopy(expanded_batch.raw_mutable_tensor(elem_idx++), batch.raw_tensor(sample_idx),
-                 sample_size);
-    }
-  }
-  sg.Run(stream, true);
-}
+// inline void broadcast_samples(TensorList<GPUBackend> &expanded_batch,
+//                               const TensorList<GPUBackend> &batch, int num_expanded_samples,
+//                               const TensorListShape<> &expand_extents,
+//                               kernels::ScatterGatherGPU &sg, cudaStream_t stream) {
+//   assert(expand_extents.num_samples() == batch.num_samples());
+//   const auto &shape = batch.shape();
+//   auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
+//   expanded_batch.SetLayout(batch.GetLayout());
+//   expanded_batch.set_order(stream);
+//   expanded_batch.Resize(broadcast_shape, batch.type());
+//   auto type_size = batch.type_info().size();
+//   for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
+//     auto sample_size = type_size * volume(shape[sample_idx]);
+//     for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
+//       sg.AddCopy(expanded_batch.raw_mutable_tensor(elem_idx++), batch.raw_tensor(sample_idx),
+//                  sample_size);
+//     }
+//   }
+//   sg.Run(stream, true);
+// }
 
-inline void broadcast_samples(TensorList<CPUBackend> &expanded_batch,
-                              const TensorList<CPUBackend> &batch, int num_expanded_samples,
-                              const TensorListShape<> &expand_extents) {
-  assert(expand_extents.num_samples() == batch.num_samples());
-  const auto &shape = batch.shape();
-  auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
-  expanded_batch.SetLayout(batch.GetLayout());
-  expanded_batch.Resize(broadcast_shape, batch.type());
-  auto type_size = batch.type_info().size();
-  for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
-    auto sample_size = type_size * volume(shape[sample_idx]);
-    for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
-      std::memcpy(expanded_batch.raw_mutable_tensor(elem_idx++), batch.raw_tensor(sample_idx),
-                  sample_size);
-    }
-  }
-}
+// inline void broadcast_samples(TensorList<CPUBackend> &expanded_batch,
+//                               const TensorList<CPUBackend> &batch, int num_expanded_samples,
+//                               const TensorListShape<> &expand_extents) {
+//   assert(expand_extents.num_samples() == batch.num_samples());
+//   const auto &shape = batch.shape();
+//   auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
+//   expanded_batch.SetLayout(batch.GetLayout());
+//   expanded_batch.Resize(broadcast_shape, batch.type());
+//   auto type_size = batch.type_info().size();
+//   for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
+//     auto sample_size = type_size * volume(shape[sample_idx]);
+//     for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
+//       std::memcpy(expanded_batch.raw_mutable_tensor(elem_idx++), batch.raw_tensor(sample_idx),
+//                   sample_size);
+//     }
+//   }
+// }
 
 /** @} */  // end of broadcast_samples
 
