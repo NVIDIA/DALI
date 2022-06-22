@@ -14,6 +14,7 @@
 
 
 #include "dali/operators/numba_function/numba_func.h"
+#include "dali/core/cuda_rt_utils.h"
 #include <vector>
 
 namespace dali {
@@ -30,10 +31,11 @@ vector<ssize_t> calc_sizes(DALIDataType type, TensorShape<-1> shape) {
     args.push_back(shape[i]);
   }
 
-  ssize_t s1 = item_size;
-  ssize_t s2 = static_cast<ssize_t>(shape[1] * s1);
-  args.push_back(s1);
-  args.push_back(s2);
+  ssize_t stride_from_shape = item_size;
+  for (int i = shape.size() - 1; i >= 0; i--) {
+    args.push_back(stride_from_shape);
+    stride_from_shape *= shape[i];
+  }
 
   return args;
 }
@@ -81,10 +83,6 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
       "All dimensions should be non negative. Value specified in `outs_ndim` at index ",
         i, " is negative."));
   }
-
-  DALI_ENFORCE(out_types_.size() == in_types_.size(),
-    "Size of `out_types` should match size of `in_types`."
-    "Currently different sizes of `out_types` and `in_types` aren't supported.");
 
   ins_ndim_ = spec.GetRepeatedArgument<int>("ins_ndim");
   DALI_ENFORCE(ins_ndim_.size() == in_types_.size(), make_string(
@@ -135,35 +133,88 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
       " doesn't match the number of dimensions of the input data: ",
       in_shapes_[in_id].sample_dim(), " != ", ins_ndim_[in_id]));
 
-    for (int i = 1; i < in_shapes_[in_id].num_samples(); i++) {
-      DALI_ENFORCE(in_shapes_[in_id][0] == in_shapes_[in_id][i], make_string(
-        "Shape of input ", in_id, ", sample at index ", i,
-        " doesn't match the shape of first sample: ",
-        in_shapes_[in_id][0], " != ", in_shapes_[in_id][i]));
-    }
-
     DALI_ENFORCE(in.type() == in_types_[in_id], make_string(
       "Data type passed in `in_types` at index ", in_id, " doesn't match type of the input data: ",
       in.type(), " != ", in_types_[in_id]));
   }
 
+  auto N = in_shapes_[0].num_samples();
   for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-    vector<ssize_t> sizes = calc_sizes(in_types_[in_id], in_shapes_[in_id][0]);
-    in_sizes_.push_back(sizes);
-    in_memory_ptrs_.push_back({nullptr, nullptr});
+    for (int i = 0; i < N; i++) {
+      vector<ssize_t> sizes = calc_sizes(in_types_[in_id], in_shapes_[in_id][i]);
+      in_sizes_.push_back(sizes);
+      in_memory_ptrs_.push_back({nullptr, nullptr});
+    }
+  }
+
+  if (!setup_fn_) {
+    DALI_ENFORCE(out_types_.size() == in_types_.size(), make_string(
+      "Size of `out_types` should match size of `in_types` if the custom `setup_fn` function ",
+      "is not provided. Provided ", in_types_.size(), " inputs and ", out_types_.size(),
+      " outputs."));
+    for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
+      // Assume that inputs and outputs have the same shapes and types
+      for (int i = 0; i < N; i++) {
+        vector<ssize_t> sizes = calc_sizes(in_types_[out_id], in_shapes_[out_id][i]);
+        out_sizes_.push_back(sizes);
+        out_memory_ptrs_.push_back({nullptr, nullptr});
+      }
+    }
+
+    for (int i = 0; i < noutputs; i++) {
+      const auto &in = ws.Input<GPUBackend>(i);
+      output_desc[i] = {in.shape(), in.type()};
+    }
+    return true;
+  }
+
+  input_shape_ptrs_.resize(N * ninputs);
+  for (int in_id = 0; in_id < ninputs; in_id++) {
+    for (int i = 0; i < N; i++) {
+      input_shape_ptrs_[N * in_id + i] =
+        reinterpret_cast<uint64_t>(in_shapes_[in_id].tensor_shape_span(i).data());
+    }
+  }
+
+  out_shapes_.resize(noutputs);
+  for (int i = 0; i < noutputs; i++) {
+    out_shapes_[i].resize(N, outs_ndim_[i]);
+    output_desc[i].type = static_cast<DALIDataType>(out_types_[i]);
+  }
+
+  output_shape_ptrs_.resize(N * noutputs);
+  for (int out_id = 0; out_id < noutputs; out_id++) {
+    for (int i = 0; i < N; i++) {
+      output_shape_ptrs_[N * out_id + i] =
+        reinterpret_cast<uint64_t>(out_shapes_[out_id].tensor_shape_span(i).data());
+    }
+  }
+
+  ((void (*)(void*, const void*, int32_t, const void*, const void*, int32_t, int32_t))setup_fn_)(
+    output_shape_ptrs_.data(), outs_ndim_.data(), noutputs,
+    input_shape_ptrs_.data(), ins_ndim_.data(), ninputs, N);
+
+  for (int out_id = 0; out_id < noutputs; out_id++) {
+    output_desc[out_id].shape = out_shapes_[out_id];
+    for (int i = 0; i < N; i++) {
+      auto out_shape_span = output_desc[out_id].shape.tensor_shape_span(i);
+      for (int d = 0; d < outs_ndim_[out_id]; d++) {
+        DALI_ENFORCE(out_shape_span[d] >= 0, make_string(
+          "Shape of data should be non negative. ",
+          "After setup function shape for output number ",
+          out_id, " in sample ", i, " at dimension ", d, " is negative."));
+      }
+    }
   }
 
   for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
-    // For now we assume that inputs and outputs have the same shapes and types
-    vector<ssize_t> sizes = calc_sizes(in_types_[out_id], in_shapes_[out_id][0]);
-    out_sizes_.push_back(sizes);
-    out_memory_ptrs_.push_back({nullptr, nullptr});
+    for (int i = 0; i < N; i++) {
+      vector<ssize_t> sizes = calc_sizes(out_types_[out_id], out_shapes_[out_id][i]);
+      out_sizes_.push_back(sizes);
+      out_memory_ptrs_.push_back({nullptr, nullptr});
+    }
   }
 
-  for (int i = 0; i < noutputs; i++) {
-    const auto &in = ws.Input<GPUBackend>(i);
-    output_desc[i] = {in.shape(), in.type()};
-  }
   return true;
 }
 
@@ -192,21 +243,11 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(Workspace &ws) {
 
   for (int i = 0; i < N; i++) {
     vector<void*> args;
-    for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
-      vector<void*> args_local = prepare_args(
-        in_memory_ptrs_[in_id],
-        in_sizes_[in_id],
-        &in_ptrs[N * in_id + i]);
-      args.insert(
-        args.end(),
-        make_move_iterator(args_local.begin()),
-        make_move_iterator(args_local.end()));
-    }
 
     for (size_t out_id = 0; out_id < out_types_.size(); out_id++) {
       vector<void*> args_local = prepare_args(
         out_memory_ptrs_[out_id],
-        out_sizes_[out_id],
+        out_sizes_[N * out_id + i],
         &out_ptrs[N * out_id + i]);
       args.insert(
         args.end(),
@@ -214,16 +255,37 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(Workspace &ws) {
         make_move_iterator(args_local.end()));
     }
 
-    CUfunction cufunc = (CUfunction)run_fn_;
-    CUresult result = cuLaunchKernel(
-      cufunc,
-      blocks_[0], blocks_[1], blocks_[2],
-      threads_per_block_[0], threads_per_block_[1], threads_per_block_[2],
-      0,
-      ws.stream(),
-      static_cast<void**>(args.data()),
-      NULL);
-    cudaResultCheck(result);
+    for (size_t in_id = 0; in_id < in_types_.size(); in_id++) {
+      vector<void*> args_local = prepare_args(
+        in_memory_ptrs_[in_id],
+        in_sizes_[N * in_id + i],
+        &in_ptrs[N * in_id + i]);
+      args.insert(
+        args.end(),
+        make_move_iterator(args_local.begin()),
+        make_move_iterator(args_local.end()));
+    }
+
+    int blocks_per_sm_;
+    CUfunction cuFunc = reinterpret_cast<CUfunction>(run_fn_);
+    int blockDim = volume(threads_per_block_);
+    CUDA_CALL(cuOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_, cuFunc, blockDim, 0));
+    DALI_ENFORCE(blocks_per_sm_, "To many threads per block specified for the Numba provided GPU "
+                                 "kernel");
+    auto number_of_blocks = GetSmCount() * blocks_per_sm_;
+    if (number_of_blocks > volume(blocks_)) {
+      DALI_WARN(make_string("It is recommended that the grid volume: ", volume(blocks_),
+                            " for the Numba provided GPU kernel is at least: ",
+                            number_of_blocks));
+    }
+
+    CUDA_CALL(cuLaunchKernel(cuFunc,
+                             blocks_[0], blocks_[1], blocks_[2],
+                             threads_per_block_[0], threads_per_block_[1], threads_per_block_[2],
+                             0,
+                             ws.stream(),
+                             static_cast<void**>(args.data()),
+                             NULL));
   }
 }
 

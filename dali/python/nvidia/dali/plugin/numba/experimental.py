@@ -26,29 +26,30 @@ import numba as nb
 
 
 _to_numpy = {
-    dali_types.UINT8:   "uint8",
-    dali_types.UINT16:  "uint16",
-    dali_types.UINT32:  "uint32",
-    dali_types.UINT64:  "uint64",
-    dali_types.INT8:    "int8",
-    dali_types.INT16:   "int16",
-    dali_types.INT32:   "int32",
-    dali_types.INT64:   "int64",
+    dali_types.UINT8: "uint8",
+    dali_types.UINT16: "uint16",
+    dali_types.UINT32: "uint32",
+    dali_types.UINT64: "uint64",
+    dali_types.INT8: "int8",
+    dali_types.INT16: "int16",
+    dali_types.INT32: "int32",
+    dali_types.INT64: "int64",
     dali_types.FLOAT16: "float16",
-    dali_types.FLOAT:   "float32",
+    dali_types.FLOAT: "float32",
     dali_types.FLOAT64: "float64",
 }
 
 _to_numba = {
-    dali_types.UINT8:   numba_types.uint8,
-    dali_types.UINT16:  numba_types.uint16,
-    dali_types.UINT32:  numba_types.uint32,
-    dali_types.UINT64:  numba_types.uint64,
-    dali_types.INT8:    numba_types.int8,
-    dali_types.INT16:   numba_types.int16,
-    dali_types.INT32:   numba_types.int32,
-    dali_types.INT64:   numba_types.int64,
-    dali_types.FLOAT:   numba_types.float32,
+    dali_types.UINT8: numba_types.uint8,
+    dali_types.UINT16: numba_types.uint16,
+    dali_types.UINT32: numba_types.uint32,
+    dali_types.UINT64: numba_types.uint64,
+    dali_types.INT8: numba_types.int8,
+    dali_types.INT16: numba_types.int16,
+    dali_types.INT32: numba_types.int32,
+    dali_types.INT64: numba_types.int64,
+    dali_types.FLOAT16: numba_types.float16,
+    dali_types.FLOAT: numba_types.float32,
     dali_types.FLOAT64: numba_types.float64,
 }
 
@@ -74,13 +75,13 @@ def address_as_void_pointer(typingctx, src):
 def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
     ndims = carray(address_as_void_pointer(ndims_ptr), num_dims, dtype=np.int32)
     samples = carray(address_as_void_pointer(shapes_ptr), (num_dims, num_samples), dtype=np.int64)
-    lst = []
+    ret = []
     for sample, size in zip(samples, ndims):
         d = []
         for shape_ptr in sample:
             d.append(carray(address_as_void_pointer(shape_ptr), size, dtype=np.int64))
-        lst.append(d)
-    return lst
+        ret.append(d)
+    return ret
 
 
 class NumbaFunction(metaclass=ops._DaliOperatorMeta):
@@ -198,13 +199,13 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         if LooseVersion(nb.__version__) < LooseVersion('0.57.0'):
             nvvm_options['debug'] = False
             nvvm_options['lineinfo'] = False
-            lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
-                                                      True, nvvm_options,
-                                                      filename, linenum)
+            lib, _ = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
+                                                 True, nvvm_options,
+                                                 filename, linenum)
         else:
-            lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
-                                                      False, True, nvvm_options,
-                                                      filename, linenum)
+            lib, _ = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
+                                                 False, True, nvvm_options,
+                                                 filename, linenum)
 
         handle = lib.get_cufunc().handle
         return handle.value
@@ -340,7 +341,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                       .format(type(inp).__name__))
         op_instance = ops._OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("run_fn", self.run_fn)
-        op_instance.spec.AddArg("setup_fn", self.setup_fn) if self.setup_fn else None
+        if self.setup_fn is not None:
+            op_instance.spec.AddArg("setup_fn", self.setup_fn)
         op_instance.spec.AddArg("out_types", self.out_types)
         op_instance.spec.AddArg("in_types", self.in_types)
         op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
@@ -395,18 +397,15 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                                        "Python 3.7 or newer is required")
 
         if device == 'gpu':
-            assert batch_processing is False, ("Currently batch processing for GPU "
-                                               "is not supported.")
-            assert len(blocks) == 3, ("`blocks` array should contain 3 numbers, "
-                                      f"while received: {len(blocks)}")
+            assert batch_processing is False, "Currently batch processing for GPU is not supported."
+            assert len(blocks) == 3, "`blocks` array should contain 3 numbers, while received: " \
+                                     f"{len(blocks)}"
             for i, block_dim in enumerate(blocks):
-                assert block_dim > 0, ("All dimensions should be positive. "
-                                       "Value specified in `blocks` at index "
-                                       f"{i} is nonpositive: {block_dim}")
+                assert block_dim > 0, "All dimensions should be positive. Value specified in " \
+                                      f"`blocks` at index {i} is nonpositive: {block_dim}"
 
-            assert len(threads_per_block) == 3, ("`threads_per_block` array "
-                                                 "should contain 3 numbers, "
-                                                 f"while received: {len(threads_per_block)}")
+            assert len(threads_per_block) == 3, "`threads_per_block` array should contain 3 " \
+                                                f"numbers, while received: {len(threads_per_block)}"
             for i, threads in enumerate(threads_per_block):
                 assert threads > 0, ("All dimensions should be positive. "
                                      "Value specified in `threads_per_block` at index "
@@ -432,16 +431,11 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             self._spec.AddArg(key, value)
 
         if device == 'gpu':
-            self.run_fn = self._get_run_fn_gpu(run_fn,
-                                               in_types + out_types,
-                                               ins_ndim + outs_ndim)
-            self.setup_fn = None
+            self.run_fn = self._get_run_fn_gpu(run_fn, out_types + in_types, outs_ndim + ins_ndim)
         else:
-            self.run_fn = self._get_run_fn_cpu(run_fn,
-                                               out_types, in_types,
-                                               outs_ndim, ins_ndim,
-                                               batch_processing)
-            self.setup_fn = self._get_setup_fn_cpu(setup_fn)
+            self.run_fn = self._get_run_fn_cpu(run_fn, out_types, in_types, outs_ndim,
+                                               ins_ndim, batch_processing)
+        self.setup_fn = self._get_setup_fn_cpu(setup_fn)
         self.out_types = out_types
         self.in_types = in_types
         self.outs_ndim = outs_ndim
