@@ -39,11 +39,12 @@ def test_arithm_op_context_manager_disabled():
 
 
 def test_arithm_op_context_manager_enabled():
-    eager.set_arithm_op_enabled()
+    eager.arithmetic(True)
     tl_1 = tensors.TensorListCPU(np.ones((8, 16, 16)))
     tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
 
     assert np.array_equal((tl_1 + tl_2).as_array(), np.full(shape=(8, 16, 16), fill_value=2))
+    eager.arithmetic(False)
 
 
 def test_arithm_op_context_manager_nested():
@@ -51,10 +52,10 @@ def test_arithm_op_context_manager_nested():
     tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
     expected_sum = np.full(shape=(8, 16, 16), fill_value=2)
 
-    with eager.set_arithm_op_enabled():
+    with eager.arithmetic():
         assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
 
-        with eager.set_arithm_op_enabled(False):
+        with eager.arithmetic(False):
             with assert_raises(TypeError, glob="unsupported operand type*"):
                 tl_1 + tl_2
 
@@ -66,18 +67,18 @@ def test_arithm_op_context_manager_deep_nested():
     tl_2 = tensors.TensorListCPU(np.ones((8, 16, 16)))
     expected_sum = np.full(shape=(8, 16, 16), fill_value=2)
 
-    eager.set_arithm_op_enabled()
+    eager.arithmetic(True)
 
     assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
 
-    with eager.set_arithm_op_enabled(False):
+    with eager.arithmetic(False):
         with assert_raises(TypeError, glob="unsupported operand type*"):
             tl_1 + tl_2
 
-        with eager.set_arithm_op_enabled(True):
+        with eager.arithmetic(True):
             np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
 
-            with eager.set_arithm_op_enabled(False):
+            with eager.arithmetic(False):
                 with assert_raises(TypeError, glob="unsupported operand type*"):
                     tl_1 + tl_2
 
@@ -85,3 +86,4 @@ def test_arithm_op_context_manager_deep_nested():
             tl_1 + tl_2
 
     assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
+    eager.arithmetic(False)
