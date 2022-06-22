@@ -171,11 +171,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     }
   }
 
-  template<typename backend>
-  inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
-                          size_t &max_reserved_size) {
-    GetMaxSizesCont(in, max_out_size, max_reserved_size);
-  }
+  // template<typename backend>
+  // inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
+  //                         size_t &max_reserved_size) {
+  //   GetMaxSizesCont(in, max_out_size, max_reserved_size);
+  // }
 
   template<typename backend>
   inline void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,

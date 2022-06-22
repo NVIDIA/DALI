@@ -691,11 +691,11 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
                                       expand_desc.NumExpanded());
   }
 
-  template <typename DataBackend>
-  void UnfoldOuterDims(TensorList<DataBackend> &expanded_batch,
-                       const TensorList<DataBackend> &batch, const ExpandDesc &expand_desc) {
-    sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand());
-  }
+  // template <typename DataBackend>
+  // void UnfoldOuterDims(TensorList<DataBackend> &expanded_batch,
+  //                      const TensorList<DataBackend> &batch, const ExpandDesc &expand_desc) {
+  //   sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand());
+  // }
 
   std::vector<ExpandDesc> input_expand_desc_;
   USE_OPERATOR_MEMBERS();
