@@ -102,7 +102,7 @@ class PipelineInput:
     Args:
         pipe_fun: pipeline definition function.
         args: arguments for the pipeline creation.
-        kwargs: possible keyword arguments used inside pipeline definition function. 
+        kwargs: possible keyword arguments used inside pipeline definition function.
     """
 
     def __init__(self, pipe_fun, *args, **kwargs) -> None:
