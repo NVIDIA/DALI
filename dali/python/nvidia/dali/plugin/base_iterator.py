@@ -187,6 +187,7 @@ class _DaliBaseIterator(object):
         self._reader_name = reader_name
         self._extract_from_reader_and_validate()
         self._ever_scheduled = False
+        self._ever_consumed = False
 
     def _calculate_shard_sizes(self, shard_nums):
         shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int64)
@@ -386,6 +387,7 @@ class _DaliBaseIterator(object):
         """
         Returns the next batch of data.
         """
+        self._ever_consumed = True
         return self.__next__()
 
     def __next__(self):
@@ -393,7 +395,9 @@ class _DaliBaseIterator(object):
 
     def __iter__(self):
         # avoid redundant reset when someone would call `iter()` on a new iterator
-        if self._counter != 0:
+        # do not reset if no data was consumed from the iterator - to avoid unintended
+        # buffering in the pipeline and the FW iterator
+        if self._counter != 0 and self._ever_consumed:
             self.reset()
         return self
 

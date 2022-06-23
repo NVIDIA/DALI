@@ -270,6 +270,9 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
         if self._prepare_first_batch:
             try:
                 self._first_batch = DALIGenericIterator.__next__(self)
+                # call to `next` sets _ever_consumed to True but if we are just calling it from
+                # here we should set if to False again
+                self._ever_consumed = False
             except StopIteration:
                 assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
@@ -661,6 +664,9 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
         if self._prepare_first_batch:
             try:
                 self._first_batch = self._first_batch = DALIGluonIterator.__next__(self)
+                # call to `next` sets _ever_consumed to True but if we are just calling it from
+                # here we should set if to False again
+                self._ever_consumed = False
             except StopIteration:
                 assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
 
