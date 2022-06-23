@@ -59,21 +59,19 @@ void CalcMovingMeanSquare(span<float> out, span<const T> in, int length, float m
 
   assert(out.size() == in.size());
   assert(out.size() == length);
-  for (int64_t out_pos = 0; out_pos < length; out_pos++) {
+  int64_t win_begin = -window_size + 1;
+  for (int64_t out_pos = 0; out_pos < length; ) {
     acc_t<T> sumsq = 0;
-    int64_t win_begin = out_pos - window_size + 1;
-    for (int64_t pos = std::max<int64_t>(win_begin, 0); pos <= out_pos; pos++) {
+    assert(win_begin == out_pos - window_size + 1);
+    for (int64_t pos = std::max<int64_t>(win_begin, 0); pos < out_pos; pos++) {
       sumsq += Square(in[pos]);
     }
-    out[out_pos] = sumsq * mean_factor;
     int64_t interval_end = std::min<int64_t>(length, out_pos + reset_interval);
-    for ( ; out_pos < interval_end; ) {
-      out_pos++;
-      win_begin++;
+    for ( ; out_pos < interval_end; out_pos++, win_begin++) {
       sumsq += Square(in[out_pos]);
-      if (win_begin > 0)
-        sumsq -= Square(in[win_begin - 1]);
       out[out_pos] = sumsq * mean_factor;
+      if (win_begin >= 0)
+        sumsq -= Square(in[win_begin]);
     }
   }
 }
