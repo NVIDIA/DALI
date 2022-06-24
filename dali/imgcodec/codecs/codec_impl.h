@@ -1,0 +1,64 @@
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_IMGCODEC_CODECS_CODEC_IMPL_H_
+#define DALI_IMGCODEC_CODECS_CODEC_IMPL_H_
+
+#include <typeinfo>
+#include <vector>
+#include "dali/core/format.h"
+#include "dali/imgcodec/image_codec.h"
+
+namespace dali {
+
+template <typename Actual>
+class ImageCodecImpl : public ImageCodecInstance {
+ public:
+  ImageCodecImpl(int device_id, ThreadPool *tp) : device_id_(device_id), tp_(tp) {
+  }
+
+  virtual bool CanDecode(EncodedImage *in, DecodeParams opts) { return true; }
+
+  std::vector<bool> CanDecode(span<EncodedImage *> in, span<DecodeParams> opts) override {
+    assert(opts.size() == in.size());
+    std::vector<bool> ret(in.size());
+    for (int i = 0; i < in.size(); i++)
+      ret[i] = CanDecode(in[i], opts[i]);
+    return ret;
+  }
+
+  std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
+                                   span<EncodedImage *> in, span<DecodeParams> opts) override {
+    assert(out.size() == in.size());
+    assert(out.size() == opts.size() || opts.size() == 1);
+    std::vector<DecodeResult> ret(out.size())
+    for (int i = 0 ; i < in.size(); i++)
+      ret[i] = Decode(out[i], in[i], opts.size() > 1 ? opts[i] : opts[0]);
+    return ret;
+  }
+
+  void SetParam(const char*, const any &) override {}
+  any GetParam(const char *key) const override {
+    return {};
+  }
+
+ protected:
+  int device_id_;
+  ThreadPool *tp_;
+};
+
+} // namespace dali
+
+
+#endif  // DALI_IMGCODEC_CODECS_CODEC_IMPL_H_

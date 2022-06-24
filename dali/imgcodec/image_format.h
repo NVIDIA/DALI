@@ -15,6 +15,7 @@
 #ifndef DALI_IMGCODEC_IMAGE_FORMAT_H_
 #define DALI_IMGCODEC_IMAGE_FORMAT_H_
 
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -106,28 +107,47 @@ class ImageCodec;
 class DLL_PUBLIC ImageFormat {
  public:
   ImageFormat(const char *name, shared_ptr<ImageParser> parser);
+
   bool Matches(EncodedImage *encoded) const;
   ImageParser* Parser() const;
   const std::string& Name() const;
-  span<ImageCodec*> Codecs();
+  span<ImageCodec* const> Codecs() const;
   void RegisterCodec(std::shared_ptr<ImageCodec> codec, float priority);
 
  private:
   std::string name_;
   std::shared_ptr<ImageParser> parser_;
-  std::vector<std::shared_ptr<ImageCodec>> codecs_;
-  mutable std::vector<ImageCodec*> codecs_ptrs_;
+  std::multimap<float, std::shared_ptr<ImageCodec>> codecs_;
+  std::vector<ImageCodec*> codec_ptrs_;
 };
 
 class DLL_PUBLIC ImageFormatRegistry {
  public:
+  /**
+   * @brief Registers a new image format
+   *
+   * @param format The image format to register
+   */
   void RegisterFormat(std::shared_ptr<ImageFormat> format);
+  /**
+   * @brief Get the format of the image encoded in `image`
+   *
+   * This function tries to parse the image with parsers from all
+   * registered formats and returns the first format that succeeded.
+   *
+   * @param image
+   * @return ImageFormat*
+   */
   ImageFormat* GetImageFormat(EncodedImage *image) const;
-  span<ImageFormat*> Formats() const;
+
+  /**
+   * @brief Returns all registered image formats
+   */
+  span<ImageFormat* const> Formats() const;
 
  private:
   std::vector<std::shared_ptr<ImageFormat>> formats_;
-  mutable std::vector<ImageFormat*> formats_ptrs_;
+  std::vector<ImageFormat*> format_ptrs_;
 };
 
 }  // namespace imgcodec

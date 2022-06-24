@@ -33,18 +33,25 @@ const std::string &ImageFormat::Name() const {
   return name_;
 }
 
-span<ImageCodec *> ImageFormat::Codecs() {
-  codecs_ptrs_.reserve(codecs_.size());
-  codecs_ptrs_.clear();
-  for (auto &codec : codecs_)
-    codecs_ptrs_.push_back(codec.get());
-  return make_span(codecs_ptrs_);
+span<ImageCodec *const> ImageFormat::Codecs() const {
+  return make_span(codec_ptrs_);
 }
 
-void ImageFormat::RegisterCodec(std::shared_ptr<ImageCodec> codec, float priority) {}
+void ImageFormat::RegisterCodec(std::shared_ptr<ImageCodec> codec, float priority) {
+  auto it = codecs_.emplace(priority, std::move(codec));
+  if (std::next(it) == codecs_.end()) {
+    codec_ptrs_.push_back(it->second.get());
+  } else {
+    codec_ptrs_.clear();
+    for (auto [priority, codec] : codecs_) {
+      codec_ptrs_.push_back(codec.get());
+    }
+  }
+}
 
 void ImageFormatRegistry::RegisterFormat(std::shared_ptr<ImageFormat> format) {
-  formats_.push_back(format);
+  formats_.push_back(std::move(format));
+  format_ptrs_.push_back(formats_.back().get());
 }
 
 ImageFormat *ImageFormatRegistry::GetImageFormat(EncodedImage *image) const {
@@ -56,12 +63,8 @@ ImageFormat *ImageFormatRegistry::GetImageFormat(EncodedImage *image) const {
   return nullptr;
 }
 
-span<ImageFormat *> ImageFormatRegistry::Formats() const {
-  formats_ptrs_.reserve(formats_.size());
-  formats_ptrs_.clear();
-  for (auto &ptr : formats_)
-    formats_ptrs_.push_back(ptr.get());
-  return make_span(formats_ptrs_);
+span<ImageFormat *const> ImageFormatRegistry::Formats() const {
+  return make_span(format_ptrs_);
 }
 
 }  // namespace imgcodec
