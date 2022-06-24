@@ -22,7 +22,6 @@ from numba import types as numba_types
 from numba import njit, cfunc, carray, cuda
 import numpy as np
 import numba as nb
-from distutils.version import LooseVersion
 
 
 _to_numpy = {
@@ -320,7 +319,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         toolkit_version = cuda.runtime.get_version()
         driver_version = cuda.driver.driver.get_version()
 
-        assert toolkit_version <= driver_version, f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver can not be older than the CUDA Toolkit"
+        if toolkit_version <= driver_version:
+            raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver can not be older than the CUDA Toolkit")
 
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
