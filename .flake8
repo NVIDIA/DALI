@@ -1,7 +1,7 @@
 [flake8]
 color = auto
 count = True
-doctests = True
+doctests = False
 max-doc-length = 120
 max-line-length = 100
 statistics = True
