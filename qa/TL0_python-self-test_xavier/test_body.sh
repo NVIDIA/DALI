@@ -11,6 +11,7 @@ test_py_with_framework() {
         "'mixed'"
         "video\("
         "caffe"
+        "numba"
     )
 
     for test_script in $(ls test_operator_*.py test_pipeline*.py test_pool.py test_external_source_dali.py test_external_source_numpy.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py test_functional_api.py test_backend_impl.py); do
