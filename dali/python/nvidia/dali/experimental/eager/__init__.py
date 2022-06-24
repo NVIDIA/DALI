@@ -17,18 +17,18 @@ from . import math  # noqa: F401
 """ Eager module implements eager versions of standard DALI operators.
 There are 3 main types of eager operators:
     stateless: callable directly as functions. Example:
-        >> dali.experimental.eager.crop(input, crop=(5, 5))
+        >>> dali.experimental.eager.crop(input, crop=(5, 5))
     stateful: operators that require a state, used as method of the `rng_state`. Example:
-        >> rng_state = dali.experimental.eager.rng_state(seed=42)
-        >> rng_state.random.normal(shape=(10, 10), batch_size=8))
+        >>> rng_state = dali.experimental.eager.rng_state(seed=42)
+        >>> rng_state.random.normal(shape=(10, 10), batch_size=8))
     iterators: reader operators as python iterables. Example:
-        >> for file, label in eager.readers.file(file_root=file_path, batch_size=8):
-        ..     # file and label are batches of size 8 (TensorLists).
-        ..     print(file)
+        >>> for file, label in eager.readers.file(file_root=file_path, batch_size=8):
+        ...     # file and label are batches of size 8 (TensorLists).
+        ...     print(file)
 Additionally eager implements:
     math operators - `dali.experimental.eager.math`. Example:
-        >> tl = dali.tensors.TensorListCPU(...)
-        >> dali.experimental.eager.math.sqrt(tl)
+        >>> tl = dali.tensors.TensorListCPU(...)
+        >>> dali.experimental.eager.math.sqrt(tl)
     direct arithmetic operators on TensorLists, enabled with `dali.experimental.eager.arithmetic`
         as context-manager or as function with global setting.
 """
@@ -45,13 +45,13 @@ class arithmetic(metaclass=_MetaArithmetic):
     Can also be used as a function with global setting.
 
     Examples:
-        >> tl = dali.tensors.TensorListCPU(...)
-        >> with dali.experimental.eager.arithmetic(enabled=True):
-        ..     out = tl + 1
+        >>> tl = dali.tensors.TensorListCPU(...)
+        >>> with dali.experimental.eager.arithmetic(enabled=True):
+        ...     out = tl + 1
 
-        >> dali.experimental.eager.arithmetic(enabled=True)
-        >> tl = dali.tensors.TensorListCPU(...)
-        >> out = tl ** 2
+        >>> dali.experimental.eager.arithmetic(enabled=True)
+        >>> tl = dali.tensors.TensorListCPU(...)
+        >>> out = tl ** 2
     """
     def __init__(self, enabled=True):
         self.prev = arithmetic._enabled
