@@ -51,6 +51,10 @@ _to_numba = {
     dali_types.FLOAT64 : numba_types.float64,
 }
 
+# Numba does not support float16 in Python 3.6
+if 'float16' in dir(numba_types):
+    _to_numba[dali_types.FLOAT16] = numba_types.float16
+
 
 @nb.extending.intrinsic
 def address_as_void_pointer(typingctx, src):
