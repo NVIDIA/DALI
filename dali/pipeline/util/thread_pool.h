@@ -34,8 +34,10 @@ class DLL_PUBLIC ThreadPool {
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
 
-  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity,
-                        const std::string &name);
+  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name);
+
+  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity, const std::string& name)
+      : ThreadPool(num_thread, device_id, set_affinity, name.c_str()) {}
 
   DLL_PUBLIC ~ThreadPool();
 
