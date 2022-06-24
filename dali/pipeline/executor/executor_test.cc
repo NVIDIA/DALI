@@ -419,17 +419,11 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   test::MakeRandomBatch(tl, this->batch_size_);
-
-  std::cout << "I'm here 0" << std::endl;
   src_op->SetDataSource(tl);
-  std::cout << "I'm here 1" << std::endl;
 
   exe->RunCPU();
-  std::cout << "I'm here 2" << std::endl;
   exe->RunMixed();
-  std::cout << "I'm here 3" << std::endl;
   exe->RunGPU();
-  std::cout << "I'm here 4" << std::endl;
 
   DeviceWorkspace ws;
   exe->Outputs(&ws);

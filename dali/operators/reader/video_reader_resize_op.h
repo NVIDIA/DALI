@@ -17,6 +17,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "dali/operators/reader/loader/video_loader.h"
 #include "dali/operators/reader/reader_op.h"
