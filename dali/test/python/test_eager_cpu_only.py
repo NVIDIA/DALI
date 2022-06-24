@@ -22,7 +22,8 @@ import nvidia.dali.fn as fn
 import nvidia.dali.tensors as tensors
 import nvidia.dali.types as types
 from nvidia.dali._utils.eager_utils import _slice_tensorlist
-from test_dali_cpu_only_utils import setup_test_nemo_asr_reader_cpu, setup_test_numpy_reader_cpu
+from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,
+                                      setup_test_numpy_reader_cpu)
 from test_utils import check_batch, get_dali_extra_path, get_files
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
@@ -84,7 +85,12 @@ def compare_eager_with_pipeline(pipe, eager_op, *, eager_source=get_data_eager, 
 
         for o_fn, o_eager in zip(out_fn, out_eager):
             assert type(o_fn) == type(o_eager)
-            check_batch(o_fn, o_eager, batch_size)
+
+            if o_fn.dtype == types.BOOL:
+                for t_fn, t_eager in zip(o_fn, o_eager):
+                    assert np.array_equal(t_fn, t_eager)
+            else:
+                check_batch(o_fn, o_eager, batch_size)
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -114,7 +120,8 @@ def reader_pipeline(op, kwargs):
     return out
 
 
-def check_reader(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=2, **kwargs):
+def check_reader(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size,
+                 N_iterations=2, **kwargs):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = reader_pipeline(fn_op, kwargs)
     pipe.build()
@@ -310,3 +317,62 @@ def test_numpy_reader_cpu():
 def test_sequence_reader_cpu():
     check_reader('readers.sequence', file_root=sequence_dir,
                  sequence_length=2, shard_id=0, num_shards=1)
+
+
+def test_tensor_subscript():
+    check_single_input('tensor_subscript', lo_0=1, hi_1=-1, at_2=1)
+
+
+def eager_arithm_ops(data):
+    return (data * 2,
+            data + 2,
+            data - 2,
+            data / 2,
+            data // 2,
+            data ** 2,
+            data == 2,
+            data != 2,
+            data < 2,
+            data <= 2,
+            data > 2,
+            data >= 2,
+            data & 2,
+            data | 2,
+            data ^ 2,
+            eager.math.abs(data),
+            eager.math.fabs(data),
+            eager.math.floor(data),
+            eager.math.ceil(data),
+            eager.math.pow(data, 2),
+            eager.math.fpow(data, 1.5),
+            eager.math.min(data, 2),
+            eager.math.max(data, 50),
+            eager.math.clamp(data, 10, 50),
+            eager.math.sqrt(data),
+            eager.math.rsqrt(data),
+            eager.math.cbrt(data),
+            eager.math.exp(data),
+            eager.math.exp(data),
+            eager.math.log(data),
+            eager.math.log2(data),
+            eager.math.log10(data),
+            eager.math.sin(data),
+            eager.math.cos(data),
+            eager.math.tan(data),
+            eager.math.asin(data),
+            eager.math.acos(data),
+            eager.math.atan(data),
+            eager.math.atan2(data, 3),
+            eager.math.sinh(data),
+            eager.math.cosh(data),
+            eager.math.tanh(data),
+            eager.math.asinh(data),
+            eager.math.acosh(data),
+            eager.math.atanh(data))
+
+
+def test_arithm_ops_cpu():
+    with eager.arithmetic():
+        pipe = pipeline_arithm_ops_cpu(get_data, batch_size=batch_size,
+                                       num_threads=4, device_id=None)
+        compare_eager_with_pipeline(pipe, eager_op=eager_arithm_ops)
