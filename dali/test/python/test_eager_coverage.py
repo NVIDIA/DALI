@@ -33,8 +33,8 @@ from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 """ Tests of coverage of eager operators. For each operator results from standard pipeline and
 eager version are compared across a couple of iterations.
 If you have added a new operator you should add a test here for an eager version of it. Also make
-sure you have correctly classified the operator in `nvidia.dali.experimental.eager` as stateless,
-stateful or iterator.
+sure you have correctly classified the operator in `dali/python/nvidia/dali/_utils/eager_utils.py`
+as stateless, stateful or iterator.
 """
 
 data_root = get_dali_extra_path()
@@ -1052,6 +1052,8 @@ tested_methods = [
     'peek_image_shape',
     'subscript_dim_check',
     'get_property',
+    'tensor_subscript',
+    'arithmetic_generic_op',
 ]
 
 excluded_methods = [
@@ -1063,8 +1065,6 @@ excluded_methods = [
     'readers.video_resize',   # not supported for CPU
     'optical_flow',           # not supported for CPU
     'paste',                  # not supported for CPU
-    'arithmetic_generic_op',  # TODO(ksztenderski): Add arithm ops in eager mode.
-    'tensor_subscript',       # TODO(ksztenderski): Add slicing in eager mode.
 ]
 
 
@@ -1072,11 +1072,11 @@ def test_coverage():
     """ Checks coverage of eager operators (almost every operator is also exposed in eager mode).
     If you added a new operator, you should also add a test for it here and add the operator name
     to the ``tested_methods`` list. You should also add eager classification for your operator in
-    `nvidia.dali.experimental.eager`.
+    `dali/python/nvidia/dali/_utils/eager_utils.py`.
     """
 
     methods = module_functions(eager, remove_prefix="nvidia.dali.experimental.eager")
-    # TODO(ksztenderski): Add coverage for math module and for GPU operators.
+    # TODO(ksztenderski): Add coverage for GPU operators.
     exclude = "|".join(
         ["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)"  # noqa: W605
          for x in excluded_methods])

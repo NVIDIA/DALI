@@ -24,7 +24,7 @@ from nvidia.dali.external_source import _prep_data_for_feed_input
 
 # Classification of eager operators. Operators not assigned to any class are exposed as stateless.
 # If you created a new operator and it is not stateless you should add it to the appropriate set.
-# You should also add a coverage test for it in `nvidia.dali.test.python.test_eager_cpu_only`.
+# You should also add a coverage test for it in `dali/test/python/test_eager_coverage.py`.
 
 # Stateful operators - rely on the internal state (return different outputs across iterations).
 _stateful_operators = {
