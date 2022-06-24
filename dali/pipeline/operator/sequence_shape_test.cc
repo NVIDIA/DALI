@@ -366,50 +366,6 @@ class TensorListBroadcastTestBase<GPUBackend> {
 };
 
 
-// template <typename Backend>
-// class SequenceShapeBroadcastTest<TensorList<Backend>>
-//     : public ::testing::Test, public TensorListBroadcastTestBase<Backend> {
-//  protected:
-//   template <typename T>
-//   std::tuple<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>> CreateTestBatch(
-//       DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
-//       TensorListShape<> shape = {{3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
-//     TensorList<Backend> batch;
-//     constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
-//     batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
-//     batch.set_pinned(is_pinned);
-//     batch.Resize(shape, dtype);
-//     if (!layout.empty()) {
-//       batch.SetLayout(layout);
-//     }
-//     this->template FillBatch<T>(batch);
-//     return {std::move(batch), expanded_like(batch)};
-//   }
-
-//   template <typename T>
-//   void TestBroadcasting(TensorList<Backend> &expanded_batch, const TensorList<Backend> &batch,
-//                         const TensorListShape<> &expand_extents) {
-//     this->BroadcastSamples(expanded_batch, batch, expand_extents);
-//     check_batch_props(expanded_batch, batch, expand_extents.num_elements(), 0);
-//     auto [expanded_view, batch_view] = this->template GetViews<T>(expanded_batch, batch);
-//     ASSERT_EQ(batch.shape(), batch_view.shape);
-//     ASSERT_EQ(expanded_batch.shape(), expanded_view.shape);
-//     ASSERT_EQ(expand_extents.num_elements(), expanded_batch.num_samples());
-//     for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
-//       const auto sample_shape = batch_view[sample_idx].shape;
-//       auto *sample_data = batch_view.tensor_data(sample_idx);
-//       for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
-//         const auto elem_shape = expanded_view[elem_idx].shape;
-//         ASSERT_EQ(sample_shape, elem_shape);
-//         auto *elem_data = expanded_view.tensor_data(elem_idx++);
-//         for (int j = 0; j < volume(sample_shape); j++) {
-//           EXPECT_EQ(sample_data[j], elem_data[j]);
-//         }
-//       }
-//     }
-//   }
-// };
-
 TYPED_TEST_SUITE(SequenceShapeBroadcastTest, Containers);
 
 TYPED_TEST(SequenceShapeBroadcastTest, Broadcast0Extents) {

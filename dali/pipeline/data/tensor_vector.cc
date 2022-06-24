@@ -209,7 +209,7 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
 
 
 // This is to check if we are actually laid down in contiguous memory
-// TODO: make this internal and name it something like: IsContiguouoususlyStored?
+// TODO(klecki): make this internal and name it something like: IsContiguouoususlyStored?
 template <typename Backend>
 bool TensorVector<Backend>::IsContiguousTensor() const {
   if (num_samples() == 0 || shape().num_elements() == 0) {
@@ -353,8 +353,6 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
-  // TODO(klecki), TODO(mzient): (order - device_id mismatch) - can we just infer device_id from
-  // order or do we really need separate member?
   VerifySampleShareConformance(type, shape.sample_dim(), layout, pinned, order, device_id,
                                make_string(" for ", sample_idx, "."));
 
@@ -802,46 +800,6 @@ void TensorVector<Backend>::Reset() {
 }
 
 
-// template <typename Backend>
-// template <typename SrcBackend>
-// void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder order) {
-//   auto copy_order = CopySyncBefore(this->order(), src.order(), order);
-
-//   Resize(src.shape(), src.type());
-//   // After resize the state_, curr_num_tensors_, type_, sample_dim_, shape_ (and pinned)
-//   // postconditions are met, as well as the buffers are correctly adjusted.
-
-//   CopySyncResize(this->order(), copy_order);
-
-//   bool use_copy_kernel = false;
-//   use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned()) &&
-//                      (std::is_same<Backend, GPUBackend>::value || this->is_pinned());
-
-//   if (this->IsContiguous() && src.IsContiguous()) {
-//     type_info().template Copy<Backend, SrcBackend>(contiguous_buffer_.raw_mutable_data(),
-//                                                    unsafe_raw_data(src), shape().num_elements(),
-//                                                    copy_order.stream(), use_copy_kernel);
-//   } else if (this->IsContiguous() && !src.IsContiguous()) {
-//     CopySamplewiseImpl<Backend, SrcBackend>(contiguous_buffer_.raw_mutable_data(), src,
-//     type_info(),
-//                                             copy_order, use_copy_kernel);
-//   } else if (!this->IsContiguous() && src.IsContiguous()) {
-//     CopySamplewiseImpl<Backend, SrcBackend>(*this, unsafe_raw_data(src), type_info(), copy_order,
-//                                             use_copy_kernel);
-//   } else {
-//     CopySamplewiseImpl<Backend, SrcBackend>(*this, src, type_info(), copy_order,
-//     use_copy_kernel);
-//   }
-
-//   // Update the layout and other metadata
-//   SetLayout(src.GetLayout());
-//   for (int i = 0; i < curr_num_tensors_; i++) {
-//     SetMeta(i, src.GetMeta(i));
-//   }
-//   CopySyncAfter(this->order(), copy_order);
-// }
-
-
 template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &src, AccessOrder order,
@@ -878,32 +836,6 @@ void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &src, AccessOrde
   }
   CopySyncAfter(this->order(), copy_order);
 }
-
-// template <typename Backend>
-// void TensorVector<Backend>::ShareData(const TensorList<Backend> &in_tl) {
-//   Reset();
-
-//   state_.Setup(BatchState::Contiguous);
-//   curr_num_tensors_ = in_tl.num_samples();
-//   type_ = in_tl.type_info();
-//   sample_dim_ = in_tl.shape().sample_dim();
-//   shape_ = in_tl.shape();
-//   layout_ = in_tl.GetLayout();
-//   pinned_ = in_tl.is_pinned();
-//   order_ = in_tl.order();
-  // device_ = in_tl.device_id();
-
-//   contiguous_buffer_.ShareData(in_tl.data_);
-//   // Create empty tensors by hand so we do not allocate twice as the shape is already set
-//   tensors_.resize(in_tl.num_samples());
-//   // recrete the aliases
-//   recreate_views();
-
-//   SetLayout(in_tl.GetLayout());
-//   for (int i = 0; i < curr_num_tensors_; i++) {
-//     SetMeta(i, in_tl.GetMeta(i));
-//   }
-// }
 
 
 template <typename Backend>
@@ -974,7 +906,7 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
     auto old_size = curr_num_tensors_;
     tensors_.resize(new_size);
     for (int i = old_size; i < new_size; i++) {
-      // TODO same validation as when updating properties - or reset
+      // TODO(klecki) same validation as when updating properties - or reset
       if (!tensors_[i].has_data()) {
         tensors_[i].set_pinned(is_pinned());
       } else {
@@ -1059,7 +991,7 @@ bool TensorVector<Backend>::has_data() const {
 
 template <typename Backend>
 bool TensorVector<Backend>::shares_data() const {
-  // TODO: I would like to get rid of some of this
+  // TODO(klecki): I would like to get rid of some of this
   if (IsContiguous()) {
     return contiguous_buffer_.shares_data();
   }
@@ -1083,11 +1015,5 @@ template void TensorVector<GPUBackend>::Copy<CPUBackend>(const TensorVector<CPUB
                                                          AccessOrder, bool);
 template void TensorVector<GPUBackend>::Copy<GPUBackend>(const TensorVector<GPUBackend> &,
                                                          AccessOrder, bool);
-// template void TensorVector<CPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend>&,
-// AccessOrder);  // NOLINT template void TensorVector<CPUBackend>::Copy<GPUBackend>(const
-// TensorList<GPUBackend>&, AccessOrder);  // NOLINT template void
-// TensorVector<GPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend>&, AccessOrder);  //
-// NOLINT template void TensorVector<GPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend>&,
-// AccessOrder);  // NOLINT
 
 }  // namespace dali

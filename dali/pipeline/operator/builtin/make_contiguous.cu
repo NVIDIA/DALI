@@ -61,16 +61,11 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
 void MakeContiguousGPU::RunImpl(DeviceWorkspace &ws) {
   const auto& input = ws.template Input<GPUBackend>(0);
   auto& output = ws.template Output<GPUBackend>(0);
-  // todo: we need conditional passthrough
-  // if (input.IsContiguous()) {
-  //   output.ShareData(input);
-  // } else {
   if (IsPassThrough()) {
     output.ShareData(input);
   } else {
     output.Copy(input);
   }
-  // }
 }
 
 

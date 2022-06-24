@@ -122,25 +122,6 @@ class Tensor : public Buffer<Backend> {
     order_.wait(order);
   }
 
-  // /**
-  //  * @brief Loads the Tensor at index idx from the input TensorList.
-  //  */
-  // template <typename InBackend>
-  // inline void Copy(const TensorList<InBackend> &other, int idx, AccessOrder order = {}) {
-  //   if (!order)
-  //     order = other.order() ? other.order() : order_;
-  //   this->Resize(shape_, other.type());
-  //   shape_ = other.tensor_shape(idx);
-  //   device_ = other.device_id();
-  //   this->SetLayout(other.GetLayout());
-  //   this->SetSourceInfo(other.GetSourceInfo(idx));
-  //   this->SetSkipSample(other.ShouldSkipSample(idx));
-  //   order.wait(order_);
-  //   type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-  //       other.raw_tensor(idx), this->size(), order.stream());
-  //   order_.wait(order);
-  // }
-
   /**
    * @brief Resizes the buffer to fit `volume(shape)` elements.
    * The underlying storage is only reallocated in the case that

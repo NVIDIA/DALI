@@ -52,7 +52,7 @@ class MakeContiguousBase : public Operator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
     output_desc.resize(1);
-    // TODO: deduplicate
+    // TODO(klecki): deduplicate
     if (ws.template InputIsType<CPUBackend>(0)) {
       auto &input = ws.template Input<CPUBackend>(0);
       output_desc[0].shape = input.shape();

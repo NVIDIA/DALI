@@ -107,16 +107,9 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
 
   int device_id = order.is_device() ? order.device_id() : dali::CPU_ONLY_DEVICE_ID;
 
-  // data.set_order(order);
-
-  // DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-  //                           const TensorListShape<> &shape, DALIDataType type,
-  //                           AccessOrder order = {}, const TensorLayout &layout = "");
   data.ShareData(std::shared_ptr<void>(const_cast<void *>(data_ptr), [](void *) {}),
                  tl_shape.num_elements() * elem_sizeof, flags & DALI_ext_pinned, tl_shape, type_id,
                  device_id, order, layout);
-  // data.Resize(tl_shape, type_id);
-  // data.SetLayout(layout);
   pipeline->SetExternalInput(name, data, order,
                              flags & DALI_ext_force_sync,
                              flags & DALI_use_copy_kernel,

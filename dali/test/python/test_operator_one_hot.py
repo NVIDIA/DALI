@@ -109,7 +109,6 @@ def check_one_hot_operator(source, device='cpu', axis=-1, expected_output_dim=No
         num_classes=num_classes, source=source, axis=axis,
         layout=initial_layout, axis_name=axis_name, device=device)
     pipeline.build()
-    pipeline.save_graph_to_dot_file("one_hot.dot", True, True, True)
     (outputs, input_batch) = pipeline.run()
     if device == 'gpu':
         input_batch = input_batch.as_cpu()

@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/tensor.h"
-#include "dali/core/common.h"
-#include "dali/pipeline/data/tensor_vector.h"
 
 #include <gtest/gtest.h>
 
 #include <numeric>
 
+#include "dali/core/common.h"
+#include "dali/core/mm/malloc_resource.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
+#include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_vector.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test.h"
-#include "dali/core/mm/malloc_resource.h"
 
 namespace dali {
 

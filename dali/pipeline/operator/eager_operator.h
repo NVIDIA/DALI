@@ -41,29 +41,10 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Bac
   return in;
 }
 
-// template <typename Backend>
-// std::shared_ptr<TensorList<Backend>> AsTensorList(
-//     const std::shared_ptr<TensorVector<Backend>> &in) {
-//   // TODO(klecki): Add missing optimization
-//   // if (in->IsContiguous()) {
-//   //   // Filled contiguous TensorVector, we can return TensorList directly.
-//   //   return in->AsTensorList(false);
-//   // }
-
-//   auto tl = std::make_shared<TensorList<Backend>>();
-//   tl->Copy(*in);
-//   return tl;
-// }
-
 template <typename StorageType>
 void MakeContiguous(std::shared_ptr<StorageType> storage) {
   storage->SetContiguous(BatchState::Contiguous);
 }
-
-// template <>
-// void MakeContiguous(std::shared_ptr<TensorVector<CPUBackend>> storage) {
-//   storage->SetContiguous(BatchState::Contiguous);
-// }
 
 template <typename Backend>
 struct Backend2Types {};

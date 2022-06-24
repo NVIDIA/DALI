@@ -56,27 +56,6 @@ class SampleBroadcasting {
   }
 };
 
-// template <>
-// class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
-//  protected:
-//   using SampleBroadcasting<CPUBackend>::BroadcastSamples;
-
-//   void BroadcastSamples(TensorList<GPUBackend> &expanded_batch, const TensorList<GPUBackend> &batch,
-//                         const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
-//     sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
-//                                       expand_desc.DimsToExpand());
-//   }
-
-//   void BroadcastSamples(TensorList<CPUBackend> &expanded_batch, const TensorList<CPUBackend> &batch,
-//                         const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
-//     (void)expanded;
-//     sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
-//                                       expand_desc.DimsToExpand());
-//   }
-
-//   kernels::ScatterGatherGPU scatter_gather_;
-// };
-
 /**
  * @brief SequenceOperator
  * Provides generic support for sequence processing to an operator by unfolding
@@ -686,12 +665,6 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand(),
                                       expand_desc.NumExpanded());
   }
-
-  // template <typename DataBackend>
-  // void UnfoldOuterDims(TensorList<DataBackend> &expanded_batch,
-  //                      const TensorList<DataBackend> &batch, const ExpandDesc &expand_desc) {
-  //   sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand());
-  // }
 
   std::vector<ExpandDesc> input_expand_desc_;
   USE_OPERATOR_MEMBERS();

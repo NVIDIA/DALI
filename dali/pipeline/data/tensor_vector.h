@@ -132,7 +132,7 @@ class DLL_PUBLIC TensorVector {
    * @brief Returns a typed pointer to the tensor with the given index.
    */
   template <typename T>
-  DLL_PUBLIC inline T* mutable_tensor(int idx) {
+  DLL_PUBLIC inline T *mutable_tensor(int idx) {
     return tensors_[idx].template mutable_data<T>();
   }
 
@@ -140,22 +140,22 @@ class DLL_PUBLIC TensorVector {
    * @brief Returns a const typed pointer to the tensor with the given index.
    */
   template <typename T>
-  DLL_PUBLIC inline const T* tensor(int idx) const {
+  DLL_PUBLIC inline const T *tensor(int idx) const {
     return tensors_[idx].template data<T>();
   }
 
   /**
    * @brief Returns a raw pointer to the tensor with the given index.
    */
-  DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
+  DLL_PUBLIC inline void *raw_mutable_tensor(int idx) {
     return tensors_[idx].raw_mutable_data();
   }
 
   /**
    * @brief Returns a const raw pointer to the tensor with the given index.
    */
-  DLL_PUBLIC inline const void* raw_tensor(int idx) const {
-    return  tensors_[idx].raw_data();
+  DLL_PUBLIC inline const void *raw_tensor(int idx) const {
+    return tensors_[idx].raw_data();
   }
 
   /**
@@ -286,7 +286,7 @@ class DLL_PUBLIC TensorVector {
 
   void SetSkipSample(int idx, bool skip_sample);
 
-  void SetSourceInfo(int idx, const std::string& source_info);
+  void SetSourceInfo(int idx, const std::string &source_info);
 
   TensorLayout GetLayout() const;
 
@@ -330,14 +330,10 @@ class DLL_PUBLIC TensorVector {
 
   void Reset();
 
-  // template <typename SrcBackend>
-  // void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order = {});
-
   template <typename SrcBackend>
   void Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order = {},
             bool use_copy_kernel = false);
 
-  // void ShareData(const TensorList<Backend> &in_tl);
   DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                             const TensorListShape<> &shape, DALIDataType type, int device_id,
                             AccessOrder order = {}, const TensorLayout &layout = "");
@@ -389,8 +385,8 @@ class DLL_PUBLIC TensorVector {
       DALI_ENFORCE(state != BatchState::Default);
       Setup(state, forced);
     }
-    State(const State&) = default;
-    State &operator=(const State&) = default;
+    State(const State &) = default;
+    State &operator=(const State &) = default;
 
     /**
      * @brief Override current state.
@@ -463,18 +459,18 @@ class DLL_PUBLIC TensorVector {
                              int data_idx, int thread_idx);
   friend void FixBatchPropertiesConsistency(class HostWorkspace &ws, bool contiguous);
 
-  auto& tensor_handle(size_t pos) {
+  auto &tensor_handle(size_t pos) {
     return tensors_[pos];
   }
 
-  auto& tensor_handle(size_t pos) const {
+  auto &tensor_handle(size_t pos) const {
     return tensors_[pos];
   }
 
   template <typename T>
   void SetupLikeImpl(const T &other) {
     DALI_ENFORCE(!has_data(),
-                "Batch object can be initialized this way only when it isn't allocated.");
+                 "Batch object can be initialized this way only when it isn't allocated.");
     set_type(other.type());
     set_sample_dim(other.shape().sample_dim());
     SetLayout(other.GetLayout());

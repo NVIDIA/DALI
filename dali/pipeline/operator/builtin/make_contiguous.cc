@@ -51,17 +51,14 @@ bool IsPassThrough(const OperatorBase &op) {
 void MarkPassThrough(OperatorBase &op) {
   auto *make_contiguous_cpu = dynamic_cast<MakeContiguousBase<CPUBackend> *>(&op);
   if (make_contiguous_cpu) {
-    // std::cout << "Marking pass through cpu" << std::endl;
     make_contiguous_cpu->MarkPassThrough();
   }
   auto *make_contiguous_mixed = dynamic_cast<MakeContiguousBase<MixedBackend> *>(&op);
   if (make_contiguous_mixed) {
-    // std::cout << "Marking pass through mixed" << std::endl;
     make_contiguous_mixed->MarkPassThrough();
   }
   auto *make_contiguous_gpu = dynamic_cast<MakeContiguousBase<GPUBackend> *>(&op);
   if (make_contiguous_gpu) {
-    // std::cout << "Marking pass through gpu" << std::endl;
     make_contiguous_gpu->MarkPassThrough();
   }
 }
