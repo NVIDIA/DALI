@@ -22,7 +22,6 @@ from numba import types as numba_types
 from numba import njit, cfunc, carray, cuda
 import numpy as np
 import numba as nb
-from distutils.version import LooseVersion
 
 
 _to_numpy = {
