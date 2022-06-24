@@ -21,7 +21,7 @@ import nvidia.dali.experimental.eager as eager
 import nvidia.dali.fn as fn
 import nvidia.dali.tensors as tensors
 import nvidia.dali.types as types
-from nvidia.dali import pipeline_def
+from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali._utils.eager_utils import _slice_tensorlist
 from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,
                                       setup_test_numpy_reader_cpu)
@@ -781,8 +781,9 @@ def test_reduce_sum():
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
 def segmentation_select_masks_pipeline(source):
+    device = 'cpu' if Pipeline.current().device_id is None else 'gpu'
     polygons, vertices, selected_masks = fn.external_source(
-        source=source, num_outputs=3, device='cpu')
+        source=source, num_outputs=3, device=device)
     out_polygons, out_vertices = fn.segmentation.select_masks(
         selected_masks, polygons, vertices, reindex_masks=False)
 
@@ -791,8 +792,9 @@ def segmentation_select_masks_pipeline(source):
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
 def segmentation_select_masks_input_pipeline(source):
+    device = 'cpu' if Pipeline.current().device_id is None else 'gpu'
     polygons, vertices, selected_masks = fn.external_source(
-        source=source, num_outputs=3, device='cpu')
+        source=source, num_outputs=3, device=device)
 
     return selected_masks, polygons, vertices
 
