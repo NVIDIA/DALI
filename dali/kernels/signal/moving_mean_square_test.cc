@@ -96,6 +96,7 @@ TYPED_TEST(MovingMeanSquareCpuTest, RunTest) {
   auto reqs = kernel.Setup(ctx, in, {this->window_size_});
 
   auto out_shape = reqs.output_shapes[0][0];
+  EXPECT_EQ(out_shape[0], this->shape_[0]);
   std::vector<float> output;
   output.resize(out_shape.num_elements());
   OutTensorCPU<float, 1> out(output.data(), out_shape.template to_static<1>());
