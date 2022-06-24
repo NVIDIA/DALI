@@ -23,6 +23,11 @@ import nvidia.dali.types as dali_types
 from test_utils import get_dali_extra_path
 from nose_utils import raises
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
+from nose import SkipTest, with_setup
+
+def check_env_compatibility():
+    # if cuda.runtime.get_version() > cuda.driver.driver.get_version():
+    raise SkipTest()
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -68,6 +73,7 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
             assert np.array_equal(out_arr, expected_out[i])
 
 
+@with_setup(check_env_compatibility)
 def test_numba_func():
     # shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
     args = [
@@ -83,11 +89,13 @@ def test_numba_func():
         yield _testimpl_numba_func, shape, dtype, run_fn, out_types, in_types, outs_ndim, ins_ndim, blocks, threads_per_block, setup_fn, batch_processing, expected_out
 
 
+@with_setup(check_env_compatibility)
 @raises(AssertionError, glob='Currently batch processing for GPU is not supported.')
 def test_batch_processing_assertion():
     _testimpl_numba_func([(10, 5)], np.uint8, set_all_values_to_255_sample, [dali_types.UINT8], [dali_types.UINT8], [2], [2], [1, 1, 1], [10, 5, 1], None, True, [np.full((10, 5), 255, dtype=np.uint8)])
 
 
+@with_setup(check_env_compatibility)
 @raises(RuntimeError, regex="Shape of input [0-9]+, sample at index [0-9]+ doesn't match the shape of first sample")
 def test_samples_shapes_assertion():
     _testimpl_numba_func([(10, 20), (10, 10), (10, 20)], np.float32, set_consecutive_values_sample, [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [20, 10, 1], None, False, [np.arange(20*10, dtype=np.float32).reshape((20, 10)), np.arange(20*10, dtype=np.float32).reshape((20, 10))])
