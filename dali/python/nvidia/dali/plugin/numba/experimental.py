@@ -320,11 +320,16 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             toolkit_version = cuda.runtime.get_version()
             driver_version = cuda.driver.driver.get_version()
 
-            if toolkit_version <= driver_version:
+            if toolkit_version > driver_version:
                 raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver cannot be older than the CUDA Toolkit")
 
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
+
+        if 'float16' in dir(numba_types):
+            for t in [*in_types, *out_types]:
+                if t == dali_types.FLOAT16:
+                    raise RuntimeError('Numba does not support float16 for current Python version. Python 3.7 or newer is required')
 
         if device == 'gpu':
             assert batch_processing == False, "Currently batch processing for GPU is not supported."
