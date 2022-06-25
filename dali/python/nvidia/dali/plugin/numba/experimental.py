@@ -321,7 +321,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             driver_version = cuda.driver.driver.get_version()
 
             if toolkit_version <= driver_version:
-                raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver can not be older than the CUDA Toolkit")
+                raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver cannot be older than the CUDA Toolkit")
 
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
