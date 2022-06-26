@@ -420,8 +420,8 @@ class _OperatorManager:
                                                         input_idx)
 
     def _check_call_arg_meta_data(self, expected_data, actual_data, arg_type, value):
-        """ Check for changes in layout, ndim and dtype. 
-        
+        """ Check for changes in layout, ndim and dtype.
+
         Args:
             expected_data: Expected value of the data.
             actual_data: Actual value of the data.
@@ -447,7 +447,7 @@ class _OperatorManager:
 
             # Checking input set.
             for expected_elem, actual_elem in zip(expected_data, actual_data):
-               self._check_call_arg_meta_data(expected_elem, actual_elem, arg_type, value)
+                self._check_call_arg_meta_data(expected_elem, actual_elem, arg_type, value)
         else:
             if expected_data.layout() != actual_data.layout():
                 raise_err('layout', actual_data.layout(), expected_data.layout())
@@ -463,7 +463,8 @@ class _OperatorManager:
         inputs = list(inputs)
 
         for i, input in enumerate(inputs):
-            # Transforming any convertible datatype to TensorList (DataNodeDebugs are already unpacked).
+            # Transforming any convertible datatype to
+            # TensorList (DataNodeDebugs are already unpacked).
             # Additionally accepting input sets, but only as list of TensorList.
             if (not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU))
                     and not (isinstance(input, list) and all([

@@ -672,9 +672,9 @@ def python_op_factory(name, schema_name=None):
             for input in inputs:
                 if isinstance(input, list):
                     if len(input) != arg_list_len:
-                        raise ValueError(("All argument lists for Multiple Input Sets used " +
-                                          "with operator {} must have the same length")
-                                          .format(type(self).__name__))
+                        raise ValueError("All argument lists for Multiple Input Sets used " +
+                                         "with operator {} must have the same length"
+                                         .format(type(self).__name__))
             return arg_list_len
 
         def _safe_len(self, input):
@@ -1226,7 +1226,8 @@ def _to_type_desc(input):
              str(type(input))))
 
 
-# Group inputs into categories_idxs, edges of type ``edge_type``, integer constants and real constants.
+# Group inputs into categories_idxs, edges of type ``edge_type``,
+# integer constants and real constants.
 # The categories_idxs is a list that for an input `i` contains a tuple:
 # (category of ith input, index of ith input in appropriate category)
 def _group_inputs(inputs, edge_type=_DataNode):
