@@ -26,9 +26,9 @@ import nvidia.dali.types as _types
 from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
-from nvidia.dali._utils.external_source_impl import \
-    get_callback_from_source as _get_callback_from_source, \
-    accepted_arg_count as _accepted_arg_count
+from nvidia.dali._utils.external_source_impl import (
+    get_callback_from_source as _get_callback_from_source,
+    accepted_arg_count as _accepted_arg_count)
 
 
 class DataNodeDebug(_DataNode):
@@ -320,7 +320,7 @@ class _OperatorManager:
                 if input_set_len == -1:
                     input_set_len = len(classification.is_batch)
                 elif input_set_len != len(classification.is_batch):
-                    raise ValueError("All argument lists for Multipile Input Sets used "
+                    raise ValueError("All argument lists for Multiple Input Sets used "
                                      f"with operator '{op_name}' must have the same length.")
             self._inputs_classification.append(classification)
         self.expected_inputs_size = len(inputs)
@@ -419,12 +419,51 @@ class _OperatorManager:
                                                         self._source_context, self._op_name,
                                                         input_idx)
 
+    def _check_call_arg_meta_data(self, expected_data, actual_data, arg_type, value):
+        """ Check for changes in layout, ndim and dtype. 
+        
+        Args:
+            expected_data: Expected value of the data.
+            actual_data: Actual value of the data.
+            arg_type (str): String representation of the argument type, e.g. 'Input', 'Argument'.
+            value (str): Argument name for keyword arguments and a number for inputs.
+        """
+
+        def raise_err(meta_name, actual_value, expected_value):
+            raise RuntimeError(
+                f"{arg_type} {value} for operator '{self._op_name}' has "
+                f"{meta_name} = {actual_value}, expected: {expected_value}.")
+
+        expected_input_set = isinstance(expected_data, list)
+        if expected_input_set != isinstance(actual_data, list):
+            raise RuntimeError(f"{arg_type} {value} expected {'' if expected_input_set else 'not '}"
+                               f"to be an input set.")
+
+        if isinstance(actual_data, list):
+            if len(actual_data) != len(expected_data):
+                raise RuntimeError(
+                    f"{arg_type} {value} expected to be used as Multiple Input Set with "
+                    f"length = {len(expected_data)}, but has length = {len(actual_data)}.")
+
+            # Checking input set.
+            for expected_elem, actual_elem in zip(expected_data, actual_data):
+               self._check_call_arg_meta_data(expected_elem, actual_elem, arg_type, value)
+        else:
+            if expected_data.layout() != actual_data.layout():
+                raise_err('layout', actual_data.layout(), expected_data.layout())
+
+            if expected_data.dtype != actual_data.dtype:
+                raise_err('dtype', actual_data.dtype, expected_data.dtype)
+
+            expected_ndim, actual_ndim = len(expected_data[0].shape()), len(actual_data[0].shape())
+            if expected_ndim != actual_ndim:
+                raise_err('ndim', actual_ndim, expected_ndim)
+
     def _prep_input_sets(self, inputs):
         inputs = list(inputs)
 
         for i, input in enumerate(inputs):
-            # Transforming any convertable datatype to
-            # TensorList (DataNodeDebugs are already unpacked).
+            # Transforming any convertible datatype to TensorList (DataNodeDebugs are already unpacked).
             # Additionally accepting input sets, but only as list of TensorList.
             if (not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU))
                     and not (isinstance(input, list) and all([
@@ -456,6 +495,8 @@ class _OperatorManager:
 
             if classification.is_batch:
                 self._check_batch_size(classification, i)
+                self._check_call_arg_meta_data(
+                    expected_classification.data, classification.data, 'Input', i)
 
             if classification.device != ('gpu' if self._device == 'gpu' else 'cpu'):
                 raise RuntimeError(
@@ -482,6 +523,8 @@ class _OperatorManager:
                     f"Argument '{key}' for operator '{self._op_name}' unexpectedly changed"
                     f" value from '{self._init_args[key]}' to '{classification.data}'")
             if classification.is_batch:
+                self._check_call_arg_meta_data(
+                    self._kwargs_classification[key].data, classification.data, 'Argument', key)
                 call_args[key] = classification.data
 
         res = [

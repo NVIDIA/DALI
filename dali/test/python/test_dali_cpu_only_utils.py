@@ -19,6 +19,9 @@ import tempfile
 import scipy
 import scipy.io.wavfile
 
+import nvidia.dali.fn as fn
+import nvidia.dali.math as dmath
+from nvidia.dali.pipeline import pipeline_def
 from test_audio_decoder_utils import generate_waveforms
 
 
@@ -103,3 +106,53 @@ def setup_test_numpy_reader_cpu():
         create_numpy_file(filename, (5, 2, 8), np.float32, False)
 
     return tmp_dir
+
+@pipeline_def
+def pipeline_arithm_ops_cpu(source):
+    data = fn.external_source(source=source, layout="HWC")
+    processed = (data * 2,
+                 data + 2,
+                 data - 2,
+                 data / 2,
+                 data // 2,
+                 data ** 2,
+                 data == 2,
+                 data != 2,
+                 data < 2,
+                 data <= 2,
+                 data > 2,
+                 data >= 2,
+                 data & 2,
+                 data | 2,
+                 data ^ 2,
+                 dmath.abs(data),
+                 dmath.fabs(data),
+                 dmath.floor(data),
+                 dmath.ceil(data),
+                 dmath.pow(data, 2),
+                 dmath.fpow(data, 1.5),
+                 dmath.min(data, 2),
+                 dmath.max(data, 50),
+                 dmath.clamp(data, 10, 50),
+                 dmath.sqrt(data),
+                 dmath.rsqrt(data),
+                 dmath.cbrt(data),
+                 dmath.exp(data),
+                 dmath.exp(data),
+                 dmath.log(data),
+                 dmath.log2(data),
+                 dmath.log10(data),
+                 dmath.sin(data),
+                 dmath.cos(data),
+                 dmath.tan(data),
+                 dmath.asin(data),
+                 dmath.acos(data),
+                 dmath.atan(data),
+                 dmath.atan2(data, 3),
+                 dmath.sinh(data),
+                 dmath.cosh(data),
+                 dmath.tanh(data),
+                 dmath.asinh(data),
+                 dmath.acosh(data),
+                 dmath.atanh(data))
+    return processed

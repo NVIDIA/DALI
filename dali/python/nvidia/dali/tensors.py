@@ -74,7 +74,7 @@ def _tensorlist_to_string(self, indent=''):
             if crop:
                 data = data[:edgeitems] + data[-edgeitems:]
 
-            # Seperator matching numpy standard.
+            # Separator matching numpy standard.
             sep = '\n' * data[0].ndim + spaces_indent
 
             data = [np.array2string(tensor, prefix=spaces_indent, edgeitems=edgeitems)
@@ -99,14 +99,3 @@ def _tensorlist_to_string(self, indent=''):
         [f'num_samples={len(self)}', f'{shape_prefix}{shape_str}])']
 
     return _join_string(params, False, 0, ',\n' + spaces_indent)
-
-
-setattr(TensorCPU, '__str__', _tensor_to_string)
-setattr(TensorGPU, '__str__', _tensor_to_string)
-setattr(TensorListCPU, '__str__', _tensorlist_to_string)
-setattr(TensorListGPU, '__str__', _tensorlist_to_string)
-
-setattr(TensorCPU, '__repr__', TensorCPU.__str__)
-setattr(TensorGPU, '__repr__', TensorGPU.__str__)
-setattr(TensorListCPU, '__repr__', TensorListCPU.__str__)
-setattr(TensorListGPU, '__repr__', TensorListGPU.__str__)
