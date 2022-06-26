@@ -174,11 +174,25 @@ Parameters
     number of outputs from the pipeline.
 """
 
-    def __init__(self, batch_size=-1, num_threads=-1, device_id=-1, seed=-1, exec_pipelined=True,
-                 prefetch_queue_depth=2, exec_async=True, bytes_per_sample=0, set_affinity=False,
-                 max_streams=-1, default_cuda_stream_priority=0, *, enable_memory_stats=False,
-                 py_num_workers=1, py_start_method="fork", py_callback_pickler=None,
-                 output_dtype=None, output_ndim=None):
+    def __init__(self,
+                 batch_size=-1,
+                 num_threads=-1,
+                 device_id=-1,
+                 seed=-1,
+                 exec_pipelined=True,
+                 prefetch_queue_depth=2,
+                 exec_async=True,
+                 bytes_per_sample=0,
+                 set_affinity=False,
+                 max_streams=-1,
+                 default_cuda_stream_priority=0,
+                 *,
+                 enable_memory_stats=False,
+                 py_num_workers=1,
+                 py_start_method="fork",
+                 py_callback_pickler=None,
+                 output_dtype=None,
+                 output_ndim=None):
         self._sinks = []
         self._max_batch_size = batch_size
         self._num_threads = num_threads

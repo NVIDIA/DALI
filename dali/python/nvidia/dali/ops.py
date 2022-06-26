@@ -1042,12 +1042,19 @@ class PythonFunction(PythonFunctionBase):
     @staticmethod
     def _function_wrapper_cpu(batch_processing, function, num_outputs, *dlpack_inputs):
         if batch_processing:
-            return PythonFunction.function_wrapper_batch(function, num_outputs, _dlpack_to_array,
-                                                         _dlpack_from_array, *dlpack_inputs)
+            return PythonFunction.function_wrapper_batch(
+                function,
+                num_outputs,
+                _dlpack_to_array,
+                _dlpack_from_array,
+                *dlpack_inputs)
         else:
-            return PythonFunction.function_wrapper_per_sample(function, num_outputs,
-                                                              _dlpack_to_array, _dlpack_from_array,
-                                                              *dlpack_inputs)
+            return PythonFunction.function_wrapper_per_sample(
+                function,
+                num_outputs,
+                _dlpack_to_array,
+                _dlpack_from_array,
+                *dlpack_inputs)
 
     @staticmethod
     def _cupy_stream_wrapper(function, *inputs):
@@ -1141,8 +1148,9 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
     def is_input(x):
         if isinstance(x, (_DataNode, nvidia.dali.types.ScalarConstant)):
             return True
-        return isinstance(x, (list)) and any(isinstance(y, _DataNode) for y in x) and all(
-            isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
+        return (isinstance(x, (list))
+                and any(isinstance(y, _DataNode) for y in x)
+                and all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x))
 
     default_input_device = "gpu" if device == "gpu" else "cpu"
 
@@ -1210,24 +1218,25 @@ def _to_type_desc(input):
         return "float32"  # TODO(klecki): current DALI limitation
     if isinstance(input, _ScalarConstant):
         dtype_to_desc = {
-            DALIDataType.BOOL: "bool",
-            DALIDataType.INT8: "int8",
-            DALIDataType.INT16: "int16",
-            DALIDataType.INT32: "int32",
-            DALIDataType.INT64: "int64",
-            DALIDataType.UINT8: "uint8",
-            DALIDataType.UINT16: "uint16",
-            DALIDataType.UINT32: "uint32",
-            DALIDataType.UINT64: "uint64",
+            DALIDataType.BOOL:    "bool",
+            DALIDataType.INT8:    "int8",
+            DALIDataType.INT16:   "int16",
+            DALIDataType.INT32:   "int32",
+            DALIDataType.INT64:   "int64",
+            DALIDataType.UINT8:   "uint8",
+            DALIDataType.UINT16:  "uint16",
+            DALIDataType.UINT32:  "uint32",
+            DALIDataType.UINT64:  "uint64",
             DALIDataType.FLOAT16: "float16",
-            DALIDataType.FLOAT: "float32",
+            DALIDataType.FLOAT:   "float32",
             DALIDataType.FLOAT64: "float64",
         }
         return dtype_to_desc[input.dtype]
+
     raise TypeError(
-        ("Constant argument to arithmetic operation not supported. Got {}, expected "
-         "a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.").format(
-             str(type(input))))
+        f"Constant argument to arithmetic operation not supported. "
+        f"Got {str(type(input))}, expected "
+        f"a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.")
 
 
 # Group inputs into categories_idxs, edges of type ``edge_type``,
@@ -1252,10 +1261,12 @@ def _group_inputs(inputs, edge_type=_DataNode):
             categories_idxs.append(("real", len(reals)))
             reals.append(input)
         else:
-            raise TypeError(("Argument to arithmetic operation not supported."
-                             "Got {}, expected a return value from other"
-                             "DALI Operator  or a constant value of type 'bool', 'int', "
-                             "'float' or 'nvidia.dali.types.Constant'.").format(str(type(input))))
+            raise TypeError(
+                f"Argument to arithmetic operation not supported."
+                f"Got {str(type(input))}, expected a return value from other"
+                f"DALI Operator  or a constant value of type 'bool', 'int', "
+                f"'float' or 'nvidia.dali.types.Constant'.")
+
     if len(integers) == 0:
         integers = None
     if len(reals) == 0:
