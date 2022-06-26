@@ -1076,10 +1076,14 @@ class PythonFunction(PythonFunctionBase):
     def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
         if device == 'gpu':
             _setup_cupy()
-        func = (lambda *ts: PythonFunction._function_wrapper_cpu(
-            batch_processing, function, num_outputs, *ts)) if device == 'cpu' else (
-                lambda *ts: PythonFunction._function_wrapper_gpu(batch_processing, function,
-                                                                 num_outputs, *ts))
+
+        if device == 'cpu':
+            func = (lambda *ts: PythonFunction._function_wrapper_cpu(
+                batch_processing, function, num_outputs, *ts))
+        else:
+            func = (lambda *ts: PythonFunction._function_wrapper_gpu(
+                batch_processing, function, num_outputs, *ts))
+
         super(PythonFunction,
               self).__init__(impl_name="DLTensorPythonFunctionImpl", function=func,
                              num_outputs=num_outputs, device=device, synchronize_stream=False,
