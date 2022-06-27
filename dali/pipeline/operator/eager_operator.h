@@ -37,13 +37,15 @@
 namespace dali {
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Backend>> in) {
-  return in;
-}
-
-template <typename StorageType>
-void MakeContiguous(std::shared_ptr<StorageType> storage) {
-  storage->SetContiguous(BatchState::Contiguous);
+std::shared_ptr<TensorList<Backend>> AsContiguousOutput(std::shared_ptr<TensorList<Backend>> in) {
+  if (in->IsContiguous()) {
+    return in;
+  } else {
+    std::shared_ptr<TensorList<Backend>> result;
+    result->Resize(in->shape(), in->type(), BatchState::Contiguous);
+    result->Copy(*in);
+    return result;
+  }
 }
 
 template <typename Backend>
@@ -295,7 +297,6 @@ EagerOperator<Backend>::RunImpl(
 
   for (size_t i = 0; i < num_outputs_; ++i) {
     auto tensor_out = std::make_shared<WSOutputType>(batch_size);
-    MakeContiguous(tensor_out);
     ws_.AddOutput(tensor_out);
   }
 
@@ -311,7 +312,7 @@ EagerOperator<Backend>::RunImpl(
   op_->Run(ws_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    outputs[i] = AsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
+    outputs[i] = AsContiguousOutput<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
   }
 
   for (size_t i = 0; i < outputs.size(); ++i) {
