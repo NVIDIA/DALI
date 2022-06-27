@@ -24,14 +24,14 @@ import ctypes
 import numpy as np
 
 to_torch_type = {
-    types.DALIDataType.FLOAT   : torch.float32,
-    types.DALIDataType.FLOAT64 : torch.float64,
-    types.DALIDataType.FLOAT16 : torch.float16,
-    types.DALIDataType.UINT8   : torch.uint8,
-    types.DALIDataType.INT8    : torch.int8,
-    types.DALIDataType.INT16   : torch.int16,
-    types.DALIDataType.INT32   : torch.int32,
-    types.DALIDataType.INT64   : torch.int64
+    types.DALIDataType.FLOAT:   torch.float32,
+    types.DALIDataType.FLOAT64: torch.float64,
+    types.DALIDataType.FLOAT16: torch.float16,
+    types.DALIDataType.UINT8:   torch.uint8,
+    types.DALIDataType.INT8:    torch.int8,
+    types.DALIDataType.INT16:   torch.int16,
+    types.DALIDataType.INT32:   torch.int32,
+    types.DALIDataType.INT64:   torch.int64
 }
 
 
@@ -54,10 +54,11 @@ def feed_ndarray(dali_tensor, arr, cuda_stream=None):
     dali_type = to_torch_type[dali_tensor.dtype]
 
     assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
-            " doesn't match the element type of the target PyTorch Tensor: {} vs {}".format(dali_type, arr.dtype))
+                                    " doesn't match the element type of the target PyTorch Tensor: "
+                                    "{} vs {}".format(dali_type, arr.dtype))
     assert dali_tensor.shape() == list(arr.size()), \
-            ("Shapes do not match: DALI tensor has size {0}"
-            ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
+        ("Shapes do not match: DALI tensor has size {0}, but PyTorch Tensor has size {1}".
+            format(dali_tensor.shape(), list(arr.size())))
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     # turn raw int to a c void pointer
@@ -86,25 +87,31 @@ class DALIGenericIterator(_DaliBaseIterator):
                 of those names.
                 Each name should be distinct
     size : int, default = -1
-                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+                Number of samples in the shard for the wrapped pipeline (if there is more than
+                one it is a sum)
                 Providing -1 means that the iterator will work until StopIteration is raised
-                from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
-                don't work in such case. It works with only one pipeline inside
+                from the inside of iter_setup(). The options `last_batch_policy` and
+                `last_batch_padded` don't work in such case. It works with only one pipeline inside
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
-                PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
+                samples that iterator needs to deal with. It automatically sets `last_batch_policy`
+                to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
+    data_layout : str, optional, default = 'NCHW'
+                Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
+                Whether the iterator resets itself for the next epoch or it requires reset() to
+                be called explicitly.
 
                 It can be one of the following values:
 
-                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
-                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
+                and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
+                is called internally automatically
 
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
@@ -137,17 +144,23 @@ class DALIGenericIterator(_DaliBaseIterator):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``,
+    next iteration will return ``[2, 3]``
 
-    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``,
+    next iteration will return ``[2, 3]``
 
-    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``,
+    next iteration will return ``[2, 3]``
     """
 
     def __init__(self,
@@ -185,7 +198,9 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # here we should set if to False again
                 self._ever_consumed = False
             except StopIteration:
-                assert False, "It seems that there is no data in the pipeline. This may happen if `last_batch_policy` is set to PARTIAL and the requested batch size is greater than the shard size."
+                assert False, "It seems that there is no data in the pipeline. This may happen " \
+                       "if `last_batch_policy` is set to PARTIAL and the requested batch size is " \
+                       "greater than the shard size."
 
     def __next__(self):
         if self._first_batch is not None:
@@ -259,13 +274,15 @@ class DALIGenericIterator(_DaliBaseIterator):
                 return output
 
         else:
-            if self._last_batch_policy == LastBatchPolicy.PARTIAL and (self._counter > self._size) and self._size > 0:
+            if self._last_batch_policy == LastBatchPolicy.PARTIAL and (
+                                          self._counter > self._size) and self._size > 0:
                 # First calculate how much data is required to return exactly self._size entries.
                 diff = self._num_gpus * self.batch_size - (self._counter - self._size)
                 # Figure out how many GPUs to grab from.
                 numGPUs_tograb = int(np.ceil(diff / self.batch_size))
-                # Figure out how many results to grab from the last GPU (as a fractional GPU batch may be required to
-                # bring us right up to self._size).
+                # Figure out how many results to grab from the last GPU
+                # (as a fractional GPU batch may be required to bring us
+                # right up to self._size).
                 mod_diff = diff % self.batch_size
                 data_fromlastGPU = mod_diff if mod_diff else self.batch_size
 
@@ -304,25 +321,31 @@ class DALIClassificationIterator(DALIGenericIterator):
     pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
-                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
+                Number of samples in the shard for the wrapped pipeline (if there is more than
+                one it is a sum)
                 Providing -1 means that the iterator will work until StopIteration is raised
-                from the inside of iter_setup(). The options `last_batch_policy` and`last_batch_padded`
-                don't work in such case. It works with only one pipeline inside
+                from the inside of iter_setup(). The options `last_batch_policy` and
+                `last_batch_padded` don't work in such case. It works with only one pipeline inside
                 the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards and
                 all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets `last_batch_policy` to
-                PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
+                samples that iterator needs to deal with. It automatically sets `last_batch_policy`
+                to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
+    data_layout : str, optional, default = 'NCHW'
+                Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
+                Whether the iterator resets itself for the next epoch or it requires reset() to
+                be called explicitly.
 
                 It can be one of the following values:
 
-                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called
-                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
+                and reset() needs to be called
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
+                is called internally automatically
 
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
@@ -355,17 +378,23 @@ class DALIClassificationIterator(DALIGenericIterator):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``,
+    next iteration will return ``[2, 3]``
 
-    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``,
+    next iteration will return ``[2, 3]``
 
-    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``,
+    next iteration will return ``[2, 3]``
     """
 
     def __init__(self,
@@ -429,11 +458,10 @@ class TorchPythonFunction(ops.PythonFunctionBase):
         super(TorchPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
                                                   function=lambda *ins:
                                                   self.torch_wrapper(batch_processing,
-                                                                    function, device,
-                                                                    *ins),
+                                                                     function, device,
+                                                                     *ins),
                                                   num_outputs=num_outputs, device=device,
                                                   batch_processing=batch_processing, **kwargs)
-
 
 
 ops._wrap_op(TorchPythonFunction, "fn", __name__)

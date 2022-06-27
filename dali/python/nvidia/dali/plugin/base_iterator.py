@@ -37,9 +37,10 @@ class LastBatchPolicy(Enum):
 
         * FILL - The last batch is filled by either repeating the last sample or by wrapping
           up the data set. The precise behavior depends on the reader's ``pad_last_batch`` argument
-        * DROP - The last batch is dropped if it cannot be fully filled with data from the current epoch
-        * PARTIAL - The last batch is partially filled with the remaining data from the current epoch,
-          keeping the rest of the samples empty
+        * DROP - The last batch is dropped if it cannot be fully filled with data from the current
+          epoch
+        * PARTIAL - The last batch is partially filled with the remaining data from the current\
+          epoch, keeping the rest of the samples empty
     """
     FILL = 0
     DROP = 1
@@ -63,11 +64,11 @@ class _DaliBaseIterator(object):
                  for data or label correspondingly.
                  output_names should be distinct.
     size : int, default = -1
-                Number of samples in the shard for the wrapped pipeline (if there is more than one it is a sum)
-                Providing -1 means that the iterator will work until StopIteration is raised
-                from the inside of iter_setup(). The options `last_batch_policy`, `last_batch_padded` and
-                `auto_reset` don't work in such case. It works with only one pipeline inside
-                the iterator.
+                Number of samples in the shard for the wrapped pipeline (if there is more than one
+                it is a sum). Providing -1 means that the iterator will work until StopIteration
+                is raised from the inside of iter_setup(). The options `last_batch_policy`,
+                `last_batch_padded` and `auto_reset` don't work in such case. It works with only
+                one pipeline inside the iterator.
                 Mutually exclusive with `reader_name` argument
     reader_name : str, default = None
                 Name of the reader which will be queried to the shard size, number of shards, and
@@ -76,12 +77,16 @@ class _DaliBaseIterator(object):
                 PARTIAL or DROP, if FILL is used it is changed to PARTIAL. Sets `last_batch_padded`
                 accordingly to the reader's configuration (`pad_last_batch` reader argument)
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to be called explicitly.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be
+                called explicitly.
 
                 It can be one of the following values:
 
-                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and reset() needs to be called. Calling ``iter()`` on the iterator would reset it as well.
-                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset() is called internally automatically
+                * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised and
+                  reset() needs to be called. Calling ``iter()`` on the iterator would reset
+                  it as well.
+                * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
+                  is called internally automatically
 
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead
@@ -112,17 +117,23 @@ class _DaliBaseIterator(object):
     -------
     With the data set ``[1,2,3,4,5,6,7]`` and the batch size 2:
 
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = True  -> last batch = ``[7]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.PARTIAL, last_batch_padded = False -> last batch = ``[7]``,
+    next iteration will return ``[2, 3]``
 
-    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = True   -> last batch = ``[7, 7]``,
+     next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.FILL, last_batch_padded = False  -> last batch = ``[7, 1]``,
+    next iteration will return ``[2, 3]``
 
-    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``, next iteration will return ``[1, 2]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = True   -> last batch = ``[5, 6]``,
+    next iteration will return ``[1, 2]``
 
-    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``, next iteration will return ``[2, 3]``
+    last_batch_policy = LastBatchPolicy.DROP, last_batch_padded = False  -> last batch = ``[5, 6]``,
+    next iteration will return ``[2, 3]``
     """
 
     def __init__(self,
@@ -142,20 +153,20 @@ class _DaliBaseIterator(object):
         # so it is not possible to use _batch_size instead
         self.batch_size = pipelines[0].max_batch_size
         assert np.all(np.equal([pipe.max_batch_size for pipe in pipelines], self.batch_size)), \
-                "All pipelines should have the same batch size set"
+               "All pipelines should have the same batch size set"
 
         self._size = int(size)
-        if auto_reset == False or auto_reset is None or auto_reset == "no":
+        if not auto_reset or auto_reset is None or auto_reset == "no":
             self._auto_reset = "no"
-        elif auto_reset == True or auto_reset == "yes":
+        elif auto_reset or auto_reset == "yes":
             self._auto_reset = "yes"
         else:
             raise ValueError(f"Unsupported value for `auto_reset` {auto_reset}")
         self._prepare_first_batch = prepare_first_batch
 
         if fill_last_batch is not None:
-            warnings.warn("Please do not use `fill_last_batch` and use `last_batch_policy` instead.",
-                          Warning, stacklevel=2)
+            warnings.warn("Please do not use `fill_last_batch` and use `last_batch_policy` \
+                           instead.", Warning, stacklevel=2)
             if fill_last_batch:
                 self._last_batch_policy = LastBatchPolicy.FILL
             else:
@@ -168,9 +179,12 @@ class _DaliBaseIterator(object):
 
         self._last_batch_padded = last_batch_padded
         assert self._size != 0, "Size cannot be 0"
-        assert self._size > 0 or (self._size < 0 and (len(pipelines) == 1 or reader_name)), "Negative size is supported only for a single pipeline"
-        assert not reader_name or (reader_name and self._size < 0), "When reader_name is provided, size should not be set"
-        assert not reader_name or (reader_name and last_batch_padded == False), "When reader_name is provided, last_batch_padded should not be set"
+        assert self._size > 0 or (self._size < 0 and (len(pipelines) == 1 or reader_name)), \
+               "Negative size is supported only for a single pipeline"
+        assert not reader_name or (reader_name and self._size < 0), \
+               "When reader_name is provided, size should not be set"
+        assert not reader_name or (reader_name and not last_batch_padded), \
+               "When reader_name is provided, last_batch_padded should not be set"
         if self._size < 0 and not reader_name:
             self._last_batch_policy = LastBatchPolicy.FILL
             self._last_batch_padded = False
@@ -190,8 +204,10 @@ class _DaliBaseIterator(object):
         self._ever_consumed = False
 
     def _calculate_shard_sizes(self, shard_nums):
-        shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num).astype(np.int64)
-        shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num).astype(np.int64)
+        shards_beg = np.floor(shard_nums * self._size_no_pad / self._shards_num)
+        shards_end = np.floor((shard_nums + 1) * self._size_no_pad / self._shards_num)
+        shards_beg = shards_beg.astype(np.int64)
+        shards_end = shards_end.astype(np.int64)
         return shards_end - shards_beg
 
     def _extract_from_reader_and_validate(self):
@@ -203,19 +219,24 @@ class _DaliBaseIterator(object):
 
             def check_equality_and_get(input_meta, name, err_msg):
                 assert np.all(np.equal([meta[name] for meta in input_meta], input_meta[0][name])), \
-                err_msg_gen(err_msg)
+                       err_msg_gen(err_msg)
                 return input_meta[0][name]
 
             def check_all_or_none_and_get(input_meta, name, err_msg):
                 assert np.all([meta[name] for meta in readers_meta]) or \
-                   not np.any([meta[name] for meta in readers_meta]), \
-                err_msg_gen(err_msg)
+                       not np.any([meta[name] for meta in readers_meta]), \
+                       err_msg_gen(err_msg)
                 return input_meta[0][name]
 
-            self._size_no_pad = check_equality_and_get(readers_meta, "epoch_size", "size value")
-            self._shards_num = check_equality_and_get(readers_meta, "number_of_shards", "`num_shards` argument set")
-            self._last_batch_padded = check_all_or_none_and_get(readers_meta, "pad_last_batch", "`pad_last_batch` argument set")
-            self._is_stick_to_shard = check_all_or_none_and_get(readers_meta, "stick_to_shard", "`stick_to_shard` argument set")
+            self._size_no_pad = check_equality_and_get(readers_meta,
+                                                       "epoch_size", "size value")
+            self._shards_num = check_equality_and_get(readers_meta,
+                                                      "number_of_shards",
+                                                      "`num_shards` argument set")
+            self._last_batch_padded = check_all_or_none_and_get(readers_meta, "pad_last_batch",
+                                                                "`pad_last_batch` argument set")
+            self._is_stick_to_shard = check_all_or_none_and_get(readers_meta, "stick_to_shard",
+                                                                "`stick_to_shard` argument set")
 
             self._shards_id = np.array([meta["shard_id"] for meta in readers_meta], dtype=np.int64)
 
@@ -226,8 +247,10 @@ class _DaliBaseIterator(object):
                 # if padding is enabled all shards are equal
                 self._size = readers_meta[0]["epoch_size_padded"] // self._shards_num
             else:
-                # get the size as a multiply of the batch size that is bigger or equal than the biggest shard
-                self._size = math.ceil(math.ceil(self._size_no_pad / self._shards_num) / self.batch_size) * self.batch_size
+                # get the size as a multiply of the batch size that is bigger or equal
+                # than the biggest shard
+                self._size = math.ceil(math.ceil(self._size_no_pad / self._shards_num) /
+                                       self.batch_size) * self.batch_size
 
             # count where we starts inside each GPU shard in given epoch,
             # if shards are uneven this will differ epoch2epoch
@@ -249,9 +272,11 @@ class _DaliBaseIterator(object):
         if_drop = False
         left = -1
         if self._last_batch_policy == LastBatchPolicy.PARTIAL:
-            # calculate each shard size for each id, and check how many samples are left by subtracting
-            # from iterator counter the shard size, then go though all GPUs and check how much data needs to be dropped
-            left = self.batch_size - (self._counter - self._shard_sizes_per_gpu_initial[self._shards_id])
+            # calculate each shard size for each id, and check how many samples are left
+            # by subtracting from iterator counter the shard size, then go though all GPUs
+            # and check how much data needs to be dropped
+            left = self.batch_size - \
+                   (self._counter - self._shard_sizes_per_gpu_initial[self._shards_id])
             if_drop = np.less(left, self.batch_size)
         return if_drop, left
 
@@ -286,8 +311,8 @@ class _DaliBaseIterator(object):
                 for o in out:
                     batch_len = len(o)
                     assert self.batch_size == batch_len, \
-                        "Variable batch size is not supported by the iterator when reader_name is " + \
-                        "provided or iterator size is set explicitly"
+                        "Variable batch size is not supported by the iterator " + \
+                        "when reader_name is provided or iterator size is set explicitly"
 
     def _end_iteration(self):
         if self._auto_reset == "yes":
@@ -333,13 +358,15 @@ class _DaliBaseIterator(object):
                 if self._reader_name:
                     # accurate way
                     # get the number of samples read in this epoch by each GPU
-                    # self._counter had initial value of min(self._counter_per_gpu) so substract this to get the actual value
+                    # self._counter had initial value of min(self._counter_per_gpu) so subtract
+                    # this to get the actual value
                     self._counter -= min(self._counter_per_gpu)
                     self._counter_per_gpu = self._counter_per_gpu + self._counter
-                    # check how much each GPU read ahead from next shard, as shards have different size each epoch
-                    # GPU may read ahead or not
+                    # check how much each GPU read ahead from next shard, as shards have different
+                    # size each epoch GPU may read ahead or not
                     self._counter_per_gpu = self._counter_per_gpu - self._shard_sizes_per_gpu
-                    # to make sure that in the next epoch we read the whole shard we need to set start value to the smallest one
+                    # to make sure that in the next epoch we read the whole shard we need
+                    # to set start value to the smallest one
                     self._counter = min(self._counter_per_gpu)
                 else:
                     # legacy way
@@ -356,24 +383,27 @@ class _DaliBaseIterator(object):
                     # move all shards ids GPU ahead
                     if not self._is_stick_to_shard:
                         self._shard_sizes_per_gpu = np.roll(self._shard_sizes_per_gpu, 1)
-                    # check how many samples we need to reach from each shard in next epoch per each GPU
-                    # taking into account already read
+                    # check how many samples we need to reach from each shard in next epoch
+                    # per each GPU taking into account already read
                     read_in_next_epoch = self._shard_sizes_per_gpu - self._counter_per_gpu
                     # get the maximmum number of samples and round it up to full batch sizes
-                    self._size = math.ceil(max(read_in_next_epoch) / self.batch_size) * self.batch_size
-                    # in case some epoch is skipped because we have read ahead in this epoch so much
-                    # that in the next one we done already
+                    self._size = math.ceil(max(read_in_next_epoch) / self.batch_size) * \
+                        self.batch_size
+                    # in case some epoch is skipped because we have read ahead in this epoch so
+                    # much that in the next one we done already
                     if self._size == 0:
-                        # it means that self._shard_sizes_per_gpu == self._counter_per_gpu, so we can
-                        # jump to the next epoch and zero self._counter_per_gpu
+                        # it means that self._shard_sizes_per_gpu == self._counter_per_gpu,
+                        # so we can jump to the next epoch and zero self._counter_per_gpu
                         self._counter_per_gpu = np.zeros(self._shards_num, dtype=np.int64)
-                        # self._counter = min(self._counter_per_gpu), but just set 0 to make it simpler
+                        # self._counter = min(self._counter_per_gpu), but just set 0
+                        # to make it simpler
                         self._counter = 0
                         # roll once again
                         self._shard_sizes_per_gpu = np.roll(self._shard_sizes_per_gpu, 1)
                         # as self._counter_per_gpu is 0 we can just use
                         # read_in_next_epoch = self._shard_sizes_per_gpu
-                        self._size = math.ceil(max(self._shard_sizes_per_gpu) / self.batch_size) * self.batch_size
+                        self._size = math.ceil(max(self._shard_sizes_per_gpu) / self.batch_size) * \
+                            self.batch_size
 
             for p in self._pipes:
                 p.reset()
@@ -381,7 +411,8 @@ class _DaliBaseIterator(object):
                     with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
                         p.schedule_run()
         else:
-            logging.warning("DALI iterator does not support resetting while epoch is not finished. Ignoring...")
+            logging.warning("DALI iterator does not support resetting while epoch is not finished. \
+                             Ignoring...")
 
     def next(self):
         """
