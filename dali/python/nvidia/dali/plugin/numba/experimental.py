@@ -47,7 +47,6 @@ _to_numba = {
     dali_types.INT16 : numba_types.int16,
     dali_types.INT32 : numba_types.int32,
     dali_types.INT64 : numba_types.int64,
-    dali_types.FLOAT16 : numba_types.float16,
     dali_types.FLOAT : numba_types.float32,
     dali_types.FLOAT64 : numba_types.float64,
 }
