@@ -88,6 +88,7 @@ TYPED_TEST(TensorVectorSuite, NewSetupAndSetSizeNoncontiguous) {
 
   Tensor<TypeParam> t;
   t.set_pinned(false);
+  t.set_order(order);
   t.Resize({2, 3}, DALI_INT32);
   t.SetLayout("XY");
 
