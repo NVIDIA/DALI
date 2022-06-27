@@ -52,15 +52,12 @@ class ArgumentWorkspace {
   }
 
   void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorVector<CPUBackend>> input) {
-    argument_inputs_[arg_name] = { std::move(input), nullptr, false };
+    argument_inputs_[arg_name] = { std::move(input) };
   }
 
   const TensorVector<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
     auto it = argument_inputs_.find(arg_name);
     DALI_ENFORCE(it != argument_inputs_.end(), "Argument \"" + arg_name + "\" not found.");
-    // TODO(klecki): Remove when TensorList is replaced by proper the TensorBatch object
-    // the underlying tensor list might have changed - reshare the data
-    it->second.Update();
     return *it->second.tvec;
   }
 
@@ -71,18 +68,6 @@ class ArgumentWorkspace {
  protected:
   struct ArgumentInputDesc {
     std::shared_ptr<TensorVector<CPUBackend>> tvec;
-    std::shared_ptr<TensorList<CPUBackend>> tlist;
-    // If true, the views in TensorVector are updated to reflect the underlying TensorList;
-    // this only happens if AddArgumentInput is called with a TensorList pointer - which for now
-    // is only when passing an argument input to a GPU stage when using separated queue policy
-    // (see queue_policy.h and pipeline.cc for details).
-    bool should_update = false;
-
-    void Update() const {
-      if (should_update) {
-        tvec->ShareData(*tlist);
-      }
-    }
   };
 
   // Argument inputs
@@ -90,39 +75,7 @@ class ArgumentWorkspace {
   argument_input_storage_t argument_inputs_;
 
  public:
-  class const_iterator {
-   public:
-    explicit const_iterator(const argument_input_storage_t::const_iterator &iter) : iter_(iter) {}
-    void operator++() {
-      ++iter_;
-    }
-
-    void operator++(int) {
-      iter_++;
-    }
-
-    const auto& operator*() {
-      iter_->second.Update();
-      return *iter_;
-    }
-
-    argument_input_storage_t::const_iterator &operator->() {
-      iter_->second.Update();
-      return iter_;
-    }
-
-    bool operator==(const const_iterator& other) {
-      return iter_ == other.iter_;
-    }
-
-    bool operator!=(const const_iterator& other) {
-      return iter_ != other.iter_;
-    }
-
-   private:
-    argument_input_storage_t::const_iterator iter_;
-  };
-  // using const_iterator = argument_input_storage_t::const_iterator;
+  using const_iterator = argument_input_storage_t::const_iterator;
   friend const_iterator begin(const ArgumentWorkspace&);
   friend const_iterator end(const ArgumentWorkspace&);
 };
@@ -132,11 +85,11 @@ class ArgumentWorkspace {
  * @brief Iterator-handling functions for ArgumentWorkspace
  */
 inline ArgumentWorkspace::const_iterator begin(const ArgumentWorkspace& ws) {
-  return ArgumentWorkspace::const_iterator{ws.argument_inputs_.begin()};
+  return ws.argument_inputs_.begin();
 }
 
 inline ArgumentWorkspace::const_iterator end(const ArgumentWorkspace& ws) {
-  return ArgumentWorkspace::const_iterator{ws.argument_inputs_.end()};
+  return ws.argument_inputs_.end();
 }
 /** @} */
 
