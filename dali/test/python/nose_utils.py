@@ -24,9 +24,11 @@ if not hasattr(collections, "Callable"):
     nose.loader.collections = collections.abc
     nose.suite.collections = collections.abc
 
+import contextlib
 import nose.tools as tools
 import re
 import fnmatch
+import warnings
 
 
 def glob_to_regex(glob):
@@ -89,6 +91,43 @@ def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=Non
 
     pattern = get_pattern(glob, regex, match_case)
     return tools.assert_warns_regex(exception, pattern, *args, **kwargs)
+
+
+@contextlib.contextmanager
+def assert_no_warnings(exception=None, glob=None, regex=None, match_case=None):
+    msg_param_provided = any(param is not None for param in (glob, regex, match_case))
+    pattern = None
+    if msg_param_provided:
+        pattern = get_pattern(glob, regex, match_case)
+        assert pattern is not None
+        pattern = pattern if isinstance(pattern, re.Pattern) else re.compile(pattern)
+        if exception is None:
+            exception = Warning
+
+    with warnings.catch_warnings(record=True) as recorder_warnings:
+        try:
+            yield recorder_warnings
+        finally:
+            if exception is None:
+                if len(recorder_warnings):
+                    raise AssertionError(
+                        f"Test expected to emit no warnings emitted the following "
+                        f"warnings: {[str(w) for w in recorder_warnings]}")
+            elif not msg_param_provided:
+                for m in recorder_warnings:
+                    w = m.message
+                    if isinstance(w, exception):
+                        raise AssertionError(
+                            f"Test expected to emit no warning of type {exception} emitted "
+                            f"the following warning: {str(w)}")
+            else:
+                for m in recorder_warnings:
+                    w = m.message
+                    if isinstance(w, exception) and pattern.search(str(w)):
+                        raise AssertionError(
+                            f"Test was expected to emit no warning of type {exception} matching "
+                            f"the pattern {pattern}, but the following warning was "
+                            f"emitted: {str(w)}")
 
 
 def raises(exception, glob=None, regex=None, match_case=None):
