@@ -41,7 +41,7 @@ std::shared_ptr<TensorList<Backend>> AsContiguousOutput(std::shared_ptr<TensorLi
   if (in->IsContiguous()) {
     return in;
   } else {
-    std::shared_ptr<TensorList<Backend>> result;
+    auto result = std::make_shared<TensorList<Backend>>();
     result->Resize(in->shape(), in->type(), BatchState::Contiguous);
     result->Copy(*in);
     return result;
