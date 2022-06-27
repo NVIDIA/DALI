@@ -45,7 +45,7 @@ enum class InputKind : int {
   // bitstream loaded into device memory
   DeviceMemory = 4,
   // file name
-  Filename = 8
+  Filename = 8,
 };
 
 constexpr InputKind operator|(InputKind a, InputKind b) {

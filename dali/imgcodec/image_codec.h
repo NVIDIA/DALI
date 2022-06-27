@@ -29,6 +29,8 @@ namespace dali {
 class ThreadPool;
 
 namespace imgcodec {
+template <typename T, span_extent_t E = dynamic_extent>
+using cspan = span<const T, E>;
 
 struct DecodeParams {
   bool use_roi;
@@ -68,36 +70,36 @@ class ImageCodecInstance {
   /**
    * @brief Checks whether this codec can decode this encoded image with given parameters
    */
-  virtual bool CanDecode(EncodedImage *in, DecodeParams opts);
+  virtual bool CanDecode(EncodedImage *in, DecodeParams opts) = 0;
 
   /**
    * @brief Batch version of CanDecode
    */
-  virtual std::vector<bool> CanDecode(span<EncodedImage *> in, span<DecodeParams> opts);
+  virtual std::vector<bool> CanDecode(cspan<EncodedImage *> in, cspan<DecodeParams> opts) = 0;
 
   /**
    * @brief Decodes a single image to a host buffer
    */
-  virtual DecodeResult Decode(SampleView<CPUBackend> out, EncodedImage *in, DecodeParams opts);
+  virtual DecodeResult Decode(SampleView<CPUBackend> out, EncodedImage *in, DecodeParams opts) = 0;
 
   /**
    * @brief Decodes a batch of images to host buffers
    */
   virtual std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
-                                           span<EncodedImage *> in, span<DecodeParams> opts);
+                                           cspan<EncodedImage *> in, cspan<DecodeParams> opts) = 0;
 
 
 
   /**
    * @brief Decodes a single image to a device buffer
    */
-  virtual DecodeResult Decode(SampleView<GPUBackend> out, EncodedImage *in, DecodeParams opts);
+  virtual DecodeResult Decode(SampleView<GPUBackend> out, EncodedImage *in, DecodeParams opts) = 0;
 
   /**
    * @brief Decodes a single image to device buffers
    */
   virtual std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                           span<EncodedImage *> in, span<DecodeParams> opts);
+                                           cspan<EncodedImage *> in, cspan<DecodeParams> opts) = 0;
 
   /**
    * @brief Sets a codec-specific parameter
@@ -122,10 +124,12 @@ class ImageCodecInstance {
 
 class ImageCodec {
  public:
+  virtual ~ImageCodec() = default;
+
   /**
    * @brief Gets the properties and capabilities of the codec
    */
-  virtual ImageCodecProperties GetProperties() const;
+  virtual ImageCodecProperties GetProperties() const = 0;
 
   /**
    * @brief Checks whether the codec is supported on the specified device
@@ -133,14 +137,14 @@ class ImageCodec {
    * The result may differ depending on extra hardware modules (e.g. hardware JPEG decoder).
    * A negative device id means "cpu-only". Decoders requiring a GPU must return false in that case.
    */
-  virtual bool IsSupported(int device_id) const;
+  virtual bool IsSupported(int device_id) const = 0;
 
   /**
    * @brief Creates an instance of a codec
    *
    * Note: For codecs that carry no state, this may just increase reference count on a singleton.
    */
-  virtual std::shared_ptr<ImageCodecInstance> Create(int device_id, ThreadPool &tp);
+  virtual std::shared_ptr<ImageCodecInstance> Create(int device_id, ThreadPool &tp) = 0;
 };
 
 }  // namespace imgcodec

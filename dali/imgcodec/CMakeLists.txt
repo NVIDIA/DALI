@@ -5,6 +5,7 @@ set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
 add_subdirectory(formats)
 add_subdirectory(codecs)
+add_subdirectory(util)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
@@ -31,7 +32,7 @@ if (BUILD_TEST)
     ${DALI_ROOT}/dali/test/dali_test_config.cc)
 
   # TODO(janton): Remove dependency with target `dali`
-  target_link_libraries(dali_imgcodec_test PUBLIC dali_imgcodec)
+  target_link_libraries(dali_imgcodec_test PUBLIC dali_imgcodec dali)
   target_link_libraries(dali_imgcodec_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(dali_imgcodec_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   target_link_libraries(dali_imgcodec_test PRIVATE "-pie")

@@ -17,22 +17,49 @@
 
 #include <memory>
 #include "dali/imgcodec/image_codec.h"
-#include "dali/imgcodec/codecs/parallel_impl.h"
+#include "dali/imgcodec/codecs/codec_parallel_impl.h"
 
 namespace dali {
 namespace imgcodec {
 
-class OpenCVCodecInstance : public BatchParallelCodecImpl<OpenCVCodecInstance> {
+/**
+ * @brief A fallback codec, using OpenCV to decode the images
+ */
+class DLL_PUBLIC OpenCVCodecInstance : public BatchParallelCodecImpl<OpenCVCodecInstance> {
  public:
   using Base = BatchParallelCodecImpl<OpenCVCodecInstance>;
   OpenCVCodecInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
+
+  using Base::Decode;
+
+  DecodeResult Decode(SampleView<CPUBackend> out, EncodedImage *in, DecodeParams opts) override;
+
+  DecodeResult Decode(SampleView<GPUBackend> out, EncodedImage *in, DecodeParams opts) override {
+    throw std::logic_error("Backend not supported");
+  }
 };
 
 class OpenCVCodec : public ImageCodec {
-  public:
+ public:
+  ImageCodecProperties GetProperties() const override {
+    static const auto props = [](){
+      ImageCodecProperties props;
+      props.supported_input_kinds =
+        InputKind::HostMemory | InputKind::Filename;
+      props.roi_support = false;
+      props.fallback = false;
+      return props;
+    }();
+    return props;
+  }
+
+  bool IsSupported(int device_id) const override {
+    return device_id < 0;
+  }
+
   private:
-   static std::shared_ptr<OpenCVCodecInstance> Create(int, ThreadPool &) {
-    static auto instance = std::make_shared<OpenCVCodecInstance>();
+   std::shared_ptr<ImageCodecInstance> Create(int device_id, ThreadPool &tp) override{
+    static auto instance = std::make_shared<OpenCVCodecInstance>(device_id, &tp);
     return instance;
    }
 };

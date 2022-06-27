@@ -21,6 +21,7 @@
 #include "dali/pipeline/util/thread_pool.h"
 
 namespace dali {
+namespace imgcodec {
 
 /**
  * @brief A skeleton for implementing a batch-parallel codec
@@ -30,37 +31,57 @@ namespace dali {
  * @tparam Actual
  */
 template <typename Actual>
-class BatchParallelCodecImpl : public ImageCodecImpl<Actual> {
+class DLL_PUBLIC BatchParallelCodecImpl : public ImageCodecImpl<Actual> {
  public:
   BatchParallelCodecImpl(int device_id, ThreadPool *tp) : ImageCodecImpl<Actual>(device_id, tp) {
   }
 
-  std::vector<bool> CanDecode(span<EncodedImage *> in, span<DecodeParams> opts) override{
+  using ImageCodecImpl<Actual>::CanDecode;
+  std::vector<bool> CanDecode(cspan<EncodedImage *> in, cspan<DecodeParams> opts) override{
     assert(opts.size() == in.size());
     std::vector<bool> ret(in.size());
     for (int i = 0; i < in.size(); i++) {
-      tp->AddWork([i, &](int) {
+      tp_->AddWork([&, i](int) {
         ret[i] = CanDecode(in[i], opts[i]);
       });
     }
-    tp->RunAll();
+    tp_->RunAll();
     return ret;
+  }
+
+  using ImageCodecImpl<Actual>::Decode;
+  std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
+                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+    return ParallelDecodeImpl(out, in, opts);
   }
 
   std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                   span<EncodedImage *> in, span<DecodeParams> opts) override {
+                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+    return ParallelDecodeImpl(out, in, opts);
+  }
+
+  template <typename Backend>
+  std::vector<DecodeResult> ParallelDecodeImpl(span<SampleView<Backend>> out,
+                                               cspan<EncodedImage *> in,
+                                               cspan<DecodeParams> opts) {
     assert(out.size() == in.size());
     assert(out.size() == opts.size() || opts.size() == 1);
-    std::vector<DecodeResult> ret(out.size())
+    std::vector<DecodeResult> ret(out.size());
     for (int i = 0; i < in.size(); i++) {
-      tp->AddWork([i, &](int) {
+      tp_->AddWork([&, i](int) {
         ret[i] = Decode(out[i], in[i], opts.size() > 1 ? opts[i] : opts[0]);
       });
     }
+    tp_->RunAll();
     return ret;
   }
+
+ protected:
+  using ImageCodecImpl<Actual>::tp_;
+  using ImageCodecImpl<Actual>::device_id_;
 };
 
-} // namespace dali
+}  // namespace imgcodec
+}  // namespace dali
 
 #endif  // DALI_IMGCODEC_CODECS_CODEC_PARALLEL_IMPL_H_

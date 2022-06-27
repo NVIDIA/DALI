@@ -12,9 +12,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/image_codec.h"
+#include "dali/imgcodec/codecs/opencv_fallback.h"
+#include "dali/imgcodec/util/convert.h"
 
 #include <opencv2/imgcodecs.hpp>
 
 namespace dali {
+namespace imgcodec {
+
+DecodeResult OpenCVCodecInstance::Decode(SampleView<CPUBackend> out,
+                                         EncodedImage *in,
+                                         DecodeParams opts) {
+  int flags = 0;
+
+  switch (opts.format) {
+    case DALI_ANY_DATA:
+      // Note: IMREAD_UNCHANGED always ignores orientation
+      flags |= cv::IMREAD_UNCHANGED;
+      break;
+    case DALI_GRAY:
+      flags |= cv::IMREAD_GRAYSCALE | cv::IMREAD_IGNORE_ORIENTATION;
+      break;
+    default:
+      flags |= cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION;
+  }
+
+  if (opts.dtype != DALI_UINT8)
+    flags |= cv::IMREAD_ANYDEPTH;
+
+  DecodeResult res;
+  #ifndef _DEBUG
+  try {
+  #endif
+    cv::Mat cvimg;
+    if (in->GetKind() == InputKind::Filename) {
+      cvimg = cv::imread(in->GetFilename(), flags);
+    } else {
+      assert(in->GetKind() == InputKind::HostMemory);
+      auto *raw = static_cast<const uint8_t *>(in->GetRawData());
+      cvimg = cv::imdecode(cv::_InputArray(raw, in->GetSize()), flags);
+    }
+    res.success = cvimg.ptr(0) != nullptr;
+    if (res.success) {
+      // TODO(michalz): invoke appropriate copy/conversion
+      // Convert(out, cvimg, opt);
+    }
+  #ifndef _DEBUG
+  } catch (...) {
+    res.exception = std::current_exception();
+    res.success = false;
+  }
+  #endif
+
+  return res;
+}
+
+
+}  // namespace imgcodec
 }  // namespace dali

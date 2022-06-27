@@ -21,16 +21,17 @@
 #include "dali/imgcodec/image_codec.h"
 
 namespace dali {
+namespace imgcodec {
 
 template <typename Actual>
-class ImageCodecImpl : public ImageCodecInstance {
+class DLL_PUBLIC ImageCodecImpl : public ImageCodecInstance {
  public:
   ImageCodecImpl(int device_id, ThreadPool *tp) : device_id_(device_id), tp_(tp) {
   }
 
-  virtual bool CanDecode(EncodedImage *in, DecodeParams opts) { return true; }
+  bool CanDecode(EncodedImage *in, DecodeParams opts) override { return true; }
 
-  std::vector<bool> CanDecode(span<EncodedImage *> in, span<DecodeParams> opts) override {
+  std::vector<bool> CanDecode(cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
     assert(opts.size() == in.size());
     std::vector<bool> ret(in.size());
     for (int i = 0; i < in.size(); i++)
@@ -38,11 +39,22 @@ class ImageCodecImpl : public ImageCodecInstance {
     return ret;
   }
 
-  std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                   span<EncodedImage *> in, span<DecodeParams> opts) override {
+  using ImageCodecInstance::Decode;
+  std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
+                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
     assert(out.size() == in.size());
     assert(out.size() == opts.size() || opts.size() == 1);
-    std::vector<DecodeResult> ret(out.size())
+    std::vector<DecodeResult> ret(out.size());
+    for (int i = 0 ; i < in.size(); i++)
+      ret[i] = Decode(out[i], in[i], opts.size() > 1 ? opts[i] : opts[0]);
+    return ret;
+  }
+
+  std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
+                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+    assert(out.size() == in.size());
+    assert(out.size() == opts.size() || opts.size() == 1);
+    std::vector<DecodeResult> ret(out.size());
     for (int i = 0 ; i < in.size(); i++)
       ret[i] = Decode(out[i], in[i], opts.size() > 1 ? opts[i] : opts[0]);
     return ret;
@@ -58,7 +70,8 @@ class ImageCodecImpl : public ImageCodecInstance {
   ThreadPool *tp_;
 };
 
-} // namespace dali
+}  // namespace imgcodec
+}  // namespace dali
 
 
 #endif  // DALI_IMGCODEC_CODECS_CODEC_IMPL_H_
