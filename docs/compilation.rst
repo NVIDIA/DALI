@@ -145,7 +145,7 @@ Prerequisites
 .. |gds link| replace:: **GPU Direct Storage**
 .. _gds link: https://developer.nvidia.com/gpudirect-storage
 
-DALI is based on a several open-source dependencies. We keep them in two locations. First of all, the [main DALI repository](https://github.com/NVIDIA/DALI) contains a ``third_party`` directory, which lists the source code based dependencies. Secondly, we maintain a [separate ``DALI_deps`` repository](https://github.com/NVIDIA/DALI_deps), with the links to remaining dependencies. Please refer to the [``DALI_deps`` README file](https://github.com/NVIDIA/DALI_deps/blob/main/README.rst) for instructions, how to install the dependencies from that repository.
+DALI is based on a several open-source dependencies. We keep them in two locations. First of all, the `main DALI repository <https://github.com/NVIDIA/DALI>`_ contains a ``third_party`` directory, which lists the source code based dependencies. Secondly, we maintain a `separate ``DALI_deps`` repository <https://github.com/NVIDIA/DALI_deps>`_, with the links to remaining dependencies. Please refer to the ```DALI_deps`` README file <https://github.com/NVIDIA/DALI_deps/blob/main/README.rst>`_ for instructions, how to install the dependencies from that repository.
 
 The SHA of the currently used version of DALI_deps can be found in DALI_PROJECT_ROOT/DALI_EXTRA_VERSION.
 
