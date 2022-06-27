@@ -299,6 +299,15 @@ class _DaliBaseIterator(object):
             # in case ExternalSource returns StopIteration
             if self._size < 0 and self._auto_reset == "yes":
                 self.reset()
+            if self._size >= 0:
+                warnings.warn(
+                    f"Pipeline unexpectedly raised StopIteration before reaching the end of "
+                    f"dataset. There were {self._counter} samples returned in this epoch, but "
+                    f"{self.size} was passed as `size`. Please verify the `size` value or "
+                    f"consider alternatives. For DALI readers, please use `reader_name` instead. "
+                    f"For external source, you may rely solely on raising StopIteration "
+                    f"from the source.",
+                    Warning)
             raise e
         self._check_batch_size(outputs)
         return outputs

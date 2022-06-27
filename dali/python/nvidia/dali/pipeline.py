@@ -920,6 +920,12 @@ Parameters
         Should not be mixed with :meth:`run` in the same pipeline"""
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
+                if not self.empty():
+                    warnings.warn(
+                        "Prefetching data into a non-empty pipeline may result in corrupted "
+                        "outputs. Please make sure all batches from previous epoch are consumed "
+                        "before scheduling work for a new epoch.",
+                        Warning)
                 self._prefetch()
             else:
                 self._run_once()
@@ -1078,7 +1084,19 @@ Parameters
 
         If pipeline iterator reached the end then reset its state to the beginning.
         """
-        if self._last_iter:
+        if not self._last_iter:
+            # resetting before some external source raised StopIteration is a no-op
+            if self._input_callbacks:
+                warnings.warn(
+                    "Resetting the pipeline before any of the external sources reached "
+                    "the end of epoch (i.e. raised StopIteration) has no effect.",
+                    Warning)
+        else:
+            if not self.empty():
+                warnings.warn(
+                    "Resetting the pipeline before all scheduled batches have been consumed "
+                    "is discouraged and may be unsupported in the future.",
+                    Warning)
             self._first_iter = True
             self._last_iter = False
             self._iter = 0
