@@ -20,6 +20,7 @@
 
 #include "dali/c_api.h"
 #include "dali/core/common.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/views.h"
@@ -646,7 +647,14 @@ TYPED_TEST(CApiTest, TestExecutorMeta) {
   size_t N;
   daliExecutorMetadata *meta;
   daliGetExecutorMetadata(&handle, &meta, &N);
-  EXPECT_EQ(N, 5);
+
+  // File Reader -> Image Decoder -> [Copy to Gpu] -> Resize -> Make Contiguous (always for outputs)
+  if (std::is_same_v<TypeParam, CPUBackend>) {
+    EXPECT_EQ(N, 4);
+  } else {
+    EXPECT_EQ(N, 5);
+  }
+
   for (size_t i = 0; i< N; ++i) {
     auto &meta_entry = meta[i];
     for (size_t j = 0; j < meta_entry.out_num; ++j) {

@@ -566,12 +566,8 @@ void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::
   ASSERT_EQ(pipe.num_outputs(), 1);
   ASSERT_EQ(pipe.output_device(0), dev);
   ASSERT_EQ(pipe.output_name(0), name);
-  if (dev == "cpu") {
-    // take Make Contiguous into account
-    ASSERT_EQ(op->children.size(), 1);
-  } else {
-    ASSERT_EQ(op->children.size(), 0);
-  }
+  // Make Contiguous is always added at the end
+  ASSERT_EQ(op->children.size(), 1);
 }
 
 

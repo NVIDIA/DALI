@@ -145,7 +145,7 @@ class PipelineTest : public DALITest {
       // Validate the graph
     ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
     ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
-    ASSERT_EQ(graph.NumOp(OpType::GPU), 1);
+    ASSERT_EQ(graph.NumOp(OpType::GPU), 2);
 
     ASSERT_EQ(graph.Node(OpType::MIXED, 0).op->name(), "MakeContiguous");
 
@@ -167,9 +167,16 @@ class PipelineTest : public DALITest {
     // Validate the copy op
     auto &node3 = graph.Node(2);
     ASSERT_EQ(node3.id, 2);
-    ASSERT_EQ(node3.children.size(), 0);
+    ASSERT_EQ(node3.children.size(), 1);
     ASSERT_EQ(node3.parents.size(), 1);
     ASSERT_EQ(node3.parents.count(1), 1);
+
+    // Validate the Make Contiguous output
+    auto &node4 = graph.Node(3);
+    ASSERT_EQ(node4.id, 3);
+    ASSERT_EQ(node4.children.size(), 0);
+    ASSERT_EQ(node4.parents.size(), 1);
+    ASSERT_EQ(node4.parents.count(2), 1);
   }
 
   inline OpGraph& GetGraph(Pipeline *pipe) {
