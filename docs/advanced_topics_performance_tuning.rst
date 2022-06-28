@@ -31,7 +31,7 @@ An example:
 .. code-block:: bash
 
   num_threads=5
-  DALI_AFFINITY_MASK=3,5,6,10
+  DALI_AFFINITY_MASK="3,5,6,10"
 
 This example sets thread 0 to CPU 3, thread 1 to CPU 5, thread 2 to CPU 6, thread 3 to CPU 10,
 and thread 4 to the CPU ID that is returned by nvmlDeviceGetCpuAffinity.
