@@ -36,7 +36,6 @@ void signal_handler(int sig) {
 
 void subscribe_signals() {
   signal(SIGTERM, signal_handler);
-  signal(SIGKILL, signal_handler);
   signal(SIGSEGV, signal_handler);
 }
 
