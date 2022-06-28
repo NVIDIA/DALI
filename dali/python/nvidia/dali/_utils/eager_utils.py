@@ -333,9 +333,12 @@ def _rxor(self, other):
 _stateless_operators_cache = {}
 
 
-def _create_backend_op(spec, device, num_inputs, call_args_names, op_name):
+def _create_backend_op(spec, device, num_inputs, num_outputs, call_args_names, op_name):
     for i in range(num_inputs):
         spec.AddInput(op_name + f'[{i}]', device)
+
+    for i in range(num_outputs):
+        spec.AddOutput(op_name + f'_out[{i}]', device)
 
     for arg_name in call_args_names:
         spec.AddArgumentInput(arg_name, '')
@@ -376,9 +379,12 @@ def _eager_op_object_factory(op_class, op_name):
                 inputs, kwargs, op_name, op_name, _callable_op_factory.disqualified_arguments)
 
             if not self.built:
+                num_outputs = self.schema.CalculateOutputs(
+                    self._spec) + self.schema.CalculateAdditionalOutputs(self._spec)
+
                 self._spec.AddArg('max_batch_size', init_args['max_batch_size'])
                 self._backend_op = _create_backend_op(
-                    self._spec, self._device, len(inputs), call_args.keys(), op_name)
+                    self._spec, self._device, len(inputs), num_outputs, call_args.keys(), op_name)
                 self.built = True
 
             output = self._backend_op(inputs, kwargs)
@@ -399,8 +405,11 @@ def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
             self._spec.AddArg('device_id', device_id)
             self._spec.AddArg('max_batch_size', max_batch_size)
 
+            num_outputs = self.schema.CalculateOutputs(
+                self._spec) + self.schema.CalculateAdditionalOutputs(self._spec)
+
             self._backend_op = _create_backend_op(
-                self.spec, self._device, num_inputs, call_args_names, op_name)
+                self._spec, self._device, num_inputs, num_outputs, call_args_names, op_name)
 
     return EagerOperatorBase
 
@@ -425,22 +434,6 @@ def _create_module_class():
     return Module
 
 
-class rng_state(_create_module_class()):
-    """ Manager class for stateful operators. Methods of this class correspond to the appropriate
-    functions in the fn API, they are created by :func:`_wrap_stateful` and are added dynamically.
-    """
-
-    def __init__(self, seed=None):
-        import numpy as np
-
-        self._operator_cache = {}
-        self._seed_generator = np.random.default_rng(seed)
-
-        for name, submodule_class in rng_state._submodules.items():
-            # Create attributes imitating submodules, e.g. `random`, `noise`.
-            setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
-
-
 def _create_state_submodule(name):
     """ Creates a class imitating a submodule. It can contain methods and nested submodules.
     Used for submodules of rng_state, e.g. `rng_state.random`, `rng_state.noise`.
@@ -455,7 +448,8 @@ def _create_state_submodule(name):
                 # Adds nested submodules.
                 setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
 
-    StateSubmodule.__name__ = name
+        __name__ = name
+
     return StateSubmodule
 
 
@@ -742,12 +736,15 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
         wrapper_doc (str): Documentation of the wrapper function.
         make_hidden (bool): If operator is hidden, we should extract it from hidden submodule.
     """
+    from nvidia.dali.experimental import eager
+
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
 
     if op_name in _stateful_operators:
+        
         wrapper = _wrap_stateful(op_class, op_name, wrapper_name)
-        last_module = rng_state
+        last_module = eager.rng_state
         for cur_module_name in submodule:
             # If nonexistent registers rng_state's submodule.
             cur_module = last_module._submodule(cur_module_name)
@@ -764,8 +761,8 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
             wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
         if parent_module is None:
-            # Exposing to experimental.eager module.
-            parent_module = sys.modules[__name__]
+            # Exposing to nvidia.dali.experimental.eager module.
+            parent_module = _internal.get_submodule('nvidia.dali', 'experimental.eager')
         else:
             # Exposing to experimental.eager submodule of the specified parent module.
             parent_module = _internal.get_submodule(

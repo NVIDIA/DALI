@@ -131,14 +131,14 @@ class GetData:
         return get_tl(np.array(self.fn_source(i)), layout)
 
 
-def get_ops(op_path, fn_op=None, eager_op=None):
+def get_ops(op_path, fn_op=None, eager_op=None, eager_module=eager):
     """ Get fn and eager versions of operators from given path. """
 
     import_path = op_path.split('.')
     if fn_op is None:
         fn_op = reduce(getattr, [fn] + import_path)
     if eager_op is None:
-        eager_op = reduce(getattr, [eager] + import_path)
+        eager_op = reduce(getattr, [eager_module] + import_path)
     return fn_op, eager_op
 
 
@@ -153,7 +153,10 @@ def compare_eager_with_pipeline(pipe, eager_op, *, eager_source=get_data_eager, 
         input_tl = eager_source(i, layout)
         out_fn = pipe.run()
         if isinstance(input_tl, (tuple, list)):
-            out_eager = eager_op(*input_tl, **kwargs)
+            if len(input_tl):
+                out_eager = eager_op(*input_tl, **kwargs)
+            else:
+                out_eager = eager_op(batch_size=batch_size, **kwargs)
         else:
             out_eager = eager_op(input_tl, **kwargs)
 
@@ -199,24 +202,48 @@ def no_input_pipeline(op, kwargs):
     return out
 
 
+def no_input_source(*_):
+    return ()
+
+
 def check_no_input(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size, N_iterations=5,
                    **kwargs):
     fn_op, eager_op = get_ops(op_path, fn_op, eager_op)
     pipe = no_input_pipeline(fn_op, kwargs)
-    pipe.build()
+    compare_eager_with_pipeline(pipe, eager_op, eager_source=no_input_source,
+                                batch_size=batch_size, N_iterations=N_iterations, **kwargs)
 
-    for _ in range(N_iterations):
-        out_fn = pipe.run()
-        out_eager = eager_op(batch_size=batch_size, **kwargs)
 
-        if not isinstance(out_eager, (tuple, list)):
-            out_eager = (out_eager,)
+def prep_stateful_operators(op_path):
+    seed = rng.integers(2048)
+    fn_seed = np.random.default_rng(seed).integers(2**32)
+    eager_state = eager.rng_state(seed)
 
-        assert len(out_fn) == len(out_eager)
+    fn_op, eager_op = get_ops(op_path, eager_module=eager_state)
 
-        for tensor_out_fn, tensor_out_eager in zip(out_fn, out_eager):
-            assert type(tensor_out_fn) == type(tensor_out_eager)
-            check_batch(tensor_out_fn, tensor_out_eager, batch_size)
+    return fn_op, eager_op, fn_seed
+
+
+def check_single_input_stateful(op_path, pipe_fun=single_op_pipeline, fn_source=get_data,
+                                fn_op=None, eager_source=get_data_eager, eager_op=None,
+                                layout='HWC', **kwargs):
+    fn_op, eager_op, fn_seed = prep_stateful_operators(op_path)
+
+    kwargs['seed'] = fn_seed
+    pipe = pipe_fun(fn_op, kwargs, source=fn_source, layout=layout)
+    kwargs.pop('seed', None)
+
+    compare_eager_with_pipeline(pipe, eager_op, eager_source=eager_source, layout=layout, **kwargs)
+
+
+def check_no_input_stateful(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size,
+                            N_iterations=5, **kwargs):
+    fn_op, eager_op, fn_seed = prep_stateful_operators(op_path)
+    kwargs['seed'] = fn_seed
+    pipe = no_input_pipeline(fn_op, kwargs)
+    kwargs.pop('seed', None)
+    compare_eager_with_pipeline(pipe, eager_op, eager_source=no_input_source,
+                                batch_size=batch_size, N_iterations=N_iterations, **kwargs)
 
 
 @pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
@@ -514,7 +541,7 @@ def test_audio_decoder():
 
 def test_coord_flip():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 2], dtype=np.uint8) /
-                       255).astype(dtype=np.float32)for _ in range(batch_size)]
+                       255).astype(dtype=np.float32) for _ in range(batch_size)]
                        for _ in range(data_size)])
 
     check_single_input('coord_flip', fn_source=get_data.fn_source,
@@ -523,7 +550,7 @@ def test_coord_flip():
 
 def test_bb_flip():
     get_data = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) /
-                       255).astype(dtype=np.float32)for _ in range(batch_size)]
+                       255).astype(dtype=np.float32) for _ in range(batch_size)]
                        for _ in range(data_size)])
 
     check_single_input('bb_flip', fn_source=get_data.fn_source,
@@ -535,7 +562,7 @@ def test_warp_affine():
 
 
 def test_normalize():
-    check_single_input('normalize', batch=True)
+    check_single_input('normalize')
 
 
 def test_lookup_table():
@@ -965,6 +992,112 @@ def test_arithm_ops():
         compare_eager_with_pipeline(pipe, eager_op=eager_arithm_ops)
 
 
+def test_image_decoder_random_crop():
+    check_single_input_stateful('decoders.image_random_crop', pipe_fun=reader_op_pipeline,
+                                fn_source=images_dir, eager_source=PipelineInput(
+                                    file_reader_pipeline, file_root=images_dir),
+                                output_type=types.RGB)
+
+
+def test_noise_gaussian():
+    check_single_input_stateful('noise.gaussian')
+
+
+def test_noise_salt_and_pepper():
+    check_single_input_stateful('noise.salt_and_pepper')
+
+
+def test_noise_shot():
+    check_single_input_stateful('noise.shot')
+
+
+def test_random_mask_pixel():
+    check_single_input_stateful('segmentation.random_mask_pixel')
+
+
+def test_random_resized_crop():
+    check_single_input_stateful('random_resized_crop', size=[5, 5])
+
+
+def test_random_object_bbox():
+    data = tensors.TensorListCPU([tensors.TensorCPU(
+        np.int32([[1, 0, 0, 0],
+                  [1, 2, 2, 1],
+                  [1, 1, 2, 0],
+                  [2, 0, 0, 1]])), tensors.TensorCPU(
+        np.int32([[0, 3, 3, 0],
+                  [1, 0, 1, 2],
+                  [0, 1, 1, 0],
+                  [0, 2, 0, 1],
+                  [0, 2, 2, 1]]))])
+
+    def source(*_):
+        return data
+
+    check_single_input_stateful('segmentation.random_object_bbox',
+                                fn_source=source, eager_source=source, layout="")
+
+
+def test_fast_resize_crop_mirror():
+    check_single_input_stateful('fast_resize_crop_mirror', crop=[5, 5], resize_shorter=10)
+
+
+def test_roi_random_crop():
+    shape = [10, 20, 3]
+    check_single_input_stateful('roi_random_crop',
+                                crop_shape=[x // 2 for x in shape],
+                                roi_start=[x // 4 for x in shape],
+                                roi_shape=[x // 2 for x in shape])
+
+
+@pipeline_def(batch_size=batch_size, num_threads=4, device_id=None)
+def random_bbox_crop_pipeline(get_boxes, get_labels, seed):
+    boxes = fn.external_source(source=get_boxes)
+    labels = fn.external_source(source=get_labels)
+    out = fn.random_bbox_crop(boxes, labels, aspect_ratio=[0.5, 2.0], thresholds=[
+                              0.1, 0.3, 0.5], scaling=[0.8, 1.0], bbox_layout="xyXY", seed=seed)
+
+    return tuple(out)
+
+
+def test_random_bbox_crop():
+    get_boxes = GetData([[(rng.integers(0, 255, size=[200, 4], dtype=np.uint8) / 255).astype(
+        dtype=np.float32) for _ in range(batch_size)] for _ in range(data_size)])
+    get_labels = GetData([[rng.integers(0, 255, size=[200, 1], dtype=np.int32) for _ in
+                           range(batch_size)] for _ in range(data_size)])
+
+    def eager_source(i, _):
+        return get_boxes.eager_source(i), get_labels.eager_source(i)
+
+    _, eager_op, fn_seed = prep_stateful_operators('random_bbox_crop')
+
+    pipe = random_bbox_crop_pipeline(get_boxes.fn_source, get_labels.fn_source, fn_seed)
+
+    compare_eager_with_pipeline(pipe, eager_op, eager_source=eager_source, aspect_ratio=[0.5, 2.0],
+                                thresholds=[0.1, 0.3, 0.5], scaling=[0.8, 1.0],
+                                bbox_layout="xyXY")
+
+
+def test_resize_crop_mirror():
+    check_single_input_stateful('resize_crop_mirror', crop=[5, 5], resize_shorter=10)
+
+
+def test_random_coin_flip():
+    check_no_input_stateful('random.coin_flip')
+
+
+def test_normal_distribution():
+    check_no_input_stateful('random.normal', shape=[5, 5])
+
+
+def test_random_uniform():
+    check_no_input_stateful('random.uniform')
+
+
+def test_batch_permutation():
+    check_no_input_stateful('batch_permutation')
+
+
 tested_methods = [
     'decoders.image',
     'rotate',
@@ -1056,6 +1189,21 @@ tested_methods = [
     'get_property',
     'tensor_subscript',
     'arithmetic_generic_op',
+    'decoders.image_random_crop',
+    'noise.gaussian',
+    'noise.salt_and_pepper',
+    'noise.shot',
+    'segmentation.random_mask_pixel',
+    'segmentation.random_object_bbox',
+    'fast_resize_crop_mirror',
+    'roi_random_crop',
+    'random_bbox_crop',
+    'random_resized_crop',
+    'resize_crop_mirror',
+    'random.coin_flip',
+    'random.normal',
+    'random.uniform',
+    'batch_permutation',
 ]
 
 excluded_methods = [
@@ -1078,6 +1226,8 @@ def test_coverage():
     """
 
     methods = module_functions(eager, remove_prefix="nvidia.dali.experimental.eager")
+    methods += module_functions(
+        eager.rng_state(), remove_prefix='rng_state', check_non_module=True)
     # TODO(ksztenderski): Add coverage for GPU operators.
     exclude = "|".join(
         ["(^" + x.replace(".", "\.").replace("*", ".*").replace("?", ".") + "$)"  # noqa: W605

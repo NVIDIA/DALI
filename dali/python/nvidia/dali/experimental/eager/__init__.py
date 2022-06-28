@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from . import math  # noqa: F401
+from nvidia.dali._utils.eager_utils import _create_module_class
 
 """ Eager module implements eager versions of standard DALI operators.
 There are 3 main types of eager operators:
@@ -67,4 +68,23 @@ class arithmetic(metaclass=_MetaArithmetic):
     def __exit__(self, type, value, traceback):
         arithmetic._enabled = self.prev
 
+    __name__ = 'arithmetic'
     _enabled = False
+
+
+class rng_state(_create_module_class()):
+    """ Manager class for stateful operators. Methods of this class correspond to the appropriate
+    functions in the fn API, they are created by :func:`_wrap_stateful` and are added dynamically.
+    """
+
+    def __init__(self, seed=None):
+        import numpy as np
+
+        self._operator_cache = {}
+        self._seed_generator = np.random.default_rng(seed)
+
+        for name, submodule_class in rng_state._submodules.items():
+            # Create attributes imitating submodules, e.g. `random`, `noise`.
+            setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
+
+    __name__ = 'rng_state'
