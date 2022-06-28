@@ -712,15 +712,16 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     throw std::runtime_error("Cannot create TensorList from an empty list.");
   }
 
-  auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
-  TensorVector<Backend> tv(list_of_tensors.size());
+  auto contiguous_out = std::make_shared<TensorList<Backend>>();
+  contiguous_out->SetContiguous(BatchState::Contiguous);
+  TensorVector<Backend> non_contiguous_tmp(list_of_tensors.size());
   int expected_type = -2;
 
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
       if (i == 0) {
-        tv.SetupLike(t);
+        non_contiguous_tmp.SetupLike(t);
       }
       DALIDataType cur_type = t.type();
 
@@ -731,7 +732,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             "Tensors cannot have different data types. Tensor at position ", i, " has type '",
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
-      tv.UnsafeSetSample(i, t);
+      non_contiguous_tmp.UnsafeSetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -746,11 +747,11 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     stream = UserStream::Get()->GetStream(t);
   }
 
-  tl->Copy(tv, stream);
-  tl->SetLayout(layout);
+  contiguous_out->Copy(non_contiguous_tmp, stream);
+  contiguous_out->SetLayout(layout);
   CUDA_CALL(cudaStreamSynchronize(stream));
 
-  return tl;
+  return contiguous_out;
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose

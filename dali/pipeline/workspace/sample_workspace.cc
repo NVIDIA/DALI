@@ -43,7 +43,6 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
     }
   }
   for (auto& arg_pair : batch) {
-    assert(!arg_pair.second.should_update);
     sample.AddArgumentInput(arg_pair.first, arg_pair.second.tvec);
   }
 }
