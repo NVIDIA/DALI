@@ -37,7 +37,7 @@ class DLL_PUBLIC BatchParallelCodecImpl : public ImageCodecImpl<Actual> {
   }
 
   using ImageCodecImpl<Actual>::CanDecode;
-  std::vector<bool> CanDecode(cspan<EncodedImage *> in, cspan<DecodeParams> opts) override{
+  std::vector<bool> CanDecode(cspan<ImageSource *> in, cspan<DecodeParams> opts) override{
     assert(opts.size() == in.size());
     std::vector<bool> ret(in.size());
     for (int i = 0; i < in.size(); i++) {
@@ -51,18 +51,18 @@ class DLL_PUBLIC BatchParallelCodecImpl : public ImageCodecImpl<Actual> {
 
   using ImageCodecImpl<Actual>::Decode;
   std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
-                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+                                   cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
     return ParallelDecodeImpl(out, in, opts);
   }
 
   std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+                                   cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
     return ParallelDecodeImpl(out, in, opts);
   }
 
   template <typename Backend>
   std::vector<DecodeResult> ParallelDecodeImpl(span<SampleView<Backend>> out,
-                                               cspan<EncodedImage *> in,
+                                               cspan<ImageSource *> in,
                                                cspan<DecodeParams> opts) {
     assert(out.size() == in.size());
     assert(out.size() == opts.size() || opts.size() == 1);

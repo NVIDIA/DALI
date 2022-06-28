@@ -32,9 +32,9 @@ class DLL_PUBLIC OpenCVCodecInstance : public BatchParallelCodecImpl<OpenCVCodec
 
   using Base::Decode;
 
-  DecodeResult Decode(SampleView<CPUBackend> out, EncodedImage *in, DecodeParams opts) override;
+  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in, DecodeParams opts) override;
 
-  DecodeResult Decode(SampleView<GPUBackend> out, EncodedImage *in, DecodeParams opts) override {
+  DecodeResult Decode(SampleView<GPUBackend> out, ImageSource *in, DecodeParams opts) override {
     throw std::logic_error("Backend not supported");
   }
 };

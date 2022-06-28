@@ -29,9 +29,9 @@ class DLL_PUBLIC ImageCodecImpl : public ImageCodecInstance {
   ImageCodecImpl(int device_id, ThreadPool *tp) : device_id_(device_id), tp_(tp) {
   }
 
-  bool CanDecode(EncodedImage *in, DecodeParams opts) override { return true; }
+  bool CanDecode(ImageSource *in, DecodeParams opts) override { return true; }
 
-  std::vector<bool> CanDecode(cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+  std::vector<bool> CanDecode(cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
     assert(opts.size() == in.size());
     std::vector<bool> ret(in.size());
     for (int i = 0; i < in.size(); i++)
@@ -41,7 +41,7 @@ class DLL_PUBLIC ImageCodecImpl : public ImageCodecInstance {
 
   using ImageCodecInstance::Decode;
   std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
-                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+                                   cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
     assert(out.size() == in.size());
     assert(out.size() == opts.size() || opts.size() == 1);
     std::vector<DecodeResult> ret(out.size());
@@ -51,7 +51,7 @@ class DLL_PUBLIC ImageCodecImpl : public ImageCodecInstance {
   }
 
   std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                   cspan<EncodedImage *> in, cspan<DecodeParams> opts) override {
+                                   cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
     assert(out.size() == in.size());
     assert(out.size() == opts.size() || opts.size() == 1);
     std::vector<DecodeResult> ret(out.size());

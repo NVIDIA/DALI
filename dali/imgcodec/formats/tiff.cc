@@ -17,13 +17,13 @@
 namespace dali {
 namespace imgcodec {
 
-ImageInfo TiffParser::GetInfo(EncodedImage *encoded) const {
+ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
   ImageInfo info;
   // info.shape = {h, w, c};   // TODO(janton)
   return info;
 }
 
-bool TiffParser::CanParse(EncodedImage *encoded) const {
+bool TiffParser::CanParse(ImageSource *encoded) const {
   if (encoded->GetKind() != InputKind::HostMemory)
     return false;
   return false;  // TODO(janton)

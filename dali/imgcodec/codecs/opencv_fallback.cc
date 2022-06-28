@@ -21,7 +21,7 @@ namespace dali {
 namespace imgcodec {
 
 DecodeResult OpenCVCodecInstance::Decode(SampleView<CPUBackend> out,
-                                         EncodedImage *in,
+                                         ImageSource *in,
                                          DecodeParams opts) {
   int flags = 0;
 

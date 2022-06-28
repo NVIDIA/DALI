@@ -49,14 +49,14 @@ class ImageFormatTest : public ::testing::Test {
         std::make_shared<ImageFormat>("webp", std::make_shared<WebpParser>()));
   }
 
-  EncodedImageHostMemory LoadImage(const char *filename) {
+  ImageSourceHostMemory LoadImage(const char *filename) {
     std::ifstream ifs(filename, std::ios::binary);
     ifs.seekg(0, std::ios::end);
     auto filesize = ifs.tellg();
     ifs.seekg(0, std::ios::beg);
     data_.resize(filesize);
     ifs.read(&data_[0], filesize);
-    return EncodedImageHostMemory(&data_[0], data_.size());
+    return ImageSourceHostMemory(&data_[0], data_.size());
   }
 
   void Test(std::string filename, std::string expected_format, TensorShape<> expected_sh) {

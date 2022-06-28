@@ -21,7 +21,7 @@ namespace imgcodec {
 ImageFormat::ImageFormat(const char *name, shared_ptr<ImageParser> parser)
     : name_(name), parser_(parser) {}
 
-bool ImageFormat::Matches(EncodedImage *encoded) const {
+bool ImageFormat::Matches(ImageSource *encoded) const {
   return parser_->CanParse(encoded);
 }
 
@@ -54,7 +54,7 @@ void ImageFormatRegistry::RegisterFormat(std::shared_ptr<ImageFormat> format) {
   format_ptrs_.push_back(formats_.back().get());
 }
 
-ImageFormat *ImageFormatRegistry::GetImageFormat(EncodedImage *image) const {
+ImageFormat *ImageFormatRegistry::GetImageFormat(ImageSource *image) const {
   for (auto &format : formats_) {
     if (format->Matches(image)) {
       return format.get();

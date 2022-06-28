@@ -129,7 +129,7 @@ struct StateNvJPEG {
 };
 
 template <typename T>
-struct EncodedImageInfo {
+struct ImageSourceInfo {
   bool nvjpeg_support;
   T c;
   T widths[NVJPEG_MAX_COMPONENT];
@@ -206,7 +206,7 @@ inline bool IsProgressiveJPEG(const uint8_t* raw_jpeg, size_t size) {
 // Predicate to determine if the image should be decoded with the nvJPEG
 // hybrid Huffman decoder instead of the nvjpeg host Huffman decoder
 template <typename T>
-inline bool ShouldUseHybridHuffman(EncodedImageInfo<T>& info,
+inline bool ShouldUseHybridHuffman(ImageSourceInfo<T>& info,
                                    const uint8_t* input,
                                    size_t size,
                                    unsigned int threshold) {

@@ -72,7 +72,7 @@ int number_of_channels(int bpp, int compression_type,
 
 }  // namespace
 
-ImageInfo BmpParser::GetInfo(EncodedImage *encoded) const {
+ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   const uint8_t *bmp = static_cast<const uint8_t*>(encoded->GetRawData());
   auto length = encoded->GetSize();
 
@@ -127,7 +127,7 @@ ImageInfo BmpParser::GetInfo(EncodedImage *encoded) const {
   return info;
 }
 
-bool BmpParser::CanParse(EncodedImage *encoded) const {
+bool BmpParser::CanParse(ImageSource *encoded) const {
   if (encoded->GetKind() != InputKind::HostMemory)
     return false;
   const uint8_t *bmp = static_cast<const uint8_t*>(encoded->GetRawData());

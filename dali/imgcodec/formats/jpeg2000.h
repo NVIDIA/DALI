@@ -22,8 +22,8 @@ namespace imgcodec {
 
 class DLL_PUBLIC Jpeg2000Parser : public ImageParser {
  public:
-  ImageInfo GetInfo(EncodedImage *encoded) const override;
-  bool CanParse(EncodedImage *encoded) const override;
+  ImageInfo GetInfo(ImageSource *encoded) const override;
+  bool CanParse(ImageSource *encoded) const override;
 };
 
 #endif  // DALI_IMGCODEC_FORMATS_JPEG2000_H_
