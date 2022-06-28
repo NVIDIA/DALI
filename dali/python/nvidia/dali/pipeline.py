@@ -920,6 +920,8 @@ Parameters
         Should not be mixed with :meth:`run` in the same pipeline"""
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             if self._first_iter and self._exec_pipelined:
+                # For one, when prefetching, parallel external source will reuse buffers
+                # that might be still referenced by no_copy input fed to pipeline
                 if not self.empty():
                     warnings.warn(
                         "Prefetching data into a non-empty pipeline may result in corrupted "
