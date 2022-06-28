@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,10 +21,11 @@
 
 #include "dali/core/api_helper.h"
 #include "dali/core/common.h"
+#include "dali/core/stream.h"
 
 namespace dali {
 
-class DLL_PUBLIC FileStream {
+class DLL_PUBLIC FileStream : public InputStream {
  public:
   class MappingReserver {
    public:
@@ -71,11 +72,7 @@ class DLL_PUBLIC FileStream {
   static std::unique_ptr<FileStream> Open(const std::string &uri, bool read_ahead, bool use_mmap);
 
   virtual void Close() = 0;
-  virtual size_t Read(uint8_t *buffer, size_t n_bytes) = 0;
   virtual shared_ptr<void> Get(size_t n_bytes) = 0;
-  virtual void Seek(int64 pos) = 0;
-  virtual int64 Tell() const = 0;
-  virtual size_t Size() const = 0;
   virtual ~FileStream() {}
 
  protected:

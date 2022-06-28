@@ -66,7 +66,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
     }
 
     if (should_seek_ || next_seek_pos_ != seek_pos) {
-      current_file_->Seek(seek_pos);
+      current_file_->SeekRead(seek_pos);
       should_seek_ = false;
     }
     next_seek_pos_ = seek_pos + size;
@@ -146,7 +146,7 @@ class IndexedFileLoader : public Loader<CPUBackend, Tensor<CPUBackend>> {
       current_file_ = FileStream::Open(uris_[file_index], read_ahead_, !copy_read_data_);
       current_file_index_ = file_index;
     }
-    current_file_->Seek(seek_pos);
+    current_file_->SeekRead(seek_pos);
   }
 
   std::vector<std::string> uris_;
