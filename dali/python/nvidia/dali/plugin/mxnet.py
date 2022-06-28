@@ -626,8 +626,8 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 If not set, all outputs are considered to be marked with
                 DALIGluonIterator.DENSE_TAG.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to
-                be called explicitly.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be
+                called explicitly.
 
                 It can be one of the following values:
 
@@ -635,9 +635,6 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                   and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
                   is called internally automatically
-                * ``"quiet"`` - data is returned infinitely without raising StopIteration; reset()
-                  is silently called internally
-                * ``"iter"`` - calling ``'iter()'`` would silently call reset on the iterator.
 
     fill_last_batch : bool, optional, default = None
                 **Deprecated** Please use ``last_batch_policy`` instead

@@ -156,15 +156,15 @@ class DALIGenericIterator(_DaliBaseIterator):
     data_layout : str, optional, default = 'NCHW'
                 Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to
-                be called explicitly.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be
+                called explicitly.
 
                 It can be one of the following values:
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
-                and reset() needs to be called
+                  and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
-                is called internally automatically
+                  is called internally automatically
 
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
@@ -419,15 +419,15 @@ class DALIClassificationIterator(DALIGenericIterator):
     data_layout : str, optional, default = 'NCHW'
                 Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
-                Whether the iterator resets itself for the next epoch or it requires reset() to
-                be called explicitly.
+                Whether the iterator resets itself for the next epoch or it requires reset() to be
+                called explicitly.
 
                 It can be one of the following values:
 
                 * ``"no"``, ``False`` or ``None`` - at the end of epoch StopIteration is raised
-                and reset() needs to be called
+                  and reset() needs to be called
                 * ``"yes"`` or ``"True"``- at the end of epoch StopIteration is raised but reset()
-                is called internally automatically
+                  is called internally automatically
 
     dynamic_shape : any, optional,
                 Parameter used only for backward compatibility.
