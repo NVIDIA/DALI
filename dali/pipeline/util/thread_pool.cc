@@ -25,7 +25,7 @@
 
 namespace dali {
 
-ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const std::string &name)
+ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
     : threads_(num_thread), running_(true), work_complete_(true), started_(false)
     , active_threads_(0) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
