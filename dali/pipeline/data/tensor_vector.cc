@@ -686,12 +686,15 @@ int TensorVector<Backend>::device_id() const {
 
 template <typename Backend>
 void TensorVector<Backend>::reserve(size_t total_bytes) {
+  int batch_size_bkp = curr_num_tensors_;
   if (!state_.IsContiguous()) {
     tensors_.clear();
+    resize_tensors(0);
   }
   state_.Setup(BatchState::Contiguous);
   contiguous_buffer_.reserve(total_bytes);
   if (IsValidType(type_)) {
+    resize_tensors(batch_size_bkp);
     recreate_views();
   }
 }
