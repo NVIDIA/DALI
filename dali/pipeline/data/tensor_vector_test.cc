@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "dali/core/common.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
@@ -131,11 +132,12 @@ TYPED_TEST(TensorVectorSuite, NewSetupAndSetSizeNoncontiguous) {
 }
 
 
-TYPED_TEST(TensorVectorSuite, NewSetupLike) {
+TYPED_TEST(TensorVectorSuite, NewSetupLikeMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
   const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
   Tensor<TypeParam> t;
-  t.set_device_id(1);
+  t.set_device_id(device);
   t.set_order(order);
   t.set_pinned(false);
   t.Resize({3, 4, 5}, DALI_INT32);
@@ -179,11 +181,12 @@ SetRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout, bool 
   };
 }
 
-TYPED_TEST(TensorVectorSuite, NewPartialSetupSet) {
+TYPED_TEST(TensorVectorSuite, NewPartialSetupSetMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
   const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
   Tensor<TypeParam> t;
-  t.set_device_id(1);
+  t.set_device_id(device);
   t.set_order(order);
   t.set_pinned(false);
   t.Resize({3, 4, 5}, DALI_INT32);
@@ -227,11 +230,12 @@ CopyRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout) {
 }
 
 
-TYPED_TEST(TensorVectorSuite, NewPartialSetupCopy) {
+TYPED_TEST(TensorVectorSuite, NewPartialSetupCopyMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
   const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
   Tensor<TypeParam> t;
-  t.set_device_id(1);
+  t.set_device_id(device);
   t.set_order(order);
   t.set_pinned(false);
   t.Resize({3, 4, 5}, DALI_INT32);
@@ -266,11 +270,12 @@ TYPED_TEST(TensorVectorSuite, NewPartialSetupCopy) {
 }
 
 
-TYPED_TEST(TensorVectorSuite, NewFullSetupSet) {
+TYPED_TEST(TensorVectorSuite, NewFullSetupSetMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
   const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
   Tensor<TypeParam> t;
-  t.set_device_id(1);
+  t.set_device_id(device);
   t.set_order(order);
   t.set_pinned(false);
   t.Resize({3, 4, 5}, DALI_INT32);
