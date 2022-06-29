@@ -15,12 +15,13 @@
 import numpy as np
 import os
 import re
+import sys
 from functools import reduce
 
-import nvidia.dali.experimental.eager as eager
-import nvidia.dali.fn as fn
-import nvidia.dali.tensors as tensors
-import nvidia.dali.types as types
+from nvidia.dali import fn as fn
+from nvidia.dali import tensors as tensors
+from nvidia.dali import types as types
+from nvidia.dali.experimental import eager as eager
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali._utils.eager_utils import _slice_tensorlist
 from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,
@@ -215,8 +216,10 @@ def check_no_input(op_path, *, fn_op=None, eager_op=None, batch_size=batch_size,
 
 
 def prep_stateful_operators(op_path):
-    seed = rng.integers(2048)
-    fn_seed = np.random.default_rng(seed).integers(2**32)
+    # Replicating seed that will be used inside rng_state, that way we expect fn and eager
+    # operators to return same results.
+    seed = rng.integers(sys.maxsize)
+    fn_seed = np.random.default_rng(seed).integers(sys.maxsize)
     eager_state = eager.rng_state(seed)
 
     fn_op, eager_op = get_ops(op_path, eager_module=eager_state)

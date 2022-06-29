@@ -212,7 +212,11 @@ def _arithm_op(name, *inputs):
     categories_idxs, inputs, integers, reals = _ops._group_inputs(
         inputs, edge_type=(_tensors.TensorListCPU, _tensors.TensorListGPU))
     input_desc = _ops._generate_input_desc(categories_idxs, integers, reals)
-    device = _ops._choose_device(inputs)
+
+    if any(isinstance(input, _tensors.TensorListGPU) for input in inputs):
+        device = 'gpu'
+    else:
+        device = 'cpu'
 
     if device == "gpu":
         inputs = list(input._as_gpu() if isinstance(
@@ -334,11 +338,14 @@ _stateless_operators_cache = {}
 
 
 def _create_backend_op(spec, device, num_inputs, num_outputs, call_args_names, op_name):
+    inp_device = 'cpu' if device == 'mixed' else device
+    out_device = 'gpu' if device == 'mixed' else device
+
     for i in range(num_inputs):
-        spec.AddInput(op_name + f'[{i}]', device)
+        spec.AddInput(op_name + f'[{i}]', inp_device)
 
     for i in range(num_outputs):
-        spec.AddOutput(op_name + f'_out[{i}]', device)
+        spec.AddOutput(op_name + f'_out[{i}]', out_device)
 
     for arg_name in call_args_names:
         spec.AddArgumentInput(arg_name, '')
@@ -357,6 +364,9 @@ def _create_backend_op(spec, device, num_inputs, num_outputs, call_args_names, o
 
 
 def _eager_op_object_factory(op_class, op_name):
+    """ Creates eager operator class to use with objective ops-like API. For completeness,
+    currently not used.
+    """
     class EagerOperator(op_class):
         def __init__(self, **kwargs):
             self._batch_size = getattr(kwargs, 'batch_size', -1)
@@ -395,6 +405,17 @@ def _eager_op_object_factory(op_class, op_name):
             return output
 
     return EagerOperator
+
+
+def _expose_eager_op_as_object(op_class, submodule):
+    """ Exposes eager operators as objects. Can be used if we decide to change eager API from
+    functional to objective.
+    """
+
+    op_name = op_class.schema_name
+    module = _internal.get_submodule('nvidia.dali.experimental.eager', submodule)
+    op = _eager_op_object_factory(op_class, op_name)
+    setattr(module, op_name, op)
 
 
 def _eager_op_base_factory(op_class, op_name, num_inputs, call_args_names):
@@ -647,6 +668,13 @@ def _desc_call_args(inputs, args):
         [(key, value.dtype, value.layout(), len(value[0].shape())) for key, value in args.items()]))
 
 
+def _gen_cache_key(op_name, inputs, init_args, call_args):
+    """ Creating cache key consisting of operator name, description of inputs, input arguments
+    and init args. Each call arg is described by dtype, layout and dim.
+    """
+    return op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
+
+
 def _wrap_stateless(op_class, op_name, wrapper_name):
     """Wraps stateless Eager Operator in a function. Callable the same way as functions in fn API,
     but directly with TensorLists.
@@ -655,9 +683,7 @@ def _wrap_stateless(op_class, op_name, wrapper_name):
         inputs, init_args, call_args = _prep_args(
             inputs, kwargs, op_name, wrapper_name, _callable_op_factory.disqualified_arguments)
 
-        # Creating cache key consisting of operator name, description of inputs, input arguments
-        # and init args. Each call arg is described by dtype, layout and dim.
-        key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
+        key = _gen_cache_key(op_name, inputs, init_args, call_args)
 
         if key not in _stateless_operators_cache:
             _stateless_operators_cache[key] = _callable_op_factory(
@@ -677,10 +703,13 @@ def _wrap_stateful(op_class, op_name, wrapper_name):
         inputs, init_args, call_args = _prep_args(
             inputs, kwargs, op_name, wrapper_name, _callable_op_factory.disqualified_arguments)
 
-        key = op_name + _desc_call_args(inputs, call_args) + str(sorted(init_args.items()))
+        key = _gen_cache_key(op_name, inputs, init_args, call_args)
 
         if key not in self._operator_cache:
-            seed = self._seed_generator.integers(2**32)
+            # Creating a new operator instance with deterministically generated seed, so if we
+            # preserve the order of operator calls in different instances of rng_state, they
+            # return the same results.
+            seed = self._seed_generator.integers(sys.maxsize)
             self._operator_cache[key] = _callable_op_factory(
                 op_class, wrapper_name, len(inputs), call_args.keys())(**init_args, seed=seed)
 
@@ -712,18 +741,39 @@ def _wrap_iterator(op_class, op_name, wrapper_name):
     return wrapper
 
 
-def _expose_eager_op_as_object(op_class, submodule):
-    """ Exposes eager operators as objects. Can be used if we decide to change eager API from
-    functional to objective."""
+def _get_rng_state_target_module(submodules):
+    """ Returns target module of rng_state. If a module did not exist, creates it. """
+    from nvidia.dali.experimental import eager
 
-    op_name = op_class.schema_name
-    module = _internal.get_submodule('nvidia.dali.experimental.eager', submodule)
-    op = _eager_op_object_factory(op_class, op_name)
-    setattr(module, op_name, op)
+    last_module = eager.rng_state
+    for cur_module_name in submodules:
+        # If nonexistent registers rng_state's submodule.
+        cur_module = last_module._submodule(cur_module_name)
+        last_module = cur_module
+
+    return last_module
 
 
-def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc, make_hidden):
-    """Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
+def _get_eager_target_module(parent_module, submodules, make_hidden):
+    """ Returns target module inside ``parent_module`` if specified, otherwise inside eager. """
+    if parent_module is None:
+        # Exposing to nvidia.dali.experimental.eager module.
+        parent_module = _internal.get_submodule('nvidia.dali', 'experimental.eager')
+    else:
+        # Exposing to experimental.eager submodule of the specified parent module.
+        parent_module = _internal.get_submodule(
+            sys.modules[parent_module], 'experimental.eager')
+
+    if make_hidden:
+        op_module = _internal.get_submodule(parent_module, submodules[:-1])
+    else:
+        op_module = _internal.get_submodule(parent_module, submodules)
+
+    return op_module
+
+
+def _wrap_eager_op(op_class, submodules, parent_module, wrapper_name, wrapper_doc, make_hidden):
+    """ Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
     Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
     eager operators.
 
@@ -736,42 +786,23 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
         wrapper_doc (str): Documentation of the wrapper function.
         make_hidden (bool): If operator is hidden, we should extract it from hidden submodule.
     """
-    from nvidia.dali.experimental import eager
 
     op_name = op_class.schema_name
     op_schema = _b.TryGetSchema(op_name)
 
-    if op_name in _stateful_operators:
-        
+    if op_schema.IsDeprecated() or op_name in _excluded_operators:
+        return
+    elif op_name in _stateful_operators:
         wrapper = _wrap_stateful(op_class, op_name, wrapper_name)
-        last_module = eager.rng_state
-        for cur_module_name in submodule:
-            # If nonexistent registers rng_state's submodule.
-            cur_module = last_module._submodule(cur_module_name)
-            last_module = cur_module
-
-        op_module = last_module
+        op_module = _get_rng_state_target_module(submodules)
     else:
-        if op_schema.IsDeprecated() or op_name in _excluded_operators:
-            return
-        elif op_name in _iterator_operators:
+        if op_name in _iterator_operators:
             wrapper = _wrap_iterator(op_class, op_name, wrapper_name)
         else:
             # If operator is not stateful, generator, deprecated or excluded expose it as stateless.
             wrapper = _wrap_stateless(op_class, op_name, wrapper_name)
 
-        if parent_module is None:
-            # Exposing to nvidia.dali.experimental.eager module.
-            parent_module = _internal.get_submodule('nvidia.dali', 'experimental.eager')
-        else:
-            # Exposing to experimental.eager submodule of the specified parent module.
-            parent_module = _internal.get_submodule(
-                sys.modules[parent_module], 'experimental.eager')
-
-        if make_hidden:
-            op_module = _internal.get_submodule(parent_module, submodule[:-1])
-        else:
-            op_module = _internal.get_submodule(parent_module, submodule)
+        op_module = _get_eager_target_module(parent_module, submodules, make_hidden)
 
     if not hasattr(op_module, wrapper_name):
         wrapper.__name__ = wrapper_name
@@ -779,7 +810,7 @@ def _wrap_eager_op(op_class, submodule, parent_module, wrapper_name, wrapper_doc
         wrapper.__doc__ = wrapper_doc
         wrapper._schema_name = op_name
 
-        if submodule:
+        if submodules:
             wrapper.__module__ = op_module.__name__
 
         setattr(op_module, wrapper_name, wrapper)

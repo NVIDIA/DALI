@@ -15,6 +15,7 @@
 import inspect
 import math
 import traceback
+import sys
 import warnings
 from queue import Queue
 
@@ -549,7 +550,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         import numpy as np
         seed = kwargs.get('seed', -1)
         if seed < 0:
-            seed = np.random.randint(0, 2**32)
+            seed = np.random.randint(sys.maxsize)
         self._seed_generator = np.random.default_rng(seed)
 
     def __enter__(self):
@@ -625,7 +626,7 @@ class _PipelineDebug(_pipeline.Pipeline):
         """Creates direct operator."""
         self._operators[key] = _OperatorManager(
             op_class, op_name, self, cur_context, self._next_logical_id, self._max_batch_size,
-            self._device_id, self._seed_generator.integers(0, 2**32), inputs, kwargs)
+            self._device_id, self._seed_generator.integers(sys.maxsize), inputs, kwargs)
 
         self._pipe.AddMultipleOperators(
             self._operators[key].op_spec, self._operators[key].logical_ids)

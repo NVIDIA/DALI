@@ -54,6 +54,7 @@ class arithmetic(metaclass=_MetaArithmetic):
         >>> tl = dali.tensors.TensorListCPU(...)
         >>> out = tl ** 2
     """
+
     def __init__(self, enabled=True):
         self.prev = arithmetic._enabled
         arithmetic._enabled = enabled
@@ -73,8 +74,17 @@ class arithmetic(metaclass=_MetaArithmetic):
 
 
 class rng_state(_create_module_class()):
-    """ Manager class for stateful operators. Methods of this class correspond to the appropriate
-    functions in the fn API, they are created by :func:`_wrap_stateful` and are added dynamically.
+    """ Manager class for stateful operators. This object holds a cache of reusable operators.
+    Operators are initialized with deterministic seeds generated according to the ``seed`` argument
+    and are reused when you call the same operator with the same scalar parameters.
+
+    Example:
+        >>> eager_state = dali.experimental.eager.rng_state(seed=42)
+        >>> out1 = eager_state.random.normal(shape=[5, 5], batch_size=8)
+        >>> # Here we will reuse the same operator.
+        >>> out2 = eager_state.random.normal(shape=[5, 5], batch_size=8)
+        >>> # And now we will create a new operator with new seed.
+        >>> out3 = eager_state.random.normal(shape=[10, 10], batch_size=8)
     """
 
     def __init__(self, seed=None):
