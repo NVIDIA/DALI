@@ -1,0 +1,128 @@
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_IMGCODEC_IMAGE_FORMAT_H_
+#define DALI_IMGCODEC_IMAGE_FORMAT_H_
+
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include "dali/core/span.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/core/stream.h"
+#include "dali/imgcodec/image_source.h"
+
+namespace dali {
+namespace imgcodec {
+
+struct ImageInfo {
+  TensorShape<> shape;
+  struct {
+    int rotate;
+    bool flip_x;
+    bool flip_y;
+  } orientation;
+};
+
+enum class InputKind : int {
+  None = 0,
+  // abstract stream interface that reads data from a custom file-like source
+  StreamInterface = 1,
+  // bitstream loaded into host memory
+  HostMemory = 2,
+  // bitstream loaded into device memory
+  DeviceMemory = 4,
+  // file name
+  Filename = 8,
+};
+
+constexpr InputKind operator|(InputKind a, InputKind b) {
+  return static_cast<InputKind>(static_cast<int>(a) | static_cast<int>(b));
+}
+
+constexpr InputKind operator&(InputKind a, InputKind b) {
+  return static_cast<InputKind>(static_cast<int>(a) & static_cast<int>(b));
+}
+
+class ImageSource {
+ public:
+  virtual ~ImageSource() = 0;
+  virtual void *GetRawData() const = 0;
+  virtual size_t GetSize() const = 0;
+  virtual const char *GetFilename() const = 0;
+  virtual InputStream *GetStream() const = 0;
+  virtual InputKind GetKind() = 0;
+};
+
+class ImageParser {
+ public:
+  virtual ~ImageParser() = 0;
+  virtual ImageInfo GetInfo(ImageSource *encoded) const = 0;
+  virtual bool CanParse(ImageSource *encoded) const = 0;
+};
+
+class ImageCodec;
+
+class DLL_PUBLIC ImageFormat {
+ public:
+  ImageFormat(const char *name, shared_ptr<ImageParser> parser);
+
+  bool Matches(ImageSource *encoded) const;
+  ImageParser* Parser() const;
+  const std::string& Name() const;
+  span<ImageCodec* const> Codecs() const;
+  void RegisterCodec(std::shared_ptr<ImageCodec> codec, float priority);
+
+ private:
+  std::string name_;
+  std::shared_ptr<ImageParser> parser_;
+  std::multimap<float, std::shared_ptr<ImageCodec>> codecs_;
+  std::vector<ImageCodec*> codec_ptrs_;
+};
+
+class DLL_PUBLIC ImageFormatRegistry {
+ public:
+  /**
+   * @brief Registers a new image format
+   *
+   * @param format The image format to register
+   */
+  void RegisterFormat(std::shared_ptr<ImageFormat> format);
+  /**
+   * @brief Get the format of the image encoded in `image`
+   *
+   * This function tries to parse the image with parsers from all
+   * registered formats and returns the first format that succeeded.
+   *
+   * @param image
+   * @return ImageFormat*
+   */
+  ImageFormat* GetImageFormat(ImageSource *image) const;
+
+  /**
+   * @brief Returns all registered image formats
+   */
+  span<ImageFormat* const> Formats() const;
+
+ private:
+  std::vector<std::shared_ptr<ImageFormat>> formats_;
+  std::vector<ImageFormat*> format_ptrs_;
+};
+
+}  // namespace imgcodec
+}  // namespace dali
+
+#endif  // DALI_IMGCODEC_IMAGE_FORMAT_H_
