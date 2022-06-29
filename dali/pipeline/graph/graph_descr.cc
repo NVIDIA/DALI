@@ -193,10 +193,10 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     new_node.children_tensors.push_back(new_tensor.id);
 
     auto it_inserted = tensor_name_to_id_.insert({name, new_tensor.id});
-    DALI_ENFORCE(it_inserted.second, "Operator '" + spec.name() +
+    DALI_ENFORCE(it_inserted.second, "Operator '" + new_node.instance_name +
         "' has output with name " + name + ", but output "
         "with this name already exists as output of op '" +
-        this->Node(TensorSourceID(name)).spec.name() + "'");
+        this->Node(TensorSourceID(name)).instance_name + "'");
   }
 }
 

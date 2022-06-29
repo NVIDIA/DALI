@@ -510,23 +510,18 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     if (device == "cpu") {
       DALI_ENFORCE(it->second.has_cpu, "Requested cpu output '" +
           name + "' only exists on gpu.");
-
+      // TODO(klecki): Disentangle the error checking and inserting the MakeContiguous ops for
+      // outputs.
       if (!it->second.has_contiguous) {
-        // Add a make contiguous op to produce this output
-        OpSpec spec =
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")  // TODO(klecki): we can revert back to using CPU stage here
-          .AddInput(name, "cpu")
-          .AddOutput("contiguous_" + name, "cpu");  // TODO(klecki): [cpu output of mixed]
-        // This is a hack, never in other places can we produce CPU out of mixed operator
-        // due to how specs are created in Python
-        PrepareOpSpec(&spec, GetNextInternalLogicalId());
-        // TODO(klecki) - enable early exit from executor for CPU only
-
-        graph_.AddOp(spec, "__MakeContiguous_" + name);
         it->second.has_contiguous = true;
+        AddMakeContiguousNode(it->second, "__MakeContiguous_CpuToCpu_" + name, "mixed", name, "cpu",
+                              "contiguous_cpu_to_cpu_" + name, "cpu");
       }
-      outputs.push_back("contiguous_" + name + "_" + device);
+      // Add a make contiguous op to produce this output
+      // TODO(klecki): we can revert back to using CPU stage here by changing mixed to cpu
+      // TODO(klecki): [cpu output of mixed] This is a "hack", never in other places can we
+      // produce CPU out of mixed operator due to how specs are created in Python
+      outputs.push_back("contiguous_cpu_to_cpu_" + name + "_" + device);
     } else if (device == "gpu") {
       DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
                    make_string(
@@ -539,22 +534,14 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
         DALI_ENFORCE(it->second.has_cpu, "Output '" + name +
             "' exists on neither cpu or gpu, internal error");
         // Add a copy to device to create the gpu output
-        OpSpec spec = OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput(name, "cpu")
-          .AddOutput(name, "gpu");
-        PrepareOpSpec(&spec, GetNextLogicalId());
-        graph_.AddOp(spec, "__MakeContiguous_" + name);
+        AddMakeContiguousNode(it->second, "__MakeContiguous_CpuToGpu_" + name, "mixed", name, "cpu",
+                              name, "cpu");
         outputs.push_back(name + "_" + device);
       } else {
         // We need to always create make contiguous to normalize the outputs
-        OpSpec spec = OpSpec("MakeContiguous")
-          .AddArg("device", "gpu")
-          .AddInput(name, "gpu")
-          .AddOutput("contiguous_" + name, "gpu");
-        PrepareOpSpec(&spec, GetNextLogicalId());
-        graph_.AddOp(spec, "__MakeContiguous_" + name);
-        outputs.push_back("contiguous_" + name + "_" + device);
+        AddMakeContiguousNode(it->second, "__MakeContiguous_GpuToGpu_" + name, "gpu", name, "gpu",
+                              "contiguous_gpu_to_gpu_" + name, "gpu");
+        outputs.push_back("contiguous_gpu_to_gpu_" + name + "_" + device);
       }
     } else {
       DALI_FAIL("Invalid device argument \"" + device +
@@ -675,11 +662,14 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_
       OpSpec("MakeContiguous")
       .AddArg("device", "mixed")
       .AddInput(it->first, "cpu")
-      .AddOutput("contiguous_" + it->first, "cpu");  // TODO(klecki): [cpu output of mixed]
+      .AddOutput("contiguous_cpu_to_cpu_" + it->first, "cpu");  // TODO(klecki):
+    // [cpu output of mixed]
     // this is second place where this happens
     // don't put it into op_specs_for_serialization_, only op_specs_
-    AddToOpSpecs("__MakeContiguous_" + it->first, make_contiguous_spec, GetNextInternalLogicalId());
+    AddToOpSpecs("__MakeContiguous_CpuToCpu_" + it->first, make_contiguous_spec,
+                 GetNextInternalLogicalId());
     it->second.has_contiguous = true;
+    it->second.has_make_contiguous_output = true;
   }
 
   // Update the OpSpec to use the contiguous input
@@ -687,7 +677,7 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_
   DALI_ENFORCE(input_strs.name == it->first, "Input at index " +
       std::to_string(input_idx) + " does not match input iterator "
       "name (" + input_strs.name + " v. " + it->first + ").");
-  input_strs.name = "contiguous_" + input_strs.name;
+  input_strs.name = "contiguous_cpu_to_cpu_" + input_strs.name;
 }
 
 void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
@@ -698,8 +688,9 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
     .AddInput(it->first, "cpu")
     .AddOutput(it->first, "gpu");
   // don't put it into op_specs_for_serialization_, only op_specs_
-  AddToOpSpecs("__Copy_" + it->first, copy_to_dev_spec, GetNextInternalLogicalId());
+  AddToOpSpecs("__Copy_CpuToGpu_" + it->first, copy_to_dev_spec, GetNextInternalLogicalId());
   it->second.has_gpu = true;
+  it->second.has_make_contiguous_output = true;
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
@@ -942,6 +933,23 @@ int Pipeline::GetNextInternalLogicalId() {
 bool Pipeline::IsDeserializable(const std::string &serialized_pipeline) {
   dali_proto::PipelineDef def;
   return DeserializePipeline(serialized_pipeline, def);
+}
+
+void Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &op_name,
+                                     const std::string &device, const std::string &input_name,
+                                     const std::string &input_dev, const std::string &output_name,
+                                     const std::string &output_dev) {
+  if (meta.has_make_contiguous_output) {
+    return;
+  }
+  // Add a make contiguous op to produce this output
+  OpSpec spec = OpSpec("MakeContiguous")
+                    .AddArg("device", device)
+                    .AddInput(input_name, input_dev)
+                    .AddOutput(output_name, output_dev);
+  PrepareOpSpec(&spec, GetNextInternalLogicalId());
+  graph_.AddOp(spec, op_name);
+  meta.has_make_contiguous_output = true;
 }
 
 }  // namespace dali

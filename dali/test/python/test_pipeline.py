@@ -1421,10 +1421,8 @@ def check_duplicated_outs_cpu_to_gpu(device):
 
 
 def test_duplicated_outs_cpu_op_to_gpu():
-    """
-    check if it is possible to return outputs from CPU op that goes directly to the GPU op without
-    MakeContiguous as a CPU output from the pipeline
-    """
+    # check if it is possible to return outputs from CPU op that goes directly to the GPU op without
+    # MakeContiguous as a CPU output from the pipeline
     for device in ["cpu", "gpu"]:
         yield check_duplicated_outs_cpu_to_gpu, device
 

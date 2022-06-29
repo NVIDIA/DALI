@@ -493,7 +493,7 @@ class DLL_PUBLIC Pipeline {
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
   using EdgeMeta = struct {
-    bool has_cpu, has_gpu, has_contiguous;
+    bool has_cpu, has_gpu, has_contiguous, has_make_contiguous_output;
   };
 
   // Return the nearest multiple of 8 that is >= base_ptr_offset
@@ -513,6 +513,7 @@ class DLL_PUBLIC Pipeline {
     edge.has_cpu = false;
     edge.has_gpu = false;
     edge.has_contiguous = false;
+    edge.has_make_contiguous_output = false;
     if (device == "cpu") {
       edge.has_cpu = true;
     } else if (device == "gpu") {
@@ -542,6 +543,16 @@ class DLL_PUBLIC Pipeline {
    * @return True, if the outputs passed the validation test.
    */
   bool ValidateOutputs(const DeviceWorkspace &ws) const;
+
+  /**
+   * @brief Add the Make Contiguous node to the graph that is used for handling pipeline
+   * outputs.
+   * @param meta - the output edge - that is edge from the operator to tensor that we need to
+   * insert MakeContiguous after
+   */
+  void AddMakeContiguousNode(EdgeMeta &meta, const std::string &op_name, const std::string &device,
+                             const std::string &input_name, const std::string &input_dev,
+                             const std::string &output_name, const std::string &output_dev);
 
   const int MAX_SEEDS = 1024;
 
