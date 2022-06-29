@@ -244,8 +244,6 @@ Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new
                "To create a view Tensor, the batch must have at least 1 element.");
   DALI_ENFORCE(IsValidType(type()),
                "To create a view Tensor, the batch must have a valid data type.");
-  DALI_ENFORCE(has_data(), "To create a view Tensor, the batch must have a valid data allocation.");
-
   DALI_ENFORCE(
       shape().num_elements() == new_shape.num_elements(),
       make_string("To create a view Tensor, requested shape need to have the same volume as the "
