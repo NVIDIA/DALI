@@ -59,7 +59,8 @@ class DataNodeDebug(_DataNode):
     @staticmethod
     def _arithm_op(*inputs, name=None):
         return _PipelineDebug.current()._wrap_op_call(_ops.ArithmeticGenericOp,
-                                                      DataNodeDebug._aritm_op_name, *inputs,
+                                                      DataNodeDebug._aritm_op_name,
+                                                      *inputs,
                                                       name=name)
 
     def __add__(self, other):
@@ -204,7 +205,7 @@ class _ExternalSourceDebug:
         if self._callback is not None:
             raise RuntimeError(
                 f"Cannot use `feed_input` on the external source '{self._name}' with a `source`"
-                " argument specified.")
+                f" argument specified.")
 
         self._feed_inputs.put((data, kwargs))
 
@@ -266,30 +267,28 @@ class _IterBatchInfo:
 
     def check_input(self, other_size, other_context, op_name, input_idx):
         if not self.set_if_empty(other_size, other_context) and self._size != other_size:
-            raise RuntimeError(("Batch size must be uniform across an iteration. "
-                                "Input {} for operator '{}' has batch "
-                                "size = {}. Expected batch size = {} from:\n{}").format(
-                                    input_idx, op_name, other_size, self._size,
-                                    self._source_context))
+            raise RuntimeError(f"Batch size must be uniform across an iteration. "
+                               f"Input {input_idx} for operator '{op_name}' has batch "
+                               f"size = {other_size}. Expected batch size = {self._size}"
+                               f"from:\n{self._source_context}")
 
     def check_external_source(self, other_size, other_context, output_idx=-1):
         if not self.set_if_empty(other_size, other_context) and self._size != other_size:
             if self._source_context == other_context and output_idx > 0:
-                raise RuntimeError((
-                    "External source must return outputs with consistent batch size. Output {} has "
-                    "batch size = {}, previous batch size = {}").format(
-                        output_idx, other_size, self._size))
+                raise RuntimeError(
+                    f"External source must return outputs with consistent batch size. "
+                    f"Output {output_idx} has batch size = {other_size}, "
+                    f"previous batch size = {self._size}")
             else:
                 raise RuntimeError(
-                    ("Batch size must be uniform across an iteration. External Source "
-                     "operator returned batch size: {}, expected: {}.\nIf you want to "
-                     "use variable batch size (that is different batch size in each iteration) "
-                     "you must call all the external source operators at the beginning of "
-                     "your debug pipeline, before other DALI operators. All the external "
-                     "source operators are expected to return the same batch size in a "
-                     "given iteration, but it can change between the iterations. "
-                     "Other operators will use that batch size for processing.").format(
-                         other_size, self._size))
+                    f"Batch size must be uniform across an iteration. External Source "
+                    f"operator returned batch size: {other_size}, expected: {self._size}.\n"
+                    f"If you want to use variable batch size (that is different batch size in "
+                    f"each iteration) you must call all the external source operators at the "
+                    f"beginning of your debug pipeline, before other DALI operators. "
+                    f"All the external source operators are expected to return the same "
+                    f"batch size in a given iteration, but it can change between the iterations. "
+                    f"Other operators will use that batch size for processing.")
 
 
 class _OperatorManager:
@@ -379,8 +378,10 @@ class _OperatorManager:
         if isinstance(data, (list, tuple)):
             return [self._pack_to_data_node_debug(elem) for elem in data]
 
-        return DataNodeDebug(data, self._op_name,
-                             'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu', self)
+        return DataNodeDebug(data,
+                             self._op_name,
+                             'gpu' if isinstance(data, _tensors.TensorListGPU) else 'cpu',
+                             self)
 
     def _check_arg_len(self, expected_len, actual_len, args_type):
         if expected_len != actual_len:
@@ -412,11 +413,14 @@ class _OperatorManager:
         if isinstance(classification.is_batch, list):
             # Checking for input set.
             for input in classification.data:
-                self._pipe._cur_iter_batch_info.check_input(len(input), self._source_context,
-                                                            self._op_name, input_idx)
+                self._pipe._cur_iter_batch_info.check_input(len(input),
+                                                            self._source_context,
+                                                            self._op_name,
+                                                            input_idx)
         else:
             self._pipe._cur_iter_batch_info.check_input(len(classification.data),
-                                                        self._source_context, self._op_name,
+                                                        self._source_context,
+                                                        self._op_name,
                                                         input_idx)
 
     def _check_call_arg_meta_data(self, expected_data, actual_data, arg_type, value):
@@ -490,9 +494,13 @@ class _OperatorManager:
             classification = _Classification(input, f'Input {i}')
 
             self._check_batch_classification(expected_classification.is_batch,
-                                             classification.is_batch, 'Input', i)
-            self._check_device_classification(expected_classification.device, classification.device,
-                                              'Input', i)
+                                             classification.is_batch,
+                                             'Input',
+                                             i)
+            self._check_device_classification(expected_classification.device,
+                                              classification.device,
+                                              'Input',
+                                              i)
 
             if classification.is_batch:
                 self._check_batch_size(classification, i)
@@ -618,9 +626,8 @@ class _PipelineDebug(_pipeline.Pipeline):
                 outputs.append(val.get())
             elif isinstance(val, (list, tuple)):
                 raise TypeError(
-                    'Illegal pipeline output type.'
-                    f'The output {i} contains a nested `DataNodeDebug`'
-                )
+                    f'Illegal pipeline output type.'
+                    f'The output {i} contains a nested `DataNodeDebug`')
             else:
                 outputs.append(
                     _tensors.TensorListCPU(
