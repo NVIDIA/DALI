@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import ctypes
+
 from nvidia.dali import backend as _b
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali.data_node import DataNode as _DataNode
@@ -316,11 +318,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
 
     def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, blocks=None, threads_per_block=None, **kwargs):
         if device == 'gpu':
-            toolkit_version = cuda.runtime.get_version()
-            driver_version = cuda.driver.driver.get_version()
-
-            if toolkit_version > driver_version:
-                raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver cannot be older than the CUDA Toolkit")
+            self._check_cuda_compatibility(device)
 
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
@@ -374,5 +372,21 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self._preserve = True
         self.blocks = blocks
         self.threads_per_block = threads_per_block
+
+    def _check_cuda_compatibility(self, device):
+        toolkit_version = cuda.runtime.get_version()
+
+        if 'get_version' in dir(cuda.driver.driver):
+            driver_version = cuda.driver.driver.get_version()
+        else:
+            dv = ctypes.c_int(0)
+            cuda.driver.driver.cuDriverGetVersion(ctypes.byref(dv))
+            version = dv.value
+            major = version // 1000
+            minor = (version - (major * 1000)) // 10
+            driver_version = (major, minor)
+
+        if toolkit_version > driver_version:
+            raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver cannot be older than the CUDA Toolkit")
 
 ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")
