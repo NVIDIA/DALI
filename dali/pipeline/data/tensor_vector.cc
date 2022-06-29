@@ -270,7 +270,6 @@ Tensor<Backend> TensorVector<Backend>::AsTensor() {
                "allocated in contiguous memory.");
   DALI_ENFORCE(shape().num_samples() > 0,
                "To create a view Tensor, the batch must have at least 1 element.");
-  DALI_ENFORCE(shape()[0].num_elements() > 0, "To create a view Tensor, sample must not be empty.");
   return AsReshapedTensor(shape_cat(shape().num_samples(), shape()[0]));
 }
 

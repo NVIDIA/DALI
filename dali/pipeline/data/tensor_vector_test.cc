@@ -133,6 +133,10 @@ TYPED_TEST(TensorVectorSuite, NewSetupAndSetSizeNoncontiguous) {
 
 
 TYPED_TEST(TensorVectorSuite, NewSetupLikeMultiGPU) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2)
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
   const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
@@ -182,6 +186,10 @@ SetRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout, bool 
 }
 
 TYPED_TEST(TensorVectorSuite, NewPartialSetupSetMultiGPU) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2)
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
   const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
@@ -232,6 +240,10 @@ CopyRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout) {
 
 
 TYPED_TEST(TensorVectorSuite, NewPartialSetupCopyMultiGPU) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2)
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
   const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
@@ -272,6 +284,10 @@ TYPED_TEST(TensorVectorSuite, NewPartialSetupCopyMultiGPU) {
 
 
 TYPED_TEST(TensorVectorSuite, NewFullSetupSetMultiGPU) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2)
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
   const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
