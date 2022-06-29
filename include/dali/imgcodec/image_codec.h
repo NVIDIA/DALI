@@ -64,9 +64,9 @@ struct ImageCodecProperties {
   bool fallback = true;
 };
 
-class ImageCodecInstance {
+class DLL_PUBLIC ImageCodecInstance {
  public:
-  virtual ~ImageCodecInstance() = 0;
+  virtual ~ImageCodecInstance() = default;
   /**
    * @brief Checks whether this codec can decode this encoded image with given parameters
    */
@@ -122,7 +122,7 @@ class ImageCodecInstance {
   }
 };
 
-class ImageCodec {
+class DLL_PUBLIC ImageCodec {
  public:
   virtual ~ImageCodec() = default;
 

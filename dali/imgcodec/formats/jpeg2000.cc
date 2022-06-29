@@ -24,8 +24,6 @@ ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
 }
 
 bool Jpeg2000Parser::CanParse(ImageSource *encoded) const {
-  if (encoded->GetKind() != InputKind::HostMemory)
-    return false;
   return false;  // TODO(janton)
 }
 

@@ -24,8 +24,6 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
 }
 
 bool WebpParser::CanParse(ImageSource *encoded) const {
-  if (encoded->GetKind() != InputKind::HostMemory)
-    return false;
   return false;  // TODO(janton)
 }
 

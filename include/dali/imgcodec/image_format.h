@@ -37,36 +37,6 @@ struct ImageInfo {
   } orientation;
 };
 
-enum class InputKind : int {
-  None = 0,
-  // abstract stream interface that reads data from a custom file-like source
-  StreamInterface = 1,
-  // bitstream loaded into host memory
-  HostMemory = 2,
-  // bitstream loaded into device memory
-  DeviceMemory = 4,
-  // file name
-  Filename = 8,
-};
-
-constexpr InputKind operator|(InputKind a, InputKind b) {
-  return static_cast<InputKind>(static_cast<int>(a) | static_cast<int>(b));
-}
-
-constexpr InputKind operator&(InputKind a, InputKind b) {
-  return static_cast<InputKind>(static_cast<int>(a) & static_cast<int>(b));
-}
-
-class ImageSource {
- public:
-  virtual ~ImageSource() = 0;
-  virtual void *GetRawData() const = 0;
-  virtual size_t GetSize() const = 0;
-  virtual const char *GetFilename() const = 0;
-  virtual InputStream *GetStream() const = 0;
-  virtual InputKind GetKind() = 0;
-};
-
 class ImageParser {
  public:
   virtual ~ImageParser() = 0;

@@ -24,8 +24,6 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
 }
 
 bool TiffParser::CanParse(ImageSource *encoded) const {
-  if (encoded->GetKind() != InputKind::HostMemory)
-    return false;
   return false;  // TODO(janton)
 }
 

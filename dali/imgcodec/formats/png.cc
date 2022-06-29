@@ -24,8 +24,6 @@ ImageInfo PngParser::GetInfo(ImageSource *encoded) const {
 }
 
 bool PngParser::CanParse(ImageSource *encoded) const {
-  if (encoded->GetKind() != InputKind::HostMemory)
-    return false;
   return false;  // TODO(janton)
 }
 
