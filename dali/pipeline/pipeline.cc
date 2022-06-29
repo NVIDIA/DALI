@@ -669,7 +669,6 @@ void Pipeline::SetupCPUInput(std::map<string, EdgeMeta>::iterator it, int input_
     AddToOpSpecs("__MakeContiguous_CpuToCpu_" + it->first, make_contiguous_spec,
                  GetNextInternalLogicalId());
     it->second.has_contiguous = true;
-    it->second.has_make_contiguous_output = true;
   }
 
   // Update the OpSpec to use the contiguous input
@@ -690,7 +689,6 @@ void Pipeline::SetupGPUInput(std::map<string, EdgeMeta>::iterator it) {
   // don't put it into op_specs_for_serialization_, only op_specs_
   AddToOpSpecs("__Copy_CpuToGpu_" + it->first, copy_to_dev_spec, GetNextInternalLogicalId());
   it->second.has_gpu = true;
-  it->second.has_make_contiguous_output = true;
 }
 
 void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
