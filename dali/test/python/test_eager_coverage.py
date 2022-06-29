@@ -17,10 +17,10 @@ import os
 import re
 from functools import reduce
 
-from nvidia.dali import fn as fn
-from nvidia.dali import tensors as tensors
-from nvidia.dali import types as types
-from nvidia.dali.experimental import eager as eager
+from nvidia.dali import fn
+from nvidia.dali import tensors
+from nvidia.dali import types
+from nvidia.dali.experimental import eager
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali._utils.eager_utils import _slice_tensorlist
 from test_dali_cpu_only_utils import (pipeline_arithm_ops_cpu, setup_test_nemo_asr_reader_cpu,

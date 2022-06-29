@@ -17,9 +17,9 @@ import os
 
 from nvidia.dali import fn
 from nvidia.dali import pipeline_def
-from nvidia.dali import ops as ops
-from nvidia.dali import tensors as tensors
-from nvidia.dali.experimental import eager as eager
+from nvidia.dali import ops
+from nvidia.dali import tensors
+from nvidia.dali.experimental import eager
 from nose_utils import assert_raises, raises
 from test_utils import get_dali_extra_path
 
