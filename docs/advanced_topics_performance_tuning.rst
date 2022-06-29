@@ -30,7 +30,7 @@ An example:
 
 .. code-block:: bash
 
-  num_threads=5
+  # assuming that DALI uses num_threads=5
   DALI_AFFINITY_MASK="3,5,6,10"
 
 This example sets thread 0 to CPU 3, thread 1 to CPU 5, thread 2 to CPU 6, thread 3 to CPU 10,
