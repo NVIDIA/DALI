@@ -42,9 +42,8 @@ def _get_batch_shape(data):
 def _check_data_batch(data, batch_size, layout):
     shape, uniform = _get_batch_shape(data)
     if len(shape) > batch_size:
-        raise RuntimeError("The external source callback returned an unexpected batch "
-                           "size. Expected batch_size <= {}, actual: {}".format(
-                               batch_size, len(shape)))
+        raise RuntimeError(f"The external source callback returned an unexpected batch "
+                           f"size. Expected batch_size <= {batch_size}, actual: {len(shape)}")
 
     if len(shape) > 0:
         dim = len(shape[0])
@@ -54,8 +53,7 @@ def _check_data_batch(data, batch_size, layout):
                     raise RuntimeError(
                         "All tensors in a batch must have the same number of dimensions")
         if layout is not None and layout != "" and dim != len(layout):
-            raise RuntimeError("The layout '{}' cannot describe {}-dimensional data".format(
-                layout, dim))
+            raise RuntimeError(f"The layout '{layout}' cannot describe {dim}-dimensional data")
 
 
 def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
@@ -137,9 +135,9 @@ class _ExternalDataBatch:
 
 class _ExternalSourceGroup(object):
 
-    def __init__(self, callback, source_desc, is_multioutput, instances=[], *, cuda_stream=None,
-                 use_copy_kernel=None, batch=True, parallel=False, prefetch_queue_depth=None,
-                 batch_info=None):
+    def __init__(self, callback, source_desc, is_multioutput, instances=[], *,
+                 cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
+                 prefetch_queue_depth=None, batch_info=None):
         self.instances = list(instances)  # we need a copy!
         self.utilized_instances = self.instances
         self.is_multioutput = is_multioutput
@@ -206,8 +204,9 @@ class _ExternalSourceGroup(object):
         # NOTE We can't schedule more than what's on top of pipeline's prefetch queue, as the
         # entires in the pipeline are zero-copy and cannot be overwritten.
         context = pool.contexts[context_i]
-        while (context.scheduled_ahead < self.prefetch_queue_depth and self.schedule_batch(
-                pool, context_i, context.scheduled_ahead, batch_size, epoch_idx)):
+        while (context.scheduled_ahead < self.prefetch_queue_depth
+               and self.schedule_batch(pool, context_i, context.scheduled_ahead,
+                                       batch_size, epoch_idx)):
             pass
 
     def schedule_batch(self, pool, context_i, lead, batch_size, epoch_idx):

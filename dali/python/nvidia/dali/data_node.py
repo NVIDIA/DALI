@@ -238,6 +238,6 @@ not_iterable(DataNode)
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
-        raise TypeError("Expected outputs of type compatible with \"DataNode\"."
-                        " Received output type with name \"{}\" that does not match.".format(
-                             type(maybe_node).__name__))
+        raise TypeError(f"Expected outputs of type compatible with \"DataNode\". "
+                        f"Received output type with name \"{type(maybe_node).__name__}\" "
+                        f"that does not match.")
