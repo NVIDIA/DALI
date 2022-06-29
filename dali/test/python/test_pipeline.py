@@ -1474,8 +1474,8 @@ def test_executor_meta():
     test_pipe.run()
     meta = test_pipe.executor_statistics()
     # all operators (readers.Caffe, decoders.ImageRandomCrop, Resize, CropMirrorNormalize,
-    # CoinFlip) + make_contiguous
-    assert len(meta) == 6
+    # CoinFlip) + make_contiguous * 3 (all outputs)
+    assert len(meta) == 8
     for k in meta.keys():
         if "CropMirrorNormalize" in k:
             crop_meta = meta[k]
