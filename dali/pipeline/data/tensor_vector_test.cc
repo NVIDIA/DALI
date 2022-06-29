@@ -134,12 +134,12 @@ TYPED_TEST(TensorVectorSuite, NewSetupAndSetSizeNoncontiguous) {
 
 TYPED_TEST(TensorVectorSuite, NewSetupLikeMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
-  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
-  const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
+  constexpr int device = 1;
+  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
-  t.set_pinned(false);
+  t.set_pinned(true);
   t.Resize({3, 4, 5}, DALI_INT32);
   t.SetLayout("HWC");
 
@@ -183,17 +183,17 @@ SetRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout, bool 
 
 TYPED_TEST(TensorVectorSuite, NewPartialSetupSetMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
-  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
-  const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
+  constexpr int device = 1;
+  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
-  t.set_pinned(false);
+  t.set_pinned(true);
   t.Resize({3, 4, 5}, DALI_INT32);
   t.SetLayout("HWC");
 
   // set size to be checked. Copy doesn't make sense
-  auto setups = SetRequiredSetters<TypeParam>(3, DALI_INT32, "HWC", false, 1);
+  auto setups = SetRequiredSetters<TypeParam>(3, DALI_INT32, "HWC", true, device);
   for (size_t excluded = 0; excluded < setups.size(); excluded++) {
     std::vector<size_t> idxs(setups.size());
     std::iota(idxs.begin(), idxs.end(), 0);
@@ -201,6 +201,7 @@ TYPED_TEST(TensorVectorSuite, NewPartialSetupSetMultiGPU) {
       TensorVector<TypeParam> tv;
       tv.SetContiguous(BatchState::Noncontiguous);
       tv.SetSize(4);
+      tv.set_pinned(false);
       for (auto idx : idxs) {
         if (idx == excluded) {
           continue;
@@ -232,12 +233,12 @@ CopyRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout) {
 
 TYPED_TEST(TensorVectorSuite, NewPartialSetupCopyMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
-  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
-  const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
+  constexpr int device = 1;
+  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
-  t.set_pinned(false);
+  t.set_pinned(true);
   t.Resize({3, 4, 5}, DALI_INT32);
   t.SetLayout("HWC");
 
@@ -272,17 +273,17 @@ TYPED_TEST(TensorVectorSuite, NewPartialSetupCopyMultiGPU) {
 
 TYPED_TEST(TensorVectorSuite, NewFullSetupSetMultiGPU) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
-  const int device = is_device ? 1 : CPU_ONLY_DEVICE_ID;
-  const auto order = is_device ? AccessOrder(cuda_stream, 1) : AccessOrder::host();
+  constexpr int device = 1;
+  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
-  t.set_pinned(false);
+  t.set_pinned(true);
   t.Resize({3, 4, 5}, DALI_INT32);
   t.SetLayout("HWC");
 
   // set size to be checked. Copy doesn't make sense
-  auto setups = SetRequiredSetters<TypeParam>(3, DALI_INT32, "HWC", false, 1);
+  auto setups = SetRequiredSetters<TypeParam>(3, DALI_INT32, "HWC", true, device);
   std::vector<size_t> idxs(setups.size());
   std::iota(idxs.begin(), idxs.end(), 0);
   do {
