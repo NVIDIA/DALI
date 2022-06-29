@@ -150,6 +150,7 @@ def mixed_image_decoder_pipeline(file_root, seed):
 
 
 def test_mixed_devices_decoder():
+    """ Tests hidden functionality of exposing eager operators as classes. """
     seed = 42
     batch_size = 8
     file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')

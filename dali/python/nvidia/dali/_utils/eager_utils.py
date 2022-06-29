@@ -709,13 +709,16 @@ def _wrap_stateful(op_class, op_name, wrapper_name):
             # Creating a new operator instance with deterministically generated seed, so if we
             # preserve the order of operator calls in different instances of rng_state, they
             # return the same results.
-            seed = self._seed_generator.integers(sys.maxsize)
+            seed = self._seed_generator.integers(_wrap_stateful.seed_upper_bound)
             self._operator_cache[key] = _callable_op_factory(
                 op_class, wrapper_name, len(inputs), call_args.keys())(**init_args, seed=seed)
 
         return self._operator_cache[key](inputs, call_args)
 
     return wrapper
+
+
+_wrap_stateful.seed_upper_bound = (1 << 31) - 1
 
 
 def _wrap_iterator(op_class, op_name, wrapper_name):
