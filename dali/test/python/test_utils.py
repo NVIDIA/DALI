@@ -661,3 +661,16 @@ def python_function(*inputs, function, **kwargs):
         return function(*iteration_inputs)
 
     return dali.fn.python_function(*node_inputs, function=wrapper, **kwargs)
+
+
+def run_pipelines(*pipelines):
+    batches = []
+    stop_iter = False
+    for pipeline in pipelines:
+        try:
+            batches.append(pipeline.run())
+        except StopIteration:
+            stop_iter = True
+    if stop_iter:
+        raise StopIteration
+    return batches
