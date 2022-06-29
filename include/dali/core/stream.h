@@ -146,7 +146,7 @@ class InputStream {
   virtual size_t Size() const = 0;
 
   /**
-   * @brief Returns the size a signed integer.
+   * @brief Returns the size as a signed integer.
    */
   inline ssize_t SSize() const {
     return Size();
