@@ -1050,9 +1050,8 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num, total_
         assert(count == min(total_iter_num, iter_num * epochs))
 
 
-def create_parallel_pipeline(source_type, lightweight, reader_queue_depth, batch_size,
-                             num_iterations, **kwargs):
-    sample_shape = (1, 2,) if lightweight else (1024, 1024)
+def create_parallel_pipeline(source_type, lightweight, sample_shape, reader_queue_depth,
+                             batch_size, num_iterations, **kwargs):
     if source_type == "generator":
         cycle = None
         batch_mode = False
@@ -1095,13 +1094,15 @@ def create_parallel_pipeline(source_type, lightweight, reader_queue_depth, batch
 
 
 def _check_parallel_stop_iter(fw_iter, source_type, lightweight, fw_size_aware,
-                              prefetch_queue_depth, reader_queue_depth):
+                              prefetch_queue_depth, reader_queue_depth,
+                              batch_as_np):
+    sample_shape = (1, 2,) if lightweight else (1024, 1024)
     num_iterations = 7
     batch_size = 6
     num_epochs = 3
     pipe = create_parallel_pipeline(
-        source_type, lightweight, reader_queue_depth, batch_size, num_iterations,
-        prefetch_queue_depth=prefetch_queue_depth)
+        source_type, lightweight, sample_shape, reader_queue_depth, batch_size,
+        num_iterations, prefetch_queue_depth=prefetch_queue_depth)
     pipe.build()
     fw_size = -1 if not fw_size_aware else num_iterations * batch_size
     it = fw_iter(pipe, fw_size, True)
@@ -1111,16 +1112,23 @@ def _check_parallel_stop_iter(fw_iter, source_type, lightweight, fw_size_aware,
     for epoch_idx, batches in enumerate(epochs):
         assert len(batches) == num_iterations, \
             f"Expected {num_iterations} batches in epoch {epoch_idx}, got: {len(batches)}"
+        for iter_idx, fw_batch in enumerate(batches):
+            batch = batch_as_np(fw_batch)
+            for sample_idx, sample in enumerate(batch):
+                sample_idx = batch_size * iter_idx + sample_idx
+                ref = np.full(sample_shape, sample_idx, dtype=np.int32)
+                ref[0, 0] = epoch_idx
+                np.testing.assert_array_equal(sample, ref)
 
 
-def check_parallel_stop_iter(fw_iter):
+def check_parallel_stop_iter(fw_iter, batch_as_np):
     for source_type in ('generator', 'callback'):
         for lightweight in (True, False):
             for fw_size_aware in (True, False):
                 for prefetch_queue_depth in (1, 2, 3):
                     for reader_queue_depth in (1, 2, 3):
                         yield _check_parallel_stop_iter, fw_iter, source_type, lightweight, \
-                            fw_size_aware, prefetch_queue_depth, reader_queue_depth
+                            fw_size_aware, prefetch_queue_depth, reader_queue_depth, batch_as_np
 
 
 def check_too_early_reset(fw_iter, auto_reset, prefetch_queue_depth):
@@ -1318,7 +1326,8 @@ def test_stop_iteration_parallel_mxnet():
     def fw_iter(pipe, size, auto_reset): return MXNetIterator(
         pipe, [("data_0", MXNetIterator.DATA_TAG), ("data_1", MXNetIterator.DATA_TAG)],
         size=size, auto_reset=auto_reset)
-    yield from check_parallel_stop_iter(fw_iter)
+    def as_np(batch): return batch[0].data[0].asnumpy()
+    yield from check_parallel_stop_iter(fw_iter, as_np)
 
 
 def test_mxnet_iterator_wrapper_first_iteration():
@@ -1437,7 +1446,8 @@ def test_stop_iteration_parallel_gluon():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     def fw_iter(pipe, size, auto_reset): return GluonIterator(
         pipe, size=size, auto_reset=auto_reset)
-    yield from check_parallel_stop_iter(fw_iter)
+    def as_np(batch): return batch[0][0].asnumpy()
+    yield from check_parallel_stop_iter(fw_iter, as_np)
 
 
 def test_gluon_iterator_wrapper_first_iteration():
@@ -1508,7 +1518,8 @@ def test_stop_iteration_parallel_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     def fw_iter(pipe, size, auto_reset): return PyTorchIterator(
         pipe, output_map=["data_0", "data_1"],  size=size, auto_reset=auto_reset)
-    yield from check_parallel_stop_iter(fw_iter)
+    def as_np(batch): return batch[0]["data_0"].numpy()
+    yield from check_parallel_stop_iter(fw_iter, as_np)
 
 
 def test_pytorch_iterator_wrapper_first_iteration():
@@ -1579,7 +1590,9 @@ def test_stop_iteration_parallel_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
     def fw_iter(pipe, size, auto_reset): return PaddleIterator(
         pipe, output_map=["data_0", "data_1"],  size=size, auto_reset=auto_reset)
-    yield from check_parallel_stop_iter(fw_iter)
+    def as_np(batch):
+        return np.array(batch[0]['data_0'])
+    yield from check_parallel_stop_iter(fw_iter, as_np)
 
 
 def test_paddle_iterator_wrapper_first_iteration():
