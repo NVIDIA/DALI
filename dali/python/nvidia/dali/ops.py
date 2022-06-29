@@ -33,6 +33,7 @@ from nvidia.dali.types import \
         ScalarConstant as _ScalarConstant, \
         Constant as _Constant
 
+
 cupy = None
 
 
@@ -441,8 +442,7 @@ class _OperatorInstance(object):
             for inp in inputs:
                 if not isinstance(inp, _DataNode):
                     raise TypeError(
-                        "Expected inputs of type `DataNode`. Received input of type '{}'.".format(
-                            type(inp).__name__))
+                        f"Expected inputs of type `DataNode`. Received input of type '{inp}'.")
                 self._spec.AddInput(inp.name, inp.device)
         # Argument inputs
         for k in sorted(call_args.keys()):
@@ -457,10 +457,9 @@ class _OperatorInstance(object):
                         arg_inp = _Constant(arg_inp, device="cpu")
                     except Exception as e:
                         raise TypeError(
-                            ("Expected inputs of type "
-                             + "`DataNode` or convertible to constant nodes. Received "
-                             + "input `{}` of type '{}'.").format(k,
-                                                                  type(arg_inp).__name__)) from e
+                            f"Expected inputs of type "
+                            f"`DataNode` or convertible to constant nodes. Received "
+                            f"input `{k}` of type '{type(arg_inp).__name__}'.") from e
 
                 _check_arg_input(op._schema, type(self._op).__name__, k)
 
@@ -493,8 +492,8 @@ class _OperatorInstance(object):
         else:
             output_device = "cpu"
 
-        num_output = self._op.schema.CalculateOutputs(
-            self._spec) + self._op.schema.CalculateAdditionalOutputs(self._spec)
+        num_output = (self._op.schema.CalculateOutputs(self._spec)
+                      + self._op.schema.CalculateAdditionalOutputs(self._spec))
 
         if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
@@ -672,9 +671,9 @@ def python_op_factory(name, schema_name=None):
             for input in inputs:
                 if isinstance(input, list):
                     if len(input) != arg_list_len:
-                        raise ValueError("All argument lists for Multiple Input Sets used " +
-                                         "with operator {} must have the same length"
-                                         .format(type(self).__name__))
+                        raise ValueError(f"All argument lists for Multiple Input Sets used "
+                                         f"with operator {type(self).__name__} must have "
+                                         f"the same length")
             return arg_list_len
 
         def _safe_len(self, input):
@@ -727,9 +726,9 @@ def python_op_factory(name, schema_name=None):
             if (len(inputs) > self._schema.MaxNumInput()
                     or len(inputs) < self._schema.MinNumInput()):
                 raise ValueError(
-                    ("Operator {} expects from {} to " + "{} inputs, but received {}.").format(
-                        type(self).__name__, self._schema.MinNumInput(), self._schema.MaxNumInput(),
-                        len(inputs)))
+                    f"Operator {type(self).__name__} expects "
+                    f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
+                    f"but received {len(inputs)}.")
 
         def _build_input_sets(self, inputs):
             # Build input sets, most of the time we only have one
@@ -850,9 +849,9 @@ class _TFRecordReaderImpl():
         # We do not handle multiple input sets for Reader as they do not have inputs
         if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                ("Operator {} expects from {} to " + "{} inputs, but received {}.").format(
-                    type(self).__name__, self._schema.MinNumInput(), self._schema.MaxNumInput(),
-                    len(inputs)))
+                f"Operator {type(self).__name__} expects "
+                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
+                f"but received {len(inputs)}.")
 
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         outputs = {}
@@ -946,14 +945,14 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
                                "`exec_pipelined` set to False.")
         if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                ("Operator {} expects from {} to " + "{} inputs, but received {}.").format(
-                    type(self).__name__, self._schema.MinNumInput(), self._schema.MaxNumInput(),
-                    len(inputs)))
+                f"Operator {type(self).__name__} expects "
+                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
+                f"but received {len(inputs)}.")
         for inp in inputs:
             if not isinstance(inp, _DataNode):
-                raise TypeError(("Expected inputs of type `DataNode`. Received input of type '{}'. "
-                                 + "Python Operators do not support Multiple Input Sets.").format(
-                                     type(inp).__name__))
+                raise TypeError(f"Expected inputs of type `DataNode`. "
+                                f"Received input of type '{type(inp).__name__}'. "
+                                f"Python Operators do not support Multiple Input Sets.")
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
@@ -1085,16 +1084,23 @@ class PythonFunction(PythonFunctionBase):
             _setup_cupy()
 
         if device == 'cpu':
-            func = (lambda *ts: PythonFunction._function_wrapper_cpu(
-                batch_processing, function, num_outputs, *ts))
+            def func(*ts):
+                return PythonFunction._function_wrapper_cpu(
+                    batch_processing, function, num_outputs, *ts)
         else:
-            func = (lambda *ts: PythonFunction._function_wrapper_gpu(
-                batch_processing, function, num_outputs, *ts))
+            def func(*ts):
+                return PythonFunction._function_wrapper_gpu(
+                    batch_processing, function, num_outputs, *ts)
 
         super(PythonFunction,
-              self).__init__(impl_name="DLTensorPythonFunctionImpl", function=func,
-                             num_outputs=num_outputs, device=device, synchronize_stream=False,
-                             batch_processing=batch_processing, **kwargs)
+              self).__init__(
+                impl_name="DLTensorPythonFunctionImpl",
+                function=func,
+                num_outputs=num_outputs,
+                device=device,
+                synchronize_stream=False,
+                batch_processing=batch_processing,
+                **kwargs)
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
@@ -1107,11 +1113,17 @@ class DLTensorPythonFunction(PythonFunctionBase):
     @staticmethod
     def _function_wrapper_dlpack(batch_processing, function, num_outputs, *dlpack_inputs):
         if batch_processing:
-            return PythonFunction.function_wrapper_batch(function, num_outputs, lambda x: x,
-                                                         lambda x: x, *dlpack_inputs)
+            return PythonFunction.function_wrapper_batch(function,
+                                                         num_outputs,
+                                                         lambda x: x,
+                                                         lambda x: x,
+                                                         *dlpack_inputs)
         else:
-            return PythonFunction.function_wrapper_per_sample(function, num_outputs, lambda x: x,
-                                                              lambda x: x, *dlpack_inputs)
+            return PythonFunction.function_wrapper_per_sample(function,
+                                                              num_outputs,
+                                                              lambda x: x,
+                                                              lambda x: x,
+                                                              *dlpack_inputs)
 
     def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True,
                  batch_processing=True, **kwargs):
@@ -1121,10 +1133,13 @@ class DLTensorPythonFunction(PythonFunctionBase):
                 batch_processing, function, num_outputs, *ts)
 
         super(DLTensorPythonFunction,
-              self).__init__(impl_name="DLTensorPythonFunctionImpl", function=func,
-                             num_outputs=num_outputs, device=device,
+              self).__init__(impl_name="DLTensorPythonFunctionImpl",
+                             function=func,
+                             num_outputs=num_outputs,
+                             device=device,
                              synchronize_stream=synchronize_stream,
-                             batch_processing=batch_processing, **kwargs)
+                             batch_processing=batch_processing,
+                             **kwargs)
 
 
 _wrap_op(PythonFunction)
@@ -1164,10 +1179,9 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
                 try:
                     inp = _Constant(inp, device=input_device)
                 except Exception as ex:
-                    raise TypeError("""when calling operator {0}:
-Input {1} is neither a DALI `DataNode` nor a list of data nodes but `{2}`.
-Attempt to convert it to a constant node failed.""".format(op_name, idx,
-                                                           type(inp).__name__)) from ex
+                    raise TypeError(f"""when calling operator {op_name}:
+Input {idx} is neither a DALI `DataNode` nor a list of data nodes but `{type(inp).__name__}`.
+Attempt to convert it to a constant node failed.""") from ex
 
             if not isinstance(inp, _DataNode):
                 inp = nvidia.dali.ops._instantiate_constant_node(input_device, inp)
