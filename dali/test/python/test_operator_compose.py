@@ -38,7 +38,7 @@ def test_unified_arg_placement():
         assert offset.shape == (3,)
         for j in range(3):
             assert offset[j] >= 1 and offset[j] < 2  # check that it's not all zeros or sth
-        T = offset[:,np.newaxis]  # convert to a columnn
+        T = offset[:, np.newaxis]  # convert to a columnn
         assert np.array_equal(matrix, np.concatenate([np.identity(3), T], axis=1))
 
 
@@ -49,7 +49,7 @@ def test_compose():
     u = ops.random.Uniform()(range=(1, 2), shape=3)
     c1 = ops.Compose([
         ops.transforms.Translation(offset=u),
-        ops.transforms.Scale(scale=[1, 1,-1])
+        ops.transforms.Scale(scale=[1, 1, -1])
     ])
     c2 = ops.Compose([
         c1,
@@ -68,7 +68,7 @@ def test_compose():
         mtx = np.float32([[0, -1,  0],
                           [1,  0,  0],
                           [0,  0, -1]])
-        T = offset[:,np.newaxis]  # convert to a columnn
+        T = offset[:, np.newaxis]  # convert to a columnn
         T = np.dot(mtx, T)
         mtx *= 2
         assert np.allclose(matrix, np.concatenate([mtx, T], axis=1), rtol=1e-5, atol=1e-6)
@@ -82,7 +82,7 @@ def test_compose_change_device():
     batch_size = 3
     pipe = Pipeline(batch_size, 1, 0)
 
-    size = fn.random.uniform(shape=2, range=(300,500))
+    size = fn.random.uniform(shape=2, range=(300, 500))
     c = ops.Compose([
         ops.decoders.Image(device="cpu"),
         ops.Resize(size=size, device="gpu")

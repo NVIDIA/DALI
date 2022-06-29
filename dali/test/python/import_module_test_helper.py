@@ -15,7 +15,7 @@
 
 # Used in test_external_source_parallel_custom_serialization to check if modules
 # are properly imported during callback deserialization. Such test only makes sense
-# if this module is not automatically imported when worker process starts, so don't 
+# if this module is not automatically imported when worker process starts, so don't
 # import this file globally
 
 import numpy as np

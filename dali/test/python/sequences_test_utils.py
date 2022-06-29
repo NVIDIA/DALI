@@ -49,7 +49,8 @@ class ArgDesc:
     layout: Optional[str] = None
 
     def __post_init__(self):
-        assert self.is_positional_arg or self.dest_device != "gpu", "Named arguments on GPU are not supported"
+        assert self.is_positional_arg or self.dest_device != "gpu", \
+               "Named arguments on GPU are not supported"
         assert not self.layout or self.layout.startswith(self.expandable_prefix)
 
     @property
@@ -65,16 +66,20 @@ class ArgCb:
         String with the name of a named argument of the operator or an int if the data
              should be passed as a positional input.
     `cb` : Callable[[SampleDesc], np.ndarray]
-        Callback that based on the SampleDesc instance produces a single parameter for specific sample/frame.
+        Callback that based on the SampleDesc instance produces a single parameter for
+             specific sample/frame.
     `is_per_frame` : bool
-        Flag if the cb should be run for every sample (sequence) or for every frame. In the latter case, the
-        argument is passed wrapped in per-frame call to the operator.
+        Flag if the cb should be run for every sample (sequence) or for every frame.
+             In the latter case, the argument is passed wrapped
+             in per-frame call to the operator.
     `dest_device` : str
         Controls whether the produced data should be passed to the operator in cpu or gpu memory.
-        If set to "gpu", the copy to gpu is added in the pipeline. Applicable only to positional inputs.
+        If set to "gpu", the copy to gpu is added in the pipeline.
+             Applicable only to positional inputs.
     """
 
-    def __init__(self, name: Union[str, int], cb: Callable[[SampleDesc], np.ndarray], is_per_frame: bool, dest_device: str = "cpu"):
+    def __init__(self, name: Union[str, int], cb: Callable[[SampleDesc], np.ndarray],
+                 is_per_frame: bool, dest_device: str = "cpu"):
         self.desc = ArgDesc(name, "F" if is_per_frame else "", dest_device)
         self.cb = cb
 
@@ -90,9 +95,9 @@ class ArgData:
 
 class ParamsProviderBase:
     """
-    Computes data to be passed as argument inputs in sequence processing tests, the `compute_params` params
-    should return a lists of ArgData describing inputs of the operator, while `expand_params` should return
-    corresponding unfolded/expanded ArgData to be used in the baseline pipeline.
+    Computes data to be passed as argument inputs in sequence processing tests, the `compute_params`
+    params should return a lists of ArgData describing inputs of the operator, while `expand_params`
+    should return corresponding unfolded/expanded ArgData to be used in the baseline pipeline.
     """
 
     def __init__(self):
@@ -118,7 +123,10 @@ class ParamsProviderBase:
         input_desc = self.input_data.desc
         num_expand = len(input_desc.expandable_prefix)
         unfolded_input = unfold_batches(self.input_data.data, num_expand)
-        unfolded_layout = input_desc.layout if not input_desc.layout else input_desc.layout[num_expand:]
+        if input_desc.layout:
+            unfolded_layout = input_desc.layout[num_expand:]
+        else:
+            unfolded_layout = input_desc.layout
         self.unfolded_input = ArgData(
             desc=ArgDesc(input_desc.name, "", input_desc.dest_device, unfolded_layout),
             data=unfolded_input)

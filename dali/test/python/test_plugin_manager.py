@@ -15,7 +15,6 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali as dali
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
 import nvidia.dali.plugin_manager as plugin_manager
 import unittest
 import os
@@ -42,8 +41,8 @@ class ExternalInputIterator(object):
         batch = []
         labels = []
         for _ in range(self.batch_size):
-            batch.append( np.array( np.random.rand(H, W, C) * 255, dtype=np.uint8 ) )
-            labels.append( np.array( np.random.rand(1) * 10, dtype=np.uint8))
+            batch.append(np.array(np.random.rand(H, W, C) * 255, dtype=np.uint8))
+            labels.append(np.array(np.random.rand(1) * 10, dtype=np.uint8))
             self.i = (self.i + 1) % self.n
         return (batch, labels)
 
@@ -58,7 +57,7 @@ class CustomPipeline(Pipeline):
     def __init__(self, batch_size, num_threads, device_id):
         super(CustomPipeline, self).__init__(batch_size, num_threads, device_id)
         self.inputs = ops.ExternalSource()
-        self.custom_dummy = ops.CustomDummy( device="gpu")
+        self.custom_dummy = ops.CustomDummy(device="gpu")
 
     def define_graph(self):
         self.images = self.inputs()
@@ -89,17 +88,17 @@ class TestLoadedPlugin(unittest.TestCase):
             tmp.write(b"0xdeadbeef\n")
         tmp.close()
         with self.assertRaises(RuntimeError):
-            plugin_manager.load_library( tmp.name )
+            plugin_manager.load_library(tmp.name)
         os.remove(tmp.name)
 
     def test_load_custom_operator_plugin(self):
         with self.assertRaises(AttributeError):
             print(ops.CustomDummy)
-        plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so" )
+        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
         print(ops.CustomDummy)
 
     def test_pipeline_including_custom_plugin(self):
-        plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so")
+        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
         pipe = CustomPipeline(batch_size, 1, 0)
         pipe.build()
         pipe_out = pipe.run()
@@ -113,10 +112,10 @@ class TestLoadedPlugin(unittest.TestCase):
             img = images.at(i)
             out = output_cpu.at(i)
             assert img.shape == out.shape
-            np.testing.assert_array_equal( img, out )
+            np.testing.assert_array_equal(img, out)
 
     def test_python_operator_and_custom_plugin(self):
-        plugin_manager.load_library( test_bin_dir + "/libcustomdummyplugin.so")
+        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
         ops.readers.TFRecord(path="dummy", index_path="dummy", features={})
 
 

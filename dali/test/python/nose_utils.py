@@ -17,7 +17,6 @@ import nose.case
 import nose.inspector
 import nose.loader
 import nose.suite
-import collections
 if not hasattr(collections, "Callable"):
     nose.case.collections = collections.abc
     nose.inspector.collections = collections.abc

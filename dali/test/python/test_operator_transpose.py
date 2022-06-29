@@ -14,14 +14,7 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
-import numpy as np
 import math
-from numpy.testing import assert_array_equal, assert_allclose
-import os
-from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import RandomlyShapedDataIterator
@@ -91,8 +84,10 @@ def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation)
     print("permutation ", permutation)
     eii1 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
     eii2 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
-    compare_pipelines(TransposePipeline(device, batch_size, "", iter(eii1), permutation=permutation),
-                      PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "", iter(eii2)),
+    compare_pipelines(TransposePipeline(device, batch_size, "", iter(eii1),
+                                        permutation=permutation),
+                      PythonOpPipeline(lambda x: transpose_func(x, permutation),
+                                       batch_size, "", iter(eii2)),
                       batch_size=batch_size, N_iterations=3)
 
 

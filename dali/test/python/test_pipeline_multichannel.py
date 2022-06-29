@@ -15,19 +15,16 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 import os
-from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import cv2
 import glob
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
-multichannel_tiff_root = os.path.join(test_data_root, 'db', 'single', 'multichannel', 'tiff_multichannel')
+multichannel_tiff_root = os.path.join(test_data_root, 'db', 'single',
+                                      'multichannel', 'tiff_multichannel')
 multichannel_tiff_files = glob.glob(multichannel_tiff_root + "/*.tif*")
 
 
@@ -87,7 +84,8 @@ def full_pipe_func(image):
 
 
 class MultichannelSynthPipeline(Pipeline):
-    def __init__(self, device, batch_size, layout, iterator, num_threads=1, device_id=0, tested_operator=None):
+    def __init__(self, device, batch_size, layout, iterator,
+                 num_threads=1, device_id=0, tested_operator=None):
         super(MultichannelSynthPipeline, self).__init__(batch_size,
                                                         num_threads,
                                                         device_id)
@@ -175,9 +173,11 @@ def get_numpy_func(tested_operator):
 def check_multichannel_synth_data_vs_numpy(tested_operator, device, batch_size, shape):
     eii1 = RandomDataIterator(batch_size, shape=shape)
     eii2 = RandomDataIterator(batch_size, shape=shape)
-    compare_pipelines(MultichannelSynthPipeline(device, batch_size, "HWC", iter(eii1), tested_operator=tested_operator),
-                      MultichannelSynthPythonOpPipeline(get_numpy_func(tested_operator), batch_size, "HWC", iter(eii2)),
-                      batch_size=batch_size, N_iterations=3, eps=0.2)
+    mc_pipe = MultichannelSynthPipeline(device, batch_size, "HWC", iter(eii1),
+                                        tested_operator=tested_operator)
+    mc_pipe_python_op = MultichannelSynthPythonOpPipeline(get_numpy_func(tested_operator),
+                                                          batch_size, "HWC", iter(eii2))
+    compare_pipelines(mc_pipe, mc_pipe_python_op, batch_size=batch_size, N_iterations=3, eps=0.2)
 
 
 def test_multichannel_synth_data_vs_numpy():
@@ -188,7 +188,8 @@ def test_multichannel_synth_data_vs_numpy():
         for device in supported_devices:
             for batch_size in {3}:
                 for shape in {(2048, 512, 8)}:
-                    yield check_multichannel_synth_data_vs_numpy, tested_operator, device, batch_size, shape
+                    yield check_multichannel_synth_data_vs_numpy, \
+                          tested_operator, device, batch_size, shape
 
 
 class MultichannelPipeline(Pipeline):
