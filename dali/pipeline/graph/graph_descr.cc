@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <string>
 
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/graph/op_graph.h"
@@ -455,48 +456,58 @@ OpNode& OpGraph::Node(const std::string& name) {
 }
 
 namespace {
-  /**
-   * @brief Prints instance_name of OpNode to stream
-   *
-   * @param ofs
-   * @param node
-   * @param show_ids Whether to print name concatenated with `_id`.
-   * @return std::ofstream&
-   */
-  std::ofstream& PrintTo(std::ofstream &ofs, const OpNode& node, bool show_ids) {
-    ofs << node.instance_name;
-    if (show_ids) {
-      ofs << "_" << node.id;
-    }
-    return ofs;
+
+std::string remove_brackets(std::string input) {
+  // We have output indexing via the `[idx]` syntax, replace the brackets with something
+  // allowed in dot
+  std::replace(input.begin(), input.end(), '[', '_');
+  std::replace(input.begin(), input.end(), ']', '_');
+  return input;
+}
+
+/**
+  * @brief Prints instance_name of OpNode to stream
+  *
+  * @param ofs
+  * @param node
+  * @param show_ids Whether to print name concatenated with `_id`.
+  * @return std::ofstream&
+  */
+std::ofstream& PrintTo(std::ofstream &ofs, const OpNode& node, bool show_ids) {
+  ofs << remove_brackets(node.instance_name);
+  if (show_ids) {
+    ofs << "_" << node.id;
   }
-  /**
-   * @brief Prints TensorNode's name to stream
-   *
-   * @param ofs
-   * @param node
-   * @param show_ids Whether to print name concatenated with `_id`.
-   * @return std::ofstream&
-   */
-  std::ofstream&  PrintTo(std::ofstream &ofs, const TensorNode& node, bool show_ids) {
-    ofs << node.name;
-    if (show_ids) {
-      ofs << "_" << node.id;
-    }
-    return ofs;
+  return ofs;
+}
+/**
+  * @brief Prints TensorNode's name to stream
+  *
+  * @param ofs
+  * @param node
+  * @param show_ids Whether to print name concatenated with `_id`.
+  * @return std::ofstream&
+  */
+std::ofstream&  PrintTo(std::ofstream &ofs, const TensorNode& node, bool show_ids) {
+  ofs << remove_brackets(node.name);
+  if (show_ids) {
+    ofs << "_" << node.id;
   }
-  std::string GetOpColor(OpType op_type) {
-    switch (op_type) {
-      case OpType::CPU:
-        return "blue";
-      case OpType::GPU:
-        return "#76b900";
-      case OpType::MIXED:
-        return "cyan";
-      default:
-        return "black";
-    }
+  return ofs;
+}
+std::string GetOpColor(OpType op_type) {
+  switch (op_type) {
+    case OpType::CPU:
+      return "blue";
+    case OpType::GPU:
+      return "#76b900";
+    case OpType::MIXED:
+      return "cyan";
+    default:
+      return "black";
   }
+}
+
 }  // namespace
 
 void OpGraph::GenerateDOTFromGraph(std::ofstream &ofs, bool show_tensors, bool show_ids,
