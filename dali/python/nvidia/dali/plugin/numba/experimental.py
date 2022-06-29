@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import ctypes
+from distutils.version import LooseVersion
 
 from nvidia.dali import backend as _b
 from nvidia.dali.pipeline import Pipeline
@@ -56,6 +55,9 @@ _to_numba = {
 # Numba does not support float16 in Python 3.6
 if 'float16' in dir(numba_types):
     _to_numba[dali_types.FLOAT16] = numba_types.float16
+
+# Minimal version of Numba that is required for Numba GPU operator to work
+minimal_numba_version = LooseVersion('0.55.2')
 
 
 @nb.extending.intrinsic
@@ -318,7 +320,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
 
     def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, blocks=None, threads_per_block=None, **kwargs):
         if device == 'gpu':
-            self._check_cuda_compatibility(device)
+            self._check_minimal_numba_version()
+            self._check_cuda_compatibility()
 
         assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
         assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
@@ -373,18 +376,15 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         self.blocks = blocks
         self.threads_per_block = threads_per_block
 
-    def _check_cuda_compatibility(self, device):
-        toolkit_version = cuda.runtime.get_version()
+    def _check_minimal_numba_version(self):
+        current_version = LooseVersion(nb.__version__)
+        if current_version < minimal_numba_version:
+            raise RuntimeError(f"Insufficient Numba version. Numba GPU operator requires Numba {minimal_numba_version} or higher. Detected version: {LooseVersion(nb.__version__)}.")
 
-        if 'get_version' in dir(cuda.driver.driver):
-            driver_version = cuda.driver.driver.get_version()
-        else:
-            dv = ctypes.c_int(0)
-            cuda.driver.driver.cuDriverGetVersion(ctypes.byref(dv))
-            version = dv.value
-            major = version // 1000
-            minor = (version - (major * 1000)) // 10
-            driver_version = (major, minor)
+
+    def _check_cuda_compatibility(self):
+        toolkit_version = cuda.runtime.get_version()
+        driver_version = cuda.driver.driver.get_version()
 
         if toolkit_version > driver_version:
             raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver cannot be older than the CUDA Toolkit")
