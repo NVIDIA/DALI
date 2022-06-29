@@ -193,3 +193,24 @@ def test_tfrecord_reader_alias2():
         data = np.array(tensor)
         assert len(data) == 0
         assert data.dtype == np.float32
+
+def test_tfrecord_reader_scalars():
+    test_dummy_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco_dummy')
+
+    @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
+    def tfrecord_pipe_scalars():
+        data = fn.readers.tfrecord(
+            path=os.path.join(test_dummy_data_path, 'small_coco.tfrecord'),
+            index_path=os.path.join(test_dummy_data_path, 'small_coco_index.idx'),
+            features={
+                'image/height': tfrec.FixedLenFeature((), tfrec.int64, -1),
+            })
+        return data['image/height']
+    pipe = tfrecord_pipe_scalars()
+    pipe.build()
+    out = pipe.run()
+
+    for tensor in out[0]:
+        data = np.array(tensor)
+        assert data.dtype == np.int64
+        assert data.shape == (), f"Unexpected shape. Expected scalar, got {data.shape}"
