@@ -136,7 +136,7 @@ std::tuple<std::string, std::string> split_name(const std::string& filepath) {
 inline void ParseTarFile(std::vector<SampleDesc>& samples_container,
                          std::vector<ComponentDesc>& components_container,
                          std::unique_ptr<FileStream>& tar_file) {
-  int64_t initial_file_pos = tar_file->Tell();
+  int64_t initial_file_pos = tar_file->TellRead();
   TarArchive tar_archive(std::move(tar_file));
 
   std::string last_filename;
@@ -270,7 +270,7 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
         IndexFileErrMsg(index_paths_[current_sample.wds_shard_index], current_sample.line_number,
                         "offset is outside of the archive file"));
 
-    current_wds_shard->Seek(component.offset);
+    current_wds_shard->SeekRead(component.offset);
 
     // Skipping cached samples
     const std::string sample_key = make_string_delim(':', paths_[current_sample.wds_shard_index],

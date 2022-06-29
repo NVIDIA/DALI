@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,16 +36,16 @@ void StdFileStream::Close() {
   }
 }
 
-void StdFileStream::Seek(int64 pos) {
-  DALI_ENFORCE(!std::fseek(fp_, pos, SEEK_SET),
-               "Seek operation did not succeed: " + std::string(std::strerror(errno)));
+void StdFileStream::SeekRead(ptrdiff_t pos, int whence) {
+  DALI_ENFORCE(!std::fseek(fp_, pos, whence), make_string(
+               "Seek operation failed: ", std::strerror(errno)));
 }
 
-int64 StdFileStream::Tell() const {
+ptrdiff_t StdFileStream::TellRead() const {
   return std::ftell(fp_);
 }
 
-size_t StdFileStream::Read(uint8_t* buffer, size_t n_bytes) {
+size_t StdFileStream::Read(void *buffer, size_t n_bytes) {
   size_t n_read = std::fread(buffer, 1, n_bytes, fp_);
   return n_read;
 }

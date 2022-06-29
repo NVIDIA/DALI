@@ -35,7 +35,7 @@ void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
   bool ret = cache.GetFromCache(filename, header);
   try {
     if (ret) {
-      file_stream->Seek(header.data_offset);
+      file_stream->SeekRead(header.data_offset);
     } else {
       detail::ParseHeader(file_stream.get(), header);
       cache.UpdateCache(filename, header);

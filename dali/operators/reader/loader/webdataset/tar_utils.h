@@ -105,7 +105,7 @@ class DLL_PUBLIC TarArchive {
    * @param count the maximum number of bytes to read
    * @returns the number of bytes actually read to the buffer
    */
-  size_t Read(uint8_t* buffer, size_t count);
+  size_t Read(void *buffer, size_t count);
   /**
    * @brief Returns whether the file cursor is at the end of file.
    */

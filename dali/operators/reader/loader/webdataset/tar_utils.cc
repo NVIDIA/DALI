@@ -96,7 +96,7 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
     : stream_(std::move(stream)), instance_handle_(Register(this)) {
   tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
-  stream_->Seek(0);
+  stream_->SeekRead(0);
   eof_ = stream_->Size() == 0;
   ParseHeader();
 }
@@ -138,9 +138,9 @@ bool TarArchive::NextFile() {
     return false;
   }
 
-  const int64_t offset = stream_->Tell() + RoundToBlockSize(filesize_) - readoffset_;
+  const int64_t offset = stream_->TellRead() + RoundToBlockSize(filesize_) - readoffset_;
   current_header_ = offset;
-  stream_->Seek(offset);
+  stream_->SeekRead(offset);
   ParseHeader();
   return !eof_;
 }
@@ -156,7 +156,7 @@ void TarArchive::SeekArchive(int64_t offset) {
   assert(offset % T_BLOCKSIZE == 0);
   eof_ = false;
   readoffset_ = 0;
-  stream_->Seek(offset);
+  stream_->SeekRead(offset);
   current_header_ = offset;
   ParseHeader();
 }
@@ -166,7 +166,7 @@ int64_t TarArchive::TellArchive() const {
 }
 
 int64_t TarArchive::HeaderSize() const {
-  return stream_->Tell() - readoffset_ - current_header_;
+  return stream_->TellRead() - readoffset_ - current_header_;
 }
 
 const std::string& TarArchive::GetFileName() const {
@@ -182,7 +182,7 @@ TarArchive::EntryType TarArchive::GetFileType() const {
 }
 
 std::shared_ptr<void> TarArchive::ReadFile() {
-  stream_->Seek(stream_->Tell() - readoffset_);
+  stream_->SeekRead(stream_->TellRead() - readoffset_);
 
   auto out = stream_->Get(filesize_);
   if (out != nullptr) {
@@ -191,7 +191,7 @@ std::shared_ptr<void> TarArchive::ReadFile() {
   return out;
 }
 
-size_t TarArchive::Read(uint8_t* buffer, size_t count) {
+size_t TarArchive::Read(void *buffer, size_t count) {
   if (eof_) {
     return 0;
   }

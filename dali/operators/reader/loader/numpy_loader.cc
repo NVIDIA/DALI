@@ -183,14 +183,14 @@ void ParseHeader(FileStream *file, NumpyHeaderMeta& parsed_header) {
   // specification: https://numpy.org/neps/nep-0001-npy-format.html
   // while this allocation could be sizable, it is performed on the host.
   token.resize(header_len+1);
-  file->Seek(offset);
+  file->SeekRead(offset);
   nread = file->Read(token.data(), header_len);
   DALI_ENFORCE(nread == header_len, "Can not read header.");
   token[header_len] = '\0';
   header = std::string(reinterpret_cast<const char*>(token.data()));
   DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
   offset += header_len;
-  file->Seek(offset);  // michalz: Why isn't it done when actually reading the payload?
+  file->SeekRead(offset);  // michalz: Why isn't it done when actually reading the payload?
 
   ParseHeaderMetadata(parsed_header, header);
   parsed_header.data_offset = offset;
@@ -248,7 +248,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   auto ret = header_cache_.GetFromCache(filename, header);
   try {
     if (ret) {
-      current_file->Seek(header.data_offset);
+      current_file->SeekRead(header.data_offset);
     } else {
       detail::ParseHeader(current_file.get(), header);
       header_cache_.UpdateCache(filename, header);

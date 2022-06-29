@@ -104,7 +104,7 @@ class RecordIOLoader : public IndexedFileLoader {
     }
 
     if (should_seek_ || next_seek_pos_ != seek_pos) {
-      current_file_->Seek(seek_pos);
+      current_file_->SeekRead(seek_pos);
       should_seek_ = false;
     }
 
