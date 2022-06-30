@@ -560,9 +560,10 @@ def _check_arg_input(schema, op_name, name):
     if name == "name":
         return
     if not schema.IsTensorArgument(name):
+        expected_type_name = _type_name_convert_to_string(schema.GetArgumentType(name), False)
         raise TypeError(
-            "The argument `{}` for operator `{}` should not be a `DataNode` but a {}".format(
-                name, op_name, _type_name_convert_to_string(schema.GetArgumentType(name), False)))
+            f"The argument `{name}` for operator `{op_name}` should not be a `DataNode` but a "
+            f"{expected_type_name}")
 
 
 def python_op_factory(name, schema_name=None):
@@ -723,8 +724,7 @@ def python_op_factory(name, schema_name=None):
             return output_list
 
         def _check_schema_num_inputs(self, inputs):
-            if (len(inputs) > self._schema.MaxNumInput()
-                    or len(inputs) < self._schema.MinNumInput()):
+            if len(inputs) < self._schema.MinNumInput() or len(inputs) > self._schema.MaxNumInput():
                 raise ValueError(
                     f"Operator {type(self).__name__} expects "
                     f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "

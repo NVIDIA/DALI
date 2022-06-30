@@ -471,10 +471,9 @@ class _OperatorManager:
             # TensorList (DataNodeDebugs are already unpacked).
             # Additionally accepting input sets, but only as list of TensorList.
             if (not isinstance(input, (_tensors.TensorListCPU, _tensors.TensorListGPU))
-                    and not (isinstance(input, list) and all([
-                        isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU))
-                        for elem in input
-                    ]))):
+                and not (isinstance(input, list) and all([
+                    isinstance(elem, (_tensors.TensorListCPU, _tensors.TensorListGPU))
+                    for elem in input]))):
                 inputs[i] = _transform_data_to_tensorlist(
                     input, len(input), device_id=self._device_id)
 
