@@ -125,7 +125,7 @@ def test_wrong_feature_shape():
     assert_raises(RuntimeError,
                   pipe.run,
                   glob="Error when executing CPU operator*readers*tfrecord*"
-                  "Output tensor shape is too small*1*Expected at least 4 elements")
+                  "Output tensor shape is too small*[]*Expected at least 4 elements")
 
 
 batch_size_alias_test = 64
@@ -187,11 +187,11 @@ def test_tfrecord_reader_alias2():
         assert data.dtype == np.uint8
     for tensor in out[1]:
         data = np.array(tensor)
-        assert len(data) == 0
+        assert len(data.shape) == 0
         assert data.dtype == np.int64
     for tensor in out[2]:
         data = np.array(tensor)
-        assert len(data) == 0
+        assert len(data.shape) == 0
         assert data.dtype == np.float32
 
 def test_tfrecord_reader_scalars():
