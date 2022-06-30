@@ -535,7 +535,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
             "' exists on neither cpu or gpu, internal error");
         // Add a copy to device to create the gpu output
         AddMakeContiguousNode(it->second, "__MakeContiguous_CpuToGpu_" + name, "mixed", name, "cpu",
-                              name, "cpu");
+                              name, "gpu");
         outputs.push_back(name + "_" + device);
       } else {
         // We need to always create make contiguous to normalize the outputs
