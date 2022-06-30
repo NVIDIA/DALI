@@ -39,7 +39,7 @@ struct ImageInfo {
 
 class ImageParser {
  public:
-  virtual ~ImageParser() = 0;
+  virtual ~ImageParser() = default;
   virtual ImageInfo GetInfo(ImageSource *encoded) const = 0;
   virtual bool CanParse(ImageSource *encoded) const = 0;
 };

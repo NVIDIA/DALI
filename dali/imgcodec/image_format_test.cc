@@ -49,19 +49,10 @@ class ImageFormatTest : public ::testing::Test {
         std::make_shared<ImageFormat>("webp", std::make_shared<WebpParser>()));
   }
 
-  ImageSourceHostMemory LoadImage(const char *filename) {
-    std::ifstream ifs(filename, std::ios::binary);
-    ifs.seekg(0, std::ios::end);
-    auto filesize = ifs.tellg();
-    ifs.seekg(0, std::ios::beg);
-    data_.resize(filesize);
-    ifs.read(&data_[0], filesize);
-    return ImageSourceHostMemory(&data_[0], data_.size());
-  }
-
   void Test(std::string filename, std::string expected_format, TensorShape<> expected_sh) {
-    auto img = this->LoadImage(filename.c_str());
+    auto img = ImageSource::FromFilename(filename.c_str());
     auto fmt = this->format_registry_.GetImageFormat(&img);
+    ASSERT_NE(fmt, nullptr);
     ASSERT_EQ(expected_format, fmt->Name());
     auto image_info = fmt->Parser()->GetInfo(&img);
     ASSERT_EQ(expected_sh, image_info.shape);

@@ -15,13 +15,17 @@
 #ifndef DALI_IMGCODEC_IMAGE_SOURCE_H_
 #define DALI_IMGCODEC_IMAGE_SOURCE_H_
 
+#include <memory>
+#include "dali/core/api_helper.h"
+#include "dali/core/stream.h"
+
 namespace dali {
 namespace imgcodec {
 
 enum class InputKind : int {
   None = 0,
   // abstract stream interface that reads data from a custom file-like source
-  StreamInterface = 1,
+  Stream = 1,
   // bitstream loaded into host memory
   HostMemory = 2,
   // bitstream loaded into device memory
@@ -44,13 +48,16 @@ class DLL_PUBLIC ImageSource {
   static ImageSource FromFilename(std::string filename);
   static ImageSource FromHostMem(const void *mem, size_t size, std::string source_info = "");
   static ImageSource FromDeviceMem(const void *mem, size_t size, std::string source_info = "");
-  static ImageSource FromStream(InputStream *stream, std::string source_info = "");
+  static ImageSource FromStream(std::shared_ptr<InputStream> stream, std::string source_info = "");
+  static ImageSource FromStream(InputStream *stream, std::string source_info = "") {
+    return FromStream(std::shared_ptr<InputStream>(stream, [](void*){}), std::move(source_info));
+  }
 
   InputKind Kind() const { return kind_; }
   template <typename T = void>
   const T *RawData() const { return static_cast<const T *>(data_); }
   size_t Size() const { return size_; }
-  InputStream *Stream() const { return stream_; }
+  const std::shared_ptr<InputStream> &Stream() const { return stream_; }
   const char *Filename() const {
     if (kind_ != InputKind::Filename)
       throw std::logic_error("This image source doesn't have a filename.");
@@ -58,20 +65,24 @@ class DLL_PUBLIC ImageSource {
   }
   const char *SourceInfo() const { return name_.c_str(); }
 
-  shared_ptr<InputStream> Open() const {
-    if (stream_)
-      return { stream_, [](void*){} };
-    else {
-      return {};  // TODO(michalz)
-    }
-  }
+  std::shared_ptr<InputStream> Open() const;
  private:
+  ImageSource(InputKind kind,
+              const void *data, size_t size,
+              std::string name,
+              std::shared_ptr<InputStream> stream)
+  : kind_(kind)
+  , data_(data)
+  , size_(size)
+  , name_(std::move(name))
+  , stream_(std::move(stream)) {}
+
   InputKind kind_ = InputKind::None;
   const void *data_ = nullptr;
   size_t size_ = 0;
   // storage for filename or source info
   std::string name_;
-  InputStream *stream_ = nullptr;
+  std::shared_ptr<InputStream> stream_;
 };
 
 }  // namespace imgcodec

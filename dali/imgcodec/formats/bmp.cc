@@ -36,10 +36,10 @@ T ConsumeValue(const uint8_t*& ptr) {
   return value;
 }
 
-bool is_color_palette(InputStream *stream, size_t ncolors, size_t palette_entry_size) {
+bool is_color_palette(InputStream *stream, int ncolors, int palette_entry_size) {
   SmallVector<uint8_t, 8> entry;
   entry.resize(palette_entry_size);
-  for (size_t i = 0; i < ncolors; i++) {
+  for (int i = 0; i < ncolors; i++) {
     stream->ReadAll(entry.data(), palette_entry_size);
 
     const auto b = entry[0], g = entry[1], r = entry[2];  // a = p[3];
@@ -50,10 +50,10 @@ bool is_color_palette(InputStream *stream, size_t ncolors, size_t palette_entry_
 }
 
 int number_of_channels(InputStream *stream,
-                       int bpp, int compression_type, size_t ncolors = 0,
-                       size_t palette_entry_size = 0) {
+                       int bpp, int compression_type, int ncolors = 0,
+                       int palette_entry_size = 0) {
   if (compression_type == BMP_COMPRESSION_RGB || compression_type == BMP_COMPRESSION_RLE8) {
-    if (bpp <= 8 && ncolors <= (1_uz << bpp)) {
+    if (bpp <= 8 && ncolors <= (1_i64 << bpp)) {
       return is_color_palette(stream, ncolors, palette_entry_size) ? 3 : 1;
     } else if (bpp == 24) {
       return 3;
@@ -89,7 +89,7 @@ struct BitmapInfoHeader {
   int32_t x_pixels_per_meter, y_pixels_per_meter;
   uint32_t colors_used, colors_important;
 };
-static_assert(sizeof(BitmapinfoHeader) == 40);
+static_assert(sizeof(BitmapInfoHeader) == 40);
 
 ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
@@ -103,8 +103,8 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   stream->Skip<uint32_t>(-1);  // we'll read it again - it's part of the header struct
   int64_t h = 0, w = 0, c = 0;
   int bpp = 0, compression_type = BMP_COMPRESSION_RGB;
-  size_t ncolors = 0;
-  size_t palette_entry_size = 0;
+  int ncolors = 0;
+  int palette_entry_size = 0;
   ptrdiff_t palette_start = 0;
 
   if (length >= 26 && header_size == 12) {
@@ -138,7 +138,7 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
     assert(palette_start + (ncolors * palette_entry_size) <= length);
   }
 
-  c = number_of_channels(stream, bpp, compression_type, ncolors, palette_entry_size);
+  c = number_of_channels(stream.get(), bpp, compression_type, ncolors, palette_entry_size);
 
   ImageInfo info;
   info.shape = {h, w, c};
@@ -146,15 +146,19 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
 }
 
 bool BmpParser::CanParse(ImageSource *encoded) const {
-  int length = encoded->Size();
-  if (length < 18)
-    return 0;
   if (encoded->Kind() == InputKind::HostMemory) {
-    char *header = encoded->RawData<char>();
+    int length = encoded->Size();
+    if (length < 18)
+      return 0;
+    const char *header = encoded->RawData<char>();
     return header[0] == 'B' && header[1] == 'M';
   } else {
     char header[2];
-    encoded->Open()->ReadAll(header, 2);
+    auto stream = encoded->Open();
+    size_t length = stream->Size();
+    if (length < 18u)
+      return 0;
+    stream->ReadAll(header, 2);
     return header[0] == 'B' && header[1] == 'M';
   }
 }

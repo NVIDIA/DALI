@@ -45,12 +45,12 @@ DecodeResult OpenCVCodecInstance::Decode(SampleView<CPUBackend> out,
   try {
   #endif
     cv::Mat cvimg;
-    if (in->GetKind() == InputKind::Filename) {
-      cvimg = cv::imread(in->GetFilename(), flags);
+    if (in->Kind() == InputKind::Filename) {
+      cvimg = cv::imread(in->Filename(), flags);
     } else {
-      assert(in->GetKind() == InputKind::HostMemory);
-      auto *raw = static_cast<const uint8_t *>(in->GetRawData());
-      cvimg = cv::imdecode(cv::_InputArray(raw, in->GetSize()), flags);
+      assert(in->Kind() == InputKind::HostMemory);
+      auto *raw = static_cast<const uint8_t *>(in->RawData());
+      cvimg = cv::imdecode(cv::_InputArray(raw, in->Size()), flags);
     }
     res.success = cvimg.ptr(0) != nullptr;
     if (res.success) {
