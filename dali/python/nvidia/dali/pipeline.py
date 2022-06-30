@@ -528,8 +528,8 @@ Parameters
         Pipeline.pop_current()
 
     def add_sink(self, edge):
-        """Allows to manual add of graph edges to the pipeline which are not connected to
-        the output and all pruned
+        """Marks an edge as a data sink, preventing it from being pruned, even if it's not
+        connected to the pipeline output.
         """
         self._sinks.append(edge)
 
@@ -544,8 +544,8 @@ Parameters
         if self._api_type is None:
             self._set_api_type(type)
         if type != self._api_type:
-            raise RuntimeError("Mixing pipeline API type. Currently used: " + str(self._api_type)
-                               + ", but trying to use: " + str(type))
+            raise RuntimeError(f"Mixing pipeline API type. Currently used: {self._api_type}, "
+                               f"but trying to use {str(type)}")
 
     def enable_api_check(self, enable):
         """Allows to enable or disable API check in the runtime
@@ -620,9 +620,9 @@ Parameters
                 except TypeError:
                     raise TypeError(
                         f"Illegal output type. The output {i} is a `{type(outputs[i])}`. "
-                        "Allowed types are ``DataNode`` and types convertible to "
-                        "`types.Constant` (numerical constants, 1D lists/tuple of numbers "
-                        "and ND arrays).")
+                        f"Allowed types are ``DataNode`` and types convertible to "
+                        f"`types.Constant` (numerical constants, 1D lists/tuple of numbers "
+                        f"and ND arrays).")
 
             _data_node._check(outputs[i])
 
@@ -634,8 +634,7 @@ Parameters
             current_edge = edges.popleft()
             source_op = current_edge.source
             if source_op is None:
-                raise RuntimeError("Pipeline encountered "
-                                   "Edge with no source op.")
+                raise RuntimeError("Pipeline encountered an Edge with no source op.")
 
             # To make sure we don't double count ops in
             # the case that they produce more than one
@@ -679,7 +678,8 @@ Parameters
         if not self._parallel_input_callbacks:
             return
         self._py_pool = WorkerPool.from_groups(self._parallel_input_callbacks,
-                                               self._prefetch_queue_depth, self._py_start_method,
+                                               self._prefetch_queue_depth,
+                                               self._py_start_method,
                                                self._py_num_workers,
                                                py_callback_pickler=self._py_callback_pickler)
         # ensure processes started by the pool are termineted when pipeline is no longer used
@@ -690,10 +690,16 @@ Parameters
         device_id = self._device_id if self._device_id is not None else types.CPU_ONLY_DEVICE_ID
         if device_id != types.CPU_ONLY_DEVICE_ID:
             b.check_cuda_runtime()
-        self._pipe = b.Pipeline(self._max_batch_size, self._num_threads, device_id,
-                                self._seed if self._seed is not None else -1, self._exec_pipelined,
-                                self._cpu_queue_size, self._exec_async, self._bytes_per_sample,
-                                self._set_affinity, self._max_streams,
+        self._pipe = b.Pipeline(self._max_batch_size,
+                                self._num_threads,
+                                device_id,
+                                self._seed if self._seed is not None else -1,
+                                self._exec_pipelined,
+                                self._cpu_queue_size,
+                                self._exec_async,
+                                self._bytes_per_sample,
+                                self._set_affinity,
+                                self._max_streams,
                                 self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
@@ -1200,11 +1206,15 @@ Parameters
         if filename is not None:
             with open(filename, 'rb') as pipeline_file:
                 serialized_pipeline = pipeline_file.read()
-        pipeline._pipe = b.Pipeline(serialized_pipeline, kw.get("batch_size", -1),
-                                    kw.get("num_threads", -1), kw.get("device_id", -1),
+        pipeline._pipe = b.Pipeline(serialized_pipeline,
+                                    kw.get("batch_size", -1),
+                                    kw.get("num_threads", -1),
+                                    kw.get("device_id", -1),
                                     kw.get("exec_pipelined", True),
-                                    kw.get("prefetch_queue_depth", 2), kw.get("exec_async", True),
-                                    kw.get("bytes_per_sample", 0), kw.get("set_affinity", False),
+                                    kw.get("prefetch_queue_depth", 2),
+                                    kw.get("exec_async", True),
+                                    kw.get("bytes_per_sample", 0),
+                                    kw.get("set_affinity", False),
                                     kw.get("max_streams", -1),
                                     kw.get("default_cuda_stream_priority", 0))
         if pipeline.device_id != types.CPU_ONLY_DEVICE_ID:
@@ -1226,10 +1236,17 @@ Parameters
         serialized_pipeline : str
                               Serialized pipeline.
         """
-        self._pipe = b.Pipeline(serialized_pipeline, self._max_batch_size, self._num_threads,
-                                self._device_id, self._exec_pipelined, self._prefetch_queue_depth,
-                                self._exec_async, self._bytes_per_sample, self._set_affinity,
-                                self._max_streams, self._default_cuda_stream_priority)
+        self._pipe = b.Pipeline(serialized_pipeline,
+                                self._max_batch_size,
+                                self._num_threads,
+                                self._device_id,
+                                self._exec_pipelined,
+                                self._prefetch_queue_depth,
+                                self._exec_async,
+                                self._bytes_per_sample,
+                                self._set_affinity,
+                                self._max_streams,
+                                self._default_cuda_stream_priority)
         self._pipe.SetExecutionTypes(self._exec_pipelined, self._exec_separated, self._exec_async)
         self._pipe.SetQueueSizes(self._cpu_queue_size, self._gpu_queue_size)
         self._pipe.EnableExecutorMemoryStats(self._enable_memory_stats)
@@ -1342,8 +1359,8 @@ def _discriminate_args(func, **func_kwargs):
 
     if func_argspec.varkw is not None:
         raise TypeError(
-            "Using variadic keyword argument `**{}` in graph-defining function is not allowed.".
-            format(func_argspec.varkw))
+            f"Using variadic keyword argument `**{func_argspec.varkw}` in a  "
+            f"graph-defining function is not allowed.")
 
     for farg in func_kwargs.items():
         is_ctor_arg = farg[0] in ctor_argspec.args or farg[0] in ctor_argspec.kwonlyargs
@@ -1352,13 +1369,12 @@ def _discriminate_args(func, **func_kwargs):
             fn_args[farg[0]] = farg[1]
             if is_ctor_arg:
                 print(
-                    "Warning: the argument `{}` shadows a Pipeline constructor "
-                    "argument of the same name.".format(farg[0]))
+                    "Warning: the argument `{farg[0]}` shadows a Pipeline constructor "
+                    "argument of the same name.")
         elif is_ctor_arg:
             ctor_args[farg[0]] = farg[1]
         else:
-            assert False, "This shouldn't happen. Please double-check the `{}` argument".format(
-                farg[0])
+            assert False, f"This shouldn't happen. Please double-check the `{farg[0]}` argument"
 
     return ctor_args, fn_args
 

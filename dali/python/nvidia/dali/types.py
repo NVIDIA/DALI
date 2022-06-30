@@ -230,8 +230,7 @@ dtype: DALIDataType, optional
 
         if not isinstance(value, (bool, int, float)):
             raise TypeError(
-                "Expected scalar value of type 'bool', 'int' or 'float', got {}.".format(
-                    str(type(value))))
+                f"Expected scalar value of type 'bool', 'int' or 'float', got {type(value)}.")
 
         if dtype:
             self.dtype = dtype
@@ -243,7 +242,7 @@ dtype: DALIDataType, optional
                 self.value = float(value)
             else:
                 raise TypeError(
-                    "DALI ScalarConstant can only hold one of: {} types.".format(_all_types))
+                    f"DALI ScalarConstant can only hold one of: {_all_types} types.")
         elif isinstance(value, bool):
             self.value = value
             self.dtype = DALIDataType.BOOL
@@ -305,20 +304,20 @@ dtype: DALIDataType, optional
     def __bool__(self):
         if self.dtype in _int_like_types:
             return bool(self.value)
-        raise TypeError(("DALI ScalarConstant must be converted to one of bool or int types: ({}) "
-                         "explicitly before casting to builtin `bool`.").format(_int_like_types))
+        raise TypeError(f"DALI ScalarConstant must be converted to one of bool or int types: "
+                        f"({_int_like_types}) explicitly before casting to builtin `bool`.")
 
     def __int__(self):
         if self.dtype in _int_like_types:
             return int(self.value)
-        raise TypeError(("DALI ScalarConstant must be converted to one of bool or int types: ({}) "
-                         "explicitly before casting to builtin `int`.").format(_int_like_types))
+        raise TypeError(f"DALI ScalarConstant must be converted to one of bool or int types: "
+                        f"({_int_like_types}) explicitly before casting to builtin `int`.")
 
     def __float__(self):
         if self.dtype in _float_types:
             return self.value
-        raise TypeError(("DALI ScalarConstant must be converted to one of the float types: ({}) "
-                         "explicitly before casting to builtin `float`.").format(_float_types))
+        raise TypeError(f"DALI ScalarConstant must be converted to one of the float types: "
+                        f"({_float_types}) explicitly before casting to builtin `float`.")
 
     def __str__(self):
         return "{}:{}".format(self.value, self.dtype)
