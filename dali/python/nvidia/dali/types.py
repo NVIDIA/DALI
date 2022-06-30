@@ -431,8 +431,7 @@ def to_dali_type(framework_type):
         t = t[6:]
     t = _type_name_to_dali_type.get(t)
     if t is None:
-        raise TypeError(
-            "'{}' could not be converted into any known DALIDataType.".format(framework_type))
+        raise TypeError(f"'{framework_type}' could not be converted into any known DALIDataType.")
     return t
 
 
@@ -525,8 +524,13 @@ def ConstantNode(device, value, dtype, shape, layout, **kwargs):
         call_args["name"] = name
         del constructor_args["name"]
 
-    op = ops.Constant(device=device, fdata=fdata, idata=idata, shape=shape, dtype=dtype,
-                      layout=layout, **constructor_args)
+    op = ops.Constant(device=device,
+                      fdata=fdata,
+                      idata=idata,
+                      shape=shape,
+                      dtype=dtype,
+                      layout=layout,
+                      **constructor_args)
     return op(**call_args)
 
 
@@ -576,12 +580,12 @@ device: string, optional, "cpu" or "gpu"
     and the arguments are passed to the `dali.ops.Constant` operator
     """
 
-    if device is not None or \
-       (_is_compatible_array_type(value) and not _is_true_scalar(value)) or \
-       isinstance(value, (list, tuple)) or \
-       not _is_scalar_shape(shape) or \
-       kwargs or \
-       layout is not None:
+    if (device is not None
+            or (_is_compatible_array_type(value) and not _is_true_scalar(value))
+            or isinstance(value, (list, tuple))
+            or not _is_scalar_shape(shape)
+            or kwargs
+            or layout is not None):
         return ConstantNode(device, value, dtype, shape, layout, **kwargs)
     else:
         return ScalarConstant(value, dtype)
