@@ -16,9 +16,9 @@ import numpy as np
 import os
 from nose.plugins.attrib import attr
 
-import nvidia.dali.fn as fn
-import nvidia.dali.tensors as tensors
-import nvidia.dali.types as types
+from nvidia.dali import fn
+from nvidia.dali import tensors
+from nvidia.dali import types
 from nvidia.dali.pipeline.experimental import pipeline_def
 from nose_utils import raises
 from test_utils import compare_pipelines, get_dali_extra_path
