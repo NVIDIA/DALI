@@ -48,7 +48,7 @@
 
 namespace dali {
 
-using ImageInfo = ImageSourceInfo<int>;
+using ImageInfo = EncodedImageInfo<int>;
 
 class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
  public:

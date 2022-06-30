@@ -16,6 +16,8 @@
 #define DALI_IMGCODEC_IMAGE_SOURCE_H_
 
 #include <memory>
+#include <string>
+#include <utility>
 #include "dali/core/api_helper.h"
 #include "dali/core/stream.h"
 
@@ -66,6 +68,7 @@ class DLL_PUBLIC ImageSource {
   const char *SourceInfo() const { return name_.c_str(); }
 
   std::shared_ptr<InputStream> Open() const;
+
  private:
   ImageSource(InputKind kind,
               const void *data, size_t size,
