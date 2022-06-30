@@ -1496,12 +1496,12 @@ def test_executor_meta():
 
         # for CPU the biggest tensor is usually bigger than the average,
         # for the GPU max is the average
-        if "CPU" in k:
+        if "CPU" in k or "MIXED" in k:
             assert calc_avg_max(v["real_memory_size"]) <= v["max_real_memory_size"]
             assert calc_avg_max(v["reserved_memory_size"]) <= v["max_reserved_memory_size"]
         else:
-            assert calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"], f'{k}, {v}, {calc_avg_max(v["real_memory_size"])} == {v["max_real_memory_size"]}'
-            assert calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"], f'{k}, {v}, {calc_avg_max(v["reserved_memory_size"])} == {v["max_reserved_memory_size"]}'
+            assert calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"]
+            assert calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"]
 
 
 def test_bytes_per_sample_hint():
