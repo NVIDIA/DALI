@@ -141,8 +141,7 @@ def test_operator_spectrogram_vs_python():
                                                                 (256, 256, 128, (1, 1, 4096, 1)),
                                                                 (16, 16, 8, (1, 1000)),
                                                                 (10, 10, 5, (1, 1000)),
-                                                                (None, 10, 5, (1, 1000)),
-                                                                ]:
+                                                                (None, 10, 5, (1, 1000))]:
                     yield check_operator_spectrogram_vs_python, device, batch_size, shape, \
                         nfft, window_length, window_step, center
 
@@ -171,11 +170,9 @@ def test_operator_spectrogram_vs_python_wave():
     for device in ['cpu', 'gpu']:
         for window in [None, hann_win, cos_win]:
             for batch_size in [3]:
-                for nfft, window_length, window_step, length in [
-                                                                 (256, 256, 128, 4096),
+                for nfft, window_length, window_step, length in [(256, 256, 128, 4096),
                                                                  (128, 100, 61, 1000),
-                                                                 (10, 10, 5, 1000),
-                                                                ]:
+                                                                 (10, 10, 5, 1000)]:
                     # Note: center_windows=False and nfft > window_length doesn't work like librosa.
                     # Librosa seems to disregard window_length
                     # and extract windows of nfft size regardless
@@ -247,15 +244,13 @@ def test_operator_decoder_and_spectrogram():
     for device in ["cpu", "gpu"]:
         for layout in ["tf", "ft"]:
             for batch_size in [3]:
-                for nfft, window_length, window_step in [
-                                                         (256, 256, 128),
+                for nfft, window_length, window_step in [(256, 256, 128),
                                                          (256, 256, 128),
                                                          (256, 256, 128),
                                                          (256, 256, 128,),
                                                          (256, 256, 128,),
                                                          (16, 16, 8,),
-                                                         (10, 10, 5,),
-                                                        ]:
+                                                         (10, 10, 5,)]:
                     # Note: center_windows=False and nfft > window_length doesn't work like librosa.
                     # Librosa seems to disregards window_length
                     # and extract windows of nfft size regardless

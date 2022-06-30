@@ -84,11 +84,11 @@ def check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation)
     print("permutation ", permutation)
     eii1 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
     eii2 = RandomlyShapedDataIterator(batch_size, max_shape=max_shape)
-    compare_pipelines(TransposePipeline(device, batch_size, "", iter(eii1),
-                                        permutation=permutation),
-                      PythonOpPipeline(lambda x: transpose_func(x, permutation),
-                                       batch_size, "", iter(eii2)),
-                      batch_size=batch_size, N_iterations=3)
+    compare_pipelines(
+        TransposePipeline(device, batch_size, "", iter(eii1), permutation=permutation),
+        PythonOpPipeline(lambda x: transpose_func(x, permutation), batch_size, "", iter(eii2)),
+        batch_size=batch_size, N_iterations=3
+    )
 
 
 def all_permutations(n):

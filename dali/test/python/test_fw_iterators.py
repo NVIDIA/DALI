@@ -97,9 +97,9 @@ def test_mxnet_iterator_model_fit():
         return pipe
 
     pipes, _ = create_pipeline(
-        lambda gpu:
-        create_test_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
-                             num_gpus=num_gpus, data_paths=image_data_set), batch_size, num_gpus
+        lambda gpu: create_test_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
+                                         num_gpus=num_gpus, data_paths=image_data_set),
+        batch_size, num_gpus
     )
     pipe = pipes[0]
 
@@ -131,11 +131,11 @@ def test_mxnet_iterator_last_batch_no_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
-                             num_gpus=num_gpus, data_paths=data_sets[0],
-                             random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=False), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=False),
+        batch_size, num_gpus
     )
 
     dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)],
@@ -211,10 +211,11 @@ def test_mxnet_iterator_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)],
@@ -245,10 +246,11 @@ def test_mxnet_iterator_not_fill_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = MXNetIterator(pipes, [("ids", MXNetIterator.DATA_TAG)],
@@ -431,10 +433,11 @@ def test_gluon_iterator_last_batch_no_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=False), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4,
+                                         shard_id=gpu, num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=False),
+        batch_size, num_gpus
     )
 
     dali_train_iter = GluonIterator(pipes, size=pipes[0].epoch_size(
@@ -455,10 +458,11 @@ def test_gluon_iterator_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = GluonIterator(pipes,
@@ -489,10 +493,11 @@ def test_gluon_iterator_not_fill_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=False, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = GluonIterator(pipes, size=pipes[0].epoch_size("Reader"),
@@ -523,11 +528,12 @@ def test_gluon_iterator_sparse_batch():
     batch_size = 16
 
     pipes, _ = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True,
-                             return_labels=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True,
+                                         return_labels=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = GluonIterator(pipes, pipes[0].epoch_size("Reader"),
@@ -639,10 +645,11 @@ def test_pytorch_iterator_last_batch_no_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=False), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=False),
+        batch_size, num_gpus
     )
 
     dali_train_iter = PyTorchIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
@@ -663,10 +670,11 @@ def test_pytorch_iterator_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = PyTorchIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
@@ -696,10 +704,11 @@ def test_pytorch_iterator_not_fill_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=False, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = PyTorchIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
@@ -750,9 +759,9 @@ def test_pytorch_iterator_feed_ndarray():
     num_gpus = 1
     batch_size = 100
     pipes, _ = create_pipeline(
-        lambda gpu:
-        create_custom_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
-                               num_gpus=num_gpus, data_paths=image_data_set), batch_size, num_gpus
+        lambda gpu: create_custom_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
+                                           num_gpus=num_gpus, data_paths=image_data_set),
+        batch_size, num_gpus
     )
     for gpu_id in range(num_gpus):
         pipe = pipes[gpu_id]
@@ -773,9 +782,9 @@ def test_mxnet_iterator_feed_ndarray():
     num_gpus = 1
     batch_size = 100
     pipes, _ = create_pipeline(
-        lambda gpu:
-        create_custom_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
-                               num_gpus=num_gpus, data_paths=image_data_set), batch_size, num_gpus
+        lambda gpu: create_custom_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
+                                           num_gpus=num_gpus, data_paths=image_data_set),
+        batch_size, num_gpus
     )
     for gpu_id in range(num_gpus):
         pipe = pipes[gpu_id]
@@ -803,9 +812,9 @@ def test_paddle_iterator_feed_ndarray():
     num_gpus = 1
     batch_size = 100
     pipes, _ = create_pipeline(
-        lambda gpu:
-        create_custom_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
-                               num_gpus=num_gpus, data_paths=image_data_set), batch_size, num_gpus
+        lambda gpu: create_custom_pipeline(batch_size=batch_size, num_threads=4, device_id=gpu,
+                                           num_gpus=num_gpus, data_paths=image_data_set),
+        batch_size, num_gpus
     )
     for gpu_id in range(num_gpus):
         pipe = pipes[gpu_id]
@@ -923,10 +932,11 @@ def test_paddle_iterator_last_batch_no_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=False), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=False),
+        batch_size, num_gpus
     )
 
     dali_train_iter = PaddleIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
@@ -947,10 +957,11 @@ def test_paddle_iterator_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = PaddleIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
@@ -980,10 +991,11 @@ def test_paddle_iterator_not_fill_last_batch_pad_last_batch():
     batch_size = 100
 
     pipes, data_size = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=False, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=True),
+        batch_size, num_gpus
     )
 
     dali_train_iter = PaddleIterator(pipes, output_map=["data"], size=pipes[0].epoch_size(
@@ -1660,10 +1672,11 @@ def check_iterator_build_error(ErrorType, Iterator, glob, *args, **kwargs):
     batch_size = 4
     num_gpus = 1
     pipes, _ = create_pipeline(
-        lambda gpu:
-        create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                             data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                             shuffle_after_epoch=False, pad_last_batch=False), batch_size, num_gpus
+        lambda gpu: create_coco_pipeline(batch_size=batch_size, num_threads=4, shard_id=gpu,
+                                         num_gpus=num_gpus, data_paths=data_sets[0],
+                                         random_shuffle=True, stick_to_shard=False,
+                                         shuffle_after_epoch=False, pad_last_batch=False),
+        batch_size, num_gpus
     )
     with assert_raises(ErrorType, glob=glob):
         Iterator(pipes, size=pipes[0].epoch_size("Reader"), *args, **kwargs)
