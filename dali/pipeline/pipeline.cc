@@ -937,7 +937,10 @@ void Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &op_name,
                                      const std::string &device, const std::string &input_name,
                                      const std::string &input_dev, const std::string &output_name,
                                      const std::string &output_dev) {
-  if (meta.has_make_contiguous_output) {
+  if (output_dev == "cpu" && meta.has_make_contiguous_cpu) {
+    return;
+  }
+  if (output_dev == "gpu" && meta.has_make_contiguous_gpu) {
     return;
   }
   // Add a make contiguous op to produce this output
@@ -947,7 +950,12 @@ void Pipeline::AddMakeContiguousNode(EdgeMeta &meta, const std::string &op_name,
                     .AddOutput(output_name, output_dev);
   PrepareOpSpec(&spec, GetNextInternalLogicalId());
   graph_.AddOp(spec, op_name);
-  meta.has_make_contiguous_output = true;
+  if (output_dev == "cpu") {
+    meta.has_make_contiguous_cpu = true;
+  }
+  if (output_dev == "gpu") {
+    meta.has_make_contiguous_gpu = true;
+  }
 }
 
 }  // namespace dali

@@ -493,7 +493,7 @@ class DLL_PUBLIC Pipeline {
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
   using EdgeMeta = struct {
-    bool has_cpu, has_gpu, has_contiguous, has_make_contiguous_output;
+    bool has_cpu, has_gpu, has_contiguous, has_make_contiguous_cpu, has_make_contiguous_gpu;
   };
 
   // Return the nearest multiple of 8 that is >= base_ptr_offset
@@ -513,7 +513,8 @@ class DLL_PUBLIC Pipeline {
     edge.has_cpu = false;
     edge.has_gpu = false;
     edge.has_contiguous = false;
-    edge.has_make_contiguous_output = false;
+    edge.has_make_contiguous_cpu = false;  // TODO(klecki): This is a bit of a WAR
+    edge.has_make_contiguous_gpu = false;
     if (device == "cpu") {
       edge.has_cpu = true;
     } else if (device == "gpu") {

@@ -1500,8 +1500,8 @@ def test_executor_meta():
             assert calc_avg_max(v["real_memory_size"]) <= v["max_real_memory_size"]
             assert calc_avg_max(v["reserved_memory_size"]) <= v["max_reserved_memory_size"]
         else:
-            assert calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"]
-            assert calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"]
+            assert calc_avg_max(v["real_memory_size"]) == v["max_real_memory_size"], f'{k}, {v}, {calc_avg_max(v["real_memory_size"])} == {v["max_real_memory_size"]}'
+            assert calc_avg_max(v["reserved_memory_size"]) == v["max_reserved_memory_size"], f'{k}, {v}, {calc_avg_max(v["reserved_memory_size"])} == {v["max_reserved_memory_size"]}'
 
 
 def test_bytes_per_sample_hint():
