@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const Fil
     case ResamplingFilterType::Gaussian:
       return filters->Gaussian(params.radius*0.5f/M_SQRT2);
     case ResamplingFilterType::Cubic:
-      return filters->Cubic();
+      return filters->Cubic(params.radius);
     case ResamplingFilterType::Lanczos3:
       return filters->Lanczos3(params.radius);
     default:
