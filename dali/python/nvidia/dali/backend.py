@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend_impl import *
+from nvidia.dali.backend_impl import (
+    Init, OpSpec, LoadLibrary, GetCudaVersion, GetCufftVersion, GetNppVersion, GetNvjpegVersion)
+
+# TODO: Handle forwarding imports from backend_impl
+from nvidia.dali.backend_impl import *        # noqa: F401, F403
+
 from . import __cuda_version__
 import warnings
 import os
@@ -21,8 +26,7 @@ import sys
 # Note: If we ever need to add more complex functionality
 # for importing the DALI c++ extensions, we can do it here
 
-default_plugins = [
-]
+default_plugins = []
 
 
 def deprecation_warning(what):
@@ -65,13 +69,15 @@ def check_cuda_runtime():
             deprecation_warning("GPU is not available. Only CPU operators are available.")
 
         if GetCufftVersion() == -1:
-            deprecation_warning("Cannot access cuFFT library. Please check cuda installation and/or "
-                                "if an appropriate wheel is installed.")
+            deprecation_warning(
+                "Cannot access cuFFT library. Please check cuda installation and/or "
+                "if an appropriate wheel is installed.")
 
         if GetNppVersion() == -1:
             deprecation_warning("Cannot access NPP library. Please check cuda installation and/or "
                                 "if an appropriate wheel is installed.")
 
         if GetNvjpegVersion() == -1:
-            deprecation_warning("Cannot access nvJPEG library. Please check cuda installation and/or "
-                                "if an appropriate wheel is installed.")
+            deprecation_warning(
+                "Cannot access nvJPEG library. Please check cuda installation and/or "
+                "if an appropriate wheel is installed.")

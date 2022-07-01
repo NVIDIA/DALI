@@ -19,7 +19,10 @@ import types
 import marshal
 import importlib
 
-dummy_lambda = lambda : 0
+
+def dummy_lambda():
+    pass
+
 
 # unfortunately inspect.getclosurevars does not yield global names referenced by
 # the code syntactically nested inside the function, this includes nested functions
@@ -31,7 +34,8 @@ def get_global_references_from_nested_code(code, global_scope, global_refs):
     for constant in code.co_consts:
         if inspect.iscode(constant):
             closure = tuple(types.CellType(None) for _ in range(len(constant.co_freevars)))
-            dummy_function = types.FunctionType(constant, global_scope, 'dummy_function', closure=closure)
+            dummy_function = types.FunctionType(constant, global_scope, 'dummy_function',
+                                                closure=closure)
             global_refs.update(inspect.getclosurevars(dummy_function).globals)
             get_global_references_from_nested_code(constant, global_scope, global_refs)
 
@@ -68,8 +72,7 @@ def module_unpickle(name, origin, submodule_search_locations):
     if name in sys.modules:
         return sys.modules[name]
     spec = importlib.util.spec_from_file_location(
-        name, origin,
-        submodule_search_locations=submodule_search_locations)
+        name, origin, submodule_search_locations=submodule_search_locations)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
@@ -90,7 +93,12 @@ def cell_unpickle():
 
 
 def cell_reducer(cell):
-    return (cell_unpickle, tuple(), {'cell_contents': cell.cell_contents}, None, None, set_cell_state)
+    return (cell_unpickle,
+            tuple(),
+            {'cell_contents': cell.cell_contents},
+            None,
+            None,
+            set_cell_state)
 
 
 class DaliCallbackPickler(pickle.Pickler):
