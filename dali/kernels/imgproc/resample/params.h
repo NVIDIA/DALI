@@ -37,16 +37,17 @@ inline const char * FilterName(ResamplingFilterType type) {
 
 constexpr int KeepOriginalSize = -1;
 
-inline float DefaultFilterRadius(ResamplingFilterType type, float in_size, float out_size) {
+inline float DefaultFilterRadius(ResamplingFilterType type, bool antialias,
+                                 float in_size, float out_size) {
   switch (type) {
   case ResamplingFilterType::Triangular:
-    return in_size > out_size ? in_size/out_size : 1;
+    return in_size > out_size ? in_size / out_size : 1;
   case ResamplingFilterType::Gaussian:
-    return in_size > out_size ? in_size/out_size : 1;
+    return in_size > out_size ? in_size / out_size : 1;
   case ResamplingFilterType::Cubic:
-    return in_size > out_size ? (2*in_size/out_size) : 2;;
+    return (antialias && in_size > out_size) ? (2 * in_size / out_size) : 2;
   case ResamplingFilterType::Lanczos3:
-    return in_size > out_size ? (3*in_size/out_size) : 3;
+    return in_size > out_size ? (3 * in_size / out_size) : 3;
   default:
     return 1;
   }
@@ -54,10 +55,12 @@ inline float DefaultFilterRadius(ResamplingFilterType type, float in_size, float
 
 struct FilterDesc {
   constexpr FilterDesc() = default;
-  constexpr FilterDesc(ResamplingFilterType type, float radius = 0)  // NOLINT
-  : type(type), radius(radius) {}
+  constexpr FilterDesc(ResamplingFilterType type, float radius = 0,
+                       bool antialias = true)  // NOLINT
+      : type(type), radius(radius), antialias(antialias) {}
   ResamplingFilterType type = ResamplingFilterType::Nearest;
   float radius = 0;
+  bool antialias = true;
 };
 
 /**

@@ -27,11 +27,12 @@ constexpr int kMaxGPUFilterSupport = 8192;
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params) {
   switch (params.type) {
     case ResamplingFilterType::Linear:
+      assert(!params.antialias);  // this should have been promoted to Triangular
       return filters->Triangular(1);
     case ResamplingFilterType::Triangular:
       return filters->Triangular(params.radius);
     case ResamplingFilterType::Gaussian:
-      return filters->Gaussian(params.radius*0.5f/M_SQRT2);
+      return filters->Gaussian(params.radius * 0.5f / M_SQRT2);
     case ResamplingFilterType::Cubic:
       return filters->Cubic(params.radius);
     case ResamplingFilterType::Lanczos3:
@@ -57,7 +58,9 @@ void SeparableResamplingSetup<spatial_ndim>::SetFilters(
     auto fdesc = desc.out_shape()[axis] < in_size ? params[dim].min_filter
                                                   : params[dim].mag_filter;
     if (fdesc.radius == 0)
-      fdesc.radius = DefaultFilterRadius(fdesc.type, in_size, desc.out_shape()[axis]);
+      fdesc.radius = DefaultFilterRadius(fdesc.type, fdesc.antialias, in_size,
+                                         desc.out_shape()[axis]);
+
     desc.filter_type[axis] = fdesc.type;
     auto &filter = desc.filter[axis];
     filter = GetResamplingFilter(filters.get(), fdesc);

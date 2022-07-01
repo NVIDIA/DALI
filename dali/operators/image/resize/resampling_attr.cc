@@ -14,6 +14,7 @@
 
 #include "dali/operators/image/resize/resampling_attr.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/core/span.h"
 
 namespace dali {
 
@@ -23,12 +24,16 @@ DALI_SCHEMA(ResamplingFilterAttr)
       R"code(Type of interpolation to be used.
 
 Use ``min_filter`` and ``mag_filter`` to specify different filtering for downscaling and upscaling.
+
+.. note::
+  Usage of INTERP_TRIANGULAR is now deprecated and it should be replaced by a combination of
+INTERP_LINEAR with ``antialias`` enabled.
 )code",
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("mag_filter", "Filter used when scaling up.",
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("min_filter", "Filter used when scaling down.",
-      DALI_INTERP_TRIANGULAR, true)
+      DALI_INTERP_LINEAR, true)
   .AddOptionalArg<DALIDataType>("dtype", R"code(Output data type.
 
 Must be same as input type or ``float``. If not set, input type is used.)code", nullptr)
@@ -40,7 +45,9 @@ Must be same as input type or ``float``. If not set, input type is used.)code", 
       0)
   .AddOptionalArg("minibatch_size", R"code(Maximum number of images that are processed in
 a kernel call.)code",
-      32);
+      32)
+  .AddOptionalArg("antialias", "If enabled, it applies an antialiasing filter when scaling down.",
+      true);
 
 
 using namespace kernels;  // NOLINT
@@ -48,7 +55,6 @@ using namespace kernels;  // NOLINT
 inline ResamplingFilterType interp2resample(DALIInterpType interp) {
 #define DALI_MAP_INTERP_TO_RESAMPLE(interp, resample) case DALI_INTERP_##interp:\
   return ResamplingFilterType::resample;
-
   switch (interp) {
     DALI_MAP_INTERP_TO_RESAMPLE(NN, Nearest);
     DALI_MAP_INTERP_TO_RESAMPLE(LINEAR, Linear);
@@ -72,13 +78,59 @@ void ResamplingFilterAttr::PrepareFilterParams(
   bool has_interp = spec.ArgumentDefined("interp_type");
   bool has_min = spec.ArgumentDefined("min_filter");
   bool has_mag = spec.ArgumentDefined("mag_filter");
+  bool has_antialias = spec.ArgumentDefined("antialias");
+  antialias_ = spec.GetArgument<bool>("antialias");
+
+  if (!has_antialias) {  // antialias not provided explicitly
+    // ... and linear was selected explicitly
+    auto is_linear_default = [](span<const DALIInterpType> interp_types) -> bool {
+      for (auto &interp_type : interp_types) {
+        if (interp_type == DALI_INTERP_LINEAR)
+          return true;
+      }
+      return false;
+    };
+    if ((has_min && is_linear_default(make_cspan(min_arg_))) ||
+        (has_interp && is_linear_default(make_cspan(interp_type_arg_)))) {
+      static std::once_flag linear_default_warning_flag;
+      std::call_once(linear_default_warning_flag, [&]() {
+        DALI_WARN(
+            "The default behavior for LINEAR interpolation type has been changed to apply an "
+            "antialiasing filter. If you didn't mean to apply an antialiasing filter, please use "
+            "`antialias=False`");
+      });
+    }
+  } else if (!antialias_) {  // antialias disabled
+    auto is_triangular = [](span<const DALIInterpType> interp_types) -> bool {
+      for (auto &interp_type : interp_types) {
+        if (interp_type == DALI_INTERP_TRIANGULAR)
+          return true;
+      }
+      return false;
+    };
+
+    if ((has_min && is_triangular(make_cspan(min_arg_))) ||
+        (has_interp && is_triangular(make_cspan(interp_type_arg_)))) {
+      static std::once_flag triangular_warning_flag;
+      std::call_once(triangular_warning_flag, [&]() {
+        DALI_WARN(
+            "TRIANGULAR interpolation is not compatible with antialias=False, so the antialias "
+            "flag will be ignored.");
+      });
+    }
+  }
 
   min_filter_.resize(num_samples, ResamplingFilterType::Triangular);
   mag_filter_.resize(num_samples, ResamplingFilterType::Linear);
 
-  auto convert = [](auto &filter_types, auto &interp_types) {
-    for (int i = 0, n = filter_types.size(); i < n; i++)
-      filter_types[i] = interp2resample(interp_types[i]);
+  auto convert = [this](auto &filter_types, auto &interp_types) {
+    for (int i = 0, n = filter_types.size(); i < n; i++) {
+      auto type = interp_types[i];
+      // Promoting Linear with antialiasing to Triangular
+      if (antialias_ && type == DALI_INTERP_LINEAR)
+        type = DALI_INTERP_TRIANGULAR;
+      filter_types[i] = interp2resample(type);
+    }
   };
 
   if (has_min)
@@ -103,8 +155,8 @@ void ResamplingFilterAttr::GetResamplingParams(
       if (resz_par.src_lo[d] != resz_par.src_hi[d])
         rsmp_par.roi = { resz_par.src_lo[d], resz_par.src_hi[d] };
       rsmp_par.output_size = resz_par.dst_size[d];
-      rsmp_par.min_filter = { min_filter_[i], 0 };
-      rsmp_par.mag_filter = { mag_filter_[i], 0 };
+      rsmp_par.min_filter = { min_filter_[i], 0, antialias_};
+      rsmp_par.mag_filter = { mag_filter_[i], 0, false };
     }
   }
 }
@@ -116,8 +168,8 @@ void ResamplingFilterAttr::ApplyFilterParams(
   assert(static_cast<int>(mag_filter_.size()) == N);
   for (int i = 0, p = 0; i < N; i++) {
     for (int d = 0; d < ndim; d++, p++) {
-      resample_params[p].min_filter = { min_filter_[i], 0 };
-      resample_params[p].mag_filter = { mag_filter_[i], 0 };
+      resample_params[p].min_filter = { min_filter_[i], 0, antialias_ };
+      resample_params[p].mag_filter = { mag_filter_[i], 0, false };
     }
   }
 }
