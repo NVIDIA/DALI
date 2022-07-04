@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-member
+# pylint: disable=no-member
 import sys
 from nvidia.dali import backend as _b
 from nvidia.dali import internal as _internal
+from nvidia.dali.external_source import external_source
 
 _special_case_mapping = {
-    "b_box" : "bbox",
-    "mx_net" : "mxnet",
-    "tf_record" : "tfrecord"
+    "b_box": "bbox",
+    "mx_net": "mxnet",
+    "tf_record": "tfrecord"
 }
 
 
@@ -128,6 +129,5 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
             setattr(parent_module, wrapper_name, wrap_func)
 
 
-from nvidia.dali.external_source import external_source
 external_source.__module__ = __name__
 external_source._schema_name = "ExternalSource"

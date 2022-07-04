@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@ class MmapedFileStream : public FileStream {
   shared_ptr<void> Get(size_t n_bytes) override;
   static bool ReserveFileMappings(unsigned int num);
   static void FreeFileMappings(unsigned int num);
-  size_t Read(uint8_t * buffer, size_t n_bytes) override;
-  void Seek(int64 pos) override;
-  int64 Tell() const override;
+  size_t Read(void *buffer, size_t n_bytes) override;
+  void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override;
+  int64 TellRead() const override;
   size_t Size() const override;
 
   ~MmapedFileStream() override {

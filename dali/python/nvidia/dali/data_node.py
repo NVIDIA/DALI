@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-member
+# pylint: disable=no-member
 
 import sys
-from . import _utils
-from ._utils import hacks
+from ._utils.hacks import not_iterable
 
 
 def _arithm_op(*args, **kwargs):
@@ -28,6 +27,7 @@ def _arithm_op(*args, **kwargs):
 
 
 class _NewAxis:
+
     def __init__(self, name=None):
         if name is not None:
             if not isinstance(name, str):
@@ -153,12 +153,13 @@ class DataNode(object):
         return _arithm_op("bitxor", other, self)
 
     def __bool__(self):
-        raise TypeError(("\"DataNode\" is a symbolic representation of TensorList used for defining"
-                " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
-                " in regular Python context. Bool conversion in Pipeline can be achieved"
-                " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
-                " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
-                " section of DALI documentation."))
+        raise TypeError(
+            "\"DataNode\" is a symbolic representation of TensorList used for defining"
+            " graph of operations for DALI Pipeline. It should not be used for truth evaluation"
+            " in regular Python context. Bool conversion in Pipeline can be achieved"
+            " with \"Cast\" operator. To see what operations are allowed on DataNodes to"
+            " represent computations in DALI Pipeline see the \"Mathematical Expressions\""
+            " section of DALI documentation.")
 
     def __getitem__(self, val):
         idxs = []
@@ -189,7 +190,7 @@ class DataNode(object):
                 return False
 
         if not isinstance(val, tuple):
-            val = (val,)
+            val = (val, )
         d = 0
         for v in val:
             if process_index(v, d):
@@ -197,17 +198,21 @@ class DataNode(object):
 
         if len(new_axis_names) != 0:
             if len(new_axis_names) != len(new_axes):
-                raise ValueError("New axis name must be specified for all axes or none.");
+                raise ValueError("New axis name must be specified for all axes or none.")
             new_axis_names = "".join(new_axis_names)
         else:
             new_axis_names = None
 
         slice_args = {}
         for i, (at, lo, hi, step) in enumerate(idxs):
-            if at   is not None: slice_args["at_%i" % i] = at
-            if lo   is not None: slice_args["lo_%i" % i] = lo
-            if hi   is not None: slice_args["hi_%i" % i] = hi
-            if step is not None: slice_args["step_%i" % i] = step
+            if at is not None:
+                slice_args["at_%i" % i] = at
+            if lo is not None:
+                slice_args["lo_%i" % i] = lo
+            if hi is not None:
+                slice_args["hi_%i" % i] = hi
+            if step is not None:
+                slice_args["step_%i" % i] = step
 
         import nvidia.dali.fn
         if len(slice_args) == 0:
@@ -228,11 +233,11 @@ class DataNode(object):
             return nvidia.dali.fn.expand_dims(sliced, axes=new_axes, new_axis_names=new_axis_names)
 
 
-_utils.hacks.not_iterable(DataNode)
+not_iterable(DataNode)
 
 
 def _check(maybe_node):
     if not isinstance(maybe_node, DataNode):
-        raise TypeError(("Expected outputs of type compatible with \"DataNode\"."
-                " Received output type with name \"{}\" that does not match.")
-                .format(type(maybe_node).__name__))
+        raise TypeError(f"Expected outputs of type compatible with \"DataNode\". "
+                        f"Received output type with name \"{type(maybe_node).__name__}\" "
+                        f"that does not match.")

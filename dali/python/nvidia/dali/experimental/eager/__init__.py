@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from . import math  # noqa: F401
+from nvidia.dali._utils.eager_utils import _create_module_class
 
 """ Eager module implements eager versions of standard DALI operators.
 There are 3 main types of eager operators:
@@ -53,6 +54,7 @@ class arithmetic(metaclass=_MetaArithmetic):
         >>> tl = dali.tensors.TensorListCPU(...)
         >>> out = tl ** 2
     """
+
     def __init__(self, enabled=True):
         self.prev = arithmetic._enabled
         arithmetic._enabled = enabled
@@ -67,4 +69,32 @@ class arithmetic(metaclass=_MetaArithmetic):
     def __exit__(self, type, value, traceback):
         arithmetic._enabled = self.prev
 
+    __name__ = 'arithmetic'
     _enabled = False
+
+
+class rng_state(_create_module_class()):
+    """ Manager class for stateful operators. This object holds a cache of reusable operators.
+    Operators are initialized with deterministic seeds generated according to the ``seed`` argument
+    and are reused when you call the same operator with the same scalar parameters.
+
+    Example:
+        >>> eager_state = dali.experimental.eager.rng_state(seed=42)
+        >>> out1 = eager_state.random.normal(shape=[5, 5], batch_size=8)
+        >>> # Here we will reuse the same operator.
+        >>> out2 = eager_state.random.normal(shape=[5, 5], batch_size=8)
+        >>> # And now we will create a new operator with new seed.
+        >>> out3 = eager_state.random.normal(shape=[10, 10], batch_size=8)
+    """
+
+    def __init__(self, seed=None):
+        import numpy as np
+
+        self._operator_cache = {}
+        self._seed_generator = np.random.default_rng(seed)
+
+        for name, submodule_class in rng_state._submodules.items():
+            # Create attributes imitating submodules, e.g. `random`, `noise`.
+            setattr(self, name, submodule_class(self._operator_cache, self._seed_generator))
+
+    __name__ = 'rng_state'

@@ -93,16 +93,16 @@ void StdCUFileStream::Close() {
   path_ = "";
 }
 
-size_t StdCUFileStream::Pos() const {
-  return pos_;
-}
-
-void StdCUFileStream::Seek(int64 pos) {
+void StdCUFileStream::SeekRead(ptrdiff_t pos, int whence) {
+  if (whence == SEEK_CUR)
+    pos += pos_;
+  else if (whence == SEEK_END)
+    pos += length_;
   DALI_ENFORCE(pos >= 0 && pos <= (int64)length_, "Invalid seek");
   pos_ = pos;
 }
 
-int64 StdCUFileStream::Tell() const {
+ptrdiff_t StdCUFileStream::TellRead() const {
   return pos_;
 }
 
@@ -122,7 +122,7 @@ void StdCUFileStream::HandleIOError(int64 ret) const {
   }
 }
 
-size_t StdCUFileStream::ReadAtGPU(uint8_t* gpu_buffer, size_t n_bytes,
+size_t StdCUFileStream::ReadAtGPU(void *gpu_buffer, size_t n_bytes,
                                   ptrdiff_t buffer_offset, int64 file_offset) {
   // compute size
   n_bytes = std::min(n_bytes, length_ - file_offset);
@@ -131,7 +131,7 @@ size_t StdCUFileStream::ReadAtGPU(uint8_t* gpu_buffer, size_t n_bytes,
   ssize_t n_read = n_bytes;
   off_t read_off = 0;
   while (n_read > 0) {
-    int64_t read = cuFileRead(f_.cufh, static_cast<void*>(gpu_buffer), n_read,
+    int64_t read = cuFileRead(f_.cufh, gpu_buffer, n_read,
                               file_offset + read_off, buffer_offset);
 
     if (read >= 0) {
@@ -148,7 +148,7 @@ size_t StdCUFileStream::ReadAtGPU(uint8_t* gpu_buffer, size_t n_bytes,
   return n_bytes;
 }
 
-size_t StdCUFileStream::ReadGPU(uint8_t* gpu_buffer, size_t n_bytes, ptrdiff_t buffer_offset) {
+size_t StdCUFileStream::ReadGPU(void *gpu_buffer, size_t n_bytes, ptrdiff_t buffer_offset) {
   n_bytes = ReadAtGPU(gpu_buffer, n_bytes, buffer_offset, 0);
 
   // we can safely advance the file pointer here
@@ -156,7 +156,7 @@ size_t StdCUFileStream::ReadGPU(uint8_t* gpu_buffer, size_t n_bytes, ptrdiff_t b
   return n_bytes;
 }
 
-size_t StdCUFileStream::Read(uint8_t* cpu_buffer, size_t n_bytes) {
+size_t StdCUFileStream::Read(void *cpu_buffer, size_t n_bytes) {
   // compute size
   n_bytes = std::min(n_bytes, length_ - pos_);
 
@@ -164,7 +164,7 @@ size_t StdCUFileStream::Read(uint8_t* cpu_buffer, size_t n_bytes) {
   size_t n_read = n_bytes;
   off_t read_off = 0;
   while (n_read) {
-    int64 read = pread(f_.fd, static_cast<void*>(cpu_buffer + read_off), n_read, pos_ + read_off);
+    int64 read = pread(f_.fd, static_cast<char*>(cpu_buffer) + read_off, n_read, pos_ + read_off);
 
     if (read >= 0) {
       n_read -= read;

@@ -47,7 +47,7 @@ class DLL_PUBLIC CUFileStream : public FileStream {
    * The API is the effect how cufile works - it need to get the base address of the registered
    * buffer and the offset where it should put the data.
    */
-  virtual size_t ReadGPU(uint8_t* buffer, size_t n_bytes, ptrdiff_t buffer_offset = 0) = 0;
+  virtual size_t ReadGPU(void *buffer, size_t n_bytes, ptrdiff_t buffer_offset = 0) = 0;
 
   /**
    * @brief Reads `n_bytes` to the buffer at position `offset` from a given position in the file.
@@ -55,7 +55,7 @@ class DLL_PUBLIC CUFileStream : public FileStream {
    * The file_offset is absolute - the function neither depends on or affects the file pointer.
    * This function is thread-safe.
    */
-  virtual size_t ReadAtGPU(uint8_t* buffer, size_t n_bytes,
+  virtual size_t ReadAtGPU(void *buffer, size_t n_bytes,
                            ptrdiff_t buffer_offset, int64 file_offset) = 0;
 
  protected:

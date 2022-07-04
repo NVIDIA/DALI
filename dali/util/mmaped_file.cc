@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -170,12 +170,16 @@ inline uint8_t* ReadAheadHelper(std::shared_ptr<void> &p, size_t &pos,
   return tmp;
 }
 
-void MmapedFileStream::Seek(int64 pos) {
+void MmapedFileStream::SeekRead(ptrdiff_t pos, int whence) {
+  if (whence == SEEK_CUR)
+    pos += pos_;
+  else if (whence == SEEK_END)
+    pos += length_;
   DALI_ENFORCE(pos >= 0 && pos <= (int64)length_, "Invalid seek");
   pos_ = pos;
 }
 
-int64 MmapedFileStream::Tell() const {
+ptrdiff_t MmapedFileStream::TellRead() const {
   return pos_;
 }
 
@@ -200,7 +204,7 @@ shared_ptr<void> MmapedFileStream::Get(size_t n_bytes) {
   return p;
 }
 
-size_t MmapedFileStream::Read(uint8_t * buffer, size_t n_bytes) {
+size_t MmapedFileStream::Read(void *buffer, size_t n_bytes) {
   n_bytes = std::min(n_bytes, length_ - pos_);
   memcpy(buffer, ReadAheadHelper(p_, pos_, n_bytes, !read_ahead_whole_file_), n_bytes);
   pos_ += n_bytes;

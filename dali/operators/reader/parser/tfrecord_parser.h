@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,17 +81,13 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
           break;
       }
       if (it == feature.end()) {
-        output.Resize({0});
+        output.Resize({});
         output.SetSourceInfo(data.GetSourceInfo());
         continue;
       }
       auto& encoded_feature = it->second;
       if (f.HasShape() && f.GetType() != FeatureType::string) {
-        if (f.Shape().empty()) {
-          output.Resize({1});
-        } else {
-          output.Resize(f.Shape());
-        }
+        output.Resize(f.Shape());
       }
       ssize_t number_of_elms = 0;
       switch (f.GetType()) {

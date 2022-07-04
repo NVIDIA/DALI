@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.types as types
 import nvidia.dali as dali
+import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 
-import tempfile
-import subprocess
+import inspect
 import os
-import sys
 import random
 import re
+import subprocess
+import sys
+import tempfile
 
 
 def get_dali_extra_path():
@@ -520,9 +521,9 @@ def to_array(dali_out):
     return np.array(dali_out)
 
 
-def module_functions(cls, prefix="", remove_prefix=""):
+def module_functions(cls, prefix="", remove_prefix="", check_non_module=False):
     res = []
-    if "_schema_name" in cls.__dict__.keys():
+    if hasattr(cls, '_schema_name'):
         prefix = prefix.replace(remove_prefix, "")
         prefix = prefix.lstrip('.')
         if len(prefix):
@@ -530,11 +531,11 @@ def module_functions(cls, prefix="", remove_prefix=""):
         else:
             prefix = ""
         res.append(prefix + cls.__name__)
-    else:
-        for c in cls.__dict__.keys():
-            if not c.startswith("_") and c not in sys.builtin_module_names:
-                c = cls.__dict__[c]
-                res += module_functions(c, cls.__name__, remove_prefix=remove_prefix)
+    elif check_non_module or inspect.ismodule(cls):
+        for c_name, c in inspect.getmembers(cls):
+            if not c_name.startswith("_") and c_name not in sys.builtin_module_names:
+                res += module_functions(c, cls.__name__, remove_prefix=remove_prefix,
+                                        check_non_module=check_non_module)
     return res
 
 

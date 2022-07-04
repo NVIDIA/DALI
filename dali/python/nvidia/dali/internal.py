@@ -37,7 +37,8 @@ Parameters
                 m = sys.modules[module_name] = types.ModuleType(module_name)
             setattr(root, part, m)
         elif not isinstance(m, types.ModuleType):
-            raise RuntimeError("The module {} already contains an attribute \"{}\", which is not a module, but {}".format(
-                root, part, m))
+            raise RuntimeError(
+                f"The module {root} already contains an attribute \"{part}\", "
+                f"which is not a module, but {m}")
         root = m
     return root

@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.backend import TensorCPU, TensorListCPU, TensorGPU, TensorListGPU  # noqa: F401
+# pylint: disable=no-name-in-module, unused-import
+from nvidia.dali.backend import TensorCPU, TensorListCPU, TensorGPU, TensorListGPU      # noqa: F401
 
 
 def _transfer_to_cpu(data, device):

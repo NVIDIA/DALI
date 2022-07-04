@@ -13,10 +13,15 @@
 # limitations under the License.
 
 import numpy as np
+import os
 
-import nvidia.dali.experimental.eager as eager
-import nvidia.dali.tensors as tensors
+from nvidia.dali import fn
+from nvidia.dali import pipeline_def
+from nvidia.dali import ops
+from nvidia.dali import tensors
+from nvidia.dali.experimental import eager
 from nose_utils import assert_raises, raises
+from test_utils import get_dali_extra_path
 
 
 @raises(RuntimeError, glob=f"Argument '*' is not supported by eager operator 'crop'.")
@@ -87,3 +92,78 @@ def test_arithm_op_context_manager_deep_nested():
 
     assert np.array_equal((tl_1 + tl_2).as_array(), expected_sum)
     eager.arithmetic(False)
+
+
+def test_identical_rng_states():
+    eager_state_1 = eager.rng_state(seed=42)
+    eager_state_2 = eager.rng_state(seed=42)
+
+    out_1_1 = eager_state_1.random.normal(shape=[5, 5], batch_size=8)
+    out_1_2 = eager_state_1.noise.gaussian(out_1_1)
+    out_1_3 = eager_state_1.random.normal(shape=[5, 5], batch_size=8)
+
+    out_2_1 = eager_state_2.random.normal(shape=[5, 5], batch_size=8)
+    out_2_2 = eager_state_2.noise.gaussian(out_2_1)
+    out_2_3 = eager_state_2.random.normal(shape=[5, 5], batch_size=8)
+
+    assert np.allclose(out_1_1.as_tensor(), out_2_1.as_tensor())
+    assert np.allclose(out_1_2.as_tensor(), out_2_2.as_tensor())
+    assert np.allclose(out_1_3.as_tensor(), out_2_3.as_tensor())
+
+
+def test_identical_rng_states_interleaved():
+    eager_state_1 = eager.rng_state(seed=42)
+    eager_state_2 = eager.rng_state(seed=42)
+
+    out_1_1 = eager_state_1.random.normal(shape=[5, 5], batch_size=8)
+    eager_state_1.random.normal(shape=[6, 6], batch_size=8)
+    eager_state_1.noise.gaussian(out_1_1)
+    out_1_2 = eager_state_1.random.normal(shape=[5, 5], batch_size=8)
+
+    out_2_1 = eager_state_2.random.normal(shape=[5, 5], batch_size=8)
+    out_2_2 = eager_state_2.random.normal(shape=[5, 5], batch_size=8)
+
+    assert np.allclose(out_1_1.as_tensor(), out_2_1.as_tensor())
+    assert np.allclose(out_1_2.as_tensor(), out_2_2.as_tensor())
+
+
+def test_objective_eager_resize():
+    from nvidia.dali._utils import eager_utils
+
+    resize_class = eager_utils._eager_op_object_factory(ops.python_op_factory('Resize'), 'Resize')
+    tl = tensors.TensorListCPU(np.random.default_rng().integers(
+        256, size=(8, 200, 200, 3), dtype=np.uint8))
+
+    obj_resize = resize_class(resize_x=50, resize_y=50)
+    out_obj = obj_resize(tl)
+    out_fun = eager.resize(tl, resize_x=50, resize_y=50)
+
+    assert np.array_equal(out_obj.as_tensor(), out_fun.as_tensor())
+
+
+@pipeline_def(num_threads=3, device_id=0)
+def mixed_image_decoder_pipeline(file_root, seed):
+    jpeg, _ = fn.readers.file(file_root=file_root, seed=seed)
+    out = fn.decoders.image(jpeg, device="mixed")
+
+    return out
+
+
+def test_mixed_devices_decoder():
+    """ Tests hidden functionality of exposing eager operators as classes. """
+    seed = 42
+    batch_size = 8
+    file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
+
+    pipe = mixed_image_decoder_pipeline(file_root, seed, batch_size=batch_size)
+    pipe.build()
+    pipe_out, = pipe.run()
+
+    jpeg, _ = next(eager.readers.file(file_root=file_root, batch_size=batch_size, seed=seed))
+    eager_out = eager.decoders.image(jpeg, device="gpu")
+
+    assert len(pipe_out) == len(eager_out)
+
+    with eager.arithmetic():
+        for comp_tensor in (pipe_out == eager_out):
+            assert np.all(comp_tensor.as_cpu())

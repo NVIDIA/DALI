@@ -14,6 +14,7 @@
 
 import numpy as np
 import os
+from distutils.version import LooseVersion
 from numba import cuda
 
 from nvidia.dali import pipeline_def
@@ -23,9 +24,12 @@ import nvidia.dali.types as dali_types
 from test_utils import get_dali_extra_path
 from nose_utils import raises
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
+import numba
 from nose import SkipTest, with_setup
 
 def check_env_compatibility():
+    if LooseVersion(numba.__version__) < LooseVersion('0.55.2'):
+        raise SkipTest()
     if cuda.runtime.get_version() > cuda.driver.driver.get_version():
         raise SkipTest()
 

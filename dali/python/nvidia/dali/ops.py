@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#pylint: disable=no-member
+# pylint: disable=no-member
 import ast
 import sys
 import threading
@@ -35,6 +35,8 @@ from nvidia.dali.types import \
 
 
 cupy = None
+
+
 def _setup_cupy():
     global cupy
     if cupy is None:
@@ -64,7 +66,8 @@ Args
     if schema.HasInputDox():
         for i in range(schema.MaxNumInput()):
             optional = i >= schema.MinNumInput()
-            input_type_str = schema.GetInputType(i) + _supported_layouts_str(schema.GetSupportedLayouts(i))
+            input_type_str = schema.GetInputType(i) + _supported_layouts_str(
+                schema.GetSupportedLayouts(i))
             dox = schema.GetInputDox(i)
             input_name = schema.GetInputName(i)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, optional) + "\n"
@@ -118,9 +121,10 @@ def _get_kwargs(schema):
             # info on the renamed_arg name.
             if renamed_arg:
                 dtype = schema.GetArgumentType(renamed_arg)
-                type_name = _type_name_convert_to_string(dtype,
-                                                         allow_tensors=schema.IsTensorArgument(renamed_arg))
-        # Try to get dtype only if not set already (renamed args go through a different path, see above)
+                type_name = _type_name_convert_to_string(
+                    dtype, allow_tensors=schema.IsTensorArgument(renamed_arg))
+        # Try to get dtype only if not set already
+        # (renamed args go through a different path, see above)
         if not dtype:
             dtype = schema.GetArgumentType(arg)
             type_name = _type_name_convert_to_string(dtype,
@@ -270,7 +274,7 @@ Args
 ----
 """
         dox = "Input to the operator.\n"
-        fmt  = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
+        fmt = "TensorList" + _supported_layouts_str(schema.GetSupportedLayouts(0))
         ret += _numpydoc_formatter("data", fmt, dox, optional=False)
         return ret
     return ""
@@ -320,7 +324,7 @@ Keyword args
 
 
 class _OpCounter(object):
-    #pylint: disable=too-few-public-methods
+    # pylint: disable=too-few-public-methods
     _lock = threading.Lock()
     _op_count = count(0)
 
@@ -334,7 +338,8 @@ class _OpCounter(object):
 
 
 def _instantiate_constant_node(device, constant):
-    return _Constant(device=device, value=constant.value, dtype=constant.dtype, shape=constant.shape)
+    return _Constant(device=device, value=constant.value, dtype=constant.dtype,
+                     shape=constant.shape)
 
 
 def _separate_kwargs(kwargs, arg_input_type=_DataNode):
@@ -347,6 +352,7 @@ def _separate_kwargs(kwargs, arg_input_type=_DataNode):
         arg_input_type: operator's argument input type, DataNode for pipeline mode, TensorListCPU
             for eager mode.
     """
+
     def is_arg_input_type(x):
         return isinstance(x, arg_input_type)
 
@@ -394,6 +400,7 @@ def _add_spec_args(schema, spec, kwargs):
 
 
 class _OperatorInstance(object):
+
     def __init__(self, inputs, op, **kwargs):
         self._counter = _OpCounter()
         self._outputs = []
@@ -419,7 +426,8 @@ class _OperatorInstance(object):
         call_args = {**self._default_call_args}
         for k, v in kwargs.items():
             if v is None:
-                continue  # if an argument was specified in __init__ and in __call__ it is None, ignore it
+                # if an argument was specified in __init__ and in __call__ it is None, ignore it
+                continue
             if k in self._default_call_args:
                 raise ValueError("The argument `{}` was already specified in __init__.".format(k))
             call_args[k] = v
@@ -434,8 +442,7 @@ class _OperatorInstance(object):
             for inp in inputs:
                 if not isinstance(inp, _DataNode):
                     raise TypeError(
-                        "Expected inputs of type `DataNode`. Received input of type '{}'."
-                        .format(type(inp).__name__))
+                        f"Expected inputs of type `DataNode`. Received input of type '{inp}'.")
                 self._spec.AddInput(inp.name, inp.device)
         # Argument inputs
         for k in sorted(call_args.keys()):
@@ -450,10 +457,9 @@ class _OperatorInstance(object):
                         arg_inp = _Constant(arg_inp, device="cpu")
                     except Exception as e:
                         raise TypeError(
-                                ("Expected inputs of type " +
-                                "`DataNode` or convertible to constant nodes. Received " +
-                                "input `{}` of type '{}'.")
-                                .format(k, type(arg_inp).__name__)) from e
+                            f"Expected inputs of type "
+                            f"`DataNode` or convertible to constant nodes. Received "
+                            f"input `{k}` of type '{type(arg_inp).__name__}'.") from e
 
                 _check_arg_input(op._schema, type(self._op).__name__, k)
 
@@ -486,7 +492,8 @@ class _OperatorInstance(object):
         else:
             output_device = "cpu"
 
-        num_output = self._op.schema.CalculateOutputs(self._spec) + self._op.schema.CalculateAdditionalOutputs(self._spec)
+        num_output = (self._op.schema.CalculateOutputs(self._spec)
+                      + self._op.schema.CalculateAdditionalOutputs(self._spec))
 
         if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
@@ -543,6 +550,7 @@ class _OperatorInstance(object):
 
 
 class _DaliOperatorMeta(type):
+
     @property
     def __doc__(self):
         return _docstring_generator(self)
@@ -552,12 +560,16 @@ def _check_arg_input(schema, op_name, name):
     if name == "name":
         return
     if not schema.IsTensorArgument(name):
-        raise TypeError("The argument `{}` for operator `{}` should not be a `DataNode` but a {}".format(
-            name, op_name, _type_name_convert_to_string(schema.GetArgumentType(name), False)))
+        expected_type_name = _type_name_convert_to_string(schema.GetArgumentType(name), False)
+        raise TypeError(
+            f"The argument `{name}` for operator `{op_name}` should not be a `DataNode` but a "
+            f"{expected_type_name}")
 
 
 def python_op_factory(name, schema_name=None):
+
     class Operator(metaclass=_DaliOperatorMeta):
+
         def __init__(self, *, device="cpu", **kwargs):
             schema_name = _schema_name(type(self))
             self._spec = _b.OpSpec(schema_name)
@@ -593,8 +605,9 @@ def python_op_factory(name, schema_name=None):
                 msg = meta['msg']
                 if new_name:
                     if new_name in kwargs:
-                        raise TypeError("Operator {} got an unexpected '{}' deprecated argument when '{}' was already provided".format(
-                            type(self).__name__, arg_name, new_name))
+                        raise TypeError(f"Operator {type(self).__name__} got an unexpected"
+                                        f"'{arg_name}' deprecated argument when '{new_name}'"
+                                        f"was already provided")
                     kwargs[new_name] = kwargs[arg_name]
                     del kwargs[arg_name]
                 elif removed:
@@ -659,9 +672,9 @@ def python_op_factory(name, schema_name=None):
             for input in inputs:
                 if isinstance(input, list):
                     if len(input) != arg_list_len:
-                        raise ValueError(("All argument lists for Multiple Input Sets used " +
-                                          "with operator {} must have the same length")
-                                          .format(type(self).__name__))
+                        raise ValueError(f"All argument lists for Multiple Input Sets used "
+                                         f"with operator {type(self).__name__} must have "
+                                         f"the same length")
             return arg_list_len
 
         def _safe_len(self, input):
@@ -676,9 +689,9 @@ def python_op_factory(name, schema_name=None):
             result = ()
             for input in inputs:
                 if isinstance(input, list):
-                    result = result + (input,)
+                    result = result + (input, )
                 else:
-                    result = result + ([input] * arg_list_len,)
+                    result = result + ([input] * arg_list_len, )
             return result
 
         # Zip the list from [[arg0, arg0', arg0''], [arg1', arg1'', arg1''], ...]
@@ -711,15 +724,11 @@ def python_op_factory(name, schema_name=None):
             return output_list
 
         def _check_schema_num_inputs(self, inputs):
-            if (len(inputs) > self._schema.MaxNumInput() or
-                    len(inputs) < self._schema.MinNumInput()):
+            if len(inputs) < self._schema.MinNumInput() or len(inputs) > self._schema.MaxNumInput():
                 raise ValueError(
-                    ("Operator {} expects from {} to " +
-                    "{} inputs, but received {}.")
-                    .format(type(self).__name__,
-                            self._schema.MinNumInput(),
-                            self._schema.MaxNumInput(),
-                            len(inputs)))
+                    f"Operator {type(self).__name__} expects "
+                    f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
+                    f"but received {len(inputs)}.")
 
         def _build_input_sets(self, inputs):
             # Build input sets, most of the time we only have one
@@ -733,7 +742,6 @@ def python_op_factory(name, schema_name=None):
 
             return input_sets
 
-
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name or Operator.__name__
     Operator.__call__.__doc__ = _docstring_generator_call(Operator.schema_name)
@@ -741,7 +749,8 @@ def python_op_factory(name, schema_name=None):
 
 
 def _process_op_name(op_schema_name, make_hidden=False):
-    namespace_delim = "__"  # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
+    # Two underscores (reasoning: we might want to have single underscores in the namespace itself)
+    namespace_delim = "__"
     op_full_name = op_schema_name.replace(namespace_delim, '.')
     *submodule, op_name = op_full_name.split('.')
     if make_hidden:
@@ -756,11 +765,12 @@ def _op_name(op_schema_name, api="fn"):
     elif api == "ops":
         return full_name
     else:
-        raise ValueError('{} is not a valid DALI api name, try one of {"fn", "ops"}'.format(api))
+        raise ValueError(f'{api} is not a valid DALI api name, try one of {"fn", "ops"}')
 
 
 def _wrap_op(op_class, submodule=[], parent_module=None):
-    return _functional._wrap_op(op_class, submodule, parent_module, _docstring_generator_fn(op_class))
+    return _functional._wrap_op(op_class, submodule, parent_module,
+                                _docstring_generator_fn(op_class))
 
 
 def _load_ops():
@@ -837,15 +847,11 @@ class _TFRecordReaderImpl():
 
     def __call__(self, *inputs, **kwargs):
         # We do not handle multiple input sets for Reader as they do not have inputs
-        if (len(inputs) > self._schema.MaxNumInput() or
-                len(inputs) < self._schema.MinNumInput()):
+        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                ("Operator {} expects from {} to " +
-                "{} inputs, but received {}.")
-                .format(type(self).__name__,
-                        self._schema.MinNumInput(),
-                        self._schema.MaxNumInput(),
-                        len(inputs)))
+                f"Operator {type(self).__name__} expects "
+                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
+                f"but received {len(inputs)}.")
 
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         outputs = {}
@@ -875,10 +881,17 @@ def _load_readers_tfrecord():
     _cpu_ops = _cpu_ops.union({'readers__TFRecord', 'TFRecordReader'})
 
     ops_module = sys.modules[__name__]
-    class TFRecordReader(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
-    class TFRecord(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta): pass
-    for op_reg_name, internal_schema, op_class in [('readers__TFRecord', 'readers___TFRecord', TFRecord),
-                                                   ('TFRecordReader', '_TFRecordReader', TFRecordReader)]:
+
+    class TFRecordReader(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta):
+        pass
+
+    class TFRecord(_TFRecordReaderImpl, metaclass=_DaliOperatorMeta):
+        pass
+
+    for op_reg_name, internal_schema, op_class in [
+        ('readers__TFRecord', 'readers___TFRecord', TFRecord),
+        ('TFRecordReader', '_TFRecordReader', TFRecordReader)
+    ]:
         op_class.schema_name = op_reg_name
         op_class._internal_schema_name = internal_schema
         op_full_name, submodule, op_name = _process_op_name(op_reg_name)
@@ -890,6 +903,7 @@ def _load_readers_tfrecord():
 
 
 class PythonFunctionBase(metaclass=_DaliOperatorMeta):
+
     def __init__(self, impl_name, function, num_outputs=1, device='cpu', **kwargs):
         self._schema = _b.GetSchema(impl_name)
         self._spec = _b.OpSpec(impl_name)
@@ -929,21 +943,16 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
         if pipeline.exec_async or pipeline.exec_pipelined:
             raise RuntimeError("PythonFunction can be used only in pipelines with `exec_async` and "
                                "`exec_pipelined` set to False.")
-        if (len(inputs) > self._schema.MaxNumInput() or
-                len(inputs) < self._schema.MinNumInput()):
+        if (len(inputs) > self._schema.MaxNumInput() or len(inputs) < self._schema.MinNumInput()):
             raise ValueError(
-                ("Operator {} expects from {} to " +
-                 "{} inputs, but received {}.")
-                .format(type(self).__name__,
-                        self._schema.MinNumInput(),
-                        self._schema.MaxNumInput(),
-                        len(inputs)))
+                f"Operator {type(self).__name__} expects "
+                f"from {self._schema.MinNumInput()} to {self._schema.MaxNumInput()} inputs, "
+                f"but received {len(inputs)}.")
         for inp in inputs:
             if not isinstance(inp, _DataNode):
-                raise TypeError(
-                      ("Expected inputs of type `DataNode`. Received input of type '{}'. " +
-                       "Python Operators do not support Multiple Input Sets.")
-                      .format(type(inp).__name__))
+                raise TypeError(f"Expected inputs of type `DataNode`. "
+                                f"Received input of type '{type(inp).__name__}'. "
+                                f"Python Operators do not support Multiple Input Sets.")
         op_instance = _OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("function_id", id(self.function))
         op_instance.spec.AddArg("num_outputs", self.num_outputs)
@@ -954,7 +963,6 @@ class PythonFunctionBase(metaclass=_DaliOperatorMeta):
             pipeline.add_sink(t)
             return
         outputs = []
-
 
         for i in range(self.num_outputs):
             t_name = op_instance._name
@@ -992,9 +1000,12 @@ class PythonFunction(PythonFunctionBase):
     def check_outputs(outputs, num_outputs):
         if num_outputs > 1:
             if not isinstance(outputs, tuple):
-                raise TypeError("The output from a multi-output Python function operator must be a tuple, got: ", type(outputs))
+                raise TypeError(
+                    "The output from a multi-output Python"
+                    "function operator must be a tuple, got: ", type(outputs))
             if len(outputs) != num_outputs:
-                raise ValueError(f"Unexpected number of outputs from Python function operator - got {len(outputs)}, expected {num_outputs}")
+                raise ValueError(f"Unexpected number of outputs from Python"
+                                 f"function operator - got {len(outputs)}, expected {num_outputs}")
 
     @staticmethod
     def function_wrapper_per_sample(function, num_outputs, from_dlpack, to_dlpack, *dlpack_inputs):
@@ -1020,6 +1031,7 @@ class PythonFunction(PythonFunctionBase):
                 return [to_dlpack(x) for x in batch]
             else:
                 return to_dlpack(batch)
+
         PythonFunction.check_outputs(arr_outs, num_outputs)
         if isinstance(arr_outs, tuple):
             return tuple(convert_batch(x) for x in arr_outs)
@@ -1029,13 +1041,19 @@ class PythonFunction(PythonFunctionBase):
     @staticmethod
     def _function_wrapper_cpu(batch_processing, function, num_outputs, *dlpack_inputs):
         if batch_processing:
-            return PythonFunction.function_wrapper_batch(function, num_outputs,
-                                                         _dlpack_to_array, _dlpack_from_array,
-                                                         *dlpack_inputs)
+            return PythonFunction.function_wrapper_batch(
+                function,
+                num_outputs,
+                _dlpack_to_array,
+                _dlpack_from_array,
+                *dlpack_inputs)
         else:
-            return PythonFunction.function_wrapper_per_sample(function, num_outputs,
-                                                              _dlpack_to_array, _dlpack_from_array,
-                                                              *dlpack_inputs)
+            return PythonFunction.function_wrapper_per_sample(
+                function,
+                num_outputs,
+                _dlpack_to_array,
+                _dlpack_from_array,
+                *dlpack_inputs)
 
     @staticmethod
     def _cupy_stream_wrapper(function, *inputs):
@@ -1048,27 +1066,41 @@ class PythonFunction(PythonFunctionBase):
 
     @staticmethod
     def _function_wrapper_gpu(batch_processing, function, num_outputs, *dlpack_inputs):
+
         def wrapped_func(*inputs):
             return PythonFunction._cupy_stream_wrapper(function, *inputs)
+
         if batch_processing:
             return PythonFunction.function_wrapper_batch(wrapped_func, num_outputs, cupy.fromDlpack,
                                                          lambda t: t.toDlpack(), *dlpack_inputs)
         else:
-            return PythonFunction.function_wrapper_per_sample(wrapped_func, num_outputs, cupy.fromDlpack,
+            return PythonFunction.function_wrapper_per_sample(wrapped_func, num_outputs,
+                                                              cupy.fromDlpack,
                                                               lambda t: t.toDlpack(),
                                                               *dlpack_inputs)
 
     def __init__(self, function, num_outputs=1, device='cpu', batch_processing=False, **kwargs):
         if device == 'gpu':
             _setup_cupy()
-        func = (lambda *ts: PythonFunction._function_wrapper_cpu(batch_processing, function, num_outputs, *ts))\
-               if device == 'cpu' else \
-               (lambda *ts: PythonFunction._function_wrapper_gpu(batch_processing, function, num_outputs, *ts))
-        super(PythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                             function=func,
-                                             num_outputs=num_outputs, device=device,
-                                             synchronize_stream=False,
-                                             batch_processing=batch_processing, **kwargs)
+
+        if device == 'cpu':
+            def func(*ts):
+                return PythonFunction._function_wrapper_cpu(
+                    batch_processing, function, num_outputs, *ts)
+        else:
+            def func(*ts):
+                return PythonFunction._function_wrapper_gpu(
+                    batch_processing, function, num_outputs, *ts)
+
+        super(PythonFunction,
+              self).__init__(
+                impl_name="DLTensorPythonFunctionImpl",
+                function=func,
+                num_outputs=num_outputs,
+                device=device,
+                synchronize_stream=False,
+                batch_processing=batch_processing,
+                **kwargs)
 
 
 class DLTensorPythonFunction(PythonFunctionBase):
@@ -1081,23 +1113,33 @@ class DLTensorPythonFunction(PythonFunctionBase):
     @staticmethod
     def _function_wrapper_dlpack(batch_processing, function, num_outputs, *dlpack_inputs):
         if batch_processing:
-            return PythonFunction.function_wrapper_batch(function, num_outputs,
-                                                         lambda x: x, lambda x: x,
+            return PythonFunction.function_wrapper_batch(function,
+                                                         num_outputs,
+                                                         lambda x: x,
+                                                         lambda x: x,
                                                          *dlpack_inputs)
         else:
-            return PythonFunction.function_wrapper_per_sample(function, num_outputs,
-                                                              lambda x: x, lambda x: x,
+            return PythonFunction.function_wrapper_per_sample(function,
+                                                              num_outputs,
+                                                              lambda x: x,
+                                                              lambda x: x,
                                                               *dlpack_inputs)
 
     def __init__(self, function, num_outputs=1, device='cpu', synchronize_stream=True,
                  batch_processing=True, **kwargs):
-        func = lambda *ts: DLTensorPythonFunction._function_wrapper_dlpack(batch_processing, function, num_outputs, *ts)
-        super(DLTensorPythonFunction, self).__init__(impl_name="DLTensorPythonFunctionImpl",
-                                                     function=func, num_outputs=num_outputs,
-                                                     device=device,
-                                                     synchronize_stream=synchronize_stream,
-                                                     batch_processing=batch_processing,
-                                                     **kwargs)
+
+        def func(*ts):
+            return DLTensorPythonFunction._function_wrapper_dlpack(
+                batch_processing, function, num_outputs, *ts)
+
+        super(DLTensorPythonFunction,
+              self).__init__(impl_name="DLTensorPythonFunctionImpl",
+                             function=func,
+                             num_outputs=num_outputs,
+                             device=device,
+                             synchronize_stream=synchronize_stream,
+                             batch_processing=batch_processing,
+                             **kwargs)
 
 
 _wrap_op(PythonFunction)
@@ -1121,23 +1163,25 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
     def is_input(x):
         if isinstance(x, (_DataNode, nvidia.dali.types.ScalarConstant)):
             return True
-        return isinstance(x, (list)) and \
-                any(isinstance(y, _DataNode) for y in x) and \
-                all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x)
+        return (isinstance(x, (list))
+                and any(isinstance(y, _DataNode) for y in x)
+                and all(isinstance(y, (_DataNode, nvidia.dali.types.ScalarConstant)) for y in x))
 
     default_input_device = "gpu" if device == "gpu" else "cpu"
 
     for idx, inp in enumerate(inputs):
         if not is_input(inp):
-            input_device = schema.GetInputDevice(idx) or default_input_device if schema else default_input_device
+            if schema:
+                input_device = schema.GetInputDevice(idx) or default_input_device
+            else:
+                input_device = default_input_device
             if not isinstance(inp, nvidia.dali.types.ScalarConstant):
                 try:
                     inp = _Constant(inp, device=input_device)
                 except Exception as ex:
-                    raise TypeError("""when calling operator {0}:
-Input {1} is neither a DALI `DataNode` nor a list of data nodes but `{2}`.
-Attempt to convert it to a constant node failed."""
-                    .format(op_name, idx, type(inp).__name__)) from ex
+                    raise TypeError(f"""when calling operator {op_name}:
+Input {idx} is neither a DALI `DataNode` nor a list of data nodes but `{type(inp).__name__}`.
+Attempt to convert it to a constant node failed.""") from ex
 
             if not isinstance(inp, _DataNode):
                 inp = nvidia.dali.ops._instantiate_constant_node(input_device, inp)
@@ -1153,6 +1197,7 @@ def _is_boolean_like(input):
         if input.dtype in _bool_types:
             return True
     return False
+
 
 # Boolean and integer types are considered integer-like
 
@@ -1184,7 +1229,7 @@ def _to_type_desc(input):
     if type(input) == int:
         return "int32"
     if type(input) == float:
-        return "float32" # TODO(klecki): current DALI limitation
+        return "float32"  # TODO(klecki): current DALI limitation
     if isinstance(input, _ScalarConstant):
         dtype_to_desc = {
             DALIDataType.BOOL:    "bool",
@@ -1201,12 +1246,15 @@ def _to_type_desc(input):
             DALIDataType.FLOAT64: "float64",
         }
         return dtype_to_desc[input.dtype]
-    raise TypeError(("Constant argument to arithmetic operation not supported. Got {}, expected "
-            "a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.")
-            .format(str(type(input))))
+
+    raise TypeError(
+        f"Constant argument to arithmetic operation not supported. "
+        f"Got {str(type(input))}, expected "
+        f"a constant value of type 'bool', 'int', 'float' or 'nvidia.dali.types.Constant'.")
 
 
-# Group inputs into categories_idxs, edges of type ``edge_type``, integer constants and real constants.
+# Group inputs into categories_idxs, edges of type ``edge_type``,
+# integer constants and real constants.
 # The categories_idxs is a list that for an input `i` contains a tuple:
 # (category of ith input, index of ith input in appropriate category)
 def _group_inputs(inputs, edge_type=_DataNode):
@@ -1227,9 +1275,12 @@ def _group_inputs(inputs, edge_type=_DataNode):
             categories_idxs.append(("real", len(reals)))
             reals.append(input)
         else:
-            raise TypeError(("Argument to arithmetic operation not supported. Got {}, expected "
-                    "a return value from other DALI Operator  or a constant value of type 'bool', 'int', "
-                    "'float' or 'nvidia.dali.types.Constant'.").format(str(type(input))))
+            raise TypeError(
+                f"Argument to arithmetic operation not supported."
+                f"Got {str(type(input))}, expected a return value from other"
+                f"DALI Operator  or a constant value of type 'bool', 'int', "
+                f"'float' or 'nvidia.dali.types.Constant'.")
+
     if len(integers) == 0:
         integers = None
     if len(reals) == 0:
@@ -1265,8 +1316,11 @@ def _arithm_op(name, *inputs):
     expression_desc = "{}({})".format(name, input_desc)
     dev = _choose_device(edges)
     # Create "instance" of operator
-    op = ArithmeticGenericOp(device=dev, expression_desc=expression_desc,
-                             integer_constants=integers, real_constants=reals)
+    op = ArithmeticGenericOp(       # noqa: F821
+        device=dev,
+        expression_desc=expression_desc,
+        integer_constants=integers,
+        real_constants=reals)
     # If we are on gpu, we must mark all inputs as gpu
     if dev == "gpu":
         dev_inputs = list(edge.gpu() for edge in edges)
@@ -1300,11 +1354,13 @@ def register_gpu_op(name):
 
 # This must go at the end - the purpose of these imports is to expose the operators in
 # nvidia.dali.ops module
-from nvidia.dali.external_source import ExternalSource
+from nvidia.dali.external_source import ExternalSource  # noqa: E402
+
 ExternalSource.__module__ = __name__
 
 
 class _CompoundOp:
+
     def __init__(self, op_list):
         self._ops = []
         for op in op_list:
@@ -1317,7 +1373,8 @@ class _CompoundOp:
         inputs = list(inputs)
         for op in self._ops:
             for i in range(len(inputs)):
-                if inputs[i].device == "cpu" and op.device == "gpu" and op.schema.GetInputDevice(i) != "cpu":
+                if inputs[i].device == "cpu" and op.device == "gpu" and op.schema.GetInputDevice(
+                        i) != "cpu":
                     inputs[i] = inputs[i].gpu()
             inputs = op(*inputs, **kwargs)
             kwargs = {}
@@ -1367,6 +1424,6 @@ _load_ops()
 
 try:
     _load_readers_tfrecord()
-except RuntimeError as e:
+except RuntimeError:
     # TFRecord can be disabled (custom build). No need to fail
     pass
