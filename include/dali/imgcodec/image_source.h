@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/api_helper.h"
+#include "dali/core/int_literals.h"
 #include "dali/core/stream.h"
 
 namespace dali {
@@ -44,10 +45,18 @@ constexpr InputKind operator&(InputKind a, InputKind b) {
   return static_cast<InputKind>(static_cast<int>(a) & static_cast<int>(b));
 }
 
+constexpr bool operator!(InputKind k) {
+  return k == InputKind::None;
+}
+
+/**
+ * @brief A source of data from image parsers and codecs
+ */
 class DLL_PUBLIC ImageSource {
  public:
   ImageSource() = default;
-  static ImageSource FromFilename(std::string filename);
+
+  static ImageSource FromFilename(std::string filename, size_t size = -1_uz);
   static ImageSource FromHostMem(const void *mem, size_t size, std::string source_info = "");
   static ImageSource FromDeviceMem(const void *mem, size_t size, std::string source_info = "");
   static ImageSource FromStream(std::shared_ptr<InputStream> stream, std::string source_info = "");
@@ -56,17 +65,44 @@ class DLL_PUBLIC ImageSource {
   }
 
   InputKind Kind() const { return kind_; }
+
   template <typename T = void>
   const T *RawData() const { return static_cast<const T *>(data_); }
-  size_t Size() const { return size_; }
+
+  size_t Size() const {
+    if (size_ == -1_uz)
+      throw std::logic_error("Unknown size.");
+    return size_;
+  }
+
   const std::shared_ptr<InputStream> &Stream() const { return stream_; }
+
+  /**
+   * @brief Gets the filename, if the kind of image source is Filename - otherwise throws
+   */
   const char *Filename() const {
     if (kind_ != InputKind::Filename)
       throw std::logic_error("This image source doesn't have a filename.");
     return name_.c_str();
   }
+
+  /**
+   * @brief Returns a human-readable unique identifier of the image source
+   *
+   * The source info is a string that is unique in the system - it can be a filename (path)
+   * or some compound identifier, like a name of a container file accompanied by
+   * a record id or an offset,
+   */
   const char *SourceInfo() const { return name_.c_str(); }
 
+  /**
+   * @brief Opens the image source, returning an input stream
+   *
+   * If the image source already contains a stream, it is returned directly.
+   * Otherwise, a memory stream or a file is opened.
+   *
+   * @return std::shared_ptr<InputStream>
+   */
   std::shared_ptr<InputStream> Open() const;
 
  private:
@@ -82,7 +118,7 @@ class DLL_PUBLIC ImageSource {
 
   InputKind kind_ = InputKind::None;
   const void *data_ = nullptr;
-  size_t size_ = 0;
+  size_t size_ = -1_uz;
   // storage for filename or source info
   std::string name_;
   std::shared_ptr<InputStream> stream_;
