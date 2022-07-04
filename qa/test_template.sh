@@ -17,7 +17,7 @@ python_invoke_test="${python_test_runner} ${python_test_args}"
 # New framework for Python Tests
 # During the transition we run both
 # When all tests are ported old will be removed
-pythonn_new_test_runner="python -m nose2"
+python_new_test_runner="python -m nose2"
 python_new_test_args="--verbose -s"
 python_new_invoke_test="${python_new_test_runner} ${python_new_test_args}"
 
