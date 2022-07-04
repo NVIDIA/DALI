@@ -8,7 +8,7 @@ test_py_with_framework() {
         ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
     done
 
-    ${python_new_invoke_test} opertor
+    ${python_new_invoke_test} operator
 }
 
 test_no_fw() {
