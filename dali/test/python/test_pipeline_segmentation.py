@@ -149,13 +149,14 @@ def check_bbox_random_crop_adjust_polygons(file_root,
             h, w, _ = image_shape
             wh = np.array([w, h])
             whwh = np.array([w, h, w, h])
-            expected_out_vertices_abs = np.copy(expected_out_vertices) * wh
+            expected_out_vertices_abs = expected_out_vertices * wh
             np.testing.assert_allclose(expected_out_vertices_abs, out_vertices_abs, rtol=1e-4)
 
             # Checking clamping of the relative coordinates
-            expected_out_vertices_clamped = np.copy(expected_out_vertices)
-            np.clip(expected_out_vertices_clamped, a_min=0.0, a_max=1.0)
-            np.testing.assert_allclose(expected_out_vertices_clamped, out_vertices, rtol=1e-4)
+            expected_out_vertices_clamped = np.clip(expected_out_vertices, a_min=0.0, a_max=1.0)
+            np.testing.assert_allclose(expected_out_vertices_clamped,
+                                       out_vertices_clamped,
+                                       rtol=1e-4)
 
             # Checking clamping of the absolute coordinates
             expected_out_vertices_clamped_abs = np.clip(expected_out_vertices_abs, 0, wh)
