@@ -47,7 +47,7 @@ struct DecodeResult {
   std::exception_ptr exception;
 };
 
-struct ImageCodecProperties {
+struct ImageDecoderProperties {
   /**
    * @brief Whether the codec can decode a part of the image without storing the
    *        entire image in memory.
@@ -64,9 +64,9 @@ struct ImageCodecProperties {
   bool fallback = true;
 };
 
-class DLL_PUBLIC ImageCodecInstance {
+class DLL_PUBLIC ImageDecoderInstance {
  public:
-  virtual ~ImageCodecInstance() = default;
+  virtual ~ImageDecoderInstance() = default;
   /**
    * @brief Checks whether this codec can decode this encoded image with given parameters
    */
@@ -122,14 +122,14 @@ class DLL_PUBLIC ImageCodecInstance {
   }
 };
 
-class DLL_PUBLIC ImageCodec {
+class DLL_PUBLIC ImageDecoder {
  public:
-  virtual ~ImageCodec() = default;
+  virtual ~ImageDecoder() = default;
 
   /**
    * @brief Gets the properties and capabilities of the codec
    */
-  virtual ImageCodecProperties GetProperties() const = 0;
+  virtual ImageDecoderProperties GetProperties() const = 0;
 
   /**
    * @brief Checks whether the codec is supported on the specified device
@@ -144,7 +144,7 @@ class DLL_PUBLIC ImageCodec {
    *
    * Note: For codecs that carry no state, this may just increase reference count on a singleton.
    */
-  virtual std::shared_ptr<ImageCodecInstance> Create(int device_id, ThreadPool &tp) = 0;
+  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) = 0;
 };
 
 }  // namespace imgcodec

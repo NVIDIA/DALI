@@ -33,18 +33,18 @@ const std::string &ImageFormat::Name() const {
   return name_;
 }
 
-span<ImageCodec *const> ImageFormat::Codecs() const {
-  return make_span(codec_ptrs_);
+span<ImageDecoder *const> ImageFormat::Decoders() const {
+  return make_span(decoder_ptrs_);
 }
 
-void ImageFormat::RegisterCodec(std::shared_ptr<ImageCodec> codec, float priority) {
-  auto it = codecs_.emplace(priority, std::move(codec));
-  if (std::next(it) == codecs_.end()) {
-    codec_ptrs_.push_back(it->second.get());
+void ImageFormat::RegisterDecoder(std::shared_ptr<ImageDecoder> decoder, float priority) {
+  auto it = decoders_.emplace(priority, std::move(decoder));
+  if (std::next(it) == decoders_.end()) {
+    decoder_ptrs_.push_back(it->second.get());
   } else {
-    codec_ptrs_.clear();
-    for (auto [priority, codec] : codecs_) {
-      codec_ptrs_.push_back(codec.get());
+    decoder_ptrs_.clear();
+    for (auto [priority, decoder] : decoders_) {
+      decoder_ptrs_.push_back(decoder.get());
     }
   }
 }

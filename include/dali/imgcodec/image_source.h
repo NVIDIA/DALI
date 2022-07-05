@@ -56,25 +56,57 @@ class DLL_PUBLIC ImageSource {
  public:
   ImageSource() = default;
 
-  static ImageSource FromFilename(std::string filename, size_t size = -1_uz);
+  /**
+   * @brief Creates an image source from a filename
+   */
+  static ImageSource FromFilename(std::string filename);
+
+  /**
+   * @brief Creates an image source from data in host memory
+   */
   static ImageSource FromHostMem(const void *mem, size_t size, std::string source_info = "");
+
+  /**
+   * @brief Creates an image source from data in device memory
+   */
   static ImageSource FromDeviceMem(const void *mem, size_t size, std::string source_info = "");
+
+  /**
+   * @brief Creates an image source from an InputStream interface
+   */
   static ImageSource FromStream(std::shared_ptr<InputStream> stream, std::string source_info = "");
+
+  /**
+   * @brief Creates an image source from an InputStream interface
+   */
   static ImageSource FromStream(InputStream *stream, std::string source_info = "") {
     return FromStream(std::shared_ptr<InputStream>(stream, [](void*){}), std::move(source_info));
   }
 
+  /**
+   * @brief Returns the kind of source
+   */
   InputKind Kind() const { return kind_; }
 
+  /**
+   * @brief Access the raw data pointer (makes sense for HostMemory and DeviceMemory kinds)
+   */
   template <typename T = void>
   const T *RawData() const { return static_cast<const T *>(data_); }
 
+  /**
+   * @brief Access the data size (does NOT make sense for Filename kind)
+   */
   size_t Size() const {
     if (size_ == -1_uz)
       throw std::logic_error("Unknown size.");
     return size_;
   }
 
+  /**
+   * @brief Access an InputStream associated with the ImageSource.
+   *        The stream must be already created (e.g. via Open)
+   */
   const std::shared_ptr<InputStream> &Stream() const { return stream_; }
 
   /**

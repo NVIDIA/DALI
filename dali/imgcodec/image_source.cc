@@ -21,7 +21,7 @@ namespace dali {
 namespace imgcodec {
 
 ImageSource ImageSource::FromFilename(std::string filename) {
-  return { InputKind::Filename, nullptr, 0, std::move(filename), nullptr };
+  return { InputKind::Filename, nullptr, -1_uz, std::move(filename), nullptr };
 }
 
 ImageSource ImageSource::FromHostMem(const void *mem, size_t size, std::string source_info) {

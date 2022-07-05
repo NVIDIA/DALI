@@ -23,7 +23,7 @@
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/stream.h"
-#include "dali/imgcodec/image_source.h"
+#include "dali/imgdecoder/image_source.h"
 
 namespace dali {
 namespace imgcodec {
@@ -40,27 +40,60 @@ struct ImageInfo {
 class ImageParser {
  public:
   virtual ~ImageParser() = default;
+
+  /**
+   * @brief   Parses the encoded image to get image information (shape, ...)
+   * @remarks ImageInfo will be valid only if `CanParse` returned true
+   */
   virtual ImageInfo GetInfo(ImageSource *encoded) const = 0;
+
+  /**
+   * @brief Verifies whether the parser can understand an encoded image,
+   *        that is, if it's in the format that this parser handles.
+   */
   virtual bool CanParse(ImageSource *encoded) const = 0;
 };
 
-class ImageCodec;
+class ImageDecoder;
 
 class DLL_PUBLIC ImageFormat {
  public:
   ImageFormat(const char *name, shared_ptr<ImageParser> parser);
 
+  /**
+   * @brief Checks whether an encoded image matches this format
+   */
   bool Matches(ImageSource *encoded) const;
+
+  /**
+   * @brief Gets a pointer to the image parser
+   */
   ImageParser* Parser() const;
+
+  /**
+   * @brief Returns a string representing the name of the format
+   */
   const std::string& Name() const;
-  span<ImageCodec* const> Codecs() const;
-  void RegisterCodec(std::shared_ptr<ImageCodec> codec, float priority);
+
+  /**
+   * @brief Returns a set of decoders associated with this format
+   */
+  span<ImageDecoder* const> Decoders() const;
+
+  /**
+   * @brief Registers a new decoder associated with this format, with a set priority
+   *
+   * @param decoder   A decoder
+   * @param priority  An float representing the priority of this codec.
+   *                  The lower the number, the higher priority the codec has.
+   */
+  void RegisterDecoder(std::shared_ptr<ImageDecoder> decoder, float priority);
 
  private:
   std::string name_;
   std::shared_ptr<ImageParser> parser_;
-  std::multimap<float, std::shared_ptr<ImageCodec>> codecs_;
-  std::vector<ImageCodec*> codec_ptrs_;
+  std::multimap<float, std::shared_ptr<ImageDecoder>> decoders_;
+  std::vector<ImageDecoder*> decoder_ptrs_;
 };
 
 class DLL_PUBLIC ImageFormatRegistry {

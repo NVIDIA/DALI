@@ -50,7 +50,7 @@ class ImageFormatTest : public ::testing::Test {
   }
 
   void Test(std::string filename, std::string expected_format, TensorShape<> expected_sh) {
-    auto img = ImageSource::FromFilename(filename.c_str());
+    auto img = ImageSource::FromFilename(filename);
     auto fmt = this->format_registry_.GetImageFormat(&img);
     ASSERT_NE(fmt, nullptr);
     ASSERT_EQ(expected_format, fmt->Name());
