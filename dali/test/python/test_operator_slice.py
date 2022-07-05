@@ -26,8 +26,8 @@ from test_utils import compare_pipelines, \
 from nose_utils import assert_raises
 
 test_data_root = get_dali_extra_path()
-caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
-test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
+caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
+test_data_video = os.path.join(test_data_root, "db", "optical_flow", "sintel_trailer")
 
 
 def roundint(num):
@@ -35,21 +35,29 @@ def roundint(num):
     return int(num + (0.5 if num >= 0 else -0.5))
 
 
-def abs_slice_start_and_end(in_shape, slice_anchor, slice_shape, normalized_anchor, normalized_shape):
+def abs_slice_start_and_end(in_shape,
+                            slice_anchor, slice_shape,
+                            normalized_anchor, normalized_shape):
     ndim = len(in_shape)
     if normalized_anchor and normalized_shape:
-        start = [roundint(in_shape[i] * np.float64(slice_anchor[i])) for i in range(ndim)]
-        end = [roundint(in_shape[i] * np.float64(slice_anchor[i] + slice_shape[i])) for i in range(ndim)]
+        start = [roundint(in_shape[i] * np.float64(slice_anchor[i]))
+                 for i in range(ndim)]
+        end = [roundint(in_shape[i] * np.float64(slice_anchor[i] + slice_shape[i]))
+               for i in range(ndim)]
     else:
         if normalized_anchor:
-            start = [roundint(in_shape[i] * np.float64(slice_anchor[i])) for i in range(ndim)]
+            start = [roundint(in_shape[i] * np.float64(slice_anchor[i]))
+                     for i in range(ndim)]
         else:
-            start = [roundint(slice_anchor[i]) for i in range(ndim)]
+            start = [roundint(slice_anchor[i])
+                     for i in range(ndim)]
 
         if normalized_shape:
-            end = [start[i] + roundint(in_shape[i] * np.float64(slice_shape[i])) for i in range(ndim)]
+            end = [start[i] + roundint(in_shape[i] * np.float64(slice_shape[i]))
+                   for i in range(ndim)]
         else:
-            end = [start[i] + roundint(slice_shape[i]) for i in range(ndim)]
+            end = [start[i] + roundint(slice_shape[i])
+                   for i in range(ndim)]
     out_shape = [end[i] - start[i] for i in range(ndim)]
     return start, end, out_shape
 
@@ -57,8 +65,11 @@ def abs_slice_start_and_end(in_shape, slice_anchor, slice_shape, normalized_anch
 class SliceSynthDataPipeline(Pipeline):
     def __init__(self, device, batch_size, layout, iterator, pos_size_iter,
                  num_threads=1, device_id=0, num_gpus=1,
-                 axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True,
-                 extra_outputs=False, out_of_bounds_policy=None, fill_values=None,
+                 axes=None, axis_names=None,
+                 normalized_anchor=True, normalized_shape=True,
+                 extra_outputs=False,
+                 out_of_bounds_policy=None,
+                 fill_values=None,
                  input_type=types.FLOAT, output_type=None):
         super(SliceSynthDataPipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
@@ -85,7 +96,7 @@ class SliceSynthDataPipeline(Pipeline):
         self.crop_pos = self.input_crop_pos()
         self.crop_size = self.input_crop_size()
         data = self.cast_in(self.data)
-        data = data.gpu() if self.device == 'gpu' else data
+        data = data.gpu() if self.device == "gpu" else data
         out = self.slice(data, self.crop_pos, self.crop_size)
         if self.extra_outputs:
             return out, self.data, self.crop_pos, self.crop_size
@@ -103,8 +114,10 @@ class SliceSynthDataPipeline(Pipeline):
 
 class SlicePipeline(Pipeline):
     def __init__(self, device, batch_size, pos_size_iter,
-                 num_threads=1, device_id=0, is_fused_decoder=False,
-                 axes=None, axis_names=None, normalized_anchor=True, normalized_shape=True):
+                 num_threads=1, device_id=0,
+                 is_fused_decoder=False,
+                 axes=None, axis_names=None,
+                 normalized_anchor=True, normalized_shape=True):
         super(SlicePipeline, self).__init__(
             batch_size, num_threads, device_id, seed=1234)
         self.is_fused_decoder = is_fused_decoder
@@ -139,7 +152,7 @@ class SlicePipeline(Pipeline):
             images = self.decode(inputs, self.crop_pos, self.crop_size)
         else:
             images = self.decode(inputs)
-            if self.device == 'gpu':
+            if self.device == "gpu":
                 images = images.gpu()
             images = self.slice(images, self.crop_pos, self.crop_size)
         return images
@@ -154,8 +167,8 @@ class SliceArgsIterator(object):
     def __init__(self,
                  batch_size,
                  num_dims=3,
-                 image_shape=None,  # Needed if normalized_anchor and normalized_shape are False
-                 image_layout=None, # Needed if axis_names is used to specify the slice
+                 image_shape=None,   # Needed if normalized_anchor and normalized_shape are False
+                 image_layout=None,  # Needed if axis_names is used to specify the slice
                  normalized_anchor=True,
                  normalized_shape=True,
                  axes=None,
@@ -209,12 +222,14 @@ class SliceArgsIterator(object):
             if self.normalized_anchor:
                 anchor = norm_anchor
             else:
-                anchor = [floor(norm_anchor[i] * self.image_shape[self.axes[i]]) for i in range(len(self.axes))]
+                anchor = [floor(norm_anchor[i] * self.image_shape[self.axes[i]])
+                          for i in range(len(self.axes))]
 
             if self.normalized_shape:
                 shape = norm_shape
             else:
-                shape = [floor(norm_shape[i] * self.image_shape[self.axes[i]]) for i in range(len(self.axes))]
+                shape = [floor(norm_shape[i] * self.image_shape[self.axes[i]])
+                         for i in range(len(self.axes))]
 
             pos.append(np.asarray(anchor, dtype=np.float32))
             size.append(np.asarray(shape, dtype=np.float32))
@@ -223,7 +238,10 @@ class SliceArgsIterator(object):
     next = __next__
 
 
-def slice_func_helper(axes, axis_names, layout, normalized_anchor, normalized_shape, image, slice_anchor, slice_shape):
+def slice_func_helper(axes, axis_names, layout,
+                      normalized_anchor, normalized_shape,
+                      image,
+                      slice_anchor, slice_shape):
     # TODO(janton): remove this
     if not axes and not axis_names:
         axis_names = "WH"
@@ -243,7 +261,9 @@ def slice_func_helper(axes, axis_names, layout, normalized_anchor, normalized_sh
         full_slice_anchor[axis] = slice_anchor[idx]
         full_slice_shape[axis] = slice_shape[idx]
 
-    start, end, _ = abs_slice_start_and_end(shape, full_slice_anchor, full_slice_shape, normalized_anchor, normalized_shape)
+    start, end, _ = abs_slice_start_and_end(shape,
+                                            full_slice_anchor, full_slice_shape,
+                                            normalized_anchor, normalized_shape)
 
     if len(full_slice_anchor) == 1:
         return image[start[0]:end[0]]
@@ -314,7 +334,7 @@ class SlicePythonOp(Pipeline):
         self.pos_size_iter = pos_size_iter
 
         self.input = ops.readers.Caffe(path=caffe_db_folder, random_shuffle=False)
-        self.decode = ops.decoders.Image(device='cpu', output_type=types.RGB)
+        self.decode = ops.decoders.Image(device="cpu", output_type=types.RGB)
 
         self.input_crop_pos = ops.ExternalSource()
         self.input_crop_size = ops.ExternalSource()
@@ -338,70 +358,89 @@ class SlicePythonOp(Pipeline):
         self.feed_input(self.crop_size, crop_size)
 
 
-def check_slice_synth_data_vs_numpy(device, batch_size, input_shape, layout, axes, axis_names,
-                                    normalized_anchor, normalized_shape, input_type, output_type):
+def check_slice_synth_data_vs_numpy(device, batch_size,
+                                    input_shape,
+                                    layout, axes, axis_names,
+                                    normalized_anchor, normalized_shape,
+                                    input_type, output_type):
     eiis = [RandomDataIterator(batch_size, shape=input_shape)
             for k in range(2)]
-    eii_args = [SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
-                image_layout=layout, axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
-                normalized_shape=normalized_shape)
+    eii_args = [SliceArgsIterator(batch_size, len(input_shape),
+                                  image_shape=input_shape,
+                                  image_layout=layout,
+                                  axes=axes,
+                                  axis_names=axis_names,
+                                  normalized_anchor=normalized_anchor,
+                                  normalized_shape=normalized_shape)
                 for k in range(2)]
 
     compare_pipelines(
-        SliceSynthDataPipeline(device, batch_size, layout, iter(eiis[0]), iter(eii_args[0]),
-            axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
-            normalized_shape=normalized_shape, input_type=input_type, output_type=output_type),
-        SliceSynthDataPipelinePythonOp(batch_size, layout, iter(eiis[0]), iter(eii_args[1]),
-            axes=axes, axis_names=axis_names, normalized_anchor=normalized_anchor,
-            normalized_shape=normalized_shape, input_type=input_type, output_type=output_type),
+        SliceSynthDataPipeline(device, batch_size, layout,
+                               iter(eiis[0]), iter(eii_args[0]),
+                               axes=axes, axis_names=axis_names,
+                               normalized_anchor=normalized_anchor,
+                               normalized_shape=normalized_shape,
+                               input_type=input_type, output_type=output_type),
+        SliceSynthDataPipelinePythonOp(batch_size, layout,
+                                       iter(eiis[0]), iter(eii_args[1]),
+                                       axes=axes, axis_names=axis_names,
+                                       normalized_anchor=normalized_anchor,
+                                       normalized_shape=normalized_shape,
+                                       input_type=input_type, output_type=output_type),
         batch_size=batch_size, N_iterations=3)
 
 
 def test_slice_synth_data_vs_numpy():
     for device in ["cpu", "gpu"]:
         for batch_size in {1, 8}:
-            for input_shape, layout, axes, axis_names, input_type, output_type in \
-                [((200,400,3), "HWC", None, "WH", types.FLOAT, None),
-                ((200,400,3), "HWC", None, "HW", types.FLOAT, None),
-                ((200,400,3), "HWC", None, "HW", types.INT32, types.FLOAT),
-                ((200,400,3), "HWC", None, "HW", types.INT64, types.UINT8),
-                ((200,400,3), "HWC", None, "C", types.FLOAT, None),
-                ((200,400,3), "HWC", (1,0), None, types.FLOAT, types.FLOAT16),
-                ((200,400,3), "HWC", (0,1), None, types.FLOAT16, types.FLOAT16),
-                ((200,400,3), "HWC", (2,), None, types.FLOAT, None),
-                ((200,), "H", (0,), None, types.FLOAT, None),
-                ((200,), "H", None, "H", types.FLOAT, None),
-                ((200,400), "HW", (1,), None, types.FLOAT, None),
-                ((200,400), "HW", None, "W", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", (2,1,0), None, types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", (0,1,2), None, types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", (2,1), None, types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "WHD", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "DHW", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "WH", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "C", types.FLOAT, None)]:
+            for input_shape, layout, axes, axis_names, input_type, output_type in [
+                        ((200, 400, 3), "HWC", None, "WH", types.FLOAT, None),
+                        ((200, 400, 3), "HWC", None, "HW", types.FLOAT, None),
+                        ((200, 400, 3), "HWC", None, "HW", types.INT32, types.FLOAT),
+                        ((200, 400, 3), "HWC", None, "HW", types.INT64, types.UINT8),
+                        ((200, 400, 3), "HWC", None, "C", types.FLOAT, None),
+                        ((200, 400, 3), "HWC", (1, 0), None, types.FLOAT, types.FLOAT16),
+                        ((200, 400, 3), "HWC", (0, 1), None, types.FLOAT16, types.FLOAT16),
+                        ((200, 400, 3), "HWC", (2,), None, types.FLOAT, None),
+                        ((200,), "H", (0,), None, types.FLOAT, None),
+                        ((200,), "H", None, "H", types.FLOAT, None),
+                        ((200, 400), "HW", (1,), None, types.FLOAT, None),
+                        ((200, 400), "HW", None, "W", types.FLOAT, None),
+                        ((80, 30, 20, 3), "DHWC", (2, 1, 0), None, types.FLOAT, None),
+                        ((80, 30, 20, 3), "DHWC", (0, 1, 2), None, types.FLOAT, None),
+                        ((80, 30, 20, 3), "DHWC", (2, 1), None, types.FLOAT, None),
+                        ((80, 30, 20, 3), "DHWC", None, "WHD", types.FLOAT, None),
+                        ((80, 30, 20, 3), "DHWC", None, "DHW", types.FLOAT, None),
+                        ((80, 30, 20, 3), "DHWC", None, "WH", types.FLOAT, None),
+                        ((80, 30, 20, 3), "DHWC", None, "C", types.FLOAT, None)
+                    ]:
                 normalized_anchor = np.random.choice([True, False])
                 normalized_shape = np.random.choice([True, False])
-                yield check_slice_synth_data_vs_numpy, device, batch_size, \
-                    input_shape, layout, axes, axis_names, normalized_anchor, normalized_shape, \
-                    input_type, output_type
+                yield (check_slice_synth_data_vs_numpy, device, batch_size,
+                       input_shape, layout,
+                       axes, axis_names,
+                       normalized_anchor, normalized_shape,
+                       input_type, output_type)
 
 
 def check_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
     eii_args = [SliceArgsIterator(batch_size, image_layout="HWC", axes=axes, axis_names=axis_names)
                 for k in range(2)]
     compare_pipelines(
-        SlicePipeline(device, batch_size, iter(eii_args[0]), axes=axes, axis_names=axis_names, is_fused_decoder=False),
-        SlicePipeline(device, batch_size, iter(eii_args[1]), axes=axes, axis_names=axis_names, is_fused_decoder=True),
+        SlicePipeline(device, batch_size, iter(eii_args[0]),
+                      axes=axes, axis_names=axis_names, is_fused_decoder=False),
+        SlicePipeline(device, batch_size, iter(eii_args[1]),
+                      axes=axes, axis_names=axis_names, is_fused_decoder=True),
         batch_size=batch_size, N_iterations=3)
 
 
 def test_slice_vs_fused_decoder():
     for device in ["cpu", "gpu"]:
         for batch_size in {1}:
-            for axes, axis_names in \
-                [(None, "WH"), (None, "HW"),
-                ((1,0), None), ((0,1), None)]:
+            for axes, axis_names in [
+                        (None, "WH"), (None, "HW"),
+                        ((1, 0), None), ((0, 1), None)
+                    ]:
                 yield check_slice_vs_fused_decoder, device, batch_size, axes, axis_names
 
 
@@ -417,13 +456,21 @@ def check_slice_vs_numpy(device, batch_size, axes, axis_names):
 def test_slice_vs_numpy():
     for device in ["cpu", "gpu"]:
         for batch_size in {1}:
-            for axes, axis_names in \
-                [(None, "WH"), (None, "HW"),
-                ((1,0), None), ((0,1), None)]:
+            for axes, axis_names in [
+                        (None, "WH"), (None, "HW"),
+                        ((1, 0), None), ((0, 1), None)
+                    ]:
                 yield check_slice_vs_numpy, device, batch_size, axes, axis_names
 
 
-def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start, abs_end, out_of_bounds_policy, fill_values, naxes=2, mean=None, std=None, flip=None, permute=None):
+def check_slice_output(sample_in, sample_out,
+                       anchor,
+                       abs_slice_shape, abs_start, abs_end,
+                       out_of_bounds_policy, fill_values,
+                       naxes=2,
+                       mean=None, std=None,
+                       flip=None,
+                       permute=None):
     in_shape = sample_in.shape
     out_shape = sample_out.shape
     ndim = len(out_shape)
@@ -431,12 +478,14 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
     out_ch_dim = permute.index(2) if permute is not None else 2
     out_nchannels = out_shape[out_ch_dim]
 
-    if out_of_bounds_policy == 'pad':
+    if out_of_bounds_policy == "pad":
         if permute is not None:
-            assert(all([abs_slice_shape[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+            assert all([abs_slice_shape[permute[i]] == out_shape[i]
+                        for i in range(ndim) if permute[i] < naxes])
         else:
-            assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
-    elif out_of_bounds_policy == 'trim_to_shape':
+            assert all([abs_slice_shape[i] == out_shape[i]
+                        for i in range(naxes)])
+    elif out_of_bounds_policy == "trim_to_shape":
         assert(all([out_shape[i] <= in_shape[i] for i in range(naxes)]))
         for i in range(naxes):
             if abs_start[i] < 0:
@@ -445,32 +494,45 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
                 abs_end[i] = in_shape[i]
             abs_slice_shape[i] = abs_end[i] - abs_start[i]
         if permute is not None:
-            assert(all([abs_slice_shape[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+            assert all([abs_slice_shape[permute[i]] == out_shape[i]
+                        for i in range(ndim) if permute[i] < naxes])
         else:
-            assert(all([abs_slice_shape[i] == out_shape[i] for i in range(naxes)]))
+            assert all([abs_slice_shape[i] == out_shape[i]
+                        for i in range(naxes)])
     else:
-        assert(False) # Wrong out_of_bounds_policy
+        raise ValueError(f"Wrong out_of_bounds_policy: {out_of_bounds_policy}")
 
-    pad_before = [-abs_start[i] if abs_start[i] < 0 else 0 for i in range(naxes)]
-    pad_after = [abs_end[i] - in_shape[i] if in_shape[i] < abs_end[i] else 0 for i in range(naxes)]
-    sliced = [abs_slice_shape[i] - pad_before[i] - pad_after[i] for i in range(naxes)]
+    pad_before = [-abs_start[i] if abs_start[i] < 0 else 0
+                  for i in range(naxes)]
+    pad_after = [abs_end[i] - in_shape[i] if in_shape[i] < abs_end[i] else 0
+                 for i in range(naxes)]
+    sliced = [abs_slice_shape[i] - pad_before[i] - pad_after[i]
+              for i in range(naxes)]
 
-    if out_of_bounds_policy == 'trim_to_shape':
-        assert(all([pad_before[i] == 0 for i in range(naxes)]))
-        assert(all([pad_after[i] == 0 for i in range(naxes)]))
+    if out_of_bounds_policy == "trim_to_shape":
+        assert all([pad_before[i] == 0 for i in range(naxes)])
+        assert all([pad_after[i] == 0 for i in range(naxes)])
+
         if permute is not None:
-            assert(all([sliced[permute[i]] == out_shape[i] for i in range(ndim) if permute[i] < naxes]))
+            assert all([sliced[permute[i]] == out_shape[i]
+                        for i in range(ndim) if permute[i] < naxes])
         else:
-            assert(all([sliced[i] == out_shape[i] for i in range(naxes)]))
+            assert all([sliced[i] == out_shape[i] for i in range(naxes)])
 
     pos_start = [abs_start[i] if abs_start[i] >= 0 else 0 for i in range(naxes)]
-    in_sliced = sample_in[pos_start[0] : pos_start[0] + sliced[0], pos_start[1] : pos_start[1] + sliced[1], :]
+
+    in_sliced = sample_in[pos_start[0] : pos_start[0] + sliced[0],     # noqa:E203
+                          pos_start[1] : pos_start[1] + sliced[1], :]  # noqa:E203
+
     slice_shape = (abs_slice_shape[0], abs_slice_shape[1], out_nchannels)
     expected = np.zeros(slice_shape, dtype=np.float32)
-    expected[:, :, :orig_nchannels] = np.full((slice_shape[0], slice_shape[1], orig_nchannels), fill_values)
+    expected[:, :, :orig_nchannels] = np.full((slice_shape[0], slice_shape[1], orig_nchannels),
+                                              fill_values)
     should_normalize = mean is not None and std is not None
-    expected[pad_before[0] : pad_before[0] + sliced[0], pad_before[1] : pad_before[1] + sliced[1], :orig_nchannels] = \
-        (in_sliced - mean) / std if should_normalize else in_sliced
+
+    expected[pad_before[0] : pad_before[0] + sliced[0],   # noqa:E203
+             pad_before[1] : pad_before[1] + sliced[1],   # noqa:E203
+             : orig_nchannels] = (in_sliced - mean) / std if should_normalize else in_sliced
 
     if flip is not None:
         for d in range(len(flip)):
@@ -483,12 +545,15 @@ def check_slice_output(sample_in, sample_out, anchor, abs_slice_shape, abs_start
     np.testing.assert_allclose(sample_out, expected, atol=1e-07)
 
 
-def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape=(100, 200, 3),
-                                                  out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00),
-                                                  normalized_anchor=False, normalized_shape=False):
+def check_slice_with_out_of_bounds_policy_support(device,
+                                                  batch_size,
+                                                  input_shape=(100, 200, 3),
+                                                  out_of_bounds_policy=None,
+                                                  fill_values=(0x76, 0xb9, 0x00),
+                                                  normalized_anchor=False,
+                                                  normalized_shape=False):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
     axis_names = "HW"
-    naxes = len(axis_names)
     axes = None
     layout = "HWC"
     assert(len(input_shape) == 3)
@@ -496,8 +561,10 @@ def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shap
         assert(input_shape[2] == len(fill_values))
 
     eii = RandomDataIterator(batch_size, shape=input_shape)
-    eii_arg = SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,
-                                image_layout=layout, axes=axes, axis_names=axis_names,
+    eii_arg = SliceArgsIterator(batch_size, len(input_shape),
+                                image_shape=input_shape,
+                                image_layout=layout,
+                                axes=axes, axis_names=axis_names,
                                 normalized_anchor=normalized_anchor,
                                 normalized_shape=normalized_shape,
                                 min_norm_anchor=-0.5, max_norm_anchor=-0.1,
@@ -530,8 +597,8 @@ def check_slice_with_out_of_bounds_policy_support(device, batch_size, input_shap
 
 def test_slice_with_out_of_bounds_policy_support():
     in_shape = (40, 80, 3)
-    for out_of_bounds_policy in ['pad', 'trim_to_shape']:
-        for device in ['gpu', 'cpu']:
+    for out_of_bounds_policy in ["pad", "trim_to_shape"]:
+        for device in ["gpu", "cpu"]:
             for batch_size in [1, 3]:
                 for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
                     for fill_values in [None, (0x76, 0xb0, 0x00)]:
@@ -544,7 +611,6 @@ def check_slice_with_out_of_bounds_error(device, batch_size, input_shape=(100, 2
                                          normalized_anchor=False, normalized_shape=False):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
     axis_names = "HW"
-    naxes = len(axis_names)
     axes = None
     layout = "HWC"
     assert(len(input_shape) == 3)
@@ -563,25 +629,29 @@ def check_slice_with_out_of_bounds_error(device, batch_size, input_shape=(100, 2
                                   out_of_bounds_policy="error")
 
     pipe.build()
-    with assert_raises(RuntimeError, glob="Slice can't be placed out of bounds with current policy. Got:"):
-        outs = pipe.run()
+    with assert_raises(RuntimeError,
+                       glob="Slice can't be placed out of bounds with current policy. Got:"):
+        _ = pipe.run()
 
 
 def test_slice_with_out_of_bounds_error():
     in_shape = (40, 80, 3)
-    for device in ['gpu', 'cpu']:
+    for device in ["gpu", "cpu"]:
         for batch_size in [1, 3]:
             for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
-                yield check_slice_with_out_of_bounds_error, \
-                    device, batch_size, in_shape, normalized_anchor, normalized_shape
+                yield (check_slice_with_out_of_bounds_error,
+                       device, batch_size,
+                       in_shape, normalized_anchor, normalized_shape)
 
 
 def check_slice_named_args(device, batch_size):
     test_data_shape = [5, 4, 3]
 
     def get_data():
-        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+               for _ in range(batch_size)]
         return out
+
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         data = fn.external_source(source=get_data, layout="HWC")
@@ -607,16 +677,27 @@ def check_slice_named_args(device, batch_size):
 
         for start_arg in [start, start_list]:
             for shape_arg in [shape, shape_list]:
-                outs += [fn.slice(data, start=start_arg, shape=shape_arg, axes=(0, 1))]
+                outs += [
+                    fn.slice(data, start=start_arg, shape=shape_arg, axes=(0, 1))
+                ]
             for end_arg in [end, end_list]:
-                outs += [fn.slice(data, start=start_arg, end=end_arg, axes=(0, 1))]
+                outs += [
+                    fn.slice(data, start=start_arg, end=end_arg, axes=(0, 1))
+                ]
         for rel_start_arg in [rel_start, rel_start_list]:
             for rel_shape_arg in [rel_shape, rel_shape_list]:
-                outs += [fn.slice(data, rel_start=rel_start_arg, rel_shape=rel_shape_arg, axes=(0, 1))]
+                outs += [
+                    fn.slice(data, rel_start=rel_start_arg, rel_shape=rel_shape_arg, axes=(0, 1))
+                ]
             for rel_end_arg in [rel_end, rel_end_list]:
-                outs += [fn.slice(data, rel_start=rel_start_arg, rel_end=rel_end_arg, axes=(0, 1))]
+                outs += [
+                    fn.slice(data, rel_start=rel_start_arg, rel_end=rel_end_arg, axes=(0, 1))
+                ]
             for shape_arg in [shape, shape_list]:
-                outs += [fn.slice(data, rel_start=rel_start_arg, shape=shape_arg, axes=(0, 1))]
+                outs += [
+                    fn.slice(data, rel_start=rel_start_arg, shape=shape_arg, axes=(0, 1))
+                ]
+
         pipe.set_outputs(*outs)
     pipe.build()
     for _ in range(3):
@@ -627,15 +708,16 @@ def check_slice_named_args(device, batch_size):
 
 
 def test_slice_named_args():
-    yield check_slice_named_args, 'cpu', 3
-    yield check_slice_named_args, 'gpu', 3
+    yield check_slice_named_args, "cpu", 3
+    yield check_slice_named_args, "gpu", 3
 
 
 def check_slice_named_args_default_start_or_end(device, batch_size):
     test_data_shape = [5, 4, 3]
 
     def get_data():
-        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+               for _ in range(batch_size)]
         return out
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
@@ -644,9 +726,6 @@ def check_slice_named_args_default_start_or_end(device, batch_size):
         start = np.array([1, 2])
         shape = np.array([3, 1])
         end = start + shape
-        rel_start = start / in_shape
-        rel_shape = shape / in_shape
-        rel_end = end / in_shape
         outs = [
             fn.slice(data, start=start, end=in_shape, axes=(0, 1)),
             fn.slice(data, start=[0, 0], end=end, axes=(0, 1)),
@@ -663,35 +742,37 @@ def check_slice_named_args_default_start_or_end(device, batch_size):
 
 
 def test_slice_named_default_start_or_end_args():
-    yield check_slice_named_args_default_start_or_end, 'cpu', 3
-    yield check_slice_named_args_default_start_or_end, 'gpu', 3
+    yield check_slice_named_args_default_start_or_end, "cpu", 3
+    yield check_slice_named_args_default_start_or_end, "gpu", 3
 
 
 def check_slice_named_args_errors(device, batch_size):
     test_data_shape = [5, 4, 3]
 
     def get_data():
-        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8) for _ in range(batch_size)]
+        out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+               for _ in range(batch_size)]
         return out
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         data = fn.external_source(source=get_data, layout="HWC")
-        in_shape = np.array([5, 4])
         start = np.array([1, 2])
         shape = np.array([3, 1])
         outs = [
             fn.slice(data, start, shape, start=start, end=start + shape, shape=shape, axes=(0, 1)),
         ]
         pipe.set_outputs(*outs)
-    with assert_raises(RuntimeError, glob="\"end\", \"rel_end\", \"shape\", and \"rel_shape\" arguments are mutually exclusive"):
+    with assert_raises(RuntimeError,
+                       glob="\"end\", \"rel_end\", \"shape\", and \"rel_shape\" arguments "
+                            "are mutually exclusive"):
         pipe.build()
         for _ in range(1):
             outs = pipe.run()
 
 
 def test_slice_named_args_errors():
-    yield check_slice_named_args_errors, 'cpu', 1
-    yield check_slice_named_args_errors, 'gpu', 1
+    yield check_slice_named_args_errors, "cpu", 1
+    yield check_slice_named_args_errors, "gpu", 1
 
 
 def check_no_slice(device, dtype, batch_size, num_threads):
@@ -699,7 +780,7 @@ def check_no_slice(device, dtype, batch_size, num_threads):
     def make_pipe():
         encoded, _ = fn.readers.caffe(path=caffe_db_folder, random_shuffle=False)
         image = fn.decoders.image(encoded, device="cpu", output_type=types.RGB)
-        if device == 'gpu':
+        if device == "gpu":
             image = image.gpu()
         image = fn.cast(image, dtype=dtype)
         sliced1 = fn.slice(image, 0, 3, axes=(2,))
@@ -719,34 +800,34 @@ def check_no_slice(device, dtype, batch_size, num_threads):
 def test_no_slice():
     batch_size = 4
     num_threads = 3
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
             yield check_no_slice, device, dtype, batch_size, num_threads
 
 
 def check_rel_start_rel_shape(device, batch_size, num_threads,
-                              get_dynamic_axes=None, args_device='cpu'):
+                              get_dynamic_axes=None, args_device="cpu"):
     image_gen = generator_random_data(
         batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
         dtype=np.float32, val_range=[0.0, 1.0])
 
     # Args GPU only possible with GPU backend
-    assert args_device == device or device == 'gpu'
+    assert args_device == device or device == "gpu"
 
     @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
     def make_pipe():
         image = fn.external_source(source=image_gen)
-        if device == 'gpu':
+        if device == "gpu":
             image = image.gpu()
         if get_dynamic_axes:
             axes, rel_start, rel_shape = fn.external_source(source=get_dynamic_axes, num_outputs=3)
         else:
-            axes = types.Constant(np.array([0, 1], dtype=np.int32), device='cpu')
+            axes = types.Constant(np.array([0, 1], dtype=np.int32), device="cpu")
             rel_start = fn.random.uniform(range=(0.1, 0.2), shape=(2,), dtype=types.FLOAT,
                                           device=args_device)
             rel_shape = fn.random.uniform(range=(0.4, 0.6), shape=(2,), dtype=types.FLOAT,
                                           device=args_device)
-        if args_device == 'gpu':
+        if args_device == "gpu":
             sliced = fn.slice(image, rel_start, rel_shape, axes=axes)
             return image, axes, rel_start, rel_shape, sliced
         else:
@@ -775,7 +856,7 @@ def check_rel_start_rel_shape(device, batch_size, num_threads,
                 end[a] = roundint((rel_start[i] + rel_shape[i]) * in_img.shape[a])
             ref_sliced = in_img[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
             # With GPU arguments we don't test named arguments
-            for out_idx in range(2 if args_device == 'cpu' else 1):
+            for out_idx in range(2 if args_device == "cpu" else 1):
                 sliced = as_array(outs[4 + out_idx][sample_idx])
                 np.testing.assert_allclose(ref_sliced, sliced)
 
@@ -786,29 +867,29 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty)
         extra_out_desc=[
             (0.0, 0.2, np.float32),  # rel_start
             (0.4, 0.6, np.float32)   # rel_shape
-    ])
+        ])
     check_rel_start_rel_shape(device, batch_size, num_threads,
-                              get_dynamic_axes=get_dynamic_axes, args_device='cpu')
+                              get_dynamic_axes=get_dynamic_axes, args_device="cpu")
 
 
 def test_dynamic_axes():
     batch_size = 10
     num_threads = 3
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         yield check_dynamic_axes, device, batch_size, num_threads, False, False
 
 
 def test_negative_axes():
     batch_size = 10
     num_threads = 3
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         yield check_dynamic_axes, device, batch_size, num_threads, True, False
 
 
 def test_empty_axes():
     batch_size = 10
     num_threads = 3
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         yield check_dynamic_axes, device, batch_size, num_threads, False, True
 
 
@@ -828,11 +909,11 @@ def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
     p.build()
     # Note: [[] and []] are '[' and ']' characters.
     assert_raises(RuntimeError, p.run,
-                  glob='Axis * out of range. Expected range is [[]-3, 2[]] for a 3D input')
+                  glob="Axis * out of range. Expected range is [[]-3, 2[]] for a 3D input")
 
 
 def test_wrong_axes():
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         for wrong_axes_range in [(-10, -4), (3, 10)]:
             for named_args in [False, True]:
                 yield check_wrong_axes, device, wrong_axes_range, named_args
@@ -850,7 +931,7 @@ def check_scalar(device):
         data = fn.external_source(source=get_data)
         shape = types.ScalarConstant(10)
         anchor = types.ScalarConstant(5)
-        if device != 'cpu':
+        if device != "cpu":
             data = data.gpu()
         sliced = fn.slice(data, start=anchor, shape=shape, axes=[0], device=device)
         return data, sliced, shape, anchor
@@ -867,26 +948,26 @@ def check_scalar(device):
 
 
 def test_scalar():
-    for device in ['cpu', 'gpu']:
+    for device in ["cpu", "gpu"]:
         yield check_scalar, device
 
 
 def test_gpu_args():
     batch_size = 10
     num_threads = 3
-    check_rel_start_rel_shape('gpu', batch_size, num_threads, args_device='gpu')
+    check_rel_start_rel_shape("gpu", batch_size, num_threads, args_device="gpu")
 
 
 def test_wrong_arg_backend():
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
-        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device='cpu')
-        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device='gpu')
-        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device='gpu')
-        sliced = fn.slice(fake_data, rel_start, rel_shape, device='cpu')
+        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device="cpu")
+        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device="gpu")
+        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device="gpu")
+        sliced = fn.slice(fake_data, rel_start, rel_shape, device="cpu")
         return sliced
 
-    with assert_raises(ValueError, glob='An operator with device=\'cpu\' cannot accept GPU inputs'):
+    with assert_raises(ValueError, glob="An operator with device='cpu' cannot accept GPU inputs"):
         p = make_pipe()
         p.build()
         p.run()
@@ -895,13 +976,14 @@ def test_wrong_arg_backend():
 def test_wrong_backend_named_args():
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def make_pipe():
-        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device='cpu')
-        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device='gpu')
-        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device='gpu')
-        sliced = fn.slice(fake_data, rel_start=rel_start, rel_shape=rel_shape, device='cpu')
+        fake_data = fn.constant(idata=0, shape=[10, 10, 3], dtype=types.FLOAT, device="cpu")
+        rel_start = fn.random.uniform(range=[0.0, 0.3], shape=(2,), dtype=types.FLOAT, device="gpu")
+        rel_shape = fn.random.uniform(range=[0.4, 0.6], shape=(2,), dtype=types.FLOAT, device="gpu")
+        sliced = fn.slice(fake_data, rel_start=rel_start, rel_shape=rel_shape, device="cpu")
         return sliced
 
-    with assert_raises(RuntimeError, glob='Named arguments inputs to operators must be CPU data nodes'):
+    with assert_raises(RuntimeError,
+                       glob="Named arguments inputs to operators must be CPU data nodes"):
         p = make_pipe()
         p.build()
         p.run()

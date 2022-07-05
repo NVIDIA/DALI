@@ -93,9 +93,9 @@ def get_gpu_num():
 
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
-def check_batch(
-        batch1, batch2, batch_size=None, eps=1e-07, max_allowed_error=None, expected_layout=None,
-        compare_layouts=True):
+def check_batch(batch1, batch2, batch_size=None,
+                eps=1e-07, max_allowed_error=None,
+                expected_layout=None, compare_layouts=True):
     """Compare two batches of data, be it dali TensorList or list of numpy arrays.
 
     Args:
@@ -583,8 +583,7 @@ def generator_random_data(batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
     def gen():
         out = []
         for _ in range(batch_size):
-            shape = [np.random.randint(min_sh[d], max_sh[d] + 1,
-                                       size=1, dtype=np.int32)[0]
+            shape = [np.random.randint(min_sh[d], max_sh[d] + 1, dtype=np.int32)
                      for d in range(ndim)]
             arr = np.array(np.random.uniform(val_range[0], val_range[1], shape), dtype=dtype)
             out += [arr]

@@ -15,14 +15,19 @@
 # it is enough to just import all functions from test_internals_operator_external_source
 # nose will query for the methods available and will run them
 # the test_internals_operator_external_source is 99% the same for cupy and numpy tests
-# so it is better to store everything in one file and just call `use_cupy` to switch between the default numpy and cupy
+# so it is better to store everything in one file and just call `use_cupy`
+# to switch between the default numpy and cupy
 
 import mxnet as mx
+from nose import with_setup
 from nose_utils import raises
 
-from test_pool_utils import *
-from test_external_source_parallel_utils import *
-
+from test_pool_utils import setup_function
+from test_external_source_parallel_utils import (ExtCallback,
+                                                 check_spawn_with_callback,
+                                                 create_pipe,
+                                                 build_and_run_pipeline)
+import numpy as np
 
 class ExtCallbackMX(ExtCallback):
     def __call__(self, sample_info):
@@ -43,6 +48,7 @@ class ExtCallbackMXCuda(ExtCallback):
 @raises(Exception, "Exception traceback received from worker thread*"
                    "TypeError: Unsupported callback return type. GPU tensors*not supported*"
                    "Got*MXNet GPU tensor.")
+@with_setup(setup_function)
 def test_mxnet_cuda():
     callback = ExtCallbackMXCuda((4, 5), 10, np.int32)
     pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
