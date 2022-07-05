@@ -21,15 +21,16 @@ namespace dali {
 namespace imgcodec {
 
 ImageSource ImageSource::FromFilename(std::string filename) {
-  return { InputKind::Filename, nullptr, -1_uz, std::move(filename), nullptr };
+  return { InputKind::Filename, nullptr, -1_uz, std::move(filename) };
 }
 
 ImageSource ImageSource::FromHostMem(const void *mem, size_t size, std::string source_info) {
-  return { InputKind::HostMemory, mem, size, std::move(source_info), nullptr };
+  return { InputKind::HostMemory, mem, size, std::move(source_info) };
 }
 
-ImageSource ImageSource::FromDeviceMem(const void *mem, size_t size, std::string source_info) {
-  return { InputKind::DeviceMemory, mem, size, std::move(source_info), nullptr };
+ImageSource ImageSource::FromDeviceMem(const void *mem, size_t size, int device_id,
+                                       AccessOrder order, std::string source_info) {
+  return { InputKind::DeviceMemory, mem, size, std::move(source_info), nullptr, device_id, order };
 }
 
 ImageSource ImageSource::FromStream(std::shared_ptr<InputStream> stream, std::string source_info) {

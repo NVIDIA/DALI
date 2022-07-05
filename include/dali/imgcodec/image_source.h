@@ -21,6 +21,8 @@
 #include "dali/core/api_helper.h"
 #include "dali/core/int_literals.h"
 #include "dali/core/stream.h"
+#include "dali/core/access_order.h"
+#include "dali/core/common.h"
 
 namespace dali {
 namespace imgcodec {
@@ -69,7 +71,8 @@ class DLL_PUBLIC ImageSource {
   /**
    * @brief Creates an image source from data in device memory
    */
-  static ImageSource FromDeviceMem(const void *mem, size_t size, std::string source_info = "");
+  static ImageSource FromDeviceMem(const void *mem, size_t size, int device_id, AccessOrder order,
+                                   std::string source_info = "");
 
   /**
    * @brief Creates an image source from an InputStream interface
@@ -101,6 +104,22 @@ class DLL_PUBLIC ImageSource {
     if (size_ == -1_uz)
       throw std::logic_error("Unknown size.");
     return size_;
+  }
+
+  /**
+   * @brief Returns the device id associated with the data.
+   *        Only makes sense for DeviceMem kind
+   */
+  int DeviceId() const {
+    return device_id_;
+  }
+
+  /**
+   * @brief Returns the access order for the memory.
+   *        Makes sense for HostMem and DeviceMem kinds
+   */
+  AccessOrder Order() const {
+    return order_;
   }
 
   /**
@@ -141,7 +160,9 @@ class DLL_PUBLIC ImageSource {
   ImageSource(InputKind kind,
               const void *data, size_t size,
               std::string name,
-              std::shared_ptr<InputStream> stream)
+              std::shared_ptr<InputStream> stream = {},
+              int device_id = CPU_ONLY_DEVICE_ID,
+              AccessOrder order = AccessOrder::host())
   : kind_(kind)
   , data_(data)
   , size_(size)
@@ -154,6 +175,8 @@ class DLL_PUBLIC ImageSource {
   // storage for filename or source info
   std::string name_;
   std::shared_ptr<InputStream> stream_;
+  int device_id_ = CPU_ONLY_DEVICE_ID;
+  AccessOrder order_ = AccessOrder::host();
 };
 
 }  // namespace imgcodec
