@@ -753,7 +753,9 @@ def check_slice_named_args_errors(device, batch_size):
         out = [np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
                for _ in range(batch_size)]
         return out
+
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+
     with pipe:
         data = fn.external_source(source=get_data, layout="HWC")
         start = np.array([1, 2])
@@ -762,9 +764,10 @@ def check_slice_named_args_errors(device, batch_size):
             fn.slice(data, start, shape, start=start, end=start + shape, shape=shape, axes=(0, 1)),
         ]
         pipe.set_outputs(*outs)
-    with assert_raises(RuntimeError,
-                       glob="\"end\", \"rel_end\", \"shape\", and \"rel_shape\" arguments "
-                            "are mutually exclusive"):
+
+    with assert_raises(
+            RuntimeError,
+            glob='"end", "rel_end", "shape", and "rel_shape" arguments are mutually exclusive'):
         pipe.build()
         for _ in range(1):
             outs = pipe.run()
