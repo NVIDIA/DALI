@@ -16,7 +16,6 @@ import nvidia.dali as dali
 import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 
-import functools
 import inspect
 import os
 import random
@@ -669,37 +668,3 @@ def python_function(*inputs, function, **kwargs):
         return function(*iteration_inputs)
 
     return dali.fn.python_function(*node_inputs, function=wrapper, **kwargs)
-
-
-def expand_callable_args(func):
-    """Attribute applied to a test function to simplify generation of large
-    or order-dependent data in nose2.
-
-    Usage:
-    @expand_callable_args
-    def _my_test_body(param):
-        ...
-
-    def test():
-        for p in [None, 42, lambda: fn.random.uniform(range=(-5, 5))]:
-            yield _my_test_body, p
-    """
-
-    @functools.wraps(func)
-    def with_expanded_args(*args, **kwargs):
-        args = list(args)
-
-        def process_arg(value):
-            if inspect.isfunction(value) or isinstance(value, functools.partial):
-                try:
-                    return value()
-                except TypeError:
-                    pass
-            return value
-
-        for i, a in enumerate(args):
-            args[i] = process_arg(a)
-        for k, a in enumerate(kwargs):
-            kwargs[k] = process_arg(a)
-        return func(*args, **kwargs)
-    return with_expanded_args

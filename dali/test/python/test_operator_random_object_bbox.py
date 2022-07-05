@@ -15,7 +15,6 @@
 
 # nose_utils goes first to deal with Python 3.10 incompatibility
 from nose_utils import assert_raises
-import functools
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
@@ -23,7 +22,7 @@ import numpy as np
 import scipy.ndimage
 import scipy.ndimage.measurements
 import random
-from test_utils import check_batch, np_type_to_dali, expand_callable_args
+from test_utils import check_batch, np_type_to_dali
 from nose.tools import nottest
 
 np.random.seed(1234)
@@ -280,7 +279,6 @@ def convert_boxes(outs, format):
 
 
 @nottest
-@expand_callable_args
 def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None, fg_prob=None,
                                         classes=None, weights=None, background=None,
                                         threshold=None, k_largest=None, cache=None):
@@ -369,7 +367,7 @@ def test_random_object_bbox_with_class():
 
     formats = [None, "anchor_shape", "start_end", "box"]
     fmt = 0
-    for bg in [None, 0, -1, 5, random_background]:
+    for bg in [None, 0, -1, 5, random_background()]:
         if bg is None or isinstance(bg, int):
             class_opt = [None, [0], [1], [2, 4, 5, 7]]
             for x in class_opt:
@@ -378,12 +376,12 @@ def test_random_object_bbox_with_class():
             if [] in class_opt:
                 class_opt.remove([])
             # putting this in the list interefered with remove
-            class_opt.append(functools.partial(random_classes, 0 if bg is None else bg))
+            class_opt.append(random_classes(0 if bg is None else bg))
         else:
             class_opt = [None]
         for classes in class_opt:
             if classes is None:
-                weights_opt = [None, [1], [0.5, 1, 0.1, 0.2], random_weights]
+                weights_opt = [None, [1], [0.5, 1, 0.1, 0.2], random_weights()]
             elif isinstance(classes, list):
                 weights_opt = [None, list(range(1, 1 + len(classes)))]
             else:
@@ -392,13 +390,12 @@ def test_random_object_bbox_with_class():
             for weights in weights_opt:
                 ndim = np.random.randint(1, 5)
 
-                threshold_opt = [None, 3, list(range(1, 1 + ndim)),
-                                 functools.partial(random_threshold, ndim)]
+                threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
                 threshold = random.choice(threshold_opt)
                 k_largest_opt = [None, 1, 2, 5]
                 k_largest = random.choice(k_largest_opt)
 
-                fg_prob_opt = [None, 0.1, 0.7, lambda: fn.random.uniform(range=(0, 1), seed=1515)]
+                fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
                 fg_prob = random.choice(fg_prob_opt)
 
                 format = formats[fmt]
@@ -413,7 +410,6 @@ def test_random_object_bbox_with_class():
 
 
 @nottest
-@expand_callable_args
 def _test_random_object_bbox_ignore_class(max_batch_size,
                                           ndim,
                                           dtype,
@@ -470,12 +466,11 @@ def _test_random_object_bbox_ignore_class(max_batch_size,
 def test_random_object_bbox_ignore_class():
     np.random.seed(43210)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
-    for bg in [None, 0, -1, 5, random_background]:
+    for bg in [None, 0, -1, 5, random_background()]:
         ndim = np.random.randint(1, 5)
         dtype = random.choice(types)
         for format in [None, "anchor_shape", "start_end", "box"]:
-            threshold_opt = [None, 3, list(range(1, 1 + ndim)),
-                             functools.partial(random_threshold, ndim)]
+            threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
             threshold = random.choice(threshold_opt)
             k_largest_opt = [None, 1, 2, 5]
             k_largest = random.choice(k_largest_opt)
@@ -485,7 +480,6 @@ def test_random_object_bbox_ignore_class():
 
 
 @nottest
-@expand_callable_args
 def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     """Checks that a correct backgorund labels is chosen:
         0, if 0 is not present in the list of foreground classes
