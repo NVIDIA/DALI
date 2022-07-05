@@ -41,7 +41,7 @@ inline float DefaultFilterRadius(ResamplingFilterType type, bool antialias,
                                  float in_size, float out_size) {
   switch (type) {
   case ResamplingFilterType::Triangular:
-    return in_size > out_size ? in_size / out_size : 1;
+    return (antialias && in_size > out_size) ? in_size / out_size : 1;
   case ResamplingFilterType::Gaussian:
     return in_size > out_size ? in_size / out_size : 1;
   case ResamplingFilterType::Cubic:
@@ -55,12 +55,11 @@ inline float DefaultFilterRadius(ResamplingFilterType type, bool antialias,
 
 struct FilterDesc {
   constexpr FilterDesc() = default;
-  constexpr FilterDesc(ResamplingFilterType type, float radius = 0,
-                       bool antialias = true)  // NOLINT
-      : type(type), radius(radius), antialias(antialias) {}
+  constexpr FilterDesc(ResamplingFilterType type, bool antialias = true, float radius = 0)  // NOLINT
+      : type(type), antialias(antialias), radius(radius) {}
   ResamplingFilterType type = ResamplingFilterType::Nearest;
-  float radius = 0;
   bool antialias = true;
+  float radius = 0;
 };
 
 /**

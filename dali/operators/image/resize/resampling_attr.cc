@@ -100,48 +100,34 @@ void ResamplingFilterAttr::PrepareFilterParams(
             "`antialias=False`");
       });
     }
-  } else if (!antialias_) {  // antialias disabled
-    auto is_triangular = [](span<const DALIInterpType> interp_types) -> bool {
-      for (auto &interp_type : interp_types) {
-        if (interp_type == DALI_INTERP_TRIANGULAR)
-          return true;
-      }
-      return false;
-    };
-
-    if ((has_min && is_triangular(make_cspan(min_arg_))) ||
-        (has_interp && is_triangular(make_cspan(interp_type_arg_)))) {
-      static std::once_flag triangular_warning_flag;
-      std::call_once(triangular_warning_flag, [&]() {
-        DALI_WARN(
-            "TRIANGULAR interpolation is not compatible with antialias=False, so the antialias "
-            "flag will be ignored.");
-      });
-    }
   }
 
   min_filter_.resize(num_samples, ResamplingFilterType::Triangular);
   mag_filter_.resize(num_samples, ResamplingFilterType::Linear);
 
-  auto convert = [this](auto &filter_types, auto &interp_types) {
+  auto convert = [this](auto &filter_types, auto &interp_types, bool antialias) {
     for (int i = 0, n = filter_types.size(); i < n; i++) {
       auto type = interp_types[i];
-      // Promoting Linear with antialiasing to Triangular
-      if (antialias_ && type == DALI_INTERP_LINEAR)
+      // Promoting:
+      // - Linear with antialiasing to Triangular
+      // - Triangular without antialiasing to Linear
+      if (antialias && type == DALI_INTERP_LINEAR)
         type = DALI_INTERP_TRIANGULAR;
+      else if (!antialias && type == DALI_INTERP_TRIANGULAR)
+        type = DALI_INTERP_LINEAR;
       filter_types[i] = interp2resample(type);
     }
   };
 
   if (has_min)
-    convert(min_filter_, min_arg_);
+    convert(min_filter_, min_arg_, antialias_);
   else if (has_interp)
-    convert(min_filter_, interp_type_arg_);
+    convert(min_filter_, interp_type_arg_, antialias_);
 
   if (has_mag)
-    convert(mag_filter_, mag_arg_);
+    convert(mag_filter_, mag_arg_, false);
   else if (has_interp)
-    convert(mag_filter_, interp_type_arg_);
+    convert(mag_filter_, interp_type_arg_, false);
 }
 
 void ResamplingFilterAttr::GetResamplingParams(
@@ -155,8 +141,8 @@ void ResamplingFilterAttr::GetResamplingParams(
       if (resz_par.src_lo[d] != resz_par.src_hi[d])
         rsmp_par.roi = { resz_par.src_lo[d], resz_par.src_hi[d] };
       rsmp_par.output_size = resz_par.dst_size[d];
-      rsmp_par.min_filter = { min_filter_[i], 0, antialias_};
-      rsmp_par.mag_filter = { mag_filter_[i], 0, false };
+      rsmp_par.min_filter = { min_filter_[i], antialias_, 0};
+      rsmp_par.mag_filter = { mag_filter_[i], false, 0 };
     }
   }
 }
@@ -168,8 +154,8 @@ void ResamplingFilterAttr::ApplyFilterParams(
   assert(static_cast<int>(mag_filter_.size()) == N);
   for (int i = 0, p = 0; i < N; i++) {
     for (int d = 0; d < ndim; d++, p++) {
-      resample_params[p].min_filter = { min_filter_[i], 0, antialias_ };
-      resample_params[p].mag_filter = { mag_filter_[i], 0, false };
+      resample_params[p].min_filter = { min_filter_[i], antialias_, 0};
+      resample_params[p].mag_filter = { mag_filter_[i], false, 0 };
     }
   }
 }

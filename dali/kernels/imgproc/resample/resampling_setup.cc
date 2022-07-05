@@ -27,9 +27,10 @@ constexpr int kMaxGPUFilterSupport = 8192;
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params) {
   switch (params.type) {
     case ResamplingFilterType::Linear:
-      assert(!params.antialias);  // this should have been promoted to Triangular
+      assert(!params.antialias);  // otherwise it should have been promoted to Triangular
       return filters->Triangular(1);
     case ResamplingFilterType::Triangular:
+      assert(params.antialias);  // otherwise it should have been promoted to Linear
       return filters->Triangular(params.radius);
     case ResamplingFilterType::Gaussian:
       return filters->Gaussian(params.radius * 0.5f / M_SQRT2);
