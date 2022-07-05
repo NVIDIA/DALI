@@ -29,6 +29,7 @@ from test_external_source_parallel_utils import (ExtCallback,
                                                  build_and_run_pipeline)
 import numpy as np
 
+
 class ExtCallbackMX(ExtCallback):
     def __call__(self, sample_info):
         a = super().__call__(sample_info)
