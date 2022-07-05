@@ -23,7 +23,7 @@
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/stream.h"
-#include "dali/imgdecoder/image_source.h"
+#include "dali/imgcodec/image_source.h"
 
 namespace dali {
 namespace imgcodec {
@@ -68,7 +68,7 @@ class DLL_PUBLIC ImageFormat {
   /**
    * @brief Gets a pointer to the image parser
    */
-  ImageParser* Parser() const;
+  const ImageParser* Parser() const;
 
   /**
    * @brief Returns a string representing the name of the format
@@ -84,7 +84,7 @@ class DLL_PUBLIC ImageFormat {
    * @brief Registers a new decoder associated with this format, with a set priority
    *
    * @param decoder   A decoder
-   * @param priority  An float representing the priority of this codec.
+   * @param priority  A float representing the priority of this codec.
    *                  The lower the number, the higher priority the codec has.
    */
   void RegisterDecoder(std::shared_ptr<ImageDecoder> decoder, float priority);

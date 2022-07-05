@@ -25,7 +25,7 @@ bool ImageFormat::Matches(ImageSource *encoded) const {
   return parser_->CanParse(encoded);
 }
 
-ImageParser *ImageFormat::Parser() const {
+const ImageParser *ImageFormat::Parser() const {
   return parser_.get();
 }
 
