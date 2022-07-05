@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_FORMATS_WEBP_H_
-#define DALI_IMGCODEC_FORMATS_WEBP_H_
+#ifndef DALI_IMGCODEC_PARSERS_JPEG_H_
+#define DALI_IMGCODEC_PARSERS_JPEG_H_
 
 #include "dali/imgcodec/image_format.h"
 
 namespace dali {
 namespace imgcodec {
 
-class DLL_PUBLIC WebpParser : public ImageParser {
+class DLL_PUBLIC JpegParser : public ImageParser {
  public:
   ImageInfo GetInfo(ImageSource *encoded) const override;
   bool CanParse(ImageSource *encoded) const override;
 };
 
-#endif  // DALI_IMGCODEC_FORMATS_WEBP_H_
-
+#endif  // DALI_IMGCODEC_PARSERS_JPEG_H_
 
 }  // namespace imgcodec
 }  // namespace dali

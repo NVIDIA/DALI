@@ -1,3 +1,4 @@
+
 // Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,21 +13,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_FORMATS_TIFF_H_
-#define DALI_IMGCODEC_FORMATS_TIFF_H_
+#ifndef DALI_IMGCODEC_PARSERS_BMP_H_
+#define DALI_IMGCODEC_PARSERS_BMP_H_
 
 #include "dali/imgcodec/image_format.h"
 
 namespace dali {
 namespace imgcodec {
 
-class DLL_PUBLIC TiffParser : public ImageParser {
+class DLL_PUBLIC BmpParser : public ImageParser {
  public:
   ImageInfo GetInfo(ImageSource *encoded) const override;
   bool CanParse(ImageSource *encoded) const override;
 };
 
-#endif  //  DALI_IMGCODEC_FORMATS_TIFF_H_
+#endif  // DALI_IMGCODEC_PARSERS_BMP_H_
 
 }  // namespace imgcodec
 }  // namespace dali

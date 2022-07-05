@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/formats/jpeg2000.h"
+#ifndef DALI_IMGCODEC_PARSERS_JPEG2000_H_
+#define DALI_IMGCODEC_PARSERS_JPEG2000_H_
+
+#include "dali/imgcodec/image_format.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
-  ImageInfo info;
-  // info.shape = {h, w, c};   // TODO(janton)
-  return info;
-}
+class DLL_PUBLIC Jpeg2000Parser : public ImageParser {
+ public:
+  ImageInfo GetInfo(ImageSource *encoded) const override;
+  bool CanParse(ImageSource *encoded) const override;
+};
 
-bool Jpeg2000Parser::CanParse(ImageSource *encoded) const {
-  return false;  // TODO(janton)
-}
+#endif  // DALI_IMGCODEC_PARSERS_JPEG2000_H_
 
 }  // namespace imgcodec
 }  // namespace dali

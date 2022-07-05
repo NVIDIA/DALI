@@ -111,9 +111,9 @@ class DLL_PUBLIC ImageFormatRegistry {
    * registered formats and returns the first format that succeeded.
    *
    * @param image
-   * @return ImageFormat*
+   * @return const ImageFormat*
    */
-  ImageFormat* GetImageFormat(ImageSource *image) const;
+  const ImageFormat* GetImageFormat(ImageSource *image) const;
 
   /**
    * @brief Returns all registered image formats

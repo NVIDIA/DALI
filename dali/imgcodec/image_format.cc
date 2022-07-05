@@ -34,7 +34,7 @@ const std::string &ImageFormat::Name() const {
 }
 
 span<ImageDecoder *const> ImageFormat::Decoders() const {
-  return make_span(decoder_ptrs_);
+  return make_cspan(decoder_ptrs_);
 }
 
 void ImageFormat::RegisterDecoder(std::shared_ptr<ImageDecoder> decoder, float priority) {
@@ -54,7 +54,7 @@ void ImageFormatRegistry::RegisterFormat(std::shared_ptr<ImageFormat> format) {
   format_ptrs_.push_back(formats_.back().get());
 }
 
-ImageFormat *ImageFormatRegistry::GetImageFormat(ImageSource *image) const {
+const ImageFormat *ImageFormatRegistry::GetImageFormat(ImageSource *image) const {
   for (auto &format : formats_) {
     if (format->Matches(image)) {
       return format.get();
@@ -63,8 +63,8 @@ ImageFormat *ImageFormatRegistry::GetImageFormat(ImageSource *image) const {
   return nullptr;
 }
 
-span<ImageFormat *const> ImageFormatRegistry::Formats() const {
-  return make_span(format_ptrs_);
+span<ImageFormat* const> ImageFormatRegistry::Formats() const {
+  return make_cspan(format_ptrs_);
 }
 
 }  // namespace imgcodec

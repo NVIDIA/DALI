@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_IMAGE_CODEC_H_
-#define DALI_IMGCODEC_IMAGE_CODEC_H_
+#ifndef DALI_IMGCODEC_IMAGE_DECODER_H_
+#define DALI_IMGCODEC_IMAGE_DECODER_H_
 
 #include <memory>
 #include <stdexcept>
@@ -142,12 +142,12 @@ class DLL_PUBLIC ImageDecoder {
   /**
    * @brief Creates an instance of a codec
    *
-   * Note: For codecs that carry no state, this may just increase reference count on a singleton.
+   * Note: For decoders that carry no state, this may just increase reference count on a singleton.
    */
-  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) = 0;
+  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const = 0;
 };
 
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_IMAGE_CODEC_H_
+#endif  // DALI_IMGCODEC_IMAGE_DECODER_H_

@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/formats/png.h"
+#include "dali/imgcodec/parsers/jpeg.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo PngParser::GetInfo(ImageSource *encoded) const {
+ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
   ImageInfo info;
   // info.shape = {h, w, c};   // TODO(janton)
   return info;
 }
 
-bool PngParser::CanParse(ImageSource *encoded) const {
+bool JpegParser::CanParse(ImageSource *encoded) const {
   return false;  // TODO(janton)
 }
 

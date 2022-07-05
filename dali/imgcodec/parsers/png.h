@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/formats/tiff.h"
+#ifndef DALI_IMGCODEC_PARSERS_PNG_H_
+#define DALI_IMGCODEC_PARSERS_PNG_H_
+
+#include "dali/imgcodec/image_format.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
-  ImageInfo info;
-  // info.shape = {h, w, c};   // TODO(janton)
-  return info;
-}
+class DLL_PUBLIC PngParser : public ImageParser {
+ public:
+  ImageInfo GetInfo(ImageSource *encoded) const override;
+  bool CanParse(ImageSource *encoded) const override;
+};
 
-bool TiffParser::CanParse(ImageSource *encoded) const {
-  return false;  // TODO(janton)
-}
+#endif  // DALI_IMGCODEC_PARSERS_PNG_H_
 
 }  // namespace imgcodec
 }  // namespace dali

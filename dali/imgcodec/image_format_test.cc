@@ -16,13 +16,13 @@
 #include <string>
 #include <vector>
 #include "dali/imgcodec/image_format.h"
-#include "dali/imgcodec/formats/bmp.h"
-#include "dali/imgcodec/formats/jpeg.h"
-#include "dali/imgcodec/formats/jpeg2000.h"
-#include "dali/imgcodec/formats/png.h"
-#include "dali/imgcodec/formats/pnm.h"
-#include "dali/imgcodec/formats/tiff.h"
-#include "dali/imgcodec/formats/webp.h"
+#include "dali/imgcodec/parsers/bmp.h"
+#include "dali/imgcodec/parsers/jpeg.h"
+#include "dali/imgcodec/parsers/jpeg2000.h"
+#include "dali/imgcodec/parsers/png.h"
+#include "dali/imgcodec/parsers/pnm.h"
+#include "dali/imgcodec/parsers/tiff.h"
+#include "dali/imgcodec/parsers/webp.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
 

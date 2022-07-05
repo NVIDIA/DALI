@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/formats/pnm.h"
+#include "dali/imgcodec/parsers/jpeg2000.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo PnmParser::GetInfo(ImageSource *encoded) const {
+ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
   ImageInfo info;
   // info.shape = {h, w, c};   // TODO(janton)
   return info;
 }
 
-bool PnmParser::CanParse(ImageSource *encoded) const {
+bool Jpeg2000Parser::CanParse(ImageSource *encoded) const {
   return false;  // TODO(janton)
 }
 

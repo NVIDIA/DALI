@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/formats/webp.h"
+#include "dali/imgcodec/parsers/tiff.h"
 
 namespace dali {
 namespace imgcodec {
 
-ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
+ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
   ImageInfo info;
   // info.shape = {h, w, c};   // TODO(janton)
   return info;
 }
 
-bool WebpParser::CanParse(ImageSource *encoded) const {
+bool TiffParser::CanParse(ImageSource *encoded) const {
   return false;  // TODO(janton)
 }
 
