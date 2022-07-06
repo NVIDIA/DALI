@@ -46,7 +46,10 @@ Must be same as input type or ``float``. If not set, input type is used.)code", 
   .AddOptionalArg("minibatch_size", R"code(Maximum number of images that are processed in
 a kernel call.)code",
       32)
-  .AddOptionalArg("antialias", "If enabled, it applies an antialiasing filter when scaling down.",
+  .AddOptionalArg("antialias", R"code(If enabled, it applies an antialiasing filter when scaling down.
+
+.. note::
+  Nearest neighbor interpolation does not support antialiasing.)code",
       true);
 
 

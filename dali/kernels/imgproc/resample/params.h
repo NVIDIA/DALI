@@ -43,11 +43,11 @@ inline float DefaultFilterRadius(ResamplingFilterType type, bool antialias,
   case ResamplingFilterType::Triangular:
     return (antialias && in_size > out_size) ? in_size / out_size : 1;
   case ResamplingFilterType::Gaussian:
-    return in_size > out_size ? in_size / out_size : 1;
+    return (antialias && in_size > out_size) ? in_size / out_size : 1;
   case ResamplingFilterType::Cubic:
     return (antialias && in_size > out_size) ? (2 * in_size / out_size) : 2;
   case ResamplingFilterType::Lanczos3:
-    return in_size > out_size ? (3 * in_size / out_size) : 3;
+    return (antialias && in_size > out_size) ? (3 * in_size / out_size) : 3;
   default:
     return 1;
   }
