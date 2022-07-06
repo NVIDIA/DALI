@@ -17,8 +17,10 @@ import random
 
 
 def make_batch_select_masks(batch_size,
-                            npolygons_range=(1, 10), nvertices_range=(3, 40),
-                            vertex_ndim=2, vertex_dtype=np.float32):
+                            npolygons_range=(1, 10),
+                            nvertices_range=(3, 40),
+                            vertex_ndim=2,
+                            vertex_dtype=np.float32):
     polygons = []
     vertices = []
     selected_masks = []
