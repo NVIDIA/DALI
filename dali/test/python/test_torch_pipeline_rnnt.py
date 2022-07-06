@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nose_utils  # noqa:F401  - for Python 3.10
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
@@ -108,7 +109,7 @@ class FilterbankFeatures():
                                       n_fft=self.n_fft,
                                       n_mels=nfilt,
                                       fmin=lowfreq,
-                                      fmax=highfreq),
+                                      fmax=highfreq)
         self.fb = torch.tensor(filters, dtype=torch.float).unsqueeze(0)
 
     @staticmethod
@@ -182,7 +183,7 @@ class FilterbankFeatures():
         # mask to zero any values beyond seq_len in batch,
         # pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
-        seq = torch.arange(max_len, dtype=seq_len.dtype, device=x.device)
+        seq = torch.arange(max_len).to(seq_len.dtype).to(x.device)
         mask = seq.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
         x = x.masked_fill(mask.unsqueeze(1).to(device=x.device), 0)
         return x.to(dtype)
