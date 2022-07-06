@@ -34,6 +34,11 @@ INTERP_LINEAR with ``antialias`` enabled.
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("min_filter", "Filter used when scaling down.",
       DALI_INTERP_LINEAR, true)
+  .AddOptionalArg("antialias", R"code(If enabled, it applies an antialiasing filter when scaling down.
+
+.. note::
+  Nearest neighbor interpolation does not support antialiasing.)code",
+      true)
   .AddOptionalArg<DALIDataType>("dtype", R"code(Output data type.
 
 Must be same as input type or ``float``. If not set, input type is used.)code", nullptr)
@@ -45,12 +50,7 @@ Must be same as input type or ``float``. If not set, input type is used.)code", 
       0)
   .AddOptionalArg("minibatch_size", R"code(Maximum number of images that are processed in
 a kernel call.)code",
-      32)
-  .AddOptionalArg("antialias", R"code(If enabled, it applies an antialiasing filter when scaling down.
-
-.. note::
-  Nearest neighbor interpolation does not support antialiasing.)code",
-      true);
+      32);
 
 
 using namespace kernels;  // NOLINT
