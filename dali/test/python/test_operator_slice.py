@@ -71,8 +71,7 @@ class SliceSynthDataPipeline(Pipeline):
                  out_of_bounds_policy=None,
                  fill_values=None,
                  input_type=types.FLOAT, output_type=None):
-        super().__init__(
-            batch_size, num_threads, device_id, seed=1234)
+        super().__init__(batch_size, num_threads, device_id, seed=1234)
         self.device = device
         self.layout = layout
         self.iterator = iterator
@@ -118,8 +117,7 @@ class SlicePipeline(Pipeline):
                  is_fused_decoder=False,
                  axes=None, axis_names=None,
                  normalized_anchor=True, normalized_shape=True):
-        super().__init__(
-            batch_size, num_threads, device_id, seed=1234)
+        super().__init__(batch_size, num_threads, device_id, seed=1234)
         self.is_fused_decoder = is_fused_decoder
         self.pos_size_iter = pos_size_iter
         self.device = device
@@ -283,9 +281,8 @@ class SliceSynthDataPipelinePythonOp(Pipeline):
                  axes=None, axis_names=None,
                  normalized_anchor=True, normalized_shape=True,
                  input_type=types.FLOAT, output_type=None):
-        super().__init__(
-            batch_size, num_threads, device_id,
-            seed=12345, exec_async=False, exec_pipelined=False)
+        super().__init__(batch_size, num_threads, device_id, seed=12345,
+                         exec_async=False, exec_pipelined=False)
         self.device = "cpu"
         self.layout = layout
         self.iterator = iterator
@@ -326,9 +323,8 @@ class SlicePythonOp(Pipeline):
                  num_threads=1, device_id=0, num_gpus=1,
                  axes=None, axis_names=None,
                  normalized_anchor=True, normalized_shape=True):
-        super().__init__(
-            batch_size, num_threads, device_id,
-            seed=12345, exec_async=False, exec_pipelined=False)
+        super().__init__(batch_size, num_threads, device_id, seed=12345,
+                         exec_async=False, exec_pipelined=False)
         self.device = "cpu"
         self.layout = "HWC"
         self.pos_size_iter = pos_size_iter
