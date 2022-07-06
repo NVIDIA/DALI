@@ -108,7 +108,7 @@ void ResamplingFilterAttr::PrepareFilterParams(
   min_filter_.resize(num_samples, ResamplingFilterType::Triangular);
   mag_filter_.resize(num_samples, ResamplingFilterType::Linear);
 
-  auto convert = [this](auto &filter_types, auto &interp_types, bool antialias) {
+  auto convert = [](auto &filter_types, auto &interp_types, bool antialias) {
     for (int i = 0, n = filter_types.size(); i < n; i++) {
       auto type = interp_types[i];
       // Promoting:
