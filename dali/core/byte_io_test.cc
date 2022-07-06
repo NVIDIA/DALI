@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include "dali/core/byte_io.h"
+#include "dali/core/stream.h"
 
 namespace dali {
 
@@ -45,7 +46,7 @@ TEST(byte_io, read_value_signed_int) {
   EXPECT_EQ(-1234, ReadValueBE<int32_t>(minus_data));
   EXPECT_EQ(-1234, ReadValueLE<int32_t>(minus_data_le));
 
-  // nbytes < sizeo(T)
+  // nbytes < sizeof(T)
   EXPECT_EQ(1234, (ReadValueBE<int32_t, 3>(plus_data+1)));
   EXPECT_EQ(1234, (ReadValueLE<int32_t, 3>(plus_data_le)));
   EXPECT_EQ(-1234, (ReadValueBE<int32_t, 3>(minus_data+1)));
@@ -57,6 +58,28 @@ TEST(byte_io, read_value_float) {
   const uint8_t data_le[] = {0x00, 0x00, 0x80, 0x3f};
   EXPECT_EQ(1.0f, ReadValueBE<float>(data));
   EXPECT_EQ(1.0f, ReadValueLE<float>(data_le));
+}
+
+TEST(byte_io, read_value_unsigned_int_input_stream) {
+  const uint8_t data[] = {0x04, 0xd2, 0x1e, 0x61}; // dec 7777 = hex 0x1E61
+  const uint8_t data_le[] = {0xd2, 0x04, 0x61, 0x1e};
+  MemInputStream mis(data, sizeof(data));
+  MemInputStream mis_le(data_le, sizeof(data_le));
+  
+  EXPECT_EQ(1234, (ReadValueBE<uint32_t, 2>(mis)));
+  EXPECT_EQ(1234, (ReadValueLE<uint32_t, 2>(mis_le)));
+  EXPECT_EQ(7777, ReadValueBE<uint16_t>(mis));
+  EXPECT_EQ(7777, ReadValueLE<uint16_t>(mis_le));
+}
+
+TEST(byte_io, read_value_float_input_stream) {
+  const uint8_t data[] = {0x3f, 0x80, 0x00, 0x00};
+  const uint8_t data_le[] = {0x00, 0x00, 0x80, 0x3f};
+  MemInputStream mis(data, sizeof(data));
+  MemInputStream mis_le(data_le, sizeof(data_le));
+
+  EXPECT_EQ(1.0f, ReadValueBE<float>(mis));
+  EXPECT_EQ(1.0f, ReadValueLE<float>(mis_le));
 }
 
 }  // namespace test
