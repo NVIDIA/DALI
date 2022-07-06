@@ -131,9 +131,11 @@ set(BUILD_DALI_KERNELS ON)
 if (BUILD_DALI_KERNELS AND NOT BUILD_DALI_NODEPS)
   set(BUILD_DALI_PIPELINE ON)
   set(BUILD_DALI_OPERATORS ON)
+  set(BUILD_DALI_IMGCODEC ON)
 else()
   set(BUILD_DALI_PIPELINE OFF)
   set(BUILD_DALI_OPERATORS OFF)
+  set(BUILD_DALI_IMGCODEC OFF)
 endif()
 
 # Experimental, only enabled for BUILD_DALI_NODEPS=ON
@@ -408,4 +410,8 @@ endif()
 
 if (BUILD_DALI_OPERATORS)
   add_library(DALI::dali_operators ALIAS dali_operators)
+endif()
+
+if (BUILD_DALI_IMGCODEC)
+  add_library(DALI::dali_imgcodec ALIAS dali_imgcodec)
 endif()
