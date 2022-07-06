@@ -24,8 +24,10 @@ np.random.seed(4321)
 
 
 def check_select_masks(batch_size,
-                       npolygons_range=(1, 10), nvertices_range=(3, 40),
-                       vertex_ndim=2, vertex_dtype=np.float32,
+                       npolygons_range=(1, 10),
+                       nvertices_range=(3, 40),
+                       vertex_ndim=2,
+                       vertex_dtype=np.float32,
                        reindex_masks=False):
 
     def get_data_source(*args, **kwargs):
@@ -34,7 +36,8 @@ def check_select_masks(batch_size,
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         polygons, vertices, mask_ids = fn.external_source(
-            source=get_data_source(batch_size, npolygons_range=npolygons_range,
+            source=get_data_source(batch_size,
+                                   npolygons_range=npolygons_range,
                                    nvertices_range=nvertices_range,
                                    vertex_ndim=vertex_ndim,
                                    vertex_dtype=vertex_dtype),
@@ -90,8 +93,10 @@ def test_select_masks():
                 reindex_masks = random.choice([False, True])
                 yield (check_select_masks,
                        batch_size,
-                       npolygons_range, nvertices_range,
-                       vertex_ndim, vertex_dtype,
+                       npolygons_range,
+                       nvertices_range,
+                       vertex_ndim,
+                       vertex_dtype,
                        reindex_masks)
 
 

@@ -168,14 +168,13 @@ def gather_ids(pipes, epochs_run=0, batch_size=1, num_gpus_arg=None, gpus_arg=No
         iterate_over = gpus_arg
     img_ids_list = [[] for _ in pipes]
 
-    # each GPU needs to iterate from `shard_id * data_size / num_gpus` samples
-    # to `(shard_id + 1)* data_size / num_gpus`
-    # after each epoch each GPU moves to the next shard
-    # epochs_run takes into account that after epoch readers advances to the
-    # next shard, if shuffle_after_epoch or stick_to_shard if doesn't matter
-    # and could/should be 0
-    # it is relevant only if pad_last_batch == False, otherwise each shard has
-    # the same size thanks to padding
+    # Each GPU needs to iterate from `shard_id * data_size / num_gpus` samples
+    # to `(shard_id + 1)* data_size / num_gpus`.
+    # After each epoch, each GPU moves to the next shard.
+    # The `epochs_run` variable  takes into account that after epoch readers advance to the
+    # next shard. If shuffle_after_epoch or stick_to_shard is set, it doesn't matter
+    # and could/should be 0; it is relevant only if pad_last_batch is False, otherwise each
+    # shard has the same size due to padding.
     for img_ids_l, pipe, n in zip(img_ids_list, pipes, iterate_over):
         shard_size = (dataset_size * (n + 1 + epochs_run) // num_gpus
                       - dataset_size * (n + epochs_run) // num_gpus)

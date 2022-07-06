@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nose_utils  # noqa:F401  - for Python 3.10
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.types as types
 import nvidia.dali.plugin.tf as dali_tf
@@ -44,8 +45,8 @@ def test_dali_tf_dataset_cpu_only():
         ds = dali_tf.DALIDataset(pipe,
                                  device_id=types.CPU_ONLY_DEVICE_ID,
                                  batch_size=1,
-                                 output_dtypes=(tf.int32),
-                                 output_shapes=[(1)])
+                                 output_dtypes=tf.int32,
+                                 output_shapes=[1])
     ds = iter(ds)
     data = next(ds)
     assert(data == np.array([value]))

@@ -57,10 +57,7 @@ def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
     iterator = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
     run_tf_dataset_graph(
         dev,
-        get_pipeline_desc=external_source_tester(max_shape,
-                                                 dtype,
-                                                 iterator,
-                                                 batch=batch),
+        get_pipeline_desc=external_source_tester(max_shape, dtype, iterator, batch=batch),
         to_dataset=external_source_converter_with_callback(RandomSampleIterator,
                                                            max_shape,
                                                            dtype,
@@ -85,11 +82,7 @@ def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
     iterator = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
     run_tf_dataset_graph(
         "gpu",
-        get_pipeline_desc=external_source_tester(max_shape,
-                                                 dtype,
-                                                 iterator,
-                                                 "gpu",
-                                                 batch=batch),
+        get_pipeline_desc=external_source_tester(max_shape, dtype, iterator, "gpu", batch=batch),
         to_dataset=external_source_converter_with_callback(RandomSampleIterator,
                                                            max_shape,
                                                            dtype,
