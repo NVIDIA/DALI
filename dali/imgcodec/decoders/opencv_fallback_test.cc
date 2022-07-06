@@ -16,13 +16,23 @@
 #include <string>
 #include <vector>
 #include "dali/imgcodec/decoders/opencv_fallback.h"
+#include "dali/imgcodec/parsers/bmp.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/util/thread_pool.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 namespace imgcodec {
 namespace test {
+
+namespace {
+const auto &dali_extra = dali::testing::dali_extra_path();
+std::string img_color   = dali_extra + "/db/single/bmp/0/cat-111793_640.bmp";
+std::string imb_gray    = dali_extra + "/db/single/bmp/0/cat-111793_640_grayscale.bmp";
+std::string imb_palette = dali_extra + "/db/single/bmp/0/cat-111793_640_palette_8bit.bmp";
+}  // namespace
+
 
 TEST(OpenCVFallback, Factory) {
     OpenCVDecoder decoder;
@@ -33,18 +43,25 @@ TEST(OpenCVFallback, Factory) {
     EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));
     EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-    ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "dummy");
+    ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "OpenCV decoder test");
     auto instance = decoder.Create(CPU_ONLY_DEVICE_ID, tp);
     EXPECT_NE(instance, nullptr);
 }
 
 TEST(OpenCVFallback, Decode) {
-    ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "dummy");
+
+    ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "OpenCV decoder test");
     OpenCVDecoder decoder;
+    auto source = ImageSource::FromFilename(fname);
     auto instance = decoder.Create(CPU_ONLY_DEVICE_ID, tp);
     ASSERT_NE(instance, nullptr);
-    //EXPECT_TRUE(instance->CanDecode(img));
-    //ImageFormat
+
+    BmpParser parser;
+    auto info = parser.GetInfo(&source);
+    std::cerr << info.shape << std::endl;
+
+    //EXPECT_TRUE(instance->CanDecode(&source));
+
 }
 
 }  // namespace test
