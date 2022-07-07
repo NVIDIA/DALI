@@ -19,7 +19,8 @@ import socket
 from contextlib import closing, contextmanager
 import numpy as np
 
-from nvidia.dali._multiproc.shared_batch import BufShmChunk, SharedBatchWriter, SharedBatchMeta, deserialize_batch
+from nvidia.dali._multiproc.shared_batch import BufShmChunk, SharedBatchWriter, \
+                                                SharedBatchMeta, deserialize_batch
 from nvidia.dali._multiproc.shared_queue import ShmQueue
 from nvidia.dali._multiproc.messages import ShmMessageDesc
 
@@ -75,7 +76,8 @@ def setup_queue_and_worker(start_method, capacity, worker_cb, worker_params):
         socket_r, socket_w = socket.socketpair()
     else:
         socket_r = None
-    proc = mp.Process(target=worker, args=(start_method, socket_r, task_queue, res_queue, worker_cb, worker_params))
+    proc = mp.Process(target=worker, args=(start_method, socket_r, task_queue,
+                                           res_queue, worker_cb, worker_params))
     proc.start()
     try:
         if start_method == "spawn":
@@ -125,11 +127,13 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
         nonlocal count
         count += 1
         return count
-    with setup_queue_and_worker(start_method, capacity, copy_callback, worker_params) as (task_queue, res_queue):
+    with setup_queue_and_worker(start_method, capacity, copy_callback, worker_params) \
+            as (task_queue, res_queue):
         all_msgs = []
         received = 0
         for send_msg, recv_msg in zip(send_msgs, recv_msgs):
-            msgs = [ShmMessageDesc(next_i(), -next_i(), next_i(), next_i(), next_i()) for i in range(send_msg)]
+            msgs = [ShmMessageDesc(next_i(), -next_i(), next_i(), next_i(), next_i())
+                    for i in range(send_msg)]
             all_msgs.extend(msgs)
             _put_msgs(task_queue, msgs, send_one_by_one)
             for _ in range(recv_msg):
@@ -138,7 +142,7 @@ def _test_queue_recv(start_method, worker_params, capacity, send_msgs, recv_msgs
                 received += 1
                 recv_msg_values = recv_msg.get_values()
                 assert len(msg_values) == len(recv_msg_values)
-                assert all(msg_value == recv_msg_value for msg_value, recv_msg_value in zip(msg_values, recv_msg_values))
+                assert all(msg == recv_msg for msg, recv_msg in zip(msg_values, recv_msg_values))
 
 
 def test_queue_recv():
@@ -149,7 +153,8 @@ def test_queue_recv():
         for capacity, send_msg, recv_msg in zip(capacities, send_msgs, recv_msgs):
             for send_one_by_one in (True, False):
                 for worker_params in ({'num_samples': 1}, {'num_samples': None}):
-                    yield _test_queue_recv, start_method, worker_params, capacity, send_msg, recv_msg, send_one_by_one
+                    yield _test_queue_recv, start_method, worker_params, capacity, \
+                                            send_msg, recv_msg, send_one_by_one
 
 
 def _test_queue_large(start_method, msg_values):
@@ -162,8 +167,7 @@ def _test_queue_large(start_method, msg_values):
             [recv_msg] = res_queue.get()
             recv_msg_values = recv_msg.get_values()
             assert len(values) == len(recv_msg_values)
-            assert all(msg_value == recv_msg_value for msg_value,
-                    recv_msg_value in zip(values, recv_msg_values))
+            assert all(msg == recv_msg for msg, recv_msg in zip(values, recv_msg_values))
 
 
 def test_queue_large():
@@ -181,7 +185,8 @@ def test_queue_large():
 def test_queue_large_failure():
     max_int32 = 2**31 - 1
     max_uint32 = 2**32 - 1
-    error_message = "Failed to serialize object as C-like structure. Tried to populate following fields:"
+    error_message = "Failed to serialize object as C-like structure. " \
+                    "Tried to populate following fields:"
     for start_method in ("spawn", "fork"):
         yield raises(RuntimeError, error_message)(_test_queue_large), \
             start_method, [(max_int32 + 1, 0, max_uint32, max_uint32, max_uint32)]

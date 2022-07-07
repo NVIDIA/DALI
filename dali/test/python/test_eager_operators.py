@@ -24,7 +24,7 @@ from nose_utils import assert_raises, raises
 from test_utils import get_dali_extra_path
 
 
-@raises(RuntimeError, glob=f"Argument '*' is not supported by eager operator 'crop'.")
+@raises(RuntimeError, glob="Argument '*' is not supported by eager operator 'crop'.")
 def _test_disqualified_argument(key):
     tl = tensors.TensorListCPU(np.zeros((8, 256, 256, 3)))
     eager.crop(tl, crop=[64, 64], **{key: 0})

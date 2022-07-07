@@ -30,7 +30,7 @@ def test_element_extract_operator():
 
     test_data = []
     for _ in range(batch_size):
-        test_data.append( np.array( np.random.rand(F, H, W, C) * 255, dtype=np.uint8 ) )
+        test_data.append(np.array(np.random.rand(F, H, W, C) * 255, dtype=np.uint8))
 
     class ExternalInputIterator(object):
         def __init__(self, batch_size):
@@ -73,7 +73,6 @@ def test_element_extract_operator():
             sequences = iterator.next()
             self.feed_input(self.sequences, sequences)
 
-
     pipe = ElementExtractPipeline(batch_size, 1, 0)
     pipe.build()
     pipe_out = pipe.run()
@@ -92,13 +91,13 @@ def test_element_extract_operator():
 
         expected_first = test_data[i][0]
         assert out1.shape == out3.shape
-        np.testing.assert_array_equal( expected_first, out1 )
-        np.testing.assert_array_equal( expected_first, out3 )
+        np.testing.assert_array_equal(expected_first, out1)
+        np.testing.assert_array_equal(expected_first, out3)
 
         expected_last = test_data[i][F - 1]
         assert out2.shape == out4.shape
-        np.testing.assert_array_equal( expected_last, out2 )
-        np.testing.assert_array_equal( expected_last, out4 )
+        np.testing.assert_array_equal(expected_last, out2)
+        np.testing.assert_array_equal(expected_last, out4)
 
 
 batch_size = 8
