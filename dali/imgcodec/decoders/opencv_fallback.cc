@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include "dali/imgcodec/decoders/opencv_fallback.h"
 #include "dali/imgcodec/util/convert.h"
 
@@ -61,9 +62,7 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
     flags |= cv::IMREAD_ANYDEPTH;
 
   DecodeResult res;
-  #ifndef _DEBUG
   try {
-  #endif
     cv::Mat cvimg;
     if (in->Kind() == InputKind::Filename) {
       cvimg = cv::imread(in->Filename(), flags);
@@ -72,6 +71,9 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
       auto *raw = static_cast<const uint8_t *>(in->RawData());
       cvimg = cv::imdecode(cv::_InputArray(raw, in->Size()), flags);
     }
+
+    if (flags & cv::IMREAD_COLOR)  // TODO - move this to Convert
+      cv::cvtColor(cvimg, cvimg, cv::COLOR_BGR2RGB);
 
     res.success = cvimg.ptr(0) != nullptr;
     if (res.success) {
@@ -93,14 +95,13 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
 
       TensorLayout layout = cvimg.dims == 3 ? "DHWC" : "HWC";
 
-      Convert(out, layout, opts.format, in, layout, opts.format, roi_start, roi_end);
+      Convert(out, layout, opts.format, in, layout, opts.format /* TODO - use actual format */,
+              roi_start, roi_end);
     }
-  #ifndef _DEBUG
   } catch (...) {
     res.exception = std::current_exception();
     res.success = false;
   }
-  #endif
 
   return res;
 }

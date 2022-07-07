@@ -33,13 +33,13 @@ template <typename T, span_extent_t E = dynamic_extent>
 using cspan = span<const T, E>;
 
 struct DecodeParams {
-  bool use_roi;
+  DALIDataType  dtype   = DALI_UINT8;
+  DALIImageType format  = DALI_RGB;
+  bool          planar  = false;
+  bool          use_roi = false;
   struct {
     TensorShape<> begin, end;
   } roi;
-  DALIDataType dtype;
-  DALIImageType format;
-  bool planar;  // not required initially
 };
 
 struct DecodeResult {
