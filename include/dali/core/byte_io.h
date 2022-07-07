@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2022, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,9 +43,9 @@ void ReadValueImpl(float &value, const uint8_t* data) {
   memcpy(&value, &tmp, sizeof(float));
 }
 
-template <int nbytes, bool is_little_endian, typename T>
+template <int kNbytes, bool is_little_endian, typename T>
 void ReadValueImpl(T &value, InputStream &stream) {
-  uint8_t data[nbytes];
+  uint8_t data[kNbytes];
   stream.ReadBytes(data, nbytes);
   return ReadValueImpl<nbytes, is_little_endian>(value, data);
 }

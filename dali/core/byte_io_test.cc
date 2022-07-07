@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2022, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,11 +61,11 @@ TEST(byte_io, read_value_float) {
 }
 
 TEST(byte_io, read_value_unsigned_int_input_stream) {
-  const uint8_t data[] = {0x04, 0xd2, 0x1e, 0x61}; // dec 7777 = hex 0x1E61
+  const uint8_t data[] = {0x04, 0xd2, 0x1e, 0x61};  // dec 7777 = hex 0x1E61
   const uint8_t data_le[] = {0xd2, 0x04, 0x61, 0x1e};
   MemInputStream mis(data, sizeof(data));
   MemInputStream mis_le(data_le, sizeof(data_le));
-  
+
   EXPECT_EQ(1234, (ReadValueBE<uint32_t, 2>(mis)));
   EXPECT_EQ(1234, (ReadValueLE<uint32_t, 2>(mis_le)));
   EXPECT_EQ(7777, ReadValueBE<uint16_t>(mis));
