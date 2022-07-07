@@ -56,9 +56,10 @@ def teardown_function():
     current_process = psutil.Process()
     children_pids = [process.pid for process in current_process.children()]
     left = set(pool_processes).intersection(children_pids)
-    assert len(left) == 0, ("Pipeline-started processes left after " +
-          "test is finished, pids alive:\n{},\npids started during tests:\n{}. "
-          "Pools not collected: {}").format(left, pool_processes, sum(pools_not_collected))
+    assert len(left) == 0, (
+          f"Pipeline-started processes left after test is finished, pids alive: {left},\n"
+          f"pids started during tests: {pool_processes}.\n"
+          f"Pools not collected: {sum(pools_not_collected)}")
     alive_threads = [thread.is_alive() for thread in pool_threads]
     assert sum(alive_threads) == 0, "Some pool related threads are left after the test finished. " \
                                     "Started in test suite: {}, still active: {}. " \
@@ -76,7 +77,8 @@ def check_shm_for_dali(msg):
 
 
 def setup_module():
-    check_shm_for_dali("Expected clear shared mem environment before starting tests, found old DALI file handle: {}")
+    check_shm_for_dali("Expected clear shared mem environment before starting tests, "
+                       "found old DALI file handle: {}")
 
 
 def teardown_module():

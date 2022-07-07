@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nose_utils  # noqa:F401
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -26,20 +27,26 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         # Input mask
-        in_shape_dims = [fn.cast(fn.random.uniform(range=(min_extent, max_extent + 1), shape=(1,), device='cpu'),
-                                 dtype=types.INT32) for d in range(ndim)]
-        in_shape = fn.cat(*in_shape_dims, axis=0)
-        in_mask = fn.cast(fn.random.uniform(range=(0, 2), device='cpu', shape=in_shape), dtype=types.INT32)
+        in_shape_dims = [fn.cast(fn.random.uniform(range=(min_extent, max_extent + 1)),
+                                 dtype=types.INT32) for _ in range(ndim)]
+        in_shape = fn.stack(*in_shape_dims)
+        in_mask = fn.cast(fn.random.uniform(range=(0, 2), shape=in_shape), dtype=types.INT32)
 
-        fg_pixel1 = fn.segmentation.random_mask_pixel(in_mask, foreground=1)  # > 0
-        fg_pixel2 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, threshold=0.99)  # > 0.99
-        fg_pixel3 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, value=2)  # == 2
+        #  > 0
+        fg_pixel1 = fn.segmentation.random_mask_pixel(in_mask, foreground=1)
+        #  >= 0.99
+        fg_pixel2 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, threshold=0.99)
+        #  == 2
+        fg_pixel3 = fn.segmentation.random_mask_pixel(in_mask, foreground=1, value=2)
+
         rnd_pixel = fn.segmentation.random_mask_pixel(in_mask, foreground=0)
+
         coin_flip = fn.random.coin_flip(probability=0.7)
         fg_biased = fn.segmentation.random_mask_pixel(in_mask, foreground=coin_flip)
 
         # Demo purposes: Taking a random pixel and produce a valid anchor to feed slice
-        crop_shape = in_shape - 2  # We want to force the center adjustment, therefore the large crop shape
+        # We want to force the center adjustment, thus the large crop shape
+        crop_shape = in_shape - 2
         anchor = fn.cast(fg_pixel1, dtype=types.INT32) - crop_shape // 2
         anchor = math.min(math.max(0, anchor), in_shape - crop_shape)
         out_mask = fn.slice(in_mask, anchor, crop_shape, axes=tuple(range(ndim)))

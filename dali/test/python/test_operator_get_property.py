@@ -75,7 +75,8 @@ def _test_wds_properties(device, generate_index):
         with tempfile.TemporaryDirectory() as idx_dir:
             index_paths = [os.path.join(idx_dir, os.path.basename(root_path) + ".idx")]
             generate_wds_index(root_path, index_paths[0])
-            p = wds_properties(root_path, device, index_paths, batch_size=8, num_threads=4, device_id=0)
+            p = wds_properties(root_path, device, index_paths,
+                               batch_size=8, num_threads=4, device_id=0)
             p.build()
             output = p.run()
     else:
@@ -97,11 +98,13 @@ def test_wds_properties():
 @pipeline_def
 def tfr_properties(root_path, index_path, device):
     import nvidia.dali.tfrecord as tfrec
-    inputs = fn.readers.tfrecord(path=root_path, index_path=index_path,
-                                 features={"image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
-                                           "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)})
-    enc, lab = fn.get_property(inputs["image/encoded"], key="source_info"), \
-               fn.get_property(inputs["image/class/label"], key="source_info")
+    features = {
+        "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
+        "image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)
+    }
+    inputs = fn.readers.tfrecord(path=root_path, index_path=index_path, features=features)
+    enc = fn.get_property(inputs["image/encoded"], key="source_info")
+    lab = fn.get_property(inputs["image/class/label"], key="source_info")
     if device == 'gpu':
         enc = enc.gpu()
         lab = lab.gpu()
@@ -133,8 +136,8 @@ def es_properties(layouts, device):
     def gen_data():
         yield np.random.rand(num_outputs, 3, 4, 5)
 
-    inp = fn.external_source(source=gen_data, layout=layouts, num_outputs=num_outputs, batch=False, cycle=True,
-                             device=device)
+    inp = fn.external_source(source=gen_data, layout=layouts, num_outputs=num_outputs,
+                             batch=False, cycle=True, device=device)
     return tuple(fn.get_property(i, key="layout") for i in inp)
 
 
@@ -165,7 +168,7 @@ def _test_improper_property(device):
     root_path = os.path.join(get_dali_extra_path(), "db/webdataset/MNIST/devel-0.tar")
     p = improper_property(root_path, device, batch_size=8, num_threads=4, device_id=0)
     p.build()
-    output = p.run()
+    p.run()
 
 
 def test_improper_property():

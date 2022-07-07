@@ -35,7 +35,10 @@ def test_tf_dataset_cpu():
 def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     tensor = np.full(shape, value, dtype)
     run_tf_dataset_graph(dev,
-        get_pipeline_desc=external_source_tester(shape, dtype, FixedSampleIterator(tensor), batch=batch),
+        get_pipeline_desc=external_source_tester(shape,
+                                                 dtype,
+                                                 FixedSampleIterator(tensor),
+                                                 batch=batch),
         to_dataset=external_source_converter_with_fixed_value(shape, dtype, tensor, batch))
 
 
@@ -51,12 +54,10 @@ def test_tf_dataset_with_constant_input():
 
 def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
     min_shape = get_min_shape_helper(batch, max_shape)
+    iterator = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
     run_tf_dataset_graph(
         dev,
-        get_pipeline_desc=external_source_tester(max_shape,
-                                                 dtype,
-                                                 RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape),
-                                                 batch=batch),
+        get_pipeline_desc=external_source_tester(max_shape, dtype, iterator, batch=batch),
         to_dataset=external_source_converter_with_callback(RandomSampleIterator,
                                                            max_shape,
                                                            dtype,
@@ -78,13 +79,10 @@ def test_tf_dataset_with_random_input():
 # Run with everything on GPU (External Source op as well)
 def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
     min_shape = get_min_shape_helper(batch, max_shape)
+    iterator = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
     run_tf_dataset_graph(
         "gpu",
-        get_pipeline_desc=external_source_tester(max_shape,
-                                                 dtype,
-                                                 RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape),
-                                                 "gpu",
-                                                 batch=batch),
+        get_pipeline_desc=external_source_tester(max_shape, dtype, iterator, "gpu", batch=batch),
         to_dataset=external_source_converter_with_callback(RandomSampleIterator,
                                                            max_shape,
                                                            dtype,
@@ -105,8 +103,10 @@ def test_tf_dataset_with_random_input_gpu():
 def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
     run_tf_dataset_graph(
         dataset_dev,
-        get_pipeline_desc=external_source_tester(max_shape, dtype,
-                                                 RandomSampleIterator(max_shape, dtype(0)), es_dev,
+        get_pipeline_desc=external_source_tester(max_shape,
+                                                 dtype,
+                                                 RandomSampleIterator(max_shape, dtype(0)),
+                                                 es_dev,
                                                  no_copy),
         to_dataset=external_source_converter_with_callback(RandomSampleIterator, max_shape, dtype))
 

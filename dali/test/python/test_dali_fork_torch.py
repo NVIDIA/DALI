@@ -16,7 +16,7 @@ import torch
 from torch.multiprocessing import Process
 # we need this import to check if it is safe to import DALI and not touch the CUDA runtime
 # that could crash forked process
-import nvidia.dali as dali
+import nvidia.dali as dali  # noqa:F401
 
 
 def task_function():
@@ -29,4 +29,3 @@ def test_actual_proc():
     phase_process.start()
     phase_process.join()
     assert phase_process.exitcode == 0
-

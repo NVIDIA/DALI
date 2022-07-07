@@ -112,7 +112,7 @@ def pipeline_kwargs(arg1, arg2, *args, **kwargs):
     pass
 
 
-@raises(TypeError, regex="\*\*kwargs.*not allowed")
+@raises(TypeError, regex="\\*\\*kwargs.*not allowed")
 def test_kwargs_exception():
     pipeline_kwargs(arg1=1, arg2=2, arg3=3)
 

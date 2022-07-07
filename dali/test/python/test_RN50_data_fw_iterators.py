@@ -15,7 +15,6 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import glob
 import argparse
 import time
 
@@ -23,11 +22,14 @@ data_paths = ["/data/imagenet/train-jpeg"]
 
 
 class RN50Pipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, num_gpus, data_paths, prefetch, fp16, nhwc):
-        super(RN50Pipeline, self).__init__(batch_size, num_threads, device_id, prefetch_queue_depth=prefetch)
-        self.input = ops.readers.File(file_root=data_paths[0], shard_id=device_id, num_shards=num_gpus)
+    def __init__(self, batch_size, num_threads, device_id, num_gpus,
+                 data_paths, prefetch, fp16, nhwc):
+        super(RN50Pipeline, self).__init__(batch_size, num_threads, device_id,
+                                           prefetch_queue_depth=prefetch)
+        self.input = ops.readers.File(file_root=data_paths[0], shard_id=device_id,
+                                      num_shards=num_gpus)
         self.decode_gpu = ops.decoders.Image(device="mixed", output_type=types.RGB)
-        self.res = ops.RandomResizedCrop(device="gpu", size=(224,224))
+        self.res = ops.RandomResizedCrop(device="gpu", size=(224, 224))
 
         layout = types.args.nhwc if nhwc else types.NCHW
         out_type = types.FLOAT16 if fp16 else types.FLOAT
@@ -36,8 +38,8 @@ class RN50Pipeline(Pipeline):
                                             dtype=out_type,
                                             output_layout=layout,
                                             crop=(224, 224),
-                                            mean=[0.485 * 255,0.456 * 255,0.406 * 255],
-                                            std=[0.229 * 255,0.224 * 255,0.225 * 255])
+                                            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255])
         self.coin = ops.random.CoinFlip(probability=0.5)
 
     def define_graph(self):
@@ -49,7 +51,9 @@ class RN50Pipeline(Pipeline):
         return (output, labels.gpu())
 
 
-parser = argparse.ArgumentParser(description='Test RN50 augmentation pipeline with different FW iterators')
+parser = argparse.ArgumentParser(
+    description='Test RN50 augmentation pipeline with different FW iterators'
+)
 parser.add_argument('-g', '--gpus', default=1, type=int, metavar='N',
                     help='number of GPUs (default: 1)')
 parser.add_argument('-b', '--batch_size', default=13, type=int, metavar='N',
@@ -77,13 +81,14 @@ parser.add_argument('-e', '--epochs', default=1, type=int, metavar='N',
 parser.add_argument('--framework', type=str)
 args = parser.parse_args()
 
-print("Framework: {}, GPUs: {}, batch: {}, workers: {}, prefetch depth: {}, loging interval: {}, fp16: {}, args.nhwc: {}"
-      .format(args.framework, args.gpus, args.batch_size, args.workers, args.prefetch, args.print_freq, args.fp16, args.nhwc))
+print(f"Framework: {args.framework}, GPUs: {args.gpus}, batch: {args.batch_size}, "
+      f"workers: {args.workers}, prefetch depth: {args.prefetch}, "
+      f"loging interval: {args.print_freq}, fp16: {args.fp16}, args.nhwc: {args.nhwc}")
 
 
 PREFETCH = args.prefetch
 if args.separate_queue:
-    PREFETCH = {'cpu_size': args.cpu_size , 'gpu_size': args.gpu_size}
+    PREFETCH = {'cpu_size': args.cpu_size, 'gpu_size': args.gpu_size}
 
 
 class AverageMeter(object):
@@ -144,8 +149,8 @@ def test_fw_iter(IteratorClass, args):
                 else:
                     out_type = tf.float32
                 image, label = daliop(pipeline=pipes[dev],
-                    shapes=[(args.batch_size, 3, 224, 224), ()],
-                    dtypes=[out_type, tf.int32])
+                                      shapes=[(args.batch_size, 3, 224, 224), ()],
+                                      dtypes=[out_type, tf.int32])
                 images.append(image)
                 labels.append(label)
         gpu_options = GPUOptions(per_process_gpu_memory_fraction=0.5)
@@ -161,13 +166,14 @@ def test_fw_iter(IteratorClass, args):
         data_time = AverageMeter()
 
         if iterator_name == "nvidia.dali.plugin.tf.DALIIterator":
-            assert sess != None
+            assert sess is not None
             for j in range(iters):
-                res = sess.run([images, labels])
+                sess.run([images, labels])
                 data_time.update(time.time() - end)
                 if j % args.print_freq == 0:
-                    print("{} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
-                        .format(iterator_name, j + 1, iters, data_time.avg, data_time.max_val, args.gpus * args.batch_size / data_time.avg))
+                    speed = args.gpus * args.batch_size / data_time.avg
+                    print(f"{iterator_name} {j + 1}/ {iters}, avg time: {data_time.avg} [s], "
+                          f"worst time: {data_time.max_val} [s], speed: {speed} [img/s]")
                 end = time.time()
         else:
             dali_train_iter = IteratorClass(pipes, reader_name="Reader")
@@ -175,8 +181,9 @@ def test_fw_iter(IteratorClass, args):
             for it in iter(dali_train_iter):
                 data_time.update(time.time() - end)
                 if j % args.print_freq == 0:
-                    print("{} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]"
-                        .format(iterator_name, j + 1, iters, data_time.avg, data_time.max_val, args.gpus * args.batch_size / data_time.avg))
+                    speed = args.gpus * args.batch_size / data_time.avg
+                    print(f"{iterator_name} {j + 1}/ {iters}, avg time: {data_time.avg} [s], "
+                          f"worst time: {data_time.max_val} [s], speed: {speed} [img/s]")
                 end = time.time()
                 j = j + 1
                 if j > iters:
@@ -209,7 +216,7 @@ def import_tf():
         from tensorflow.compat.v1 import GPUOptions
         from tensorflow.compat.v1 import ConfigProto
         from tensorflow.compat.v1 import Session
-    except:
+    except ImportError:
         # Older TF versions don't have compat.v1 layer
         from tensorflow import GPUOptions
         from tensorflow import ConfigProto
@@ -217,7 +224,7 @@ def import_tf():
 
     try:
         tf.compat.v1.disable_eager_execution()
-    except:
+    except NameError:
         pass
     return TensorFlowIterator
 

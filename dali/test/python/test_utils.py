@@ -76,7 +76,9 @@ def save_image(image, file_name):
         elif min >= -128 and max <= 127:
             image = image + 128
     else:
-        image = (image - np.iinfo(image.dtype).min) * (255.0 / (np.iinfo(image.dtype).max - np.iinfo(image.dtype).min))
+        lo = np.iinfo(image.dtype).min
+        hi = np.iinfo(image.dtype).max
+        image = (image - lo) * (255.0 / (hi - lo))
     image = image.astype(np.uint8)
     Image.fromarray(image).save(file_name)
 
@@ -91,9 +93,9 @@ def get_gpu_num():
 
 
 # If the `max_allowed_error` is not None, it's checked instead of comparing mean error with `eps`.
-def check_batch(
-        batch1, batch2, batch_size=None, eps=1e-07, max_allowed_error=None, expected_layout=None,
-        compare_layouts=True):
+def check_batch(batch1, batch2, batch_size=None,
+                eps=1e-07, max_allowed_error=None,
+                expected_layout=None, compare_layouts=True):
     """Compare two batches of data, be it dali TensorList or list of numpy arrays.
 
     Args:
@@ -102,8 +104,8 @@ def check_batch(
         batch_size: reference batch size - if None, only equality is enforced
         eps (float, optional): Used for mean error validation. Defaults to 1e-07.
         max_allowed_error (int or float, optional): If provided the max diff between elements.
-        expected_layout (str, optional): If provided, the batches that are DALI types will be checked
-            to match this layout. If None, there will be no check
+        expected_layout (str, optional): If provided, the batches that are DALI types
+            will be checked to match this layout. If None, there will be no check
         compare_layouts (bool, optional): Whether to compare layouts between two batches.
             Checked only if both inputs are DALI types. Defaults to True.
     """
@@ -153,7 +155,7 @@ def check_batch(
         # This allows to handle list of Tensors, list of np arrays and TensorLists
         left = np.array(batch1[i])
         right = np.array(batch2[i])
-        is_failed = False
+        err_err = None
         assert left.shape == right.shape, \
             "Shape mismatch {} != {}".format(left.shape, right.shape)
         assert left.size == right.size, \
@@ -168,16 +170,20 @@ def check_batch(
                 max_err = np.max(absdiff)
                 min_err = np.min(absdiff)
                 total_errors = np.sum(absdiff != 0)
-            except:
-                is_failed = True
-            if is_failed or is_error(err, max_err, eps, max_allowed_error):
-                error_msg = ("Mean error: [{}], Min error: [{}], Max error: [{}]" +
-                             "\n Total error count: [{}], Tensor size: [{}], Error calculation failed: [{}]").format(
-                    err, min_err, max_err, total_errors, absdiff.size, is_failed)
+            except Exception as e:
+                err_err = str(e)
+            if err_err or is_error(err, max_err, eps, max_allowed_error):
+                if err_err:
+                    error_msg = f"Error calculation failed:\n{err_err}!\n"
+                else:
+                    error_msg = (f"Mean error: [{err}], Min error: [{min_err}], "
+                                 f"Max error: [{max_err}]\n"
+                                 f"Total error count: [{total_errors}], "
+                                 f"Tensor size: [{absdiff.size}]")
                 try:
                     save_image(left, "err_1.png")
                     save_image(right, "err_2.png")
-                except:
+                except:  # noqa:722
                     print("Batch at {} can't be saved as an image".format(i))
                     print(left)
                     print(right)
@@ -421,23 +427,23 @@ class check_output_pattern():
         else:
             pattern_found = self.pattern_ in our_data or self.pattern_ in err_data,
 
-        assert pattern_found, "Pattern: ``{}`` \n not found in out: \n``{}`` \n and in err: \n ```{}```".format(
-            self.pattern_, our_data, err_data)
+        assert pattern_found, (f"Pattern: ``{self.pattern_}`` \n not found in out: \n"
+                               f"``{our_data}`` \n and in err: \n ```{err_data}```")
 
 
 def dali_type_to_np(type):
     import_numpy()
 
     dali_types_to_np_dict = {
-        types.BOOL:  np.bool_,
-        types.INT8:   np.int8,
-        types.INT16:  np.int16,
-        types.INT32:  np.int32,
-        types.INT64:  np.int64,
-        types.UINT8:  np.uint8,
-        types.UINT16: np.uint16,
-        types.UINT32: np.uint32,
-        types.UINT64: np.uint64,
+        types.BOOL:    np.bool_,
+        types.INT8:    np.int8,
+        types.INT16:   np.int16,
+        types.INT32:   np.int32,
+        types.INT64:   np.int64,
+        types.UINT8:   np.uint8,
+        types.UINT16:  np.uint16,
+        types.UINT32:  np.uint32,
+        types.UINT64:  np.uint64,
         types.FLOAT16: np.float16,
         types.FLOAT:   np.float32,
         types.FLOAT64: np.float64,
@@ -542,8 +548,8 @@ def module_functions(cls, prefix="", remove_prefix="", check_non_module=False):
 def get_files(path, ext):
     full_path = os.path.join(get_dali_extra_path(), path)
     audio_files = [
-        os.path.join(full_path, f) for f in os.listdir(full_path) \
-        if re.match(f".*\.{ext}", f) is not None
+        os.path.join(full_path, f) for f in os.listdir(full_path)
+        if re.match(f".*\\.{ext}", f) is not None
     ]
     return audio_files
 
@@ -559,7 +565,9 @@ def restrict_python_version(major, minor=None):
         if version_info.major > major or \
                 (version_info.major == major and (minor is None or version_info.minor >= minor)):
             return test_case
-        return lambda: _test_skipped(f"Insufficient Python version {version_info.major}.{version_info.minor} - required {major}.{minor}")
+        return lambda: _test_skipped(
+            f"Insufficient Python version {version_info.major}.{version_info.minor} - "
+            f"required {major}.{minor}")
 
     return decorator
 
@@ -575,11 +583,8 @@ def generator_random_data(batch_size, min_sh=(10, 10, 3), max_sh=(100, 100, 3),
     def gen():
         out = []
         for _ in range(batch_size):
-            shape = [
-                np.random.randint(min_sh[d], max_sh[d] + 1,
-                                  size=1, dtype=np.int32)[0]
-                    for d in range(ndim)
-            ]
+            shape = [np.random.randint(min_sh[d], max_sh[d] + 1, dtype=np.int32)
+                     for d in range(ndim)]
             arr = np.array(np.random.uniform(val_range[0], val_range[1], shape), dtype=dtype)
             out += [arr]
         return out
