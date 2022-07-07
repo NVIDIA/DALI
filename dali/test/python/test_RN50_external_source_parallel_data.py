@@ -79,14 +79,9 @@ def iteration_test(args):
                 if j % frequency == 0 and j != 0:
                     data_time.update((time.time() - end) / frequency)
                     end = time.time()
-                    print("{} {}/ {}, avg time: {} [s], worst time: {} [s], speed: {} [img/s]".format(
-                        pipe_factory.__name__,
-                        j,
-                        expected_iters,
-                        data_time.avg,
-                        data_time.max_val,
-                        args.batch_size * args.gpus / data_time.avg,
-                    ))
+                    print(f"{pipe_factory.__name__} {j}/ {expected_iters}, "
+                          f"avg time: {data_time.avg} [s], worst time: {data_time.max_val} [s], "
+                          f"speed: {args.batch_size * args.gpus / data_time.avg} [img/s]")
             for pipe in pipes:
                 pipe.reset()
 
