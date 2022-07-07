@@ -14,16 +14,9 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
-import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
-from functools import partial
-from test_utils import check_batch
-from test_utils import compare_pipelines
+
 from test_utils import RandomDataIterator
-import math
-from nose.tools import *
 
 
 class CoordFlipPipeline(Pipeline):
@@ -62,7 +55,10 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
         outputs = pipe.run()
         for sample in range(batch_size):
             in_coords = outputs[0].at(sample)
-            out_coords = outputs[1].as_cpu().at(sample) if device == 'gpu' else outputs[1].at(sample)
+            if device == 'gpu':
+                out_coords = outputs[1].as_cpu().at(sample)
+            else:
+                out_coords = outputs[1].at(sample)
             if in_coords.shape == () or in_coords.shape[0] == 0:
                 assert(out_coords.shape == () or out_coords.shape[0] == 0)
                 continue
@@ -97,5 +93,5 @@ def test_operator_coord_flip():
                 layout_shape_values.append(("xy", (0, 2)))
             for layout, shape in layout_shape_values:
                 for center_x, center_y, center_z in [(0.5, 0.5, 0.5), (0.0, 1.0, -0.5)]:
-                    yield check_operator_coord_flip, device, batch_size, layout, shape, center_x, center_y, center_z
-
+                    yield check_operator_coord_flip, device, batch_size, layout, \
+                        shape, center_x, center_y, center_z

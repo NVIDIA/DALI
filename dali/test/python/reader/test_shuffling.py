@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nose_utils  # noqa:F401
 import math
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
@@ -20,13 +21,29 @@ from test_utils import get_dali_extra_path
 
 
 class COCOReaderPipeline(Pipeline):
-    def __init__(self, data_paths, batch_size, num_threads, shard_id, num_gpus, random_shuffle, stick_to_shard, shuffle_after_epoch, pad_last_batch, initial_fill=1024):
+    def __init__(self,
+                 data_paths,
+                 batch_size,
+                 num_threads,
+                 shard_id,
+                 num_gpus,
+                 random_shuffle,
+                 stick_to_shard,
+                 shuffle_after_epoch,
+                 pad_last_batch,
+                 initial_fill=1024):
         # use only 1 GPU, as we care only about shard_id
-        super(COCOReaderPipeline, self).__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
-        self.input = ops.readers.COCO(file_root=data_paths[0], annotations_file=data_paths[1],
-                                      shard_id=shard_id, num_shards=num_gpus, random_shuffle=random_shuffle,
-                                      image_ids=True, stick_to_shard=stick_to_shard,shuffle_after_epoch=shuffle_after_epoch,
-                                      pad_last_batch=pad_last_batch, initial_fill=initial_fill)
+        super().__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
+        self.input = ops.readers.COCO(file_root=data_paths[0],
+                                      annotations_file=data_paths[1],
+                                      shard_id=shard_id,
+                                      num_shards=num_gpus,
+                                      random_shuffle=random_shuffle,
+                                      image_ids=True,
+                                      stick_to_shard=stick_to_shard,
+                                      shuffle_after_epoch=shuffle_after_epoch,
+                                      pad_last_batch=pad_last_batch,
+                                      initial_fill=initial_fill)
 
     def define_graph(self):
         _, __, ___, ids = self.input(name="Reader")
@@ -35,15 +52,22 @@ class COCOReaderPipeline(Pipeline):
 
 test_data_root = get_dali_extra_path()
 coco_folder = os.path.join(test_data_root, 'db', 'coco')
-data_sets = [[os.path.join(coco_folder, 'images'), os.path.join(coco_folder, 'instances.json')]]
+datasets = [[os.path.join(coco_folder, 'images'), os.path.join(coco_folder, 'instances.json')]]
 
 
 def test_shuffling_patterns():
-    for data_set in data_sets:
+    for dataset in datasets:
         # get reference ids
         ref_img_ids = []
-        pipe = COCOReaderPipeline(batch_size=1, num_threads=4, shard_id=0, num_gpus=1, data_paths=data_set,
-                                  random_shuffle=False, stick_to_shard=False, shuffle_after_epoch=False, pad_last_batch=False)
+        pipe = COCOReaderPipeline(batch_size=1,
+                                  num_threads=4,
+                                  shard_id=0,
+                                  num_gpus=1,
+                                  data_paths=dataset,
+                                  random_shuffle=False,
+                                  stick_to_shard=False,
+                                  shuffle_after_epoch=False,
+                                  pad_last_batch=False)
         pipe.build()
         iters = pipe.epoch_size("Reader")
         for _ in range(iters):
@@ -55,15 +79,40 @@ def test_shuffling_patterns():
                 for stick_to_shard in [True, False]:
                     for shuffle_after_epoch in [True, False]:
                         for dry_run_num in [0, 1, 2]:
-                            yield check_shuffling_patterns, data_set, num_gpus, batch_size, stick_to_shard, shuffle_after_epoch, dry_run_num, len(ref_img_ids)
+                            yield (check_shuffling_patterns,
+                                   dataset,
+                                   num_gpus,
+                                   batch_size,
+                                   stick_to_shard,
+                                   shuffle_after_epoch,
+                                   dry_run_num,
+                                   len(ref_img_ids))
 
 
-def check_shuffling_patterns(data_set, num_gpus, batch_size, stick_to_shard, shuffle_after_epoch, dry_run_num, len_ref_img_ids):
+def check_shuffling_patterns(dataset,
+                             num_gpus,
+                             batch_size,
+                             stick_to_shard,
+                             shuffle_after_epoch,
+                             dry_run_num,
+                             len_ref_img_ids):
+
     random_shuffle = not shuffle_after_epoch
     pad_last_batch = batch_size != 1
-    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                                data_paths=data_set, random_shuffle=random_shuffle, stick_to_shard=stick_to_shard,
-                                shuffle_after_epoch=shuffle_after_epoch, pad_last_batch=pad_last_batch, initial_fill=1) for gpu in range(num_gpus)]
+    pipes = [
+        COCOReaderPipeline(batch_size=batch_size,
+                           num_threads=4,
+                           shard_id=gpu,
+                           num_gpus=num_gpus,
+                           data_paths=dataset,
+                           random_shuffle=random_shuffle,
+                           stick_to_shard=stick_to_shard,
+                           shuffle_after_epoch=shuffle_after_epoch,
+                           pad_last_batch=pad_last_batch,
+                           initial_fill=1)
+        for gpu in range(num_gpus)
+    ]
+
     if stick_to_shard and shuffle_after_epoch:
         return
 
@@ -79,7 +128,8 @@ def check_shuffling_patterns(data_set, num_gpus, batch_size, stick_to_shard, shu
             if pad_last_batch:
                 shard_size = dataset_size // num_gpus
             else:
-                shard_size = dataset_size * (n + 1 + mod) // num_gpus - dataset_size * (n + mod) // num_gpus
+                shard_size = (dataset_size * (n + 1 + mod) // num_gpus
+                              - dataset_size * (n + mod) // num_gpus)
             iters = shard_size // batch_size
             if shard_size != iters * batch_size:
                 iters += 1
@@ -94,7 +144,8 @@ def check_shuffling_patterns(data_set, num_gpus, batch_size, stick_to_shard, shu
         if pad_last_batch:
             shard_size = dataset_size // num_gpus
         else:
-            shard_size = dataset_size * (n + 1 + mod) // num_gpus - dataset_size * (n + mod) // num_gpus
+            shard_size = (dataset_size * (n + 1 + mod) // num_gpus
+                          - dataset_size * (n + mod) // num_gpus)
         iters = shard_size // batch_size
         if shard_size != iters * batch_size:
             iters += 1
@@ -116,13 +167,16 @@ def gather_ids(pipes, epochs_run=0, batch_size=1, num_gpus_arg=None, gpus_arg=No
         iterate_over = gpus_arg
     img_ids_list = [[] for _ in pipes]
 
-    # each GPU needs to iterate from `shard_id * data_size / num_gpus` samples to `(shard_id + 1)* data_size / num_gpus`
-    # after each epoch each GPU moves to the next shard
-    # epochs_run takes into account that after epoch readers advances to the next shard, if shuffle_after_epoch or stick_to_shard
-    # if doesn't matter and could/should be 0
-    # it is relevant only pad_last_batch == False, otherwise each shard has the same size thanks to padding
+    # Each GPU needs to iterate from `shard_id * data_size / num_gpus` samples
+    # to `(shard_id + 1)* data_size / num_gpus`.
+    # After each epoch, each GPU moves to the next shard.
+    # The `epochs_run` variable  takes into account that after epoch readers advance to the
+    # next shard. If shuffle_after_epoch or stick_to_shard is set, it doesn't matter
+    # and could/should be 0; it is relevant only if pad_last_batch is False, otherwise each
+    # shard has the same size due to padding.
     for img_ids_l, pipe, n in zip(img_ids_list, pipes, iterate_over):
-        shard_size = dataset_size * (n + 1 + epochs_run) // num_gpus - dataset_size * (n + epochs_run) // num_gpus
+        shard_size = (dataset_size * (n + 1 + epochs_run) // num_gpus
+                      - dataset_size * (n + epochs_run) // num_gpus)
         iters = int(math.ceil(shard_size / batch_size))
         for _ in range(iters):
             val = np.concatenate(pipe.run()[0].as_array())
@@ -140,26 +194,52 @@ def gather_ids(pipes, epochs_run=0, batch_size=1, num_gpus_arg=None, gpus_arg=No
 def test_global_shuffle_random_shuffle():
     num_gpus = 2
     batch_size = 1
-    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                                                    data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
-                                                    shuffle_after_epoch=True, pad_last_batch=False) for gpu in range(num_gpus)]
-    [pipe.build() for pipe in pipes]
+    pipes = [
+        COCOReaderPipeline(batch_size=batch_size,
+                           num_threads=4,
+                           shard_id=gpu,
+                           num_gpus=num_gpus,
+                           data_paths=datasets[0],
+                           random_shuffle=False,
+                           stick_to_shard=False,
+                           shuffle_after_epoch=True,
+                           pad_last_batch=False)
+        for gpu in range(num_gpus)
+    ]
+
+    for pipe in pipes:
+        pipe.build()
 
     _, img_ids_list_set, _ = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes)
 
     assert img_ids_list_set[0] != img_ids_list_set_new[0]
+
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
-    assert img_ids_list_set[0].union(img_ids_list_set[1]) == img_ids_list_set_new[0].union(img_ids_list_set_new[1])
+
+    assert (img_ids_list_set[0].union(img_ids_list_set[1]) ==
+            img_ids_list_set_new[0].union(img_ids_list_set_new[1]))
 
 
 def test_global_shuffle_random_shuffle_2():
     num_gpus = 1
     batch_size = 1
-    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=2,
-                                                    data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
-                                                    shuffle_after_epoch=True, pad_last_batch=False, initial_fill=1) for gpu in range(num_gpus)]
-    [pipe.build() for pipe in pipes]
+    pipes = [
+        COCOReaderPipeline(batch_size=batch_size,
+                           num_threads=4,
+                           shard_id=gpu,
+                           num_gpus=2,
+                           data_paths=datasets[0],
+                           random_shuffle=False,
+                           stick_to_shard=False,
+                           shuffle_after_epoch=True,
+                           pad_last_batch=False,
+                           initial_fill=1)
+        for gpu in range(num_gpus)
+    ]
+
+    for pipe in pipes:
+        pipe.build()
 
     img_ids_list, img_ids_list_set, _ = gather_ids(pipes, num_gpus_arg=2, gpus_arg=[0])
     assert len(img_ids_list) == len(img_ids_list_set)
@@ -171,30 +251,55 @@ def test_global_shuffle_random_shuffle_2():
 
 
 def test_global_shuffle_dont_mix_epochs():
-    # with `random_shuffle=False` `shuffle_after_epoch=True` should still make data random between epochs
+    # with `random_shuffle=False` `shuffle_after_epoch=True` should
+    # still make data random between epochs
     num_gpus = 2
     batch_size = 1
-    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                                                    data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
-                                                    shuffle_after_epoch=True, pad_last_batch=False) for gpu in range(num_gpus)]
-    [pipe.build() for pipe in pipes]
+    pipes = [
+        COCOReaderPipeline(batch_size=batch_size,
+                           num_threads=4,
+                           shard_id=gpu,
+                           num_gpus=num_gpus,
+                           data_paths=datasets[0],
+                           random_shuffle=False,
+                           stick_to_shard=False,
+                           shuffle_after_epoch=True,
+                           pad_last_batch=False)
+        for gpu in range(num_gpus)
+    ]
+
+    for pipe in pipes:
+        pipe.build()
 
     _, img_ids_list_set, _ = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes)
 
     assert img_ids_list_set[0] != img_ids_list_set_new[0]
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
-    assert img_ids_list_set[0].union(img_ids_list_set[1]) == img_ids_list_set_new[0].union(img_ids_list_set_new[1])
+    assert (img_ids_list_set[0].union(img_ids_list_set[1]) ==
+            img_ids_list_set_new[0].union(img_ids_list_set_new[1]))
 
 
 def test_dont_mix_epochs():
-    # with `random_shuffle=False` `shuffle_after_epoch=False` GPU0 data from epoch 0 should equal to data from GPU1 from epoch 1
+    # with `random_shuffle=False` `shuffle_after_epoch=False` GPU0 data
+    # from epoch 0 should equal to data from GPU1 from epoch 1
     num_gpus = 2
     batch_size = 1
-    pipes = [COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                                                    data_paths=data_sets[0], random_shuffle=False, stick_to_shard=False,
-                                                    shuffle_after_epoch=False, pad_last_batch=False) for gpu in range(num_gpus)]
-    [pipe.build() for pipe in pipes]
+    pipes = [
+        COCOReaderPipeline(batch_size=batch_size,
+                           num_threads=4,
+                           shard_id=gpu,
+                           num_gpus=num_gpus,
+                           data_paths=datasets[0],
+                           random_shuffle=False,
+                           stick_to_shard=False,
+                           shuffle_after_epoch=False,
+                           pad_last_batch=False)
+        for gpu in range(num_gpus)
+    ]
+
+    for pipe in pipes:
+        pipe.build()
 
     _, img_ids_list_set, epochs_run = gather_ids(pipes)
     _, img_ids_list_set_new, _ = gather_ids(pipes, epochs_run)
@@ -218,30 +323,48 @@ def create_pipeline(creator, batch_size, num_gpus):
 
 
 def test_pad_last_batch_epoch_size():
-    pipe = COCOReaderPipeline(batch_size=10, num_threads=4, shard_id=0, num_gpus=1,
-                                  data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                                  shuffle_after_epoch=False, pad_last_batch=True)
+    pipe = COCOReaderPipeline(batch_size=10,
+                              num_threads=4,
+                              shard_id=0,
+                              num_gpus=1,
+                              data_paths=datasets[0],
+                              random_shuffle=True,
+                              stick_to_shard=False,
+                              shuffle_after_epoch=False,
+                              pad_last_batch=True)
     pipe.build()
     reference_size = pipe.epoch_size("Reader")
 
     for num_gpus in range(1, 10):
-        pipe = COCOReaderPipeline(batch_size=10, num_threads=4, shard_id=0, num_gpus=num_gpus,
-                                  data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                                  shuffle_after_epoch=False, pad_last_batch=True)
+        pipe = COCOReaderPipeline(batch_size=10,
+                                  num_threads=4,
+                                  shard_id=0,
+                                  num_gpus=num_gpus,
+                                  data_paths=datasets[0],
+                                  random_shuffle=True,
+                                  stick_to_shard=False,
+                                  shuffle_after_epoch=False,
+                                  pad_last_batch=True)
         pipe.build()
         size = pipe.epoch_size("Reader")
         print(reference_size, size, num_gpus)
-        assert size == int(math.ceil(reference_size * 1.0 /  num_gpus)) * num_gpus
+        assert size == int(math.ceil(reference_size * 1.0 / num_gpus)) * num_gpus
 
 
 def test_pad_last_batch():
     num_gpus = 1
     batch_size = 100
 
-    pipes, iters = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size, num_threads=4, shard_id=gpu, num_gpus=num_gpus,
-                                                                      data_paths=data_sets[0], random_shuffle=True, stick_to_shard=False,
-                                                                      shuffle_after_epoch=False, pad_last_batch=True), batch_size, num_gpus)
-
+    pipes, iters = create_pipeline(lambda gpu: COCOReaderPipeline(batch_size=batch_size,
+                                                                  num_threads=4,
+                                                                  shard_id=gpu,
+                                                                  num_gpus=num_gpus,
+                                                                  data_paths=datasets[0],
+                                                                  random_shuffle=True,
+                                                                  stick_to_shard=False,
+                                                                  shuffle_after_epoch=False,
+                                                                  pad_last_batch=True),
+                                   batch_size, num_gpus)
 
     img_ids_list, _, epochs_run = gather_ids(pipes, batch_size=batch_size)
 

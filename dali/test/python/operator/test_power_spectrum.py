@@ -13,12 +13,8 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
-import nvidia.dali.types as types
-import nvidia.dali as dali
 import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 from functools import partial
-from test_utils import check_batch
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 

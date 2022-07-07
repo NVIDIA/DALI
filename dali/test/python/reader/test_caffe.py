@@ -15,16 +15,10 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import nvidia.dali as dali
-from nvidia.dali.backend_impl import TensorListGPU
-import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
+from numpy.testing import assert_array_equal
 import os
 
-from test_utils import check_batch
-from test_utils import save_image
 from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 
 test_data_root = get_dali_extra_path()
@@ -35,9 +29,7 @@ c2lmdb_no_label_db_folder = os.path.join(test_data_root, 'db', 'c2lmdb_no_label'
 
 class CaffeReaderPipeline(Pipeline):
     def __init__(self, path, batch_size, num_threads=1, device_id=0, num_gpus=1):
-        super(CaffeReaderPipeline, self).__init__(batch_size,
-                                           num_threads,
-                                           device_id)
+        super(CaffeReaderPipeline, self).__init__(batch_size, num_threads, device_id)
         self.input = ops.readers.Caffe(path=path, shard_id=device_id, num_shards=num_gpus)
 
         self.decode = ops.decoders.ImageCrop(device="cpu",

@@ -11,8 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from numpy.core.numeric import array_equal
-from numpy.lib.function_base import iterable
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
@@ -31,15 +29,15 @@ def index_pipe(data_source, indexing_func):
 
 
 def test_plain_indexing():
-    data = [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
+    data = [np.float32([[0, 1, 2], [3, 4, 5]]), np.float32([[0, 1], [2, 3], [4, 5]])]
     src = fn.external_source(lambda: data, layout="AB")
-    pipe = index_pipe(src, lambda x: x[1,1])
+    pipe = index_pipe(src, lambda x: x[1, 1])
     pipe.build()
     inp, cpu, gpu = pipe.run()
     for i in range(len(inp)):
         x = inp.at(i)
-        assert np.array_equal(x[1,1], cpu.at(i))
-        assert np.array_equal(x[1,1], gpu.as_cpu().at(i))
+        assert np.array_equal(x[1, 1], cpu.at(i))
+        assert np.array_equal(x[1, 1], gpu.as_cpu().at(i))
 
 
 def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None):
@@ -58,18 +56,18 @@ def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_i
 
 def test_constant_ranges():
     def data_gen():
-        return [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[1:,:2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[-1:,:-2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:-1,:-1], None
-    yield _test_indexing, data_gen, "AB", "B", lambda x: x[1,:2], None
-    yield _test_indexing, data_gen, "AB", "B", lambda x: x[1,:-2], None
-    yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1,-1], None
-    yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1,0], None
+        return [np.float32([[0, 1, 2], [3, 4, 5]]), np.float32([[0, 1], [2, 3], [4, 5]])]
+    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[1:, :2], None
+    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[-1:, :-2], None
+    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:-1, :-1], None
+    yield _test_indexing, data_gen, "AB", "B", lambda x: x[1, :2], None
+    yield _test_indexing, data_gen, "AB", "B", lambda x: x[1, :-2], None
+    yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1, -1], None
+    yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1, 0], None
 
 
 def test_swapped_ends():
-    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data)
     pipe = index_pipe(src, lambda x: x[2:1])
     pipe.build()
@@ -81,14 +79,14 @@ def test_swapped_ends():
 
 
 def test_noop():
-    node = dali.types.Constant(np.float32([1,2,2]))
+    node = dali.types.Constant(np.float32([1, 2, 2]))
     indexed = node[:]
     assert "SubscriptDimCheck" in indexed.name
 
 
 def test_runtime_indexing():
     def data_gen():
-        return [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
+        return [np.float32([[0, 1, 2], [3, 4, 5]]), np.float32([[0, 1], [2, 3], [4, 5]])]
     src = fn.external_source(data_gen)
     lo_idxs = [np.array(x, dtype=np.int64) for x in [1, -5, 0, 2, -2, 1]]
     hi_idxs = [np.array(x, dtype=np.int16) for x in [5, -1, 1, 2, 4]]
@@ -111,15 +109,24 @@ def test_runtime_indexing():
 
 def test_new_axis():
     def data_gen():
-        return [np.float32([[0,1,2],[3,4,5]]), np.float32([[0,1],[2,3],[4,5]])]
-    yield _test_indexing, data_gen, "AB", "",       lambda x: x[1:,dali.newaxis,:2],        lambda x: x[1:,np.newaxis,:2]
-    yield _test_indexing, data_gen, "AB", "CAB",    lambda x: x[dali.newaxis("C"),-1:,:-2], lambda x: x[np.newaxis,-1:,:-2]
-    yield _test_indexing, data_gen, "AB", "ACB",    lambda x: x[:,dali.newaxis("C"),:],     lambda x: x[:,np.newaxis,:]
-    yield _test_indexing, data_gen, "AB", "C",      lambda x: x[1,dali.newaxis("C"),1],     lambda x: x[1,np.newaxis,1]
+        return [np.float32([[0, 1, 2], [3, 4, 5]]), np.float32([[0, 1], [2, 3], [4, 5]])]
+
+    yield (_test_indexing, data_gen, "AB", "",
+           lambda x: x[1:, dali.newaxis, :2],
+           lambda x: x[1:, np.newaxis, :2])
+    yield (_test_indexing, data_gen, "AB", "CAB",
+           lambda x: x[dali.newaxis("C"), -1:, :-2],
+           lambda x: x[np.newaxis, -1:, :-2])
+    yield (_test_indexing, data_gen, "AB", "ACB",
+           lambda x: x[:, dali.newaxis("C"), :],
+           lambda x: x[:, np.newaxis, :])
+    yield (_test_indexing, data_gen, "AB", "C",
+           lambda x: x[1, dali.newaxis("C"), 1],
+           lambda x: x[1, np.newaxis, 1])
 
 
 def _test_invalid_args(device, args, message, run):
-    data = [np.uint8([[1,2,3]]),np.uint8([[1,2]])]
+    data = [np.uint8([[1, 2, 3]]), np.uint8([[1, 2]])]
     pipe = Pipeline(2, 1, 0)
     src = fn.external_source(lambda: data, device=device)
     pipe.set_outputs(fn.tensor_subscript(src, **args))
@@ -132,23 +139,23 @@ def _test_invalid_args(device, args, message, run):
 def test_inconsistent_args():
     for device in ["cpu", "gpu"]:
         for args, message in [
-                ({ "lo_0":0, "at_0":0 }, "both as an index"),
-                ({ "at_0":0, "step_0":1 }, "cannot have a step")
-            ]:
+                    ({"lo_0": 0, "at_0": 0}, "both as an index"),
+                    ({"at_0": 0, "step_0": 1}, "cannot have a step")
+                ]:
             yield _test_invalid_args, device, args, message, False
 
 
 def test_unsupported_step():
     for device in ["cpu", "gpu"]:
         for args in [
-                { "step_0": 2},
-                { "step_1": -1},
-            ]:
+                    {"step_0": 2},
+                    {"step_1": -1},
+                ]:
             yield _test_invalid_args, device, args, "not implemented", True
 
 
 def _test_out_of_range(device, idx):
-    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[idx])
     pipe.build()
@@ -163,9 +170,9 @@ def test_out_of_range():
 
 
 def _test_too_many_indices(device):
-    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data, device=device)
-    pipe = index_pipe(src, lambda x: x[1,:])
+    pipe = index_pipe(src, lambda x: x[1, :])
 
     # Verified by tensor_subscript
     with assert_raises(RuntimeError, glob="Too many indices"):
@@ -173,23 +180,22 @@ def _test_too_many_indices(device):
         _ = pipe.run()
 
     # Verified by subscript_dim_check
-    pipe = index_pipe(src, lambda x: x[:,:])
+    pipe = index_pipe(src, lambda x: x[:, :])
     with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
 
     # Verified by expand_dims
-    pipe = index_pipe(src, lambda x: x[:,:,dali.newaxis])
+    pipe = index_pipe(src, lambda x: x[:, :, dali.newaxis])
     with assert_raises(RuntimeError, glob="not enough dimensions"):
         pipe.build()
         _ = pipe.run()
 
     # Verified by subscript_dim_check
-    pipe = index_pipe(src, lambda x: x[dali.newaxis,:,dali.newaxis,:])
+    pipe = index_pipe(src, lambda x: x[dali.newaxis, :, dali.newaxis, :])
     with assert_raises(RuntimeError, glob="Too many indices"):
         pipe.build()
         _ = pipe.run()
-
 
 
 def test_too_many_indices():
@@ -198,7 +204,7 @@ def test_too_many_indices():
 
 
 def test_stride_not_implemented():
-    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data)
     src[::1]
     with assert_raises(NotImplementedError):
@@ -206,7 +212,7 @@ def test_stride_not_implemented():
 
 
 def test_ellipsis_not_implemented():
-    data = [np.uint8([1,2,3]),np.uint8([1,2])]
+    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data)
     with assert_raises(NotImplementedError):
-        src[...,:1]
+        src[..., :1]

@@ -13,7 +13,6 @@
 
 from nvidia.dali import fn, pipeline_def
 from test_utils import RandomlyShapedDataIterator, to_array
-from nose.tools import raises
 
 import numpy as np
 

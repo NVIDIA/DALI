@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+# nose_utils goes first to deal with Python 3.10 incompatibility
+from nose_utils import assert_raises
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
@@ -18,10 +21,8 @@ import numpy as np
 import scipy.ndimage
 import scipy.ndimage.measurements
 import random
-from test_utils import check_batch
-from test_utils import np_type_to_dali
+from test_utils import check_batch, np_type_to_dali
 from nose.tools import nottest
-from nose_utils import assert_raises
 
 np.random.seed(1234)
 random.seed(1234)
@@ -53,16 +54,21 @@ def test_num_output():
     assert len(fn.segmentation.random_object_bbox(inp)) == 2
     for label_out_param in [None, False, True]:
         label_out = 1 if label_out_param else 0
-        assert count_outputs(fn.segmentation.random_object_bbox(inp, format="anchor_shape", output_class=label_out_param)) == 2 + label_out
-        assert count_outputs(fn.segmentation.random_object_bbox(inp, format="start_end", output_class=label_out_param)) == 2 + label_out
-        assert count_outputs(fn.segmentation.random_object_bbox(inp, format="box", output_class=label_out_param)) == 1 + label_out
+        for format, num_box_outputs in [("anchor_shape", 2), ("start_end", 2), ("box", 1)]:
+            assert count_outputs(fn.segmentation.random_object_bbox(
+                inp, format=format, output_class=label_out_param)) == label_out + num_box_outputs
 
 
 @nottest
 def _test_use_foreground(classes, weights, bg):
     inp = fn.external_source(data, batch=False, cycle="quiet")
     pipe = dali.pipeline.Pipeline(10, 4, 0, 12345)
-    pipe_outs = fn.segmentation.random_object_bbox(inp, output_class=True, foreground_prob=1, classes=classes, class_weights=weights, background=bg)
+    pipe_outs = fn.segmentation.random_object_bbox(inp,
+                                                   output_class=True,
+                                                   foreground_prob=1,
+                                                   classes=classes,
+                                                   class_weights=weights,
+                                                   background=bg)
     pipe.set_outputs(*pipe_outs)
     pipe.build()
     outs = pipe.run()
@@ -73,12 +79,12 @@ def _test_use_foreground(classes, weights, bg):
 def test_use_foreground():
     """Test that a foreground box is returned when required (prob=1) and possible (fixed data)"""
     for classes, weights, bg in [
-        (None, None, None),
-        (None, None, 1),
-        ([1,2,3], None, None),
-        (None, [1,1,1], None),
-        (None, [1,1,1], 0),
-        ([1,2,3], [1,1,1], None)]:
+            (None, None, None),
+            (None, None, 1),
+            ([1, 2, 3], None, None),
+            (None, [1, 1, 1], None),
+            (None, [1, 1, 1], 0),
+            ([1, 2, 3], [1, 1, 1], None)]:
         yield _test_use_foreground, classes, weights, bg
 
 
@@ -132,8 +138,8 @@ def all_boxes(array, classes=None, background=None):
             pass
 
     objects = []
-    for l in labels:
-        mask = array == l
+    for lbl in labels:
+        mask = array == lbl
         cc, _ = scipy.ndimage.measurements.label(mask)
         objs = scipy.ndimage.find_objects(cc)
         if len(objs) > 0 and objs[0] is not None:
@@ -207,7 +213,7 @@ def generate_samples(num_samples, ndim, dtype):
     for i in range(num_samples):
         shape = list(np.random.randint(5, 13, [ndim]))
         num_classes = np.random.randint(1, 10)
-        blobs_per_class = np.random.randint(1, 10);
+        blobs_per_class = np.random.randint(1, 10)
         samples.append(generate_data(shape, num_classes, blobs_per_class).astype(dtype))
     return samples
 
@@ -230,6 +236,10 @@ def sampled_dataset(dataset_size, batch_size, ndim, dtype):
     return gen
 
 
+def random_background():
+    return fn.random.uniform(range=(-5, 10), dtype=dali.types.INT32, seed=12321)
+
+
 def random_classes(background):
     def get_classes():
         tmp = list(np.flatnonzero(np.random.random([10]) > 0.5))
@@ -246,6 +256,10 @@ def random_weights():
         tmp = np.random.random(np.random.randint(1, 10)).astype(np.float32)
         return tmp
     return fn.external_source(get_weights, batch=False)
+
+
+def random_threshold(ndim):
+    return fn.random.uniform(range=(1, 5), shape=[ndim], dtype=dali.types.INT32, seed=13231)
 
 
 def contains_box(boxes, box):
@@ -280,13 +294,17 @@ def _test_random_object_bbox_with_class(max_batch_size, ndim, dtype, format=None
 
     with pipe:
         inp = fn.external_source(source)
-        if isinstance(background, dali.pipeline.DataNode) or (background is not None and background >= 0):
+        if (isinstance(background, dali.pipeline.DataNode)
+                or (background is not None and background >= 0)):
             inp = fn.cast(inp + (background_out + 1), dtype=np_type_to_dali(dtype))
         # preconfigure
         op = ops.segmentation.RandomObjectBBox(format=format,
                                                foreground_prob=fg_prob,
-                                               classes=classes, class_weights=weights, background=background,
-                                               threshold=threshold, k_largest=k_largest,
+                                               classes=classes,
+                                               class_weights=weights,
+                                               background=background,
+                                               threshold=threshold,
+                                               k_largest=k_largest,
                                                seed=1234)
         outs1 = op(inp, cache_objects=cache)
         outs2 = op(inp, output_class=True)
@@ -348,13 +366,14 @@ def test_random_object_bbox_with_class():
 
     formats = [None, "anchor_shape", "start_end", "box"]
     fmt = 0
-    for bg in [None, 0, -1, 5, fn.random.uniform(range=(-5, 10), dtype=dali.types.INT32, seed=12321)]:
+    for bg in [None, 0, -1, 5, random_background()]:
         if bg is None or isinstance(bg, int):
-            class_opt = [None, [0], [1], [2,4,5,7]]
+            class_opt = [None, [0], [1], [2, 4, 5, 7]]
             for x in class_opt:
                 if isinstance(x, list) and bg in x:
                     x.remove(bg)
-            if [] in class_opt: class_opt.remove([])
+            if [] in class_opt:
+                class_opt.remove([])
             # putting this in the list interefered with remove
             class_opt.append(random_classes(0 if bg is None else bg))
         else:
@@ -370,31 +389,47 @@ def test_random_object_bbox_with_class():
             for weights in weights_opt:
                 ndim = np.random.randint(1, 5)
 
-                threshold_opt = [None, 3, list(range(1, 1 + ndim)), fn.random.uniform(range=(1,5), shape=[ndim], dtype=dali.types.INT32, seed=13231)]
-                threshold = random.choice(threshold_opt);
+                threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+                threshold = random.choice(threshold_opt)
                 k_largest_opt = [None, 1, 2, 5]
-                k_largest = random.choice(k_largest_opt);
+                k_largest = random.choice(k_largest_opt)
 
-                fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0,1), seed=1515)]
+                fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
                 fg_prob = random.choice(fg_prob_opt)
 
                 format = formats[fmt]
                 fmt = (fmt + 1) % len(formats)
                 dtype = random.choice(types)
                 cache = np.random.randint(2) == 1
-                yield _test_random_object_bbox_with_class, 4, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest, cache
+                yield (_test_random_object_bbox_with_class,
+                       4, ndim, dtype, format,
+                       fg_prob, classes, weights, bg,
+                       threshold, k_largest,
+                       cache)
 
 
 @nottest
-def _test_random_object_bbox_ignore_class(max_batch_size, ndim, dtype, format=None, background=None, threshold=None, k_largest=None):
+def _test_random_object_bbox_ignore_class(max_batch_size,
+                                          ndim,
+                                          dtype,
+                                          format=None,
+                                          background=None,
+                                          threshold=None,
+                                          k_largest=None):
+
     pipe = dali.Pipeline(max_batch_size, 4, device_id=None, seed=4321)
     background_out = 0 if background is None else background
     threshold_out = np.int32([]) if threshold is None else threshold
 
     with pipe:
         inp = fn.external_source(batch_generator(max_batch_size, ndim, dtype))
-        outs = fn.segmentation.random_object_bbox(inp, format=format, ignore_class=True, background=background, seed=1234,
-                                                  threshold=threshold, k_largest=k_largest)
+        outs = fn.segmentation.random_object_bbox(inp,
+                                                  format=format,
+                                                  ignore_class=True,
+                                                  background=background,
+                                                  seed=1234,
+                                                  threshold=threshold,
+                                                  k_largest=k_largest)
         if not isinstance(outs, list):
             outs = [outs]
         pipe.set_outputs(inp, background_out, threshold_out, *outs)
@@ -430,16 +465,17 @@ def _test_random_object_bbox_ignore_class(max_batch_size, ndim, dtype, format=No
 def test_random_object_bbox_ignore_class():
     np.random.seed(43210)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
-    for bg in [None, 0, -1, 5, fn.random.uniform(range=(-5, 10), dtype=dali.types.INT32, seed=1313)]:
+    for bg in [None, 0, -1, 5, random_background()]:
         ndim = np.random.randint(1, 5)
         dtype = random.choice(types)
         for format in [None, "anchor_shape", "start_end", "box"]:
-            threshold_opt = [None, 3, list(range(1, 1 + ndim)), fn.random.uniform(range=(1,5), shape=[ndim], dtype=dali.types.INT32, seed=3214)]
+            threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
             threshold = random.choice(threshold_opt)
             k_largest_opt = [None, 1, 2, 5]
             k_largest = random.choice(k_largest_opt)
 
-            yield _test_random_object_bbox_ignore_class, 5, ndim, dtype, format, bg, threshold, k_largest
+            yield (_test_random_object_bbox_ignore_class,
+                   5, ndim, dtype, format, bg, threshold, k_largest)
 
 
 @nottest
@@ -450,8 +486,11 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
         if the smallest label -1 overflows, decrement the label until no collision
     """
     pipe = dali.Pipeline(batch_size=1, num_threads=1, device_id=0, seed=1234)
-    data = np.uint32([0,1,2,3])
-    box, label = fn.segmentation.random_object_bbox(data, foreground_prob=1e-9, format="box", output_class=1, classes=fg_labels)
+    data = np.uint32([0, 1, 2, 3])
+
+    box, label = fn.segmentation.random_object_bbox(
+        data, foreground_prob=1e-9, format="box", output_class=1, classes=fg_labels)
+
     pipe.set_outputs(box, label)
     pipe.build()
     _, labels = pipe.run()
@@ -460,9 +499,9 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
 
 def test_random_object_bbox_auto_bg():
     for fg, expected_bg in [
-            ([1,2,3], 0),
-            ([0,1,2], -1),
-            ([-1,1], 0),
+            ([1, 2, 3], 0),
+            ([0, 1, 2], -1),
+            ([-1, 1], 0),
             ([0, -5], -6),
             ([-0x80000000, 0x7fffffff], 0),
             ([-0x80000000, 0x7fffffff, 0, 0x7ffffffe], 0x7ffffffd)
@@ -482,20 +521,23 @@ def _test_err_args(**kwargs):
 
 def test_err_classes_bg():
     with assert_raises(RuntimeError, glob="Class label 0 coincides with background label"):
-        _test_err_args(classes=[0,1,2,3], background=0)
+        _test_err_args(classes=[0, 1, 2, 3], background=0)
 
 
 def test_err_classes_weights_length_clash():
-    error_msg = r"If both ``classes`` and ``class_weights`` are provided, their shapes must match. Got:\s+classes.shape = \{4\}\s+weights.shape = \{3\}"
+    error_msg = r"If both ``classes`` and ``class_weights`` are provided, their shapes must " \
+                r"match. Got:\s+classes.shape = \{4\}\s+weights.shape = \{3\}"
     with assert_raises(RuntimeError, regex=error_msg):
-        _test_err_args(classes=[0,1,2,3], class_weights=np.float32([1,2,3]))
+        _test_err_args(classes=[0, 1, 2, 3], class_weights=np.float32([1, 2, 3]))
     with assert_raises(RuntimeError, regex=error_msg):
-        _test_err_args(classes=np.int32([0,1,2,3]), class_weights=[3,2,1])
+        _test_err_args(classes=np.int32([0, 1, 2, 3]), class_weights=[3, 2, 1])
 
 
 def test_err_classes_ignored():
-    with assert_raises(RuntimeError, glob="Class-related arguments * cannot be used when ``ignore_class`` is True"):
-        _test_err_args(classes=[0,1,2,3], ignore_class=True)
+    with assert_raises(
+            RuntimeError,
+            glob="Class-related arguments * cannot be used when ``ignore_class`` is True"):
+        _test_err_args(classes=[0, 1, 2, 3], ignore_class=True)
 
 
 def test_err_k_largest_nonpositive():
@@ -506,9 +548,13 @@ def test_err_k_largest_nonpositive():
 
 
 def test_err_threshold_dim_clash():
-    with assert_raises(RuntimeError, glob="Argument \"threshold\" expected shape 2 but got 5 values, which can't be interpreted as the expected shape."):
-        _test_err_args(threshold=[1,2,3,4,5])
+    with assert_raises(
+            RuntimeError,
+            glob="Argument \"threshold\" expected shape 2 but got 5 values, "
+                 "which can't be interpreted as the expected shape."):
+        _test_err_args(threshold=[1, 2, 3, 4, 5])
 
 
 def test_large_data():
-    yield _test_random_object_bbox_with_class, 4, 5, np.int32, None, 1., [1,2,3], None, None, None, 10
+    yield (_test_random_object_bbox_with_class,
+           4, 5, np.int32, None, 1., [1, 2, 3], None, None, None, 10)
