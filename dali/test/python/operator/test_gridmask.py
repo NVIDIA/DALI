@@ -97,7 +97,7 @@ def test_gridmask_vs_cv():
             if device == 'gpu':
                 results, inputs = results.as_cpu(), inputs.as_cpu()
             for i in range(batch_size):
-                yield check, results[i], inputs[i], tile, ratio, angle
+                check(results[i], inputs[i], tile, ratio, angle)
 
 
 def test_gridmask_vs_cv_random():
@@ -105,7 +105,7 @@ def test_gridmask_vs_cv_random():
     for device in ['cpu', 'gpu']:
         pipe = get_random_pipeline(device, batch_size)
         pipe.build()
-        for _ in range(16):
+        for _ in range(5):
             results, inputs, tiles, ratios, angles = pipe.run()
             if device == 'gpu':
                 results, inputs = results.as_cpu(), inputs.as_cpu()
@@ -113,4 +113,4 @@ def test_gridmask_vs_cv_random():
                 tile = np.int32(tiles[i])
                 ratio = np.float32(ratios[i])
                 angle = np.float32(angles[i])
-                yield check, results[i], inputs[i], tile, ratio, angle
+                check(results[i], inputs[i], tile, ratio, angle)
