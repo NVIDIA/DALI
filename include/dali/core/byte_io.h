@@ -43,7 +43,7 @@ void ReadValueImpl(float &value, const uint8_t* data) {
   memcpy(&value, &tmp, sizeof(float));
 }
 
-template <int nbytes, bool is_little_endian, typename T>
+template <int kNbytes, bool is_little_endian, typename T>
 void ReadValueImpl(T &value, InputStream &stream) {
   uint8_t data[nbytes];  // NOLINT [runtime/arrays]
   stream.ReadBytes(data, nbytes);
