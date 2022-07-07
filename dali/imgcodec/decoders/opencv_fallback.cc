@@ -72,7 +72,7 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
       cvimg = cv::imdecode(cv::_InputArray(raw, in->Size()), flags);
     }
 
-    if (flags & cv::IMREAD_COLOR)  // TODO - move this to Convert
+    if (flags & cv::IMREAD_COLOR)  // TODO(michalz) - move this to Convert
       cv::cvtColor(cvimg, cvimg, cv::COLOR_BGR2RGB);
 
     res.success = cvimg.ptr(0) != nullptr;
@@ -95,7 +95,8 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
 
       TensorLayout layout = cvimg.dims == 3 ? "DHWC" : "HWC";
 
-      Convert(out, layout, opts.format, in, layout, opts.format /* TODO - use actual format */,
+      Convert(out, layout, opts.format,
+              in, layout, opts.format,  // TODO(michalz) - use actual format
               roi_start, roi_end);
     }
   } catch (...) {

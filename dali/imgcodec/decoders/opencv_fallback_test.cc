@@ -30,9 +30,9 @@ namespace test {
 
 namespace {
 const auto &dali_extra = dali::testing::dali_extra_path();
-std::string img_color   = dali_extra + "/db/single/bmp/0/cat-111793_640.bmp";
-std::string imb_gray    = dali_extra + "/db/single/bmp/0/cat-111793_640_grayscale.bmp";
-std::string imb_palette = dali_extra + "/db/single/bmp/0/cat-111793_640_palette_8bit.bmp";
+auto img_color   = dali_extra + "/db/single/bmp/0/cat-111793_640.bmp";
+auto imb_gray    = dali_extra + "/db/single/bmp/0/cat-111793_640_grayscale.bmp";
+auto imb_palette = dali_extra + "/db/single/bmp/0/cat-111793_640_palette_8bit.bmp";
 }  // namespace
 
 
@@ -94,12 +94,6 @@ TYPED_TEST(OpenCVFallbackDecodeTest, Decode) {
       }
     }
   }
-
-
-  //std::cerr << info.shape << std::endl;
-
-  //EXPECT_TRUE(instance->CanDecode(&source));
-
 }
 
 }  // namespace test
