@@ -55,9 +55,9 @@ class DLL_PUBLIC ImageParser {
 
  protected:
   /**
-   * @brief Reads first n bytes of the encoded image and returns the number of bytes read.
+   * @brief Reads first n bytes from the beginning of the encoded image
    */
-  size_t ReadHeader(ImageSource *encoded, uint8_t *buffer, size_t n) const;
+  size_t ReadHeader(uint8_t *buffer, ImageSource *encoded, size_t n) const;
 };
 
 class ImageDecoder;

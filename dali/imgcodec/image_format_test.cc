@@ -115,7 +115,7 @@ TEST_F(ImageFormatTest, ReadHeaderHostMem) {
   uint8_t buffer[16];
   auto src = ImageSource::FromHostMem(data, 4);
   DummyParser p;
-  EXPECT_EQ(4, p.ReadHeader(&src, buffer, 5));
+  EXPECT_EQ(4, p.ReadHeader(buffer, &src, 5));
   EXPECT_EQ(0, buffer[0]);
   EXPECT_EQ(1, buffer[1]);
   EXPECT_EQ(2, buffer[2]);
@@ -127,7 +127,7 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
     testing::dali_extra_path() + "/db/single/tiff/0/cat-1245673_640.tiff");
   uint8_t buffer[4];
   DummyParser p;
-  EXPECT_EQ(4, p.ReadHeader(&src, buffer, 4));
+  EXPECT_EQ(4, p.ReadHeader(buffer, &src, 4));
   EXPECT_EQ('I', buffer[0]);
   EXPECT_EQ('I', buffer[1]);
   EXPECT_EQ(42, buffer[2]);
