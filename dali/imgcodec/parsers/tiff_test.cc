@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <vector>
+#include <string>
 
 #include "dali/imgcodec/image_source.h"
 #include "dali/imgcodec/parsers/tiff.h"
@@ -74,6 +75,92 @@ TEST_F(TiffParserTest, Empty) {
 
 TEST_F(TiffParserTest, FromFilename) {
   EXPECT_TRUE(parser_.CanParse(&img_));
+}
+
+
+class TiffParserOrientationTest : public ::testing::Test {
+ public:
+  TiffParserOrientationTest() : parser_() {}
+
+  ImageSource GetImage(const std::string& orientation) {
+    auto base = testing::dali_extra_path() + "/db/single/tiff/orientation/cat-1046544_640_";
+    auto filename = base + orientation + ".tiff";
+    return ImageSource::FromFilename(filename);
+  }
+
+  TiffParser parser_;
+};
+
+TEST_F(TiffParserOrientationTest, Horizontal) {
+  auto img = GetImage("horizontal");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, orientation.rotate);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, MirrorHorizontal) {
+  auto img = GetImage("mirror_horizontal");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, orientation.rotate);
+  EXPECT_EQ(true, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, Rotate180) {
+  auto img = GetImage("rotate_180");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(180, orientation.rotate);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, MirrorVertical) {
+  auto img = GetImage("mirror_vertical");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, orientation.rotate);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(true, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, MirrorHorizontalRotate270) {
+  auto img = GetImage("mirror_horizontal_rotate_270");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(270, orientation.rotate);
+  EXPECT_EQ(true, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, Rotate90) {
+  auto img = GetImage("rotate_90");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(90, orientation.rotate);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, MirrorHorizontalRotate90) {
+  auto img = GetImage("mirror_horizontal_rotate_90");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(90, orientation.rotate);
+  EXPECT_EQ(true, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, Rotate270) {
+  auto img = GetImage("rotate_270");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(270, orientation.rotate);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(TiffParserOrientationTest, NoOrientation) {
+  auto img = GetImage("no_orientation");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, orientation.rotate);
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
 }
 
 }  // namespace test

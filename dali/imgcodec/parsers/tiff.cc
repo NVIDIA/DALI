@@ -21,9 +21,19 @@ namespace imgcodec {
 constexpr int ENTRY_SIZE = 12;
 constexpr int WIDTH_TAG = 256;
 constexpr int HEIGHT_TAG = 257;
+constexpr int ORIENTATION_TAG = 274;
 constexpr int SAMPLESPERPIXEL_TAG = 277;
 constexpr int TYPE_WORD = 3;
 constexpr int TYPE_DWORD = 4;
+
+constexpr int ORIENTATION_HORIZONTAL = 1;
+constexpr int ORIENTATION_MIRROR_HORIZONTAL = 2;
+constexpr int ORIENTATION_ROTATE_180 = 3;
+constexpr int ORIENTATION_MIRROR_VERTICAL = 4;
+constexpr int ORIENTATION_MIRROR_HORIZONTAL_ROTATE_270 = 5;
+constexpr int ORIENTATION_ROTATE_90 = 6;
+constexpr int ORIENTATION_MIRROR_HORIZONTAL_ROTATE_90 = 7;
+constexpr int ORIENTATION_ROTATE_270 = 8;
 
 constexpr std::array<uint8_t, 4> le_header = {'I', 'I', 42, 0}, be_header = {'M', 'M', 0, 42};
 
@@ -37,6 +47,8 @@ T TiffRead(InputStream& stream, bool is_little_endian) {
 }
 
 ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
+  ImageInfo info;
+  info.orientation = {0, false, false};
   auto stream = encoded->Open();
   DALI_ENFORCE(stream->Size() >= 8);
 
@@ -54,7 +66,8 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
     const auto entry_offset = ifd_offset + sizeof(uint16_t) + entry_idx * ENTRY_SIZE;
     stream->SeekRead(entry_offset, SEEK_SET);
     const auto tag_id = TiffRead<uint16_t>(*stream, is_little_endian);
-    if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG || tag_id == SAMPLESPERPIXEL_TAG) {
+    if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG || tag_id == SAMPLESPERPIXEL_TAG
+        || tag_id == ORIENTATION_TAG) {
       const auto value_type = TiffRead<uint16_t>(*stream, is_little_endian);
       const auto value_count = TiffRead<uint32_t>(*stream, is_little_endian);
       DALI_ENFORCE(value_count == 1);
@@ -77,6 +90,35 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
       } else if (tag_id == SAMPLESPERPIXEL_TAG) {
         nchannels = value;
         nchannels_read = true;
+      } else if (tag_id == ORIENTATION_TAG) {
+        switch (value) {
+          case ORIENTATION_HORIZONTAL:
+            info.orientation = {0, false, false};
+            break;
+          case ORIENTATION_MIRROR_HORIZONTAL:
+            info.orientation = {0, true, false};
+            break;
+          case ORIENTATION_ROTATE_180:
+            info.orientation = {180, false, false};
+            break;
+          case ORIENTATION_MIRROR_VERTICAL:
+            info.orientation = {0, false, true};
+            break;
+          case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_270:
+            info.orientation = {270, true, false};
+            break;
+          case ORIENTATION_ROTATE_90:
+            info.orientation = {90, false, false};
+            break;
+          case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_90:
+            info.orientation = {90, true, false};
+            break;
+          case ORIENTATION_ROTATE_270:
+            info.orientation = {270, false, false};
+            break;
+          default:
+            DALI_FAIL("Couldn't read TIFF image orientation.");
+        }
       }
     }
   }
@@ -84,7 +126,6 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
   DALI_ENFORCE(width_read && height_read && nchannels_read,
     "TIFF image dims haven't been read properly");
 
-  ImageInfo info;
   info.shape = {height, width, nchannels};
   return info;
 }
