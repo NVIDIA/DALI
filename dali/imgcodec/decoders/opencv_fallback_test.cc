@@ -77,8 +77,9 @@ TYPED_TEST(OpenCVFallbackDecodeTest, Decode) {
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), info.shape, type2id<OutputType>::value);
   auto result = instance->Decode(sv, &source, params);
-  if (result.exception)
+  if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
+  }
   ASSERT_TRUE(result.success);
 
   cv::Mat m = cv::imread(fname, cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION);
@@ -122,8 +123,9 @@ TYPED_TEST(OpenCVFallbackDecodeTest, DecodeROI) {
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), out_shape, type2id<OutputType>::value);
   auto result = instance->Decode(sv, &source, params);
-  if (result.exception)
+  if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
+  }
   ASSERT_TRUE(result.success);
 
   cv::Mat m = cv::imread(fname, cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION);
