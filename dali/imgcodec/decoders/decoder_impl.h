@@ -39,7 +39,13 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
     return ret;
   }
 
-  using ImageDecoderInstance::Decode;
+  /**
+   * @brief To be overriden by a CPU codec implementation
+   */
+  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in, DecodeParams opts) override {
+    throw std::logic_error("Backend not supported");
+  }
+
   std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
                                    cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
     assert(out.size() == in.size());
@@ -48,6 +54,13 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
     for (int i = 0 ; i < in.size(); i++)
       ret[i] = Decode(out[i], in[i], opts.size() > 1 ? opts[i] : opts[0]);
     return ret;
+  }
+
+  /**
+   * @brief To be overriden by a GPU/mixed codec implementation
+   */
+  DecodeResult Decode(SampleView<GPUBackend> out, ImageSource *in, DecodeParams opts) override {
+    throw std::logic_error("Backend not supported");
   }
 
   std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,

@@ -33,21 +33,17 @@ class DLL_PUBLIC OpenCVDecoderInstance : public BatchParallelDecoderImpl<OpenCVD
   using Base::Decode;
 
   DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in, DecodeParams opts) override;
-
-  DecodeResult Decode(SampleView<GPUBackend> out, ImageSource *in, DecodeParams opts) override {
-    throw std::logic_error("Backend not supported");
-  }
 };
 
 class OpenCVDecoder : public ImageDecoder {
  public:
   ImageDecoderProperties GetProperties() const override {
-    static const auto props = [](){
+    static const auto props = []() {
       ImageDecoderProperties props;
       props.supported_input_kinds =
         InputKind::HostMemory | InputKind::Filename;
-      props.roi_support = false;
-      props.fallback = false;
+      props.roi_support = false;  // roi support requires decoding the whole file
+      props.fallback = false;     // this is the codec of last resort - if it fail, error out
       return props;
     }();
     return props;
@@ -58,8 +54,7 @@ class OpenCVDecoder : public ImageDecoder {
   }
 
   std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    static auto instance = std::make_shared<OpenCVDecoderInstance>(device_id, &tp);
-    return instance;
+    return std::make_shared<OpenCVDecoderInstance>(device_id, &tp);
   }
 };
 

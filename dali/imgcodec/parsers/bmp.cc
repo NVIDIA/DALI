@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdexcept>
 #include "dali/imgcodec/parsers/bmp.h"
 #include "dali/core/byte_io.h"
 #include "dali/core/format.h"
@@ -28,13 +29,6 @@ enum BmpCompressionType {
   BMP_COMPRESSION_RLE4      = 2,
   BMP_COMPRESSION_BITFIELDS = 3
 };
-
-template <typename T>
-T ConsumeValue(const uint8_t*& ptr) {
-  auto value = ReadValueLE<T>(ptr);
-  ptr += sizeof(T);
-  return value;
-}
 
 bool is_color_palette(InputStream *stream, int ncolors, int palette_entry_size) {
   SmallVector<uint8_t, 8> entry;

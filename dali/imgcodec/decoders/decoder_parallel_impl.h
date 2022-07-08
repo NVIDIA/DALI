@@ -33,11 +33,11 @@ namespace imgcodec {
 template <typename Actual>
 class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl<Actual> {
  public:
-  BatchParallelDecoderImpl(int device_id, ThreadPool *tp) : ImageDecoderImpl<Actual>(device_id, tp) {
-  }
+  BatchParallelDecoderImpl(int device_id, ThreadPool *tp)
+  : ImageDecoderImpl<Actual>(device_id, tp) {}
 
   using ImageDecoderImpl<Actual>::CanDecode;
-  std::vector<bool> CanDecode(cspan<ImageSource *> in, cspan<DecodeParams> opts) override{
+  std::vector<bool> CanDecode(cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
     assert(opts.size() == in.size());
     std::vector<bool> ret(in.size());
     for (int i = 0; i < in.size(); i++) {
