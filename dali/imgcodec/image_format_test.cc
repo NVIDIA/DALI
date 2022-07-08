@@ -59,7 +59,7 @@ class ImageFormatTest : public ::testing::Test {
   }
 
   class DummyParser : public ImageParser {
-  public:
+   public:
     ImageInfo GetInfo(ImageSource *encoded) const override {
       return {};
     }

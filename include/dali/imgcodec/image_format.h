@@ -53,7 +53,7 @@ class DLL_PUBLIC ImageParser {
    */
   virtual bool CanParse(ImageSource *encoded) const = 0;
 
-protected:
+ protected:
   /**
    * @brief Reads first n bytes of the encoded image and returns the number of bytes read.
    */
