@@ -135,7 +135,7 @@ bool TiffParser::CanParse(ImageSource *encoded) const {
   if (encoded->Kind() == InputKind::HostMemory) {
     if (encoded->Size() < sizeof(header))
       return false;
-    std::copy_n(encoded->RawData<char>(), sizeof(header), header.begin());
+    std::memcpy(header.data(), encoded->RawData<>(), sizeof(header));
   } else {
     auto stream = encoded->Open();
     if (stream->Size() < sizeof(header))
