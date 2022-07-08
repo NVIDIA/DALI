@@ -29,26 +29,25 @@ constexpr int TYPE_DWORD = 4;
 
 constexpr std::array<uint8_t, 4> le_header = {'I', 'I', 42, 0}, be_header = {'M', 'M', 0, 42};
 
-template<typename T>
-T TiffRead(InputStream& stream, bool is_little_endian) {
-  if (is_little_endian) {
+template<typename T, bool is_little_endian>
+T TiffRead(InputStream& stream) {
+  if constexpr (is_little_endian) {
     return ReadValueLE<T>(stream);
   } else {
     return ReadValueBE<T>(stream);
   }
 }
 
-ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
+template <bool is_little_endian>
+ImageInfo GetInfoImpl(ImageSource *encoded) {
   ImageInfo info;
   info.orientation = {0, false, false};
-  auto stream = encoded->Open();
-  DALI_ENFORCE(stream->Size() >= 8);
 
-  std::array<uint8_t, 4> header = stream->ReadOne<decltype(header)>();
-  bool is_little_endian = (header == le_header);
-  const auto ifd_offset = TiffRead<uint32_t>(*stream, is_little_endian);
+  auto stream = encoded->Open();
+  stream->SeekRead(4, SEEK_SET);
+  const auto ifd_offset = TiffRead<uint32_t, is_little_endian>(*stream);
   stream->SeekRead(ifd_offset, SEEK_SET);
-  const auto entry_count = TiffRead<uint16_t>(*stream, is_little_endian);
+  const auto entry_count = TiffRead<uint16_t, is_little_endian>(*stream);
 
   bool width_read = false, height_read = false, nchannels_read = false;
   int64_t width, height, nchannels;
@@ -57,18 +56,18 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
        entry_idx++) {
     const auto entry_offset = ifd_offset + sizeof(uint16_t) + entry_idx * ENTRY_SIZE;
     stream->SeekRead(entry_offset, SEEK_SET);
-    const auto tag_id = TiffRead<uint16_t>(*stream, is_little_endian);
+    const auto tag_id = TiffRead<uint16_t, is_little_endian>(*stream);
     if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG || tag_id == SAMPLESPERPIXEL_TAG
         || tag_id == ORIENTATION_TAG) {
-      const auto value_type = TiffRead<uint16_t>(*stream, is_little_endian);
-      const auto value_count = TiffRead<uint32_t>(*stream, is_little_endian);
+      const auto value_type = TiffRead<uint16_t, is_little_endian>(*stream);
+      const auto value_count = TiffRead<uint32_t, is_little_endian>(*stream);
       DALI_ENFORCE(value_count == 1);
 
       int64_t value;
       if (value_type == TYPE_WORD) {
-        value = TiffRead<uint16_t>(*stream, is_little_endian);
+        value = TiffRead<uint16_t, is_little_endian>(*stream);
       } else if (value_type == TYPE_DWORD) {
-        value = TiffRead<uint32_t>(*stream, is_little_endian);
+        value = TiffRead<uint32_t, is_little_endian>(*stream);
       } else {
         DALI_FAIL("Couldn't read TIFF image dims.");
       }
@@ -93,6 +92,18 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
 
   info.shape = {height, width, nchannels};
   return info;
+}
+
+ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
+  auto stream = encoded->Open();
+  DALI_ENFORCE(stream->Size() >= 8);
+
+  std::array<uint8_t, 4> header = stream->ReadOne<decltype(header)>();
+  if (header == le_header) {
+    return GetInfoImpl<true>(encoded);
+  } else {
+    return GetInfoImpl<false>(encoded);
+  }
 }
 
 bool TiffParser::CanParse(ImageSource *encoded) const {
