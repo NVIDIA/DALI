@@ -110,7 +110,7 @@ TEST_F(ImageFormatTest, DISABLED_Webp) {
        TensorShape<>(423, 640, 3));
 }
 
-TEST_F(ImageFormatTest, ReadHeader) {
+TEST_F(ImageFormatTest, ReadHeaderHostMem) {
   const uint8_t data[] = {0, 1, 2, 3};
   uint8_t buffer[16];
   auto src = ImageSource::FromHostMem(data, 4);
@@ -120,6 +120,18 @@ TEST_F(ImageFormatTest, ReadHeader) {
   EXPECT_EQ(1, buffer[1]);
   EXPECT_EQ(2, buffer[2]);
   EXPECT_EQ(3, buffer[3]);
+}
+
+TEST_F(ImageFormatTest, ReadHeaderStream) {
+  auto src = ImageSource::FromFilename(
+    testing::dali_extra_path() + "/db/single/tiff/0/cat-1245673_640.tiff");
+  uint8_t buffer[4];
+  DummyParser p;
+  EXPECT_EQ(4, p.ReadHeader(&src, buffer, 4));
+  EXPECT_EQ('I', buffer[0]);
+  EXPECT_EQ('I', buffer[1]);
+  EXPECT_EQ(42, buffer[2]);
+  EXPECT_EQ(0, buffer[3]);
 }
 
 }  // namespace test
