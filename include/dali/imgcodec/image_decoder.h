@@ -39,6 +39,12 @@ struct DecodeParams {
   bool          use_roi = false;
   struct {
     TensorShape<> begin, end;
+    TensorShape<> shape() const {
+      TensorShape<> out = end;
+      for (int d = 0; d < begin.sample_dim(); d++)
+        out[d] -= begin[d];
+      return out;
+    }
   } roi;
 };
 
