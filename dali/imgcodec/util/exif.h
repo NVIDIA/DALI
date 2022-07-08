@@ -25,7 +25,7 @@ namespace imgcodec {
  */
 void SetOrientation(ImageInfo &info, uint16_t exif_orientation);
 
-#endif  // DALI_IMGCODEC_PARSERS_EXIF_H_
+#endif  // DALI_IMGCODEC_UTIL_EXIF_H_"
 
 }  // namespace imgcodec
 }  // namespace dali
