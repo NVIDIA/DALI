@@ -27,8 +27,8 @@ class TiffParserTest : public ::testing::Test {
  public:
   TiffParserTest() : parser_() {
     auto filename = testing::dali_extra_path() + "/db/single/tiff/0/cat-1245673_640.tiff";
-    auto img = ImageSource::FromFilename(filename);
-    auto stream = img.Open();
+    img_ = ImageSource::FromFilename(filename);
+    auto stream = img_.Open();
     valid_tiff_.resize(stream->Size());
     size_t offset = 0;
     size_t n;
@@ -44,6 +44,7 @@ class TiffParserTest : public ::testing::Test {
 
   std::vector<char> valid_tiff_;
   TiffParser parser_;
+  ImageSource img_;
 };
 
 TEST_F(TiffParserTest, ValidTiff) {
@@ -69,6 +70,10 @@ TEST_F(TiffParserTest, IncompleteHeader) {
 
 TEST_F(TiffParserTest, Empty) {
   EXPECT_FALSE(CanParse({}));
+}
+
+TEST_F(TiffParserTest, FromFilename) {
+  EXPECT_TRUE(parser_.CanParse(&img_));
 }
 
 }  // namespace test
