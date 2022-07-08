@@ -14,6 +14,7 @@
 
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/core/byte_io.h"
+#include "dali/imgcodec/util/exif.h"
 
 namespace dali {
 namespace imgcodec {
@@ -25,15 +26,6 @@ constexpr int ORIENTATION_TAG = 274;
 constexpr int SAMPLESPERPIXEL_TAG = 277;
 constexpr int TYPE_WORD = 3;
 constexpr int TYPE_DWORD = 4;
-
-constexpr int ORIENTATION_HORIZONTAL = 1;
-constexpr int ORIENTATION_MIRROR_HORIZONTAL = 2;
-constexpr int ORIENTATION_ROTATE_180 = 3;
-constexpr int ORIENTATION_MIRROR_VERTICAL = 4;
-constexpr int ORIENTATION_MIRROR_HORIZONTAL_ROTATE_270 = 5;
-constexpr int ORIENTATION_ROTATE_90 = 6;
-constexpr int ORIENTATION_MIRROR_HORIZONTAL_ROTATE_90 = 7;
-constexpr int ORIENTATION_ROTATE_270 = 8;
 
 constexpr std::array<uint8_t, 4> le_header = {'I', 'I', 42, 0}, be_header = {'M', 'M', 0, 42};
 
@@ -91,34 +83,7 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
         nchannels = value;
         nchannels_read = true;
       } else if (tag_id == ORIENTATION_TAG) {
-        switch (value) {
-          case ORIENTATION_HORIZONTAL:
-            info.orientation = {0, false, false};
-            break;
-          case ORIENTATION_MIRROR_HORIZONTAL:
-            info.orientation = {0, true, false};
-            break;
-          case ORIENTATION_ROTATE_180:
-            info.orientation = {180, false, false};
-            break;
-          case ORIENTATION_MIRROR_VERTICAL:
-            info.orientation = {0, false, true};
-            break;
-          case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_270:
-            info.orientation = {270, true, false};
-            break;
-          case ORIENTATION_ROTATE_90:
-            info.orientation = {90, false, false};
-            break;
-          case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_90:
-            info.orientation = {90, true, false};
-            break;
-          case ORIENTATION_ROTATE_270:
-            info.orientation = {270, false, false};
-            break;
-          default:
-            DALI_FAIL("Couldn't read TIFF image orientation.");
-        }
+        SetOrientation(info, value);
       }
     }
   }
