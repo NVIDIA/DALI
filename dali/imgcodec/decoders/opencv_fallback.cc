@@ -91,13 +91,13 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
 
       SampleView<CPUBackend> in(cvimg.ptr(0), shape, type);
 
-      TensorShape<> roi_start, roi_end;
+      int in_channels = cvimg.channels();
 
       TensorLayout layout = cvimg.dims == 3 ? "DHWC" : "HWC";
 
       Convert(out, layout, opts.format,
               in, layout, opts.format,  // TODO(michalz) - use actual format
-              roi_start, roi_end);
+              opts.roi.begin, opts.roi.end);
     }
   } catch (...) {
     res.exception = std::current_exception();
