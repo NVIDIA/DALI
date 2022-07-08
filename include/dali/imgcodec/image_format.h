@@ -37,7 +37,7 @@ struct ImageInfo {
   } orientation;
 };
 
-class ImageParser {
+class DLL_PUBLIC ImageParser {
  public:
   virtual ~ImageParser() = default;
 
@@ -52,6 +52,12 @@ class ImageParser {
    *        that is, if it's in the format that this parser handles.
    */
   virtual bool CanParse(ImageSource *encoded) const = 0;
+
+protected:
+  /**
+   * @brief Reads first n bytes of the encoded image and returns the number of bytes read.
+   */
+  size_t ReadHeader(ImageSource *encoded, uint8_t *buffer, size_t n) const;
 };
 
 class ImageDecoder;
