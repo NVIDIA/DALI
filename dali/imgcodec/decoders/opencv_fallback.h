@@ -42,8 +42,8 @@ class OpenCVDecoder : public ImageDecoder {
       ImageDecoderProperties props;
       props.supported_input_kinds =
         InputKind::HostMemory | InputKind::Filename;
-      props.roi_support = false;  // roi support requires decoding the whole file
-      props.fallback = false;     // this is the codec of last resort - if it fail, error out
+      props.supports_partial_decoding = false;  // roi support requires decoding the whole file
+      props.fallback = false;  // this is the codec of last resort - if it fail, error out
       return props;
     }();
     return props;

@@ -55,18 +55,19 @@ struct DecodeResult {
 
 struct ImageDecoderProperties {
   /**
-   * @brief Whether the codec can decode a part of the image without storing the
-   *        entire image in memory.
+   * @brief Whether the codec can decode a region of interest without decoding the entire image
    */
-  bool roi_support = false;
+  bool supports_partial_decoding = false;
 
   /**
    * @brief A mask of supported input kinds
    */
   InputKind supported_input_kinds;
 
-  // if true and the codec fails to decode an image,
-  // an attempt will be made to use other compatible codecs
+  /**
+   * @brief if true and the codec fails to decode an image,
+   *        an attempt will be made to use other compatible codecs
+   */
   bool fallback = true;
 };
 
