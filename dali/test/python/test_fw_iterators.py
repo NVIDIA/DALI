@@ -1728,7 +1728,9 @@ def check_autoreset_iter(fw_iterator, extract_data, auto_reset_op):
 
     loader = fw_iterator(pipeline, reader_name="reader", auto_reset=auto_reset_op)
     for _ in range(2):
-        for i, data in enumerate(loader):
+        loader = iter(loader)
+        for i in range(len(loader)):
+            data = next(loader)
             for j, d in enumerate(extract_data(data[0])):
                 assert d[0] == i * batch_size + j, f"{d[0]} { i * batch_size + j}"
 
