@@ -193,7 +193,8 @@ class DLL_PUBLIC TensorVector {
 
   DLL_PUBLIC void UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
                                   bool pinned, const TensorShape<> &shape, DALIDataType type,
-                                  AccessOrder order = {}, const TensorLayout &layout = "");
+                                  int device_id, AccessOrder order = {},
+                                  const TensorLayout &layout = "");
 
   /**
    * @brief Analogue of TensorVector[sample_idx].Copy(src[src_sample_idx]);
@@ -275,6 +276,8 @@ class DLL_PUBLIC TensorVector {
   void set_pinned(bool pinned);
 
   bool is_pinned() const;
+
+  void set_device_id(int device_id);
 
   int device_id() const;
 

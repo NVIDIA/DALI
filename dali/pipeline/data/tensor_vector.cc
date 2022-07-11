@@ -132,7 +132,7 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend
 template <typename Backend>
 void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr,
                                             size_t bytes, bool pinned, const TensorShape<> &shape,
-                                            DALIDataType type, AccessOrder order,
+                                            DALIDataType type, int device_id, AccessOrder order,
                                             const TensorLayout &layout) {
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   DALI_ENFORCE(this->type() == type,
@@ -141,6 +141,9 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
   DALI_ENFORCE(sample_dim() == shape.sample_dim(),
                make_string("Sample must have the same dimensionality as a target batch, current: ",
                            sample_dim(), " new: ", shape.sample_dim(), " for ", sample_idx, "."));
+  DALI_ENFORCE(this->device_id() == device_id,
+               make_string("Sample must have the same device id as a target batch, current: ",
+                           this->device_id(), " new: ", device_id, " for ", sample_idx, "."));
   DALI_ENFORCE(this->order() == order, "Sample must have the same order as a target batch");
   DALI_ENFORCE(GetLayout() == layout,
                make_string("Sample must have the same layout as a target batch current: ",
@@ -151,7 +154,7 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
   SetContiguous(false);
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
-  tensors_[sample_idx]->ShareData(ptr, bytes, pinned, shape, type, order);
+  tensors_[sample_idx]->ShareData(ptr, bytes, pinned, shape, type, device_id, order);
   tl_->Reset();
 }
 
@@ -431,6 +434,15 @@ bool TensorVector<Backend>::is_pinned() const {
 
 
 template <typename Backend>
+void TensorVector<Backend>::set_device_id(int device_id) {
+  tl_->set_device_id(device_id);
+  for (auto &t : tensors_) {
+    t->set_device_id(device_id);
+  }
+}
+
+
+template <typename Backend>
 int TensorVector<Backend>::device_id() const {
   if (IsContiguous()) {
     return tl_->device_id();
@@ -691,9 +703,7 @@ void TensorVector<Backend>::update_view(int idx) {
   if (tensors_[idx]->raw_data() != ptr || tensors_[idx]->shape() != shape) {
     tensors_[idx]->ShareData(std::shared_ptr<void>(ptr, ViewRefDeleter{&views_count_}),
                              volume(tl_->tensor_shape(idx)) * tl_->type_info().size(),
-                             tl_->is_pinned(),
-                             shape, tl_->type(),
-                             order());
+                             tl_->is_pinned(), shape, tl_->type(), tl_->device_id(), order());
   } else if (IsValidType(tl_->type())) {
     tensors_[idx]->set_type(tl_->type());
   }

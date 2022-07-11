@@ -22,6 +22,7 @@
 #include <list>
 #include <memory>
 #include <utility>
+#include "dali/core/access_order.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
@@ -256,7 +257,7 @@ class DLL_PUBLIC TensorList {
    * Size can be set to 0 and type to NoType as intermediate step.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-                        const TensorListShape<> &shape, DALIDataType type = DALI_NO_TYPE,
+                        const TensorListShape<> &shape, DALIDataType type, int device_id,
                         AccessOrder order = {}) {
     // Free the underlying storage.
     data_.free_storage();
@@ -265,7 +266,7 @@ class DLL_PUBLIC TensorList {
     this->set_order(order);
 
     // Save our new pointer and bytes. Reset our type, shape, and size
-    data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements());
+    data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements(), device_id, order);
     shape_ = {};
     offsets_.clear();
 
@@ -296,29 +297,8 @@ class DLL_PUBLIC TensorList {
    */
   DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned,
                                    const TensorListShape<> &shape,
-                                   DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type);
-  }
-
-  /**
-   * @brief Interprets a raw allocation as a tensor list with given shape.
-   *
-   * If the size of the allocation is zero, the TensorList is reset to a default
-   * state and is NOT marked as sharing data.
-   *
-   * After calling this function any following call to `set_type` and `Resize`
-   * must not exceed the total size of underlying allocation (`num_bytes_`) of
-   * shared data or the call will fail.
-   * Size can be set to 0 and type to NoType as intermediate step.
-   *
-   * The TensorList object assumes no ownership of the input allocation, and will
-   * not de-allocate it when it is done using it. It is up to the user to
-   * manage the lifetime of the allocation such that it persist while it is
-   * in use by the TensorList.
-   */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
-                                   const DALIDataType type = DALI_NO_TYPE) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, TensorListShape<>{}, type);
+                                   DALIDataType type, int device_id, AccessOrder order = {}) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, device_id, order);
   }
 
   DLL_PUBLIC void Reset(AccessOrder order = {}) {
@@ -545,9 +525,8 @@ class DLL_PUBLIC TensorList {
     tensor_views_.emplace_back();
     auto &tensor = tensor_views_.back();
 
-    tensor.set_device_id(device_id());
     tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(),
-                     new_shape, type(), order());
+                     new_shape, type(), device_id(), order());
 
     return &tensor;
   }
