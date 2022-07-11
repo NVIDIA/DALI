@@ -12,24 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
-from segmentation_test_utils import make_batch_select_masks
-from test_utils import module_functions
-from nose.tools import nottest
-import nvidia.dali.fn as fn
-import nvidia.dali.types as types
-import nvidia.dali.math as dmath
-from nvidia.dali.plugin.numba.fn.experimental import numba_function
+import inspect
+import nose
 import numpy as np
+import nvidia.dali.fn as fn
+import nvidia.dali.math as dmath
+import nvidia.dali.types as types
+import os
+import random
+import re
+from nose.plugins.attrib import attr
+from nose.tools import nottest
+from nvidia.dali.pipeline import Pipeline, pipeline_def
+from nvidia.dali.plugin.numba.fn.experimental import numba_function
+
 import test_utils
+from segmentation_test_utils import make_batch_select_masks
 from test_detection_pipeline import coco_anchors
 from test_optical_flow import load_frames, is_of_supported
-import inspect
-import os
-import re
-import random
-import nose
-from nose.plugins.attrib import attr
+from test_utils import module_functions
+
 """
 How to test variable (iter-to-iter) batch size for a given op?
 -------------------------------------------------------------------------------
@@ -1079,6 +1081,36 @@ def test_tensor_subscript():
 def test_subscript_dim_check():
     data = generate_data(31, 13, array_1d_shape_generator, lo=0, hi=255, dtype=np.uint8)
     check_pipeline(data, single_op_pipeline, operator_fn=fn.subscript_dim_check, num_subscripts=1)
+
+
+def test_crop_argument_from_external_source():
+    """
+    Tests, if the fn.crop operator works correctly, when its actual batch size is lower
+    than max batch size.
+    """
+
+    @pipeline_def(batch_size=32, num_threads=4, device_id=0)
+    def pipeline():
+        images = fn.external_source(device="cpu", name="IMAGE", no_copy=False)
+        crop_x = fn.external_source(device="cpu", name="CROP_X", no_copy=False)
+        images = fn.decoders.image(images, device="mixed")
+
+        images = fn.crop(images, crop_pos_x=crop_x, crop_pos_y=0.05, crop_w=113, crop_h=149)
+        return images
+
+    pipe = pipeline()
+    pipe.build()
+
+    image_data = np.fromfile(
+        os.path.join(test_utils.get_dali_extra_path(), "db", "single", "jpeg", "100",
+                     "swan-3584559_640.jpg"),
+        dtype=np.uint8)
+    pipe.feed_input("IMAGE", [image_data])
+    pipe.feed_input("CROP_X", [np.float32(0.5)])
+    pipe.feed_input("IMAGE", [image_data])
+    pipe.feed_input("CROP_X", [np.float32(0.4)])
+
+    pipe.run()
 
 
 tested_methods = [

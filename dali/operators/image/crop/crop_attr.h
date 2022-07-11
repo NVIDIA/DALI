@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -165,9 +165,10 @@ class CropAttr {
     return anchor;
   }
 
-  void ProcessArguments(const OpSpec &spec, const ArgumentWorkspace &ws) {
-    auto max_batch_size = static_cast<size_t>(spec.GetArgument<int>("max_batch_size"));
-    for (std::size_t data_idx = 0; data_idx < max_batch_size; data_idx++) {
+  template <typename Workspace>
+  void ProcessArguments(const OpSpec& spec, const Workspace& ws) {
+    int batch_size = ws.GetInputBatchSize(0);
+    for (int data_idx = 0; data_idx < batch_size; data_idx++) {
       ProcessArguments(spec, &ws, data_idx);
     }
   }
