@@ -108,16 +108,7 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
 
 bool TiffParser::CanParse(ImageSource *encoded) const {
   std::array<uint8_t, 4> header;
-  if (encoded->Kind() == InputKind::HostMemory) {
-    if (encoded->Size() < sizeof(header))
-      return false;
-    std::memcpy(header.data(), encoded->RawData<>(), sizeof(header));
-  } else {
-    auto stream = encoded->Open();
-    if (stream->Size() < sizeof(header))
-      return false;
-    header = stream->ReadOne<decltype(header)>();
-  }
+  ReadHeader(header.data(), encoded, sizeof(header));
   return (header == le_header || header == be_header);
 }
 
