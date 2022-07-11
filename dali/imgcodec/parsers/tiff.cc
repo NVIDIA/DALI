@@ -14,18 +14,24 @@
 
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/core/byte_io.h"
-#include "dali/imgcodec/util/exif.h"
+#include "dali/imgcodec/image_orientation.h"
 
 namespace dali {
 namespace imgcodec {
 
 constexpr int ENTRY_SIZE = 12;
-constexpr int WIDTH_TAG = 256;
-constexpr int HEIGHT_TAG = 257;
-constexpr int ORIENTATION_TAG = 274;
-constexpr int SAMPLESPERPIXEL_TAG = 277;
-constexpr int TYPE_WORD = 3;
-constexpr int TYPE_DWORD = 4;
+
+enum TiffTag : uint16_t {
+  WIDTH_TAG = 256,
+  HEIGHT_TAG = 257,
+  ORIENTATION_TAG = 274,
+  SAMPLESPERPIXEL_TAG = 277
+};
+
+enum TiffDataType : uint16_t {
+  TYPE_WORD = 3,
+  TYPE_DWORD = 4
+};
 
 constexpr std::array<uint8_t, 4> le_header = {'I', 'I', 42, 0}, be_header = {'M', 'M', 0, 42};
 
@@ -82,7 +88,7 @@ ImageInfo GetInfoImpl(ImageSource *encoded) {
         nchannels = value;
         nchannels_read = true;
       } else if (tag_id == ORIENTATION_TAG) {
-        SetOrientation(info, value);
+        info.orientation = FromExifOrientation(static_cast<ExifOrientation>(value));
       }
     }
   }

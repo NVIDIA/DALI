@@ -88,13 +88,17 @@ class TiffParserOrientationTest : public ::testing::Test {
     return ImageSource::FromFilename(filename);
   }
 
+  int NormalizeAngle(int degrees) {
+    return (degrees % 360 + 360) % 360;
+  }
+
   TiffParser parser_;
 };
 
 TEST_F(TiffParserOrientationTest, Horizontal) {
   auto img = GetImage("horizontal");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(0, orientation.rotate);
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(false, orientation.flip_x);
   EXPECT_EQ(false, orientation.flip_y);
 }
@@ -102,7 +106,7 @@ TEST_F(TiffParserOrientationTest, Horizontal) {
 TEST_F(TiffParserOrientationTest, MirrorHorizontal) {
   auto img = GetImage("mirror_horizontal");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(0, orientation.rotate);
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(true, orientation.flip_x);
   EXPECT_EQ(false, orientation.flip_y);
 }
@@ -110,7 +114,7 @@ TEST_F(TiffParserOrientationTest, MirrorHorizontal) {
 TEST_F(TiffParserOrientationTest, Rotate180) {
   auto img = GetImage("rotate_180");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(180, orientation.rotate);
+  EXPECT_EQ(180, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(false, orientation.flip_x);
   EXPECT_EQ(false, orientation.flip_y);
 }
@@ -118,7 +122,7 @@ TEST_F(TiffParserOrientationTest, Rotate180) {
 TEST_F(TiffParserOrientationTest, MirrorVertical) {
   auto img = GetImage("mirror_vertical");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(0, orientation.rotate);
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(false, orientation.flip_x);
   EXPECT_EQ(true, orientation.flip_y);
 }
@@ -126,7 +130,7 @@ TEST_F(TiffParserOrientationTest, MirrorVertical) {
 TEST_F(TiffParserOrientationTest, MirrorHorizontalRotate270) {
   auto img = GetImage("mirror_horizontal_rotate_270");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(270, orientation.rotate);
+  EXPECT_EQ(360 - 270, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(true, orientation.flip_x);
   EXPECT_EQ(false, orientation.flip_y);
 }
@@ -134,7 +138,7 @@ TEST_F(TiffParserOrientationTest, MirrorHorizontalRotate270) {
 TEST_F(TiffParserOrientationTest, Rotate90) {
   auto img = GetImage("rotate_90");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(90, orientation.rotate);
+  EXPECT_EQ(360 - 90, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(false, orientation.flip_x);
   EXPECT_EQ(false, orientation.flip_y);
 }
@@ -142,7 +146,7 @@ TEST_F(TiffParserOrientationTest, Rotate90) {
 TEST_F(TiffParserOrientationTest, MirrorHorizontalRotate90) {
   auto img = GetImage("mirror_horizontal_rotate_90");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(90, orientation.rotate);
+  EXPECT_EQ(360 - 90, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(true, orientation.flip_x);
   EXPECT_EQ(false, orientation.flip_y);
 }
@@ -150,7 +154,7 @@ TEST_F(TiffParserOrientationTest, MirrorHorizontalRotate90) {
 TEST_F(TiffParserOrientationTest, Rotate270) {
   auto img = GetImage("rotate_270");
   auto orientation = parser_.GetInfo(&img).orientation;
-  EXPECT_EQ(270, orientation.rotate);
+  EXPECT_EQ(360 - 270, NormalizeAngle(orientation.rotate));
   EXPECT_EQ(false, orientation.flip_x);
   EXPECT_EQ(false, orientation.flip_y);
 }
