@@ -136,6 +136,7 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
 
   ImageInfo info;
   info.shape = {h, w, c};
+  info.orientation = {};
   return info;
 }
 
