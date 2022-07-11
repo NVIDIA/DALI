@@ -43,8 +43,8 @@ class TiffParserTest : public ::testing::Test {
     return parser_.CanParse(&src);
   }
 
-  std::vector<char> valid_tiff_;
   TiffParser parser_;
+  std::vector<char> valid_tiff_;
   ImageSource img_;
 };
 

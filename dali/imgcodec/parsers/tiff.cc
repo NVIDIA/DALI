@@ -33,7 +33,8 @@ enum TiffDataType : uint16_t {
   TYPE_DWORD = 4
 };
 
-constexpr std::array<uint8_t, 4> le_header = {'I', 'I', 42, 0}, be_header = {'M', 'M', 0, 42};
+using tiff_magic_t = std::array<uint8_t, 4>;
+constexpr tiff_magic_t le_header = {'I', 'I', 42, 0}, be_header = {'M', 'M', 0, 42};
 
 template<typename T, bool is_little_endian>
 T TiffRead(InputStream& stream) {
@@ -57,6 +58,7 @@ ImageInfo GetInfoImpl(ImageSource *encoded) {
 
   bool width_read = false, height_read = false, nchannels_read = false;
   int64_t width, height, nchannels;
+
   for (int entry_idx = 0;
        entry_idx < entry_count && !(width_read && height_read && nchannels_read);
        entry_idx++) {
@@ -104,7 +106,7 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
   DALI_ENFORCE(stream->Size() >= 8);
 
-  std::array<uint8_t, 4> header = stream->ReadOne<decltype(header)>();
+  tiff_magic_t header = stream->ReadOne<decltype(header)>();
   if (header == le_header) {
     return GetInfoImpl<true>(encoded);
   } else {
@@ -113,7 +115,7 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
 }
 
 bool TiffParser::CanParse(ImageSource *encoded) const {
-  std::array<uint8_t, 4> header;
+  tiff_magic_t header;
   ReadHeader(header.data(), encoded, sizeof(header));
   return (header == le_header || header == be_header);
 }
