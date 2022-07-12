@@ -372,10 +372,45 @@ TYPED_TEST(TensorTest, TestShareData) {
     ASSERT_EQ(tensor.raw_data(), tl.raw_tensor(i));
     ASSERT_EQ(tensor.type(), tl.type());
     ASSERT_EQ(tensor.shape(), tl.tensor_shape(i));
+    ASSERT_EQ(tensor.device_id(), tl.device_id());
 
     Index size = volume(tl.tensor_shape(i));
     ASSERT_EQ(tensor.size(), size);
     ASSERT_EQ(tensor.nbytes(), size*sizeof(float));
+  }
+}
+
+TYPED_TEST(TensorTest, DeviceIdPropagationMultiGPU) {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  if (num_devices < 2) {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  }
+  constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  constexpr bool is_pinned = !is_device;
+  AccessOrder order = AccessOrder::host();
+  TensorShape<> shape{42};
+  for (int device_id = 0; device_id < num_devices; device_id++) {
+    Tensor<TypeParam> tensor;
+    tensor.set_device_id(device_id);
+    tensor.set_pinned(is_pinned);
+    tensor.set_type(DALI_UINT8);
+    tensor.set_order(order);
+    CUDA_CALL(cudaSetDevice(device_id));
+    void *data_ptr;
+    std::shared_ptr<void> ptr;
+    if (is_device) {
+      CUDA_CALL(cudaMalloc(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFree(ptr); });
+    } else {
+      CUDA_CALL(cudaMallocHost(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFreeHost(ptr); });
+    }
+    tensor.ShareData(ptr, shape.num_elements() * sizeof(uint8_t), is_pinned, shape, DALI_UINT8,
+                     device_id, order);
+    ASSERT_EQ(tensor.device_id(), device_id);
+    ASSERT_EQ(tensor.order().device_id(), AccessOrder::host().device_id());
+    ASSERT_NE(tensor.order().device_id(), tensor.device_id());
   }
 }
 
