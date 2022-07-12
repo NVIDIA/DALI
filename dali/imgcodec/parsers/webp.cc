@@ -38,7 +38,7 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
   ssize_t length = stream->Size();
 
-  // Skipping 12 bytes of the RIFF header
+  // Skipping 12 bytes of the RIFF header chunk
   // "RIFF" (4 bytes)
   // File Size (4 bytes)
   // "WEBP" (4 bytes)
@@ -49,7 +49,7 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
   if (is_pattern_matching(header.data(), "VP8 ")) {
     // Simple file format (lossy)
     // https://datatracker.ietf.org/doc/html/rfc6386#section-9.1
-    // Skipping ...? (4 bytes) and frame tag (3 bytes)
+    // Skipping chunk size (4 bytes) and frame tag (3 bytes)
     stream->SeekRead(7, SEEK_CUR);
 
     // Verify sync code
@@ -67,7 +67,7 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
   } else if (is_pattern_matching(header.data(), "VP8L")) {
     // Simple file format (lossless)
     // https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification#2_riff_header
-    // Skipping number of bytes in the lossless tream (4 bytes)
+    // Skipping number of bytes in the lossless stream (4 bytes)
     stream->SeekRead(4, SEEK_CUR);
 
     // Verify the signature byte
