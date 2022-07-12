@@ -43,7 +43,7 @@ ImageInfo PnmParser::GetInfo(ImageSource *encoded) const {
     if (cur == '#') {
       do {
         cur = stream->ReadOne<char>();
-      } while (cur != '\n' && cur != '\r');
+      } while (cur != '\n');
       cur = stream->ReadOne<char>();
     } else if (isspace(cur)) {
       if (++state < STATE_DONE) {
