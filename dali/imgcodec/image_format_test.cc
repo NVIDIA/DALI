@@ -86,7 +86,7 @@ class ComparisonTestBase : public ImageFormatTest {
     Test(filename, expected_format, ShapeOf(filename));
   }
 
-  void RunOnDirectory(std::string directory, std::string expected_format, 
+  void RunOnDirectory(std::string directory, std::string expected_format,
                       std::vector<std::string> extensions) {
     unsigned nimages = 0;
     for (const auto &entry : std::filesystem::recursive_directory_iterator(directory)) {
@@ -125,7 +125,7 @@ class ImageMagickTest : public ComparisonTestBase {
     if (!path.empty()) return path;
     auto p = std::getenv("IMAGEMAGICK_IDENTIFY_PATH");
     if (!p) {
-      ADD_FAILURE() << "Please set IMAGEMAGICK_IDENTIFY_PATH to ImageMagick's identify path"; 
+      ADD_FAILURE() << "Please set IMAGEMAGICK_IDENTIFY_PATH to ImageMagick's identify path";
     } else {
       path = p;
     }
@@ -143,8 +143,9 @@ class ImageMagickTest : public ComparisonTestBase {
 
     if (colors == "srgb" || colors == "rgb") c = 3;
     else if (colors == "srgba" || colors == "rgba" || colors == "cmyk") c = 4;
-    else c = -1;
-    
+    else
+      ADD_FAILURE() << "Unable to parse ImageMagick's channels output";
+
     return {h, w, c};
   }
 
