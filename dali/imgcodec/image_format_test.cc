@@ -137,7 +137,7 @@ TEST_F(ImageFormatTest, Jpeg) {
        TensorShape<>(720, 1280, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Png) {
+TEST_F(ImageFormatTest, Png) {
   Test(testing::dali_extra_path() + "/db/single/png/0/cat-3504008_640.png", "png",
        TensorShape<>(425, 640, 3));
 }
