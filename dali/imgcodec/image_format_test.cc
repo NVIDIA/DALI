@@ -86,13 +86,22 @@ class ComparisonTestBase : public ImageFormatTest {
     Test(filename, expected_format, ShapeOf(filename));
   }
 
-  void RunOnDirectory(std::string directory, std::string expected_format) {
+  void RunOnDirectory(std::string directory, std::string expected_format, 
+                      std::vector<std::string> extensions) {
+    unsigned nimages = 0;
     for (const auto &entry : std::filesystem::recursive_directory_iterator(directory)) {
       if (entry.is_regular_file()) {
         const auto path = entry.path().string();
-        Run(path, expected_format);
+        for (const auto& ext : extensions) {
+          if (path.substr(path.size() - ext.size(), ext.size()) == ext) {
+            Run(path, expected_format);
+            nimages++;
+          }
+        }
       }
     }
+    if (nimages == 0)
+      FAIL() << "No matching images in " << directory;
   }
 };
 
@@ -169,7 +178,7 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
 }
 
 TEST_F(CompatibilityTest, Jpeg) {
-  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg");
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"});
 }
 
 }  // namespace test
