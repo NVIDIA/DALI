@@ -31,30 +31,6 @@
 
 namespace dali {
 
-inline std::ostream &operator<<(std::ostream &os, OpType op_type) {
-  switch (op_type) {
-  case OpType::CPU:
-    return os << "CPU";
-  case OpType::GPU:
-    return os << "GPU";
-  case OpType::MIXED:
-    return os << "MIXED";
-  default:
-    return os << static_cast<int>(op_type);
-  }
-}
-
-inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
-  switch (device) {
-  case StorageDevice::CPU:
-    return os << "CPU";
-  case StorageDevice::GPU:
-    return os << "GPU";
-  default:
-    return os << static_cast<int>(device);
-  }
-}
-
 template<typename backend>
 std::shared_ptr<TensorList<backend>> PresentAsTensorList(
     const std::shared_ptr<TensorList<backend>> &in) {

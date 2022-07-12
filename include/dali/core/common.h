@@ -84,6 +84,30 @@ static std::string to_string(OpType op_type) {
   }
 }
 
+inline std::ostream& operator<<(std::ostream& os, OpType op_type) {
+  switch (op_type) {
+    case OpType::CPU:
+      return os << "CPU";
+    case OpType::GPU:
+      return os << "GPU";
+    case OpType::MIXED:
+      return os << "MIXED";
+    default:
+      return os << static_cast<int>(op_type);
+  }
+}
+
+inline std::ostream& operator<<(std::ostream& os, StorageDevice device) {
+  switch (device) {
+    case StorageDevice::CPU:
+      return os << "CPU";
+    case StorageDevice::GPU:
+      return os << "GPU";
+    default:
+      return os << static_cast<int>(device);
+  }
+}
+
 struct DALISize {
     int width;
     int height;
