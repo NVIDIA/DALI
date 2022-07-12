@@ -28,21 +28,21 @@
 
 namespace dali {
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::PreRun() {
   auto batch_size = InferBatchSize(batch_size_providers_);
   batch_sizes_cpu_.push(batch_size);
   batch_sizes_mixed_.push(batch_size);
   batch_sizes_gpu_.push(batch_size);
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-Executor<WorkspacePolicy, QueuePolicy>::~Executor() {
+template <typename QueuePolicy>
+Executor<QueuePolicy>::~Executor() {
   Shutdown();
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::Shutdown() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::Shutdown() {
   try {
     SyncDevice();
   } catch (const CUDAError &e) {
@@ -51,8 +51,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Shutdown() {
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::SyncDevice() {
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard dg(device_id_);
     if (mixed_op_stream_)
@@ -62,8 +62,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::RunCPUImpl() {
   PreRun();
 
   if (device_id_ < 0) {
@@ -114,8 +114,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
 }
 
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::RunMixedImpl() {
   DomainTimeRange tr("[DALI][Executor] RunMixed");
   DeviceGuard g(device_id_);
 
@@ -185,8 +185,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
 }
 
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::RunGPUImpl() {
   DomainTimeRange tr("[DALI][Executor] RunGPU");
 
   auto gpu_idxs = QueuePolicy::AcquireIdxs(OpType::GPU);
@@ -263,8 +263,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::RunCPU() {
   try {
     RunCPUImpl();
   } catch (std::exception &e) {
@@ -274,8 +274,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPU() {
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::RunMixed() {
   try {
     RunMixedImpl();
   } catch (std::exception &e) {
@@ -285,8 +285,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixed() {
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::RunGPU() {
   try {
     RunGPUImpl();
   } catch (std::exception &e) {
@@ -296,9 +296,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
+template <typename QueuePolicy>
 template <typename Workspace>
-void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws) {
+void Executor<QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws) {
   auto &output_desc = op_node.output_desc;
   auto &op = *op_node.op;
   output_desc.clear();
@@ -395,8 +395,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 }
 
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
+template <typename QueuePolicy>
+int Executor<QueuePolicy>::InferBatchSize(
     const std::vector<BatchSizeProvider *> &bsps) const {
   if (bsps.empty()) {
     return max_batch_size_;
@@ -420,7 +420,7 @@ int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
   return batch_size;
 }
 
-template class DLL_PUBLIC Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-template class DLL_PUBLIC Executor<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+template class DLL_PUBLIC Executor<UniformQueuePolicy>;
+template class DLL_PUBLIC Executor<SeparateQueuePolicy>;
 
 }  // namespace dali

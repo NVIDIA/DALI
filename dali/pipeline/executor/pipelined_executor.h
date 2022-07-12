@@ -35,18 +35,17 @@ namespace dali {
  * see large performance benefits from pipelining the cpu, mixed,
  * and gpu portions of the graph.
  */
-template <typename WorkspacePolicy, typename QueuePolicy>
-class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueuePolicy> {
+template <typename QueuePolicy>
+class DLL_PUBLIC PipelinedExecutorImpl : public Executor<QueuePolicy> {
  public:
   DLL_PUBLIC inline PipelinedExecutorImpl(int batch_size, int num_thread, int device_id,
                                           size_t bytes_per_sample_hint, bool set_affinity = false,
                                           int max_num_stream = -1,
                                           int default_cuda_stream_priority = 0,
                                           QueueSizes prefetch_queue_depth = {2, 2})
-      : Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id,
-                                               bytes_per_sample_hint, set_affinity, max_num_stream,
-                                               default_cuda_stream_priority, prefetch_queue_depth) {
-  }
+      : Executor<QueuePolicy>(batch_size, num_thread, device_id, bytes_per_sample_hint,
+                              set_affinity, max_num_stream, default_cuda_stream_priority,
+                              prefetch_queue_depth) {}
 
   DLL_PUBLIC ~PipelinedExecutorImpl() override = default;
 
@@ -73,20 +72,19 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
 
   std::vector<std::vector<TensorNodeId>> stage_outputs_;
 
-  using Executor<WorkspacePolicy, QueuePolicy>::device_id_;
-  using Executor<WorkspacePolicy, QueuePolicy>::stage_queue_depths_;
+  using Executor<QueuePolicy>::device_id_;
+  using Executor<QueuePolicy>::stage_queue_depths_;
 };
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph,
-                                                                vector<string> output_names) {
-  Executor<WorkspacePolicy, QueuePolicy>::Build(graph, output_names);
+template <typename QueuePolicy>
+void PipelinedExecutorImpl<QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
+  Executor<QueuePolicy>::Build(graph, output_names);
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
+template <typename QueuePolicy>
+void PipelinedExecutorImpl<QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
   DeviceGuard g(device_id_);
-  Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(graph);
+  Executor<QueuePolicy>::SetupOutputInfo(graph);
   constexpr auto stages_count = static_cast<int>(OpType::COUNT);
   stage_outputs_.resize(stages_count);
   for (int stage = 0; stage < stages_count; stage++) {
@@ -94,11 +92,10 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const 
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(
-    const OpGraph &graph) {
-  Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
-  std::vector<int> result = Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
+template <typename QueuePolicy>
+std::vector<int> PipelinedExecutorImpl<QueuePolicy>::GetTensorQueueSizes(const OpGraph &graph) {
+  Executor<QueuePolicy>::GetTensorQueueSizes(graph);
+  std::vector<int> result = Executor<QueuePolicy>::GetTensorQueueSizes(graph);
   for (int stage = 0; stage < static_cast<int>(OpType::COUNT); stage++) {
     for (auto id : stage_outputs_[stage]) {
       result[id] = stage_queue_depths_[static_cast<OpType>(stage)];
@@ -107,10 +104,8 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
   return result;
 }
 
-using PipelinedExecutor =
-    PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-using SeparatedPipelinedExecutor =
-    PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+using PipelinedExecutor = PipelinedExecutorImpl<UniformQueuePolicy>;
+using SeparatedPipelinedExecutor = PipelinedExecutorImpl<SeparateQueuePolicy>;
 
 }  // namespace dali
 

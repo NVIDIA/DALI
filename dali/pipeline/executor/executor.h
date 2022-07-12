@@ -98,8 +98,10 @@ class DLL_PUBLIC ExecutorBase {
  * buffers, so that we can produce data into one while the
  * other is in use by the user.
  */
-template <typename WorkspacePolicy, typename QueuePolicy>
+template <typename QueuePolicy>
 class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
+  using WorkspacePolicy = AOT_WS_Policy<QueuePolicy>;
+
  public:
   DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
                              size_t bytes_per_sample_hint, bool set_affinity = false,
@@ -392,8 +394,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   void PreRun();
 };
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
   callback_ = cb;
   // Create necessary events lazily
   if (mixed_callback_events_.empty()) {
@@ -404,8 +406,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallb
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-ExecutorMetaMap Executor<WorkspacePolicy, QueuePolicy>::GetExecutorMeta() {
+template <typename QueuePolicy>
+ExecutorMetaMap Executor<QueuePolicy>::GetExecutorMeta() {
   ExecutorMetaMap ret;
   detail::AppendToMap(ret, cpu_memory_stats_, cpu_memory_stats_mutex_);
   detail::AppendToMap(ret, mixed_memory_stats_, mixed_memory_stats_mutex_);
@@ -413,8 +415,8 @@ ExecutorMetaMap Executor<WorkspacePolicy, QueuePolicy>::GetExecutorMeta() {
   return ret;
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
   DALI_ENFORCE(graph != nullptr, "Input graph is nullptr.");
   DALI_ENFORCE(graph->NumOp() > 0, "Graph has no operators.");
   graph->InstantiateOperators();  // ..if not done already
@@ -476,19 +478,19 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
 }
 
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::ReleaseOutputs() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::ReleaseOutputs() {
   QueuePolicy::ReleaseOutputIdxs();
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::Outputs(DeviceWorkspace *ws) {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::Outputs(DeviceWorkspace *ws) {
   ReleaseOutputs();
   ShareOutputs(ws);
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
   DeviceGuard g(device_id_);
   ws->Clear();
@@ -534,8 +536,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::PruneUnusedGraphNodes() {
   // We want to remove any nodes whose outputs are
   // never used by another node or as an output
   DALI_ENFORCE(output_names_.size() > 0,
@@ -593,8 +595,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
   DALI_ENFORCE(graph_->NumOp() > 0, "No output names match data produced by the pipeline.");
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
   DeviceGuard g(device_id_);
   pipeline_outputs_ = graph.GetOutputs(output_names_);
 
@@ -621,8 +623,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &grap
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(const OpGraph &graph) {
+template <typename QueuePolicy>
+std::vector<int> Executor<QueuePolicy>::GetTensorQueueSizes(const OpGraph &graph) {
   std::vector<int> result;
   // By default we need one vector
   result.resize(graph.NumTensor(), 1);
@@ -635,8 +637,8 @@ std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(con
   return result;
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::PrepinData(
     std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
   // We only pin what we need:
   // The inputs of mixed ops are potentially used for H2D copies...
@@ -672,8 +674,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
 }
 
 // We apply hints to all of pinned CPU buffers and all GPU buffers
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::PresizeData(
     std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
   DeviceGuard g(device_id_);
   DomainTimeRange tr("[DALI][Executor] PresizeData");
@@ -724,20 +726,20 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
   }
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-std::vector<int> Executor<WorkspacePolicy, QueuePolicy>::GetMemoryHints(const OpNode &node) {
+template <typename QueuePolicy>
+std::vector<int> Executor<QueuePolicy>::GetMemoryHints(const OpNode &node) {
   std::vector<int> hints;
   GetSingleOrRepeatedArg(node.spec, hints, "bytes_per_sample_hint", node.spec.NumOutput());
   std::replace(hints.begin(), hints.end(), 0, static_cast<int>(bytes_per_sample_hint_));
   return hints;
 }
 
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputQueuesForGraph() {
+template <typename QueuePolicy>
+void Executor<QueuePolicy>::SetupOutputQueuesForGraph() {
   QueuePolicy::InitializeQueues(stage_queue_depths_);
 }
 
-using SimpleExecutor = Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
+using SimpleExecutor = Executor<UniformQueuePolicy>;
 
 
 namespace detail {

@@ -22,7 +22,7 @@
 
 namespace dali {
 
-template class PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-template class PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+template class PipelinedExecutorImpl<UniformQueuePolicy>;
+template class PipelinedExecutorImpl<SeparateQueuePolicy>;
 
 }  // namespace dali
