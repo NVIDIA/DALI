@@ -229,6 +229,10 @@ class Tensor : public Buffer<Backend> {
    * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
+   *
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                         const TensorShape<> &shape, DALIDataType type, int device_id,
@@ -274,6 +278,10 @@ class Tensor : public Buffer<Backend> {
    * not de-allocate it when it is done using it. It is up to the user to
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
+   *
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, const TensorShape<> &shape,
                         DALIDataType type, int device_id, AccessOrder order = {}) {
@@ -296,6 +304,10 @@ class Tensor : public Buffer<Backend> {
    * not de-allocate it when it is done using it. It is up to the user to
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
+   *
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, DALIDataType type, int device_id,
                         AccessOrder order = {}) {

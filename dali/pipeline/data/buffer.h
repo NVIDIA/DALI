@@ -458,6 +458,10 @@ class DLL_PUBLIC Buffer {
    *
    * Current Buffer will be marked as sharing data, and reallocation of memory will be
    * prohibited until reset() is called.
+   *
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
   inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                                      DALIDataType type, size_t size, int device_id,
