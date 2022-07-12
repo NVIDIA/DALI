@@ -106,7 +106,7 @@ ImageInfo TiffParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
   DALI_ENFORCE(stream->Size() >= 8);
 
-  tiff_magic_t header = stream->ReadOne<decltype(header)>();
+  tiff_magic_t header = stream->ReadOne<tiff_magic_t>();
   if (header == le_header) {
     return GetInfoImpl<true>(encoded);
   } else {
