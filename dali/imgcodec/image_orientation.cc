@@ -20,21 +20,21 @@ namespace imgcodec {
 
 Orientation FromExifOrientation(ExifOrientation exif_orientation) {
   switch (exif_orientation) {
-    case ORIENTATION_HORIZONTAL:
+    case ExifOrientation::HORIZONTAL:
       return {0, false, false};
-    case ORIENTATION_MIRROR_HORIZONTAL:
+    case ExifOrientation::MIRROR_HORIZONTAL:
       return {0, true, false};
-    case ORIENTATION_ROTATE_180:
+    case ExifOrientation::ROTATE_180:
       return {180, false, false};
-    case ORIENTATION_MIRROR_VERTICAL:
+    case ExifOrientation::MIRROR_VERTICAL:
       return {0, false, true};
-    case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_270_CW:
+    case ExifOrientation::MIRROR_HORIZONTAL_ROTATE_270_CW:
       return {90, true, false};  // 270 CW = 90 CCW
-    case ORIENTATION_ROTATE_90_CW:
+    case ExifOrientation::ROTATE_90_CW:
       return {270, false, false};  // 90 CW = 270 CCW
-    case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_90_CW:
+    case ExifOrientation::MIRROR_HORIZONTAL_ROTATE_90_CW:
       return {270, true, false};  // 90 CW = 270 CCW
-    case ORIENTATION_ROTATE_270_CW:
+    case ExifOrientation::ROTATE_270_CW:
       return {90, false, false};  // 270 CW = 90 CCW
     default:
       DALI_FAIL("Couldn't read image orientation.");
