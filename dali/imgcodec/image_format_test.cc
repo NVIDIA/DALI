@@ -15,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <filesystem>
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/parsers/bmp.h"
 #include "dali/imgcodec/parsers/jpeg.h"
@@ -25,6 +26,7 @@
 #include "dali/imgcodec/parsers/webp.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/image/image_factory.h"
 
 namespace dali {
 namespace imgcodec {
@@ -73,6 +75,38 @@ class ImageFormatTest : public ::testing::Test {
 
   ImageFormatRegistry format_registry_;
   std::vector<char> data_;
+};
+
+class ComparisonTestBase : public ImageFormatTest {
+ public:
+  virtual TensorShape<> ShapeOf(std::string filename) const = 0;
+
+  void Run(std::string filename, std::string expected_format) {
+    SCOPED_TRACE(filename);
+    Test(filename, expected_format, ShapeOf(filename));
+  }
+
+  void RunOnDirectory(std::string directory, std::string expected_format) {
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(directory)) {
+      if (entry.is_regular_file()) {
+        const auto path = entry.path().string();
+        Run(path, expected_format);
+      }
+    }
+  }
+};
+
+class CompatibilityTest : public ComparisonTestBase {
+ public:
+  TensorShape<> ShapeOf(std::string filename) const override {
+    auto src = ImageSource::FromFilename(filename);
+    auto stream = src.Open();
+    std::vector<uint8_t> data(stream->Size());
+    EXPECT_EQ(data.size(), stream->Read(data.data(), data.size()));
+    auto img = ImageFactory::CreateImage(data.data(), data.size(), DALI_RGB);
+    auto shape = img->PeekShape();
+    return shape;
+  }
 };
 
 TEST_F(ImageFormatTest, DISABLED_Jpeg) {
@@ -132,6 +166,10 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
   EXPECT_EQ('I', buffer[1]);
   EXPECT_EQ(42, buffer[2]);
   EXPECT_EQ(0, buffer[3]);
+}
+
+TEST_F(CompatibilityTest, Jpeg) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg");
 }
 
 }  // namespace test
