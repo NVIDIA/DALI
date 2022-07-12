@@ -40,6 +40,7 @@ ImageSource ImageSource::FromStream(std::shared_ptr<InputStream> stream, std::st
 std::shared_ptr<InputStream> ImageSource::Open() const {
   switch (kind_) {
     case InputKind::Stream:
+      stream_->SeekRead(0, SEEK_SET);
       return stream_;
     case InputKind::HostMemory:
       return std::make_shared<MemInputStream>(data_, size_);

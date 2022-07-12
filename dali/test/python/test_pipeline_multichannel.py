@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,7 +98,8 @@ class MultichannelSynthPipeline(Pipeline):
             self.resize = ops.Resize(device=self.device,
                                      resize_y=900,
                                      resize_x=300,
-                                     min_filter=types.DALIInterpType.INTERP_LINEAR)
+                                     min_filter=types.DALIInterpType.INTERP_LINEAR,
+                                     antialias=False)
         if self.tested_operator == 'crop' or not self.tested_operator:
             self.crop = ops.Crop(device=self.device,
                                  crop=(220, 224),
@@ -204,7 +205,8 @@ class MultichannelPipeline(Pipeline):
 
         self.resize = ops.Resize(device=self.device,
                                  resize_y=900, resize_x=300,
-                                 min_filter=types.DALIInterpType.INTERP_LINEAR)
+                                 min_filter=types.DALIInterpType.INTERP_LINEAR,
+                                 antialias=False)
 
         self.crop = ops.Crop(device=self.device,
                              crop_h=220, crop_w=224,

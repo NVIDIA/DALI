@@ -67,5 +67,17 @@ span<ImageFormat* const> ImageFormatRegistry::Formats() const {
   return make_cspan(format_ptrs_);
 }
 
+size_t ImageParser::ReadHeader(uint8_t *buffer, ImageSource *encoded, size_t n) const {
+  if (encoded->Kind() == InputKind::HostMemory) {
+    if (encoded->Size() < n)
+      n = encoded->Size();
+    std::memcpy(buffer, encoded->RawData(), n);
+  } else {
+    auto stream = encoded->Open();
+    return stream->Read(buffer, n);
+  }
+  return n;
+}
+
 }  // namespace imgcodec
 }  // namespace dali

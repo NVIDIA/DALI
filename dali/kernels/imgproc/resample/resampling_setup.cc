@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,13 +27,15 @@ constexpr int kMaxGPUFilterSupport = 8192;
 ResamplingFilter GetResamplingFilter(const ResamplingFilters *filters, const FilterDesc &params) {
   switch (params.type) {
     case ResamplingFilterType::Linear:
+      assert(!params.antialias);  // otherwise it should have been promoted to Triangular
       return filters->Triangular(1);
     case ResamplingFilterType::Triangular:
+      assert(params.antialias);  // otherwise it should have been promoted to Linear
       return filters->Triangular(params.radius);
     case ResamplingFilterType::Gaussian:
-      return filters->Gaussian(params.radius*0.5f/M_SQRT2);
+      return filters->Gaussian(params.radius * 0.5f / M_SQRT2);
     case ResamplingFilterType::Cubic:
-      return filters->Cubic();
+      return filters->Cubic(params.radius);
     case ResamplingFilterType::Lanczos3:
       return filters->Lanczos3(params.radius);
     default:
@@ -57,7 +59,9 @@ void SeparableResamplingSetup<spatial_ndim>::SetFilters(
     auto fdesc = desc.out_shape()[axis] < in_size ? params[dim].min_filter
                                                   : params[dim].mag_filter;
     if (fdesc.radius == 0)
-      fdesc.radius = DefaultFilterRadius(fdesc.type, in_size, desc.out_shape()[axis]);
+      fdesc.radius = DefaultFilterRadius(fdesc.type, fdesc.antialias, in_size,
+                                         desc.out_shape()[axis]);
+
     desc.filter_type[axis] = fdesc.type;
     auto &filter = desc.filter[axis];
     filter = GetResamplingFilter(filters.get(), fdesc);

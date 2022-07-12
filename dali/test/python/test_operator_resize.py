@@ -623,7 +623,6 @@ def _test_empty_input(dim, device):
             else:
                 assert np.prod(out_with_empty.at(i).shape) == 0
 
-
 def test_empty_input():
     for device in ["cpu", "gpu"]:
         for dim in [2, 3]:
@@ -671,44 +670,61 @@ def test_checkerboard_dali_vs_onnx_ref():
     out_size = (17, 13)
     out_size_str = '_'.join([str(n) for n in out_size])
     ref_resized_linear_filename = os.path.join(ref_dir, f"checkerboard_linear_{out_size_str}.npy")
+    ref_resized_linear_antialias_filename = os.path.join(ref_dir, f"checkerboard_linear_antialias_{out_size_str}.npy")
     ref_resized_cubic_filename = os.path.join(ref_dir, f"checkerboard_cubic_{out_size_str}.npy")
+    ref_resized_cubic_antialias_filename = os.path.join(ref_dir, f"checkerboard_cubic_antialias_{out_size_str}.npy")
 
     # Reference generated with ONNX reference code. To regenerate uncomment
-
-    # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, cubic_coeffs
-    # ref_resized_linear = interpolate_nd(
-    #    checkerboard, linear_coeffs, output_size=out_size)
+    # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, linear_coeffs_antialias, \
+    #                                                 cubic_coeffs, cubic_coeffs_antialias
+    # ref_resized_linear = interpolate_nd(checkerboard, lambda x, _: linear_coeffs(x), output_size=out_size)
     # np.save(ref_resized_linear_filename, ref_resized_linear)
-
-    # ref_resized_cubic = interpolate_nd(
-    #    checkerboard, lambda x: cubic_coeffs(x, A=-0.5), output_size=out_size)
+    # ref_resized_linear_antialias = interpolate_nd(checkerboard, linear_coeffs_antialias, output_size=out_size)
+    # np.save(ref_resized_linear_antialias_filename, ref_resized_linear_antialias)
+    # ref_resized_cubic = interpolate_nd(checkerboard, lambda x, _: cubic_coeffs(x, A=-0.5), output_size=out_size)
     # np.save(ref_resized_cubic_filename, ref_resized_cubic)
+    # ref_resized_cubic_antialias = interpolate_nd(checkerboard, lambda x, scale: cubic_coeffs_antialias(x, scale, A=-0.5), output_size=out_size)
+    # np.save(ref_resized_cubic_antialias_filename, ref_resized_cubic_antialias)
 
     ref_resized_linear = np.load(ref_resized_linear_filename)
     assert ref_resized_linear.shape == out_size
 
+    ref_resized_linear_antialias = np.load(ref_resized_linear_antialias_filename)
+    assert ref_resized_linear_antialias.shape == out_size
+
     ref_resized_cubic = np.load(ref_resized_cubic_filename)
     assert ref_resized_cubic.shape == out_size
 
+    ref_resized_cubic_antialias = np.load(ref_resized_cubic_antialias_filename)
+    assert ref_resized_cubic_antialias.shape == out_size
+
+    antialias_ON = True
+    antialias_OFF = False
     ref_data = {
-        types.INTERP_LINEAR: ref_resized_linear,
-        types.INTERP_CUBIC: ref_resized_cubic
+        types.INTERP_LINEAR: {
+            antialias_OFF : ref_resized_linear,
+            antialias_ON : ref_resized_linear_antialias
+        },
+        types.INTERP_CUBIC: {
+            antialias_OFF : ref_resized_cubic,
+            antialias_ON : ref_resized_cubic_antialias
+        }
     }
 
     @pipeline_def(batch_size=1, num_threads=3, device_id=0)
-    def pipe(device, interp_type, test_data=checkerboard, out_size=out_size):
+    def pipe(device, interp_type, antialias, test_data=checkerboard, out_size=out_size):
         data = types.Constant(test_data, device=device)
         data = fn.expand_dims(data, axes=[2])
         resized = fn.resize(data, dtype=types.FLOAT, min_filter=interp_type, mag_filter=interp_type,
-                            size=out_size)
+                            size=out_size, antialias=antialias)
         resized = fn.squeeze(resized, axes=[2])
         return resized
 
-    def impl(device, interp_type):
+    def impl(device, interp_type, antialias):
         assert interp_type in ref_data
-        ref = ref_data[interp_type]
+        ref = ref_data[interp_type][antialias]
 
-        p = pipe(device, interp_type)
+        p = pipe(device, interp_type, antialias)
         p.build()
         out, = p.run()
 
@@ -737,4 +753,5 @@ def test_checkerboard_dali_vs_onnx_ref():
 
     for device in ['cpu', 'gpu']:
         for interp_type in [types.INTERP_LINEAR, types.INTERP_CUBIC]:
-            yield impl, device, interp_type
+            for antialias in [antialias_OFF, antialias_ON]:
+                yield impl, device, interp_type, antialias

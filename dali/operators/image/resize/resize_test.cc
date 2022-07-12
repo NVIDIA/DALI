@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,12 +96,13 @@ typedef enum {
 typedef struct {
   cv::InterpolationFlags cvInterp;
   DALIInterpType daliInterp;
+  bool antialias;
 } InterpolationType;
 
 InterpolationType interpType[] = {
-  {cv::INTER_LINEAR,  DALI_INTERP_LINEAR},
-  {cv::INTER_NEAREST, DALI_INTERP_NN},
-  {cv::INTER_CUBIC,   DALI_INTERP_CUBIC}
+  {cv::INTER_LINEAR,  DALI_INTERP_LINEAR, false},
+  {cv::INTER_NEAREST, DALI_INTERP_NN, false},
+  {cv::INTER_CUBIC,   DALI_INTERP_CUBIC, false}
 };
 
 enum {
@@ -118,6 +119,7 @@ enum {
           this->TstBody(this->DefaultSchema("Resize", "gpu")                    \
                           .AddArg("subpixel_scale", false)                      \
                           .AddArg("interp_type", interpType[interp].daliInterp) \
+                          .AddArg("antialias", interpType[interp].antialias)    \
                           testArgs, this->getEps(t_##testName##_##interp)); }   \
         TYPED_TEST(ResizeTest, testName##_##checkType##_##interp##_CPU) {       \
           this->setInterpType(interpType[interp].cvInterp);                     \
@@ -125,6 +127,7 @@ enum {
           this->TstBody(this->DefaultSchema("Resize", "cpu")                    \
                           .AddArg("subpixel_scale", false)                      \
                           .AddArg("interp_type", interpType[interp].daliInterp) \
+                          .AddArg("antialias", interpType[interp].antialias)    \
                           testArgs, this->getEps(t_##testName##_##interp)); }
 
 // Macro which allows to create pair of identical tests for t_checkDefault/t_checkElements types

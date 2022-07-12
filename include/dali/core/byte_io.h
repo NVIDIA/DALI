@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 
 #ifndef DALI_CORE_BYTE_IO_H_
 #define DALI_CORE_BYTE_IO_H_
+
+#include "dali/core/stream.h"
 
 namespace dali {
 
@@ -41,6 +43,13 @@ void ReadValueImpl(float &value, const uint8_t* data) {
   memcpy(&value, &tmp, sizeof(float));
 }
 
+template <int nbytes, bool is_little_endian, typename T>
+void ReadValueImpl(T &value, InputStream &stream) {
+  uint8_t data[nbytes];  // NOLINT [runtime/arrays]
+  stream.ReadBytes(data, nbytes);
+  return ReadValueImpl<nbytes, is_little_endian>(value, data);
+}
+
 }  // namespace detail
 
 
@@ -61,6 +70,26 @@ template <typename T, int nbytes = sizeof(T)>
 T ReadValueBE(const uint8_t* data) {
   T ret;
   detail::ReadValueImpl<nbytes, false>(ret, data);
+  return ret;
+}
+
+/**
+ * @brief Reads value of size `nbytes` from an InputStream (little-endian)
+ */
+template <typename T, int nbytes = sizeof(T)>
+T ReadValueLE(InputStream &stream) {
+  T ret;
+  detail::ReadValueImpl<nbytes, true>(ret, stream);
+  return ret;
+}
+
+/**
+ * @brief Reads value of size `nbytes` from an InputStream (big-endian)
+ */
+template <typename T, int nbytes = sizeof(T)>
+T ReadValueBE(InputStream &stream) {
+  T ret;
+  detail::ReadValueImpl<nbytes, false>(ret, stream);
   return ret;
 }
 
