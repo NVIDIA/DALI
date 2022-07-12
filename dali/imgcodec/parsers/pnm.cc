@@ -43,7 +43,8 @@ ImageInfo PnmParser::GetInfo(ImageSource *encoded) const {
     if (cur == '#') {
       do {
         cur = stream->ReadOne<char>();
-      } while (!isspace(cur));
+      } while (cur != '\n' && cur != '\r');
+      cur = stream->ReadOne<char>();
     } else if (isspace(cur)) {
       if (++state < STATE_DONE) {
         do {
@@ -52,6 +53,7 @@ ImageInfo PnmParser::GetInfo(ImageSource *encoded) const {
       }
     } else {
       DALI_ENFORCE(isdigit(cur));
+      DALI_ENFORCE(state);
       dim[state - 1] = dim[state - 1] * 10 + (cur - '0');
       cur = stream->ReadOne<char>();
     }
