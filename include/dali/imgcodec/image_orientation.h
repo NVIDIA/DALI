@@ -24,7 +24,7 @@ namespace imgcodec {
  * The operations are applied in the order in which they are declared.
  */
 struct Orientation {
-  /// @brief Rotation, CCW, in multiples of 90 degrees
+  /// @brief Rotation angle, CCW, in degrees; only multiples of 90 are allowed.
   int rotate;
   /// @brief Mirror, horizontal
   bool flip_x;

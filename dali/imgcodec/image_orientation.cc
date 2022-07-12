@@ -29,13 +29,13 @@ Orientation FromExifOrientation(ExifOrientation exif_orientation) {
     case ORIENTATION_MIRROR_VERTICAL:
       return {0, false, true};
     case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_270_CW:
-      return {-270, true, false};
+      return {90, true, false};  // 270 CW = 90 CCW
     case ORIENTATION_ROTATE_90_CW:
-      return {-90, false, false};
+      return {270, false, false};  // 90 CW = 270 CCW
     case ORIENTATION_MIRROR_HORIZONTAL_ROTATE_90_CW:
-      return {-90, true, false};
+      return {270, true, false};  // 90 CW = 270 CCW
     case ORIENTATION_ROTATE_270_CW:
-      return {-270, false, false};
+      return {90, false, false};  // 270 CW = 90 CCW
     default:
       DALI_FAIL("Couldn't read image orientation.");
   }
