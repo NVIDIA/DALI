@@ -36,9 +36,22 @@ struct DecodeParams {
   DALIDataType  dtype   = DALI_UINT8;
   DALIImageType format  = DALI_RGB;
   bool          planar  = false;
+  bool          use_orientation = true;
   bool          use_roi = false;
   struct {
+    /**
+     * @brief The beginning and end of the region-of-interest.
+     *
+     * Spatial coordinates of the start and end of the ROI. Channels shall not be included
+     *
+     * If the orientation of the image is adjusted, these values are in the output space
+     * (after applying the orientation).
+     */
     TensorShape<> begin, end;
+
+    /**
+     * @brief Returns the extent of the region of interest as (end - begin)
+     */
     TensorShape<> shape() const {
       TensorShape<> out = end;
       for (int d = 0; d < begin.sample_dim(); d++)

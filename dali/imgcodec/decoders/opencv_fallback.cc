@@ -45,17 +45,26 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
                                            ImageSource *in,
                                            DecodeParams opts) {
   int flags = 0;
+  bool adjust_orientation = false;
 
   switch (opts.format) {
     case DALI_ANY_DATA:
       // Note: IMREAD_UNCHANGED always ignores orientation
       flags |= cv::IMREAD_UNCHANGED;
+      adjust_orientation = opts.use_orientation;
       break;
+
     case DALI_GRAY:
-      flags |= cv::IMREAD_GRAYSCALE | cv::IMREAD_IGNORE_ORIENTATION;
+      flags |= cv::IMREAD_GRAYSCALE;
+      if (!opts.use_orientation)
+        flags |= cv::IMREAD_IGNORE_ORIENTATION;
       break;
+
     default:
-      flags |= cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION;
+      flags |= cv::IMREAD_COLOR;
+      if (!opts.use_orientation)
+        flags |= cv::IMREAD_IGNORE_ORIENTATION;
+      break;
   }
 
   if (opts.dtype != DALI_UINT8)
@@ -74,6 +83,9 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
 
     if (flags & cv::IMREAD_COLOR)  // TODO(michalz) - move this to Convert
       cv::cvtColor(cvimg, cvimg, cv::COLOR_BGR2RGB);
+
+    // TODO(michalz): correct the orientation of images loaded with IMREAD_UNCHANGED
+    (void)adjust_orientation;
 
     res.success = cvimg.ptr(0) != nullptr;
     if (res.success) {

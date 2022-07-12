@@ -70,7 +70,7 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl<Actual> {
     for (int i = 0; i < in.size(); i++) {
       tp_->AddWork([&, i](int) {
         ret[i] = Decode(out[i], in[i], opts.size() > 1 ? opts[i] : opts[0]);
-      });
+      }, volume(out[i].shape()));
     }
     tp_->RunAll();
     return ret;
