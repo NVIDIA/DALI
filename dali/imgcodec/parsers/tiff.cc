@@ -57,7 +57,7 @@ ImageInfo GetInfoImpl(ImageSource *encoded) {
   const auto entry_count = TiffRead<uint16_t, is_little_endian>(*stream);
 
   bool width_read = false, height_read = false, nchannels_read = false;
-  int64_t width, height, nchannels;
+  int64_t width = 0, height = 0, nchannels = 0;
 
   for (int entry_idx = 0;
        entry_idx < entry_count && !(width_read && height_read && nchannels_read);
