@@ -432,63 +432,6 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
 }
 
-TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-  exe->Init();
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("ExternalSource")
-          .AddArg("device", "cpu")
-          .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "cpu")
-          .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")), "");
-
-  vector<string> outputs = {"final_images_cpu"};
-  int cb_counter = 0;
-  std::promise<int> barrier;
-  auto barrier_future = barrier.get_future();
-  exe->SetCompletionCallback([&cb_counter, &barrier]() mutable {
-    ++cb_counter;
-    barrier.set_value(cb_counter);
-  });
-
-  exe->Build(&graph, outputs);
-
-  // Set the data for the external source
-  auto *src_op =
-      dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
-  ASSERT_NE(src_op, nullptr);
-  TensorList<CPUBackend> tl;
-  test::MakeRandomBatch(tl, this->batch_size_);
-  src_op->SetDataSource(tl);
-
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
-
-  DeviceWorkspace ws;
-  exe->Outputs(&ws);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_EQ(ws.NumOutput(), 1);
-  auto status = barrier_future.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 1);
-  ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
-}
-
 // This test does not work with Async Executors
 TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   int batch_size = this->batch_size_ / 2;
@@ -525,19 +468,6 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           .AddOutput("final_images", "gpu")), "");
 
   vector<string> outputs = {"final_images_gpu"};
-  int cb_counter = 0;
-  std::promise<void> barrier_1, barrier_2;
-  auto barrier_future_1 = barrier_1.get_future();
-  auto barrier_future_2 = barrier_2.get_future();
-  exe->SetCompletionCallback([&cb_counter, &barrier_1, &barrier_2]() mutable {
-    ++cb_counter;
-    if (cb_counter == 1) {
-      barrier_1.set_value();
-    }
-    if (cb_counter == 2) {
-      barrier_2.set_value();
-    }
-  });
   exe->Build(&graph, outputs);
 
   // Set the data for the external source
@@ -576,29 +506,23 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   exe->RunMixed();
   exe->RunGPU();
 
-  auto status_1 = barrier_future_1.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_1, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 1);
   src_op->SetDataSource(tl2);
   exe->RunCPU();
   exe->RunMixed();
   exe->RunGPU();
 
   DeviceWorkspace ws;
-  exe->Outputs(&ws);
+  exe->ShareOutputs(&ws);
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
   test::CheckResults(ws, batch_size, 0, tl);
+  exe->ReleaseOutputs();
 
   exe->Outputs(&ws);
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-
-  auto status_2 = barrier_future_2.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_2, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 2);
 
   test::CheckResults(ws, batch_size, 1, tl);
 }

@@ -58,9 +58,6 @@ struct DLL_PUBLIC ExecutorMeta {
 using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
 
 namespace detail {
-// This is stream callback used on GPU stream to indicate that GPU work for this
-// pipeline run is finished
-static void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData);
 
 // helper function to concatenate ExecutorMetaMap maps
 static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex);
@@ -69,7 +66,6 @@ static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mu
 
 class DLL_PUBLIC ExecutorBase {
  public:
-  using ExecutorCallback = std::function<void(void)>;
   DLL_PUBLIC virtual ~ExecutorBase() {}
   DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;
@@ -79,7 +75,6 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void Outputs(DeviceWorkspace *ws) = 0;
   DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
-  DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
   DLL_PUBLIC virtual void Shutdown() = 0;
@@ -108,7 +103,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       : max_batch_size_(max_batch_size),
         device_id_(device_id),
         bytes_per_sample_hint_(bytes_per_sample_hint),
-        callback_(nullptr),
         event_pool_(),
         thread_pool_(num_thread, device_id, set_affinity, "Executor"),
         exec_error_(false),
@@ -132,7 +126,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override;
   DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws) override;
   DLL_PUBLIC void ReleaseOutputs() override;
-  DLL_PUBLIC void SetCompletionCallback(ExecutorCallback cb) override;
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() override;
   DLL_PUBLIC void Shutdown() override;
 
@@ -335,7 +328,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::queue<int> batch_sizes_cpu_, batch_sizes_mixed_, batch_sizes_gpu_;
 
   OpGraph *graph_ = nullptr;
-  ExecutorCallback callback_;
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
@@ -347,10 +339,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   // MixedOpId -> queue_idx -> cudaEvent_t
   // To introduce dependency from MIXED to GPU Ops
   MixedOpEventMap mixed_op_events_;
-  // queue_idx -> cudaEvent_t
-  // To introduce dependency from MIXED stage to GPU stage for callback only
-  // in some edge cases where there are no operators
-  std::vector<cudaEvent_t> mixed_callback_events_;
 
   std::atomic<bool> enable_memory_stats_;
   ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
@@ -391,18 +379,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   void PreRun();
 };
-
-template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
-  callback_ = cb;
-  // Create necessary events lazily
-  if (mixed_callback_events_.empty()) {
-    mixed_callback_events_.resize(stage_queue_depths_[OpType::MIXED]);
-    for (auto &event : mixed_callback_events_) {
-      event = event_pool_.GetEvent();
-    }
-  }
-}
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 ExecutorMetaMap Executor<WorkspacePolicy, QueuePolicy>::GetExecutorMeta() {
@@ -741,11 +717,6 @@ using SimpleExecutor = Executor<AOT_WS_Policy<UniformQueuePolicy>, UniformQueueP
 
 
 namespace detail {
-
-void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData) {
-  auto callback = static_cast<ExecutorBase::ExecutorCallback*>(userData);
-  (*callback)();
-}
 
 void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex) {
   const std::lock_guard<std::mutex> lock(mutex);
