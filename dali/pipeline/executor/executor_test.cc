@@ -17,18 +17,19 @@
 #include <chrono>
 #include <future>
 
-#include "dali/test/dali_test_decoder.h"
-#include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/executor.inl"
+#include "dali/pipeline/executor/pipelined_executor.h"
+#include "dali/test/dali_test_decoder.h"
 #include "dali/test/dali_test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 
 template class Executor<UniformQueuePolicy>;
-
+template class Executor<SeparateQueuePolicy>;
 template class PipelinedExecutorImpl<UniformQueuePolicy>;
 template class PipelinedExecutorImpl<SeparateQueuePolicy>;
 
