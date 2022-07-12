@@ -107,6 +107,9 @@ std::vector<int> PipelinedExecutorImpl<QueuePolicy>::GetTensorQueueSizes(const O
 using PipelinedExecutor = PipelinedExecutorImpl<UniformQueuePolicy>;
 using SeparatedPipelinedExecutor = PipelinedExecutorImpl<SeparateQueuePolicy>;
 
+extern template class PipelinedExecutorImpl<UniformQueuePolicy>;
+extern template class PipelinedExecutorImpl<SeparateQueuePolicy>;
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_EXECUTOR_PIPELINED_EXECUTOR_H_

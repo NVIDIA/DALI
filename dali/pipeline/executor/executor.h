@@ -740,7 +740,7 @@ void Executor<QueuePolicy>::SetupOutputQueuesForGraph() {
 }
 
 using SimpleExecutor = Executor<UniformQueuePolicy>;
-
+extern template class DLL_PUBLIC Executor<UniformQueuePolicy>;
 
 namespace detail {
 

@@ -27,6 +27,11 @@
 
 namespace dali {
 
+template class Executor<UniformQueuePolicy>;
+
+template class PipelinedExecutorImpl<UniformQueuePolicy>;
+template class PipelinedExecutorImpl<SeparateQueuePolicy>;
+
 template <typename ExecutorToTest>
 class ExecutorTest : public GenericDecoderTest<RGB> {
  protected:
