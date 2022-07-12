@@ -78,6 +78,7 @@ enum class VidReqStatus {
   REQ_READY = 0,
   REQ_IN_PROGRESS,
   REQ_NOT_STARTED,
+  REQ_ERROR,
 };
 
 class NvDecoder {
