@@ -125,7 +125,7 @@ class ImageMagickTest : public ComparisonTestBase {
     if (!path.empty()) return path;
     auto p = std::getenv("IMAGEMAGICK_IDENTIFY_PATH");
     if (!p) {
-      ADD_FAILURE() << "Please set IMAGEMAGICK_IDENTIFY_PATH to ImageMagick's identify path";
+      ADD_FAILURE() << "IMAGEMAGICK_IDENTIFY_PATH env var should point to ImageMagick's identify";
     } else {
       path = p;
     }
@@ -148,8 +148,6 @@ class ImageMagickTest : public ComparisonTestBase {
 
     return {h, w, c};
   }
-
-  std::string im_identify_path;
 };
 
 TEST_F(ImageFormatTest, DISABLED_Jpeg) {
