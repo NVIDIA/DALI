@@ -703,7 +703,6 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   auto sample_shared_ptr = unsafe_sample_owner(t, id);
   ptr->ShareData(sample_shared_ptr, t.capacity(), t.is_pinned(), t.shape()[id], t.type(),
                  t.device_id(), t.order());
-  ptr->set_device_id(t.device_id());
   ptr->SetMeta(t.GetMeta(id));
   return ptr;
 }
