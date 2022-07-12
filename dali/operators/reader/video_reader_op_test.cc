@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,6 +53,29 @@ TEST_F(VideoReaderTest, VariableFrameRate) {
 
   EXPECT_THROW(pipe.Build(this->Outputs()), std::runtime_error);
 }
+
+TEST_F(VideoReaderTest, VariableFrameRate2) {
+  Pipeline pipe(1, 1, 0);
+
+  pipe.AddOperator(OpSpec("VideoReader")
+                       .AddArg("device", "gpu")
+                       .AddArg("sequence_length", 60)
+                       .AddArg("skip_vfr_check", true)
+                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                     "/db/video/vfr_test.mp4"})
+                       .AddOutput("frames", "gpu"));
+
+  DeviceWorkspace ws;
+  pipe.Build(this->Outputs());
+  EXPECT_THROW([&]() {
+      for (int i = 0; i < 10; ++i) {
+        pipe.RunCPU();
+        pipe.RunGPU();
+        pipe.Outputs(&ws);
+      }
+    }(), std::runtime_error);
+}
+
 
 TEST_F(VideoReaderTest, FractionalConstantFrameRate) {
   Pipeline pipe(1, 1, 0);

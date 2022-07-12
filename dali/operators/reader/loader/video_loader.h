@@ -38,6 +38,7 @@ extern "C" {
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/nvdecoder/nvdecoder.h"
 #include "dali/operators/reader/nvdecoder/sequencewrapper.h"
+#include "dali/pipeline/util/worker_thread.h"
 
 template<typename T>
 using av_unique_ptr = std::unique_ptr<T, std::function<void(T*)>>;
@@ -168,6 +169,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
         spec.GetArgument<bool>("file_list_include_preceding_frame")),
       pad_sequences_(spec.GetArgument<bool>("pad_sequences")),
       stats_({0, 0, 0, 0, 0}),
+      thread_file_reader_(device_id_, false, "Video read_file thread"),
       current_frame_idx_(-1),
       stop_(false) {
     DALI_ENFORCE(stride_ > 0, "Stride should be > 0");
@@ -191,6 +193,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
       "to https://github.com/NVIDIA/nvidia-docker/wiki/Usage");
 
       av_log_set_level(AV_LOG_ERROR);
+      thread_file_reader_.WaitForInit();
   }
 
   ~VideoLoader() noexcept override {
@@ -199,13 +202,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     if (vid_decoder_) {
       vid_decoder_->finish();
     }
-    if (thread_file_reader_.joinable()) {
-      try {
-        thread_file_reader_.join();
-      } catch (const std::system_error& e) {
-        // We should not throw here
-      }
-    }
+    thread_file_reader_.ForceStop();
+    thread_file_reader_.Shutdown();
   }
 
   void PrepareEmpty(SequenceWrapper &tensor) override;
@@ -333,8 +331,6 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     }
 
     Reset(true);
-
-    thread_file_reader_ = std::thread{&VideoLoader::read_file, this};
   }
 
  private:
@@ -377,7 +373,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
 
   ThreadSafeQueue<FrameReq> send_queue_;
 
-  std::thread thread_file_reader_;
+  WorkerThread thread_file_reader_;
 
   std::vector<struct sequence_meta> frame_starts_;
   Index current_frame_idx_;

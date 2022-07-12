@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,27 +27,27 @@ namespace kernels {
 namespace resample_test {
 
 constexpr FilterDesc nearest(float radius = 0) {
-  return { ResamplingFilterType::Nearest, radius };
+  return { ResamplingFilterType::Nearest, false, radius };
 }
 
 constexpr FilterDesc tri(float radius = 0) {
-  return { ResamplingFilterType::Triangular, radius };
+  return { ResamplingFilterType::Triangular, true, radius };
 }
 
 constexpr FilterDesc lin() {
-  return { ResamplingFilterType::Linear, 0 };
+  return { ResamplingFilterType::Linear, true, 0 };
 }
 
 constexpr FilterDesc lanczos() {
-  return { ResamplingFilterType::Lanczos3, 1 };
+  return { ResamplingFilterType::Lanczos3, true, 1 };
 }
 
 constexpr FilterDesc cubic() {
-  return { ResamplingFilterType::Cubic, 0 };
+  return { ResamplingFilterType::Cubic, true, 0 };
 }
 
 constexpr FilterDesc gauss(float radius) {
-  return { ResamplingFilterType::Gaussian, radius };
+  return { ResamplingFilterType::Gaussian, true, radius };
 }
 
 struct ResamplingTestEntry {

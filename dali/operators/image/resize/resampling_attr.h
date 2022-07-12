@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -92,6 +92,7 @@ class DLL_PUBLIC ResamplingFilterAttr {
  private:
   std::vector<DALIInterpType> interp_type_arg_, min_arg_, mag_arg_;
   DALIDataType dtype_arg_ = DALI_NO_TYPE;
+  bool antialias_ = true;
 };
 
 }  // namespace dali

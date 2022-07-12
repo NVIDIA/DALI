@@ -356,12 +356,20 @@ int NvDecoder::handle_display_(CUVIDPARSERDISPINFO* disp_info) {
     return kNvcuvid_success;
   }
 
-  if (frame != current_recv_.frame) {
+  if (frame < current_recv_.frame) {
     // TODO(spanev) This definitely needs better error handling...
     // Add exception? Directly or after countdown treshold?
     LOG_LINE << "Ditching frame " << frame << " since we are waiting for "
                 << "frame " << current_recv_.frame << std::endl;
     return kNvcuvid_success;
+  } else if  (frame > current_recv_.frame) {
+    LOG_LINE << "Receive frame " << frame << " that is pas the exptected "
+                << "frame " << current_recv_.frame << std::endl;
+    req_ready_ = VidReqStatus::REQ_ERROR;
+    stop_ = true;
+    // Main thread is waiting on frame_queue_
+    frame_queue_.shutdown();
+    return kNvcuvid_failure;
   }
 
   LOG_LINE << "\e[1mGoing ahead with frame " << frame

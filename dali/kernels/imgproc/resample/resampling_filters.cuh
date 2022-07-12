@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ struct ResamplingFilter {
 struct DLL_PUBLIC ResamplingFilters {
   std::unique_ptr<float, std::function<void(void*)>> filter_data;
 
-  DLL_PUBLIC ResamplingFilter Cubic() const noexcept;
+  DLL_PUBLIC ResamplingFilter Cubic(float radius = 2.0f) const noexcept;
   DLL_PUBLIC ResamplingFilter Gaussian(float sigma) const noexcept;
   DLL_PUBLIC ResamplingFilter Lanczos3(float radius = 3.0f) const noexcept;
   DLL_PUBLIC ResamplingFilter Triangular(float radius) const noexcept;

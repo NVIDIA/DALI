@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,16 +37,18 @@ inline const char * FilterName(ResamplingFilterType type) {
 
 constexpr int KeepOriginalSize = -1;
 
-inline float DefaultFilterRadius(ResamplingFilterType type, float in_size, float out_size) {
+inline float DefaultFilterRadius(ResamplingFilterType type, bool antialias,
+                                 float in_size, float out_size) {
+  antialias &= in_size > out_size;
   switch (type) {
   case ResamplingFilterType::Triangular:
-    return in_size > out_size ? in_size/out_size : 1;
+    return antialias ? in_size / out_size : 1;
   case ResamplingFilterType::Gaussian:
-    return in_size > out_size ? in_size/out_size : 1;
+    return antialias ? in_size / out_size : 1;
   case ResamplingFilterType::Cubic:
-    return 2;
+    return antialias ? (2 * in_size / out_size) : 2;
   case ResamplingFilterType::Lanczos3:
-    return in_size > out_size ? (3*in_size/out_size) : 3;
+    return antialias ? (3 * in_size / out_size) : 3;
   default:
     return 1;
   }
@@ -54,9 +56,11 @@ inline float DefaultFilterRadius(ResamplingFilterType type, float in_size, float
 
 struct FilterDesc {
   constexpr FilterDesc() = default;
-  constexpr FilterDesc(ResamplingFilterType type, float radius = 0)  // NOLINT
-  : type(type), radius(radius) {}
+  constexpr FilterDesc(ResamplingFilterType type) : type(type) {}  // NOLINT
+  constexpr FilterDesc(ResamplingFilterType type, bool antialias, float radius)
+      : type(type), antialias(antialias), radius(radius) {}
   ResamplingFilterType type = ResamplingFilterType::Nearest;
+  bool antialias = true;
   float radius = 0;
 };
 

@@ -149,7 +149,7 @@ class DLL_PUBLIC ImageSource {
   /**
    * @brief Opens the image source, returning an input stream
    *
-   * If the image source already contains a stream, it is returned directly.
+   * If the image source is InputKind::Stream, the stream is rewound and returned directly.
    * Otherwise, a memory stream or a file is opened.
    *
    * @return std::shared_ptr<InputStream>
