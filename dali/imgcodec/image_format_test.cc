@@ -118,6 +118,39 @@ class CompatibilityTest : public ComparisonTestBase {
   }
 };
 
+class ImageMagickTest : public ComparisonTestBase {
+ public:
+  std::string GetImIdentifyPath() const {
+    static std::string path = "";
+    if (!path.empty()) return path;
+    auto p = std::getenv("IMAGEMAGICK_IDENTIFY_PATH");
+    if (!p) {
+      ADD_FAILURE() << "Please set IMAGEMAGICK_IDENTIFY_PATH to ImageMagick's identify path"; 
+    } else {
+      path = p;
+    }
+    return path;
+  }
+
+  TensorShape<> ShapeOf(std::string filename) const override {
+    std::string cmd = GetImIdentifyPath() + " -format  \"%w %h %[channels]\" " + filename;
+    FILE* pipe = popen(cmd.c_str(), "r");
+    int w, h, c;
+    char tmp[16];
+    std::string colors;
+    fscanf(pipe, "%d %d %16s", &w, &h, tmp);
+    colors = tmp;
+
+    if (colors == "srgb" || colors == "rgb") c = 3;
+    else if (colors == "srgba" || colors == "rgba" || colors == "cmyk") c = 4;
+    else c = -1;
+    
+    return {h, w, c};
+  }
+
+  std::string im_identify_path;
+};
+
 TEST_F(ImageFormatTest, DISABLED_Jpeg) {
   Test(testing::dali_extra_path() + "/db/single/jpeg/372/baboon-174073_1280.jpg", "jpeg",
        TensorShape<>(720, 1280, 3));
@@ -178,6 +211,10 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
 }
 
 TEST_F(CompatibilityTest, Jpeg) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"});
+}
+
+TEST_F(ImageMagickTest, Jpeg) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"});
 }
 
