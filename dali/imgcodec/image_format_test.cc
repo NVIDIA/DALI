@@ -108,6 +108,8 @@ class ComparisonTestBase : public ImageFormatTest {
       if (filenames.size() == batch_size) {
         Run(filenames, expected_format);
         filenames.clear();
+        std::cerr << nimages << std::endl;
+        if (nimages > 10000) break;
       }
     }
     if (!filenames.empty())
@@ -160,8 +162,6 @@ class ImageMagickTest : public ComparisonTestBase {
       cmd += " ";
       cmd += f;
     }
-
-    std::cout << cmd << std::endl;
 
     FILE* pipe = popen(cmd.c_str(), "r");
 
@@ -251,7 +251,8 @@ TEST_F(CompatibilityTest, Jpeg) {
 }
 
 TEST_F(ImageMagickTest, Jpeg) {
-  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"}, 4);
+  RunOnDirectory("/home/skarpinski/data/ILSVRC", "jpeg", 
+                 {".jpeg", ".jpg", ".JPEG"}, 1024);
 }
 
 }  // namespace test
