@@ -87,7 +87,7 @@ class ComparisonTestBase : public ImageFormatTest {
       Test(filenames[i], expected_format, shapes[i]);
     }
   }
-  
+
  public:
   void RunOnDirectory(std::string directory, std::string expected_format,
                       std::vector<std::string> extensions, size_t batch_size = 1) {
@@ -134,7 +134,7 @@ class CompatibilityTest : public ComparisonTestBase {
   std::vector<TensorShape<>> ShapesOf(std::vector<std::string> filenames) const override {
     std::vector<TensorShape<>> shapes;
     shapes.reserve(filenames.size());
-    std::transform(filenames.begin(), filenames.end(), std::back_inserter(shapes), 
+    std::transform(filenames.begin(), filenames.end(), std::back_inserter(shapes),
                    [&](const std::string& f){return ShapeOf(f);});
     return shapes;
   }
