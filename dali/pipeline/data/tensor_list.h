@@ -266,10 +266,11 @@ class DLL_PUBLIC TensorList {
     // Free the underlying storage.
     data_.free_storage();
 
-    // Set the new order.
+    // Set the new order for explicit sync.
     this->set_order(order);
 
-    // Save our new pointer and bytes. Reset our type, shape, and size
+    // Save our new pointer and bytes. Reset our type, shape, and size, use the order as provided,
+    // we already set it so it will be a no-op in this call.
     data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements(), device_id, order);
     shape_ = {};
     offsets_.clear();
