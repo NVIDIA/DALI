@@ -194,8 +194,8 @@ DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, c
  * copying data onto GPU. This function is asynchronous, so it's your responsibility to
  * synchronize on a provided CUDA stream.
  *
- * If GPU memory is provided, it is assumed to reside on the same device that was used
- * to create the pipeline that is used. See `device_id` parameter of the `daliCreatePipeline`.
+ * If GPU memory is provided, it is assumed to reside on the same device that the pipeline is using.
+ * See `device_id` parameter of the `daliCreatePipeline`.
  *
  * Keep in mind, that for the special case, where the data exists on the CPU and the
  * ExternalSource's Backend in also a CPU, stream is not needed - feel free to pass

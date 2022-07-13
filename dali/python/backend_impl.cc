@@ -185,8 +185,6 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   CheckContiguousTensor(dl_tensor.strides, dl_tensor.ndim, dl_tensor.shape, dl_tensor.ndim, 1);
   size_t bytes = volume(shape) * dali_type.size();
 
-  // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
-  // shared ptr is destroyed
   auto typed_shape = ConvertShape(shape, batch);
   bool is_pinned = dl_tensor.device.device_type == kDLCUDAHost;
   int device_id = CPU_ONLY_DEVICE_ID;
@@ -201,6 +199,8 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
     DALI_FAIL(make_string("Not supported DLPack device type: ", dl_tensor.device.device_type, "."));
   }
 
+  // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
+  // shared ptr is destroyed
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
                                     [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
                                     bytes, is_pinned, typed_shape, dali_type.id(), device_id);
