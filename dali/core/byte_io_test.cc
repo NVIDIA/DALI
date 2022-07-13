@@ -93,7 +93,7 @@ TEST(byte_io, read_value_enum_overload) {
   };
   EXPECT_EQ(VALUE_ONE, ReadValueBE<TestEnum>(data_be));
   EXPECT_EQ(VALUE_ONE, ReadValueLE<TestEnum>(data_le));
-  EXPECT_EQ(VALUE_NEGATIVE, ReadValueLE<TestEnum, 3>(data_le_negative));
+  EXPECT_EQ(VALUE_NEGATIVE, (ReadValueLE<TestEnum, 3>(data_le_negative)));
 }
 
 TEST(byte_io, read_value_enum_overload_uint16) {
