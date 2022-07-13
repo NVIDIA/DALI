@@ -21,7 +21,10 @@ namespace dali {
 
 namespace detail {
 
-template <int nbytes, bool is_little_endian, typename T>
+template <int nbytes, 
+          bool is_little_endian, 
+          typename T,
+          std::enable_if_t<std::is_integral<T>::value, bool> = true>
 void ReadValueImpl(T &value, const uint8_t* data) {
   static_assert(std::is_integral<T>::value, "T must be an integral type");
   static_assert(sizeof(T) >= nbytes, "T can't hold the requested number of bytes");
@@ -32,6 +35,19 @@ void ReadValueImpl(T &value, const uint8_t* data) {
     value |= data[i] << shift;
   }
   value >>= pad;
+}
+
+template <int nbytes, 
+          bool is_little_endian, 
+          typename T, 
+          std::enable_if_t<std::is_enum<T>::value, bool> = true>
+void ReadValueImpl(T &value, const uint8_t* data) {
+  using U = std::underlying_type_t<T>;
+  static_assert(nbytes == sizeof(U),
+    "nbytes is expected to be the same as sizeof(std::underlying_type_t<T>)");
+  U tmp;
+  ReadValueImpl<nbytes, is_little_endian>(tmp, data);
+  value = static_cast<T>(tmp);
 }
 
 template <int nbytes, bool is_little_endian>

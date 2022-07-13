@@ -82,6 +82,28 @@ TEST(byte_io, read_value_float_input_stream) {
   EXPECT_EQ(1.0f, ReadValueLE<float>(mis_le));
 }
 
+TEST(byte_io, read_value_enum_overload) {
+  const uint8_t data_be[] = {0x00, 0x00, 0x00, 0x01};
+  const uint8_t data_le[] = {0x01, 0x00, 0x00, 0x00};
+  enum TestEnum {
+    VALUE_ZERO = 0,
+    VALUE_ONE = 1,
+  };
+  EXPECT_EQ(VALUE_ONE, ReadValueBE<TestEnum>(data_be));
+  EXPECT_EQ(VALUE_ONE, ReadValueLE<TestEnum>(data_le));
+}
+
+TEST(byte_io, read_value_enum_overload_uint16) {
+  const uint8_t data_be[] = {0x00, 0x01};
+  const uint8_t data_le[] = {0x01, 0x00};
+  enum TestEnum : uint16_t {
+    VALUE_ZERO = 0,
+    VALUE_ONE = 1,
+  };
+  EXPECT_EQ(VALUE_ONE, ReadValueBE<TestEnum>(data_be));
+  EXPECT_EQ(VALUE_ONE, ReadValueLE<TestEnum>(data_le));
+}
+
 }  // namespace test
 
 }  // namespace dali
