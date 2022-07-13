@@ -78,36 +78,50 @@ class ImageFormatTest : public ::testing::Test {
 };
 
 class ComparisonTestBase : public ImageFormatTest {
- public:
-  virtual TensorShape<> ShapeOf(std::string filename) const = 0;
+ protected:
+  virtual std::vector<TensorShape<>> ShapesOf(std::vector<std::string> filenames) const = 0;
 
-  void Run(std::string filename, std::string expected_format) {
-    SCOPED_TRACE(filename);
-    Test(filename, expected_format, ShapeOf(filename));
+  void Run(std::vector<std::string> filenames, std::string expected_format) {
+    std::vector<TensorShape<>> shapes = ShapesOf(filenames);
+    for (size_t i = 0; i < shapes.size(); i++) {
+      Test(filenames[i], expected_format, shapes[i]);
+    }
   }
-
+  
+ public:
   void RunOnDirectory(std::string directory, std::string expected_format,
-                      std::vector<std::string> extensions) {
+                      std::vector<std::string> extensions, size_t batch_size = 1) {
     unsigned nimages = 0;
+    vector<std::string> filenames;
+    filenames.reserve(batch_size);
+
     for (const auto &entry : std::filesystem::recursive_directory_iterator(directory)) {
       if (entry.is_regular_file()) {
         const auto path = entry.path().string();
         for (const auto& ext : extensions) {
           if (path.substr(path.size() - ext.size(), ext.size()) == ext) {
-            Run(path, expected_format);
+            filenames.push_back(path);
             nimages++;
           }
         }
       }
+      if (filenames.size() == batch_size) {
+        Run(filenames, expected_format);
+        filenames.clear();
+      }
     }
+    if (!filenames.empty())
+      Run(filenames, expected_format);
+
     if (nimages == 0)
       FAIL() << "No matching images in " << directory;
   }
 };
 
 class CompatibilityTest : public ComparisonTestBase {
- public:
-  TensorShape<> ShapeOf(std::string filename) const override {
+ protected:
+  TensorShape<> ShapeOf(std::string filename) const {
+    SCOPED_TRACE(filename);
     auto src = ImageSource::FromFilename(filename);
     auto stream = src.Open();
     std::vector<uint8_t> data(stream->Size());
@@ -116,10 +130,18 @@ class CompatibilityTest : public ComparisonTestBase {
     auto shape = img->PeekShape();
     return shape;
   }
+
+  std::vector<TensorShape<>> ShapesOf(std::vector<std::string> filenames) const override {
+    std::vector<TensorShape<>> shapes;
+    shapes.reserve(filenames.size());
+    std::transform(filenames.begin(), filenames.end(), std::back_inserter(shapes), 
+                   [&](const std::string& f){return ShapeOf(f);});
+    return shapes;
+  }
 };
 
 class ImageMagickTest : public ComparisonTestBase {
- public:
+ protected:
   std::string GetImIdentifyPath() const {
     static std::string path = "";
     if (!path.empty()) return path;
@@ -132,21 +154,36 @@ class ImageMagickTest : public ComparisonTestBase {
     return path;
   }
 
-  TensorShape<> ShapeOf(std::string filename) const override {
-    std::string cmd = GetImIdentifyPath() + " -format  \"%w %h %[channels]\" " + filename;
+  std::vector<TensorShape<>> ShapesOf(std::vector<std::string> filenames) const override {
+    std::string cmd = GetImIdentifyPath() + " -format  \"%w %h %[channels]\\n\"";
+    for (const std::string& f : filenames) {
+      cmd += " ";
+      cmd += f;
+    }
+
+    std::cout << cmd << std::endl;
+
     FILE* pipe = popen(cmd.c_str(), "r");
-    int w, h, c;
-    char tmp[16];
-    std::string colors;
-    fscanf(pipe, "%d %d %16s", &w, &h, tmp);
-    colors = tmp;
 
-    if (colors == "srgb" || colors == "rgb") c = 3;
-    else if (colors == "srgba" || colors == "rgba" || colors == "cmyk") c = 4;
-    else
-      ADD_FAILURE() << "Unable to parse ImageMagick's channels output";
+    std::vector<TensorShape<>> shapes;
+    shapes.reserve(filenames.size());
+    for (const std::string& filename : filenames) {
+      SCOPED_TRACE(filename);
+      int w, h, c;
+      char tmp[16];
+      std::string colors;
+      fscanf(pipe, "%d %d %16s", &w, &h, tmp);
+      colors = tmp;
 
-    return {h, w, c};
+      if (colors == "srgb" || colors == "rgb") c = 3;
+      else if (colors == "srgba" || colors == "rgba" || colors == "cmyk") c = 4;
+      else if (colors == "gray") c = 1;
+      else
+        ADD_FAILURE() << "Unable to parse ImageMagick's output";
+
+      shapes.push_back({h, w, c});
+    }
+    return shapes;
   }
 };
 
@@ -214,7 +251,7 @@ TEST_F(CompatibilityTest, Jpeg) {
 }
 
 TEST_F(ImageMagickTest, Jpeg) {
-  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"});
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"}, 4);
 }
 
 }  // namespace test
