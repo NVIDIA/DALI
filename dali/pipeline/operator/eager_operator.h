@@ -43,7 +43,7 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Bac
 
 template <typename Backend>
 std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<Backend>> in) {
-  // TODO(klecki): Add missing optimization
+  // TODO(klecki): [BatchObject] Add missing optimization
   // if (in->IsContiguous()) {
   //   // Filled contiguous TensorVector, we can return TensorList directly.
   //   auto tl = in->AsTensorList(false);
@@ -301,7 +301,7 @@ EagerOperator<Backend>::RunImpl(
   }
 
   for (auto &arg : kwargs) {
-    // TODO(klecki): Remove the wrapping of TensorList -> TensorVector.
+    // TODO(klecki): [BatchObject] Remove the wrapping of TensorList -> TensorVector.
     // We wrap it once before call, so that the run won't do it again. Remove when we do not
     // have distinct batch types.
     auto tmp = std::make_shared<TensorVector<CPUBackend>>();

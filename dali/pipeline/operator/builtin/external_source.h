@@ -436,12 +436,12 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     auto tl_elm = tl_data_.GetEmpty();
     bool copied_shared_data = false;
 
-    // TODO(klecki): Add missing optimization
-    // if (batch.IsContiguous()) {
-    //   auto &in_tl = *const_cast<TensorVector<Backend> &>(batch).AsTensorList();
-    //   tl_elm.front()->ShareData(in_tl);
-    //   zero_copy_noncontiguous_gpu_input_ = true;
-    // } else {
+    if (batch.IsContiguous()) {
+      auto batch_owner = unsafe_sample_owner(const_cast<TensorVector<SrcBackend> &>(batch), 0);
+      tl_elm.front()->ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
+                                batch.type(), batch.order());
+      zero_copy_noncontiguous_gpu_input_ = true;
+    } else {
       // it is not contiguous so we need to copy
       tl_elm.front()->Copy(batch, order, use_copy_kernel);
       std::list<uptr_cuda_event_type> copy_to_storage_event;
@@ -455,7 +455,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                   "of memory would be trashed.");
       }
       copied_shared_data = true;
-    // }
+    }
     state_.push_back({copied_shared_data, true});
     tl_data_.PushBack(tl_elm);
   }
