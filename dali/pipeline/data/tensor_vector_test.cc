@@ -251,7 +251,6 @@ TYPED_TEST(TensorVectorSuite, DeviceIdPropagationMultiGPU) {
     batch.set_type(DALI_UINT8);
     batch.set_sample_dim(shape.sample_dim());
     batch.set_order(order);
-    CUDA_CALL(cudaSetDevice(device_id));
     void *data_ptr;
     std::shared_ptr<void> ptr;
     if (is_device) {

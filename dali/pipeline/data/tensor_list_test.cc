@@ -539,7 +539,6 @@ TYPED_TEST(TensorListTest, DeviceIdPropagationMultiGPU) {
     TensorList<TypeParam> batch;
     DeviceGuard dg(device_id);
     batch.set_order(order);
-    CUDA_CALL(cudaSetDevice(device_id));
     void *data_ptr;
     std::shared_ptr<void> ptr;
     if (is_device) {
