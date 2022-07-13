@@ -83,7 +83,7 @@ class TiffParserOrientationTest : public ::testing::Test {
   TiffParserOrientationTest() : parser_() {}
 
   ImageSource GetImage(const std::string& orientation) {
-    auto base = testing::dali_extra_path() + "/db/single/tiff/orientation/cat-1046544_640_";
+    auto base = testing::dali_extra_path() + "/db/imgcodec/tiff/orientation/cat-1046544_640_";
     auto filename = base + orientation + ".tiff";
     return ImageSource::FromFilename(filename);
   }
