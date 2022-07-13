@@ -79,9 +79,9 @@ class ImageFormatTest : public ::testing::Test {
 
 class ComparisonTestBase : public ImageFormatTest {
  protected:
-  virtual std::vector<TensorShape<>> ShapesOf(std::vector<std::string> filenames) const = 0;
+  virtual std::vector<TensorShape<>> ShapesOf(const std::vector<std::string> &filenames) const = 0;
 
-  void Run(std::vector<std::string> filenames, std::string expected_format) {
+  void Run(const std::vector<std::string> &filenames, std::string expected_format) {
     std::vector<TensorShape<>> shapes = ShapesOf(filenames);
     for (size_t i = 0; i < shapes.size(); i++) {
       Test(filenames[i], expected_format, shapes[i]);
@@ -122,7 +122,7 @@ class ComparisonTestBase : public ImageFormatTest {
 
 class CompatibilityTest : public ComparisonTestBase {
  protected:
-  TensorShape<> ShapeOf(std::string filename) const {
+  TensorShape<> ShapeOf(const std::string &filename) const {
     SCOPED_TRACE(filename);
     auto src = ImageSource::FromFilename(filename);
     auto stream = src.Open();
@@ -133,7 +133,7 @@ class CompatibilityTest : public ComparisonTestBase {
     return shape;
   }
 
-  std::vector<TensorShape<>> ShapesOf(std::vector<std::string> filenames) const override {
+  std::vector<TensorShape<>> ShapesOf(const std::vector<std::string> &filenames) const override {
     std::vector<TensorShape<>> shapes;
     shapes.reserve(filenames.size());
     std::transform(filenames.begin(), filenames.end(), std::back_inserter(shapes),
@@ -156,9 +156,9 @@ class ImageMagickTest : public ComparisonTestBase {
     return path;
   }
 
-  std::vector<TensorShape<>> ShapesOf(std::vector<std::string> filenames) const override {
+  std::vector<TensorShape<>> ShapesOf(const std::vector<std::string> &filenames) const override {
     std::string cmd = GetImIdentifyPath() + " -format  \"%w %h %[channels]\\n\"";
-    for (const std::string& f : filenames) {
+    for (const std::string &f : filenames) {
       cmd += " ";
       cmd += f;
     }
@@ -167,7 +167,7 @@ class ImageMagickTest : public ComparisonTestBase {
 
     std::vector<TensorShape<>> shapes;
     shapes.reserve(filenames.size());
-    for (const std::string& filename : filenames) {
+    for (const std::string &filename : filenames) {
       SCOPED_TRACE(filename);
       int w, h, c;
       char tmp[16];
@@ -246,12 +246,12 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
   EXPECT_EQ(0, buffer[3]);
 }
 
-TEST_F(CompatibilityTest, Jpeg) {
+TEST_F(CompatibilityTest, DISABLED_Jpeg) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"});
 }
 
-TEST_F(ImageMagickTest, Jpeg) {
-  RunOnDirectory("/home/skarpinski/data/ILSVRC", "jpeg", 
+TEST_F(ImageMagickTest, DISABLED_Jpeg) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg",
                  {".jpeg", ".jpg", ".JPEG"}, 1024);
 }
 
