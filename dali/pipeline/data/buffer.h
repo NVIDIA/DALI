@@ -467,6 +467,11 @@ class DLL_PUBLIC Buffer {
                                      DALIDataType type, size_t size, int device_id,
                                      AccessOrder order = {}) {
     free_storage();
+
+    // Set the new order before replacing the allocation
+    set_order(order);
+
+    // Fill the remaining members in the order as they appear in class.
     type_ = TypeTable::GetTypeInfo(type);
     data_ = ptr;
     allocate_ = {};
@@ -475,7 +480,6 @@ class DLL_PUBLIC Buffer {
     num_bytes_ = bytes;
     pinned_ = pinned;
     device_ = device_id;
-    set_order(order);
   }
 
   static void SetGrowthFactor(double factor) {
