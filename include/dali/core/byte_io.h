@@ -21,8 +21,8 @@ namespace dali {
 
 namespace detail {
 
-template <int nbytes, 
-          bool is_little_endian, 
+template <int nbytes,
+          bool is_little_endian,
           typename T,
           std::enable_if_t<std::is_integral<T>::value, bool> = true>
 void ReadValueImpl(T &value, const uint8_t* data) {
@@ -37,9 +37,9 @@ void ReadValueImpl(T &value, const uint8_t* data) {
   value >>= pad;
 }
 
-template <int nbytes, 
-          bool is_little_endian, 
-          typename T, 
+template <int nbytes,
+          bool is_little_endian,
+          typename T,
           std::enable_if_t<std::is_enum<T>::value, bool> = true>
 void ReadValueImpl(T &value, const uint8_t* data) {
   using U = std::underlying_type_t<T>;
