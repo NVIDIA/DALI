@@ -392,11 +392,8 @@ TYPED_TEST(TensorTest, DeviceIdPropagationMultiGPU) {
   TensorShape<> shape{42};
   for (int device_id = 0; device_id < num_devices; device_id++) {
     Tensor<TypeParam> tensor;
-    tensor.set_device_id(device_id);
-    tensor.set_pinned(is_pinned);
-    tensor.set_type(DALI_UINT8);
     tensor.set_order(order);
-    CUDA_CALL(cudaSetDevice(device_id));
+    DeviceGuard dg(device_id);
     void *data_ptr;
     std::shared_ptr<void> ptr;
     if (is_device) {

@@ -245,6 +245,7 @@ TYPED_TEST(TensorVectorSuite, DeviceIdPropagationMultiGPU) {
   for (int device_id = 0; device_id < num_devices; device_id++) {
     TensorVector<TypeParam> batch;
     batch.SetSize(1);
+    DeviceGuard dg(device_id);
     batch.set_device_id(device_id);
     batch.set_pinned(is_pinned);
     batch.set_type(DALI_UINT8);

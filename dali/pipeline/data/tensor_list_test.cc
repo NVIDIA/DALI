@@ -537,9 +537,7 @@ TYPED_TEST(TensorListTest, DeviceIdPropagationMultiGPU) {
   TensorListShape<> shape{{42}};
   for (int device_id = 0; device_id < num_devices; device_id++) {
     TensorList<TypeParam> batch;
-    batch.set_device_id(device_id);
-    batch.set_pinned(is_pinned);
-    batch.set_type(DALI_UINT8);
+    DeviceGuard dg(device_id);
     batch.set_order(order);
     CUDA_CALL(cudaSetDevice(device_id));
     void *data_ptr;
