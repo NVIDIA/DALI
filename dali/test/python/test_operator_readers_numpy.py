@@ -574,7 +574,7 @@ def test_numpy_reader_roi_error():
                     rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, \
                     fill_value
 
-def check_test_pad_last_sample(device):
+def check_pad_last_sample(device):
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         # create files
         num_samples = 2
@@ -601,12 +601,13 @@ def check_test_pad_last_sample(device):
                                 pad_last_batch=True)
         pipe.build()
 
-        pipe_out = pipe.run()
-        for i in range(batch_size):
-            pipe_arr = to_array(pipe_out[0][i])
-            ref_arr = arr_np_list[i]
-            assert_array_equal(pipe_arr, ref_arr)
+        for _ in range(2):
+            pipe_out = pipe.run()
+            for i in range(batch_size):
+                pipe_arr = to_array(pipe_out[0][i])
+                ref_arr = arr_np_list[i]
+                assert_array_equal(pipe_arr, ref_arr)
 
 def test_pad_last_sample():
     for device in ["cpu", "gpu"]:
-        yield check_test_pad_last_sample, device
+        yield check_pad_last_sample, device

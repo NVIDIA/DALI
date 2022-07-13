@@ -53,7 +53,7 @@ void NumpyReaderGPU::Prefetch() {
 
   // get shapes
   for (size_t data_idx = 0; data_idx < curr_batch.size(); ++data_idx) {
-    // when padding the last sample is duplicated so no need to redo the same work
+    // when padding, the last sample is duplicated so no need to redo the same work
     if (data_idx > 0 && curr_batch[data_idx -1 ] == curr_batch[data_idx]) continue;
     thread_pool_.AddWork([this, &curr_batch, data_idx](int tid) {
         curr_batch[data_idx]->Reopen();
@@ -88,32 +88,29 @@ void NumpyReaderGPU::Prefetch() {
   curr_tensor_list.Resize(tmp_shapes, ref_type);
 
   // read the data
-  int first_padded = curr_tensor_list.num_samples();
+  int first_padded = -1;
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
     curr_tensor_list.SetMeta(data_idx, curr_batch[data_idx]->meta);
     SampleView<GPUBackend> sample(curr_tensor_list.raw_mutable_tensor(data_idx),
                                   curr_tensor_list.tensor_shape(data_idx),
                                   curr_tensor_list.type());
-    // when padding the last sample is duplicated so no need to redo the same work
-    if (data_idx > 0 && curr_batch[data_idx -1 ] == curr_batch[data_idx]) {
-      first_padded = data_idx;
-      break;
+    // when padding, the last sample is duplicated so no need to redo the same work
+    if (data_idx > 0 && curr_batch[data_idx - 1] == curr_batch[data_idx]) {
+      if (first_padded < 0) {
+        first_padded = data_idx;
+      }
     } else {
       ScheduleChunkedRead(sample, *curr_batch[data_idx]);
+    }
+    if (first_padded > 0) {
+      // connect padded samples with the original data idx
+      curr_batch[data_idx]->source_sample_idx = first_padded - 1;
+    } else {
+      curr_batch[data_idx]->source_sample_idx = data_idx;
     }
   }
   thread_pool_.RunAll();
   staging_.commit();
-
-  // copy padded samples
-  for (int data_idx = first_padded; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
-    kernels::copy<StorageGPU, StorageGPU>(curr_tensor_list.raw_mutable_tensor(data_idx),
-                                          curr_tensor_list.raw_tensor(first_padded - 1),
-                                          (curr_tensor_list.tensor_offset(first_padded) -
-                                            curr_tensor_list.tensor_offset(first_padded - 1)) *
-                                              curr_tensor_list.type_info().size(),
-                                          staging_stream_);
-  }
   CUDA_CALL(cudaEventRecord(staging_ready_, staging_stream_));
 
   for (int data_idx = 0; data_idx < curr_tensor_list.num_samples(); ++data_idx) {
