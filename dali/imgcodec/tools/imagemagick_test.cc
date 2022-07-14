@@ -77,7 +77,7 @@ class ImgcodecTester {
   ImageFormatRegistry format_registry_;
 };
 
-struct Options {
+struct Env {
   std::string identify_path;
   std::string directory;
   std::regex filter;
@@ -86,34 +86,34 @@ struct Options {
   ImgcodecTester imgcodec_tester;
 };
 
-Options default_options() {
-  Options options = {
+Env default_env() {
+  Env env = {
     .identify_path = "/usr/bin/identify",
     .directory = "",
     .filter = std::regex(".*"),
     .print = false,
     .batch = 1024,
   };
-  return options;
+  return env;
 }
 
-std::vector<std::string> get_batch(const Options &options,
+std::vector<std::string> get_batch(const Env &env,
                                    std::filesystem::recursive_directory_iterator &it) {
   std::vector<std::string> filenames;
-  filenames.reserve(options.batch);
-  while (it != std::filesystem::end(it) && filenames.size() < options.batch) {
+  filenames.reserve(env.batch);
+  while (it != std::filesystem::end(it) && filenames.size() < env.batch) {
     const auto& entry = *(it++);
     if (entry.is_regular_file()) {
       const auto path = entry.path().string();
-      if (std::regex_match(path, options.filter))
+      if (std::regex_match(path, env.filter))
         filenames.push_back(path);
     }
   }
   return filenames;
 }
 
-void process(const Options &options, std::vector<std::string> filenames) {
-  std::string cmd = options.identify_path + " -format  \"%w %h %[channels]\\n\"";
+void process(const Env &env, std::vector<std::string> filenames) {
+  std::string cmd = env.identify_path + " -format  \"%w %h %[channels]\\n\"";
   for (const std::string &f : filenames) {
     cmd += " ";
     cmd += f;
@@ -143,10 +143,10 @@ void process(const Options &options, std::vector<std::string> filenames) {
 
     TensorShape<> imagemagick_shape = {h, w, c};
 
-    if (options.print) {
+    if (env.print) {
       std::cout << filename << "\t" << imagemagick_shape << std::endl;
     } else {
-      auto imgcodec_shape = options.imgcodec_tester.shape_of(filename);
+      auto imgcodec_shape = env.imgcodec_tester.shape_of(filename);
       if (imgcodec_shape) {
         if (imagemagick_shape == *imgcodec_shape) {
           ok(filename);
@@ -160,12 +160,12 @@ void process(const Options &options, std::vector<std::string> filenames) {
   }
 }
 
-void run(const Options &options) {
-  auto directory_it = std::filesystem::recursive_directory_iterator(options.directory);
+void run(const Env &env) {
+  auto directory_it = std::filesystem::recursive_directory_iterator(env.directory);
 
   while (directory_it != std::filesystem::end(directory_it)) {
-    auto batch = get_batch(options, directory_it);
-    process(options, batch);
+    auto batch = get_batch(env, directory_it);
+    process(env, batch);
   }
 }
 
@@ -181,7 +181,7 @@ void show_usage() {
 
 
 int main(int argc, char **argv) {
-  dali::imgcodec::test::Options options = dali::imgcodec::test::default_options();
+  dali::imgcodec::test::Env env = dali::imgcodec::test::default_env();
 
   struct option long_options[] = {
     {"print", no_argument, nullptr, 'p'},
@@ -200,16 +200,16 @@ int main(int argc, char **argv) {
         show_usage();
         return 0;
       case 'p':
-        options.print = true;
+        env.print = true;
         break;
       case 'i':
-        options.identify_path = optarg;
+        env.identify_path = optarg;
         break;
       case 'r':
-        options.filter = std::regex(optarg);
+        env.filter = std::regex(optarg);
         break;
       case 'b':
-        options.batch = std::stoi(optarg);
+        env.batch = std::stoi(optarg);
         break;
       case '?':
         break;
@@ -224,8 +224,8 @@ int main(int argc, char **argv) {
     show_usage();
     return -1;
   }
-  options.directory = argv[optind];
+  env.directory = argv[optind];
 
-  dali::imgcodec::test::run(options);
+  dali::imgcodec::test::run(env);
 }
 
