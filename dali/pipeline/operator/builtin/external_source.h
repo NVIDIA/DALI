@@ -439,7 +439,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     if (batch.IsContiguous()) {
       auto batch_owner = unsafe_sample_owner(const_cast<TensorVector<SrcBackend> &>(batch), 0);
       tl_elm.front()->ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
-                                batch.type(), batch.order());
+                                batch.type(), batch.device_id(), batch.order());
       zero_copy_noncontiguous_gpu_input_ = true;
     } else {
       // it is not contiguous so we need to copy
