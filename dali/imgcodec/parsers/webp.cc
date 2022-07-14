@@ -58,7 +58,7 @@ bool is_pattern_matching(const std::array<uint8_t, N> data, const char pattern[N
 
 bool is_valid_riff_header(const RiffHeader &header) {
   return is_pattern_matching(header.riff_text, "RIFF") &&
-          is_pattern_matching(header.webp_text, "WEBP");
+         is_pattern_matching(header.webp_text, "WEBP");
 }
 
 bool is_simple_lossy_format(const vp8_header_t &header) {
