@@ -65,14 +65,23 @@ void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
   PreRun();
-
+  const char placement_error[] =
+      "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
+      "valid device id or change the operators' device.";
   if (device_id_ < 0) {
     DALI_ENFORCE(device_id_ == CPU_ONLY_DEVICE_ID,
                  "Wrong device_id provided, it should be >= 0, "
                  "or equal to CPU_ONLY_DEVICE_ID.");
-    DALI_ENFORCE(graph_->NumOp(OpType::GPU) == 0 && graph_->NumOp(OpType::MIXED) == 0,
-                 "Cannot run a pipeline with Mixed/GPU ops in CPU-only mode. Please provide "
-                 "valid device id or change the operators' device.");
+    DALI_ENFORCE(graph_->NumOp(OpType::GPU) == 0, placement_error);
+
+    for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
+      const OpNode &op_node = graph_->Node(OpType::MIXED, i);
+      DALI_ENFORCE(op_node.spec.GetSchema().name() == "MakeContiguous", placement_error);
+      for (auto tensor_id : op_node.children_tensors) {
+        const TensorNode &tensor_node = graph_->Tensor(tensor_id);
+        DALI_ENFORCE(tensor_node.producer.storage_device == StorageDevice::CPU, placement_error);
+      }
+    }
   }
 
   DomainTimeRange tr("[DALI][Executor] RunCPU");
@@ -126,20 +135,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
     return;
   }
 
-  // short path for pure CPU pipeline
-  if (device_id_ == CPU_ONLY_DEVICE_ID) {
-    if (callback_) {
-      callback_();
-    }
-    // We do not release, but handle to used outputs
-    QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
-    return;
-  }
-
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
 
-  CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
+  if (device_id_ != CPU_ONLY_DEVICE_ID)
+    CUDA_CALL(cudaEventSynchronize(mixed_stage_event_));
 
   auto batch_size = batch_sizes_mixed_.front();
   batch_sizes_mixed_.pop();
@@ -155,10 +155,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
       RunHelper(op_node, ws);
       FillStats(mixed_memory_stats_, ws, "MIXED_" + op_node.instance_name,
                 mixed_memory_stats_mutex_);
-      if (ws.has_stream() && ws.has_event()) {
-        CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+      if (device_id_ != CPU_ONLY_DEVICE_ID) {
+        if (ws.has_stream() && ws.has_event()) {
+            CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
+        }
+        CUDA_CALL(cudaGetLastError());
       }
-      CUDA_CALL(cudaGetLastError());
     } catch (std::exception &e) {
       HandleError("Mixed", op_node, e.what());
     } catch (...) {
@@ -166,19 +168,26 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
     }
   }
 
-  if (callback_) {
-    // Record event that will allow to call the callback after whole run of this pipeline is
-    // finished.
-    CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
-  }
+  if (device_id_ != CPU_ONLY_DEVICE_ID) {
+    if (callback_) {
+      // Record event that will allow to call the callback after whole run of this pipeline is
+      // finished.
+      CUDA_CALL(
+          cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
+    }
 
-  if (!mixed_output_events_.empty()) {
-    int queue_id = mixed_idxs[OpType::MIXED];
-    CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
-  }
+    if (!mixed_output_events_.empty()) {
+      int queue_id = mixed_idxs[OpType::MIXED];
+      CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
+    }
 
-  // We know that this is the proper stream, we do not need to look it up in any workspace
-  CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
+    // We know that this is the proper stream, we do not need to look it up in any workspace
+    CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
+  } else {
+    if (callback_) {
+      callback_();
+    }
+  }
 
   // Pass the work to the gpu stage
   QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
