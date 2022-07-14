@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+include_directories("${DALI_ROOT}/third_party/opencv/exif")
+list(APPEND DALI_IMGCODEC_SRCS "${DALI_ROOT}/third_party/opencv/exif/exif.cc")
+
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_IMGCODEC_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_IMGCODEC_TEST_SRCS PARENT_SCOPE)
