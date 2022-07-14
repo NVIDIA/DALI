@@ -26,7 +26,7 @@ class DLL_PUBLIC JpegParser : public ImageParser {
   bool CanParse(ImageSource *encoded) const override;
 };
 
-#endif  // DALI_IMGCODEC_PARSERS_JPEG_H_
-
 }  // namespace imgcodec
 }  // namespace dali
+
+#endif  // DALI_IMGCODEC_PARSERS_JPEG_H_
