@@ -32,7 +32,6 @@ void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
   thread_pool.RunAll();
 }
 
-DALI_REGISTER_OPERATOR(MakeContiguous, MakeContiguousCPU, CPU);
 
 DALI_SCHEMA(MakeContiguous)
   .DocStr(R"code(Move input batch to a contiguous representation, more suitable for execution on the GPU)code")

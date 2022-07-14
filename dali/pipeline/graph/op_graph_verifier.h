@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ template <>
 struct parent_constraints<OpType::GPU> {
   static constexpr OpType allowed_parents[] = {OpType::GPU, OpType::MIXED, OpType::CPU};
   static constexpr StorageDevice allowed_input_tensors[] = {StorageDevice::CPU, StorageDevice::GPU};
-  static constexpr OpType allowed_input_ops[] = {OpType::MIXED, OpType::GPU, OpType::CPU};
+  static constexpr OpType allowed_input_ops[] = {OpType::MIXED, OpType::GPU};
   static constexpr bool supports_argument_inputs = true;
 };
 

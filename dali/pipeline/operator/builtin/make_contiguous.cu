@@ -34,17 +34,22 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
     DALI_ENFORCE(sample_dim == sample.shape().sample_dim(), "Inconsistent sample dimensions "
         "in input batch. Cannot copy to contiguous device buffer.");
   }
-
-  auto &output = ws.Output<GPUBackend>(0);
-  if (coalesced) {
-    DomainTimeRange tr("[DALI][MakeContiguousMixed] coalesced", DomainTimeRange::kBlue);
-    cpu_output_buff.Copy(input);
-    output.Copy(cpu_output_buff, ws.stream());
+  if (ws.OutputIsType<CPUBackend>(0)) {
+    auto &output = ws.Output<CPUBackend>(0);
+    DomainTimeRange tr("[DALI][MakeContiguousMixed] H2H non coalesced", DomainTimeRange::kGreen);
+    output.Copy(input);
   } else {
-    DomainTimeRange tr("[DALI][MakeContiguousMixed] non coalesced", DomainTimeRange::kGreen);
+    auto &output = ws.Output<GPUBackend>(0);
+    if (coalesced) {
+      DomainTimeRange tr("[DALI][MakeContiguousMixed] H2D coalesced", DomainTimeRange::kBlue);
+      cpu_output_buff.Copy(input);
+      output.Copy(cpu_output_buff, ws.stream());
+    } else {
+      DomainTimeRange tr("[DALI][MakeContiguousMixed] H2D non coalesced", DomainTimeRange::kGreen);
       output.Copy(input, ws.stream());
+    }
+    coalesced = true;
   }
-  coalesced = true;
 }
 
 DALI_REGISTER_OPERATOR(MakeContiguous, MakeContiguousMixed, Mixed);
