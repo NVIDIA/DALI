@@ -237,7 +237,7 @@ struct TensorVectorBuilder {
     assert(NextSampleIdx() < tv_.num_samples());
     std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter
     tv_.UnsafeSetSample(next_++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
-                        view.shape, tv_.type(), tv_.order(), tv_.GetLayout());
+                        view.shape, tv_.type(), tv_.device_id(), tv_.order(), tv_.GetLayout());
   }
 
   int NextSampleIdx() const {

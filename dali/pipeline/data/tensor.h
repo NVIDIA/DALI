@@ -229,10 +229,13 @@ class Tensor : public Buffer<Backend> {
    * must not exceed the total size of underlying allocation (`num_bytes_`) of
    * shared data or the call will fail.
    * Size can be set to 0 and type to NoType as intermediate step.
+   *
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
   inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-                        const TensorShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE,
+                        const TensorShape<> &shape, DALIDataType type, int device_id,
                         AccessOrder order = {}) {
     Index new_size = volume(shape);
     DALI_ENFORCE(new_size == 0 || type != DALI_NO_TYPE,
@@ -246,16 +249,18 @@ class Tensor : public Buffer<Backend> {
       this->set_order(order);
 
     // Save our new pointer and bytes. Reset our type, shape, and size
-    data_ = ptr;
-    num_bytes_ = bytes;
-    pinned_ = pinned;
     type_ = TypeTable::GetTypeInfo(type);
-    shape_ = shape;
+    data_ = ptr;
     size_ = new_size;
+    num_bytes_ = bytes;
+    device_ = device_id;
 
     // If the input pointer stores a non-zero size allocation, mark
     // that we are sharing our underlying data
     shares_data_ = num_bytes_ > 0 ? true : false;
+    pinned_ = pinned;
+
+    shape_ = shape;
   }
 
   /**
@@ -273,10 +278,14 @@ class Tensor : public Buffer<Backend> {
    * not de-allocate it when it is done using it. It is up to the user to
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
+   *
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
   inline void ShareData(void *ptr, size_t bytes, bool pinned, const TensorShape<> &shape,
-                        DALIDataType type = DALI_NO_TYPE, AccessOrder order = {}) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, order);
+                        DALIDataType type, int device_id, AccessOrder order = {}) {
+    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, device_id, order);
   }
 
   /**
@@ -295,11 +304,14 @@ class Tensor : public Buffer<Backend> {
    * not de-allocate it when it is done using it. It is up to the user to
    * manage the lifetime of the allocation such that it persist while it is
    * in use by the Tensor.
+   *
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
-  inline void ShareData(void *ptr, size_t bytes, bool pinned = false,
-                        DALIDataType type = DALI_NO_TYPE,
+  inline void ShareData(void *ptr, size_t bytes, bool pinned, DALIDataType type, int device_id,
                         AccessOrder order = {}) {
-    ShareData(ptr, bytes, pinned, { 0 }, type, order);
+    ShareData(ptr, bytes, pinned, { 0 }, type, device_id, order);
   }
 
   inline void Reset(AccessOrder order = {}) {

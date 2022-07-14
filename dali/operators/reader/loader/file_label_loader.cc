@@ -64,7 +64,7 @@ void FileLabelLoader::ReadSample(ImageLabelWrapper &image_label) {
     auto p = current_image->Get(image_size);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", image_pair.first));
     // Wrap the raw data in the Tensor object.
-    image_label.image.ShareData(p, image_size, false, {image_size}, DALI_UINT8);
+    image_label.image.ShareData(p, image_size, false, {image_size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
   }
 
   // close the file handle
