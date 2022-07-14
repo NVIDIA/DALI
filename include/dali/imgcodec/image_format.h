@@ -24,17 +24,14 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/core/stream.h"
 #include "dali/imgcodec/image_source.h"
+#include "dali/imgcodec/image_orientation.h"
 
 namespace dali {
 namespace imgcodec {
 
 struct ImageInfo {
   TensorShape<> shape;
-  struct {
-    int rotate;
-    bool flip_x;
-    bool flip_y;
-  } orientation;
+  Orientation orientation = {};
 };
 
 class DLL_PUBLIC ImageParser {
