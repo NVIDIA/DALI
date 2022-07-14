@@ -43,6 +43,10 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
   bool read_shape = false;
   while (!read_shape) {
     auto marker = stream->ReadOne<jpeg_marker_t>();
+    if (marker[1] == 0xff) {
+      stream->SeekRead(-1, SEEK_CUR);
+      continue;
+    }
 
     DALI_ENFORCE(isValidMarker(marker));
     if (marker == sos_marker) break;
