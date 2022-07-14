@@ -36,10 +36,12 @@
 #include "dali/imgcodec/parsers/webp.h"
 
 
-const char *help = R"(Usage: imagemagick_test [OPTIONS] DIRECTORY
+const char *help = R"(Usage: imagemagick_test [OPTIONS] PATH
 
-Runs ImageMagick's `identify` tool on all files in the DIRECTORY recursively
-and compares the reported shape with the shape returned by DALI's imgcodec.
+Compares image shape returned by ImageMagick's `identify` tool with the shape
+returned by DALI's imgcodec. If PATH is a directory, it is searched recursively
+for matching files (see --filter). If PATH is a regular file, only this single
+file is processed and the filters do not apply.
 
 The following OPTIONS are available:
 --help   -h           Show this help message
@@ -196,6 +198,11 @@ void process(Env &env, std::vector<std::string> filenames) {
 }
 
 void run(Env &env) {
+  if (!std::filesystem::is_directory(env.directory)) {
+    process(env, {env.directory});
+    return;
+  }
+
   auto directory_it = std::filesystem::recursive_directory_iterator(env.directory);
   ThreadPool pool(env.jobs, -1, false, "imagemagick");
 
