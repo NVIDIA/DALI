@@ -99,13 +99,9 @@ void NumpyReaderGPU::Prefetch() {
       if (first_padded < 0) {
         first_padded = data_idx;
       }
-    } else {
-      ScheduleChunkedRead(sample, *curr_batch[data_idx]);
-    }
-    if (first_padded > 0) {
-      // connect padded samples with the original data idx
       curr_batch[data_idx]->source_sample_idx = first_padded - 1;
     } else {
+      ScheduleChunkedRead(sample, *curr_batch[data_idx]);
       curr_batch[data_idx]->source_sample_idx = data_idx;
     }
   }
