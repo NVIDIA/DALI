@@ -165,19 +165,25 @@ void process(Env &env, std::vector<std::string> filenames) {
       out << filename << "\t" << *imagemagick_shape << std::endl;
       continue;
     } 
+    try {
+      auto imgcodec_shape = env.imgcodec_tester.shape_of(filename);
 
-    auto imgcodec_shape = env.imgcodec_tester.shape_of(filename);
-
-    if (!imgcodec_shape) {
-      fail(log, filename, "Imgcodec failed to parse");
-      continue;
+      if (!imgcodec_shape) {
+        fail(log, filename, "Imgcodec failed to parse");
+        continue;
+      }
+      
+      if (*imagemagick_shape == *imgcodec_shape) {
+        ok(log, filename);
+      } else {
+        std::ostringstream ss;
+        ss << "Expected " << *imagemagick_shape << " but got " << *imgcodec_shape;
+        fail(log, filename, ss.str());
+      }
     }
-    
-    if (*imagemagick_shape == *imgcodec_shape) {
-      ok(log, filename);
-    } else {
+    catch (const std::exception &e) {
       std::ostringstream ss;
-      ss << "Expected " << *imagemagick_shape << " but got " << *imgcodec_shape;
+      ss << "Imgcodec raised an exception: " << e.what();
       fail(log, filename, ss.str());
     }
   }
