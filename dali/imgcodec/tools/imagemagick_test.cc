@@ -21,6 +21,8 @@
 #include <mutex>
 
 #include "dali/test/dali_test.h"
+#include "dali/pipeline/util/thread_pool.h"
+
 #include "dali/imgcodec/image_source.h"
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/image_decoder.h"
@@ -32,8 +34,6 @@
 #include "dali/imgcodec/parsers/pnm.h"
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/imgcodec/parsers/webp.h"
-
-#include "dali/pipeline/util/thread_pool.h"
 
 
 const char *help = R"(Usage: imagemagick_test [OPTIONS] DIRECTORY
@@ -49,6 +49,7 @@ The following OPTIONS are available:
 --identify=... -i=... Path of `identify` tool, default is /usr/bin/identify
 --jobs=N  -j=N        Number of concurrent jobs to run, defaults to number of cores
 )";
+
 
 namespace dali {
 namespace imgcodec {
@@ -84,9 +85,7 @@ class ImgcodecTester {
   std::optional<TensorShape<>> shape_of(const std::string &filename) const {
     auto img = ImageSource::FromFilename(filename);
     auto fmt = this->format_registry_.GetImageFormat(&img);
-    if (fmt == nullptr) {
-      return {};
-    }
+    if (fmt == nullptr) return {};
     auto image_info = fmt->Parser()->GetInfo(&img);
     return image_info.shape;
   }
@@ -124,9 +123,7 @@ std::optional<TensorShape<>> scan_imagemagick_shape(FILE *pipe) {
   int w, h, c;
   char tmp[16];
   std::string colors;
-  if (fscanf(pipe, "%d %d %16s", &w, &h, tmp) != 3) {
-    return {};
-  }
+  if (fscanf(pipe, "%d %d %16s", &w, &h, tmp) != 3) return {};
   colors = tmp;
 
   if (colors == "srgb" || colors == "rgb") {
@@ -154,7 +151,6 @@ void process(Env &env, std::vector<std::string> filenames) {
   FILE* pipe = popen(cmd.str().c_str(), "r");
 
   for (const std::string &filename : filenames) {
-
     auto imagemagick_shape = scan_imagemagick_shape(pipe);
     if (!imagemagick_shape) {
       fail(log, filename, "Unable to parse ImageMagick's output");
@@ -268,4 +264,3 @@ int main(int argc, char **argv) {
   env.directory = argv[optind];
   dali::imgcodec::test::run(env);
 }
-
