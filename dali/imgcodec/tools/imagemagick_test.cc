@@ -80,7 +80,6 @@ class ImgcodecTester {
     auto img = ImageSource::FromFilename(filename);
     auto fmt = this->format_registry_.GetImageFormat(&img);
     if (fmt == nullptr) {
-      fail(filename, "Format not recognized by imgcodec");
       return {};
     }
     auto image_info = fmt->Parser()->GetInfo(&img);
@@ -125,50 +124,63 @@ std::vector<std::string> get_batch(const Env &env,
   return filenames;
 }
 
-void process(const Env &env, std::vector<std::string> filenames) {
-  std::string cmd = env.identify_path + " -format  \"%w %h %[channels]\\n\"";
-  for (const std::string &f : filenames) {
-    cmd += " ";
-    cmd += f;
+std::optional<TensorShape<>> scan_imagemagick_shape(FILE *pipe) {
+  int w, h, c;
+  char tmp[16];
+  std::string colors;
+  if (fscanf(pipe, "%d %d %16s", &w, &h, tmp) != 3) {
+    return {};
+  }
+  colors = tmp;
+
+  if (colors == "srgb" || colors == "rgb") {
+    c = 3;
+  } else if (colors == "srgba" || colors == "rgba" || colors == "cmyk") {
+    c = 4;
+  } else if (colors == "gray") {
+    c = 1;
+  } else {
+    return {};
   }
 
-  FILE* pipe = popen(cmd.c_str(), "r");
+  TensorShape<> imagemagick_shape = {h, w, c};
+  return imagemagick_shape;
+}
+
+void process(const Env &env, std::vector<std::string> filenames) {
+  std::ostringstream cmd;
+  cmd << env.identify_path << " -format  \"%w %h %[channels]\\n\"";
+  for (const std::string &f : filenames) {
+    cmd << " " << f;
+  }
+
+  FILE* pipe = popen(cmd.str().c_str(), "r");
   for (const std::string &filename : filenames) {
-    int w, h, c;
-    char tmp[16];
-    std::string colors;
-    if (fscanf(pipe, "%d %d %16s", &w, &h, tmp) != 3) {
+
+    auto imagemagick_shape = scan_imagemagick_shape(pipe);
+    if (!imagemagick_shape) {
       fail(filename, "Unable to parse ImageMagick's output");
       continue;
     }
-    colors = tmp;
-
-    if (colors == "srgb" || colors == "rgb") {
-      c = 3;
-    } else if (colors == "srgba" || colors == "rgba" || colors == "cmyk") {
-      c = 4;
-    } else if (colors == "gray") {
-      c = 1;
-    } else {
-      fail(filename, "Unable to parse ImageMagick's output");
-      continue;
-    }
-
-    TensorShape<> imagemagick_shape = {h, w, c};
 
     if (env.print) {
-      std::cout << filename << "\t" << imagemagick_shape << std::endl;
+      std::cout << filename << "\t" << *imagemagick_shape << std::endl;
+      continue;
+    } 
+
+    auto imgcodec_shape = env.imgcodec_tester.shape_of(filename);
+
+    if (!imgcodec_shape) {
+      fail(filename, "Imgcodec failed to parse");
+      continue;
+    }
+    
+    if (*imagemagick_shape == *imgcodec_shape) {
+      ok(filename);
     } else {
-      auto imgcodec_shape = env.imgcodec_tester.shape_of(filename);
-      if (imgcodec_shape) {
-        if (imagemagick_shape == *imgcodec_shape) {
-          ok(filename);
-        } else {
-          std::ostringstream ss;
-          ss << "Expected " << imagemagick_shape << " but got " << *imgcodec_shape;
-          fail(filename, ss.str());
-        }
-      }
+      std::ostringstream ss;
+      ss << "Expected " << *imagemagick_shape << " but got " << *imgcodec_shape;
+      fail(filename, ss.str());
     }
   }
 }
@@ -201,6 +213,7 @@ int main(int argc, char **argv) {
 
   int option_index = 0;
   char c;
+  
   while ((c = getopt_long(argc, argv, "hpi:r:b:", long_options, &option_index)) != -1) {
     switch (c) {
       case 'h':
@@ -227,12 +240,12 @@ int main(int argc, char **argv) {
         return 1;
     }
   }
+
   if (optind != argc - 1) {
     std::cerr << help;
-    return -1;
+    return 1;
   }
   env.directory = argv[optind];
-
   dali::imgcodec::test::run(env);
 }
 
