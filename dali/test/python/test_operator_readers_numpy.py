@@ -460,7 +460,7 @@ def test_numpy_reader_roi():
         ([1, 2], None, [20, 9], None, None, None, [0, 1], "trim_to_shape"),
         ([-10, 2], None, [8, 9], None, None, None, [0, 1], "trim_to_shape"),
         (fn.random.uniform(range=(0, 2), shape=(2, ), dtype=types.INT32), None,
-         fn.random.uniform(range=(7, 10), shape=(2, ),dtype=types.INT32),
+         fn.random.uniform(range=(7, 10), shape=(2, ), dtype=types.INT32),
          None, None, None, (0, 1), None),
         (fn.random.uniform(range=(0, 2), shape=(1, ), dtype=types.INT32), None,
          fn.random.uniform(range=(7, 10), shape=(1, ), dtype=types.INT32),
@@ -574,6 +574,7 @@ def test_numpy_reader_roi_error():
                     rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, \
                     fill_value
 
+
 def check_pad_last_sample(device):
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
         # create files
@@ -607,6 +608,7 @@ def check_pad_last_sample(device):
                 pipe_arr = to_array(pipe_out[0][i])
                 ref_arr = arr_np_list[i]
                 assert_array_equal(pipe_arr, ref_arr)
+
 
 def test_pad_last_sample():
     for device in ["cpu", "gpu"]:
