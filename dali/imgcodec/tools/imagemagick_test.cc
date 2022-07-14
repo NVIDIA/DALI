@@ -101,7 +101,7 @@ struct Env {
   unsigned batch;
   unsigned jobs;
   ImgcodecTester imgcodec_tester = {};
-  std::mutex output_mutex = {};
+  std::mutex mutex = {};
 };
 
 std::vector<std::string> get_batch(const Env &env,
@@ -148,7 +148,11 @@ void process(Env &env, std::vector<std::string> filenames) {
   for (const std::string &f : filenames) {
     cmd << " " << f;
   }
-  FILE* pipe = popen(cmd.str().c_str(), "r");
+  FILE* pipe;
+  {
+    const std::lock_guard lock(env.mutex);
+    pipe = popen(cmd.str().c_str(), "r");
+  }
 
   for (const std::string &filename : filenames) {
     auto imagemagick_shape = scan_imagemagick_shape(pipe);
@@ -179,7 +183,7 @@ void process(Env &env, std::vector<std::string> filenames) {
   }
 
   {
-    const std::lock_guard lock(env.output_mutex);
+    const std::lock_guard lock(env.mutex);
     std::cerr << log.str();
     std::cout << out.str();
   }
