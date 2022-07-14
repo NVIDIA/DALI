@@ -94,16 +94,15 @@ std::string sequence_of_integers(const std::array<uint8_t, N> &data) {
 
 ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
+  ImageInfo info;
 
   stream->Skip<RiffHeader>();
-
-  ImageInfo info;
   const auto vp8_header = stream->ReadOne<vp8_header_t>();
   if (is_simple_lossy_format(vp8_header)) {
     const auto lossy_header = stream->ReadOne<WebpLossyHeader>();
     if (!is_sync_code_valid(lossy_header)) {
       DALI_FAIL("Sync code 157 1 42 not found at expected position. Found " +
-                sequence_of_integers(lossy_header.sync_code));
+                sequence_of_integers(lossy_header.sync_code) + " instead");
     }
 
     const int w = ReadValueLE<uint16_t>(*stream) & 0x3FFF;
