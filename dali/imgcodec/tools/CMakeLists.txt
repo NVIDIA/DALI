@@ -4,5 +4,5 @@ if (BUILD_TEST)
   set_target_properties(dali_imgcodec_imagemagick_test PROPERTIES 
     OUTPUT_NAME "dali_imgcodec_imagemagick_test.bin")
   set_target_properties(dali_imgcodec_imagemagick_test PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/tools")
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/dali/tools/imgcodec")
 endif()
