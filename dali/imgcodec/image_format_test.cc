@@ -90,7 +90,7 @@ TEST_F(ImageFormatTest, Bmp) {
        TensorShape<>(475, 640, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Tiff) {
+TEST_F(ImageFormatTest, Tiff) {
   Test(testing::dali_extra_path() + "/db/single/tiff/0/cat-1245673_640.tiff", "tiff",
        TensorShape<>(423, 640, 3));
 }
