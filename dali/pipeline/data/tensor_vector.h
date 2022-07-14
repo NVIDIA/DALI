@@ -190,10 +190,23 @@ class DLL_PUBLIC TensorVector {
    */
   DLL_PUBLIC void UnsafeSetSample(int sample_idx, const Tensor<Backend> &src);
 
-
+  /**
+   * @brief Analogue of TensorVector[sample_idx].ShareData for externally provided memory.
+   *
+   * The target TensorVector (this) must have enough samples for this to work (see SetSize()).
+   * After this operation the TensorVector is converted into non-contiguous.
+   *
+   * Warning: If the TensorVector was contiguous, the samples that weren't overwritten by this
+   * function would still report that they are sharing data. It is assumed that all samples are
+   * replaced this way - TODO(klecki): this might be adjusted in follow-up.
+   *
+   * The metadata (pinned, type, device_id, order, layout) must match what is already set
+   * for the whole batch to maintain consistency.
+   */
   DLL_PUBLIC void UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
                                   bool pinned, const TensorShape<> &shape, DALIDataType type,
-                                  AccessOrder order = {}, const TensorLayout &layout = "");
+                                  int device_id, AccessOrder order = {},
+                                  const TensorLayout &layout = "");
 
   /**
    * @brief Analogue of TensorVector[sample_idx].Copy(src[src_sample_idx]);
@@ -275,6 +288,8 @@ class DLL_PUBLIC TensorVector {
   void set_pinned(bool pinned);
 
   bool is_pinned() const;
+
+  void set_device_id(int device_id);
 
   int device_id() const;
 
