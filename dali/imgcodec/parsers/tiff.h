@@ -26,7 +26,7 @@ class DLL_PUBLIC TiffParser : public ImageParser {
   bool CanParse(ImageSource *encoded) const override;
 };
 
-#endif  //  DALI_IMGCODEC_PARSERS_TIFF_H_
-
 }  // namespace imgcodec
 }  // namespace dali
+
+#endif  //  DALI_IMGCODEC_PARSERS_TIFF_H_
