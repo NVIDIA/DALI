@@ -144,7 +144,7 @@ void process(Env &env, std::vector<std::string> filenames) {
   std::ostringstream log, out;
 
   std::ostringstream cmd;
-  cmd << env.identify_path << " -format  \"%w %h %[channels]\\n\"";
+  cmd << env.identify_path << " -quiet -format  \"%w %h %[channels]\\n\"";
   for (const std::string &f : filenames) {
     cmd << " " << f;
   }
