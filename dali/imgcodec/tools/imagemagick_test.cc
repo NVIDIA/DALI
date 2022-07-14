@@ -32,6 +32,19 @@
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/imgcodec/parsers/webp.h"
 
+const char *help = R"(Usage: imagemagick_test [OPTIONS] DIRECTORY
+
+Runs ImageMagick's `identify` tool on all files in the DIRECTORY recursively
+and compares the reported shape with the shape returned by DALI's imgcodec.
+
+The following OPTIONS are available:
+--help   -h           Show this help message
+--filter=... -r=...   Regex to filter the files with, for example '.*\\.jpeg'
+--print  -p           Only print ImageMagick's output and don't compare it with
+--batch=N  -b=N       Runs ImageMagick on batches of N images (default is 1024)
+--identify=... -i=... Path of `identify` tool, default is /usr/bin/identify
+)";
+
 namespace dali {
 namespace imgcodec {
 namespace test {
@@ -174,12 +187,6 @@ void run(const Env &env) {
 }  // namespace dali
 
 
-void show_usage() {
-  std::cerr << "???\n";
-  // TODO(skarpinski)
-}
-
-
 int main(int argc, char **argv) {
   dali::imgcodec::test::Env env = dali::imgcodec::test::default_env();
 
@@ -197,7 +204,7 @@ int main(int argc, char **argv) {
   while ((c = getopt_long(argc, argv, "hpi:r:b:", long_options, &option_index)) != -1) {
     switch (c) {
       case 'h':
-        show_usage();
+        std::cerr << help;
         return 0;
       case 'p':
         env.print = true;
@@ -216,12 +223,12 @@ int main(int argc, char **argv) {
       case 0:
         break;
       default:
-        show_usage();
+        std::cerr << help;
         return 1;
     }
   }
   if (optind != argc - 1) {
-    show_usage();
+    std::cerr << help;
     return -1;
   }
   env.directory = argv[optind];
