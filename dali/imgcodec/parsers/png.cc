@@ -34,7 +34,7 @@ struct IhdrChunk {
   uint8_t color_type;
   // Some fields were ommited.
 
-  int getNumberOfChannels() {
+  int GetNumberOfChannels() {
     switch (color_type) {
       case PNG_COLOR_TYPE_GRAY:
       case PNG_COLOR_TYPE_GRAY_ALPHA:
@@ -93,7 +93,7 @@ ImageInfo PngParser::GetInfo(ImageSource *encoded) const {
   info.shape = {
     ihdr.height,
     ihdr.width,
-    ihdr.getNumberOfChannels()
+    ihdr.GetNumberOfChannels()
   };
   return info;
 }
