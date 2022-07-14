@@ -79,41 +79,28 @@ class ImageFormatTest : public ::testing::Test {
 
 class ComparisonTestBase : public ImageFormatTest {
  protected:
-  virtual std::vector<TensorShape<>> ShapesOf(const std::vector<std::string> &filenames) const = 0;
+  virtual TensorShape<> ShapeOf(const std::string &filenames) const = 0;
 
-  void Run(const std::vector<std::string> &filenames, std::string expected_format) {
-    std::vector<TensorShape<>> shapes = ShapesOf(filenames);
-    for (size_t i = 0; i < shapes.size(); i++) {
-      Test(filenames[i], expected_format, shapes[i]);
-    }
+  void Run(const std::string &filename, std::string expected_format) {
+    Test(filename, expected_format, ShapeOf(filename));
   }
 
  public:
   void RunOnDirectory(std::string directory, std::string expected_format,
-                      std::vector<std::string> extensions, size_t batch_size = 1) {
+                      std::vector<std::string> extensions) {
     unsigned nimages = 0;
-    vector<std::string> filenames;
-    filenames.reserve(batch_size);
 
     for (const auto &entry : std::filesystem::recursive_directory_iterator(directory)) {
       if (entry.is_regular_file()) {
         const auto path = entry.path().string();
         for (const auto& ext : extensions) {
           if (path.substr(path.size() - ext.size(), ext.size()) == ext) {
-            filenames.push_back(path);
+            Run(path, expected_format);
             nimages++;
           }
         }
       }
-      if (filenames.size() == batch_size) {
-        Run(filenames, expected_format);
-        filenames.clear();
-        std::cerr << nimages << std::endl;
-        if (nimages > 10000) break;
-      }
     }
-    if (!filenames.empty())
-      Run(filenames, expected_format);
 
     if (nimages == 0)
       FAIL() << "No matching images in " << directory;
@@ -131,59 +118,6 @@ class CompatibilityTest : public ComparisonTestBase {
     auto img = ImageFactory::CreateImage(data.data(), data.size(), DALI_RGB);
     auto shape = img->PeekShape();
     return shape;
-  }
-
-  std::vector<TensorShape<>> ShapesOf(const std::vector<std::string> &filenames) const override {
-    std::vector<TensorShape<>> shapes;
-    shapes.reserve(filenames.size());
-    std::transform(filenames.begin(), filenames.end(), std::back_inserter(shapes),
-                   [&](const std::string& f){return ShapeOf(f);});
-    return shapes;
-  }
-};
-
-class ImageMagickTest : public ComparisonTestBase {
- protected:
-  std::string GetImIdentifyPath() const {
-    static std::string path = "";
-    if (!path.empty()) return path;
-    auto p = std::getenv("IMAGEMAGICK_IDENTIFY_PATH");
-    if (!p) {
-      ADD_FAILURE() << "IMAGEMAGICK_IDENTIFY_PATH env var should point to ImageMagick's identify";
-    } else {
-      path = p;
-    }
-    return path;
-  }
-
-  std::vector<TensorShape<>> ShapesOf(const std::vector<std::string> &filenames) const override {
-    std::string cmd = GetImIdentifyPath() + " -format  \"%w %h %[channels]\\n\"";
-    for (const std::string &f : filenames) {
-      cmd += " ";
-      cmd += f;
-    }
-
-    FILE* pipe = popen(cmd.c_str(), "r");
-
-    std::vector<TensorShape<>> shapes;
-    shapes.reserve(filenames.size());
-    for (const std::string &filename : filenames) {
-      SCOPED_TRACE(filename);
-      int w, h, c;
-      char tmp[16];
-      std::string colors;
-      fscanf(pipe, "%d %d %16s", &w, &h, tmp);
-      colors = tmp;
-
-      if (colors == "srgb" || colors == "rgb") c = 3;
-      else if (colors == "srgba" || colors == "rgba" || colors == "cmyk") c = 4;
-      else if (colors == "gray") c = 1;
-      else
-        ADD_FAILURE() << "Unable to parse ImageMagick's output";
-
-      shapes.push_back({h, w, c});
-    }
-    return shapes;
   }
 };
 
@@ -246,13 +180,8 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
   EXPECT_EQ(0, buffer[3]);
 }
 
-TEST_F(CompatibilityTest, DISABLED_Jpeg) {
+TEST_F(CompatibilityTest, Tiff) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpeg", ".jpg"});
-}
-
-TEST_F(ImageMagickTest, DISABLED_Jpeg) {
-  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg",
-                 {".jpeg", ".jpg", ".JPEG"}, 1024);
 }
 
 }  // namespace test
