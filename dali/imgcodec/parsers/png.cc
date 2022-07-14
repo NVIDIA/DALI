@@ -45,7 +45,7 @@ struct IhdrChunk {
       case PNG_COLOR_TYPE_RGBA:
         return 4;
       default:
-        DALI_FAIL("color type not supported: " + std::to_string(color_type));
+        DALI_FAIL(make_string("color type not supported: ", color_type));
     }
   }
 };
