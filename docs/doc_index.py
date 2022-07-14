@@ -60,7 +60,7 @@ class DocEntry:
 
 
 class OpReference:
-    def __init__(self, operator, docstring, order = None):
+    def __init__(self, operator, docstring, order=None):
         self.operator = operator
         self.docstring = docstring
         self.order = 1000000 if order is None else order
