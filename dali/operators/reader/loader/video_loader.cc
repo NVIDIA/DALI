@@ -500,214 +500,204 @@ void VideoLoader::read_file() {
   using pkt_ptr = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
   AVPacket raw_pkt = {};
 
-  while (!stop_) {
-    if (stop_) {
-      break;
-    }
+  auto req = send_queue_.pop();
 
-    auto req = send_queue_.pop();
+  LOG_LINE << "Got a request for " << req.filename << " frame " << req.frame
+            << " count " << req.count << " send_queue_ has " << send_queue_.size()
+            << " frames left" << std::endl;
 
-    LOG_LINE << "Got a request for " << req.filename << " frame " << req.frame
-             << " count " << req.count << " send_queue_ has " << send_queue_.size()
-             << " frames left" << std::endl;
 
-    if (stop_) {
-      break;
-    }
 
-    auto& file = get_or_open_file(req.filename);
-    auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
-    req.frame_base = file.frame_base_;
-
-    if (vid_decoder_) {
-        vid_decoder_->push_req(req);
-    } else {
-        DALI_FAIL("No video decoder even after opening a file");
-    }
-
-    // we want to seek each time because even if we ended on the
-    // correct key frame, we've flushed the decoder, so it needs
-    // another key frame to start decoding again
-    int seek_hack = 1;
-    seek(file, req.frame);
-
-    auto nonkey_frame_count = 0;
-    int frames_left = req.count;
-    std::vector<bool> frames_read(frames_left, false);
-
-    bool is_first_frame = true;
-    int last_key_frame = -1;
-    bool key = false;
-    bool seek_must_succeed = false;
-    // how many key frames following the last requested frames we saw so far
-    int key_frames_count = 0;
-    // how many key frames following the last requested frames we need to see before we stop
-    // feeding the decoder
-    const int key_frames_treshold = 2;
-    VidReqStatus dec_status = VidReqStatus::REQ_IN_PROGRESS;
-
-    while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
-      auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
-
-      stats_.bytes_read += pkt->size;
-      stats_.packets_read++;
-
-      if (pkt->stream_index != file.vid_stream_idx_) {
-          continue;
-      }
-
-      auto frame = av_rescale_q(pkt->pts - file.start_time_,
-                                file.stream_base_,
-                                file.frame_base_);
-      LOG_LINE << "Frame candidate " << frame << " (for " << req.frame  <<" )...\n";
-
-      file.last_frame_ = frame;
-      key = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
-
-      // if decoding hasn't produced any frames after providing kStartupFrameTreshold frames,
-      // or we are at next key frame
-      if (last_key_frame != -1 &&
-          ((key && last_key_frame != frame) || frame > last_key_frame + kStartupFrameTreshold) &&
-          dec_status == VidReqStatus::REQ_NOT_STARTED) {
-        LOG_LINE << "Decoding not started, seek to preceding key frame, "
-                 << "current frame " << frame
-                 << ", last key frame " << last_key_frame
-                 << ", is_key " << key << std::endl;
-        seek(file, last_key_frame - 1);
-        last_key_frame = -1;
-        continue;
-      }
-
-      if (key) {
-        last_key_frame = frame;
-      }
-
-      int pkt_frames = 1;
-      if (pkt->duration) {
-        pkt_frames = av_rescale_q(pkt->duration, file.stream_base_, file.frame_base_);
-        LOG_LINE << "Duration: " << pkt->duration
-                 << "\nPacket contains " << pkt_frames << " frames\n";
-      }
-
-      // Or we didn't get to a key frame as the first one or we went too far
-      if ((!key && is_first_frame) ||
-          (key && frame > req.frame && is_first_frame)) {
-          LOG_LINE << device_id_ << ": We got ahead of ourselves! "
-                   << frame << " > " << req.frame << " + "
-                   << nonkey_frame_count
-                   << " seek_hack = " << seek_hack << std::endl;
-          if (seek_must_succeed) {
-            std::stringstream ss;
-            ss << device_id_ << ": failed to seek frame "
-                << req.frame;
-            DALI_FAIL(ss.str());
-          }
-          if (req.frame > seek_hack) {
-            seek(file, req.frame - seek_hack);
-            seek_hack *= 2;
-            last_key_frame = -1;
-          } else {
-            seek_must_succeed = true;
-            seek(file, 0);
-            last_key_frame = -1;
-          }
-          continue;
-      }
-
-      if (frame >= req.frame && frame < req.frame + req.count) {
-        if (frames_read[frame - req.frame]) {
-          ERROR_LOG << "Frame " << frame << " appeared twice\n";
-        } else {
-          frames_read[frame - req.frame] = true;
-          frames_left--;
-          LOG_LINE << "Frames left: " << frames_left << "\n";
-        }
-      } else {
-        LOG_LINE << "Frame " << frame << " not in the interesting range.\n";
-      }
-
-      LOG_LINE << device_id_ << ": Sending " << (key ? "  key " : "nonkey")
-                  << " frame " << frame << " to the decoder."
-                  << " size = " << pkt->size
-                  << " req.frame = " << req.frame
-                  << " req.count = " << req.count
-                  << " nonkey_frame_count = " << nonkey_frame_count
-                  << std::endl;
-
-      stats_.bytes_decoded += pkt->size;
-      stats_.packets_decoded++;
-
-      if (file.bsf_ctx_ && pkt->size > 0) {
-        int ret;
-#if HAVE_AVBSFCONTEXT
-        auto raw_filtered_pkt = AVPacket{};
-
-        if ((ret = av_bsf_send_packet(file.bsf_ctx_.get(), pkt.release())) < 0) {
-          DALI_FAIL(std::string("BSF send packet failed:") + av_err2str(ret));
-        }
-        while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
-          auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
-          dec_status = vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_,
-                                      codecpar(stream));
-        }
-        if (ret != AVERROR(EAGAIN)) {
-          DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
-        }
-#else
-        AVPacket fpkt;
-        for (auto bsf = file.bsf_ctx_.get(); bsf; bsf = bsf->next) {
-          fpkt = *pkt.get();
-          ret = av_bitstream_filter_filter(bsf, file.codec, nullptr,
-                                            &fpkt.data, &fpkt.size,
-                                            pkt->data, pkt->size,
-                                            !!(pkt->flags & AV_PKT_FLAG_KEY));
-          if (ret < 0) {
-              DALI_FAIL(std::string("BSF error:") + av_err2str(ret));
-          }
-          if (ret == 0 && fpkt.data != pkt->data) {
-            // fpkt is an offset into pkt, copy the smaller portion to the start
-            if ((ret = av_copy_packet(&fpkt, pkt.get())) < 0) {
-              av_free(fpkt.data);
-              DALI_FAIL(std::string("av_copy_packet error:") + av_err2str(ret));
-            }
-            ret = 1;
-          }
-          if (ret > 0) {
-            /* free the buffer in pkt and replace it with the newly
-            created buffer in fpkt */
-            av_free_packet(pkt.get());
-            fpkt.buf = av_buffer_create(fpkt.data, fpkt.size, av_buffer_default_free,
-                                        nullptr, 0);
-            if (!fpkt.buf) {
-                av_free(fpkt.data);
-                DALI_FAIL(std::string("Unable to create buffer during bsf"));
-            }
-          }
-          *pkt.get() = fpkt;
-        }
-        dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
-                                    codecpar(stream));
-#endif
-      } else {
-        dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
-                                    codecpar(stream));
-      }
-      is_first_frame = false;
-      if (dec_status == VidReqStatus::REQ_READY) {
-        LOG_LINE << "Request completted" << std::endl;
-        break;
-      }
-    }
-
-    // flush the decoder
-    vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
-  }  // while not done
+  auto& file = get_or_open_file(req.filename);
+  auto stream = file.fmt_ctx_->streams[file.vid_stream_idx_];
+  req.frame_base = file.frame_base_;
 
   if (vid_decoder_) {
-    // stop decoding
-    vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
+      vid_decoder_->push_req(req);
+  } else {
+      DALI_FAIL("No video decoder even after opening a file");
   }
-  LOG_LINE << "Leaving read_file" << std::endl;
+
+  // we want to seek each time because even if we ended on the
+  // correct key frame, we've flushed the decoder, so it needs
+  // another key frame to start decoding again
+  int seek_hack = 1;
+  seek(file, req.frame);
+
+  auto nonkey_frame_count = 0;
+  int frames_left = req.count;
+  std::vector<bool> frames_read(frames_left, false);
+
+  bool is_first_frame = true;
+  int last_key_frame = -1;
+  bool key = false;
+  bool seek_must_succeed = false;
+  // how many key frames following the last requested frames we saw so far
+  int key_frames_count = 0;
+  // how many key frames following the last requested frames we need to see before we stop
+  // feeding the decoder
+  const int key_frames_treshold = 2;
+  VidReqStatus dec_status = VidReqStatus::REQ_IN_PROGRESS;
+
+  while (av_read_frame(file.fmt_ctx_.get(), &raw_pkt) >= 0) {
+    auto pkt = pkt_ptr(&raw_pkt, av_packet_unref);
+
+    stats_.bytes_read += pkt->size;
+    stats_.packets_read++;
+
+    if (pkt->stream_index != file.vid_stream_idx_) {
+        continue;
+    }
+
+    auto frame = av_rescale_q(pkt->pts - file.start_time_,
+                              file.stream_base_,
+                              file.frame_base_);
+    LOG_LINE << "Frame candidate " << frame << " (for " << req.frame  <<" )...\n";
+
+    file.last_frame_ = frame;
+    key = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
+
+    // if decoding hasn't produced any frames after providing kStartupFrameTreshold frames,
+    // or we are at next key frame
+    if (last_key_frame != -1 &&
+        ((key && last_key_frame != frame) || frame > last_key_frame + kStartupFrameTreshold) &&
+        dec_status == VidReqStatus::REQ_NOT_STARTED) {
+      LOG_LINE << "Decoding not started, seek to preceding key frame, "
+                << "current frame " << frame
+                << ", last key frame " << last_key_frame
+                << ", is_key " << key << std::endl;
+      seek(file, last_key_frame - 1);
+      last_key_frame = -1;
+      continue;
+    }
+
+    if (key) {
+      last_key_frame = frame;
+    }
+
+    int pkt_frames = 1;
+    if (pkt->duration) {
+      pkt_frames = av_rescale_q(pkt->duration, file.stream_base_, file.frame_base_);
+      LOG_LINE << "Duration: " << pkt->duration
+                << "\nPacket contains " << pkt_frames << " frames\n";
+    }
+
+    // Or we didn't get to a key frame as the first one or we went too far
+    if ((!key && is_first_frame) ||
+        (key && frame > req.frame && is_first_frame)) {
+        LOG_LINE << device_id_ << ": We got ahead of ourselves! "
+                  << frame << " > " << req.frame << " + "
+                  << nonkey_frame_count
+                  << " seek_hack = " << seek_hack << std::endl;
+        if (seek_must_succeed) {
+          std::stringstream ss;
+          ss << device_id_ << ": failed to seek frame "
+              << req.frame;
+          DALI_FAIL(ss.str());
+        }
+        if (req.frame > seek_hack) {
+          seek(file, req.frame - seek_hack);
+          seek_hack *= 2;
+          last_key_frame = -1;
+        } else {
+          seek_must_succeed = true;
+          seek(file, 0);
+          last_key_frame = -1;
+        }
+        continue;
+    }
+
+    if (frame >= req.frame && frame < req.frame + req.count) {
+      if (frames_read[frame - req.frame]) {
+        ERROR_LOG << "Frame " << frame << " appeared twice\n";
+      } else {
+        frames_read[frame - req.frame] = true;
+        frames_left--;
+        LOG_LINE << "Frames left: " << frames_left << "\n";
+      }
+    } else {
+      LOG_LINE << "Frame " << frame << " not in the interesting range.\n";
+    }
+
+    LOG_LINE << device_id_ << ": Sending " << (key ? "  key " : "nonkey")
+                << " frame " << frame << " to the decoder."
+                << " size = " << pkt->size
+                << " req.frame = " << req.frame
+                << " req.count = " << req.count
+                << " nonkey_frame_count = " << nonkey_frame_count
+                << std::endl;
+
+    stats_.bytes_decoded += pkt->size;
+    stats_.packets_decoded++;
+
+    if (file.bsf_ctx_ && pkt->size > 0) {
+      int ret;
+#if HAVE_AVBSFCONTEXT
+      auto raw_filtered_pkt = AVPacket{};
+
+      if ((ret = av_bsf_send_packet(file.bsf_ctx_.get(), pkt.release())) < 0) {
+        DALI_FAIL(std::string("BSF send packet failed:") + av_err2str(ret));
+      }
+      while ((ret = av_bsf_receive_packet(file.bsf_ctx_.get(), &raw_filtered_pkt)) == 0) {
+        auto fpkt = pkt_ptr(&raw_filtered_pkt, av_packet_unref);
+        dec_status = vid_decoder_->decode_packet(fpkt.get(), file.start_time_, file.stream_base_,
+                                    codecpar(stream));
+      }
+      if (ret != AVERROR(EAGAIN)) {
+        DALI_FAIL(std::string("BSF receive packet failed:") + av_err2str(ret));
+      }
+#else
+      AVPacket fpkt;
+      for (auto bsf = file.bsf_ctx_.get(); bsf; bsf = bsf->next) {
+        fpkt = *pkt.get();
+        ret = av_bitstream_filter_filter(bsf, file.codec, nullptr,
+                                          &fpkt.data, &fpkt.size,
+                                          pkt->data, pkt->size,
+                                          !!(pkt->flags & AV_PKT_FLAG_KEY));
+        if (ret < 0) {
+            DALI_FAIL(std::string("BSF error:") + av_err2str(ret));
+        }
+        if (ret == 0 && fpkt.data != pkt->data) {
+          // fpkt is an offset into pkt, copy the smaller portion to the start
+          if ((ret = av_copy_packet(&fpkt, pkt.get())) < 0) {
+            av_free(fpkt.data);
+            DALI_FAIL(std::string("av_copy_packet error:") + av_err2str(ret));
+          }
+          ret = 1;
+        }
+        if (ret > 0) {
+          /* free the buffer in pkt and replace it with the newly
+          created buffer in fpkt */
+          av_free_packet(pkt.get());
+          fpkt.buf = av_buffer_create(fpkt.data, fpkt.size, av_buffer_default_free,
+                                      nullptr, 0);
+          if (!fpkt.buf) {
+              av_free(fpkt.data);
+              DALI_FAIL(std::string("Unable to create buffer during bsf"));
+          }
+        }
+        *pkt.get() = fpkt;
+      }
+      dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+                                  codecpar(stream));
+#endif
+    } else {
+      dec_status = vid_decoder_->decode_packet(pkt.get(), file.start_time_, file.stream_base_,
+                                  codecpar(stream));
+    }
+    is_first_frame = false;
+    if (dec_status == VidReqStatus::REQ_READY) {
+      LOG_LINE << "Request completed" << std::endl;
+      break;
+    } else if (dec_status == VidReqStatus::REQ_ERROR) {
+      LOG_LINE << "Request failed" << std::endl;
+      DALI_FAIL("Detected variable frame rate video. The decoder returned frame that is past "
+                "the expected one");
+    }
+  }
+
+  // flush the decoder
+  vid_decoder_->decode_packet(nullptr, 0, {0}, 0);
 }
 
 void VideoLoader::push_sequence_to_read(std::string filename, int frame, int count) {
@@ -756,8 +746,12 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     tensor.read_sample_f = [this,
                             file_name = file_info_[seq_meta.filename_idx].video_file,
                             index = seq_meta.frame_idx, count = seq_meta.length, &tensor] () {
+      thread_file_reader_.DoWork([this]() {
+        read_file();
+      });
       push_sequence_to_read(file_name, index, count);
       receive_frames(tensor);
+      thread_file_reader_.WaitForWork();
     };
     ++current_frame_idx_;
 

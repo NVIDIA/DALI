@@ -15,14 +15,19 @@
 #include <gtest/gtest.h>
 #include <string>
 
+#include "dali/core/access_order.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace test {
+
+
 
 template <typename T>
 class TensorVectorSuite : public ::testing::Test {
@@ -225,6 +230,42 @@ TYPED_TEST(TensorVectorSuite, MoveAssignmentMetaData) {
                                  moved = std::move(tv);
                                  check(moved);
                                });
+}
+
+TYPED_TEST(TensorVectorSuite, DeviceIdPropagationMultiGPU) {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  if (num_devices < 2) {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  }
+  constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  constexpr bool is_pinned = !is_device;
+  AccessOrder order = AccessOrder::host();
+  TensorShape<> shape{42};
+  for (int device_id = 0; device_id < num_devices; device_id++) {
+    TensorVector<TypeParam> batch;
+    batch.SetSize(1);
+    DeviceGuard dg(device_id);
+    batch.set_device_id(device_id);
+    batch.set_pinned(is_pinned);
+    batch.set_type(DALI_UINT8);
+    batch.set_sample_dim(shape.sample_dim());
+    batch.set_order(order);
+    void *data_ptr;
+    std::shared_ptr<void> ptr;
+    if (is_device) {
+      CUDA_CALL(cudaMalloc(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFree(ptr); });
+    } else {
+      CUDA_CALL(cudaMallocHost(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFreeHost(ptr); });
+    }
+    batch.UnsafeSetSample(0, ptr, shape.num_elements() * sizeof(uint8_t), is_pinned, shape,
+                          DALI_UINT8, device_id, order);
+    ASSERT_EQ(batch.device_id(), device_id);
+    ASSERT_EQ(batch.order().device_id(), AccessOrder::host().device_id());
+    ASSERT_NE(batch.order().device_id(), batch.device_id());
+  }
 }
 
 namespace {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/core/common.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/dali_operator_test_utils.h"
@@ -100,17 +101,17 @@ TEST_P(FlipTest, BasicTest) {
   auto data_size = kDataWidth * kDataHeight * kDataChannels * sizeof(float);
   TensorList<CPUBackend> tl;
   if (hwc) {
-    tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size);
+    auto shape = TensorListShape<>{
+        {{kDataHeight, kDataWidth, kDataChannels}, {kDataHeight, kDataWidth, kDataChannels}}};
+    tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size, false, shape, DALI_FLOAT,
+                 CPU_ONLY_DEVICE_ID);
     tl.SetLayout("HWC");
-    auto shape = TensorListShape<>{{
-        {kDataHeight, kDataWidth, kDataChannels},
-        {kDataHeight, kDataWidth, kDataChannels}}};
-    tl.Resize(shape, DALI_FLOAT);
   } else {
-    tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size);
+    auto shape = TensorListShape<>{
+        {{kDataChannels, kDataHeight, kDataWidth}, {kDataChannels, kDataHeight, kDataWidth}}};
+    tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size, false, shape, DALI_FLOAT,
+                 CPU_ONLY_DEVICE_ID);
     tl.SetLayout("CHW");
-    tl.Resize({{{kDataChannels, kDataHeight, kDataWidth},
-              {kDataChannels, kDataHeight, kDataWidth}}}, DALI_FLOAT);
   }
   TensorListWrapper tlout;
   this->RunTest(&tl, tlout, args, FlipVerify);
