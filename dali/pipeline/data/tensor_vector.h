@@ -392,9 +392,9 @@ class DLL_PUBLIC TensorVector {
   template <typename InBackend>
   friend class TensorVector;
 
-  /** @defgroup ContiguousAccessorFunctions Fallback contiguous accessors
+  /** @defgroup AccessorFunctions Fallback for accessing pointers owning the samples
    * Fallback access to contiguous data or samples of the batch. It should not be used for regular
-   * processing, and can be used only for batches that were made sure to be contiguous (mainly
+   * processing, intended mostly for batches that were made sure to be contiguous (mainly
    * for pipeline outputs).
    * @{
    */
@@ -402,15 +402,19 @@ class DLL_PUBLIC TensorVector {
   /**
    * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
    * with.
-   * Sample 0 is aliased with the whole buffer.
+   * Sample 0 is aliased with the whole buffer, if it is contiguous.
    */
   friend shared_ptr<void> unsafe_sample_owner(TensorVector<Backend> &batch, int sample_idx) {
     // create new aliasing pointer to current data allocation, so we share the use count
     // and the deleter correctly.
-    return {unsafe_sample_owner(*batch.tl_, 0), batch.raw_mutable_tensor(sample_idx)};
+    if (batch.IsContiguous()) {
+      return {unsafe_sample_owner(*batch.tl_, 0), batch.raw_mutable_tensor(sample_idx)};
+    } else {
+      return batch.tensors_[sample_idx]->get_data_ptr();
+    }
   }
 
-  /** @} */  // end of ContiguousAccessorFunctions
+  /** @} */  // end of AccessorFunctions
 };
 
 }  // namespace dali
