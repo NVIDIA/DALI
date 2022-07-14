@@ -144,7 +144,7 @@ bool BmpParser::CanParse(ImageSource *encoded) const {
   if (encoded->Kind() == InputKind::HostMemory) {
     int length = encoded->Size();
     if (length < 18)
-      return 0;
+      return false;
     const char *header = encoded->RawData<char>();
     return header[0] == 'B' && header[1] == 'M';
   } else {
@@ -152,7 +152,7 @@ bool BmpParser::CanParse(ImageSource *encoded) const {
     auto stream = encoded->Open();
     size_t length = stream->Size();
     if (length < 18u)
-      return 0;
+      return false;
     stream->ReadAll(header, 2);
     return header[0] == 'B' && header[1] == 'M';
   }
