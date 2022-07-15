@@ -17,6 +17,44 @@
 namespace dali {
 namespace imgcodec {
 
+namespace {
+  // comments can appear in the middle of tokens, and the newline at the
+  // end is part of the comment, not counted as whitespace
+  // http://netpbm.sourceforge.net/doc/pbm.html
+  void skip_comment(InputStream &stream) {
+    char c;
+    do {
+      c = stream.ReadOne<char>();
+    } while (c != '\n');
+  }
+
+  void skip_spaces(InputStream &stream) {
+    while (true) {
+      char c = stream.ReadOne<char>();
+      if (c == '#')
+        skip_comment(stream);
+      else if (!isspace(c))
+        break;
+    }
+    stream.Skip(-1);  // return the nonspace byte to the stream
+  }
+
+  int parse_int(InputStream &stream) {
+    int result = 0;
+    while (true) {
+      char c = stream.ReadOne<char>();
+      if (isdigit(c))
+        result = result * 10 + (c - '0');
+      else if (c == '#')
+        skip_comment(stream);
+      else
+        break;
+    }
+    stream.Skip(-1);  // return the nondigit byte to the stream
+    return result;
+  }
+}  // namespace
+
 ImageInfo PnmParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
   ssize_t length = stream->Size();
@@ -26,43 +64,17 @@ ImageInfo PnmParser::GetInfo(ImageSource *encoded) const {
   int channels = 1;
   auto magic = stream->ReadOne<char>();
   if ((magic == '3') || (magic == '6')) {
-    channels = 3;             // formats "p3" and "p6" are RGB color, all
+    channels = 3;             // formats "P3" and "P6" are RGB color, all
                               // other formats are bitmaps or greymaps
   }
 
-  int state = 0;
-  enum {
-    STATE_START = 0, STATE_WIDTH = 1, STATE_HEIGHT = 2, STATE_DONE = 3
-  };
-  std::array<int, 2> dim = {0, 0};
-  auto cur = stream->ReadOne<char>();
-  do {
-    // comments can appear in the middle of tokens, and the newline at the
-    // end is part of the comment, not counted as whitespace
-    // http://netpbm.sourceforge.net/doc/pbm.html
-    if (cur == '#') {
-      do {
-        cur = stream->ReadOne<char>();
-      } while (cur != '\n');
-      cur = stream->ReadOne<char>();
-    } else if (isspace(cur)) {
-      if (++state < STATE_DONE) {
-        do {
-          cur = stream->ReadOne<char>();
-        } while (isspace(cur));
-      }
-    } else {
-      DALI_ENFORCE(isdigit(cur), "Expected a digit");
-      DALI_ENFORCE(state, "Missing whitespace between PNM magic and image dimensions");
-      dim[state - 1] = dim[state - 1] * 10 + (cur - '0');
-      cur = stream->ReadOne<char>();
-    }
-  } while (state < STATE_DONE);
+  skip_spaces(*stream);
+  int width = parse_int(*stream);
+  skip_spaces(*stream);
+  int height = parse_int(*stream);
 
-  int h = dim[STATE_HEIGHT - 1];
-  int w = dim[STATE_WIDTH - 1];
   ImageInfo info;
-  info.shape = {h, w, channels};
+  info.shape = {height, width, channels};
   return info;
 }
 

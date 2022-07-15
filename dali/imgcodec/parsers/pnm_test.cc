@@ -99,6 +99,27 @@ TEST_F(PnmParserTest, ValidPbmCommentInsideToken) {
   EXPECT_EQ(parser_.GetInfo(&img).shape, expected);
 }
 
+TEST_F(PnmParserTest, ValidPbmCommentInsideWhitespaces) {
+  const char data[] =
+      "P1 \n"
+      "#Comment can be inside of whitespaces\n"
+      " 6 10\n"
+      "0 0 0 0 1 0\n"
+      "0 0 0 0 1 0\n"
+      "0 0 0 0 1 0\n"
+      "0 0 0 0 1 0\n"
+      "0 0 0 0 1 0\n"
+      "0 0 0 0 1 0\n"
+      "1 0 0 0 1 0\n"
+      "0 1 1 1 0 0\n"
+      "0 0 0 0 0 0\n"
+      "0 0 0 0 0 0\n";
+  auto img = ImageSource::FromHostMem(data, sizeof(data));
+  EXPECT_TRUE(parser_.CanParse(&img));
+  TensorShape<> expected = {10, 6, 1};
+  EXPECT_EQ(parser_.GetInfo(&img).shape, expected);
+}
+
 TEST_F(PnmParserTest, PamFormat) {
   EXPECT_FALSE(CanParse({'P', '7', ' '}));
 }
