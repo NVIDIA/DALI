@@ -59,7 +59,7 @@ DALI_SCHEMA(ColorTransformBase)
     .AddOptionalTypeArg(color::kOutputType, R"code(Output data type.
 
 If not set, the input type is used.)code",
-                    DALI_UINT8)
+                        DALI_NO_TYPE)
     .AllowSequences()
     .SupportVolumetric();
 
