@@ -52,8 +52,8 @@ ImageInfo PnmParser::GetInfo(ImageSource *encoded) const {
         } while (isspace(cur));
       }
     } else {
-      DALI_ENFORCE(isdigit(cur));
-      DALI_ENFORCE(state);
+      DALI_ENFORCE(isdigit(cur), "Expected a digit");
+      DALI_ENFORCE(state, "Missing whitespace between PNM magic and image dimensions");
       dim[state - 1] = dim[state - 1] * 10 + (cur - '0');
       cur = stream->ReadOne<char>();
     }
