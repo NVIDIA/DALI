@@ -22,6 +22,16 @@ namespace imgcodec {
 
 namespace {
 
+// Chunk specification:
+// https://developers.google.com/speed/webp/docs/riff_container#riff_file_format
+//
+// Header layout:
+// RiffHeader | vp8_header_t | <WebpLossyHeader/WebpLosslessHeader>
+//
+// The WebpLossyHeader and WebpLosslessHeader are selected based on a identifier,
+// respectively "VP8 " and "VP8L" in vp8_header_t. "VP8X" in vp8_header_t signifies
+// WebP extended file format, which is not supported.
+
 struct RiffHeader {
   std::array<uint8_t, 4> riff_text;
   std::array<uint8_t, 4> file_size;
