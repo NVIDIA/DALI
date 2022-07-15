@@ -225,7 +225,7 @@ def test_dim_mismatch():
         create_numpy_file(paths[1], [2, 3, 4], np.float32, False)
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            yield check_dim_mismatch, device, test_data_root, names
+            check_dim_mismatch(device, test_data_root, names)
 
 
 def check_type_mismatch(device, test_data_root, names):
@@ -252,7 +252,7 @@ def test_type_mismatch():
         create_numpy_file(paths[1], [2, 3, 4], np.float32, False)
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            yield check_type_mismatch, device, test_data_root, names
+            check_type_mismatch(device, test_data_root, names)
 
 
 batch_size_alias_test = 64
@@ -292,7 +292,7 @@ def test_numpy_reader_alias():
             arr_np_list.append(np.load(filename))
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            yield check_numpy_reader_alias, test_data_root, device
+            check_numpy_reader_alias(test_data_root, device)
 
 
 @pipeline_def(device_id=0, num_threads=8)
@@ -481,18 +481,18 @@ def test_numpy_reader_roi():
                 create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
             for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-                for (roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape,
-                     roi_axes, out_of_bounds_policy) in roi_args:
-                    fill_value = random.choice([None, 10.0])
-                    yield _testimpl_numpy_reader_roi, test_data_root, batch_size, ndim, dtype, \
-                        device, fortran_order, file_filter, roi_start, rel_roi_start, roi_end, \
-                        rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, \
-                        fill_value
+            #     for (roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape,
+            #          roi_axes, out_of_bounds_policy) in roi_args:
+            #         fill_value = random.choice([None, 10.0])
+            #         yield _testimpl_numpy_reader_roi, test_data_root, batch_size, ndim, dtype, \
+            #             device, fortran_order, file_filter, roi_start, rel_roi_start, roi_end, \
+            #             rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, \
+            #             fill_value
 
-            yield _testimpl_numpy_reader_roi_empty_axes, "empty axes", test_data_root, \
-                batch_size, ndim, dtype, device, fortran_order, file_filter
-            yield _testimpl_numpy_reader_roi_empty_range, "empty range", test_data_root, \
-                batch_size, ndim, dtype, device, fortran_order, file_filter
+                _testimpl_numpy_reader_roi_empty_axes("empty axes", test_data_root,
+                    batch_size, ndim, dtype, device, fortran_order, file_filter)
+                _testimpl_numpy_reader_roi_empty_range("empty range", test_data_root,
+                    batch_size, ndim, dtype, device, fortran_order, file_filter)
 
 
 def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device,

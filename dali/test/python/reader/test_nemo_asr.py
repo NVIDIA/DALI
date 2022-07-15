@@ -140,7 +140,8 @@ class NemoAsrReaderPipeline(Pipeline):
             text, text_non_ascii
 
 
-def test_decoded_vs_generated(batch_size=3):
+def test_decoded_vs_generated():
+    batch_size = 3
     pipeline = NemoAsrReaderPipeline(batch_size=batch_size)
     pipeline.build()
 
@@ -289,7 +290,10 @@ def test_nemo_asr_reader_pad_last_batch():
     yield _testimpl_nemo_asr_reader_pad_last_batch, 128
 
 
-def test_read_idxs(batch_size=10, reader_seed=12345):
+def test_read_idxs():
+    batch_size=10
+    reader_seed=12345
+    
     @pipeline_def(device_id=0, num_threads=4)
     def nemo_asr_reader_read_idxs(reader_seed=reader_seed):
         audio, idx = fn.readers.nemo_asr(

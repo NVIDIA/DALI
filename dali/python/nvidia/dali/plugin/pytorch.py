@@ -203,6 +203,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                        "greater than the shard size."
 
     def __next__(self):
+        self._ever_consumed = True
         if self._first_batch is not None:
             batch = self._first_batch
             self._first_batch = None

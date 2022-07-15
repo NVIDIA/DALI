@@ -18,7 +18,6 @@ import os
 import random
 import tempfile
 from nvidia.dali import Pipeline, pipeline_def
-
 from nose_utils import assert_raises
 from test_utils import compare_pipelines
 
@@ -39,7 +38,7 @@ g_tmpdir = None
 g_files = None
 
 
-def setup_module():
+def setUpModule():
     global g_root
     global g_files
     global g_tmpdir
@@ -50,7 +49,7 @@ def setup_module():
     populate(g_root, g_files)
 
 
-def teardown_module():
+def tearDownModule():
     global g_root
     global g_files
     global g_tmpdir
