@@ -117,6 +117,7 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
 
     const int w = ReadValueLE<uint16_t>(*stream) & 0x3FFF;
     const int h = ReadValueLE<uint16_t>(*stream) & 0x3FFF;
+
     // VP8 always uses RGB
     info.shape = {h, w, 3};
   } else if (is_simple_lossless_format(vp8_header)) {
