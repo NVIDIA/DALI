@@ -40,6 +40,19 @@ struct swap_endian_impl {
   }
 };
 
+/**
+ * @brief Swaps endianness of an object
+ *
+ * This CPO (customization point object) is a function object that swaps the endianness
+ * of the argument.
+ *
+ * Usage:
+ * ```
+ * int x = 0x11223344;
+ * swap_endian(x);
+ * assert(x == 0x44332211);
+ * ```
+ */
 constexpr struct swap_endian_cpo {
   template <typename T>
   void operator()(T &t) const {
@@ -86,10 +99,14 @@ struct swap_endian_impl<std::tuple<T...>> {
 };
 
 #if ('ABCD' == 0x41424344UL)
+/// @brief The host machine is little-endian
 static constexpr bool is_little_endian = true;
+/// @brief The host machine is big endian
 static constexpr bool is_big_endian = false;
 #elif ('ABCD' == 0x44434241UL)
+/// @brief The host machine is little-endian
 static constexpr bool is_little_endian = false;
+/// @brief The host machine is big endian
 static constexpr bool is_big_endian = true;
 #else
 #error "Cannot establish endianness of the target system."
@@ -97,6 +114,24 @@ static constexpr bool is_big_endian = true;
 
 #define DALI_SWAP_FIELD_ENDIANNESS(unused, unused2, field) swap_endian(s.field);
 
+/**
+ * @brief Used for generating field-wise endianness swapping function for a structure _Struct
+ *
+ * Usage:
+ * ```
+ * struct Size {
+ *   int16_t width, heigth;
+ * };
+ * SWAP_ENDIAN_FIELDS(Size, width, heigth);
+ *
+ * Size s = { 640, 480 };
+ * to_big_endian(s);                // convert to big-endian
+ * fwrite(&s, sizeof(s), 1, file);  // store in a big-endian file
+ * ```
+ *
+ * NOTE: It does not support inheritance - the fields from the base class have to
+ *       be enumerated as well
+ */
 #define SWAP_ENDIAN_FIELDS(_Struct, ...)\
 template <>\
 void swap_endian_impl<_Struct>::do_swap(_Struct &s) {\
@@ -104,24 +139,44 @@ void swap_endian_impl<_Struct>::do_swap(_Struct &s) {\
     BOOST_PP_VARIADIC_TO_SEQ(__VA_ARGS__))\
 }\
 
+/**
+ * @brief Converts (in place) the object to little endian
+ *
+ * If the host system is little endian, this function is a no-op.
+ */
 template <typename T>
 void to_little_endian(T &t) {
   if (is_big_endian)
     swap_endian(t);
 }
 
+/**
+ * @brief Converts (in place) the object from little endian
+ *
+ * If the host system is little endian, this function is a no-op.
+ */
 template <typename T>
 void from_little_endian(T &t) {
   if (is_big_endian)
     swap_endian(t);
 }
 
+/**
+ * @brief Converts (in place) the object to big endian
+ *
+ * If the host system is big endian, this function is a no-op.
+ */
 template <typename T>
 void to_big_endian(T &t) {
   if (is_little_endian)
     swap_endian(t);
 }
 
+/**
+ * @brief Converts (in place) the object from big endian
+ *
+ * If the host system is big endian, this function is a no-op.
+ */
 template <typename T>
 void from_big_endian(T &t) {
   if (is_little_endian)
