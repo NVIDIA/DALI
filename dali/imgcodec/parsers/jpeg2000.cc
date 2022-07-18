@@ -26,10 +26,13 @@ const block_type_t jp2_format_type = {'f', 't', 'y', 'p'};
 const block_type_t jp2_header_type = {'j', 'p', '2', 'h'};
 const block_type_t jp2_im_header_type = {'i', 'h', 'd', 'r'};
 
-void advance_one_block(InputStream &stream) {
+void advance_one_block(InputStream &stream, const block_type_t &expected_type) {
   const auto block_size = ReadValueBE<uint32_t>(stream);
-  // skipping the rest of the block
-  stream.Skip(block_size - sizeof(block_size));
+  const auto block_type = stream.ReadOne<block_type_t>();
+  DALI_ENFORCE(block_type == expected_type, "Unexpected block type");
+
+  // Skipping the rest of the block
+  stream.Skip(block_size - sizeof(block_size) - sizeof(block_type));
 }
 
 }  // namespace
@@ -37,15 +40,16 @@ void advance_one_block(InputStream &stream) {
 ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
 
-  advance_one_block(*stream);  // jp2_sig_type
-  advance_one_block(*stream);  // jp2_format_type
+  advance_one_block(*stream, jp2_sig_type);
+  advance_one_block(*stream, jp2_format_type);
 
-  // jp2 header starts, we skip:
-  // block size
-  // block type (jp_header_type)
-  // image block size
-  // image block type  (jp_im_header_type)
-  stream->Skip<std::array<uint32_t, 4>>();
+  // jp2 header starts
+  stream->Skip<uint32_t>();  // block size skipped
+  DALI_ENFORCE(stream->ReadOne<block_type_t>() == jp2_header_type,
+               "Expected type 'jp2h'");
+  stream->Skip<uint32_t>();  // imabe block size skipped
+  DALI_ENFORCE(stream->ReadOne<block_type_t>() == jp2_im_header_type,
+               "Expected type 'ihdr'");
 
   const int h = ReadValueBE<uint32_t>(*stream);
   const int w = ReadValueBE<uint32_t>(*stream);
