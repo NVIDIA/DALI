@@ -205,6 +205,10 @@ TEST_F(CompatibilityTest, DISABLED_WebP) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/webp/", "webp", {".webp"});
 }
 
+TEST_F(CompatibilityTest, DISABLED_Jpeg) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpg", ".jpeg"});
+}
+
 }  // namespace test
 }  // namespace imgcodec
 }  // namespace dali
