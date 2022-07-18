@@ -97,6 +97,18 @@ TEST_F(JpegParserTest, NoSof) {
   EXPECT_ANY_THROW(GetInfo(bad));
 }
 
+TEST_F(JpegParserTest, Padding) {
+  /* https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.1.1.2 Markers
+   * Any marker may optionally be preceded by any number of fill bytes, 
+   * which are bytes assigned code X’FF’ */
+  auto padded = replace(valid_jpeg_, {0xff, 0xe0}, {0xff, 0xff, 0xff, 0xff, 0xe0});
+  padded = replace(padded, {0xff, 0xe1}, {0xff, 0xff, 0xe1});
+  padded = replace(padded, {0xff, 0xdb}, {0xff, 0xff, 0xff, 0xdb});
+  padded = replace(padded, {0xff, 0xc0}, {0xff, 0xff, 0xff, 0xff, 0xff, 0xc0});
+  EXPECT_TRUE(CanParse(padded));
+  EXPECT_EQ(TensorShape<>(408, 640, 3), GetInfo(padded).shape);
+}
+
 }  // namespace test
 }  // namespace imgcodec
 }  // namespace dali
