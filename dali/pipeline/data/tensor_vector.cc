@@ -16,6 +16,7 @@
 #include "dali/pipeline/data/tensor_vector.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -292,7 +293,13 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
   for (int i = 0; i < curr_num_tensors_; i++) {
     tensors_[i]->Resize(new_shape[i], new_type);
   }
-  set_type(new_type);
+  if (type_.id() != new_type) {
+    type_ = TypeTable::GetTypeInfo(new_type);
+    if (state_ == State::noncontiguous) {
+      tl_->Reset();
+      tl_->set_type(new_type);
+    }
+  }
   sample_dim_ = new_shape.sample_dim();
 }
 
@@ -307,6 +314,12 @@ void TensorVector<Backend>::SetSize(int new_size) {
 template <typename Backend>
 void TensorVector<Backend>::set_type(DALIDataType new_type_id) {
   DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
+  DALI_ENFORCE(type_.id() == new_type_id || type_.id() == DALI_NO_TYPE,
+               make_string("set_type cannot be used to change the current type - it is not "
+                           "allowed to cause allocations. Currently set type: '",
+                           type_.id(), "' trying to set: '", new_type_id,
+                           "'. You may change the current type using Resize or by"
+                           " calling Reset first."));
   if (type_.id() == new_type_id)
     return;
   type_ = TypeTable::GetTypeInfo(new_type_id);

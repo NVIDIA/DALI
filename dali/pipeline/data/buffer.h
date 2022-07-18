@@ -322,6 +322,12 @@ class DLL_PUBLIC Buffer {
    */
   inline void set_type(const DALIDataType new_type_id) {
     DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
+    DALI_ENFORCE(type_.id() == new_type_id || type_.id() == DALI_NO_TYPE,
+                 make_string("set_type cannot be used to change the current type - it is not "
+                             "allowed to cause allocations. Currently set type: '",
+                             type_.id(), "' trying to set: '", new_type_id,
+                             "'. You may change the current type using Resize or by"
+                             " calling Reset first."));
     if (new_type_id == type_.id()) return;
     const TypeInfo &new_type = TypeTable::GetTypeInfo(new_type_id);
 
