@@ -58,8 +58,7 @@ DALI_SCHEMA(ColorTransformBase)
         R"code(The color space of the input and the output image.)code", DALI_RGB)
     .AddOptionalTypeArg(color::kOutputType, R"code(Output data type.
 
-If not set, the input type is used.)code",
-                        DALI_NO_TYPE)
+If not set, the input type is used.)code")
     .AllowSequences()
     .SupportVolumetric();
 
