@@ -32,20 +32,6 @@ TensorVector<Backend>::TensorVector(int batch_size)
   resize_tensors(batch_size);
 }
 
-
-template <typename Backend>
-TensorVector<Backend>::TensorVector(std::shared_ptr<TensorList<Backend>> tl)
-    : views_count_(0), curr_num_tensors_(0), tl_(std::move(tl)) {
-  assert(tl_ && "Construction with null TensorList is illegal");
-  pinned_ = tl_->is_pinned();
-  type_ = tl_->type_info();
-  sample_dim_ = tl_->shape().sample_dim();
-  state_ = State::contiguous;
-  resize_tensors(tl_->num_samples());
-  UpdateViews();
-}
-
-
 template <typename Backend>
 TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
   state_ = other.state_;
@@ -604,19 +590,6 @@ void TensorVector<Backend>::UpdateViews() {
   for (int i = 0; i < curr_num_tensors_; i++) {
     update_view(i);
   }
-}
-
-
-template <typename Backend>
-std::shared_ptr<TensorList<Backend>> TensorVector<Backend>::AsTensorList(bool check_contiguity) {
-  DALI_ENFORCE(IsContiguous() || !check_contiguity,
-               "Cannot cast non continuous TensorVector to TensorList.");
-  // Update the metadata when we are exposing the TensorList to the outside, as it might have been
-  // kept in the individual tensors
-  for (int idx = 0; idx < curr_num_tensors_; idx++) {
-    tl_->SetMeta(idx, tensors_[idx]->GetMeta());
-  }
-  return tl_;
 }
 
 

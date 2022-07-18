@@ -435,9 +435,11 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
     bool copied_shared_data = false;
+
     if (batch.IsContiguous()) {
-      auto &in_tl = *const_cast<TensorVector<Backend> &>(batch).AsTensorList();
-      tl_elm.front()->ShareData(in_tl);
+      auto batch_owner = unsafe_sample_owner(const_cast<TensorVector<SrcBackend> &>(batch), 0);
+      tl_elm.front()->ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
+                                batch.type(), batch.device_id(), batch.order());
       zero_copy_noncontiguous_gpu_input_ = true;
     } else {
       // it is not contiguous so we need to copy

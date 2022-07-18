@@ -26,7 +26,7 @@ class DLL_PUBLIC PnmParser : public ImageParser {
   bool CanParse(ImageSource *encoded) const override;
 };
 
-#endif  // DALI_IMGCODEC_PARSERS_PNM_H_
-
 }  // namespace imgcodec
 }  // namespace dali
+
+#endif  // DALI_IMGCODEC_PARSERS_PNM_H_

@@ -110,7 +110,7 @@ TYPED_TEST(ExecutorTest, TestPruneBasicGraph) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "cpu")
+          .AddArg("device", "mixed")
           .AddInput("data3", "cpu")
           .AddOutput("data3_cont", "cpu")), "");
 
@@ -127,8 +127,8 @@ TYPED_TEST(ExecutorTest, TestPruneBasicGraph) {
   // Validate the graph - op 3 should
   // have been pruned as its outputs
   // are unused.
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 3);
-  ASSERT_EQ(graph.NumOp(OpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
+  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
   ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
@@ -176,7 +176,7 @@ TYPED_TEST(ExecutorTest, TestPruneMultiple) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "cpu")
+          .AddArg("device", "mixed")
           .AddInput("data1", "cpu")
           .AddOutput("data1_cont", "cpu")), "");
 
@@ -207,8 +207,8 @@ TYPED_TEST(ExecutorTest, TestPruneMultiple) {
   // Validate the graph - op 2&3 should
   // have been pruned.
   // Op 4 should not be pruned
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 3);
-  ASSERT_EQ(graph.NumOp(OpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
+  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
   ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
@@ -248,7 +248,7 @@ TYPED_TEST(ExecutorTest, TestPruneRecursive) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "cpu")
+          .AddArg("device", "mixed")
           .AddInput("data1", "cpu")
           .AddOutput("data1_cont", "cpu")), "");
 
@@ -271,8 +271,8 @@ TYPED_TEST(ExecutorTest, TestPruneRecursive) {
 
   // Validate the graph - op 2&3 should
   // have been pruned
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
-  ASSERT_EQ(graph.NumOp(OpType::MIXED), 0);
+  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
+  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
   ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
 
   // Validate the source op
@@ -406,7 +406,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "cpu")
+          .AddArg("device", "mixed")
           .AddInput("images", "cpu")
           .AddOutput("final_images", "cpu")), "");
 
@@ -452,7 +452,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
-          .AddArg("device", "cpu")
+          .AddArg("device", "mixed")
           .AddInput("images", "cpu")
           .AddOutput("final_images", "cpu")), "");
 
