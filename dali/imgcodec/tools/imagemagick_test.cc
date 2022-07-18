@@ -160,7 +160,7 @@ void process(Env &env, std::vector<std::string> filenames) {
     if (env.print) {
       out << filename << "\t" << *imagemagick_shape << std::endl;
       continue;
-    } 
+    }
     try {
       auto imgcodec_shape = env.imgcodec_tester.shape_of(filename);
 
@@ -183,6 +183,8 @@ void process(Env &env, std::vector<std::string> filenames) {
       fail(log, filename, ss.str());
     }
   }
+
+  pclose(pipe);
 
   {
     const std::lock_guard lock(env.mutex);
