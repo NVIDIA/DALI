@@ -15,6 +15,8 @@
 #ifndef DALI_IMGCODEC_IMAGE_ORIENTATION_H_
 #define DALI_IMGCODEC_IMAGE_ORIENTATION_H_
 
+#include "third_party/opencv/exif/exif.h"
+
 namespace dali {
 namespace imgcodec {
 
@@ -44,6 +46,8 @@ enum class ExifOrientation : uint16_t {
 };
 
 Orientation FromExifOrientation(ExifOrientation exif_orientation);
+
+Orientation FromExifData(uint8_t *buffer, size_t size);
 
 }  // namespace imgcodec
 }  // namespace dali

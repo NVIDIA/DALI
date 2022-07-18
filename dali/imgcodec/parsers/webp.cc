@@ -14,8 +14,10 @@
 
 #include <algorithm>
 #include <string>
+#include <vector>
 #include "dali/imgcodec/parsers/webp.h"
 #include "dali/core/byte_io.h"
+#include "third_party/opencv/exif/exif.h"
 
 namespace dali {
 namespace imgcodec {
@@ -26,10 +28,10 @@ namespace {
 // https://developers.google.com/speed/webp/docs/riff_container#riff_file_format
 //
 // Header layout:
-// RiffHeader | vp8_header_t | <WebpLossyHeader/WebpLosslessHeader>
+// RiffHeader | ChunkHeader | <WebpLossyHeader/WebpLosslessHeader>
 //
 // The WebpLossyHeader and WebpLosslessHeader are selected based on a identifier,
-// respectively "VP8 " and "VP8L" in vp8_header_t. "VP8X" in vp8_header_t signifies
+// respectively "VP8 " and "VP8L" in vp8 ChunkHeader. Value "VP8X" signifies
 // WebP extended file format, which is not supported.
 
 // Struct must be packed for reading them to work correctly
@@ -42,24 +44,36 @@ struct RiffHeader {
 };
 static_assert(sizeof(RiffHeader) == 12);
 
-using vp8_header_t = std::array<uint8_t, 4>;
+using chunk_identifier_t = std::array<uint8_t, 4>;
+
+struct ChunkHeader {
+  chunk_identifier_t identifier;
+  uint32_t chunk_size;
+};
+static_assert(sizeof(ChunkHeader) == 8);
 
 // Simple file format (lossy)
 // https://datatracker.ietf.org/doc/html/rfc6386#section-9.1
 struct WebpLossyHeader {
+<<<<<<< HEAD
   uint32_t chunk_size;
+=======
+>>>>>>> 6a1a5fd2 (Added parsing EXIF)
   std::array<uint8_t, 3> frame_tag;
   std::array<uint8_t, 3> sync_code;
 };
-static_assert(sizeof(WebpLossyHeader) == 10);
+static_assert(sizeof(WebpLossyHeader) == 6);
 
 // Simple file format (lossless)
 // https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification#2_riff_header
 struct WebpLosslessHeader {
+<<<<<<< HEAD
   uint32_t chunk_size;
+=======
+>>>>>>> 6a1a5fd2 (Added parsing EXIF)
   uint8_t signature_byte;
 };
-static_assert(sizeof(WebpLosslessHeader) == 5);
+static_assert(sizeof(WebpLosslessHeader) == 1);
 
 #pragma pack(pop)  // end of packing scope
 
@@ -74,6 +88,7 @@ bool is_valid_riff_header(const RiffHeader &header) {
   return header.riff_text == tag("RIFF") && header.webp_text == tag("WEBP");
 }
 
+<<<<<<< HEAD
 bool is_simple_lossy_format(const vp8_header_t &header) {
   return header == tag("VP8 ");
 }
@@ -84,6 +99,18 @@ bool is_simple_lossless_format(const vp8_header_t &header) {
 
 bool is_extended_format(const vp8_header_t &header) {
   return header == tag("VP8X");
+=======
+bool is_simple_lossy_format(const ChunkHeader &vp8_header) {
+  return is_pattern_matching(vp8_header.identifier, "VP8 ");
+}
+
+bool is_simple_lossless_format(const ChunkHeader &vp8_header) {
+  return is_pattern_matching(vp8_header.identifier, "VP8L");
+}
+
+bool is_extended_format(const ChunkHeader &vp8_header) {
+  return is_pattern_matching(vp8_header.identifier, "VP8X");
+>>>>>>> 6a1a5fd2 (Added parsing EXIF)
 }
 
 bool is_sync_code_valid(const WebpLossyHeader &header) {
@@ -109,7 +136,7 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
   ImageInfo info;
 
   stream->Skip<RiffHeader>();
-  const auto vp8_header = stream->ReadOne<vp8_header_t>();
+  const auto vp8_header = stream->ReadOne<ChunkHeader>();
   if (is_simple_lossy_format(vp8_header)) {
     const auto lossy_header = stream->ReadOne<WebpLossyHeader>();
     if (!is_sync_code_valid(lossy_header)) {
@@ -122,6 +149,9 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
 
     // VP8 always uses RGB
     info.shape = {h, w, 3};
+
+    // Skip the rest of the chunk
+    stream->Skip(vp8_header.chunk_size - sizeof(lossy_header) - 2 * sizeof(uint16_t));
   } else if (is_simple_lossless_format(vp8_header)) {
     const auto lossless_header = stream->ReadOne<WebpLosslessHeader>();
     if (!is_sync_code_valid(lossless_header)) {
@@ -137,10 +167,36 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
 
     // VP8L always uses RGBA
     info.shape = {h, w, 3 + alpha};
+
+    // Skip the rest of the chunk
+    stream->Skip(vp8_header.chunk_size - sizeof(lossless_header) - sizeof(features));
   } else if (is_extended_format(vp8_header)) {
     DALI_FAIL("WebP extended file format is not supported.");
   } else {
-    DALI_FAIL("Unrecognized WebP header: " + sequence_of_integers(vp8_header));
+    DALI_FAIL("Unrecognized WebP header: " + sequence_of_integers(vp8_header.identifier));
+  }
+
+  // Iterate over the chunk seeking the EXIF chunk
+  while (true) {
+    try {
+      const auto identifier = stream->ReadOne<chunk_identifier_t>();
+      const auto chunk_size = ReadValueLE<uint32_t>(*stream);
+      // Chunk size excluding the header
+      uint32_t data_size = chunk_size - sizeof(identifier) - sizeof(chunk_size);
+
+      if (is_pattern_matching(identifier, "EXIF")) {
+        // Parse the chunk data into the orientation
+        std::vector<uint8_t> buffer(data_size);
+        stream->ReadBytes(buffer.data(), buffer.size());
+        info.orientation = FromExifData(buffer.data(), buffer.size());
+        break;
+      } else {
+        // Skip the rest of the chunk
+        stream->Skip(data_size);
+      }
+    } catch (const EndOfStream&) {
+      break;  // Reading failed, EXIF chunk not found.
+    }
   }
 
   return info;
@@ -148,7 +204,7 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
 
 bool WebpParser::CanParse(ImageSource *encoded) const {
   static_assert(sizeof(WebpLossyHeader) > sizeof(WebpLosslessHeader));
-  uint8_t data[sizeof(RiffHeader) + sizeof(vp8_header_t) + sizeof(WebpLossyHeader)];
+  uint8_t data[sizeof(RiffHeader) + sizeof(ChunkHeader) + sizeof(WebpLossyHeader)];
   if (!ReadHeader(data, encoded, sizeof(data)))
     return false;
   MemInputStream stream(data, sizeof(data));
@@ -156,7 +212,7 @@ bool WebpParser::CanParse(ImageSource *encoded) const {
   if (!is_valid_riff_header(stream.ReadOne<RiffHeader>()))
     return false;
 
-  const auto vp8_header = stream.ReadOne<vp8_header_t>();
+  const auto vp8_header = stream.ReadOne<ChunkHeader>();
   if (is_simple_lossy_format(vp8_header)) {
     return is_sync_code_valid(stream.ReadOne<WebpLossyHeader>());
   } else if (is_simple_lossless_format(vp8_header)) {
