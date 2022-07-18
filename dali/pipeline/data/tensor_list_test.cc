@@ -525,6 +525,37 @@ TYPED_TEST(TensorListTest, TestTypeChangeLarger) {
   ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.nbytes());
 }
 
+TYPED_TEST(TensorListTest, DeviceIdPropagationMultiGPU) {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  if (num_devices < 2) {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  }
+  constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  constexpr bool is_pinned = !is_device;
+  AccessOrder order = AccessOrder::host();
+  TensorListShape<> shape{{42}};
+  for (int device_id = 0; device_id < num_devices; device_id++) {
+    TensorList<TypeParam> batch;
+    DeviceGuard dg(device_id);
+    batch.set_order(order);
+    void *data_ptr;
+    std::shared_ptr<void> ptr;
+    if (is_device) {
+      CUDA_CALL(cudaMalloc(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFree(ptr); });
+    } else {
+      CUDA_CALL(cudaMallocHost(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFreeHost(ptr); });
+    }
+    batch.ShareData(ptr, shape.num_elements() * sizeof(uint8_t), is_pinned, shape, DALI_UINT8,
+                    device_id, order);
+    ASSERT_EQ(batch.device_id(), device_id);
+    ASSERT_EQ(batch.order().device_id(), AccessOrder::host().device_id());
+    ASSERT_NE(batch.order().device_id(), batch.device_id());
+  }
+}
+
 TYPED_TEST(TensorListTest, TestShareData) {
   TensorList<TypeParam> tensor_list;
 

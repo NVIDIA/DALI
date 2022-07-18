@@ -62,8 +62,6 @@ class DLL_PUBLIC TensorVector {
    */
   explicit TensorVector(int batch_size);
 
-  explicit TensorVector(std::shared_ptr<TensorList<Backend>> tl);
-
   TensorVector(const TensorVector &) = delete;
   TensorVector &operator=(const TensorVector &) = delete;
 
@@ -190,10 +188,23 @@ class DLL_PUBLIC TensorVector {
    */
   DLL_PUBLIC void UnsafeSetSample(int sample_idx, const Tensor<Backend> &src);
 
-
+  /**
+   * @brief Analogue of TensorVector[sample_idx].ShareData for externally provided memory.
+   *
+   * The target TensorVector (this) must have enough samples for this to work (see SetSize()).
+   * After this operation the TensorVector is converted into non-contiguous.
+   *
+   * Warning: If the TensorVector was contiguous, the samples that weren't overwritten by this
+   * function would still report that they are sharing data. It is assumed that all samples are
+   * replaced this way - TODO(klecki): this might be adjusted in follow-up.
+   *
+   * The metadata (pinned, type, device_id, order, layout) must match what is already set
+   * for the whole batch to maintain consistency.
+   */
   DLL_PUBLIC void UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
                                   bool pinned, const TensorShape<> &shape, DALIDataType type,
-                                  AccessOrder order = {}, const TensorLayout &layout = "");
+                                  int device_id, AccessOrder order = {},
+                                  const TensorLayout &layout = "");
 
   /**
    * @brief Analogue of TensorVector[sample_idx].Copy(src[src_sample_idx]);
@@ -276,6 +287,8 @@ class DLL_PUBLIC TensorVector {
 
   bool is_pinned() const;
 
+  void set_device_id(int device_id);
+
   int device_id() const;
 
   /**
@@ -314,8 +327,6 @@ class DLL_PUBLIC TensorVector {
   TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;
 
   void UpdateViews();
-
-  shared_ptr<TensorList<Backend>> AsTensorList(bool check_contiguity = true);
 
  private:
   enum class State { contiguous, noncontiguous };
@@ -380,6 +391,30 @@ class DLL_PUBLIC TensorVector {
   // with different template types
   template <typename InBackend>
   friend class TensorVector;
+
+  /** @defgroup AccessorFunctions Fallback for accessing pointers owning the samples
+   * Fallback access to contiguous data or samples of the batch. It should not be used for regular
+   * processing, intended mostly for batches that were made sure to be contiguous (mainly
+   * for pipeline outputs).
+   * @{
+   */
+
+  /**
+   * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
+   * with.
+   * Sample 0 is aliased with the whole buffer, if it is contiguous.
+   */
+  friend shared_ptr<void> unsafe_sample_owner(TensorVector<Backend> &batch, int sample_idx) {
+    // create new aliasing pointer to current data allocation, so we share the use count
+    // and the deleter correctly.
+    if (batch.IsContiguous()) {
+      return {unsafe_sample_owner(*batch.tl_, 0), batch.raw_mutable_tensor(sample_idx)};
+    } else {
+      return batch.tensors_[sample_idx]->get_data_ptr();
+    }
+  }
+
+  /** @} */  // end of AccessorFunctions
 };
 
 }  // namespace dali

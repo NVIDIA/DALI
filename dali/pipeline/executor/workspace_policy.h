@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,28 +55,6 @@ inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
   }
 }
 
-template<typename backend>
-std::shared_ptr<TensorList<backend>> PresentAsTensorList(
-    const std::shared_ptr<TensorList<backend>> &in) {
-  return in;
-}
-
-template<typename backend>
-std::shared_ptr<TensorList<backend>> PresentAsTensorList(
-    const std::shared_ptr<TensorVector<backend>> &in) {
-  return in->AsTensorList(false);
-}
-
-template<typename workspace, typename T>
-void AddInputHelper(workspace &ws, T &tensor) {
-  ws.AddInput(tensor);
-}
-
-template<typename T>
-void AddInputHelper(dali::DeviceWorkspace &ws, T &tensor) {
-  ws.AddInput(PresentAsTensorList(tensor));
-}
-
 // We instantiate the operation of adding the input only for parent op_type and device
 // that are specifically allowed
 // We always use queue_idx = 0 if give queue has only one element -> it is not queued
@@ -88,7 +66,7 @@ add_input(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
                "Backing Tensor store queue has not enough elements.");
   auto tensor = queue[queue_idx];
-  AddInputHelper(ws, tensor);
+  ws.AddInput(tensor);
 }
 
 // If parent op_type or device is not allowed this is a no-op
@@ -183,34 +161,37 @@ inline void SetupThreadPool<OpType::CPU>(op_type_to_workspace_t<OpType::CPU> &ws
 }
 
 template <OpType op_type>
-void SetupStreamsAndEvents(op_type_to_workspace_t<op_type> &ws,
-                           const OpGraph &graph, const OpNode &node,
-                           cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-                           const MixedOpEventMap &mixed_op_events, const QueueIdxs &idxs) {
+void SetupStreamsAndEvents(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
+                           const OpNode &node, int device_id, cudaStream_t mixed_op_stream,
+                           cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
+                           const QueueIdxs &idxs) {
   /* No-op if we are not Mixed or GPU */
 }
 
 template <>
-inline void SetupStreamsAndEvents<OpType::MIXED>(
-    MixedWorkspace &ws,
-    const OpGraph &graph, const OpNode &node,
-    cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-    const MixedOpEventMap &mixed_op_events, const QueueIdxs &idxs) {
+inline void SetupStreamsAndEvents<OpType::MIXED>(MixedWorkspace &ws, const OpGraph &graph,
+                                                 const OpNode &node, int device_id,
+                                                 cudaStream_t mixed_op_stream,
+                                                 cudaStream_t gpu_op_stream,
+                                                 const MixedOpEventMap &mixed_op_events,
+                                                 const QueueIdxs &idxs) {
   // We assign unique stream to mixed ops.
   // This ensures that we won't have false dependencies
   // between mixed ops and the previous iterations
   // gpu ops.
-  ws.set_stream(mixed_op_stream);
-  // for the CPU only pipeline there are no CUDA events
-  if (mixed_op_events.size() > 0) {
-    ws.set_event(mixed_op_events[node.partition_index][idxs[OpType::MIXED]]);
+  if (device_id != CPU_ONLY_DEVICE_ID) {
+    ws.set_stream(mixed_op_stream);
+    // for the CPU only pipeline there are no CUDA events
+    if (mixed_op_events.size() > 0) {
+      ws.set_event(mixed_op_events[node.partition_index][idxs[OpType::MIXED]]);
+    }
   }
 }
 
 template <>
 inline void SetupStreamsAndEvents<OpType::GPU>(
     DeviceWorkspace &ws,
-    const OpGraph &graph, const OpNode &node,
+    const OpGraph &graph, const OpNode &node, int device_id,
     cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
     const MixedOpEventMap &mixed_op_events, const QueueIdxs &idxs) {
   // I/O pipeline is always going to be launched alongside
@@ -219,28 +200,30 @@ inline void SetupStreamsAndEvents<OpType::GPU>(
   // 1 stream for GPU ops, even though we may not fill
   // the whole GPU with just I/O pipeline kernels
   // by doing so.
-  ws.set_stream(gpu_op_stream);
-  for (const auto &p : node.parents) {
-    if (graph.NodeType(p) == OpType::MIXED) {
-      const auto &parent_op = graph.Node(p);
-      // We need to block on this op's event to
-      // make sure that we respect the dependency
-      ws.AddParentEvent(mixed_op_events[parent_op.partition_index][idxs[OpType::MIXED]]);
+  if (device_id != CPU_ONLY_DEVICE_ID) {
+    ws.set_stream(gpu_op_stream);
+    for (const auto &p : node.parents) {
+      if (graph.NodeType(p) == OpType::MIXED) {
+        const auto &parent_op = graph.Node(p);
+        // We need to block on this op's event to
+        // make sure that we respect the dependency
+        ws.AddParentEvent(mixed_op_events[parent_op.partition_index][idxs[OpType::MIXED]]);
+      }
     }
   }
 }
 
 template <OpType op_type>
 op_type_to_workspace_t<op_type> CreateWorkspace(
-    const OpGraph &graph, const OpNode &node,
+    const OpGraph &graph, const OpNode &node, int device_id,
     const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
     cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
     const MixedOpEventMap &mixed_op_events, const QueueIdxs &idxs) {
   op_type_to_workspace_t<op_type> ws;
   SetupInputOutput<op_type>(ws, graph, node, tensor_to_store_queue, idxs);
   SetupThreadPool<op_type>(ws, graph, node, thread_pool, idxs);
-  SetupStreamsAndEvents<op_type>(ws, graph, node, mixed_op_stream, gpu_op_stream, mixed_op_events,
-                                 idxs);
+  SetupStreamsAndEvents<op_type>(ws, graph, node, device_id, mixed_op_stream, gpu_op_stream,
+                                 mixed_op_events, idxs);
   return ws;
 }
 
@@ -256,7 +239,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
 //
 //   // Initialize state of Workspace Storage
 //   void InitializeWorkspaceStore(
-//       const OpGraph &graph,
+//       const OpGraph &graph, int device_id,
 //       const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
 //       ThreadPool *thread_pool, cudaStream_t mixed_op_stream,
 //       cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
@@ -300,11 +283,12 @@ struct JIT_WS_Policy {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type>;
 
-  void InitializeWorkspaceStore(
-      const OpGraph &graph,
-      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
-      cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-      const MixedOpEventMap &mixed_op_events, const QueueSizes &idxs) {
+  void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
+                                const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                                ThreadPool *thread_pool, cudaStream_t mixed_op_stream,
+                                cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
+                                const QueueSizes &idxs) {
+    device_id_ = device_id;
     tensor_to_store_queue_ = tensor_to_store_queue;
     thread_pool_ = thread_pool;
     mixed_op_stream_ = mixed_op_stream;
@@ -315,24 +299,22 @@ struct JIT_WS_Policy {
 
   template <OpType op_type>
   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
-    return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx),
-                                    tensor_to_store_queue_, thread_pool_,
-                                    mixed_op_stream_, gpu_op_stream_,
-                                    mixed_op_events_, idxs);
+    return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx), device_id_,
+                                    tensor_to_store_queue_, thread_pool_, mixed_op_stream_,
+                                    gpu_op_stream_, mixed_op_events_, idxs);
   }
 
   template <OpType op_type>
   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
     DALI_ENFORCE(node.op_type == op_type,
                  "Wrong variant of method selected. OpType does not match.");
-    return CreateWorkspace<op_type>(graph, node,
-                                    tensor_to_store_queue_, thread_pool_,
-                                    mixed_op_stream_, gpu_op_stream_,
-                                    mixed_op_events_, idxs);
+    return CreateWorkspace<op_type>(graph, node, device_id_, tensor_to_store_queue_, thread_pool_,
+                                    mixed_op_stream_, gpu_op_stream_, mixed_op_events_, idxs);
   }
 
  private:
   // TODO(klecki): should consider if storing copy of backing storage is good idea
+  int device_id_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
   ThreadPool *thread_pool_;
   cudaStream_t mixed_op_stream_, gpu_op_stream_;
@@ -406,11 +388,11 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
   template <OpType op_type>
   using ws_t = op_type_to_workspace_t<op_type> &;
 
-  void InitializeWorkspaceStore(
-      const OpGraph &graph,
-      const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
-      cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
-      const MixedOpEventMap &mixed_op_events, const QueueSizes &idxs) {
+  void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
+                                const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                                ThreadPool *thread_pool, cudaStream_t mixed_op_stream,
+                                cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
+                                const QueueSizes &idxs) {
     depths_ = SeparateQueuePolicy::GetQueueSizes(idxs);
 
     cpu_workspaces_.resize(depths_[OpType::CPU]);
@@ -421,18 +403,18 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
       // Get sequential index and prepare space all CPU Ops
       auto queue_idxs = QueueIdxs{cpu_id, SeparateQueuePolicy::kInvalidIdx,
                                   SeparateQueuePolicy::kInvalidIdx};
-      PlaceWorkspace<OpType::CPU>(cpu_workspaces_, queue_idxs, graph,
-                                  tensor_to_store_queue, thread_pool,
-                                  mixed_op_stream, gpu_op_stream, mixed_op_events);
+      PlaceWorkspace<OpType::CPU>(cpu_workspaces_, queue_idxs, graph, device_id,
+                                  tensor_to_store_queue, thread_pool, mixed_op_stream,
+                                  gpu_op_stream, mixed_op_events);
     }
 
     for (int cpu_id = 0; cpu_id < depths_[OpType::CPU]; cpu_id++) {
       for (int mixed_id = 0; mixed_id < depths_[OpType::MIXED]; mixed_id++) {
         // Get sequential index and prepare space all MIXED Ops
         auto queue_idxs = QueueIdxs{cpu_id, mixed_id, SeparateQueuePolicy::kInvalidIdx};
-        PlaceWorkspace<OpType::MIXED>(mixed_workspaces_, queue_idxs, graph,
-                                      tensor_to_store_queue, thread_pool,
-                                      mixed_op_stream, gpu_op_stream, mixed_op_events);
+        PlaceWorkspace<OpType::MIXED>(mixed_workspaces_, queue_idxs, graph, device_id,
+                                      tensor_to_store_queue, thread_pool, mixed_op_stream,
+                                      gpu_op_stream, mixed_op_events);
       }
     }
 
@@ -441,10 +423,9 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
         for (int gpu_id = 0; gpu_id < depths_[OpType::GPU]; gpu_id++) {
           // Get sequential index and prepare space all GPU Ops
           auto queue_idxs = QueueIdxs{cpu_id, mixed_id, gpu_id};
-          PlaceWorkspace<OpType::GPU>(gpu_workspaces_, queue_idxs, graph,
-                                      tensor_to_store_queue, thread_pool,
-                                      mixed_op_stream, gpu_op_stream,
-                                      mixed_op_events);
+          PlaceWorkspace<OpType::GPU>(gpu_workspaces_, queue_idxs, graph, device_id,
+                                      tensor_to_store_queue, thread_pool, mixed_op_stream,
+                                      gpu_op_stream, mixed_op_events);
         }
       }
     }
@@ -484,7 +465,7 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
 
   template <OpType op_type, OpType group_as = op_type, typename T>
   void PlaceWorkspace(
-      T &workspaces, QueueIdxs idxs, const OpGraph &graph,
+      T &workspaces, QueueIdxs idxs, const OpGraph &graph, int device_id,
       const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
       cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
       const MixedOpEventMap &mixed_op_events) {
@@ -493,10 +474,8 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
     for (OpPartitionId partition_idx = 0; partition_idx < graph.NumOp(op_type); partition_idx++) {
       auto &node = graph.Node(op_type, partition_idx);
       workspaces[sequential_ws_idx][partition_idx] =
-          CreateWorkspace<op_type>(graph, node,
-                                   tensor_to_store_queue, thread_pool,
-                                   mixed_op_stream, gpu_op_stream,
-                                   mixed_op_events, idxs);
+          CreateWorkspace<op_type>(graph, node, device_id, tensor_to_store_queue, thread_pool,
+                                   mixed_op_stream, gpu_op_stream, mixed_op_events, idxs);
     }
   }
 };
@@ -542,7 +521,7 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
   }
 
   void InitializeWorkspaceStore(
-      const OpGraph &graph,
+      const OpGraph &graph, int device_id,
       const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
       cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
       const MixedOpEventMap &mixed_op_events, const QueueSizes &idxs) {
@@ -550,8 +529,8 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
     queue_size_ = idxs.cpu_size;
     wss_.resize(queue_size_);
     for (int i = 0; i < queue_size_; i++) {
-      PrepareWSB(i, graph, tensor_to_store_queue, thread_pool, mixed_op_stream, gpu_op_stream,
-                 mixed_op_events);
+      PrepareWSB(i, graph, device_id, tensor_to_store_queue, thread_pool, mixed_op_stream,
+                 gpu_op_stream, mixed_op_events);
     }
   }
 
@@ -571,7 +550,7 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
 
  private:
   void PrepareWSB(
-      int queue_idx, const OpGraph &graph,
+      int queue_idx, const OpGraph &graph, int device_id,
       const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
       cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
       const MixedOpEventMap &mixed_op_events) {
@@ -587,7 +566,7 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
           (OpType::CPU, OpType::MIXED, OpType::GPU),
       (
         auto &ws = GetWorkspace<op_type_static>(QueueIdxs{queue_idx}, graph, node);
-        ws = CreateWorkspace<op_type_static>(graph, node,
+        ws = CreateWorkspace<op_type_static>(graph, node, device_id,
                                              tensor_to_store_queue, thread_pool,
                                              mixed_op_stream, gpu_op_stream,
                                              mixed_op_events, QueueIdxs{queue_idx});

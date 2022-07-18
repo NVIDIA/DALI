@@ -15,6 +15,7 @@
 #include <glob.h>
 #include <algorithm>
 #include <map>
+#include "dali/core/common.h"
 #include "dali/image/image.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
 #include "dali/operators/reader/loader/utils.h"
@@ -146,7 +147,7 @@ void SequenceLoader::LoadFrame(const std::vector<std::string> &s, Index frame_id
     auto p = frame->Get(frame_size);
     DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", frame_filename));
     // Wrap the raw data in the Tensor object.
-    target->ShareData(p, frame_size, false, {frame_size}, DALI_UINT8);
+    target->ShareData(p, frame_size, false, {frame_size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
   }
   target->SetMeta(meta);
   frame->Close();

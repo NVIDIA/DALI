@@ -98,15 +98,16 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   // We cast away the const from data_ptr, as there is no other way of passing it to the
   // TensorList, as we must also set the shape and type metadata.
   // It is passed further as const TensorList, so it's data cannot be modified.
-  data.set_pinned(flags & DALI_ext_pinned);
   AccessOrder order;
   if (std::is_same_v<Backend, GPUBackend> || (flags & DALI_ext_pinned))
     order = AccessOrder(stream);
   else
     order = AccessOrder::host();
-  data.set_order(order);
-  data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof);
-  data.Resize(tl_shape, type_id);
+  // We do not support feeding memory cross-device, it is assumed it's on the current device
+  // that is tied to the pipeline.
+  int device_id = pipeline->device_id();
+  data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof,
+                 flags & DALI_ext_pinned, tl_shape, type_id, device_id, order);
   data.SetLayout(layout);
   pipeline->SetExternalInput(name, data, order,
                              flags & DALI_ext_force_sync,
@@ -138,10 +139,15 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   else
     order = AccessOrder::host();
 
+  // We do not support feeding memory cross-device, it is assumed it's on the current device
+  // that is tied to the pipeline.
+  int device_id = pipeline->device_id();
+
   dali::TensorVector<Backend> data(curr_batch_size);
   data.set_pinned(flags & DALI_ext_pinned);
   data.set_sample_dim(sample_dim);
   data.set_type(type_id);
+  data.set_device_id(device_id);
   data.set_order(order);
   data.SetLayout(layout);
 
@@ -151,7 +157,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     // The vector that we pass to pipeline is const.
     std::shared_ptr<void> ptr(const_cast<void *>(data_ptr[i]), [](void *){});  // no deleter
     data.UnsafeSetSample(i, ptr, tl_shape[i].num_elements() * elem_sizeof, flags & DALI_ext_pinned,
-                         tl_shape[i], type_id, order, layout);
+                         tl_shape[i], type_id, device_id, order, layout);
   }
   pipeline->SetExternalInput(name, data, order,
                              flags & DALI_ext_force_sync,

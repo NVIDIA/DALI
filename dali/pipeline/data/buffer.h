@@ -459,11 +459,19 @@ class DLL_PUBLIC Buffer {
    * Current Buffer will be marked as sharing data, and reallocation of memory will be
    * prohibited until reset() is called.
    *
-   * For GPU memory, it is assumed to be associated with current device.
+   * @remark Note that the device_id inside the order can differ from the device_id that is passed
+   * individually. The device_id describes the location of the memory and the order can describe
+   * the dependency on the work that is happening on another device.
    */
   inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-                                     DALIDataType type = DALI_NO_TYPE, size_t size = 0) {
+                                     DALIDataType type, size_t size, int device_id,
+                                     AccessOrder order = {}) {
     free_storage();
+
+    // Set the new order before replacing the allocation
+    set_order(order);
+
+    // Fill the remaining members in the order as they appear in class.
     type_ = TypeTable::GetTypeInfo(type);
     data_ = ptr;
     allocate_ = {};
@@ -471,12 +479,7 @@ class DLL_PUBLIC Buffer {
     shares_data_ = data_ != nullptr;
     num_bytes_ = bytes;
     pinned_ = pinned;
-    // setting the allocation, get the device
-    if ((std::is_same<Backend, GPUBackend>::value || pinned_) && device_ == CPU_ONLY_DEVICE_ID) {
-      CUDA_CALL(cudaGetDevice(&device_));
-    } else {
-      device_ = CPU_ONLY_DEVICE_ID;
-    }
+    device_ = device_id;
   }
 
   static void SetGrowthFactor(double factor) {

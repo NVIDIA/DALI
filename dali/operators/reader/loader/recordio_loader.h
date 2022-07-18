@@ -127,7 +127,7 @@ class RecordIOLoader : public IndexedFileLoader {
         } else {
           n_read = size;
           // Wrap the raw data in the Tensor object.
-          tensor.ShareData(p, size, false, {size}, DALI_UINT8);
+          tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
           next_seek_pos_ = seek_pos + size;
         }
       }

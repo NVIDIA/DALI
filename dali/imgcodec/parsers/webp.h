@@ -26,8 +26,7 @@ class DLL_PUBLIC WebpParser : public ImageParser {
   bool CanParse(ImageSource *encoded) const override;
 };
 
-#endif  // DALI_IMGCODEC_PARSERS_WEBP_H_
-
-
 }  // namespace imgcodec
 }  // namespace dali
+
+#endif  // DALI_IMGCODEC_PARSERS_WEBP_H_

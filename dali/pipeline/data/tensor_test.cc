@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_vector.h"
 
 #include <gtest/gtest.h>
 
 #include <numeric>
 
+#include "dali/core/common.h"
+#include "dali/core/mm/malloc_resource.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
+#include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test.h"
-#include "dali/core/mm/malloc_resource.h"
 
 namespace dali {
 
@@ -160,7 +162,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(source_data.data(), size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float), false, DALI_NO_TYPE, CPU_ONLY_DEVICE_ID);
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -214,7 +216,7 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(source_data.data(), size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float), false, DALI_NO_TYPE, CPU_ONLY_DEVICE_ID);
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -271,7 +273,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeNoAlloc) {
   std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(source_data.data(), size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float), false, DALI_NO_TYPE, CPU_ONLY_DEVICE_ID);
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -313,7 +315,7 @@ TYPED_TEST(TensorTest, TestGetBytesSizeTypeAlloc) {
   std::vector<float> source_data(size);
 
   // Wrap the allocation
-  t.ShareData(source_data.data(), size*sizeof(float));
+  t.ShareData(source_data.data(), size*sizeof(float), false, DALI_NO_TYPE, CPU_ONLY_DEVICE_ID);
 
   // Verify internals
   ASSERT_EQ(t.size(), 0);
@@ -362,8 +364,7 @@ TYPED_TEST(TensorTest, TestShareData) {
     // TODO(klecki): Rework this with proper sample-based tensor batch data structure
     auto sample_shared_ptr = unsafe_sample_owner(tl, i);
     tensor.ShareData(sample_shared_ptr, tl.capacity(), tl.is_pinned(), tl.shape()[i],
-                     tl.type());
-    tensor.set_device_id(tl.device_id());
+                     tl.type(), tl.device_id());
     tensor.SetMeta(tl.GetMeta(i));
 
     // Verify the internals
@@ -371,10 +372,42 @@ TYPED_TEST(TensorTest, TestShareData) {
     ASSERT_EQ(tensor.raw_data(), tl.raw_tensor(i));
     ASSERT_EQ(tensor.type(), tl.type());
     ASSERT_EQ(tensor.shape(), tl.tensor_shape(i));
+    ASSERT_EQ(tensor.device_id(), tl.device_id());
 
     Index size = volume(tl.tensor_shape(i));
     ASSERT_EQ(tensor.size(), size);
     ASSERT_EQ(tensor.nbytes(), size*sizeof(float));
+  }
+}
+
+TYPED_TEST(TensorTest, DeviceIdPropagationMultiGPU) {
+  int num_devices = 0;
+  CUDA_CALL(cudaGetDeviceCount(&num_devices));
+  if (num_devices < 2) {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  }
+  constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  constexpr bool is_pinned = !is_device;
+  AccessOrder order = AccessOrder::host();
+  TensorShape<> shape{42};
+  for (int device_id = 0; device_id < num_devices; device_id++) {
+    Tensor<TypeParam> tensor;
+    tensor.set_order(order);
+    DeviceGuard dg(device_id);
+    void *data_ptr;
+    std::shared_ptr<void> ptr;
+    if (is_device) {
+      CUDA_CALL(cudaMalloc(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFree(ptr); });
+    } else {
+      CUDA_CALL(cudaMallocHost(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
+      ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFreeHost(ptr); });
+    }
+    tensor.ShareData(ptr, shape.num_elements() * sizeof(uint8_t), is_pinned, shape, DALI_UINT8,
+                     device_id, order);
+    ASSERT_EQ(tensor.device_id(), device_id);
+    ASSERT_EQ(tensor.order().device_id(), AccessOrder::host().device_id());
+    ASSERT_NE(tensor.order().device_id(), tensor.device_id());
   }
 }
 

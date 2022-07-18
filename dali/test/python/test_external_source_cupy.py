@@ -24,6 +24,7 @@ from test_external_source_impl import use_cupy
 from test_utils import check_output, check_output_pattern
 from nvidia.dali import Pipeline
 import nvidia.dali.fn as fn
+from nvidia.dali.tensors import TensorGPU
 import numpy as np
 
 
@@ -73,7 +74,11 @@ def test_external_source_mixed_contiguous():
             pipe.run()
 
 
-def _test_cross_device(src, dst):
+def _test_cross_device(src, dst, use_dali_tensor=False):
+    # The use_dali_tensor converts (via the Dlpack) to the DALI native Tensor before feeding the
+    # data, to additionaly check if the constructor works correctly wrt to device_id.
+    # TODO(klecki): [device_id] currently the device_id is not exposed in Python Tensors, so there
+    # is no other way we may verify it.
     import nvidia.dali.fn as fn
     import numpy as np
 
@@ -86,6 +91,8 @@ def _test_cross_device(src, dst):
         with cp.cuda.Device(src):
             data = cp.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=cp.float32) + iter
             iter += 1
+        if use_dali_tensor:
+            return TensorGPU(data.toDlpack())
         return data
 
     with pipe:
@@ -102,4 +109,5 @@ def test_cross_device():
     if cp.cuda.runtime.getDeviceCount() > 1:
         for src in [0, 1]:
             for dst in [0, 1]:
-                yield _test_cross_device, src, dst
+                for use_dali_tensor in [True, False]:
+                    yield _test_cross_device, src, dst, use_dali_tensor

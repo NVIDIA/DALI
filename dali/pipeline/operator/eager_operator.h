@@ -43,13 +43,14 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Bac
 
 template <typename Backend>
 std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<Backend>> in) {
-  if (in->IsContiguous()) {
-    // Filled contiguous TensorVector, we can return TensorList directly.
-    auto tl = in->AsTensorList(false);
-    // Explicitly set layout (it could be empty in case of per-sample operators).
-    tl->SetLayout(in->GetLayout());
-    return tl;
-  }
+  // TODO(klecki): [BatchObject] Add missing optimization
+  // if (in->IsContiguous()) {
+  //   // Filled contiguous TensorVector, we can return TensorList directly.
+  //   auto tl = in->AsTensorList(false);
+  //   // Explicitly set layout (it could be empty in case of per-sample operators).
+  //   tl->SetLayout(in->GetLayout());
+  //   return tl;
+  // }
 
   auto tl = std::make_shared<TensorList<Backend>>();
   tl->Copy(*in);
@@ -300,7 +301,12 @@ EagerOperator<Backend>::RunImpl(
   }
 
   for (auto &arg : kwargs) {
-    ws_.AddArgumentInput(arg.first, arg.second);
+    // TODO(klecki): [BatchObject] Remove the wrapping of TensorList -> TensorVector.
+    // We wrap it once before call, so that the run won't do it again. Remove when we do not
+    // have distinct batch types.
+    auto tmp = std::make_shared<TensorVector<CPUBackend>>();
+    tmp->ShareData(*arg.second);
+    ws_.AddArgumentInput(arg.first, tmp);
   }
 
   std::vector<OutputDesc> output_desc{};
