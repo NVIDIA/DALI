@@ -24,12 +24,12 @@ constexpr jpeg_marker_t sos_marker = {0xff, 0xda};
 constexpr jpeg_marker_t soi_marker = {0xff, 0xd8};
 constexpr jpeg_marker_t eoi_marker = {0xff, 0xd9};
 
-bool isValidMarker(const jpeg_marker_t &marker) {
+bool IsValidMarker(const jpeg_marker_t &marker) {
   return marker[0] == 0xff && marker[1] != 0x00;
 }
 
-bool isSofMarker(const jpeg_marker_t &marker) {
-  if (!isValidMarker(marker) || marker[1] < 0xc0 || marker[1] > 0xcf) return false;
+bool IsSofMarker(const jpeg_marker_t &marker) {
+  if (!IsValidMarker(marker) || marker[1] < 0xc0 || marker[1] > 0xcf) return false;
   return (marker[1] != 0xc4 && marker[1] != 0xc8 && marker[1] != 0xcc);
 }
 
@@ -42,18 +42,21 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
 
   bool read_shape = false;
   while (!read_shape) {
-    auto marker = stream->ReadOne<jpeg_marker_t>();
-    if (marker[1] == 0xff) {
-      stream->SeekRead(-1, SEEK_CUR);
-      continue;
-    }
-
-    DALI_ENFORCE(isValidMarker(marker));
+    jpeg_marker_t marker;
+    marker[0] = stream->ReadOne<uint8_t>();
+    DALI_ENFORCE(marker[0] == 0xff, make_string("A valid marker must start with 0xFF"));
+    // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.1.1.2 Markers
+    // Any marker may optionally be preceded by any number of fill bytes, 
+    // which are bytes assigned code X’FF’
+    do {
+      marker[1] = stream->ReadOne<uint8_t>();
+    } while (marker[1] == 0xff);
+    DALI_ENFORCE(IsValidMarker(marker), make_string("Invalid marker"));
     if (marker == sos_marker) break;
 
     uint16_t size = ReadValueBE<uint16_t>(*stream);
     ptrdiff_t next_marker_offset = stream->TellRead() - 2 + size;
-    if (isSofMarker(marker)) {
+    if (IsSofMarker(marker)) {
       stream->Skip(1);  // Skip the precision field
       auto height = ReadValueBE<uint16_t>(*stream);
       auto width = ReadValueBE<uint16_t>(*stream);

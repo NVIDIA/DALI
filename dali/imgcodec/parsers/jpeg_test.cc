@@ -38,12 +38,12 @@ class JpegParserTest : public ::testing::Test {
     }
   }
 
-  bool CanParse(std::vector<uint8_t> data) {
+  bool CanParse(const std::vector<uint8_t> &data) {
     auto src = ImageSource::FromHostMem(data.data(), data.size());
     return parser_.CanParse(&src);
   }
 
-  ImageInfo GetInfo(std::vector<uint8_t> data) {
+  ImageInfo GetInfo(const std::vector<uint8_t> &data) {
     auto src = ImageSource::FromHostMem(data.data(), data.size());
     return parser_.GetInfo(&src);
   }
