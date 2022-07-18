@@ -89,6 +89,7 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
   ssize_t length = stream->Size();
 
+  // https://en.wikipedia.org/wiki/BMP_file_format#DIB_header_(bitmap_information_header)
   DALI_ENFORCE(length >= 18);
 
   static constexpr int kHeaderStart = 14;
