@@ -35,6 +35,9 @@
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/imgcodec/parsers/webp.h"
 
+namespace dali {
+namespace imgcodec {
+namespace test {
 
 const char *help = R"(Usage: imagemagick_test [OPTIONS] PATH
 
@@ -51,11 +54,6 @@ The following OPTIONS are available:
 --identify=... -i=... Path of `identify` tool, default is /usr/bin/identify
 --jobs=N  -j=N        Number of concurrent jobs to run, defaults to number of cores
 )";
-
-
-namespace dali {
-namespace imgcodec {
-namespace test {
 
 void fail(std::ostream &stream, const std::string &filename, const std::string &message) {
   stream << "FAIL" << "\t" << filename << ": " << message << std::endl;
@@ -102,8 +100,8 @@ struct Env {
   bool print;
   unsigned batch;
   unsigned jobs;
-  ImgcodecTester imgcodec_tester = {};
-  std::mutex mutex = {};
+  ImgcodecTester imgcodec_tester;
+  std::mutex mutex;
 };
 
 std::vector<std::string> get_batch(const Env &env,
@@ -115,7 +113,7 @@ std::vector<std::string> get_batch(const Env &env,
     if (entry.is_regular_file()) {
       const auto path = entry.path().string();
       if (std::regex_match(path, env.filter))
-        filenames.push_back(path);
+        filenames.push_back(std::move(path));
     }
   }
   return filenames;
@@ -150,11 +148,7 @@ void process(Env &env, std::vector<std::string> filenames) {
   for (const std::string &f : filenames) {
     cmd << " " << f;
   }
-  FILE* pipe;
-  {
-    const std::lock_guard lock(env.mutex);
-    pipe = popen(cmd.str().c_str(), "r");
-  }
+  FILE* pipe = popen(cmd.str().c_str(), "r");
 
   for (const std::string &filename : filenames) {
     auto imagemagick_shape = scan_imagemagick_shape(pipe);
@@ -247,7 +241,7 @@ int main(int argc, char **argv) {
   while ((c = getopt_long(argc, argv, "hpi:r:b:j:", long_options, &option_index)) != -1) {
     switch (c) {
       case 'h':
-        std::cerr << help;
+        std::cerr << dali::imgcodec::test::help;
         return 0;
       case 'p':
         env.print = true;
@@ -269,13 +263,13 @@ int main(int argc, char **argv) {
       case 0:
         break;
       default:
-        std::cerr << help;
+        std::cerr << dali::imgcodec::test::help;
         return 1;
     }
   }
 
   if (optind != argc - 1) {
-    std::cerr << help;
+    std::cerr << dali::imgcodec::test::help;
     return 1;
   }
   env.directory = argv[optind];
