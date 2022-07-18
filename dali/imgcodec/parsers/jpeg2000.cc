@@ -43,13 +43,13 @@ ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
   advance_one_block(*stream, jp2_sig_type);
   advance_one_block(*stream, jp2_format_type);
 
-  // jp2 header starts
+  // JPEG2000 header starts
   stream->Skip<uint32_t>();  // block size skipped
   DALI_ENFORCE(stream->ReadOne<block_type_t>() == jp2_header_type,
-               "Expected type 'jp2h'");
-  stream->Skip<uint32_t>();  // imabe block size skipped
+               "Expected block type 'jp2h'");
+  stream->Skip<uint32_t>();  // image block size skipped
   DALI_ENFORCE(stream->ReadOne<block_type_t>() == jp2_im_header_type,
-               "Expected type 'ihdr'");
+               "Expected block type 'ihdr'");
 
   const int h = ReadValueBE<uint32_t>(*stream);
   const int w = ReadValueBE<uint32_t>(*stream);
