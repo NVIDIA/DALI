@@ -506,7 +506,8 @@ def test_combine_transforms(batch_size=3, num_threads=4, device_id=0):
 
 
 def test_combine_transforms_correct_order():
-    pipe = Pipeline(batch_size=3, num_threads=4, device_id=0)
+    batch_size = 3
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     with pipe:
         import nvidia.dali.fn.transforms as T
         t1 = T.translation(offset=(1, 2))
