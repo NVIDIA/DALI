@@ -19,17 +19,19 @@ namespace dali {
 namespace imgcodec {
 
 namespace {
-  using block_type_t = std::array<uint8_t, 4>;
 
-  const block_type_t jp2_sig_type = {'j', 'P', ' ', ' '};
-  const block_type_t jp2_format_type = {'f', 't', 'y', 'p'};
-  const block_type_t jp2_header_type = {'j', 'p', '2', 'h'};
-  const block_type_t jp2_im_header_type = {'i', 'h', 'd', 'r'};
+using block_type_t = std::array<uint8_t, 4>;
+const block_type_t jp2_sig_type = {'j', 'P', ' ', ' '};
+const block_type_t jp2_format_type = {'f', 't', 'y', 'p'};
+const block_type_t jp2_header_type = {'j', 'p', '2', 'h'};
+const block_type_t jp2_im_header_type = {'i', 'h', 'd', 'r'};
 
-  void advance_one_block(InputStream &stream) {
-    const auto block_size = ReadValueBE<uint32_t>(stream);
-    stream.SeekRead(block_size - sizeof(block_size), SEEK_CUR);
-  }
+void advance_one_block(InputStream &stream) {
+  const auto block_size = ReadValueBE<uint32_t>(stream);
+  // skipping the rest of the block
+  stream.Skip(block_size - sizeof(block_size));  
+}
+
 }  // namespace
 
 ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
@@ -55,8 +57,13 @@ ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
 }
 
 bool Jpeg2000Parser::CanParse(ImageSource *encoded) const {
-  return true;
-  // return false;  // TODO(janton)
+  uint8_t header[8];
+  if (!ReadHeader(header, encoded, sizeof(header)))
+    return false;
+
+  MemInputStream stream(header, sizeof(header));
+  stream.Skip<uint32_t>(); // block size
+  return stream.ReadOne<block_type_t>() == jp2_sig_type;
 }
 
 }  // namespace imgcodec
