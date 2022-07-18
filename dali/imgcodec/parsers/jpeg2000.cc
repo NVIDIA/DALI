@@ -29,7 +29,7 @@ const block_type_t jp2_im_header_type = {'i', 'h', 'd', 'r'};
 void advance_one_block(InputStream &stream) {
   const auto block_size = ReadValueBE<uint32_t>(stream);
   // skipping the rest of the block
-  stream.Skip(block_size - sizeof(block_size));  
+  stream.Skip(block_size - sizeof(block_size));
 }
 
 }  // namespace
@@ -45,7 +45,7 @@ ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
   // block type (jp_header_type)
   // image block size
   // image block type  (jp_im_header_type)
-  stream->Skip<std::array<uint32_t, 4>>();  
+  stream->Skip<std::array<uint32_t, 4>>();
 
   const int h = ReadValueBE<uint32_t>(*stream);
   const int w = ReadValueBE<uint32_t>(*stream);
@@ -62,7 +62,7 @@ bool Jpeg2000Parser::CanParse(ImageSource *encoded) const {
     return false;
 
   MemInputStream stream(header, sizeof(header));
-  stream.Skip<uint32_t>(); // block size
+  stream.Skip<uint32_t>();  // block size
   return stream.ReadOne<block_type_t>() == jp2_sig_type;
 }
 

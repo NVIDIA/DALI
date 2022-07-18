@@ -51,8 +51,8 @@ class Jpeg2000ParserTest : public ::testing::Test {
 TEST_F(Jpeg2000ParserTest, ValidRGB) {
   TestValidImage("0/cat-1046544_640-16bit.jp2", {475, 640, 3});
   TestValidImage("0/cat-1046544_640.jp2", {475, 640, 3});
-  TestValidImage("1/cat-3449999_640.jp2", {426, 640, 3}); 
-  TestValidImage("2/tiled-cat-3113513_640.jp2", {299, 640, 3}); 
+  TestValidImage("1/cat-3449999_640.jp2", {426, 640, 3});
+  TestValidImage("2/tiled-cat-3113513_640.jp2", {299, 640, 3});
 }
 
 TEST_F(Jpeg2000ParserTest, UnexpectedEnd) {
@@ -65,6 +65,6 @@ TEST_F(Jpeg2000ParserTest, InvalidType) {
   TestInvalidImageData({0, 0, 0, 8, 'j', 'p', ' ', ' '});
 }
 
-}
-}
-}
+}  // namespace test
+}  // namespace imgcodec
+}  // namespace dali
