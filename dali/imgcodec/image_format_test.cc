@@ -77,8 +77,11 @@ class ImageFormatTest : public ::testing::Test {
   std::vector<char> data_;
 };
 
+
+// @brief Base class for tests comparing imgcodec with some other implementation
 class ComparisonTestBase : public ImageFormatTest {
  protected:
+  /// @brief This method should return shape from the other implementation
   virtual TensorShape<> ShapeOf(const std::string &filenames) const = 0;
 
   void Run(const std::string &filename, std::string expected_format) {
@@ -107,6 +110,12 @@ class ComparisonTestBase : public ImageFormatTest {
   }
 };
 
+/**
+ * @brief Compares imgcodec's parser with the old parsers
+ *
+ * Compares shapes returned by imgcodec's GetInfo with those returned by PeekShape 
+ * from the old implementation.
+ */
 class CompatibilityTest : public ComparisonTestBase {
  protected:
   TensorShape<> ShapeOf(const std::string &filename) const {
