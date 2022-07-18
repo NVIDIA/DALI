@@ -19,6 +19,9 @@
 #include <boost/preprocessor/variadic/to_seq.hpp>
 #include <type_traits>
 #include <cstring>
+#include <array>
+#include <tuple>
+#include <utility>
 
 namespace dali {
 
@@ -37,6 +40,51 @@ struct swap_endian_impl {
   }
 };
 
+constexpr struct swap_endian_cpo {
+  template <typename T>
+  void operator()(T &t) const {
+    swap_endian_impl<T>::do_swap(t);
+  }
+} swap_endian;
+
+template <typename T, size_t N>
+struct swap_endian_impl<T[N]> {
+  static void do_swap(T a[N]) {
+    for (size_t i = 0; i < N; i++)
+      swap_endian(a[i]);
+  }
+};
+
+template <typename T, size_t N>
+struct swap_endian_impl<std::array<T, N>> {
+  static void do_swap(std::array<T, N> &a) {
+    for (size_t i = 0; i < N; i++)
+      swap_endian(a[i]);
+  }
+};
+
+template <typename T, typename U>
+struct swap_endian_impl<std::pair<T, U>> {
+  static void do_swap(std::pair<T, U> &p) {
+    swap_endian(p.first);
+    swap_endian(p.second);
+  }
+};
+
+template <typename... T>
+struct swap_endian_impl<std::tuple<T...>> {
+  static void do_swap(std::tuple<T...> &t) {
+    do_swap(t, std::integral_constant<size_t, 0>());
+  }
+  template <size_t idx>
+  static void do_swap(std::tuple<T...> &t, std::integral_constant<size_t, idx>) {
+    swap_endian(std::get<idx>(t));
+    do_swap(t, std::integral_constant<size_t, idx+1>());
+  }
+  static void do_swap(std::tuple<T...> &t, std::integral_constant<size_t, sizeof...(T)>) {
+  }
+};
+
 #if ('ABCD' == 0x41424344UL)
 static constexpr bool is_little_endian = true;
 static constexpr bool is_big_endian = false;
@@ -46,11 +94,6 @@ static constexpr bool is_big_endian = true;
 #else
 #error "Cannot establish endianness of the target system."
 #endif
-
-template <typename T>
-void swap_endian(T &t) {
-  swap_endian_impl<T>::do_swap(t);
-}
 
 #define DALI_SWAP_FIELD_ENDIANNESS(unused, unused2, field) swap_endian(s.field);
 

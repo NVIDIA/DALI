@@ -41,25 +41,43 @@ struct Inner {
 
 struct Outer {
   Inner inner;
-  int z;
+  int a[2];
+  std::array<int, 2> b;
 };
 
 }  // namespace
 
 SWAP_ENDIAN_FIELDS(Inner, x, y);
 
-SWAP_ENDIAN_FIELDS(Outer, inner, z);
+SWAP_ENDIAN_FIELDS(Outer, inner, a, b);
 
 
 TEST(EndianUtilTest, Struct) {
-  Outer o = { { 0xab12_i16, 0xcd34_i16 }, static_cast<int>(0xab01cd23) };
+  Outer o = { { 0xab12_i16, 0xcd34_i16 },
+              { static_cast<int>(0xab01cd23), 0x01237654 },
+              { static_cast<int>(0xab01cd23), 0x01237654 } };
   if (is_little_endian)
     from_big_endian(o);
   else
     from_little_endian(o);
   EXPECT_EQ(o.inner.x, 0x12ab);
   EXPECT_EQ(o.inner.y, 0x34cd);
-  EXPECT_EQ(o.z, 0x23cd01ab);
+  EXPECT_EQ(o.a[0], 0x23cd01ab);
+  EXPECT_EQ(o.a[1], 0x54762301);
+  EXPECT_EQ(o.b[0], 0x23cd01ab);
+  EXPECT_EQ(o.b[1], 0x54762301);
+}
+
+TEST(EndianUtilTest, Pair) {
+  std::pair<uint32_t, uint16_t> p = { 0x01237654, 0x1234 };
+  swap_endian(p);
+  EXPECT_EQ(p, (std::pair<uint32_t, uint16_t>(0x54762301, 0x3412)));
+}
+
+TEST(EndianUtilTest, Tuple) {
+  std::tuple<uint32_t, uint16_t, char> p = { 0x01237654, 0x1234, 'c' };
+  swap_endian(p);
+  EXPECT_EQ(p, (std::tuple<uint32_t, uint16_t, char>(0x54762301, 0x3412, 'c')));
 }
 
 }  // namespace dali
