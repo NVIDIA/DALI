@@ -60,9 +60,10 @@ class DocEntry:
 
 
 class OpReference:
-    def __init__(self, operator, docstring):
+    def __init__(self, operator, docstring, order=None):
         self.operator = operator
         self.docstring = docstring
+        self.order = 1000000 if order is None else order
 
 
 def doc(title, underline_char=None, options=":maxdepth: 2", entries=[]):
@@ -111,7 +112,7 @@ def doc_entry(name, operator_refs=None):
     return DocEntry(name, operator_refs)
 
 
-def op_reference(operator, docstring):
+def op_reference(operator, docstring, order=None):
     """Add a reference from operator to this notebook with specified docstring.
 
     Parameters
@@ -120,8 +121,10 @@ def op_reference(operator, docstring):
         Name of operator without nvidia.dali prefix, for example fn.resize or fn.gaussian_blur
     docstring : str
         Text that would appear in the see also block for given link.
+    order : int, optional
+        The order in which this entry should appear - lower values appear on top
     """
-    return OpReference(operator, docstring)
+    return OpReference(operator, docstring, order)
 
 
 def _obtain_doc(py_file):
@@ -140,7 +143,7 @@ def _collect_references(base_path, entry_name, operator_refs, result_dict):
             result_dict[op_ref.operator] = []
 
         result_dict[op_ref.operator].append(
-            (op_ref.docstring, str((base_path / entry_name).with_suffix(".html"))))
+            (op_ref.docstring, str((base_path / entry_name).with_suffix(".html")), op_ref))
 
 
 def _document_examples(path, result_dict={}):
@@ -184,4 +187,9 @@ def document_examples(path):
     Dict
         Mapping from fn.operator or fn.module to list of example references
     """
-    return _document_examples(path)
+    dict = _document_examples(path)
+    for key in dict:
+        entries = sorted(dict[key], key=lambda entry: entry[2].order)
+        dict[key] = [(str, url) for (str, url, _) in entries]
+    return dict
+
