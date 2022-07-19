@@ -19,10 +19,14 @@ namespace dali {
 namespace imgcodec {
 
 using jpeg_marker_t = std::array<uint8_t, 2>;
+using jpeg_exif_header_t = std::array<uint8_t, 6>;
 
 constexpr jpeg_marker_t sos_marker = {0xff, 0xda};
 constexpr jpeg_marker_t soi_marker = {0xff, 0xd8};
 constexpr jpeg_marker_t eoi_marker = {0xff, 0xd9};
+constexpr jpeg_marker_t app1_marker = {0xff, 0xe1};
+
+constexpr jpeg_exif_header_t exif_header = {'E', 'x', 'i', 'f', 0, 0};
 
 bool IsValidMarker(const jpeg_marker_t &marker) {
   return marker[0] == 0xff && marker[1] != 0x00;
@@ -42,8 +46,8 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
   jpeg_marker_t first_marker = stream->ReadOne<jpeg_marker_t>();
   DALI_ENFORCE(first_marker == soi_marker);
 
-  bool read_shape = false;
-  while (!read_shape) {
+  bool read_shape = false, read_orientation = false;
+  while (!read_shape && !read_orientation) {
     jpeg_marker_t marker;
     marker[0] = stream->ReadOne<uint8_t>();
     // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.1.1.2 Markers
@@ -66,6 +70,12 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
       auto nchannels = stream->ReadOne<uint8_t>();
       info.shape = {height, width, nchannels};
       read_shape = true;
+    } else if (marker == app1_marker) {
+      DALI_ENFORCE(stream->ReadOne<jpeg_exif_header_t>() == exif_header, "Invalid EXIF header");
+      std::vector<uint8_t> exif_block(size - 8);
+      stream->Read(exif_block.data(), size - 8);
+      info.orientation = FromExifData(exif_block.data(), exif_block.size());
+      read_orientation = true;
     }
     stream->SeekRead(next_marker_offset, SEEK_SET);
   }

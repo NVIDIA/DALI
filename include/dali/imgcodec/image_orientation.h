@@ -45,6 +45,8 @@ enum class ExifOrientation : uint16_t {
 
 Orientation FromExifOrientation(ExifOrientation exif_orientation);
 
+Orientation FromExifData(uint8_t *data, size_t size);
+
 }  // namespace imgcodec
 }  // namespace dali
 
