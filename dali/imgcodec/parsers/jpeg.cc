@@ -29,6 +29,8 @@ bool IsValidMarker(const jpeg_marker_t &marker) {
 }
 
 bool IsSofMarker(const jpeg_marker_t &marker) {
+  // According to https://www.w3.org/Graphics/JPEG/itu-t81.pdf table B.1 Marker code assignments
+  // SOF markers are from range 0xFFC0-0xFFCF, excluding 0xFFC4, 0xFFC8 and 0xFFCC.
   if (!IsValidMarker(marker) || marker[1] < 0xc0 || marker[1] > 0xcf) return false;
   return (marker[1] != 0xc4 && marker[1] != 0xc8 && marker[1] != 0xcc);
 }
