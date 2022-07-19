@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "third_party/opencv/exif/exif.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/core/byte_io.h"
 
@@ -74,7 +75,11 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
       DALI_ENFORCE(stream->ReadOne<jpeg_exif_header_t>() == exif_header, "Invalid EXIF header");
       std::vector<uint8_t> exif_block(size - 8);
       stream->Read(exif_block.data(), size - 8);
-      info.orientation = FromExifData(exif_block.data(), exif_block.size());
+      cv::ExifReader reader;
+      if (!reader.parseExif(exif_block.data(), exif_block.size())) 
+        DALI_FAIL("Couldn't parse EXIF data");
+      uint16_t orientation_value = reader.getTag(cv::ORIENTATION).field_u16;
+      info.orientation = FromExifOrientation(static_cast<ExifOrientation>(orientation_value));
       read_orientation = true;
     }
     stream->SeekRead(next_marker_offset, SEEK_SET);

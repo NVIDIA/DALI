@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string>
-
 #include "dali/imgcodec/image_format.h"
-#include "third_party/opencv/exif/exif.h"
+#include <string>
 
 namespace dali {
 namespace imgcodec {
@@ -41,16 +39,6 @@ Orientation FromExifOrientation(ExifOrientation exif_orientation) {
     default:
       DALI_FAIL("Couldn't read image orientation.");
   }
-}
-
-Orientation FromExifData(uint8_t *data, size_t size) {
-  cv::ExifReader reader;
-  if (!reader.parseExif(data, size))
-    DALI_FAIL("Couldn't parse EXIF data");
-  const auto orientation_value = reader.getTag(cv::ORIENTATION).field_u16;
-  std::cerr << "Orientation is " << std::hex << orientation_value << std::endl;
-  const auto exif_orientation = static_cast<ExifOrientation>(orientation_value);
-  return FromExifOrientation(exif_orientation);
 }
 
 }  // namespace imgcodec
