@@ -239,13 +239,14 @@ class DLL_PUBLIC TensorVector {
    */
   void SetSize(int new_size);
 
-  /**
-   * @name Setup all the batch properties of this TensorVector the same way as the provided tensor:
+   /** @defgroup SetupLikeFunctions Cloning setup functions.
+   *
+   * Setup all the batch properties of this TensorVector the same way as the provided tensor:
    *
    * Precondition: the TensorVector should not have data.
    * Configures: type, layout, pinned, order and dimensionality.
+   * @{
    */
-  // @{
   void SetupLike(const Tensor<Backend> &sample) {
     SetupLikeImpl(sample);
   }
@@ -257,14 +258,25 @@ class DLL_PUBLIC TensorVector {
   void SetupLike(const TensorList<Backend> &other) {
     SetupLikeImpl(other);
   }
-  // @}
+  /** @} */  // end of SetupLikeFunctions
 
+  /** @defgroup SetTypeFunctions Type setting functions.
+   *
+   * Set the type of the current batch. The type needs to be set before calling
+   * the Resize(shape) function. It cannot be used to change the type after allocation happened.
+   *
+   * Resize(shape, new_type) can be used without prior set_type call or to request a different type
+   * after allocation.
+   * @{
+   */
   void set_type(DALIDataType new_type);
 
   template <typename T>
   void set_type() {
     set_type(TypeTable::GetTypeId<T>());
   }
+  /** @} */  // end of SetTypeFunctions
+
 
   DALIDataType type() const;
 
