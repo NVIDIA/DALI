@@ -78,9 +78,11 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
       cv::ExifReader reader;
       if (!reader.parseExif(exif_block.data(), exif_block.size())) 
         DALI_FAIL("Couldn't parse EXIF data");
-      uint16_t orientation_value = reader.getTag(cv::ORIENTATION).field_u16;
-      info.orientation = FromExifOrientation(static_cast<ExifOrientation>(orientation_value));
-      read_orientation = true;
+      auto entry = reader.getTag(cv::ORIENTATION);
+      if (entry.tag != cv::INVALID_TAG) {
+        info.orientation = FromExifOrientation(static_cast<ExifOrientation>(entry.field_u16));
+        read_orientation = true;
+      }
     }
     stream->SeekRead(next_marker_offset, SEEK_SET);
   }
