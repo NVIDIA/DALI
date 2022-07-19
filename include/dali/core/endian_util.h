@@ -168,6 +168,8 @@ void swap_endian_impl<_Struct>::do_swap(_Struct &s) {\
 /**
  * @brief Converts (in place) the object to little endian
  *
+ * Converts a structure that is stored in host order to little-endian order,
+ * e.g. for writing it to a file.
  * If the host system is little endian, this function is a no-op.
  */
 template <typename T>
@@ -179,6 +181,8 @@ void to_little_endian(T &t) {
 /**
  * @brief Converts (in place) the object from little endian
  *
+ * Converts a structure that is stored in little-endian order, e.g. read
+ * from a file, to host order.
  * If the host system is little endian, this function is a no-op.
  */
 template <typename T>
@@ -190,6 +194,8 @@ void from_little_endian(T &t) {
 /**
  * @brief Converts (in place) the object to big endian
  *
+ * Converts a structure that is stored in host order to big-endian order,
+ * e.g. for writing it to a file.
  * If the host system is big endian, this function is a no-op.
  */
 template <typename T>
@@ -201,6 +207,8 @@ void to_big_endian(T &t) {
 /**
  * @brief Converts (in place) the object from big endian
  *
+ * Converts a structure that is stored in big-endian order, e.g. read
+ * from a file, to host order.
  * If the host system is big endian, this function is a no-op.
  */
 template <typename T>
