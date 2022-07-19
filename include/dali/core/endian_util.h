@@ -98,6 +98,10 @@ struct swap_endian_impl<std::tuple<T...>> {
   }
 };
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmultichar"
+#endif
 #if ('ABCD' == 0x41424344UL)
 /// @brief The host machine is little-endian
 static constexpr bool is_little_endian = true;
@@ -110,6 +114,9 @@ static constexpr bool is_little_endian = false;
 static constexpr bool is_big_endian = true;
 #else
 #error "Cannot establish endianness of the target system."
+#endif
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
 #endif
 
 #define DALI_SWAP_FIELD_ENDIANNESS(unused, unused2, field) swap_endian(s.field);
