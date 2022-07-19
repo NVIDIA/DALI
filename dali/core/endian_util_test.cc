@@ -45,11 +45,11 @@ struct Outer {
   std::array<int, 2> b;
 };
 
-}  // namespace
-
 SWAP_ENDIAN_FIELDS(Inner, x, y);
 
 SWAP_ENDIAN_FIELDS(Outer, inner, a, b);
+
+}  // namespace
 
 
 TEST(EndianUtilTest, Struct) {
