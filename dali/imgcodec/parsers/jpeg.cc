@@ -48,7 +48,7 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
   DALI_ENFORCE(first_marker == soi_marker);
 
   bool read_shape = false, read_orientation = false;
-  while (!read_shape && !read_orientation) {
+  while (!read_shape || !read_orientation) {
     jpeg_marker_t marker;
     marker[0] = stream->ReadOne<uint8_t>();
     // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.1.1.2 Markers
