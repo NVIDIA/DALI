@@ -46,15 +46,16 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
   while (!read_shape) {
     jpeg_marker_t marker;
     marker[0] = stream->ReadOne<uint8_t>();
-    DALI_ENFORCE(marker[0] == 0xff, make_string("A valid marker must start with 0xFF"));
+    DALI_ENFORCE(marker[0] == 0xff, "A valid marker must start with 0xFF");
     // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.1.1.2 Markers
     // Any marker may optionally be preceded by any number of fill bytes, 
-    // which are bytes assigned code X’FF’
+    // which are bytes assigned code '\xFF'
     do {
       marker[1] = stream->ReadOne<uint8_t>();
     } while (marker[1] == 0xff);
-    DALI_ENFORCE(IsValidMarker(marker), make_string("Invalid marker"));
-    if (marker == sos_marker) break;
+    DALI_ENFORCE(IsValidMarker(marker), "Invalid marker");
+    if (marker == sos_marker) 
+      break;
 
     uint16_t size = ReadValueBE<uint16_t>(*stream);
     ptrdiff_t next_marker_offset = stream->TellRead() - 2 + size;
@@ -69,7 +70,7 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
     stream->SeekRead(next_marker_offset, SEEK_SET);
   }
   if (!read_shape)
-    DALI_FAIL("Couldn't read dims of JPEG image.");
+    DALI_FAIL(make_string("Couldn't read the dimensions of JPEG image: ", encoded->SourceInfo()));
   return info;
 }
 
