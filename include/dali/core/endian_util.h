@@ -15,6 +15,9 @@
 #ifndef DALI_CORE_ENDIAN_UTIL_H_
 #define DALI_CORE_ENDIAN_UTIL_H_
 
+#ifdef __linux__
+#include <endian.h>
+#endif
 #include <boost/preprocessor/seq/for_each.hpp>
 #include <boost/preprocessor/variadic/to_seq.hpp>
 #include <type_traits>
@@ -98,6 +101,21 @@ struct swap_endian_impl<std::tuple<T...>> {
   }
 };
 
+#ifdef __linux__
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+/// @brief The host machine is little-endian
+static constexpr bool is_little_endian = true;
+/// @brief The host machine is big endian
+static constexpr bool is_big_endian = false;
+#elif __BYTE_ORDER == __BIG_ENDIAN
+/// @brief The host machine is little-endian
+static constexpr bool is_little_endian = false;
+/// @brief The host machine is big endian
+static constexpr bool is_big_endian = true;
+#else
+#error "Cannot establish endianness of the target system."
+#endif
+#else
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmultichar"
@@ -117,6 +135,7 @@ static constexpr bool is_big_endian = true;
 #endif
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 #endif
 
 #define DALI_SWAP_FIELD_ENDIANNESS(unused, unused2, field) swap_endian(s.field);
