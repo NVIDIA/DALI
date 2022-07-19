@@ -618,6 +618,8 @@ TYPED_TEST(TensorTest, TestTypeChangeError) {
   Tensor<TypeParam> tensor;
   TensorShape<> shape = { 200, 300, 3 };
 
+  tensor.set_type(DALI_UINT8);
+  tensor.set_type(DALI_FLOAT);
   tensor.set_type(DALI_INT32);
   tensor.Resize(shape);
   ASSERT_NE(tensor.template mutable_data<int32_t>(), nullptr);

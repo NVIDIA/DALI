@@ -320,7 +320,7 @@ class DLL_PUBLIC Buffer {
    */
   inline void set_type(const DALIDataType new_type_id) {
     DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
-    DALI_ENFORCE(type_.id() == new_type_id || !has_data(),
+    DALI_ENFORCE(type_.id() == new_type_id || (!has_data() || type_.id() == DALI_NO_TYPE),
                  make_string("set_type cannot be used to change the current type - it is not "
                              "allowed to cause allocations. Currently set type: '",
                              type_.id(), "' trying to set: '", new_type_id,

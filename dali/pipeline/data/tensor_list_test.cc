@@ -446,6 +446,8 @@ TYPED_TEST(TensorListTest, TestTypeChangeError) {
   TensorList<TypeParam> tensor_list;
   auto shape = this->GetRandShape();
 
+  tensor_list.set_type(DALI_UINT8);
+  tensor_list.set_type(DALI_FLOAT);
   tensor_list.set_type(DALI_INT32);
   tensor_list.Resize(shape);
   ASSERT_NE(tensor_list.template mutable_tensor<int32_t>(0), nullptr);
