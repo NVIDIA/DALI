@@ -29,12 +29,9 @@ class WebpParserTest : public ::testing::Test {
   const std::string webp_directory_ = testing::dali_extra_path() + "/db/single/webp/";
 
  public:
-  WebpParserTest() {}
-
   std::vector<uint8_t> ReadFile(const std::string &filename) {
     std::ifstream stream(webp_directory_ + filename, std::ios::binary);
-    return std::vector<uint8_t>(std::istreambuf_iterator<char>(stream),
-                                std::istreambuf_iterator<char>());
+    return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
   }
 
   void TestInvalidImageData(const std::vector<uint8_t> &data) {
