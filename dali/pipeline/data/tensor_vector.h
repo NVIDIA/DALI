@@ -95,6 +95,16 @@ class DLL_PUBLIC TensorVector {
     return curr_num_tensors_;
   }
 
+  /**
+   * @brief Number of elements in Tensor List.
+   *
+   * Note: The usage of this member function is intended to be reworked in following updates.
+   * For this purpose the name is distinct so we can easily search and replace.
+   */
+  int64_t _num_elements() const {
+    return shape().num_elements();
+  }
+
   void set_sample_dim(int sample_dim);
 
   int sample_dim() const {
@@ -117,10 +127,14 @@ class DLL_PUBLIC TensorVector {
    */
   std::vector<size_t> _chunks_capacity() const;
 
-  const TensorListShape<> &shape() const;
+  const TensorListShape<> &shape() const &;
 
-  const TensorShape<> &tensor_shape(int idx) const {
+  const TensorShape<> &tensor_shape(int idx) const & {
     return tensors_[idx].shape();
+  }
+
+  inline span<const int64_t> tensor_shape_span(int idx) const & {
+    return shape_.tensor_shape_span(idx);
   }
 
   /**
@@ -609,22 +623,21 @@ class DLL_PUBLIC TensorVector {
 
   /**
    * @brief Return an un-typed pointer to the underlying storage.
-   * The TensorVector must be either empty or have a valid type and be contiguous.
+   * The TensorList must be either empty or have a valid type and be contiguous.
    */
-  friend void *unsafe_raw_mutable_data(TensorVector<Backend> &tv) {
-    DALI_ENFORCE(tv.IsContiguous(), "Data pointer can be obtain only for contiguous TensorVector.");
-    return tv.contiguous_buffer_.get_data_ptr().get();
+  friend void *unsafe_raw_mutable_data(TensorVector<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
+    return batch.contiguous_buffer_.raw_mutable_data();
   }
 
   /**
    * @brief Return an un-typed const pointer to the underlying storage.
    * The TensorVector must be either empty or have a valid type and be contiguous.
    */
-  friend const void *unsafe_raw_data(const TensorVector<Backend> &tv) {
-    DALI_ENFORCE(tv.IsContiguous(), "Data pointer can be obtain only for contiguous TensorVector.");
-    return tv.contiguous_buffer_.get_data_ptr().get();
+  friend const void *unsafe_raw_data(const TensorVector<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
+    return batch.contiguous_buffer_.raw_data();
   }
-
 
   /**
    * @brief Return the shared pointer, that we can use to correctly share the ownership of sample

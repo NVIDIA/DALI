@@ -18,6 +18,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 #include "dali/core/access_order.h"
 #include "dali/core/common.h"
