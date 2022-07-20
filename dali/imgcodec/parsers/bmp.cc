@@ -147,7 +147,9 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   }
 
   // sanity check
-  assert(palette_start == 0 || palette_start + (ncolors * palette_entry_size) <= length);
+  if (palette_start != 0) {  // this silences a warning about unused variable
+    assert(palette_start + (ncolors * palette_entry_size) <= length);
+  }
 
   c = number_of_channels(stream.get(), bpp, compression_type, ncolors, palette_entry_size);
 
