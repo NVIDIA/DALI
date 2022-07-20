@@ -124,7 +124,7 @@ std::optional<TensorShape<>> scan_imagemagick_shape(FILE *pipe) {
   int w, h, c;
   char tmp[16];
   std::string colors;
-  if (fscanf(pipe, "%d %d %16s", &w, &h, tmp) != 3) return {};
+  if (fscanf(pipe, "%d %d %15s", &w, &h, tmp) != 3) return {};
   colors = tmp;
 
   if (colors == "srgb" || colors == "rgb") {
