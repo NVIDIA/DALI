@@ -195,49 +195,75 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         return handle.value
 
     def _get_run_fn_cpu(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, batch_processing):
-        out0_lambda, out1_lambda, out2_lambda, out3_lambda, out4_lambda, out5_lambda = self._get_carrays_eval_lambda(out_types, outs_ndim)
-        in0_lambda, in1_lambda, in2_lambda, in3_lambda, in4_lambda, in5_lambda = self._get_carrays_eval_lambda(in_types, ins_ndim)
+        out0_lambda, out1_lambda, out2_lambda, out3_lambda, out4_lambda, out5_lambda = \
+            self._get_carrays_eval_lambda(out_types, outs_ndim)
+        in0_lambda, in1_lambda, in2_lambda, in3_lambda, in4_lambda, in5_lambda = \
+            self._get_carrays_eval_lambda(in_types, ins_ndim)
         run_fn = njit(run_fn)
         run_fn_lambda = self._get_run_fn_lambda(len(out_types), len(in_types))
         if batch_processing:
             @cfunc(self._run_fn_sig(batch_processing=True), nopython=True)
-            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
+            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs,
+                          in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins,
+                          num_samples):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
-                out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
-                out_arr = carray(address_as_void_pointer(out_ptr), (num_outs, num_samples), dtype=np.int64)
+                out_shapes_np = _get_shape_view(out_shapes_ptr,
+                                                out_ndims_ptr,
+                                                num_outs,
+                                                num_samples)
+                out_arr = carray(address_as_void_pointer(out_ptr),
+                                 (num_outs, num_samples),
+                                 dtype=np.int64)
                 if num_outs >= 1:
-                    out0 = [out0_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[0], out_shapes_np[0])]
+                    out0 = [out0_lambda(address_as_void_pointer(ptr), shape)
+                            for ptr, shape in zip(out_arr[0], out_shapes_np[0])]
                 if num_outs >= 2:
-                    out1 = [out1_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[1], out_shapes_np[1])]
+                    out1 = [out1_lambda(address_as_void_pointer(ptr), shape)
+                            for ptr, shape in zip(out_arr[1], out_shapes_np[1])]
                 if num_outs >= 3:
-                    out2 = [out2_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[2], out_shapes_np[2])]
+                    out2 = [out2_lambda(address_as_void_pointer(ptr), shape)
+                            for ptr, shape in zip(out_arr[2], out_shapes_np[2])]
                 if num_outs >= 4:
-                    out3 = [out3_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[3], out_shapes_np[3])]
+                    out3 = [out3_lambda(address_as_void_pointer(ptr), shape)
+                            for ptr, shape in zip(out_arr[3], out_shapes_np[3])]
                 if num_outs >= 5:
-                    out4 = [out4_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[4], out_shapes_np[4])]
+                    out4 = [out4_lambda(address_as_void_pointer(ptr), shape)
+                            for ptr, shape in zip(out_arr[4], out_shapes_np[4])]
                 if num_outs >= 6:
-                    out5 = [out5_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[5], out_shapes_np[5])]
+                    out5 = [out5_lambda(address_as_void_pointer(ptr), shape)
+                            for ptr, shape in zip(out_arr[5], out_shapes_np[5])]
 
                 in0 = in1 = in2 = in3 = in4 = in5 = None
                 in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr, num_ins, num_samples)
-                in_arr = carray(address_as_void_pointer(in_ptr), (num_ins, num_samples), dtype=np.int64)
+                in_arr = carray(address_as_void_pointer(in_ptr),
+                                (num_ins, num_samples),
+                                dtype=np.int64)
                 if num_ins >= 1:
-                    in0 = [in0_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[0], in_shapes_np[0])]
+                    in0 = [in0_lambda(address_as_void_pointer(ptr), shape)
+                           for ptr, shape in zip(in_arr[0], in_shapes_np[0])]
                 if num_ins >= 2:
-                    in1 = [in1_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[1], in_shapes_np[1])]
+                    in1 = [in1_lambda(address_as_void_pointer(ptr), shape)
+                           for ptr, shape in zip(in_arr[1], in_shapes_np[1])]
                 if num_ins >= 3:
-                    in2 = [in2_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[2], in_shapes_np[2])]
+                    in2 = [in2_lambda(address_as_void_pointer(ptr), shape)
+                           for ptr, shape in zip(in_arr[2], in_shapes_np[2])]
                 if num_ins >= 4:
-                    in3 = [in3_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[3], in_shapes_np[3])]
+                    in3 = [in3_lambda(address_as_void_pointer(ptr), shape)
+                           for ptr, shape in zip(in_arr[3], in_shapes_np[3])]
                 if num_ins >= 5:
-                    in4 = [in4_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[4], in_shapes_np[4])]
+                    in4 = [in4_lambda(address_as_void_pointer(ptr), shape)
+                           for ptr, shape in zip(in_arr[4], in_shapes_np[4])]
                 if num_ins >= 6:
-                    in5 = [in5_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[5], in_shapes_np[5])]
+                    in5 = [in5_lambda(address_as_void_pointer(ptr), shape)
+                           for ptr, shape in zip(in_arr[5], in_shapes_np[5])]
 
-                run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
+                run_fn_lambda(run_fn,
+                              out0, out1, out2, out3, out4, out5,
+                              in0, in1, in2, in3, in4, in5)
         else:
             @cfunc(self._run_fn_sig(batch_processing=False), nopython=True)
-            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins):
+            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs,
+                          in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, 1)
                 out_arr = carray(address_as_void_pointer(out_ptr), num_outs, dtype=np.int64)
@@ -270,7 +296,9 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                 if num_ins >= 6:
                     in5 = in5_lambda(address_as_void_pointer(in_arr[5]), in_shapes_np[5][0])
 
-                run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
+                run_fn_lambda(run_fn,
+                              out0, out1, out2, out3, out4, out5,
+                              in0, in1, in2, in3, in4, in5)
         return run_cfunc.address
 
     def __call__(self, *inputs, **kwargs):
