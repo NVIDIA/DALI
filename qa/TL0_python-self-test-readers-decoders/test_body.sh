@@ -18,9 +18,9 @@ test_py_with_framework() {
         ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
     done
 
-    ${python_new_invoke_test} reader
-    ${python_new_invoke_test} decoder
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' external_source
+    ${python_new_invoke_test} -s reader
+    ${python_new_invoke_test} -s decoder
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s external_source 
 }
 
 test_no_fw() {
