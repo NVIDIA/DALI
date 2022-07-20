@@ -553,7 +553,7 @@ std::vector<size_t> TensorVector<Backend>::_chunks_capacity() const {
 
 
 template <typename Backend>
-const TensorListShape<> &TensorVector<Backend>::shape() const {
+const TensorListShape<> &TensorVector<Backend>::shape() const & {
   return shape_;
 }
 

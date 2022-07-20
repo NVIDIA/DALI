@@ -14,10 +14,11 @@
 
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <numeric>
+#include <type_traits>
 
 #include "dali/core/access_order.h"
 #include "dali/core/common.h"
