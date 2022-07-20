@@ -24,9 +24,6 @@ namespace imgcodec {
 
 namespace {
 
-// Chunk specification:
-// https://developers.google.com/speed/webp/docs/riff_container#riff_file_format
-//
 // Header layout:
 // RiffHeader | ChunkHeader | <WebpLossyHeader/WebpLosslessHeader>
 //
@@ -46,6 +43,11 @@ static_assert(sizeof(RiffHeader) == 12);
 
 using chunk_identifier_t = std::array<uint8_t, 4>;
 
+// The structures must be packed for reading them to work
+#pragma pack(push, 1) 
+
+// Chunk specification:
+// https://developers.google.com/speed/webp/docs/riff_container#riff_file_format
 struct ChunkHeader {
   chunk_identifier_t identifier;
   uint32_t chunk_size;
@@ -55,25 +57,40 @@ static_assert(sizeof(ChunkHeader) == 8);
 // Simple file format (lossy)
 // https://datatracker.ietf.org/doc/html/rfc6386#section-9.1
 struct WebpLossyHeader {
-<<<<<<< HEAD
-  uint32_t chunk_size;
-=======
->>>>>>> 6a1a5fd2 (Added parsing EXIF)
   std::array<uint8_t, 3> frame_tag;
   std::array<uint8_t, 3> sync_code;
+  uint16_t width;
+  uint16_t height;
 };
-static_assert(sizeof(WebpLossyHeader) == 6);
+static_assert(sizeof(WebpLossyHeader) == 10);
 
 // Simple file format (lossless)
 // https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification#2_riff_header
 struct WebpLosslessHeader {
-<<<<<<< HEAD
-  uint32_t chunk_size;
-=======
->>>>>>> 6a1a5fd2 (Added parsing EXIF)
   uint8_t signature_byte;
+  uint32_t features;
 };
-static_assert(sizeof(WebpLosslessHeader) == 1);
+static_assert(sizeof(WebpLosslessHeader) == 5);
+
+// Extended file format
+// https://developers.google.com/speed/webp/docs/riff_container#extended_file_format
+struct WebpExtendedHeader {
+  uint8_t layout_mask;
+  std::array<uint8_t, 3> reserved;
+  std::array<uint8_t, 3> width;
+  std::array<uint8_t, 3> height;
+};
+static_assert(sizeof(WebpExtendedHeader) == 10);
+
+#pragma pack(pop) // end of packing scope
+
+// Specific bits in WebpExtendedHeader::layout_mask
+const uint8_t EXTENDED_LAYOUT_RESERVED = 1 << 0;
+const uint8_t EXTENDED_LAYOUT_ANIMATION = 1 << 1;
+const uint8_t EXTENDED_LAYOUT_XMP_METADATA = 1 << 2;
+const uint8_t EXTENDED_LAYOUT_EXIF_METADATA = 1 << 3;
+const uint8_t EXTENDED_LAYOUT_ALPHA = 1 << 4;
+const uint8_t EXTENDED_LAYOUT_ICC_PROFILE = 1 << 5;
 
 #pragma pack(pop)  // end of packing scope
 
@@ -88,29 +105,16 @@ bool is_valid_riff_header(const RiffHeader &header) {
   return header.riff_text == tag("RIFF") && header.webp_text == tag("WEBP");
 }
 
-<<<<<<< HEAD
-bool is_simple_lossy_format(const vp8_header_t &header) {
-  return header == tag("VP8 ");
-}
-
-bool is_simple_lossless_format(const vp8_header_t &header) {
-  return header == tag("VP8L");
-}
-
-bool is_extended_format(const vp8_header_t &header) {
-  return header == tag("VP8X");
-=======
 bool is_simple_lossy_format(const ChunkHeader &vp8_header) {
-  return is_pattern_matching(vp8_header.identifier, "VP8 ");
+  return vp8_header.identifier == tag("VP8 ");
 }
 
 bool is_simple_lossless_format(const ChunkHeader &vp8_header) {
-  return is_pattern_matching(vp8_header.identifier, "VP8L");
+  return vp8_header.identifier == tag("VP8L");
 }
 
 bool is_extended_format(const ChunkHeader &vp8_header) {
-  return is_pattern_matching(vp8_header.identifier, "VP8X");
->>>>>>> 6a1a5fd2 (Added parsing EXIF)
+  return vp8_header.identifier == tag("VP8X");
 }
 
 bool is_sync_code_valid(const WebpLossyHeader &header) {
@@ -129,6 +133,33 @@ std::string sequence_of_integers(const std::array<uint8_t, N> &data) {
   return result;
 }
 
+// TODO: unify fetching the EXIF tags from accross the imgcodec parsers
+void fetch_info_from_exif_data(std::vector<uint8_t> &data, ImageInfo &info) {
+  cv::ExifReader reader;
+  reader.parseExif(data.data(), data.size());
+  const auto orientation_value = reader.getTag(cv::ORIENTATION).field_u16;
+  const auto exif_orientation = static_cast<ExifOrientation>(orientation_value);
+  info.orientation = FromExifOrientation(exif_orientation);
+}
+
+// Iterate over the chunks seeking the EXIF chunk
+// InputStream must be at the start of a chunk
+void seek_exif_data(InputStream &stream, ImageInfo &info) {
+  while (true) {
+    const auto header = stream.ReadOne<ChunkHeader>();
+    if (header.identifier == tag("EXIF")) {
+      // Parse the chunk data into the orientation
+      std::vector<uint8_t> buffer(header.chunk_size);
+      stream.ReadBytes(buffer.data(), buffer.size());
+      fetch_info_from_exif_data(buffer, info);
+      break;
+    } else {
+      // Skip the rest of the chunk
+      stream.Skip(header.chunk_size);
+    }
+  }
+}
+
 }  // namespace
 
 ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
@@ -144,14 +175,12 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
                 sequence_of_integers(lossy_header.sync_code) + " instead");
     }
 
-    const int w = ReadValueLE<uint16_t>(*stream) & 0x3FFF;
-    const int h = ReadValueLE<uint16_t>(*stream) & 0x3FFF;
+    // only the last 14 bits of the fields code the dimensions
+    const int w = lossy_header.width & 0x3FFF;
+    const int h = lossy_header.height & 0x3FFF;
 
     // VP8 always uses RGB
     info.shape = {h, w, 3};
-
-    // Skip the rest of the chunk
-    stream->Skip(vp8_header.chunk_size - sizeof(lossy_header) - 2 * sizeof(uint16_t));
   } else if (is_simple_lossless_format(vp8_header)) {
     const auto lossless_header = stream->ReadOne<WebpLosslessHeader>();
     if (!is_sync_code_valid(lossless_header)) {
@@ -159,45 +188,33 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
                   std::to_string(lossless_header.signature_byte) + " instead.");
     }
 
-    // VP8L shape information starts after the sync code
-    const auto features = ReadValueLE<uint32_t>(*stream);
-    const int w = (features & 0x00003FFF) + 1;
-    const int h = ((features & 0x0FFFC000) >> 14) + 1;
-    const int alpha = (features & 0x10000000) >> 28;
+    // VP8L shape information are packed inside the features field
+    const int w = (lossless_header.features & 0x00003FFF) + 1;
+    const int h = ((lossless_header.features & 0x0FFFC000) >> 14) + 1;
+    const int alpha = (lossless_header.features & 0x10000000) >> 28;
 
     // VP8L always uses RGBA
     info.shape = {h, w, 3 + alpha};
-
-    // Skip the rest of the chunk
-    stream->Skip(vp8_header.chunk_size - sizeof(lossless_header) - sizeof(features));
   } else if (is_extended_format(vp8_header)) {
-    DALI_FAIL("WebP extended file format is not supported.");
+    const auto extended_header = stream->ReadOne<WebpExtendedHeader>();
+    const int w = ReadValueLE<uint32_t, 3>(extended_header.width.data()) + 1;
+    const int h = ReadValueLE<uint32_t, 3>(extended_header.height.data()) + 1;
+    const bool alpha = extended_header.layout_mask & EXTENDED_LAYOUT_ALPHA;
+
+    info.shape = {h, w, 3 + alpha};
+
+    if (extended_header.layout_mask & EXTENDED_LAYOUT_EXIF_METADATA) {
+      // Skip the rest of the chunk, so the stream is at the start of a next chunk
+      stream->Skip(vp8_header.chunk_size - sizeof(extended_header));
+      seek_exif_data(*stream, info);
+    }
   } else {
     DALI_FAIL("Unrecognized WebP header: " + sequence_of_integers(vp8_header.identifier));
   }
 
-  // Iterate over the chunk seeking the EXIF chunk
-  while (true) {
-    try {
-      const auto identifier = stream->ReadOne<chunk_identifier_t>();
-      const auto chunk_size = ReadValueLE<uint32_t>(*stream);
-      // Chunk size excluding the header
-      uint32_t data_size = chunk_size - sizeof(identifier) - sizeof(chunk_size);
-
-      if (is_pattern_matching(identifier, "EXIF")) {
-        // Parse the chunk data into the orientation
-        std::vector<uint8_t> buffer(data_size);
-        stream->ReadBytes(buffer.data(), buffer.size());
-        info.orientation = FromExifData(buffer.data(), buffer.size());
-        break;
-      } else {
-        // Skip the rest of the chunk
-        stream->Skip(data_size);
-      }
-    } catch (const EndOfStream&) {
-      break;  // Reading failed, EXIF chunk not found.
-    }
-  }
+  std::cerr << "Orientation: (" << info.orientation.flip_x 
+                        << ", " << info.orientation.flip_y
+                        << ", " << info.orientation.rotate << ")\n";
 
   return info;
 }
@@ -217,6 +234,8 @@ bool WebpParser::CanParse(ImageSource *encoded) const {
     return is_sync_code_valid(stream.ReadOne<WebpLossyHeader>());
   } else if (is_simple_lossless_format(vp8_header)) {
     return is_sync_code_valid(stream.ReadOne<WebpLosslessHeader>());
+  } else if (is_extended_format(vp8_header)) {
+    return true;  // no sync code here
   } else {
     return false;  // other formats are not supported
   }
