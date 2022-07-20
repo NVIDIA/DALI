@@ -250,7 +250,7 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # CXX flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-free-nonheap-object -Wno-unused-variable -Wno-unused-function -fno-strict-aliasing -fPIC -fvisibility=hidden")
 
 if (WERROR)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
@@ -374,7 +374,7 @@ else()
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_gencode_flags_nvcc}")
 endif()
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options -fvisibility=hidden --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options -fvisibility=hidden -Wno-free-nonheap-object --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
 
 # Include directories
 include_directories(
