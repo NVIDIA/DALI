@@ -51,9 +51,9 @@ class DecoderHelper {
     return helper->stream->TellRead();
   }
 
-  static int map(thandle_t handle, const void **base, toff_t *size) {
+  static int map(thandle_t handle, void **base, toff_t *size) {
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
-    *base = helper->buffer;
+    *base = const_cast<void*>(helper->buffer);
     *size = helper->buffer_size;
     return 0;
   }
@@ -75,18 +75,25 @@ TIFF *openTiff(ImageSource *in) {
     return TIFFOpen(in->Filename(), "r");
   } else {
     TIFFMapFileProc mapproc;
-    DecoderHelper helper(in);
     if (in->Kind() == InputKind::HostMemory)
-      mapproc = helper.map;
-
-    return TIFFClientOpen("", "r", )
+      mapproc = &DecoderHelper::map;
+    else
+      mapproc = nullptr;
+    return TIFFClientOpen("", "r", reinterpret_cast<thandle_t>(new DecoderHelper(in)),
+                          &DecoderHelper::read,
+                          &DecoderHelper::write,
+                          &DecoderHelper::seek,
+                          &DecoderHelper::close,
+                          &DecoderHelper::size,
+                          mapproc,
+                          /* unmap */ 0);
   }
 }
 
 DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out,
                                            ImageSource *in,
                                            DecodeParams opts) {
-  if (in->Kind() == InputKind::Filename)
+  TIFF *tiff = openTiff(in);
 }
 
 

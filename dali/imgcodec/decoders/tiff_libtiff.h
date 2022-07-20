@@ -22,10 +22,10 @@
 namespace dali {
 namespace imgcodec {
 
-class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl<TiffDecoderInstance> {
+class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl<LibTiffDecoderInstance> {
  public:
   using Base = BatchParallelDecoderImpl<LibTiffDecoderInstance>;
-  TiffDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
+  LibTiffDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
 
   using Base::Decode;
 
@@ -37,7 +37,7 @@ class LibTiffDecoder : public ImageDecoder {
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
       ImageDecoderProperties props;
-      props.supported_input_kinds = InputKind::DeviceMemory | InputKind::HostMemory 
+      props.supported_input_kinds = InputKind::DeviceMemory | InputKind::HostMemory
                                     | InputKind::Filename;
       props.supports_partial_decoding = false; // TODO(skarpinski)
       props.fallback = true;
