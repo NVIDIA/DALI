@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <utility>
+#include <memory>
 #include <vector>
 
 #include "dali/core/tensor_shape.h"

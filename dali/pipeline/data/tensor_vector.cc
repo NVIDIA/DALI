@@ -511,7 +511,7 @@ void TensorVector<Backend>::set_order(AccessOrder order, bool synchronize) {
   for (auto &t : tensors_)
     t.set_order(order, false);
   order_ = order;
-  // TODO(klecki), TODO(mzient): apparently you can set order with device other than the current
+  // TODO(klecki) TODO(mzient): apparently you can set order with device other than the current
   // device id without changing it
 }
 
