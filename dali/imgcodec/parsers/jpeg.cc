@@ -47,14 +47,14 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
     jpeg_marker_t marker;
     marker[0] = stream->ReadOne<uint8_t>();
     // https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.1.1.2 Markers
-    // Any marker may optionally be preceded by any number of fill bytes, 
+    // Any marker may optionally be preceded by any number of fill bytes,
     // which are bytes assigned code '\xFF'
     do {
       marker[1] = stream->ReadOne<uint8_t>();
     } while (marker[1] == 0xff);
-    DALI_ENFORCE(IsValidMarker(marker), 
+    DALI_ENFORCE(IsValidMarker(marker),
                  make_string("Invalid marker found in JPEG image: ", encoded->SourceInfo()));
-    if (marker == sos_marker) 
+    if (marker == sos_marker)
       break;
 
     uint16_t size = ReadValueBE<uint16_t>(*stream);

@@ -48,8 +48,9 @@ class JpegParserTest : public ::testing::Test {
     return parser_.GetInfo(&src);
   }
 
-  std::vector<uint8_t> replace(const std::vector<uint8_t> &data, const std::vector<uint8_t> &old_value,
-                            const std::vector<uint8_t> &new_value) {
+  std::vector<uint8_t> replace(const std::vector<uint8_t> &data,
+                               const std::vector<uint8_t> &old_value,
+                               const std::vector<uint8_t> &new_value) {
     std::vector<uint8_t> result;
     result.reserve(data.size());
     auto it = data.begin();
@@ -99,7 +100,7 @@ TEST_F(JpegParserTest, NoSof) {
 
 TEST_F(JpegParserTest, Padding) {
   /* https://www.w3.org/Graphics/JPEG/itu-t81.pdf section B.1.1.2 Markers
-   * Any marker may optionally be preceded by any number of fill bytes, 
+   * Any marker may optionally be preceded by any number of fill bytes,
    * which are bytes assigned code X’FF’ */
   auto padded = replace(valid_jpeg_, {0xff, 0xe0}, {0xff, 0xff, 0xff, 0xff, 0xe0});
   padded = replace(padded, {0xff, 0xe1}, {0xff, 0xff, 0xe1});
