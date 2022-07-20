@@ -27,8 +27,9 @@ class QueueMeta(Structure):
 class ShmQueue:
 
     """
-    Simple fixed capacity shared memory queue of fixed size messages. Writting to a full queue fails,
-    attempt to get from an empty queue blocks until data is available or the queue is closed.
+    Simple fixed capacity shared memory queue of fixed size messages.
+    Writting to a full queue fails, attempt to get from an empty queue blocks until data is
+    available or the queue is closed.
     """
 
     MSG_CLASS = ShmMessageDesc
@@ -43,7 +44,8 @@ class ShmQueue:
         self.meta_size = align_up(self.meta.get_size(), self.ALIGN_UP_MSG)
         dummy_msg = self.MSG_CLASS()
         self.msg_size = align_up(dummy_msg.get_size(), self.ALIGN_UP_MSG)
-        self.shm_capacity = align_up(self.meta_size + capacity * self.msg_size, self.ALIGN_UP_BUFFER)
+        self.shm_capacity = align_up(self.meta_size + capacity * self.msg_size,
+                                     self.ALIGN_UP_BUFFER)
         self.shm = shared_mem.SharedMem.allocate(self.shm_capacity)
         self.is_closed = False
         self._init_offsets()
@@ -82,7 +84,8 @@ class ShmQueue:
         num_take = self.meta.size
         if num_samples is not None and num_samples < num_take:
             num_take = num_samples
-        recv = [self._read_msg((self.meta.begining + i) % self.meta.capacity) for i in range(num_take)]
+        recv = [self._read_msg((self.meta.begining + i) % self.meta.capacity)
+                for i in range(num_take)]
         self.meta.size -= num_take
         self.meta.begining = (self.meta.begining + num_take) % self.meta.capacity
         self._write_meta()
@@ -103,7 +106,7 @@ class ShmQueue:
             self.shm = shm
             if close_handle:
                 shm.close_handle()
-        except:
+        except (ValueError, OSError):
             if close_handle:
                 os.close(handle)
             raise
@@ -121,12 +124,12 @@ class ShmQueue:
                 self.meta.is_closed = 1
                 self._write_meta()
                 # Notify only one waiting worker about closing the queue, the woken up worker
-                # will notify the next one. Avoid notify_all at this point, due to possible deadlock if
-                # one of the notified workers exited abruptly when waiting on cv_not_empty without proper releasing
-                # of the underlying semaphore.
+                # will notify the next one. Avoid notify_all at this point, due to possible
+                # deadlock if one of the notified workers exited abruptly when waiting
+                # on cv_not_empty without proper releasing of the underlying semaphore.
                 self.cv_not_empty.notify()
 
-    def put(self, msgs : List[MSG_CLASS]) -> Optional[int]:
+    def put(self, msgs: List[MSG_CLASS]) -> Optional[int]:
         assert len(msgs), "Cannot write an empty list of messages"
         if self.is_closed:
             return
@@ -159,7 +162,7 @@ class ShmQueue:
             The call returns None iff the queue was closed.
         predicate : a parameterless callable
             Used for double-checking if the item should really be taken after waiting on empty queue.
-        """
+        """ # noqa W501
         if self.is_closed:
             return
         with self.cv_not_empty:  # equivalent to `with self.lock`
@@ -179,9 +182,9 @@ class ShmQueue:
 
 class Dispatcher:
 
-    """Wrapper around the queue that enables writing to the queue in a separate thread, just in case
-       a writing process would have to wait too long for a lock on the queue when multiple readers pop
-       items one by one."""
+    """Wrapper around the queue that enables writing to the queue in a separate thread, just in
+       case a writing process would have to wait too long for a lock on the queue when multiple
+       readers pop the items one by one."""
 
     def __init__(self, target_queue, on_thread_exit=None):
         self.pending_cv = threading.Condition()
