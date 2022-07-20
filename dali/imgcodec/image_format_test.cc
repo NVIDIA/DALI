@@ -113,7 +113,7 @@ class ComparisonTestBase : public ImageFormatTest {
 /**
  * @brief Compares imgcodec's parser with the old parsers
  *
- * Compares shapes returned by imgcodec's GetInfo with those returned by PeekShape 
+ * Compares shapes returned by imgcodec's GetInfo with those returned by PeekShape
  * from the old implementation.
  */
 class CompatibilityTest : public ComparisonTestBase {
@@ -202,7 +202,7 @@ TEST_F(CompatibilityTest, Tiff) {
 }
 
 TEST_F(CompatibilityTest, DISABLED_Pnm) {
-  RunOnDirectory(testing::dali_extra_path() + "/db/single/pnm/", "pnm", 
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/pnm/", "pnm",
                  {".pnm", ".ppm", ".pgm", ".pbm"});
 }
 
