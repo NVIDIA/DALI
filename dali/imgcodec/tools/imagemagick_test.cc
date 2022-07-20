@@ -168,7 +168,7 @@ void process(Env &env, std::vector<std::string> filenames) {
         fail(log, filename, "Imgcodec failed to parse");
         continue;
       }
-      
+
       if (*imagemagick_shape == *imgcodec_shape) {
         ok(log, filename);
       } else {
