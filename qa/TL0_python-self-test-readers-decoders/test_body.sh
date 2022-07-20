@@ -20,7 +20,7 @@ test_py_with_framework() {
 
     ${python_new_invoke_test} -s reader
     ${python_new_invoke_test} -s decoder
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s external_source 
+    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s external_source/base
 }
 
 test_no_fw() {
