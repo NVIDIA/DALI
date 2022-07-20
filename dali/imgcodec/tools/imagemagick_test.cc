@@ -16,7 +16,7 @@
 #include <iostream>
 #include <regex>
 #include <thread>
-#include <filesystem>
+#include <experimental/filesystem>
 #include <optional>
 #include <mutex>
 
@@ -34,6 +34,8 @@
 #include "dali/imgcodec/parsers/pnm.h"
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/imgcodec/parsers/webp.h"
+
+namespace fs = std::experimental::filesystem;
 
 namespace dali {
 namespace imgcodec {
@@ -104,13 +106,12 @@ struct Env {
   std::mutex mutex;  // Mutex for synchronizing the output
 };
 
-std::vector<std::string> get_batch(const Env &env,
-                                   std::filesystem::recursive_directory_iterator &it) {
+std::vector<std::string> get_batch(const Env &env, fs::recursive_directory_iterator &it) {
   std::vector<std::string> filenames;
   filenames.reserve(env.batch);
-  while (it != std::filesystem::end(it) && filenames.size() < env.batch) {
+  while (it != fs::end(it) && filenames.size() < env.batch) {
     const auto& entry = *(it++);
-    if (entry.is_regular_file()) {
+    if (is_regular_file(entry.path())) {
       const auto path = entry.path().string();
       if (std::regex_match(path, env.filter))
         filenames.push_back(std::move(path));
@@ -194,15 +195,15 @@ void process(Env &env, std::vector<std::string> filenames) {
 }
 
 void run(Env &env) {
-  if (!std::filesystem::is_directory(env.directory)) {
+  if (!fs::is_directory(env.directory)) {
     process(env, {env.directory});
     return;
   }
 
-  auto directory_it = std::filesystem::recursive_directory_iterator(env.directory);
+  auto directory_it = fs::recursive_directory_iterator(env.directory);
   ThreadPool pool(env.jobs, -1, false, "imagemagick");
 
-  while (directory_it != std::filesystem::end(directory_it)) {
+  while (directory_it != fs::end(directory_it)) {
     auto batch = get_batch(env, directory_it);
     pool.AddWork([=, &env](int tid){
       process(env, batch);
