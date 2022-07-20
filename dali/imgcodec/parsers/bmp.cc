@@ -17,6 +17,7 @@
 #include "dali/core/byte_io.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/endian_util.h"
 
 namespace dali {
 namespace imgcodec {
@@ -74,6 +75,7 @@ struct BitmapCoreHeader {
   uint16_t width, heigth, planes, bpp;
 };
 static_assert(sizeof(BitmapCoreHeader) == 12);
+SWAP_ENDIAN_FIELDS(BitmapCoreHeader, header_size, width, heigth, planes, bpp);
 
 struct BitmapInfoHeader {
   int32_t header_size;
@@ -84,6 +86,13 @@ struct BitmapInfoHeader {
   uint32_t colors_used, colors_important;
 };
 static_assert(sizeof(BitmapInfoHeader) == 40);
+SWAP_ENDIAN_FIELDS(BitmapInfoHeader,
+  header_size,
+  width, heigth,
+  planes, bpp,
+  compression, image_size,
+  x_pixels_per_meter, y_pixels_per_meter,
+  colors_used, colors_important);
 
 ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   auto stream = encoded->Open();
@@ -94,7 +103,7 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
 
   static constexpr int kHeaderStart = 14;
   stream->SeekRead(kHeaderStart);
-  uint32_t header_size = stream->ReadOne<uint32_t>();
+  uint32_t header_size = ReadValueLE<uint32_t>(*stream);
   stream->Skip<uint32_t>(-1);  // we'll read it again - it's part of the header struct
   int64_t h = 0, w = 0, c = 0;
   int bpp = 0, compression_type = BMP_COMPRESSION_RGB;
@@ -105,6 +114,7 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   if (length >= 26 && header_size == 12) {
     BitmapCoreHeader header = {};
     stream->ReadAll(&header, 1);
+    from_little_endian(header);
     w = header.width;
     h = header.heigth;
     bpp = header.bpp;
@@ -116,6 +126,7 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   } else if (length >= 50 && header_size >= 40) {
     BitmapInfoHeader header = {};
     stream->ReadAll(&header, 1);
+    from_little_endian(header);
     w = abs(header.width);
     h = abs(header.heigth);
     bpp = header.bpp;
@@ -126,12 +137,17 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
       palette_entry_size = 4;
       ncolors = ncolors == 0 ? 1_uz << bpp : ncolors;
     }
+  } else {
+    const char *file_info = encoded->SourceInfo()
+                          ? encoded->SourceInfo()
+                          : "a file";
+
+    DALI_FAIL(make_string("Unexpected length of a BMP header ", header_size,
+                          " in ", file_info, " which is ", length, " bytes long."));
   }
 
   // sanity check
-  if (palette_start != 0) {
-    assert(palette_start + (ncolors * palette_entry_size) <= length);
-  }
+  assert(palette_start == 0 || palette_start + (ncolors * palette_entry_size) <= length);
 
   c = number_of_channels(stream.get(), bpp, compression_type, ncolors, palette_entry_size);
 
