@@ -101,7 +101,7 @@ struct Env {
   unsigned batch;
   unsigned jobs;
   ImgcodecTester imgcodec_tester;
-  std::mutex mutex;
+  std::mutex mutex;  // Mutex for synchronizing the output
 };
 
 std::vector<std::string> get_batch(const Env &env,
