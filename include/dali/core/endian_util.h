@@ -28,21 +28,6 @@
 
 namespace dali {
 
-template <typename T>
-struct swap_endian_impl {
-  static void do_swap(T &t) {
-    static_assert(std::is_fundamental<T>::value || std::is_enum<T>::value);
-    if (sizeof(t) > 1) {
-      char src[sizeof(T)];
-      char dst[sizeof(T)];
-      std::memcpy(src, &t, sizeof(t));
-      for (size_t i = 0; i < sizeof(t); i++)
-          dst[i] = src[sizeof(t) - 1 - i];
-      std::memcpy(&t, dst, sizeof(t));
-    }
-  }
-};
-
 /**
  * @brief Swaps endianness of an object
  *
@@ -58,48 +43,70 @@ struct swap_endian_impl {
  */
 constexpr struct swap_endian_cpo {
   template <typename T>
-  void operator()(T &t) const {
-    swap_endian_impl<T>::do_swap(t);
-  }
+  void operator()(T &t) const;
 } swap_endian;
 
-template <typename T, size_t N>
-struct swap_endian_impl<T[N]> {
-  static void do_swap(T a[N]) {
-    for (size_t i = 0; i < N; i++)
-      swap_endian(a[i]);
+
+namespace endian {
+
+template <typename T>
+std::enable_if_t<std::is_fundamental<T>::value || std::is_enum<T>::value>
+swap_endian_impl(T &t) {
+  if (sizeof(t) > 1) {
+    char src[sizeof(T)];
+    char dst[sizeof(T)];
+    std::memcpy(src, &t, sizeof(t));
+    for (size_t i = 0; i < sizeof(t); i++)
+        dst[i] = src[sizeof(t) - 1 - i];
+    std::memcpy(&t, dst, sizeof(t));
   }
-};
+}
 
 template <typename T, size_t N>
-struct swap_endian_impl<std::array<T, N>> {
-  static void do_swap(std::array<T, N> &a) {
-    for (size_t i = 0; i < N; i++)
-      swap_endian(a[i]);
-  }
-};
+void swap_endian_impl(T (&a)[N]) {
+  for (size_t i = 0; i < N; i++)
+    swap_endian(a[i]);
+}
+
+template <typename T, size_t N>
+void swap_endian_impl(std::array<T, N> &a) {
+  for (size_t i = 0; i < N; i++)
+    swap_endian(a[i]);
+}
+
 
 template <typename T, typename U>
-struct swap_endian_impl<std::pair<T, U>> {
-  static void do_swap(std::pair<T, U> &p) {
-    swap_endian(p.first);
-    swap_endian(p.second);
-  }
-};
+void swap_endian_impl(std::pair<T, U> &p) {
+  swap_endian(p.first);
+  swap_endian(p.second);
+}
+
+namespace detail {
 
 template <typename... T>
-struct swap_endian_impl<std::tuple<T...>> {
-  static void do_swap(std::tuple<T...> &t) {
-    do_swap(t, std::integral_constant<size_t, 0>());
-  }
-  template <size_t idx>
-  static void do_swap(std::tuple<T...> &t, std::integral_constant<size_t, idx>) {
-    swap_endian(std::get<idx>(t));
-    do_swap(t, std::integral_constant<size_t, idx+1>());
-  }
-  static void do_swap(std::tuple<T...> &t, std::integral_constant<size_t, sizeof...(T)>) {
-  }
-};
+inline void do_swap(std::tuple<T...> &t, std::integral_constant<size_t, 0>) {
+}
+
+template <typename... T, size_t remaining>
+inline void do_swap(std::tuple<T...> &t, std::integral_constant<size_t, remaining>) {
+  swap_endian(std::get<sizeof...(T) - 1 - remaining>(t));
+  do_swap(t, std::integral_constant<size_t, remaining - 1>());
+}
+
+}  // namespace detail
+
+template <typename... T>
+void swap_endian_impl(std::tuple<T...> &t) {
+  detail::do_swap(t, std::integral_constant<size_t, sizeof...(T) - 1>());
+}
+
+}  // namespace endian
+
+template <typename T>
+void swap_endian_cpo::operator()(T &t) const {
+  using dali::endian::swap_endian_impl;
+  swap_endian_impl(t);
+}
 
 #ifdef __linux__
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -159,8 +166,7 @@ static constexpr bool is_big_endian = true;
  *       be enumerated as well
  */
 #define SWAP_ENDIAN_FIELDS(_Struct, ...)\
-template <>\
-void swap_endian_impl<_Struct>::do_swap(_Struct &s) {\
+inline void swap_endian_impl(_Struct &s) {\
   BOOST_PP_SEQ_FOR_EACH(DALI_SWAP_FIELD_ENDIANNESS, unused, \
     BOOST_PP_VARIADIC_TO_SEQ(__VA_ARGS__))\
 }\
