@@ -653,7 +653,7 @@ class WorkerPool:
             for context in contexts:
                 context.shm_manager.close_handles()
             return cls(contexts, pool)
-        except (OSError, socket.error, ValueError, RuntimeError):
+        except:  # noqa: E722
             if pool is not None:
                 pool.close()
             raise

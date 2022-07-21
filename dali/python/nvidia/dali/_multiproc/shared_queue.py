@@ -106,7 +106,7 @@ class ShmQueue:
             self.shm = shm
             if close_handle:
                 shm.close_handle()
-        except (ValueError, OSError):
+        except:  # noqa: E722
             if close_handle:
                 os.close(handle)
             raise

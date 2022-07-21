@@ -773,12 +773,12 @@ if dataset_compatible_tensorflow():
                         " 'experimental.DALIDatasetWithInputs'.")
             # We detected External Source nodes in the Pipeline
             if _has_external_source(pipeline):
-                raise ValueError(("DALIDataset got a DALI pipeline containing External Source "
-                                  "operator nodes. External Source nodes can be used to express "
-                                  "placeholders for tf.data.Dataset inputs to DALI or to run "
-                                  "user-provided Python code via `source` parameter. Support for "
-                                  "Dataset inputs and External Source's `source` is allowed only "
-                                  "in 'experimental.DALIDatasetWithInputs'."))
+                raise ValueError("DALIDataset got a DALI pipeline containing External Source "
+                                 "operator nodes. External Source nodes can be used to express "
+                                 "placeholders for tf.data.Dataset inputs to DALI or to run "
+                                 "user-provided Python code via `source` parameter. Support for "
+                                 "Dataset inputs and External Source's `source` is allowed only "
+                                 "in 'experimental.DALIDatasetWithInputs'.")
 
             dataset_impl = _DALIDatasetImpl(pipeline, **kwargs)
             super(DALIDataset, self).__init__(dataset_impl, dataset_options())
