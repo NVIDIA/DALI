@@ -32,9 +32,12 @@ namespace {
 // respectively "VP8 " and "VP8L" in vp8_header_t. "VP8X" in vp8_header_t signifies
 // WebP extended file format, which is not supported.
 
+// Struct must be packed for reading them to work correctly
+#pragma pack(push, 1)
+
 struct RiffHeader {
   std::array<uint8_t, 4> riff_text;
-  std::array<uint8_t, 4> file_size;
+  uint32_t file_size;
   std::array<uint8_t, 4> webp_text;
 };
 static_assert(sizeof(RiffHeader) == 12);
@@ -44,7 +47,7 @@ using vp8_header_t = std::array<uint8_t, 4>;
 // Simple file format (lossy)
 // https://datatracker.ietf.org/doc/html/rfc6386#section-9.1
 struct WebpLossyHeader {
-  std::array<uint8_t, 4> chunk_size;
+  uint32_t chunk_size;
   std::array<uint8_t, 3> frame_tag;
   std::array<uint8_t, 3> sync_code;
 };
@@ -53,39 +56,39 @@ static_assert(sizeof(WebpLossyHeader) == 10);
 // Simple file format (lossless)
 // https://developers.google.com/speed/webp/docs/webp_lossless_bitstream_specification#2_riff_header
 struct WebpLosslessHeader {
-  std::array<uint8_t, 4> chunk_size;
+  uint32_t chunk_size;
   uint8_t signature_byte;
 };
 static_assert(sizeof(WebpLosslessHeader) == 5);
 
-template<size_t N>
-bool is_pattern_matching(const std::array<uint8_t, N> data, const char pattern[N + 1]) {
-  for (size_t i = 0; i < N; i++)
-    if (data[i] != pattern[i])
-      return false;
-  return true;
+#pragma pack(pop)  // end of packing scope
+
+constexpr size_t TagSize = 4;
+
+std::array<uint8_t, TagSize> tag(const char (&c)[TagSize + 1]) {
+  std::array<uint8_t, TagSize> a;
+  std::copy(&c[0], &c[TagSize], a.begin());
+  return a;
 }
 
 bool is_valid_riff_header(const RiffHeader &header) {
-  return is_pattern_matching(header.riff_text, "RIFF") &&
-         is_pattern_matching(header.webp_text, "WEBP");
+  return header.riff_text == tag("RIFF") && header.webp_text == tag("WEBP");
 }
 
 bool is_simple_lossy_format(const vp8_header_t &header) {
-  return is_pattern_matching(header, "VP8 ");
+  return header == tag("VP8 ");
 }
 
 bool is_simple_lossless_format(const vp8_header_t &header) {
-  return is_pattern_matching(header, "VP8L");
+  return header == tag("VP8L");
 }
 
 bool is_extended_format(const vp8_header_t &header) {
-  return is_pattern_matching(header, "VP8X");
+  return header == tag("VP8X");
 }
 
 bool is_sync_code_valid(const WebpLossyHeader &header) {
-  const auto &s = header.sync_code;
-  return s[0] == 0x9D && s[1] == 0x01 && s[2] == 0x2A;
+  return header.sync_code == std::array<uint8_t, 3>{0x9D, 0x01, 0x2A};
 }
 
 bool is_sync_code_valid(const WebpLosslessHeader &header) {
