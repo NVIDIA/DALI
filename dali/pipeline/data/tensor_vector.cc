@@ -13,9 +13,11 @@
 // limitations under the License.
 
 #include <string>
-#include "dali/pipeline/data/tensor_vector.h"
+
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/copy_utilities.h"
+#include "dali/pipeline/data/tensor_vector.h"
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
@@ -507,26 +509,72 @@ void TensorVector<Backend>::Reset() {
 template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order) {
+  // This variant will be removed with the removal of TensorList.
   SetContiguous(true);
+
+  auto copy_order = copy_impl::SyncBefore(this->order(), in_tl.order(), order);
+
+
+  tl_->Resize(in_tl.shape(), in_tl.type());
   type_ = in_tl.type_info();
   sample_dim_ = in_tl.shape().sample_dim();
-  tl_->Copy(in_tl, order);
+
+  copy_impl::SyncAfterResize(this->order(), copy_order);
+
+  // Update the metadata
+  type_ = in_tl.type_info();
+  sample_dim_ = in_tl.shape().sample_dim();
+
+  // Here both batches are contiguous
+  type_info().template Copy<Backend, SrcBackend>(
+      unsafe_raw_mutable_data(*tl_), unsafe_raw_data(in_tl), in_tl.shape().num_elements(),
+      copy_order.stream(), false);
+  copy_impl::SyncAfter(this->order(), copy_order);
 
   resize_tensors(tl_->num_samples());
   UpdateViews();
+
+  // Update the layout and other metadata
+  SetLayout(in_tl.GetLayout());
+  for (int i = 0; i < curr_num_tensors_; i++) {
+    SetMeta(i, in_tl.GetMeta(i));
+  }
 }
 
 
 template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order) {
-  SetContiguous(true);
-  type_ = in_tv.type_;
-  sample_dim_ = in_tv.sample_dim_;
-  tl_->Copy(in_tv, order);
+  auto copy_order = copy_impl::SyncBefore(this->order(), in_tv.order(), order);
 
-  resize_tensors(tl_->num_samples());
-  UpdateViews();
+  Resize(in_tv.shape(), in_tv.type());
+  // After resize the state_, curr_num_tensors_, type_, sample_dim_, shape_ (and pinned)
+  // postconditions are met, as well as the buffers are correctly adjusted.
+  copy_impl::SyncAfterResize(this->order(), copy_order);
+
+  bool use_copy_kernel = false;
+
+  if (this->IsContiguous() && in_tv.IsContiguous()) {
+    type_info().template Copy<Backend, SrcBackend>(
+        unsafe_raw_mutable_data(*tl_), unsafe_raw_data(*in_tv.tl_), shape().num_elements(),
+        copy_order.stream(), use_copy_kernel);
+  } else if (this->IsContiguous() && !in_tv.IsContiguous()) {
+    copy_impl::CopySamplewiseImpl<Backend, SrcBackend>(unsafe_raw_mutable_data(*tl_), in_tv,
+                                                       type_info(), copy_order, use_copy_kernel);
+  } else if (!this->IsContiguous() && in_tv.IsContiguous()) {
+    copy_impl::CopySamplewiseImpl<Backend, SrcBackend>(*this, unsafe_raw_data(*in_tv.tl_),
+                                                       type_info(), copy_order, use_copy_kernel);
+  } else {
+    copy_impl::CopySamplewiseImpl<Backend, SrcBackend>(*this, in_tv, type_info(), copy_order,
+                                                       use_copy_kernel);
+  }
+
+  // Update the layout and other metadata
+  SetLayout(in_tv.GetLayout());
+  for (int i = 0; i < curr_num_tensors_; i++) {
+    SetMeta(i, in_tv.GetMeta(i));
+  }
+  copy_impl::SyncAfter(this->order(), copy_order);
 }
 
 
