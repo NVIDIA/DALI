@@ -23,7 +23,7 @@ test_py() {
 }
 
 test_pytorch() {
-    ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
+    ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy' test_dali_variable_batch_size.py
 }
 
 test_no_fw() {
