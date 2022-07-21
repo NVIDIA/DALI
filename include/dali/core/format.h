@@ -15,22 +15,12 @@
 #ifndef DALI_CORE_FORMAT_H_
 #define DALI_CORE_FORMAT_H_
 
+#include <array>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 namespace dali {
-
-template<typename T>
-std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
-  for (size_t i = 0; i < vec.size() - 1; ++i) {
-    os << vec[i] << ", ";
-  }
-  if (vec.size())
-    os << vec.back();
-  return os;
-}
-
 
 struct no_delimiter {};
 
@@ -100,6 +90,35 @@ std::string make_string(const Args &... args) {
   std::stringstream ss;
   print(ss, args...);
   return ss.str();
+}
+
+template <typename Collection, typename Delimiter>
+std::ostream &join(std::ostream &os, const Collection &collection, const Delimiter &delim) {
+  bool first = true;
+  for (auto &element : collection) {
+    if (!first) {
+      os << delim;
+    } else {
+      first = false;
+    }
+    os << element;
+  }
+  return os;
+}
+
+template <typename Collection>
+std::ostream &join(std::ostream &os, const Collection &collection) {
+  return join(os, collection, ", ");
+}
+
+template <typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
+  return join(os, vec);
+}
+
+template <typename T, size_t N>
+std::ostream &operator<<(std::ostream &os, const std::array<T, N> &arr) {
+  return join(os, arr);
 }
 
 }  // namespace dali
