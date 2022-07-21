@@ -17,7 +17,7 @@ import threading
 import traceback
 import socket
 from collections import deque
-from multiprocessing import ProcessError, reduction
+from multiprocessing import reduction
 from nvidia.dali._utils.external_source_impl import SourceKind, _is_generator_function
 from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, BufShmChunk, \
     assert_valid_data_type, read_shm_message, write_shm_message
@@ -272,7 +272,7 @@ class MixedTaskReceiver:
         try:
             self.receivers.append(self.EagerReceiverWorker(self.state, self.dedicated_task_queue))
             self.receivers.append(self.IdleReceiverWorker(self.state, self.general_task_queue))
-        except (OSError, RuntimeError):
+        except:  # noqa E722
             self.close()
             raise
 
@@ -392,7 +392,7 @@ class WorkerContext:
             self.batch_dispatcher = SharedBatchDispatcher(
                 worker_args.worker_id, worker_args.result_queue,
                 self.task_receiver.get_recv_queues())
-        except (OSError, RuntimeError, ProcessError):
+        except:  # noqa E722
             self.close()
             raise
         # let the main process know that the worker started and shared resources setup is done

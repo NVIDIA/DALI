@@ -26,29 +26,29 @@ import numba as nb
 
 
 _to_numpy = {
-    dali_types.UINT8: "uint8",
-    dali_types.UINT16: "uint16",
-    dali_types.UINT32: "uint32",
-    dali_types.UINT64: "uint64",
-    dali_types.INT8: "int8",
-    dali_types.INT16: "int16",
-    dali_types.INT32: "int32",
-    dali_types.INT64: "int64",
+    dali_types.UINT8:   "uint8",
+    dali_types.UINT16:  "uint16",
+    dali_types.UINT32:  "uint32",
+    dali_types.UINT64:  "uint64",
+    dali_types.INT8:    "int8",
+    dali_types.INT16:   "int16",
+    dali_types.INT32:   "int32",
+    dali_types.INT64:   "int64",
     dali_types.FLOAT16: "float16",
-    dali_types.FLOAT: "float32",
+    dali_types.FLOAT:   "float32",
     dali_types.FLOAT64: "float64",
 }
 
 _to_numba = {
-    dali_types.UINT8: numba_types.uint8,
-    dali_types.UINT16: numba_types.uint16,
-    dali_types.UINT32: numba_types.uint32,
-    dali_types.UINT64: numba_types.uint64,
-    dali_types.INT8: numba_types.int8,
-    dali_types.INT16: numba_types.int16,
-    dali_types.INT32: numba_types.int32,
-    dali_types.INT64: numba_types.int64,
-    dali_types.FLOAT: numba_types.float32,
+    dali_types.UINT8:   numba_types.uint8,
+    dali_types.UINT16:  numba_types.uint16,
+    dali_types.UINT32:  numba_types.uint32,
+    dali_types.UINT64:  numba_types.uint64,
+    dali_types.INT8:    numba_types.int8,
+    dali_types.INT16:   numba_types.int16,
+    dali_types.INT32:   numba_types.int32,
+    dali_types.INT64:   numba_types.int64,
+    dali_types.FLOAT:   numba_types.float32,
     dali_types.FLOAT64: numba_types.float64,
 }
 

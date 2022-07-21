@@ -172,8 +172,8 @@ class CallbackContext:
                 else:
                     # Raise new exception propagating the traceback from worker thread as error
                     # message, originating from original exception
-                    raise Exception("\n\nException traceback received from worker thread:\n\n" +
-                                    traceback_str) from exception
+                    raise Exception("\n\nException traceback received from worker thread:\n\n"
+                                    + traceback_str) from exception
             finally:
                 # Fix circular reference problem on StopIteration - the exception contains
                 # reference to the traceback that refers a frame that contains local variables
@@ -250,8 +250,10 @@ class CallbackContext:
 
 class WorkerContext:
 
-    def __init__(self, source_descs: SourceDescription,
-                 dedicated_task_queue: Optional[ShmQueue], shm_chunks: List[BufShmChunk]):
+    def __init__(self,
+                 source_descs: SourceDescription,
+                 dedicated_task_queue: Optional[ShmQueue],
+                 shm_chunks: List[BufShmChunk]):
         self.source_descs = source_descs
         self.dedicated_task_queue = dedicated_task_queue
         self.shm_chunks = shm_chunks
@@ -302,8 +304,12 @@ class ProcPool:
      the workers, starts thread keeping track of running processes and initializes communication.
     """
 
-    def __init__(self, mp, workers_contexts: List[WorkerContext], result_queue: ShmQueue,
-                 general_task_queue: Optional[ShmQueue], callback_pickler):
+    def __init__(self,
+                 mp,
+                 workers_contexts: List[WorkerContext],
+                 result_queue: ShmQueue,
+                 general_task_queue: Optional[ShmQueue],
+                 callback_pickler):
         start_method = mp.get_start_method()
         if not workers_contexts:
             raise RuntimeError("Cannot start a pool with no workers")
@@ -386,7 +392,7 @@ class ProcPool:
                 if worker_context.dedicated_task_queue is not None:
                     worker_context.dedicated_task_queue.close_handle()
             return instance
-        except (OSError, ValueError):
+        except:  # noqa: E722
             if instance is not None:
                 instance.close()
             raise
@@ -471,7 +477,7 @@ class ProcPool:
                 self._send_queue_handles(write_sockets)
                 self._send_shm_handles(write_sockets)
             self._sync_initialized_workers()
-        except (ValueError, OSError, RuntimeError):
+        except:  # noqa: E722
             if self._observer is not None:
                 self._observer.close()
                 self._observer = None
@@ -525,7 +531,7 @@ class Observer:
                 if any(ps[sentinel].exitcode is not None for sentinel in proc_sentinels):
                     exit_gently = False
                     break
-        except OSError:
+        except:  # noqa: E722
             exit_gently = False
             raise
         finally:

@@ -46,18 +46,20 @@ def _discover_autoserialize(module, visited):
 
 def invoke_autoserialize(head_module, filename):
     """
-    Perform the autoserialization of a function marked by :meth:`nvidia.dali.plugin.triton.autoserialize`.
+    Perform the autoserialization of a function marked by
+        :meth:`nvidia.dali.plugin.triton.autoserialize`.
 
     Assuming, that user marked a function with ``@autoserialize`` decorator, the
-    ``invoke_autoserialize`` is a utility function, which will actually perform the autoserialization.
-    It discovers the ``@autoserialize`` function in a module tree denoted by provided ``head_module``
-    and saves the serialized DALI pipeline to the file in the ``filename`` path.
+    ``invoke_autoserialize`` is a utility function, which will actually perform
+    the autoserialization.
+    It discovers the ``@autoserialize`` function in a module tree denoted by provided
+    ``head_module`` and saves the serialized DALI pipeline to the file in the ``filename`` path.
 
     Only one ``@autoserialize`` function may exist in a given module tree.
 
     :param head_module: Module, denoting the model tree in which the decorated function shall exist.
     :param filename: Path to the file, where the output of serialization will be saved.
-    """  # noqa W505
+    """
     autoserialize_functions = _discover_autoserialize(head_module, visited=[])
     if len(autoserialize_functions) > 1:
         raise RuntimeError(

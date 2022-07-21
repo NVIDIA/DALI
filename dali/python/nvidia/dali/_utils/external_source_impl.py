@@ -53,14 +53,11 @@ class SourceDescription:
     def __str__(self) -> str:
         if self.kind == SourceKind.CALLABLE:
             inputs = ("with" if self.has_inputs else "without")
-            inputs += " inputs: `{}`".format(self.source)
-            return "Callable source " + inputs
+            return f"Callable source {inputs} inputs: `{self.source}`"
         elif self.kind == SourceKind.ITERABLE:
-            return "Iterable (or iterator) source: `{}` with cycle: `{}`." \
-                .format(self.source, self.cycle)
+            return f"Iterable (or iterator) source: `{self.source}` with cycle: `{self.cycle}`."
         else:
-            return "Generator function source: `{}` with cycle: `{}`." \
-                .format(self.source, self.cycle)
+            return f"Generator function source: `{self.source}` with cycle: `{self.cycle}`."
 
 
 _tf_sample_error_msg = (
@@ -278,7 +275,7 @@ def get_callback_from_source(source, cycle, batch_info=False):
                 # in the error message.
                 iterator = iter(source)
             iterable = True
-            callback = lambda: next(iterator) # noqa E731
+            callback = lambda: next(iterator)  # noqa E731
         except TypeError as err:
             if "not iterable" not in str(err):
                 raise(err)

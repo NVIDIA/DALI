@@ -79,7 +79,7 @@ class BufShmChunk:
         assert self._shm_chunk is None
         try:
             self._shm_chunk = shared_mem.SharedMem.open(handle, self.capacity)
-        except ValueError:
+        except:  # noqa: E722
             if handle >= 0:
                 os.close(handle)
             raise

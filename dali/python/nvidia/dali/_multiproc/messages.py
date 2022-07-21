@@ -37,8 +37,10 @@ class ShmMessageDesc(Structure):
     `num_bytes` : unsigned long long int
         Size in bytes of the serialized message
     """
-    _fields = ("worker_id", "i"), ("shm_chunk_id", "i"), ("shm_capacity", "Q"), \
-              ("offset", "Q"), ("num_bytes", "Q")
+    _fields = (("worker_id", "i"),
+               ("shm_chunk_id", "i"),
+               ("shm_capacity", "Q"),
+               ("offset", "Q"), ("num_bytes", "Q"))
 
 
 class WorkerArgs:

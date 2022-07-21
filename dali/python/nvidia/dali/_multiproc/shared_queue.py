@@ -161,8 +161,9 @@ class ShmQueue:
             was specified and it evaluated to False after waiting on empty queue.
             The call returns None iff the queue was closed.
         predicate : a parameterless callable
-            Used for double-checking if the item should really be taken after waiting on empty queue.
-        """ # noqa W501
+            Used for double-checking if the item should really be taken after waiting on empty
+            queue.
+        """
         if self.is_closed:
             return
         with self.cv_not_empty:  # equivalent to `with self.lock`
