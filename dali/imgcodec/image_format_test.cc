@@ -15,7 +15,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <filesystem>
+#include <experimental/filesystem>
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/parsers/bmp.h"
 #include "dali/imgcodec/parsers/jpeg.h"
@@ -27,6 +27,8 @@
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/image/image_factory.h"
+
+namespace fs = std::experimental::filesystem;
 
 namespace dali {
 namespace imgcodec {
@@ -93,8 +95,8 @@ class ComparisonTestBase : public ImageFormatTest {
                       std::vector<std::string> extensions) {
     unsigned nimages = 0;
 
-    for (const auto &entry : std::filesystem::recursive_directory_iterator(directory)) {
-      if (entry.is_regular_file()) {
+    for (const auto &entry : fs::recursive_directory_iterator(directory)) {
+      if (fs::is_regular_file(entry.path())) {
         const auto path = entry.path().string();
         for (const auto& ext : extensions) {
           if (path.substr(path.size() - ext.size(), ext.size()) == ext) {
