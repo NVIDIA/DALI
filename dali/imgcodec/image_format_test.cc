@@ -75,7 +75,7 @@ class ImageFormatTest : public ::testing::Test {
   std::vector<char> data_;
 };
 
-TEST_F(ImageFormatTest, DISABLED_Jpeg) {
+TEST_F(ImageFormatTest, Jpeg) {
   Test(testing::dali_extra_path() + "/db/single/jpeg/372/baboon-174073_1280.jpg", "jpeg",
        TensorShape<>(720, 1280, 3));
 }
