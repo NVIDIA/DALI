@@ -66,9 +66,13 @@ std::string get_string(const std::ostream &os) {
   return ss.str();
 }
 
-
 bool stream_cmp(const std::ostream &lhs, const std::ostream &rhs) {
   return get_string(lhs) == get_string(rhs);
+}
+
+void reset(std::stringstream &ss) {
+  ss.str("");
+  ss.clear();
 }
 
 }  // namespace
@@ -99,16 +103,20 @@ TEST(JoinTest, CArray) {
   std::stringstream ss;
   int a1[1] = { 42 };
   join(ss, a1);
+  ss.flush();
   EXPECT_EQ(ss.str(), "42");
-  ss = {};
+  reset(ss);
   float a3[]  = { 100, 42, 5 };
   join(ss, a3, no_delimiter());
+  ss.flush();
   EXPECT_EQ(ss.str(), "100425");
-  ss = {};
+  reset(ss);
   join(ss, a3);
+  ss.flush();
   EXPECT_EQ(ss.str(), "100, 42, 5");
-  ss = {};
+  reset(ss);
   join(ss, a3, "x");
+  ss.flush();
   EXPECT_EQ(ss.str(), "100x42x5");
 }
 
@@ -117,16 +125,19 @@ TEST(JoinTest, StdArray) {
   std::array<int, 0> a0;
   join(ss, a0);
   EXPECT_EQ(ss.str(), "");
-  ss = {};
+  reset(ss);
   std::array<int, 1> a1 = { 42 };
   join(ss, a1);
+  ss.flush();
   EXPECT_EQ(ss.str(), "42");
-  ss = {};
+  reset(ss);
   std::array<float, 3> a3  = { 100, 42, 5 };
   join(ss, a3, no_delimiter());
+  ss.flush();
   EXPECT_EQ(ss.str(), "100425");
-  ss = {};
+  reset(ss);
   join(ss, a3, "x");
+  ss.flush();
   EXPECT_EQ(ss.str(), "100x42x5");
 }
 
@@ -134,15 +145,18 @@ TEST(JoinTest, Vector) {
   std::stringstream ss;
   std::vector<int> v;
   join(ss, v);
+  ss.flush();
   EXPECT_EQ(ss.str(), "");
-  ss = {};
+  reset(ss);
   v.push_back(42);
   join(ss, v);
+  ss.flush();
   EXPECT_EQ(ss.str(), "42");
-  ss = {};
+  reset(ss);
   v.push_back(100);
   v.push_back(66);
   join(ss, v);
+  ss.flush();
   EXPECT_EQ(ss.str(), "42, 100, 66");
 }
 
