@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <string>
 #include "dali/imgcodec/parsers/webp.h"
 #include "dali/core/byte_io.h"
@@ -65,7 +66,7 @@ static_assert(sizeof(WebpLosslessHeader) == 5);
 
 template<size_t N>
 constexpr std::array<uint8_t, N - 1> tag(const char (&c)[N]) {
-  std::array<uint8_t, N - 1> a;
+  std::array<uint8_t, N - 1> a{};
   std::copy(&c[0], &c[N - 1], a.begin());
   return a;
 }
