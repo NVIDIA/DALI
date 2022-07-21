@@ -26,6 +26,36 @@ struct no_delimiter {};
 
 inline std::ostream &operator<<(std::ostream &os, no_delimiter) { return os; }
 
+template <typename Collection, typename Delimiter>
+std::ostream &join(std::ostream &os, const Collection &collection, const Delimiter &delim) {
+  bool first = true;
+  for (auto &element : collection) {
+    if (!first) {
+      os << delim;
+    } else {
+      first = false;
+    }
+    os << element;
+  }
+  return os;
+}
+
+template <typename Collection>
+std::ostream &join(std::ostream &os, const Collection &collection) {
+  return join(os, collection, ", ");
+}
+
+template <typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
+  return join(os, vec);
+}
+
+template <typename T, size_t N>
+std::ostream &operator<<(std::ostream &os, const std::array<T, N> &arr) {
+  return join(os, arr);
+}
+
+
 template <typename Delimiter>
 void print_delim(std::ostream &os, const Delimiter &delimiter) {
   // No-op
@@ -90,35 +120,6 @@ std::string make_string(const Args &... args) {
   std::stringstream ss;
   print(ss, args...);
   return ss.str();
-}
-
-template <typename Collection, typename Delimiter>
-std::ostream &join(std::ostream &os, const Collection &collection, const Delimiter &delim) {
-  bool first = true;
-  for (auto &element : collection) {
-    if (!first) {
-      os << delim;
-    } else {
-      first = false;
-    }
-    os << element;
-  }
-  return os;
-}
-
-template <typename Collection>
-std::ostream &join(std::ostream &os, const Collection &collection) {
-  return join(os, collection, ", ");
-}
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
-  return join(os, vec);
-}
-
-template <typename T, size_t N>
-std::ostream &operator<<(std::ostream &os, const std::array<T, N> &arr) {
-  return join(os, arr);
 }
 
 }  // namespace dali
