@@ -63,11 +63,10 @@ static_assert(sizeof(WebpLosslessHeader) == 5);
 
 #pragma pack(pop)  // end of packing scope
 
-constexpr size_t TagSize = 4;
-
-std::array<uint8_t, TagSize> tag(const char (&c)[TagSize + 1]) {
-  std::array<uint8_t, TagSize> a;
-  std::copy(&c[0], &c[TagSize], a.begin());
+template<size_t N>
+std::array<uint8_t, N - 1> tag(const char (&c)[N]) {
+  std::array<uint8_t, N - 1> a;
+  std::copy(&c[0], &c[N - 1], a.begin());
   return a;
 }
 
