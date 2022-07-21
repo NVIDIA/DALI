@@ -33,13 +33,32 @@ template <typename T, span_extent_t E = dynamic_extent>
 using cspan = span<const T, E>;
 
 struct DecodeParams {
-  bool use_roi;
+  DALIDataType  dtype   = DALI_UINT8;
+  DALIImageType format  = DALI_RGB;
+  bool          planar  = false;
+  bool          use_orientation = true;
+  bool          use_roi = false;
   struct {
+    /**
+     * @brief The beginning and end of the region-of-interest.
+     *
+     * Spatial coordinates of the start and end of the ROI. Channels shall not be included
+     *
+     * If the orientation of the image is adjusted, these values are in the output space
+     * (after applying the orientation).
+     */
     TensorShape<> begin, end;
+
+    /**
+     * @brief Returns the extent of the region of interest as (end - begin)
+     */
+    TensorShape<> shape() const {
+      TensorShape<> out = end;
+      for (int d = 0; d < begin.sample_dim(); d++)
+        out[d] -= begin[d];
+      return out;
+    }
   } roi;
-  DALIDataType dtype;
-  DALIImageType format;
-  bool planar;  // not required initially
 };
 
 struct DecodeResult {
@@ -49,18 +68,19 @@ struct DecodeResult {
 
 struct ImageDecoderProperties {
   /**
-   * @brief Whether the codec can decode a part of the image without storing the
-   *        entire image in memory.
+   * @brief Whether the codec can decode a region of interest without decoding the entire image
    */
-  bool roi_support = false;
+  bool supports_partial_decoding = false;
 
   /**
    * @brief A mask of supported input kinds
    */
   InputKind supported_input_kinds;
 
-  // if true and the codec fails to decode an image,
-  // an attempt will be made to use other compatible codecs
+  /**
+   * @brief if true and the codec fails to decode an image,
+   *        an attempt will be made to use other compatible codecs
+   */
   bool fallback = true;
 };
 

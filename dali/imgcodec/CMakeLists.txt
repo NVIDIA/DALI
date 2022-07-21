@@ -2,8 +2,10 @@ project(dali_imgcodec CUDA CXX C)
 
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
+add_subdirectory(decoders)
 add_subdirectory(parsers)
 add_subdirectory(tools)
+add_subdirectory(util)
 
 # Get all the source files and dump test files
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
