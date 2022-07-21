@@ -15,6 +15,16 @@
 #include <tiffio.h>
 #include "dali/imgcodec/decoders/tiff_libtiff.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/imgcodec/util/convert.h"
+
+#define LIBTIFF_CALL_SUCCESS 1
+#define LIBTIFF_CALL(call)                                \
+  do {                                                    \
+    int retcode = (call);                                 \
+    DALI_ENFORCE(LIBTIFF_CALL_SUCCESS == retcode,         \
+      "libtiff call failed with code "                    \
+      + std::to_string(retcode) + ": " #call);            \
+  } while (0)
 
 namespace dali {
 namespace imgcodec {
@@ -94,6 +104,42 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out,
                                            ImageSource *in,
                                            DecodeParams opts) {
   TIFF *tiff = openTiff(in);
+  DALI_ENFORCE(tiff != nullptr, make_string("Unable to open TIFF image: ", in->SourceInfo()));
+  // TODO(skarpinski) Check if open was successful
+  // TODO(skarpinski) Port CanDecode here
+
+  using InType = uint8_t;
+  using OutType = uint8_t;
+
+  // TODO(skarpinski) other formats
+  DALI_ENFORCE(opts.format == DALI_RGB, "Only RGB supported for now");
+  unsigned out_channels = 3;
+
+  unsigned in_channels = 3; // TODO(skarpinski) Read this from TIFF
+
+  // TODO(skarpinski) ROI
+  uint32_t image_width, image_height;
+  LIBTIFF_CALL(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &image_width));
+  LIBTIFF_CALL(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &image_height));
+  uint64_t out_row_stride = image_width * out_channels;
+
+  auto row_nbytes = TIFFScanlineSize(tiff);
+  std::unique_ptr<InType, void(*)(void*)> row_buf{
+    static_cast<InType *>(_TIFFmalloc(row_nbytes)), _TIFFfree};
+  DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
+  memset(row_buf.get(), 0, row_nbytes);  // TODO(skarpinski) Do we need to zero it out?
+
+  InType * const row_in  = row_buf.get();
+  OutType * const img_out = out.mutable_data<OutType>();
+
+  for (uint64_t y = 0; y < image_height; y++) {
+    LIBTIFF_CALL(TIFFReadScanline(tiff, row_in, y, 0));
+
+    // TODO(skarpinski) Color space conversion
+    memcpy(img_out + (y * out_row_stride), row_in, out_row_stride);
+  }
+
+  return {true, nullptr};
 }
 
 
