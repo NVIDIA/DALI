@@ -39,7 +39,7 @@ class LibTiffDecoder : public ImageDecoder {
       ImageDecoderProperties props;
       props.supported_input_kinds = InputKind::DeviceMemory | InputKind::HostMemory
                                     | InputKind::Filename;
-      props.supports_partial_decoding = false; // TODO(skarpinski)
+      props.supports_partial_decoding = false;  // TODO(skarpinski)
       props.fallback = true;
       return props;
     }();
@@ -58,4 +58,4 @@ class LibTiffDecoder : public ImageDecoder {
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_DECODERS_OPENCV_FALLBACK_H_
+#endif  // DALI_IMGCODEC_DECODERS_TIFF_LIBTIFF_H_

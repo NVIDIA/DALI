@@ -37,7 +37,7 @@ template <typename OutputType>
 class LibTiffDecodeTest : public ::testing::Test {
 };
 
-using DecodeOutputTypes = ::testing::Types<uint8_t>; // TODO(skarpinski) Add more types here
+using DecodeOutputTypes = ::testing::Types<uint8_t>;  // TODO(skarpinski) Add more types here
 TYPED_TEST_SUITE(LibTiffDecodeTest, DecodeOutputTypes);
 
 TYPED_TEST(LibTiffDecodeTest, Decode) {

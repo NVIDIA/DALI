@@ -15,7 +15,6 @@
 #include <tiffio.h>
 #include "dali/imgcodec/decoders/tiff_libtiff.h"
 #include "dali/imgcodec/util/convert.h"
-#include "dali/imgcodec/util/convert.h"
 
 #define LIBTIFF_CALL_SUCCESS 1
 #define LIBTIFF_CALL(call)                                \
@@ -36,7 +35,7 @@ class DecoderHelper {
   size_t buffer_size;
 
  public:
-  DecoderHelper(ImageSource *in) : stream(in->Open()) {
+  explicit DecoderHelper(ImageSource *in) : stream(in->Open()) {
     if (in->Kind() == InputKind::HostMemory) {
       buffer = in->RawData();
       buffer_size = in->Size();
@@ -115,7 +114,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out,
   DALI_ENFORCE(opts.format == DALI_RGB, "Only RGB supported for now");
   unsigned out_channels = 3;
 
-  unsigned in_channels = 3; // TODO(skarpinski) Read this from TIFF
+  unsigned in_channels = 3;  // TODO(skarpinski) Read this from TIFF
 
   // TODO(skarpinski) ROI
   uint32_t image_width, image_height;
