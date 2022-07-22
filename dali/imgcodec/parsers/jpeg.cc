@@ -73,12 +73,13 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
       info.shape = {height, width, nchannels};
       read_shape = true;
     } else if (marker == app1_marker) {
-      DALI_ENFORCE(stream->ReadOne<jpeg_exif_header_t>() == exif_header, "Invalid EXIF header");
+      DALI_ENFORCE(stream->ReadOne<jpeg_exif_header_t>() == exif_header,
+                   make_string("Invalid EXIF header in: ", encoded->SourceInfo()));
       std::vector<uint8_t> exif_block(size - 8);
       stream->Read(exif_block.data(), size - 8);
       cv::ExifReader reader;
       if (!reader.parseExif(exif_block.data(), exif_block.size()))
-        DALI_FAIL("Couldn't parse EXIF data");
+        DALI_FAIL(make_string("Couldn't parse EXIF data in: ", encoded->SourceInfo()));
       auto entry = reader.getTag(cv::ORIENTATION);
       if (entry.tag != cv::INVALID_TAG) {
         info.orientation = FromExifOrientation(static_cast<ExifOrientation>(entry.field_u16));
