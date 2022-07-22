@@ -41,13 +41,5 @@ Orientation FromExifOrientation(ExifOrientation exif_orientation) {
   }
 }
 
-Orientation FromExifData(uint8_t *data, size_t size) {
-  cv::ExifReader reader;
-  reader.parseExif(data, size);
-  const auto orientation_value = reader.getTag(cv::ORIENTATION).field_u16;
-  const auto exif_orientation = static_cast<ExifOrientation>(orientation_value);
-  return FromExifOrientation(exif_orientation);
-}
-
 }  // namespace imgcodec
 }  // namespace dali
