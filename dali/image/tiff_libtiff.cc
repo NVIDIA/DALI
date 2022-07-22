@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -260,6 +260,14 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
     TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_ROWSPERSTRIP, &rows_per_strip_));
   LIBTIFF_CALL(
     TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_COMPRESSION, &compression_));
+
+  uint16_t photometric_interpretatation;
+  LIBTIFF_CALL(
+    TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_PHOTOMETRIC, &photometric_interpretatation));
+  if (photometric_interpretatation == PHOTOMETRIC_PALETTE) {
+    shape_[2] = 3;
+    palette_ = true;
+  }
 }
 
 Image::Shape TiffImage_Libtiff::PeekShapeImpl(const uint8_t *encoded_buffer,
@@ -366,7 +374,8 @@ TiffImage_Libtiff::DecodeImpl(DALIImageType image_type,
 bool TiffImage_Libtiff::CanDecode(DALIImageType image_type) const {
   return !is_tiled_
       && bit_depth_ == 8
-      && orientation_ == ORIENTATION_TOPLEFT;
+      && orientation_ == ORIENTATION_TOPLEFT
+      && !palette_;
 }
 
 }  // namespace dali
