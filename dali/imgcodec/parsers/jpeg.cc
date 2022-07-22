@@ -72,9 +72,7 @@ ImageInfo JpegParser::GetInfo(ImageSource *encoded) const {
       auto nchannels = stream->ReadOne<uint8_t>();
       info.shape = {height, width, nchannels};
       read_shape = true;
-    } else if (marker == app1_marker) {
-      DALI_ENFORCE(stream->ReadOne<jpeg_exif_header_t>() == exif_header,
-                   make_string("Invalid EXIF header in: ", encoded->SourceInfo()));
+    } else if (marker == app1_marker && stream->ReadOne<jpeg_exif_header_t>() == exif_header) {
       std::vector<uint8_t> exif_block(size - 8);
       stream->Read(exif_block.data(), size - 8);
       cv::ExifReader reader;
