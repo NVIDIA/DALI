@@ -259,12 +259,26 @@ class DLL_PUBLIC TensorVector {
   }
   // @}
 
+  /**
+   * @name Type setting functions.
+   * @{
+   */
+  /**
+   * @brief Set the type of the current batch. The type needs to be set before calling
+   * the Resize(const TensorListShape<> &) function. It cannot be used to change the type after
+   * allocation happened.
+   *
+   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
+   * request a different type after allocation.
+   */
   void set_type(DALIDataType new_type);
 
   template <typename T>
   void set_type() {
     set_type(TypeTable::GetTypeId<T>());
   }
+  /** @} */
+
 
   DALIDataType type() const;
 
