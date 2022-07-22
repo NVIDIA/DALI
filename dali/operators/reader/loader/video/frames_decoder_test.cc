@@ -219,13 +219,17 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
-  FramesDecoderGpu decoder(cfr_hevc_videos_paths_[0]);
-  RunTest(decoder, cfr_videos_[0]);
+  if (FramesDecoderGpu::SupportsHevc()) {
+    FramesDecoderGpu decoder(cfr_hevc_videos_paths_[0]);
+    RunTest(decoder, cfr_videos_[0]);
+  }
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
-  FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
-  RunTest(decoder, vfr_hevc_videos_[1]);
+  if (FramesDecoderGpu::SupportsHevc()) {
+    FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
+    RunTest(decoder, vfr_hevc_videos_[1]);
+  }
 }
 
 }  // namespace dali

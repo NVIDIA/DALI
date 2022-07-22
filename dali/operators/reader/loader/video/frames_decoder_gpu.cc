@@ -322,4 +322,15 @@ FramesDecoderGpu::~FramesDecoderGpu() {
   av_packet_free(&filtered_packet_);
   av_bsf_free(&bsfc_);
 }
+
+bool FramesDecoderGpu::SupportsHevc() {
+  CUVIDDECODECAPS decoder_caps = {};
+  decoder_caps.eCodecType = cudaVideoCodec_HEVC;
+  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
+  decoder_caps.nBitDepthMinus8 = 2;
+  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
+
+  return decoder_caps.bIsSupported;
+}
+
 }  // namespace dali
