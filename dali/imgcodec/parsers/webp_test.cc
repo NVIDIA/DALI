@@ -29,7 +29,7 @@ class WebpParserTest : public ::testing::Test {
 
  public:
   std::vector<uint8_t> ReadFile(const std::string &filename) {
-    std::ifstream stream(webp_directory_ + filename, std::ios::binary);
+    std::ifstream stream(filename, std::ios::binary);
     return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
   }
 
@@ -46,19 +46,29 @@ class WebpParserTest : public ::testing::Test {
   }
 
   void TestRotations(const std::string &filename_prefix, TensorShape<> expected_shape) {
-    TestValidImage(filename_prefix + "_original.webp", expected_shape, {0, false, false});
-    TestValidImage(filename_prefix + "_horizontal.webp", expected_shape, {0, false, false});
-    TestValidImage(filename_prefix + "_mirror_horizontal.webp", expected_shape, {0, true, false});
-    TestValidImage(filename_prefix + "_rotate_180.webp", expected_shape, {180, false, false});
-    TestValidImage(filename_prefix + "_mirror_vertical.webp", expected_shape, {0, false, true});
-    TestValidImage(filename_prefix + "_mirror_horizontal_rotate_270_cw.webp", expected_shape, {90, true, false});
-    TestValidImage(filename_prefix + "_rotate_90_cw.webp", expected_shape, {270, false, false});
-    TestValidImage(filename_prefix + "_mirror_horizontal_rotate_90_cw.webp", expected_shape, {270, true, false});
-    TestValidImage(filename_prefix + "_rotate_270_cw.webp", expected_shape, {90, false, false});
+    TestValidImage(filename_prefix + "_original.webp",
+                   expected_shape, {0, false, false});
+    TestValidImage(filename_prefix + "_horizontal.webp",
+                   expected_shape, {0, false, false});
+    TestValidImage(filename_prefix + "_mirror_horizontal.webp",
+                   expected_shape, {0, true, false});
+    TestValidImage(filename_prefix + "_rotate_180.webp",
+                   expected_shape, {180, false, false});
+    TestValidImage(filename_prefix + "_mirror_vertical.webp",
+                   expected_shape, {0, false, true});
+    TestValidImage(filename_prefix + "_mirror_horizontal_rotate_270_cw.webp",
+                   expected_shape, {90, true, false});
+    TestValidImage(filename_prefix + "_rotate_90_cw.webp",
+                   expected_shape, {270, false, false});
+    TestValidImage(filename_prefix + "_mirror_horizontal_rotate_90_cw.webp",
+                   expected_shape, {270, true, false});
+    TestValidImage(filename_prefix + "_rotate_270_cw.webp",
+                   expected_shape, {90, false, false});
   }
 
   const std::string webp_directory_ = testing::dali_extra_path() + "/db/single/webp/";
-  const std::string orientation_directory_ = testing::dali_extra_path() + "/db/imgcodec/webp/orientation/";
+  const std::string orientation_directory_ = testing::dali_extra_path() +
+                                             "/db/imgcodec/webp/orientation/";
 };
 
 TEST_F(WebpParserTest, ValidWebpLossy) {

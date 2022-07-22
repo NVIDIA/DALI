@@ -17,6 +17,7 @@
 #include <vector>
 #include "dali/imgcodec/parsers/webp.h"
 #include "dali/core/byte_io.h"
+#include "dali/core/endian_util.h"
 #include "third_party/opencv/exif/exif.h"
 
 namespace dali {
@@ -43,9 +44,6 @@ static_assert(sizeof(RiffHeader) == 12);
 
 using chunk_identifier_t = std::array<uint8_t, 4>;
 
-// The structures must be packed for reading them to work
-#pragma pack(push, 1) 
-
 // Chunk specification:
 // https://developers.google.com/speed/webp/docs/riff_container#riff_file_format
 struct ChunkHeader {
@@ -59,8 +57,8 @@ static_assert(sizeof(ChunkHeader) == 8);
 struct WebpLossyHeader {
   std::array<uint8_t, 3> frame_tag;
   std::array<uint8_t, 3> sync_code;
-  uint16_t width;
-  uint16_t height;
+  uint16_t width_field;
+  uint16_t height_field;
 };
 static_assert(sizeof(WebpLossyHeader) == 10);
 
@@ -77,12 +75,18 @@ static_assert(sizeof(WebpLosslessHeader) == 5);
 struct WebpExtendedHeader {
   uint8_t layout_mask;
   std::array<uint8_t, 3> reserved;
-  std::array<uint8_t, 3> width;
-  std::array<uint8_t, 3> height;
+  std::array<uint8_t, 3> width_field;
+  std::array<uint8_t, 3> height_field;
 };
 static_assert(sizeof(WebpExtendedHeader) == 10);
 
-#pragma pack(pop) // end of packing scope
+#pragma pack(pop)  // end of packing scope
+
+// Specify fields that are coded in LE to ensure portability
+SWAP_ENDIAN_FIELDS(RiffHeader, file_size);
+SWAP_ENDIAN_FIELDS(ChunkHeader, chunk_size);
+SWAP_ENDIAN_FIELDS(WebpLossyHeader, width_field, height_field);
+SWAP_ENDIAN_FIELDS(WebpLosslessHeader, features);
 
 // Specific bits in WebpExtendedHeader::layout_mask
 const uint8_t EXTENDED_LAYOUT_RESERVED = 1 << 0;
@@ -91,8 +95,6 @@ const uint8_t EXTENDED_LAYOUT_XMP_METADATA = 1 << 2;
 const uint8_t EXTENDED_LAYOUT_EXIF_METADATA = 1 << 3;
 const uint8_t EXTENDED_LAYOUT_ALPHA = 1 << 4;
 const uint8_t EXTENDED_LAYOUT_ICC_PROFILE = 1 << 5;
-
-#pragma pack(pop)  // end of packing scope
 
 template<size_t N>
 constexpr std::array<uint8_t, N - 1> tag(const char (&c)[N]) {
@@ -133,7 +135,13 @@ std::string sequence_of_integers(const std::array<uint8_t, N> &data) {
   return result;
 }
 
-// TODO: unify fetching the EXIF tags from accross the imgcodec parsers
+// If chunk_size is odd, there is a one byte padding that must be skipped
+void skip_rest_of_chunk(InputStream &stream,
+                        const ChunkHeader &header,
+                        size_t bytes_of_data_read = 0) {
+  stream.Skip(header.chunk_size + header.chunk_size % 2 - bytes_of_data_read);
+}
+
 void fetch_info_from_exif_data(std::vector<uint8_t> &data, ImageInfo &info) {
   cv::ExifReader reader;
   reader.parseExif(data.data(), data.size());
@@ -155,7 +163,7 @@ void seek_exif_data(InputStream &stream, ImageInfo &info) {
       break;
     } else {
       // Skip the rest of the chunk
-      stream.Skip(header.chunk_size);
+      skip_rest_of_chunk(stream, header);
     }
   }
 }
@@ -167,22 +175,28 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
   ImageInfo info;
 
   stream->Skip<RiffHeader>();
-  const auto vp8_header = stream->ReadOne<ChunkHeader>();
+  auto vp8_header = stream->ReadOne<ChunkHeader>();
+  to_little_endian(vp8_header);
+
   if (is_simple_lossy_format(vp8_header)) {
-    const auto lossy_header = stream->ReadOne<WebpLossyHeader>();
+    auto lossy_header = stream->ReadOne<WebpLossyHeader>();
+    to_little_endian(lossy_header);
+
     if (!is_sync_code_valid(lossy_header)) {
       DALI_FAIL("Sync code 157 1 42 not found at expected position. Found " +
                 sequence_of_integers(lossy_header.sync_code) + " instead");
     }
 
     // only the last 14 bits of the fields code the dimensions
-    const int w = lossy_header.width & 0x3FFF;
-    const int h = lossy_header.height & 0x3FFF;
+    const int w = lossy_header.width_field & 0x3FFF;
+    const int h = lossy_header.height_field & 0x3FFF;
 
     // VP8 always uses RGB
     info.shape = {h, w, 3};
   } else if (is_simple_lossless_format(vp8_header)) {
-    const auto lossless_header = stream->ReadOne<WebpLosslessHeader>();
+    auto lossless_header = stream->ReadOne<WebpLosslessHeader>();
+    to_little_endian(lossless_header);
+
     if (!is_sync_code_valid(lossless_header)) {
         DALI_FAIL("Sync code 47 not found at expected position. Found " +
                   std::to_string(lossless_header.signature_byte) + " instead.");
@@ -191,30 +205,28 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
     // VP8L shape information are packed inside the features field
     const int w = (lossless_header.features & 0x00003FFF) + 1;
     const int h = ((lossless_header.features & 0x0FFFC000) >> 14) + 1;
-    const int alpha = (lossless_header.features & 0x10000000) >> 28;
+    const bool alpha = lossless_header.features & 0x10000000;
 
     // VP8L always uses RGBA
     info.shape = {h, w, 3 + alpha};
   } else if (is_extended_format(vp8_header)) {
     const auto extended_header = stream->ReadOne<WebpExtendedHeader>();
-    const int w = ReadValueLE<uint32_t, 3>(extended_header.width.data()) + 1;
-    const int h = ReadValueLE<uint32_t, 3>(extended_header.height.data()) + 1;
+
+    // Both dimensions are encoded with 24 bits, as (width - 1) i (height - 1) respectively
+    const int w = ReadValueLE<uint32_t, 3>(extended_header.width_field.data()) + 1;
+    const int h = ReadValueLE<uint32_t, 3>(extended_header.height_field.data()) + 1;
     const bool alpha = extended_header.layout_mask & EXTENDED_LAYOUT_ALPHA;
 
+    // VP8X is encoded with VP8 and VP8L bitstreams, so it uses RGBA
     info.shape = {h, w, 3 + alpha};
 
     if (extended_header.layout_mask & EXTENDED_LAYOUT_EXIF_METADATA) {
-      // Skip the rest of the chunk, so the stream is at the start of a next chunk
-      stream->Skip(vp8_header.chunk_size - sizeof(extended_header));
+      skip_rest_of_chunk(*stream, vp8_header, sizeof(extended_header));
       seek_exif_data(*stream, info);
     }
   } else {
     DALI_FAIL("Unrecognized WebP header: " + sequence_of_integers(vp8_header.identifier));
   }
-
-  std::cerr << "Orientation: (" << info.orientation.flip_x 
-                        << ", " << info.orientation.flip_y
-                        << ", " << info.orientation.rotate << ")\n";
 
   return info;
 }
