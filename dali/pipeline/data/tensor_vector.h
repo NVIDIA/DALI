@@ -414,6 +414,25 @@ class DLL_PUBLIC TensorVector {
    */
 
   /**
+   * @brief Return an un-typed pointer to the underlying storage.
+   * The TensorVector must be either empty or have a valid type and be contiguous.
+   */
+  friend void *unsafe_raw_mutable_data(TensorVector<Backend> &tv) {
+    DALI_ENFORCE(tv.IsContiguous(), "Data pointer can be obtain only for contiguous TensorVector.");
+    return unsafe_raw_mutable_data(*tv.tl_);
+  }
+
+  /**
+   * @brief Return an un-typed const pointer to the underlying storage.
+   * The TensorVector must be either empty or have a valid type and be contiguous.
+   */
+  friend const void *unsafe_raw_data(const TensorVector<Backend> &tv) {
+    DALI_ENFORCE(tv.IsContiguous(), "Data pointer can be obtain only for contiguous TensorVector.");
+    return unsafe_raw_data(*tv.tl_);
+  }
+
+
+  /**
    * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
    * with.
    * Sample 0 is aliased with the whole buffer, if it is contiguous.
