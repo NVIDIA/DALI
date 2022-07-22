@@ -238,10 +238,13 @@ bool WebpParser::CanParse(ImageSource *encoded) const {
     return false;
   MemInputStream stream(data, sizeof(data));
 
-  if (!is_valid_riff_header(stream.ReadOne<RiffHeader>()))
+  auto riff_header = stream.ReadOne<RiffHeader>();
+  to_little_endian(riff_header);
+  if (!is_valid_riff_header(riff_header))
     return false;
 
-  const auto vp8_header = stream.ReadOne<ChunkHeader>();
+  auto vp8_header = stream.ReadOne<ChunkHeader>();
+  to_little_endian(vp8_header);
   if (is_simple_lossy_format(vp8_header)) {
     return is_sync_code_valid(stream.ReadOne<WebpLossyHeader>());
   } else if (is_simple_lossless_format(vp8_header)) {
