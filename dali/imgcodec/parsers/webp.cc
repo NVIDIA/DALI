@@ -42,12 +42,10 @@ struct RiffHeader {
 };
 static_assert(sizeof(RiffHeader) == 12);
 
-using chunk_identifier_t = std::array<uint8_t, 4>;
-
 // Chunk specification:
 // https://developers.google.com/speed/webp/docs/riff_container#riff_file_format
 struct ChunkHeader {
-  chunk_identifier_t identifier;
+  std::array<uint8_t, 4> identifier;
   uint32_t chunk_size;
 };
 static_assert(sizeof(ChunkHeader) == 8);
