@@ -105,7 +105,7 @@ TEST_F(ImageFormatTest, DISABLED_Jpeg2000) {
        TensorShape<>(299, 640, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Webp) {
+TEST_F(ImageFormatTest, Webp) {
   Test(testing::dali_extra_path() + "/db/single/webp/lossy/cat-1245673_640.webp", "webp",
        TensorShape<>(423, 640, 3));
 }
