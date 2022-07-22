@@ -729,14 +729,8 @@ def test_checkerboard_dali_vs_onnx_ref():
         out, = p.run()
 
         out_dali = as_array(out[0])
-
-        print("DALI:\n", out_dali)
-        print("Ref:\n", ref)
         abs_diff = np.abs(ref - out_dali)
-        print("Abs diff:\n", abs_diff)
-
         max_error = np.max(abs_diff)
-        print("Max error: ", np.max(abs_diff))
 
         if max_error > 1:
             suffix_str = 'cubic' if interp_type == types.INTERP_CUBIC else 'linear'
