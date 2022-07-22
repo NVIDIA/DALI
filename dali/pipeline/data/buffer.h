@@ -309,14 +309,16 @@ class DLL_PUBLIC Buffer {
     order_ = order;
   }
 
-  /** @defgroup SetTypeFunctions Type setting functions.
-   *
-   * Set the type of the current buffer. It must be set before calling resize(size).
+  /**
+   * @name Type setting functions.
+   * @{
+   */
+  /**
+   * @brief Set the type of the current buffer. It must be set before calling resize(Index).
    * It cannot be used to change the type after allocation happened.
    *
-   * resize(size, new_type) can be used without prior set_type call or to request a different type
-   * after allocation.
-   * @{
+   * resize(Index, DALIDataType) can be used without prior set_type call or to request a different
+   * type after allocation.
    */
   inline void set_type(const DALIDataType new_type_id) {
     DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
@@ -347,7 +349,7 @@ class DLL_PUBLIC Buffer {
   inline void set_type() {
     set_type(TypeTable::GetTypeId<T>());
   }
-  /** @} */  // end of SetTypeFunctions
+  /** @} */
 
   /**
    * @brief Reserves at least new_num_bytes of storage.
