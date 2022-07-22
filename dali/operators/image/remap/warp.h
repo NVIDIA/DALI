@@ -229,10 +229,10 @@ class Warp : public SequenceOperator<Backend> {
   const OpSpec &Spec() const { return this->spec_; }
 
  private:
-  /// @defgroup WarpStaticType Dynamic to static type routing
+  /** @defgroup WarpStaticType Dynamic to static type routing */
 
-  /// @addtogroup WarpStaticType
-  /// @{
+  /** @addtogroup WarpStaticType */
+  /** @{ */
 
   template <typename F>
   void ToStaticTypeEx(std::tuple<> &&, F &&functor) {
@@ -255,7 +255,7 @@ class Warp : public SequenceOperator<Backend> {
     ToStaticTypeEx(supported_types(), std::forward<F>(functor));
   }
 
-  /// @}
+  /** @} */
  public:
   explicit Warp(const OpSpec &spec) : SequenceOperator<Backend>(spec) {
     border_clamp_ = !spec.HasArgument("fill_value");

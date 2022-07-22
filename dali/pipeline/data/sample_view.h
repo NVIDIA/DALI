@@ -38,8 +38,8 @@ class SampleViewBase {
  public:
   /**
    * @name Get the underlying pointer to data
+   * @{
    */
-  // @{
   /**
    * @brief Return an un-typed pointer to the underlying storage.
    */
@@ -84,7 +84,7 @@ class SampleViewBase {
             ". To set type for the Buffer use 'set_type<T>()' or Resize(shape, type) first."));
     return static_cast<const T *>(data_);
   }
-  //@}
+  /** @} */
 
   /**
    * @brief Get the shape of the sample

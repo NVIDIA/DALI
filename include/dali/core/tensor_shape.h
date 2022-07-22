@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -663,7 +663,7 @@ struct TensorListShapeBase {
   }
 
 
-  ///@{
+  /** @{ */
   /**
    * Append this TensorListShape with shapes from other TensorListShapes.
    */
@@ -703,7 +703,7 @@ struct TensorListShapeBase {
   void append(const std::vector<TensorListShape<sample_ndim>> &tlss) {
     append(make_cspan(tlss.data(), tlss.size()));
   }
-  ///@}
+  /** @} */
 
  protected:
   int sample_dim() const { return static_cast<const Derived *>(this)->sample_dim(); }

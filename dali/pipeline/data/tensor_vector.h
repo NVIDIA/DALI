@@ -240,12 +240,17 @@ class DLL_PUBLIC TensorVector {
   void SetSize(int new_size);
 
   /**
-   * @name Setup all the batch properties of this TensorVector the same way as the provided tensor:
+   * @name Configuration cloning
+   * @{
+   */
+  /**
+   * @brief Setup all the batch properties of this TensorVector the same way as the provided tensor
+   * or batch.
    *
    * Precondition: the TensorVector should not have data.
+   *
    * Configures: type, layout, pinned, order and dimensionality.
    */
-  // @{
   void SetupLike(const Tensor<Backend> &sample) {
     SetupLikeImpl(sample);
   }
@@ -257,7 +262,7 @@ class DLL_PUBLIC TensorVector {
   void SetupLike(const TensorList<Backend> &other) {
     SetupLikeImpl(other);
   }
-  // @}
+  /** @} */
 
   void set_type(DALIDataType new_type);
 
