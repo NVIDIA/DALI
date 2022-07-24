@@ -59,14 +59,14 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   }
 
   if (nsamples_copy) {
-    bool no_padded = true;
+    bool is_padded = false;
     for (int i = 0; i < nsamples; ++i) {
       if (source_data_index_[i] != i) {
-        no_padded = false;
+        is_padded = true;
         break;
       }
     }
-    if (nsamples_copy == nsamples && no_padded) {
+    if (nsamples_copy == nsamples && !is_padded) {
       std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);
       return;
     }
