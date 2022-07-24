@@ -525,8 +525,6 @@ void VideoLoader::read_file() {
   seek(file, req.frame);
 
   auto nonkey_frame_count = 0;
-  int frames_left = req.count;
-  std::vector<bool> frames_read(frames_left, false);
 
   bool is_first_frame = true;
   int last_key_frame = -1;
@@ -605,18 +603,6 @@ void VideoLoader::read_file() {
           last_key_frame = -1;
         }
         continue;
-    }
-
-    if (frame >= req.frame && frame < req.frame + req.count) {
-      if (frames_read[frame - req.frame]) {
-        ERROR_LOG << "Frame " << frame << " appeared twice\n";
-      } else {
-        frames_read[frame - req.frame] = true;
-        frames_left--;
-        LOG_LINE << "Frames left: " << frames_left << "\n";
-      }
-    } else {
-      LOG_LINE << "Frame " << frame << " not in the interesting range.\n";
     }
 
     LOG_LINE << device_id_ << ": Sending " << (key ? "  key " : "nonkey")
