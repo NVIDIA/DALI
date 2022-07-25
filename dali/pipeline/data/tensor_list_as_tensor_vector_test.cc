@@ -137,7 +137,7 @@ TYPED_TEST(TensorVectorTest, TestCopy) {
 
     ASSERT_EQ(tl.num_samples(), tl2.num_samples());
     ASSERT_EQ(tl.type(), tl2.type());
-    ASSERT_EQ(tl._num_elements(), tl2._num_elements());
+    ASSERT_EQ(tl.shape().num_elements(), tl2.shape().num_elements());
 
     for (int i = 0; i < shape.size(); ++i) {
       ASSERT_EQ(tl.tensor_shape(i), tl.tensor_shape(i));
@@ -160,7 +160,7 @@ TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
     tl2.Copy(tl);
     ASSERT_EQ(tl.num_samples(), tl2.num_samples());
     ASSERT_EQ(tl.type(), tl2.type());
-    ASSERT_EQ(tl._num_elements(), tl2._num_elements());
+    ASSERT_EQ(tl.shape().num_elements(), tl2.shape().num_elements());
   }
 }
 
