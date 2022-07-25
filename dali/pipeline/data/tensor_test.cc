@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include <numeric>
+#include <stdexcept>
 
 #include "dali/core/common.h"
 #include "dali/core/mm/malloc_resource.h"
@@ -171,21 +172,13 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<NoType>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.template set_type<int16>();
+  t.template set_type<float>();
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
   ASSERT_EQ(t.shape(), empty_tensor_shape());
-  ASSERT_TRUE(IsType<int16>(t.type()));
-  ASSERT_TRUE(t.shares_data());
-
-  // Kind of exception safety test
-  ASSERT_EQ(t.raw_data(), source_data.data());
-  ASSERT_EQ(t.size(), 0);
-  ASSERT_EQ(t.nbytes(), 0);
-  ASSERT_EQ(t.shape(), empty_tensor_shape());
-  ASSERT_TRUE(IsType<int16>(t.type()));
+  ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
   t.template set_type<float>();
@@ -198,7 +191,17 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeNoAlloc) {
   ASSERT_TRUE(IsType<float>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
+  t.Resize(shape, DALI_INT16);
+
+  ASSERT_EQ(t.raw_data(), source_data.data());
+  ASSERT_EQ(t.size(), size);
+  ASSERT_EQ(t.nbytes(), size*sizeof(int16_t));
+  ASSERT_EQ(t.shape(), shape);
+  ASSERT_TRUE(IsType<int16_t>(t.type()));
+  ASSERT_TRUE(t.shares_data());
+
   t.Reset();
+
   ASSERT_EQ(t.raw_data(), nullptr);
   ASSERT_EQ(t.size(), 0);
   ASSERT_EQ(t.nbytes(), 0);
@@ -245,8 +248,8 @@ TYPED_TEST(TensorTest, TestGetBytesTypeSizeAlloc) {
   ASSERT_TRUE(IsType<double>(t.type()));
   ASSERT_TRUE(t.shares_data());
 
-  t.template set_type<float>();
-  t.Resize(shape);
+  // We still can Resize to this allocation
+  t.Resize(shape, DALI_FLOAT);
 
   ASSERT_EQ(t.raw_data(), source_data.data());
   ASSERT_EQ(t.size(), size);
@@ -611,6 +614,22 @@ TYPED_TEST(TensorTest, TestResizeZeroSize) {
   ASSERT_EQ(tensor.ndim(), shape.size());
 }
 
+TYPED_TEST(TensorTest, TestTypeChangeError) {
+  Tensor<TypeParam> tensor;
+  TensorShape<> shape = { 200, 300, 3 };
+
+  tensor.set_type(DALI_UINT8);
+  tensor.set_type(DALI_FLOAT);
+  tensor.set_type(DALI_INT32);
+  tensor.Resize(shape);
+  ASSERT_NE(tensor.template mutable_data<int32_t>(), nullptr);
+
+  ASSERT_THROW(tensor.set_type(DALI_FLOAT), std::runtime_error);
+
+  tensor.Resize(shape, DALI_FLOAT);
+  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
+}
+
 TYPED_TEST(TensorTest, TestTypeChange) {
   Tensor<TypeParam> tensor;
 
@@ -618,58 +637,34 @@ TYPED_TEST(TensorTest, TestTypeChange) {
   TensorShape<> shape = { 4, 480, 640, 3 };
   tensor.Resize(shape, DALI_FLOAT);
 
-  // Verify the settings
-  ASSERT_NE(tensor.template mutable_data<float>(), nullptr);
-  size_t num_elements = volume(shape);
-  ASSERT_EQ(tensor.size(), volume(shape));
-  ASSERT_EQ(tensor.ndim(), shape.size());
-  for (int i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);
+  DALIDataType current_type = DALI_FLOAT;
+  std::array<DALIDataType, 4> types = {DALI_FLOAT, DALI_INT32, DALI_UINT8, DALI_FLOAT64};
+  const auto *ptr = tensor.raw_data();
+
+  for (auto new_type : types) {
+    if (current_type != new_type) {
+      // Simply changing the type of the buffer is not allowed
+      ASSERT_THROW(tensor.set_type(new_type), std::runtime_error);
+      tensor.Resize(shape, new_type);
+      current_type = new_type;
+    }
+
+    // The side-effects of only reallocating when we need a bigger buffer, but we may use padding
+    if (TypeTable::GetTypeInfo(current_type).size() <= sizeof(float)) {
+      ASSERT_EQ(ptr, tensor.raw_data());
+    }
+
+    // Verify the settings
+    ASSERT_NE(tensor.raw_data(), nullptr);
+    ASSERT_EQ(tensor.shape(), shape);
+    ASSERT_EQ(tensor.size(), volume(shape));
+    ASSERT_EQ(tensor.ndim(), shape.size());
+    ASSERT_EQ(tensor.type(), current_type);
+    for (int i = 0; i < shape.size(); ++i) {
+      ASSERT_EQ(tensor.dim(i), shape[i]);
+    }
+    ASSERT_EQ(volume(shape) * TypeTable::GetTypeInfo(current_type).size(), tensor.nbytes());
   }
-  ASSERT_EQ(num_elements * sizeof(float), tensor.nbytes());
-
-  // Save the pointer
-  const void *source_data = tensor.raw_data();
-
-  // Change the type of the buffer
-  tensor.template set_type<int>();
-
-  // Verify the settings
-  ASSERT_EQ(tensor.size(), volume(shape));
-  ASSERT_EQ(tensor.ndim(), shape.size());
-  for (int i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);
-  }
-
-  // No re-allocation should have occured
-  ASSERT_EQ(source_data, tensor.raw_data());
-  ASSERT_EQ(num_elements * sizeof(int), tensor.nbytes());
-
-  // Change the type to a smaller type
-  tensor.template set_type<uint8>();
-
-  // Verify the settings
-  ASSERT_EQ(tensor.size(), volume(shape));
-  ASSERT_EQ(tensor.ndim(), shape.size());
-  for (int i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);
-  }
-
-  // No re-allocation should have occured
-  ASSERT_EQ(source_data, tensor.raw_data());
-  ASSERT_EQ(num_elements * sizeof(uint8), tensor.nbytes());
-
-  // Change the type to a larger type
-  tensor.template set_type<double>();
-
-  // Verify the settings
-  ASSERT_EQ(tensor.size(), volume(shape));
-  ASSERT_EQ(tensor.ndim(), shape.size());
-  for (int i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tensor.dim(i), shape[i]);
-  }
-
-  ASSERT_EQ(num_elements * sizeof(double), tensor.nbytes());
 }
 
 TYPED_TEST(TensorTest, TestSubspaceTensor) {
