@@ -23,7 +23,7 @@ namespace dali {
 namespace imgcodec {
 
 /**
- * @brief A fallback decoder, using OpenCV to decode the images
+ * @brief JPEG decoder, using libjpeg-turbo.
  */
 class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl<LibJpegTurboDecoderInstance> {
  public:
@@ -37,6 +37,25 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl<L
   using Base::Decode;
 
   DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in, DecodeParams opts) override;
+
+  virtual void SetParam(const char *name, const any &value) override {
+    if (strcmp(name, "fast_idct") == 0) {
+      use_fast_idct_ = any_cast<bool>(value);
+    } else {
+      DALI_FAIL("Unexpected param name: " + std::string(name));
+    }
+  }
+
+  virtual any GetParam(const char *name) const override {
+    if (strcmp(name, "fast_idct") == 0) {
+      return use_fast_idct_;
+    } else {
+      DALI_FAIL("Unexpected param name: " + std::string(name));
+    }
+  }
+
+ private:
+  bool use_fast_idct_ = false;
 };
 
 class LibJpegTurboDecoder : public ImageDecoder {
@@ -44,10 +63,9 @@ class LibJpegTurboDecoder : public ImageDecoder {
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
       ImageDecoderProperties props;
-      props.supported_input_kinds =
-        InputKind::HostMemory | InputKind::Filename;
+      props.supported_input_kinds = InputKind::HostMemory;
       props.supports_partial_decoding = false;  // roi support requires decoding the whole file
-      props.fallback = false;  // this is the codec of last resort - if it fail, error out
+      props.fallback = true;
       return props;
     }();
     return props;

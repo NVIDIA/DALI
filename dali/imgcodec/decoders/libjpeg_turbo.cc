@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include "dali/imgcodec/decoders/opencv_fallback.h"
 #include "dali/imgcodec/decoders/libjpeg_turbo.h"
-#include "dali/imgcodec/util/convert.h"
-#include "dali/image/jpeg_mem.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
+#include "dali/imgcodec/parsers/jpeg.h"
 
 namespace dali {
 namespace imgcodec {
@@ -27,16 +24,21 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
                                                  DecodeParams opts) {
   jpeg::UncompressFlags flags;
 
-  if (false) {  // ???
-    flags.dct_method = JDCT_FASTEST;
+  auto &type = opts.format;
+  if (type == DALI_ANY_DATA) {
+    const auto shape = JpegParser().GetInfo(in).shape;
+    const auto channels = shape[2];
+    type = channels == 3 ? DALI_RGB : DALI_GRAY;
   }
+  flags.components = NumberOfChannels(type);
 
-  flags.components = 0;  // autodetect -- ???
-
-  const auto &type = opts.format;
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
                "Color space not supported by libjpeg-turbo");
   flags.color_space = type;
+
+  if (any_cast<bool>(GetParam("fast_idct"))) {
+    flags.dct_method = JDCT_FASTEST;
+  }
 
   if ((flags.crop = opts.use_roi)) {
     flags.crop_y = opts.roi.begin[0];
@@ -51,7 +53,7 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
     encoded_data = static_cast<const uint8_t*>(in->RawData());
     data_size = in->Size();
   } else {
-    // ???
+    DALI_FAIL("InputKind not supported");
   }
 
   std::shared_ptr<uint8_t> decoded_image;
@@ -74,7 +76,6 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
   res.exception = nullptr;
   return res;
 }
-
 
 }  // namespace imgcodec
 }  // namespace dali
