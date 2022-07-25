@@ -7,6 +7,8 @@ test_body() {
     for test_script in $(ls test_operator_*.py test_pipeline*.py test_functional_api.py test_backend_impl.py); do
         ${python_invoke_test} --attr 'slow' ${test_script}
     done
+
+    ${python_new_invoke_test} --config unittest_slow.cfg -s operator
 }
 
 pushd ../..

@@ -136,7 +136,7 @@ def test_image_gaussian_blur():
 
 
 @attr('slow')
-def test_image_gaussian_blur_slow():
+def slow_test_image_gaussian_blur():
     for dev in ["cpu", "gpu"]:
         for sigma in [1.0, [1.0, 2.0]]:
             for window_size in [3, 5, [7, 5], [5, 9], None]:
@@ -160,7 +160,7 @@ def test_gaussian_blur_cpu_gpu():
 
 
 @attr('slow')
-def test_gaussian_blur_cpu_gpu_slow():
+def slow_test_gaussian_blur_cpu_gpu():
     for sigma in [1.0, [1.0, 2.0], None]:
         for window_size in [3, 5, [7, 5], [5, 9], 11, 15, 31, None]:
             if sigma is None and window_size is None:
@@ -254,7 +254,7 @@ def test_one_sized_extent():
 
 
 @attr('slow')
-def test_generic_gaussian_blur_slow():
+def slow_test_generic_gaussian_blur():
     for dev in ["cpu", "gpu"]:
         for t_in in [np.uint8, np.int32, np.float32]:
             for t_out in [types.NO_TYPE, types.FLOAT, dali_type(t_in)]:
