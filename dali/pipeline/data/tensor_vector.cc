@@ -706,7 +706,10 @@ void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, AccessOr
   copy_impl::CopyImpl(*this, in_tv, this->type_info(), copy_order, use_copy_kernel);
 
   // Update the layout and other metadata
-  SetLayout(in_tv.GetLayout());
+  // TODO(klecki): Remove the check, when we have `layout_` member and the non-contiguous
+  // batch can remember the layout
+  if (state_ != State::noncontiguous || !tensors_.empty())
+    SetLayout(in_tv.GetLayout());
   for (int i = 0; i < curr_num_tensors_; i++) {
     SetMeta(i, in_tv.GetMeta(i));
   }
