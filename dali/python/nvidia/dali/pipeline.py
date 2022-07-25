@@ -209,6 +209,7 @@ Parameters
         self._py_pool_started = False
         self._backend_prepared = False
         self._built = False
+        self._deserialized = False  # Marked True when deserializing
         self._first_iter = True
         self._last_iter = False
         self._iter = 0
@@ -907,11 +908,13 @@ Parameters
             name = data_node.name
 
         # Check for use of feed_input on an external_source operator that was
-        # initialized with 'source'.
-        if next((op._callback is not None for op in self._ops if op.name == name), False):
-            raise RuntimeError(
-                f"Cannot use `feed_input` on the external source '{name}' with a `source`"
-                " argument specified.")
+        # initialized with 'source'. This check makes sense only for fully Python-based
+        # pipelines, and not deserialized ones
+        if not self._deserialized:
+            if next((op._callback is not None for op in self._ops if op.name == name), False):
+                raise RuntimeError(
+                    f"Cannot use `feed_input` on the external source '{name}' with a `source`"
+                    " argument specified.")
 
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
@@ -1226,6 +1229,7 @@ Parameters
         pipeline._backend_prepared = True
         pipeline._pipe.Build()
         pipeline._built = True
+        pipeline._deserialized = True
         return pipeline
 
     def deserialize_and_build(self, serialized_pipeline):
@@ -1253,6 +1257,7 @@ Parameters
         self._backend_prepared = True
         self._pipe.Build()
         self._built = True
+        self._deserialized = True
 
     def save_graph_to_dot_file(self, filename, show_tensors=False, show_ids=False,
                                use_colors=False):
