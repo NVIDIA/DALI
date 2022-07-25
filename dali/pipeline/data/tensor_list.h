@@ -647,23 +647,26 @@ class DLL_PUBLIC TensorList {
   }
 
   /**
-   * @brief Set the type of the TensorList. The type needs to be set before calling
-   * the Resize function that gives the shape. Type can be changed, if the current storage
-   * is not big enough, the memory will be reallocated.
+   * @name Type setting functions.
+   * @{
+   */
+  /**
+   * @brief Set the type of the current batch. It must be set before calling
+   * Resize(const TensorListShape<> &). It cannot be used to change the type after allocation
+   * happened.
+   *
+   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
+   * request a different type after allocation.
    */
   inline void set_type(const DALIDataType new_type_id) {
     data_.set_type(new_type_id);
   }
 
-  /**
-   * @brief Set the type of the TensorList. The type needs to be set before calling
-   * the Resize function that gives the shape. Type can be changed, if the current storage
-   * is not big enough, the memory will be reallocated.
-   */
   template <typename T>
   inline void set_type() {
     data_.set_type(TypeTable::GetTypeId<T>());
   }
+  /** @} */
 
   /**
    * @brief Sets the type of allocation (pinned/non-pinned) for CPU TensorList

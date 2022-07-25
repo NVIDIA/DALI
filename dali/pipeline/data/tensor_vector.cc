@@ -16,6 +16,7 @@
 #include "dali/pipeline/data/tensor_vector.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
@@ -31,20 +32,6 @@ TensorVector<Backend>::TensorVector(int batch_size)
       tl_(std::make_shared<TensorList<Backend>>(batch_size)) {
   resize_tensors(batch_size);
 }
-
-
-template <typename Backend>
-TensorVector<Backend>::TensorVector(std::shared_ptr<TensorList<Backend>> tl)
-    : views_count_(0), curr_num_tensors_(0), tl_(std::move(tl)) {
-  assert(tl_ && "Construction with null TensorList is illegal");
-  pinned_ = tl_->is_pinned();
-  type_ = tl_->type_info();
-  sample_dim_ = tl_->shape().sample_dim();
-  state_ = State::contiguous;
-  resize_tensors(tl_->num_samples());
-  UpdateViews();
-}
-
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector(TensorVector<Backend> &&other) noexcept {
@@ -306,7 +293,13 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
   for (int i = 0; i < curr_num_tensors_; i++) {
     tensors_[i]->Resize(new_shape[i], new_type);
   }
-  set_type(new_type);
+  if (type_.id() != new_type) {
+    type_ = TypeTable::GetTypeInfo(new_type);
+    if (state_ == State::noncontiguous) {
+      tl_->Reset();
+      tl_->set_type(new_type);
+    }
+  }
   sample_dim_ = new_shape.sample_dim();
 }
 
@@ -323,6 +316,12 @@ void TensorVector<Backend>::set_type(DALIDataType new_type_id) {
   DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
   if (type_.id() == new_type_id)
     return;
+  DALI_ENFORCE(type_.id() == new_type_id || (!has_data() || type_.id() == DALI_NO_TYPE),
+               make_string("set_type cannot be used to change the current type - it is not "
+                           "allowed to cause allocations. Currently set type: '",
+                           type_.id(), "' trying to set: '", new_type_id,
+                           "'. You may change the current type using Resize or by"
+                           " calling Reset first."));
   type_ = TypeTable::GetTypeInfo(new_type_id);
   tl_->set_type(new_type_id);
   for (auto t : tensors_) {
@@ -604,19 +603,6 @@ void TensorVector<Backend>::UpdateViews() {
   for (int i = 0; i < curr_num_tensors_; i++) {
     update_view(i);
   }
-}
-
-
-template <typename Backend>
-std::shared_ptr<TensorList<Backend>> TensorVector<Backend>::AsTensorList(bool check_contiguity) {
-  DALI_ENFORCE(IsContiguous() || !check_contiguity,
-               "Cannot cast non continuous TensorVector to TensorList.");
-  // Update the metadata when we are exposing the TensorList to the outside, as it might have been
-  // kept in the individual tensors
-  for (int idx = 0; idx < curr_num_tensors_; idx++) {
-    tl_->SetMeta(idx, tensors_[idx]->GetMeta());
-  }
-  return tl_;
 }
 
 

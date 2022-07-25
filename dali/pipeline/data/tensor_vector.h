@@ -62,8 +62,6 @@ class DLL_PUBLIC TensorVector {
    */
   explicit TensorVector(int batch_size);
 
-  explicit TensorVector(std::shared_ptr<TensorList<Backend>> tl);
-
   TensorVector(const TensorVector &) = delete;
   TensorVector &operator=(const TensorVector &) = delete;
 
@@ -261,12 +259,26 @@ class DLL_PUBLIC TensorVector {
   }
   // @}
 
+  /**
+   * @name Type setting functions.
+   * @{
+   */
+  /**
+   * @brief Set the type of the current batch. The type needs to be set before calling
+   * the Resize(const TensorListShape<> &) function. It cannot be used to change the type after
+   * allocation happened.
+   *
+   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
+   * request a different type after allocation.
+   */
   void set_type(DALIDataType new_type);
 
   template <typename T>
   void set_type() {
     set_type(TypeTable::GetTypeId<T>());
   }
+  /** @} */
+
 
   DALIDataType type() const;
 
@@ -329,8 +341,6 @@ class DLL_PUBLIC TensorVector {
   TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;
 
   void UpdateViews();
-
-  shared_ptr<TensorList<Backend>> AsTensorList(bool check_contiguity = true);
 
  private:
   enum class State { contiguous, noncontiguous };
@@ -395,6 +405,30 @@ class DLL_PUBLIC TensorVector {
   // with different template types
   template <typename InBackend>
   friend class TensorVector;
+
+  /** @defgroup AccessorFunctions Fallback for accessing pointers owning the samples
+   * Fallback access to contiguous data or samples of the batch. It should not be used for regular
+   * processing, intended mostly for batches that were made sure to be contiguous (mainly
+   * for pipeline outputs).
+   * @{
+   */
+
+  /**
+   * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
+   * with.
+   * Sample 0 is aliased with the whole buffer, if it is contiguous.
+   */
+  friend shared_ptr<void> unsafe_sample_owner(TensorVector<Backend> &batch, int sample_idx) {
+    // create new aliasing pointer to current data allocation, so we share the use count
+    // and the deleter correctly.
+    if (batch.IsContiguous()) {
+      return {unsafe_sample_owner(*batch.tl_, 0), batch.raw_mutable_tensor(sample_idx)};
+    } else {
+      return batch.tensors_[sample_idx]->get_data_ptr();
+    }
+  }
+
+  /** @} */  // end of AccessorFunctions
 };
 
 }  // namespace dali

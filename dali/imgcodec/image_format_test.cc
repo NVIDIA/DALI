@@ -132,7 +132,7 @@ class CompatibilityTest : public ComparisonTestBase {
   }
 };
 
-TEST_F(ImageFormatTest, DISABLED_Jpeg) {
+TEST_F(ImageFormatTest, Jpeg) {
   Test(testing::dali_extra_path() + "/db/single/jpeg/372/baboon-174073_1280.jpg", "jpeg",
        TensorShape<>(720, 1280, 3));
 }
@@ -152,7 +152,7 @@ TEST_F(ImageFormatTest, Tiff) {
        TensorShape<>(423, 640, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Pnm) {
+TEST_F(ImageFormatTest, Pnm) {
   Test(testing::dali_extra_path() + "/db/single/pnm/0/cat-300572_640.pnm", "pnm",
        TensorShape<>(536, 640, 3));
 }
@@ -162,7 +162,7 @@ TEST_F(ImageFormatTest, DISABLED_Jpeg2000) {
        TensorShape<>(299, 640, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Webp) {
+TEST_F(ImageFormatTest, Webp) {
   Test(testing::dali_extra_path() + "/db/single/webp/lossy/cat-1245673_640.webp", "webp",
        TensorShape<>(423, 640, 3));
 }
