@@ -83,11 +83,11 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &s
                         const TypeInfo &type_info, AccessOrder order,
                         bool use_copy_kernel = false) {
   auto num_samples = src.num_samples();
-  SmallVector<const void *, 256> srcs;
+  SmallVector<const void *, kMaxStaticCopyBatchSize> srcs;
   srcs.reserve(num_samples);
-  SmallVector<void *, 256> dsts;
+  SmallVector<void *, kMaxStaticCopyBatchSize> dsts;
   dsts.reserve(num_samples);
-  SmallVector<Index, 256> sizes;
+  SmallVector<Index, kMaxStaticCopyBatchSize> sizes;
   sizes.reserve(num_samples);
   for (int i = 0; i < num_samples; i++) {
     dsts.emplace_back(dst.raw_mutable_tensor(i));
@@ -108,9 +108,9 @@ template <typename DstBackend, typename SrcBackend, template <typename> typename
 void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const void *src, const TypeInfo &type_info,
                         AccessOrder order, bool use_copy_kernel = false) {
   auto num_samples = dst.num_samples();
-  SmallVector<void *, 256> dsts;
+  SmallVector<void *, kMaxStaticCopyBatchSize> dsts;
   dsts.reserve(num_samples);
-  SmallVector<Index, 256> sizes;
+  SmallVector<Index, kMaxStaticCopyBatchSize> sizes;
   sizes.reserve(num_samples);
   for (int i = 0; i < num_samples; i++) {
     dsts.emplace_back(dst.raw_mutable_tensor(i));
@@ -130,9 +130,9 @@ template <typename DstBackend, typename SrcBackend, template <typename> typename
 void CopySamplewiseImpl(void *dst, const SrcBatch<SrcBackend> &src, const TypeInfo &type_info,
                         AccessOrder order, bool use_copy_kernel = false) {
   auto num_samples = src.num_samples();
-  SmallVector<const void *, 256> srcs;
+  SmallVector<const void *, kMaxStaticCopyBatchSize> srcs;
   srcs.reserve(num_samples);
-  SmallVector<Index, 256> sizes;
+  SmallVector<Index, kMaxStaticCopyBatchSize> sizes;
   sizes.reserve(num_samples);
   for (int i = 0; i < num_samples; i++) {
     srcs.emplace_back(src.raw_tensor(i));
