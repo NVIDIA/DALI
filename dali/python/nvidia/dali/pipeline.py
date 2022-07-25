@@ -1230,6 +1230,9 @@ Parameters
         pipeline._pipe.Build()
         pipeline._built = True
         pipeline._deserialized = True
+        pipeline._max_batch_size = pipeline._pipe.batch_size()
+        pipeline._num_threads = pipeline._pipe.num_threads()
+        pipeline._device_id = pipeline._pipe.device_id()
         return pipeline
 
     def deserialize_and_build(self, serialized_pipeline):

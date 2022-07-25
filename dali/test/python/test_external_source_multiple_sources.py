@@ -51,3 +51,6 @@ def test_external_source_with_serialized_pipe():
     deserialized_pipe = Pipeline(10, 4, 0)
     deserialized_pipe.deserialize_and_build(serialized_str)
     deserialized_pipe.feed_input("es", np.zeros([10, 10]))
+
+    deserialized_pipe_2 = Pipeline.deserialize(serialized_str)
+    deserialized_pipe_2.feed_input("es", np.zeros([10, 10]))
