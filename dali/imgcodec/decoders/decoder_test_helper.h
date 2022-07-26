@@ -16,11 +16,9 @@
 #define DALI_IMGCODEC_DECODERS_DECODER_TEST_H_
 
 #include "dali/pipeline/data/tensor.h"
-#include "dali/operators/reader/loader/numpy_loader.h"
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/imgcodec/decoders/test/numpy_helper.h"
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/image_decoder.h"
 #include "dali/test/dali_test.h"
@@ -49,7 +47,7 @@ class CpuDecoderTestBase : public ::testing::Test {
     SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());
     DecodeResult decode_result = decoder_->Decode(view, src, opts);
     EXPECT_TRUE(decode_result.success);
-    
+
     return result;
   }
 
@@ -120,6 +118,30 @@ class NumpyDecoderTestBase : public CpuDecoderTestBase<OutputType> {
     }
     return out;
   }
+
+  Tensor<CPUBackend> ReadNumpy(const std::string &path) {
+    auto file = FileStream::Open(path, false, false);
+    numpy::HeaderMeta meta;
+    numpy::ParseHeader(file.get(), meta);
+    file->SeekRead(meta.data_offset, SEEK_SET);
+
+    Tensor<CPUBackend> data;
+    data.Resize(meta.shape, meta.type());
+    Index ret = file->Read(static_cast<uint8_t*>(data.raw_mutable_data()), meta.nbytes());
+    DALI_ENFORCE(ret == (Index)meta.nbytes(), make_string("Failed to read file: ", path));
+
+    if (meta.fortran_order) {
+      Tensor<CPUBackend> transposed;
+      transposed.Resize(data.shape(), data.type());
+      SampleView<CPUBackend> input(data.raw_mutable_data(), data.shape(), data.type());
+      SampleView<CPUBackend> output(transposed.raw_mutable_data(), transposed.shape(),
+                                    transposed.type());
+      numpy::FromFortranOdder(output, input);
+      return transposed;
+    }
+    return data;
+  }
+
  public:
   Tensor<CPUBackend> ReadReference(const std::string &reference_path) override {
     Tensor<CPUBackend> ref = ReadNumpy(reference_path);
