@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,9 +91,29 @@ This allows TensorFlow DALIDataset to work with most Pipelines that have Externa
     This class is experimental and its API might change without notice.
 
 .. note::
+    External source nodes with ``num_outputs`` specified to any number are not
+    supported - this means that callbacks with multiple (tuple) outputs are not supported.
+
+.. note::
+    External source ``cycle`` policy ``'raise'`` is not supported - the dataset is not restartable.
+
+.. note::
+    External source ``cuda_stream`` parameter is ignored - ``source`` is supposed to return
+    CPU data and tf.data.Dataset inputs are handled internally.
+
+.. note::
+    External source ``use_copy_kernel`` and ``blocking`` parameters are ignored.
+
+.. note::
     Setting ``no_copy`` on the external source nodes when defining the pipeline is considered
     a no-op when used with DALI Dataset. The ``no_copy`` option is handled internally
     and enabled automatically if possible.
+
+.. note::
+    Parallel execution of external source callback provided via ``source`` is not supported.
+    The callback is executed via TensorFlow ``tf.data.Dataset.from_generator`` - the ``parallel``
+    and ``prefetch_queue_depth`` parameters are ignored.
+
 
 The operator adds additional parameters to the ones supported by the
 :class:`~nvidia.dali.plugin.tf.DALIDataset`:
