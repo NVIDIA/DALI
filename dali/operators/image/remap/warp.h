@@ -229,11 +229,10 @@ class Warp : public SequenceOperator<Backend> {
   const OpSpec &Spec() const { return this->spec_; }
 
  private:
-  /// @defgroup WarpStaticType Dynamic to static type routing
-
-  /// @addtogroup WarpStaticType
-  /// @{
-
+  /**
+   * @name Dynamic to static type routing
+   * @{
+   */
   template <typename F>
   void ToStaticTypeEx(std::tuple<> &&, F &&functor) {
     DALI_FAIL(make_string("Unsupported input/output types for the operator: ",
@@ -249,13 +248,16 @@ class Warp : public SequenceOperator<Backend> {
       ToStaticTypeEx(std::tuple<TypePairs...>(), std::forward<F>(functor));
   }
 
+  /**
+   * @brief Apply pairs from SupportedTypes list to the functor
+   */
   template <typename F>
   void ToStaticType(F &&functor) {
     using supported_types = typename MyType::SupportedTypes;
     ToStaticTypeEx(supported_types(), std::forward<F>(functor));
   }
 
-  /// @}
+  /** @} */
  public:
   explicit Warp(const OpSpec &spec) : SequenceOperator<Backend>(spec) {
     border_clamp_ = !spec.HasArgument("fill_value");

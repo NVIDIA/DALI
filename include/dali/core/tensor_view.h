@@ -481,7 +481,7 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   TensorListView &operator=(const TensorListView &) = default;
   TensorListView &operator=(TensorListView &&) = default;
 
-  //@{
+  /** @{ */
   /** @brief  Construction from contiguous memory */
 
   TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
@@ -495,9 +495,9 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   TensorListView(DataType *data, TensorListShape<other_sample_ndim> &&shape)
       : Base(data, std::move(shape)) {}
 
-  //@}
+  /** @} */
 
-  //@{
+  /** @{ */
   /** @brief Construction from non-contiguous memory */
 
   TensorListView(DataType *const *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
@@ -519,9 +519,9 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   TensorListView(data_pointers_t &&data, TensorListShape<other_sample_ndim> &&shape)
       : Base(std::move(data), std::move(shape)) {}
 
-  //@}
+  /** @} */
 
-  //@{
+  /** @{ */
   /** @brief Implicit conversion */
 
   template <int other_sample_ndim, typename U>
@@ -536,7 +536,7 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
     detail::check_implicit_conversion<U, DataType>();
   }
 
-  //@}
+  /** @} */
 };
 
 template <typename Backend, typename DataType, int sample_ndim>
@@ -549,7 +549,7 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   TensorListView &operator=(const TensorListView &) = default;
   TensorListView &operator=(TensorListView &&) = default;
 
-  //@{
+  /** @{ */
   /** @brief Construction from contiguous memory */
 
   TensorListView(std::nullptr_t, const std::vector<TensorShape<sample_ndim>> &shapes)
@@ -563,9 +563,9 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   TensorListView(std::nullptr_t, TensorListShape<other_sample_ndim> &&shape)
       : Base(std::move(shape)) {}
 
-  //@}
+  /** @} */
 
-  //@{
+  /** @{ */
   /** @brief Construction from contiguous memory */
 
   TensorListView(DataType *data, const std::vector<TensorShape<sample_ndim>> &shapes)
@@ -579,9 +579,9 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   TensorListView(DataType *data, TensorListShape<other_sample_ndim> &&shape)
       : Base(data, std::move(shape)) {}
 
-  //@}
+  /** @} */
 
-  //@{
+  /** @{ */
   /** @brief Construction from non-contiguous memory */
 
   TensorListView(DataType *const *data, const std::vector<TensorShape<sample_ndim>> &shapes)
@@ -601,9 +601,9 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
   TensorListView(data_pointers_t &&data, TensorListShape<sample_ndim> &&shape)
       : Base(std::move(data), std::move(shape)) {}
 
-  //@}
+  /** @} */
 
-  //@{
+  /** @{ */
   /** @brief Implicit conversion */
 
   template <typename U, int other_sample_ndim>
@@ -619,7 +619,7 @@ struct TensorListView : TensorListViewBase<Backend, DataType, sample_ndim> {
     detail::check_implicit_conversion<U, DataType>();
   }
 
-  //@}
+  /** @} */
 };
 
 struct StorageCPU;
@@ -700,8 +700,8 @@ TensorListView<StorageGPU, T, ndim> make_tensor_list_gpu(T *const *data,
   return { data, std::move(shape) };
 }
 
+/** @{ */
 /**
- * @{
  * @brief Get a subtensor by slicing along the outermost dimension at position `pos`
  *
  * @details Produces a tensor with the outermost extent removed,
@@ -733,9 +733,7 @@ subtensor(TensorView<StorageBackend, DataType, DynamicDimensions> source, int64_
   DataType *data = source.data + pos * volume(shape);
   return make_tensor<StorageBackend>(data, std::move(shape));
 }
-/**
- * @}
- */
+/** @} */
 
 /**
  * @brief Merges a dimension with the next one

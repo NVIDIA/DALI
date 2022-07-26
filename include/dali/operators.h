@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #define DALI_OPERATORS_H_
 
 #ifdef __cplusplus
-///@{
+
 namespace dali {
 /**
  * @brief Functions to initialize operators in DALI
@@ -44,7 +44,7 @@ int GetNvjpegVersion();
 
 }  // namespace dali
 extern "C" void daliInitOperators();
-///@}
+
 #else
 /**
  * @brief Functions to initialize operators in DALI
