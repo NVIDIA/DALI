@@ -33,30 +33,11 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/operators/reader/loader/file_loader.h"
 #include "dali/util/file.h"
+#include "dali/util/numpy.h"
 
 namespace dali {
 
 const TypeInfo &TypeFromNumpyStr(const std::string &format);
-
-class NumpyHeaderMeta {
- public:
-  TensorShape<> shape;
-  const TypeInfo *type_info = nullptr;
-  bool fortran_order        = false;
-  int64_t data_offset       = 0;
-
-  DALIDataType type() const {
-    return type_info ? type_info->id() : DALI_NO_TYPE;
-  }
-
-  size_t size() const {
-    return volume(shape);
-  }
-
-  size_t nbytes() const {
-    return type_info ? type_info->size() * size() : 0_uz;
-  }
-};
 
 struct NumpyFileWrapper {
   Tensor<CPUBackend> data;
@@ -78,22 +59,17 @@ struct NumpyFileWrapper {
 
 namespace detail {
 
-DLL_PUBLIC void ParseHeaderMetadata(NumpyHeaderMeta& target, const std::string &header);
-
-// parser function, only for internal use
-void ParseHeader(FileStream *file, NumpyHeaderMeta& target);
-
 class NumpyHeaderCache {
  public:
   explicit NumpyHeaderCache(bool cache_headers) : cache_headers_(cache_headers) {}
-  bool GetFromCache(const string &file_name, NumpyHeaderMeta &target);
-  void UpdateCache(const string &file_name, const NumpyHeaderMeta &value);
+  bool GetFromCache(const string &file_name, numpy::HeaderMeta &target);
+  void UpdateCache(const string &file_name, const numpy::HeaderMeta &value);
 
  private:
   // helper for header caching
   std::mutex cache_mutex_;
   bool cache_headers_;
-  std::map<string, NumpyHeaderMeta> header_cache_;
+  std::map<string, numpy::HeaderMeta> header_cache_;
 };
 
 }  // namespace detail
