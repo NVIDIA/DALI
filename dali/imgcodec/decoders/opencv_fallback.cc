@@ -47,6 +47,9 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
   int flags = 0;
   bool adjust_orientation = false;
 
+  if (!opts.use_roi)
+    opts.roi = {};  // convert uses empty begin/end to denote entire image
+
   switch (opts.format) {
     case DALI_ANY_DATA:
       // Note: IMREAD_UNCHANGED always ignores orientation
