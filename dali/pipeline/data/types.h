@@ -306,16 +306,6 @@ struct id2type_helper<id> { using type = data_type; };
 // Dummy type to represent the invalid default state of dali types.
 struct NoType {};
 
-
-/**
- * @brief Size of stack-based array used to prepare the pointers and other parameters for
- * the TypeInfo::Copy.
- * For bigger batches, the list of pointers/sizes would be stored as dynamic allocation
- * (SmallVector), used in a common pattern where we have a copy from or to a batch of samples.
- */
-constexpr size_t kMaxStaticCopyBatchSize = 256;
-
-
 // Stores the unqiue ID for a type and its size in bytes
 class DLL_PUBLIC TypeInfo {
  public:

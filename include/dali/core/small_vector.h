@@ -730,6 +730,23 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   }
 };
 
+/**
+ * @brief Size of stack-based array used to prepare the pointers and other parameters for
+ * operations on batch, like TypeInfo::Copy.
+ * For bigger batches, the list of pointers/sizes would be stored as dynamic allocation
+ * (SmallVector), used in a common pattern where we have a copy from or to a batch of samples.
+ */
+constexpr size_t kMaxStaticCopyBatchSize = 256;
+
+/**
+ * @brief SmallVector alias used when dealing with batches of data in common operations
+ *
+ * The static stack allocation size is adjusted for that purpose.
+ */
+template <typename T>
+using BatchVector = SmallVector<T, kMaxStaticCopyBatchSize>;
+
+
 }  // namespace dali
 
 #endif  // DALI_CORE_SMALL_VECTOR_H_

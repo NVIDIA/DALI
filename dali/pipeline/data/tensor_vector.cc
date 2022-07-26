@@ -83,16 +83,16 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &s
                         const TypeInfo &type_info, AccessOrder order,
                         bool use_copy_kernel = false) {
   auto num_samples = src.num_samples();
-  SmallVector<const void *, kMaxStaticCopyBatchSize> srcs;
+  BatchVector<const void *> srcs;
   srcs.reserve(num_samples);
-  SmallVector<void *, kMaxStaticCopyBatchSize> dsts;
+  BatchVector<void *> dsts;
   dsts.reserve(num_samples);
-  SmallVector<Index, kMaxStaticCopyBatchSize> sizes;
+  BatchVector<Index> sizes;
   sizes.reserve(num_samples);
   for (int i = 0; i < num_samples; i++) {
-    dsts.emplace_back(dst.raw_mutable_tensor(i));
-    srcs.emplace_back(src.raw_tensor(i));
-    sizes.emplace_back(src.shape()[i].num_elements());
+    dsts.push_back(dst.raw_mutable_tensor(i));
+    srcs.push_back(src.raw_tensor(i));
+    sizes.push_back(src.shape()[i].num_elements());
   }
 
   type_info.Copy<SrcBackend, DstBackend>(dsts.data(), srcs.data(), sizes.data(), num_samples,
@@ -108,13 +108,13 @@ template <typename DstBackend, typename SrcBackend, template <typename> typename
 void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const void *src, const TypeInfo &type_info,
                         AccessOrder order, bool use_copy_kernel = false) {
   auto num_samples = dst.num_samples();
-  SmallVector<void *, kMaxStaticCopyBatchSize> dsts;
+  BatchVector<void *> dsts;
   dsts.reserve(num_samples);
-  SmallVector<Index, kMaxStaticCopyBatchSize> sizes;
+  BatchVector<Index> sizes;
   sizes.reserve(num_samples);
   for (int i = 0; i < num_samples; i++) {
-    dsts.emplace_back(dst.raw_mutable_tensor(i));
-    sizes.emplace_back(dst.shape()[i].num_elements());
+    dsts.push_back(dst.raw_mutable_tensor(i));
+    sizes.push_back(dst.shape()[i].num_elements());
   }
 
   type_info.Copy<DstBackend, SrcBackend>(dsts.data(), src, sizes.data(), num_samples,
@@ -130,13 +130,13 @@ template <typename DstBackend, typename SrcBackend, template <typename> typename
 void CopySamplewiseImpl(void *dst, const SrcBatch<SrcBackend> &src, const TypeInfo &type_info,
                         AccessOrder order, bool use_copy_kernel = false) {
   auto num_samples = src.num_samples();
-  SmallVector<const void *, kMaxStaticCopyBatchSize> srcs;
+  BatchVector<const void *> srcs;
   srcs.reserve(num_samples);
-  SmallVector<Index, kMaxStaticCopyBatchSize> sizes;
+  BatchVector<Index> sizes;
   sizes.reserve(num_samples);
   for (int i = 0; i < num_samples; i++) {
-    srcs.emplace_back(src.raw_tensor(i));
-    sizes.emplace_back(src.shape()[i].num_elements());
+    srcs.push_back(src.raw_tensor(i));
+    sizes.push_back(src.shape()[i].num_elements());
   }
 
   type_info.Copy<DstBackend, SrcBackend>(dst, srcs.data(), sizes.data(), num_samples,
@@ -654,42 +654,18 @@ void TensorVector<Backend>::Reset() {
   }
 }
 
-
 template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order) {
   // This variant will be removed with the removal of TensorList.
   SetContiguous(true);
-
-  auto copy_order = copy_impl::SyncBefore(this->order(), in_tl.order(), order);
-
-
-  tl_->Resize(in_tl.shape(), in_tl.type());
   type_ = in_tl.type_info();
   sample_dim_ = in_tl.shape().sample_dim();
-
-  copy_impl::SyncAfterResize(this->order(), copy_order);
-
-  // Update the metadata
-  type_ = in_tl.type_info();
-  sample_dim_ = in_tl.shape().sample_dim();
-
-  // Here both batches are contiguous
-  type_info().template Copy<Backend, SrcBackend>(
-      unsafe_raw_mutable_data(*tl_), unsafe_raw_data(in_tl), in_tl.shape().num_elements(),
-      copy_order.stream(), false);
-  copy_impl::SyncAfter(this->order(), copy_order);
+  tl_->Copy(in_tl, order);
 
   resize_tensors(tl_->num_samples());
   UpdateViews();
-
-  // Update the layout and other metadata
-  SetLayout(in_tl.GetLayout());
-  for (int i = 0; i < curr_num_tensors_; i++) {
-    SetMeta(i, in_tl.GetMeta(i));
-  }
 }
-
 
 template <typename Backend>
 template <typename SrcBackend>

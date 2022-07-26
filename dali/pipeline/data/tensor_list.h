@@ -138,11 +138,11 @@ class DLL_PUBLIC TensorList {
     this->SetLayout(layout);
 
     auto nsamples = other.num_samples();
-    SmallVector<const void*, kMaxStaticCopyBatchSize> srcs;
+    BatchVector<const void*> srcs;
     srcs.reserve(nsamples);
-    SmallVector<void*, kMaxStaticCopyBatchSize> dsts;
+    BatchVector<void*> dsts;
     dsts.reserve(nsamples);
-    SmallVector<Index, kMaxStaticCopyBatchSize> sizes;
+    BatchVector<Index> sizes;
     sizes.reserve(nsamples);
     for (int i = 0; i < nsamples; i++) {
       dsts.emplace_back(this->raw_mutable_tensor(i));
