@@ -25,14 +25,14 @@ namespace numpy {
 TEST(NumpyLoaderTest, ParseHeader) {
   {
     HeaderData target;
-    detail::ParseHeaderMetadata(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
+    ParseHeaderMetadata(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
     ASSERT_EQ(target.type(), DALI_INT16);
     ASSERT_EQ(target.fortran_order, true);
     ASSERT_EQ(target.shape, (TensorShape<>{7, 4}));
   }
   {
     HeaderData target;
-    detail::ParseHeaderMetadata(target,
+    ParseHeaderMetadata(target,
         "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
     ASSERT_EQ(target.type(), DALI_FLOAT);
     ASSERT_EQ(target.fortran_order, false);
@@ -40,7 +40,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
   }
   {
     HeaderData target;
-    detail::ParseHeaderMetadata(target, "{'descr':'<f8','fortran_order':False,'shape':(),}");
+    ParseHeaderMetadata(target, "{'descr':'<f8','fortran_order':False,'shape':(),}");
     ASSERT_EQ(target.type(), DALI_FLOAT64);
     ASSERT_EQ(target.fortran_order, false);
     ASSERT_TRUE(target.shape.empty());
@@ -58,7 +58,7 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
     "{'descr':'<f4','fortran_order':False,'shape':[4,7],}"
   };
   for (const auto &header : wrong) {
-    EXPECT_THROW(detail::ParseHeaderMetadata(target, header), std::runtime_error);
+    EXPECT_THROW(ParseHeaderMetadata(target, header), std::runtime_error);
   }
 }
 

@@ -37,7 +37,7 @@ void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
     if (ret) {
       file_stream->SeekRead(header.data_offset);
     } else {
-      header = numpy::ParseHeader(file_stream.get());
+      numpy::ParseHeader(header, file_stream.get());
       cache.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {

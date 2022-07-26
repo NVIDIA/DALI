@@ -45,13 +45,11 @@ class DLL_PUBLIC HeaderData {
   size_t nbytes() const;
 };
 
-DLL_PUBLIC HeaderData ParseHeader(InputStream *src);
+DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, InputStream *src);
 
 DLL_PUBLIC void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input);
 
-namespace detail {
 DLL_PUBLIC void ParseHeaderMetadata(HeaderData& target, const std::string &header);
-}  // namespace detail
 
 }  // namespace numpy
 }  // namespace dali

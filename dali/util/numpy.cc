@@ -114,8 +114,6 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
   return out;
 }
 
-namespace detail {
-
 void ParseHeaderMetadata(HeaderData& target, const std::string &header) {
   target.shape = {};
   const char* hdr = header.c_str();
@@ -156,19 +154,15 @@ void ParseHeaderMetadata(HeaderData& target, const std::string &header) {
   }
 }
 
-}  // namespace detail
-
-HeaderData ParseHeader(InputStream *src) {
-  HeaderData parsed_header;
-
+void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   // check if the file is actually a numpy file
-  std::vector<uint8_t> token(11);
+  SmallVector<char, 128> token;
   int64_t nread = src->Read(token.data(), 10);
   DALI_ENFORCE(nread == 10, "Can not read header.");
   token[nread] = '\0';
 
   // check if heqder is too short
-  std::string header = std::string(reinterpret_cast<char*>(token.data()));
+  std::string header = std::string(token.data());
   DALI_ENFORCE(header.find_first_of("NUMPY") != std::string::npos,
                "File is not a numpy file.");
 
@@ -186,17 +180,15 @@ HeaderData ParseHeader(InputStream *src) {
   token.resize(header_len+1);
   src->SeekRead(offset);
   nread = src->Read(token.data(), header_len);
-DALI_ENFORCE(nread == header_len, "Can not read header.");
+  DALI_ENFORCE(nread == header_len, "Can not read header.");
   token[header_len] = '\0';
-  header = std::string(reinterpret_cast<const char*>(token.data()));
+  header = std::string(token.data());
   DALI_ENFORCE(header.find('{') != std::string::npos, "Header is corrupted.");
   offset += header_len;
   src->SeekRead(offset);  // michalz: Why isn't it done when actually reading the payload?
 
-  detail::ParseHeaderMetadata(parsed_header, header);
+  ParseHeaderMetadata(parsed_header, header);
   parsed_header.data_offset = offset;
-
-  return parsed_header;
 }
 
 void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input) {

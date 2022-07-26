@@ -79,7 +79,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
     if (ret) {
       current_file->SeekRead(header.data_offset);
     } else {
-      header = numpy::ParseHeader(current_file.get());
+      numpy::ParseHeader(header, current_file.get());
       header_cache_.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
