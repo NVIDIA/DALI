@@ -116,7 +116,7 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
 
 namespace detail {
 
-void ParseHeaderMetadata(HeaderMeta& target, const std::string &header) {
+void ParseHeaderMetadata(HeaderData& target, const std::string &header) {
   target.shape = {};
   const char* hdr = header.c_str();
   SkipSpaces(hdr);
@@ -158,8 +158,8 @@ void ParseHeaderMetadata(HeaderMeta& target, const std::string &header) {
 
 }  // namespace detail
 
-HeaderMeta ParseHeader(InputStream *src) {
-  HeaderMeta parsed_header;
+HeaderData ParseHeader(InputStream *src) {
+  HeaderData parsed_header;
 
   // check if the file is actually a numpy file
   std::vector<uint8_t> token(11);
@@ -210,15 +210,15 @@ void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend>
   ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
 }
 
-DALIDataType HeaderMeta::type() const {
+DALIDataType HeaderData::type() const {
   return type_info ? type_info->id() : DALI_NO_TYPE;
 }
 
-size_t HeaderMeta::size() const {
+size_t HeaderData::size() const {
   return volume(shape);
 }
 
-size_t HeaderMeta::nbytes() const {
+size_t HeaderData::nbytes() const {
   return type_info ? type_info->size() * size() : 0_uz;
 }
 
