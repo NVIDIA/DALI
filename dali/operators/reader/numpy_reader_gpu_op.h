@@ -81,6 +81,7 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
   gds::GDSStagingEngine staging_;
   CUDAStreamLease staging_stream_;
   CUDAEvent staging_ready_;
+  std::vector<int> source_data_index_;
 };
 
 }  // namespace dali
