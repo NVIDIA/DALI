@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/util/numpy.h"
+#include <string>
+#include <vector>
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/util/numpy.h"
 
 namespace dali {
 namespace numpy {

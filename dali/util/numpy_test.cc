@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
+#include <vector>
 #include "dali/util/numpy.h"
 #include "dali/core/stream.h"
 

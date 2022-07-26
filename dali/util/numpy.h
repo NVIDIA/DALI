@@ -15,6 +15,7 @@
 #ifndef DALI_UTIL_NUMPY_H_
 #define DALI_UTIL_NUMPY_H_
 
+#include <string>
 #include "dali/core/common.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/stream.h"
@@ -55,4 +56,4 @@ DLL_PUBLIC void ParseHeaderMetadata(NumpyHeaderMeta& target, const std::string &
 }  // namespace numpy
 }  // namespace dali
 
-#endif  // DALI_UTIL_CUFILE_H_
+#endif  // DALI_UTIL_NUMPY_H_
