@@ -31,7 +31,7 @@ void NumpyFileWrapperGPU::Reopen() {
 }
 
 void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
-  NumpyHeaderMeta header;
+  HeaderMeta header;
   bool ret = cache.GetFromCache(filename, header);
   try {
     if (ret) {

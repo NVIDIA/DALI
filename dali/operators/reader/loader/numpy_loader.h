@@ -62,14 +62,14 @@ namespace detail {
 class NumpyHeaderCache {
  public:
   explicit NumpyHeaderCache(bool cache_headers) : cache_headers_(cache_headers) {}
-  bool GetFromCache(const string &file_name, numpy::NumpyHeaderMeta &target);
-  void UpdateCache(const string &file_name, const numpy::NumpyHeaderMeta &value);
+  bool GetFromCache(const string &file_name, numpy::HeaderMeta &target);
+  void UpdateCache(const string &file_name, const numpy::HeaderMeta &value);
 
  private:
   // helper for header caching
   std::mutex cache_mutex_;
   bool cache_headers_;
-  std::map<string, numpy::NumpyHeaderMeta> header_cache_;
+  std::map<string, numpy::HeaderMeta> header_cache_;
 };
 
 }  // namespace detail

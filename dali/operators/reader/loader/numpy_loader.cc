@@ -25,7 +25,7 @@
 namespace dali {
 namespace detail {
 
-bool NumpyHeaderCache::GetFromCache(const string &file_name, numpy::NumpyHeaderMeta &header) {
+bool NumpyHeaderCache::GetFromCache(const string &file_name, numpy::HeaderMeta &header) {
   if (!cache_headers_) {
     return false;
   }
@@ -39,7 +39,7 @@ bool NumpyHeaderCache::GetFromCache(const string &file_name, numpy::NumpyHeaderM
   }
 }
 
-void NumpyHeaderCache::UpdateCache(const string &file_name, const numpy::NumpyHeaderMeta &value) {
+void NumpyHeaderCache::UpdateCache(const string &file_name, const numpy::HeaderMeta &value) {
   if (cache_headers_) {
     std::unique_lock<std::mutex> cache_lock(cache_mutex_);
     header_cache_[file_name] = value;
@@ -73,7 +73,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   auto current_file = FileStream::Open(path, read_ahead_, !copy_read_data_);
 
   // read the header
-  numpy::NumpyHeaderMeta header;
+  numpy::HeaderMeta header;
   auto ret = header_cache_.GetFromCache(filename, header);
   try {
     if (ret) {

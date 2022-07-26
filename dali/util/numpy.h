@@ -31,7 +31,7 @@
 namespace dali {
 namespace numpy {
 
-class DLL_PUBLIC NumpyHeaderMeta {
+class DLL_PUBLIC HeaderMeta {
  public:
   TensorShape<> shape;
   const TypeInfo *type_info = nullptr;
@@ -45,12 +45,12 @@ class DLL_PUBLIC NumpyHeaderMeta {
   size_t nbytes() const;
 };
 
-DLL_PUBLIC NumpyHeaderMeta ParseHeader(InputStream *src);
+DLL_PUBLIC HeaderMeta ParseHeader(InputStream *src);
 
 DLL_PUBLIC void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input);
 
 namespace detail {
-DLL_PUBLIC void ParseHeaderMetadata(NumpyHeaderMeta& target, const std::string &header);
+DLL_PUBLIC void ParseHeaderMetadata(HeaderMeta& target, const std::string &header);
 }  // namespace detail
 
 }  // namespace numpy

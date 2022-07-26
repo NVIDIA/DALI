@@ -25,14 +25,14 @@ namespace numpy {
 
 TEST(NumpyLoaderTest, ParseHeader) {
   {
-    NumpyHeaderMeta target;
+    HeaderMeta target;
     detail::ParseHeaderMetadata(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
     ASSERT_EQ(target.type(), DALI_INT16);
     ASSERT_EQ(target.fortran_order, true);
     ASSERT_EQ(target.shape, (TensorShape<>{7, 4}));
   }
   {
-    NumpyHeaderMeta target;
+    HeaderMeta target;
     detail::ParseHeaderMetadata(target,
         "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
     ASSERT_EQ(target.type(), DALI_FLOAT);
@@ -40,7 +40,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
     ASSERT_EQ(target.shape, (TensorShape<>{4}));
   }
   {
-    NumpyHeaderMeta target;
+    HeaderMeta target;
     detail::ParseHeaderMetadata(target, "{'descr':'<f8','fortran_order':False,'shape':(),}");
     ASSERT_EQ(target.type(), DALI_FLOAT64);
     ASSERT_EQ(target.fortran_order, false);
@@ -49,7 +49,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
 }
 
 TEST(NumpyLoaderTest, ParseHeaderError) {
-  NumpyHeaderMeta target;
+  HeaderMeta target;
   std::vector<std::string> wrong = {
     "random_string",
     "{descr:'<f4'}",
