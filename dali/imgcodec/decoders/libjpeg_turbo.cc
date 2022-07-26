@@ -71,7 +71,8 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
       });
 
     if ((res.success = result != nullptr)) {
-      SampleView<CPUBackend> in(decoded_image.get(), info.shape, opts.dtype);
+      // JPEG images are always 8-bit, in HWC format
+      SampleView<CPUBackend> in(decoded_image.get(), info.shape, DALI_UINT8);
       TensorLayout layout = "HWC";
       Convert(out, layout, type, in, layout, type, {}, {});
     }
