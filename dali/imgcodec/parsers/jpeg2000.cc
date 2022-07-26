@@ -51,9 +51,9 @@ ImageInfo Jpeg2000Parser::GetInfo(ImageSource *encoded) const {
   DALI_ENFORCE(stream->ReadOne<block_type_t>() == jp2_im_header_type,
                "Expected block type 'ihdr'");
 
-  const int h = ReadValueBE<uint32_t>(*stream);
-  const int w = ReadValueBE<uint32_t>(*stream);
-  const int c = ReadValueBE<uint16_t>(*stream);
+  const int64_t h = ReadValueBE<uint32_t>(*stream);
+  const int64_t w = ReadValueBE<uint32_t>(*stream);
+  const int64_t c = ReadValueBE<uint16_t>(*stream);
 
   ImageInfo info;
   info.shape = {h, w, c};
