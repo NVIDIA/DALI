@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_DECODER_TEST_H_
-#define DALI_IMGCODEC_DECODERS_DECODER_TEST_H_
+#ifndef DALI_IMGCODEC_DECODERS_DECODER_TEST_HELPER_H_
+#define DALI_IMGCODEC_DECODERS_DECODER_TEST_HELPER_H_
 
+#include <string>
+#include <memory>
 #include "dali/pipeline/data/tensor.h"
 #include "dali/kernels/transpose/transpose.h"
 #include "dali/core/static_switch.h"
@@ -157,4 +159,4 @@ class NumpyDecoderTestBase : public CpuDecoderTestBase<OutputType> {
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_DECODERS_DECODER_TEST_H_
+#endif  // DALI_IMGCODEC_DECODERS_DECODER_TEST_HELPER_H_
