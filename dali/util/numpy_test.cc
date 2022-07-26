@@ -22,7 +22,6 @@
 namespace dali {
 namespace numpy {
 
-
 TEST(NumpyLoaderTest, ParseHeader) {
   {
     HeaderMeta target;
