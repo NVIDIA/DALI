@@ -72,20 +72,28 @@ class WebpParserTest : public ::testing::Test {
 };
 
 TEST_F(WebpParserTest, ValidWebpLossy) {
-  TestValidImage(webp_directory_ + "lossy/kitty-2948404_640.webp", {433, 640, 3});
-  TestValidImage(webp_directory_ + "lossy/domestic-cat-726989_640.webp", {426, 640, 3});
-  TestValidImage(webp_directory_ + "lossy/cat-300572_640.webp", {536, 640, 3});
+  TestValidImage(make_string(webp_directory_, "lossy/kitty-2948404_640.webp"),
+                 {433, 640, 3});
+  TestValidImage(make_string(webp_directory_, "lossy/domestic-cat-726989_640.webp"),
+                 {426, 640, 3});
+  TestValidImage(make_string(webp_directory_, "lossy/cat-300572_640.webp"),
+                 {536, 640, 3});
 }
 
 TEST_F(WebpParserTest, ValidWebpLossless) {
-  TestValidImage(webp_directory_ + "lossless/kitty-2948404_640.webp", {433, 640, 3});
-  TestValidImage(webp_directory_ + "lossless/domestic-cat-726989_640.webp", {426, 640, 3});
-  TestValidImage(webp_directory_ + "lossless/cat-300572_640.webp", {536, 640, 3});
+  TestValidImage(make_string(webp_directory_, "lossless/kitty-2948404_640.webp"),
+                 {433, 640, 3});
+  TestValidImage(make_string(webp_directory_, "lossless/domestic-cat-726989_640.webp"),
+                 {426, 640, 3});
+  TestValidImage(make_string(webp_directory_, "lossless/cat-300572_640.webp"),
+                 {536, 640, 3});
 }
 
 TEST_F(WebpParserTest, ValidWebpLosslessAlpha) {
-  TestValidImage(webp_directory_ + "lossless-alpha/camel-1987672_640.webp", {426, 640, 4});
-  TestValidImage(webp_directory_ + "lossless-alpha/elephant-3095555_640.webp", {512, 640, 4});
+  TestValidImage(make_string(webp_directory_, "lossless-alpha/camel-1987672_640.webp"),
+                 {426, 640, 4});
+  TestValidImage(make_string(webp_directory_, "lossless-alpha/elephant-3095555_640.webp"),
+                 {512, 640, 4});
 }
 
 TEST_F(WebpParserTest, InvalidRiffHeader) {
