@@ -13,56 +13,16 @@
 // limitations under the License.
 
 #include <cassert>
-#include <utility>
+#include <stdexcept>
 #include "dali/core/static_switch.h"
 #include "dali/imgcodec/util/convert.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/common/utils.h"
 
+#define IMG_CONVERT_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
+
 namespace dali {
 namespace imgcodec {
-
-template <int static_ndim = -1, typename Out, typename In, typename ConvertFunc>
-void Convert(Out *out, const int64_t *out_strides,
-             const In *in, const int64_t *in_strides,
-             const int64_t *size, int ndim,
-             ConvertFunc &&func) {
-  if constexpr (static_ndim < 0) {
-    VALUE_SWITCH(ndim, NDim, (0, 1, 2, 3, 4),
-      (Convert<NDim>(out, out_strides, in, in_strides, size, NDim,
-                     std::forward<ConvertFunc>(func));
-      return;), ()
-    );  // NOLINT
-  }
-
-  int64_t extent = size[0];
-  int64_t in_stride = in_strides[0];
-  int64_t out_stride = out_strides[0];
-
-  if constexpr (static_ndim == 0) {
-    func(out, in);
-  } else if constexpr (static_ndim == 1) {  // NOLINT - if constexpr not recognized
-    for (int64_t i = 0; i < extent; i++) {
-      func(out + i * out_stride, in + i * in_stride);
-    }
-  } else {
-    assert(ndim != 1 && "This should go with the static ndim codepath");
-    for (int64_t i = 0; i < extent; i++) {
-      const int next_ndim = static_ndim < 0 ? -1 : static_ndim - 1;
-      Convert<next_ndim>(out + i * out_stride, out_strides + 1,
-                         in + i * in_stride, in_strides + 1,
-                         size + 1, ndim - 1,
-                         std::forward<ConvertFunc>(func));
-    }
-  }
-}
-
-template <typename Out, typename In>
-void ConvertDType(Out *out, const In *in) {
-  *out = ConvertSatNorm<Out>(*in);
-}
-
-#define IMG_CONVERT_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
 
 void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
              ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
@@ -122,7 +82,7 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
                in.data<In>() + in_offset, in_strides.data(),
                out_shape.data(), ndim, &ConvertDType<Out, In>)),
       (UnsupportedType("input", in.type());)),
-    (UnsupportedType("input", out.type());));
+    (UnsupportedType("output", out.type());));
 }
 
 }  // namespace imgcodec
