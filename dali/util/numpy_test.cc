@@ -14,10 +14,13 @@
 
 #include <gtest/gtest.h>
 #include <string>
-#include "dali/operators/reader/loader/numpy_loader.h"
+#include "dali/util/numpy.h"
+#include "dali/core/stream.h"
 
 
 namespace dali {
+namespace numpy {
+
 
 TEST(NumpyLoaderTest, ParseHeader) {
   {
@@ -30,7 +33,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
   {
     NumpyHeaderMeta target;
     detail::ParseHeaderMetadata(target,
-                        "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
+        "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
     ASSERT_EQ(target.type(), DALI_FLOAT);
     ASSERT_EQ(target.fortran_order, false);
     ASSERT_EQ(target.shape, (TensorShape<>{4}));
@@ -59,5 +62,6 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
   }
 }
 
+}  // namespace numpy
 }  // namespace dali
 

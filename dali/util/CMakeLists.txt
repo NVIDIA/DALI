@@ -30,7 +30,8 @@ set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.cc")
+  "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/numpy.cc")
 
 if (BUILD_CUFILE)
   set(DALI_INST_HDRS ${DALI_INST_HDRS}
@@ -44,7 +45,8 @@ if (BUILD_CUFILE)
 endif()
 
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
-  "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator_test.cc")
+  "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/numpy_test.cc")
 
 # transform a list of paths into a list of include directives
 DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c++" "${CMAKE_CXX_COMPILER}" "${CMAKE_CXX_FLAGS}" INFERED_COMPILER_INCLUDE)
