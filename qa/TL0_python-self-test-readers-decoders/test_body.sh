@@ -18,9 +18,28 @@ test_py_with_framework() {
         ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
     done
 
-    ${python_new_invoke_test} -s reader
+
+    if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+      SKIP_TESTS="test_numpy.py"
+      READER_TESTS=""
+
+      for test_script in $(ls reader/test_*); do
+          test_script=(${test_script//// })
+          test_script=${test_script[1]}
+
+          if [[ "$SKIP_TESTS" != *"$test_script"* ]]; then
+              test_script=${test_script::-3}
+              READER_TESTS="$READER_TESTS $test_script"
+          fi
+      done
+
+      ${python_new_invoke_test} -s reader $READER_TESTS
+    else
+      ${python_new_invoke_test} -s reader
+    fi
+
+    
     ${python_new_invoke_test} -s decoder
-    # ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s external_source/base/
 }
 
 test_no_fw() {
