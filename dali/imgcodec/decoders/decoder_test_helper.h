@@ -97,6 +97,7 @@ class CpuDecoderTestBase : public ::testing::Test {
   }
 
   virtual Tensor<CPUBackend> ReadReference(InputStream *src) = 0;
+
  protected:
   virtual std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) = 0;
   virtual std::shared_ptr<ImageParser> GetParser() = 0;
