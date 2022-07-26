@@ -16,6 +16,7 @@
 #define DALI_IMGCODEC_DECODERS_LIBJPEG_TURBO_H_
 
 #include <memory>
+#include <string>
 #include "dali/imgcodec/image_decoder.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 
@@ -25,7 +26,8 @@ namespace imgcodec {
 /**
  * @brief JPEG decoder, using libjpeg-turbo.
  */
-class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl<LibJpegTurboDecoderInstance> {
+class DLL_PUBLIC LibJpegTurboDecoderInstance
+  : public BatchParallelDecoderImpl<LibJpegTurboDecoderInstance> {
  public:
   using Base = BatchParallelDecoderImpl<LibJpegTurboDecoderInstance>;
   LibJpegTurboDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
@@ -38,7 +40,7 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl<L
 
   DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in, DecodeParams opts) override;
 
-  virtual void SetParam(const char *name, const any &value) override {
+  void SetParam(const char *name, const any &value) override {
     if (strcmp(name, "fast_idct") == 0) {
       use_fast_idct_ = any_cast<bool>(value);
     } else {
@@ -46,7 +48,7 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl<L
     }
   }
 
-  virtual any GetParam(const char *name) const override {
+  any GetParam(const char *name) const override {
     if (strcmp(name, "fast_idct") == 0) {
       return use_fast_idct_;
     } else {

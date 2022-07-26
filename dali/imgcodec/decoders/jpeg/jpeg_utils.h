@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_JPEG_UTILS_H_
-#define DALI_IMAGE_JPEG_UTILS_H_
+#ifndef DALI_IMGCODEC_DECODERS_JPEG_JPEG_UTILS_H_
+#define DALI_IMGCODEC_DECODERS_JPEG_JPEG_UTILS_H_
 
 extern "C" {
 #include "jerror.h"  // NOLINT(build/include)
 #include "jpeglib.h"  // NOLINT(build/include)
 }
 
-#endif  // DALI_IMAGE_JPEG_UTILS_H_
+#endif  // DALI_IMGCODEC_DECODERS_JPEG_JPEG_UTILS_H_

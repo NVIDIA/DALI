@@ -18,8 +18,8 @@ limitations under the License.
 // This file declares the functions and structures for memory I/O with libjpeg
 // These functions are not meant to be used directly, see jpeg_mem.h instead.
 
-#ifndef DALI_IMAGE_JPEG_HANDLE_H_
-#define DALI_IMAGE_JPEG_HANDLE_H_
+#ifndef DALI_IMGCODEC_DECODERS_JPEG_JPEG_HANDLE_H_
+#define DALI_IMGCODEC_DECODERS_JPEG_JPEG_HANDLE_H_
 
 #include <string>
 #include "dali/core/common.h"
@@ -62,4 +62,4 @@ void SetDest(j_compress_ptr cinfo, void *buffer, int bufsize,
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMAGE_JPEG_HANDLE_H_
+#endif  // DALI_IMGCODEC_DECODERS_JPEG_JPEG_HANDLE_H_

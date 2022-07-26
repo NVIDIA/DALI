@@ -20,8 +20,8 @@ limitations under the License.
 // (data array and size fields).
 // Direct manipulation of JPEG strings are supplied: Flip, Rotate, Crop..
 
-#ifndef DALI_IMAGE_JPEG_MEM_H_
-#define DALI_IMAGE_JPEG_MEM_H_
+#ifndef DALI_IMGCODEC_DECODERS_JPEG_JPEG_MEM_H_
+#define DALI_IMGCODEC_DECODERS_JPEG_JPEG_MEM_H_
 
 #include <functional>
 #include <string>
@@ -164,4 +164,4 @@ bool Compress(const void* srcdata, int width, int height,
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMAGE_JPEG_MEM_H_
+#endif  // DALI_IMGCODEC_DECODERS_JPEG_JPEG_MEM_H_

@@ -66,7 +66,6 @@ TYPED_TEST(LibJpegTurboDecodeTest, Decode) {
   ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "libjpeg-turbo decoder test");
   LibJpegTurboDecoder decoder;
   const auto file_content = read_file(imgname);
-  std::cerr << "file_content.size(): " << file_content.size() << "\n";
   auto source = ImageSource::FromHostMem(file_content.data(), file_content.size());
   auto instance = decoder.Create(CPU_ONLY_DEVICE_ID, tp);
   ASSERT_NE(instance, nullptr);
