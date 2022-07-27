@@ -73,16 +73,6 @@ struct ROI {
       out[d] -= begin[d];
     return out;
   }
-
-  /**
-   * @brief Returns the extent of the region of interest as (end - begin)
-   */
-  TensorShape<> shape(int channels, int channel_) const {
-    TensorShape<> out = end;
-    for (int d = 0; d < begin.sample_dim(); d++)
-      out[d] -= begin[d];
-    return out;
-  }
 };
 
 struct DecodeResult {
