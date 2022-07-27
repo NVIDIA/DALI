@@ -43,12 +43,10 @@ inline DALIDataType CV2DaliType(int cv_type_id) {
 
 DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
                                            ImageSource *in,
-                                           DecodeParams opts) {
+                                           DecodeParams opts,
+                                           const ROI &roi) {
   int flags = 0;
   bool adjust_orientation = false;
-
-  if (!opts.use_roi)
-    opts.roi = {};  // convert uses empty begin/end to denote entire image
 
   switch (opts.format) {
     case DALI_ANY_DATA:
@@ -112,7 +110,7 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
 
       Convert(out, layout, opts.format,
               in, layout, opts.format,  // TODO(michalz) - use actual format
-              opts.roi.begin, opts.roi.end);
+              roi.begin, roi.end);
     }
   } catch (...) {
     res.exception = std::current_exception();

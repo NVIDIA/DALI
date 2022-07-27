@@ -112,25 +112,27 @@ TYPED_TEST(OpenCVFallbackDecodeTest, DecodeROI) {
   ImageInfo info = parser.GetInfo(&source);
 
   DecodeParams params;
-  params.use_roi = true;
-  params.roi.begin = { 13, 17 };
-  params.roi.end = { info.shape[0] - 23, info.shape[1] - 19 };
+  ROI roi;
+  ASSERT_FALSE(roi);
+  roi.begin = { 13, 17 };
+  roi.end = { info.shape[0] - 23, info.shape[1] - 19 };
+  ASSERT_TRUE(roi);
   TensorShape<> out_shape;
-  out_shape = shape_cat(params.roi.shape(), 3);
+  out_shape = shape_cat(roi.shape(), 3);
   int64_t n = volume(out_shape);
   ASSERT_GE(n, 0);
   ASSERT_LE(n, 100000000);  // sanity check - less than 100M elements
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), out_shape, type2id<OutputType>::value);
-  auto result = instance->Decode(sv, &source, params);
+  auto result = instance->Decode(sv, &source, params, roi);
   if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
   }
   ASSERT_TRUE(result.success);
 
   cv::Mat m = cv::imread(fname, cv::IMREAD_COLOR | cv::IMREAD_IGNORE_ORIENTATION);
-  cv::Rect roi_rect(cv::Point2i(params.roi.begin[1], params.roi.begin[0]),
-                    cv::Point2i(params.roi.end[1],   params.roi.end[0]));
+  cv::Rect roi_rect(cv::Point2i(roi.begin[1], roi.begin[0]),
+                    cv::Point2i(roi.end[1],   roi.end[0]));
   m = m(roi_rect);
   cv::cvtColor(m, m, cv::COLOR_BGR2RGB);
   int64_t out_row_stride = out_shape[1] * out_shape[2];

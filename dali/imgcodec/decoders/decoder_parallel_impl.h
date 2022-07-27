@@ -27,58 +27,60 @@ namespace imgcodec {
  * @brief A skeleton for implementing a batch-parallel decoder
  *
  * This implementation provides the batched implementation
- *
- * @tparam Actual
  */
-template <typename Actual>
-class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl<Actual> {
+class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
  public:
   BatchParallelDecoderImpl(int device_id, ThreadPool *tp)
-  : ImageDecoderImpl<Actual>(device_id, tp) {}
+  : ImageDecoderImpl(device_id, tp) {}
 
-  using ImageDecoderImpl<Actual>::CanDecode;
-  std::vector<bool> CanDecode(cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
-    assert(opts.size() == in.size());
+  using ImageDecoderImpl::CanDecode;
+  std::vector<bool> CanDecode(cspan<ImageSource *> in,
+                              DecodeParams opts,
+                              cspan<ROI> rois) override {
+    assert(rois.empty() || rois.size() == in.size());
     std::vector<bool> ret(in.size());
+    ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
       tp_->AddWork([&, i](int) {
-        ret[i] = CanDecode(in[i], opts[i]);
+        ret[i] = CanDecode(in[i], opts, rois.empty() ? no_roi : rois[i]);
       });
     }
     tp_->RunAll();
     return ret;
   }
 
-  using ImageDecoderImpl<Actual>::Decode;
+  using ImageDecoderImpl::Decode;
   std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
-                                   cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
-    return ParallelDecodeImpl(out, in, opts);
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois) override {
+    return ParallelDecodeImpl(out, in, opts, rois);
   }
 
   std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                   cspan<ImageSource *> in, cspan<DecodeParams> opts) override {
-    return ParallelDecodeImpl(out, in, opts);
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois) override {
+    return ParallelDecodeImpl(out, in, opts, rois);
   }
 
   template <typename Backend>
   std::vector<DecodeResult> ParallelDecodeImpl(span<SampleView<Backend>> out,
                                                cspan<ImageSource *> in,
-                                               cspan<DecodeParams> opts) {
+                                               DecodeParams opts,
+                                               cspan<ROI> rois) {
     assert(out.size() == in.size());
-    assert(out.size() == opts.size() || opts.size() == 1);
+    assert(rois.empty() || rois.size() == in.size());
     std::vector<DecodeResult> ret(out.size());
+    ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
       tp_->AddWork([&, i](int) {
-        ret[i] = Decode(out[i], in[i], opts.size() > 1 ? opts[i] : opts[0]);
+        ret[i] = Decode(out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
       }, volume(out[i].shape()));
     }
     tp_->RunAll();
     return ret;
   }
-
- protected:
-  using ImageDecoderImpl<Actual>::tp_;
-  using ImageDecoderImpl<Actual>::device_id_;
 };
 
 }  // namespace imgcodec
