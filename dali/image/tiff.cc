@@ -93,7 +93,7 @@ Image::Shape TiffImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
       break;
   }
 
-  DALI_ENFORCE(width_read && height_read && (nchannels_read | photometric_read),
+  DALI_ENFORCE(width_read && height_read && (nchannels_read || photometric_read),
     "TIFF image dimensions haven't been peeked properly");
 
   return {height, width, nchannels};
