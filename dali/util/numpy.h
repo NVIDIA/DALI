@@ -49,7 +49,7 @@ DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, InputStream *src);
 
 DLL_PUBLIC void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input);
 
-DLL_PUBLIC void ParseHeaderMetadata(HeaderData& target, const std::string &header);
+DLL_PUBLIC void ParseHeaderContents(HeaderData& target, const std::string &header);
 
 }  // namespace numpy
 }  // namespace dali

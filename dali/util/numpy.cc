@@ -114,7 +114,7 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
   return out;
 }
 
-void ParseHeaderMetadata(HeaderData& target, const std::string &header) {
+void ParseHeaderContents(HeaderData& target, const std::string &header) {
   target.shape = {};
   const char* hdr = header.c_str();
   SkipSpaces(hdr);
@@ -187,7 +187,7 @@ void ParseHeader(HeaderData &parsed_header, InputStream *src) {
   offset += header_len;
   src->SeekRead(offset);  // michalz: Why isn't it done when actually reading the payload?
 
-  ParseHeaderMetadata(parsed_header, header);
+  ParseHeaderContents(parsed_header, header);
   parsed_header.data_offset = offset;
 }
 
