@@ -19,12 +19,13 @@ from test_utils import check_batch
 from nose_utils import raises
 import numpy as np
 
+
 num_classes = 20
 batch_size = 10
 
 
 def insert_as_axis(target, value, axis, total_axes):
-    return target[0:axis] + (value, ) + target[axis:total_axes]
+    return target[0:axis] + (value,) + target[axis:total_axes]
 
 
 def get_initial_layout(sample_dim=0, base="ABCD"):
@@ -44,7 +45,7 @@ def modify_layout(layout, output_dim, axis=None, axis_name=None):
 
 def random_3d_tensors_batch():
     return [
-        np.random.randint(0, num_classes, size=np.random.randint(2, 8, size=(3, )), dtype=np.int32)
+        np.random.randint(0, num_classes, size=np.random.randint(2, 8, size=(3,)), dtype=np.int32)
         for _ in range(batch_size)
     ]
 
@@ -61,14 +62,13 @@ def random_scalar_like_tensors_batch(nested_level):
 
 
 class OneHotPipeline(Pipeline):
-
-    def __init__(self, num_classes, source, axis=-1, num_threads=1, layout=None, axis_name=None,
-                 device='cpu'):
+    def __init__(self, num_classes, source, axis=-1, num_threads=1,
+                 layout=None, axis_name=None, device='cpu'):
         super(OneHotPipeline, self).__init__(batch_size, num_threads, 0)
         self.is_gpu = device == 'gpu'
         self.ext_src = ops.ExternalSource(source=source, layout=layout)
-        self.one_hot = ops.OneHot(num_classes=num_classes, axis=axis, dtype=types.INT32,
-                                  device=device, axis_name=axis_name)
+        self.one_hot = ops.OneHot(num_classes=num_classes, axis=axis,
+                                  dtype=types.INT32, device=device, axis_name=axis_name)
 
     def define_graph(self):
         self.data = self.ext_src()
@@ -104,9 +104,10 @@ def one_hot(input):
     return outp
 
 
-def check_one_hot_operator(source, device='cpu', axis=-1, expected_output_dim=None, axis_name=None,
-                           initial_layout=None):
-    pipeline = OneHotPipeline(num_classes=num_classes, source=source, axis=axis,
+def check_one_hot_operator(source, device='cpu', axis=-1,
+                           expected_output_dim=None, axis_name=None, initial_layout=None):
+    pipeline = OneHotPipeline(
+        num_classes=num_classes, source=source, axis=axis,
                               layout=initial_layout, axis_name=axis_name, device=device)
     pipeline.build()
     (outputs, input_batch) = pipeline.run()
@@ -114,11 +115,12 @@ def check_one_hot_operator(source, device='cpu', axis=-1, expected_output_dim=No
         input_batch = input_batch.as_cpu()
     input_batch = list(map(np.array, input_batch))
     expected_output_dim = expected_output_dim or len(input_batch[0].shape) + 1
-    reference = one_hot_3_axes(input_batch,
-                               axis) if expected_output_dim == 4 else one_hot(input_batch)
-    expected_layout = modify_layout(initial_layout, expected_output_dim, axis, axis_name)
-    check_batch(outputs, reference, batch_size, max_allowed_error=0,
-                expected_layout=expected_layout)
+    reference = one_hot_3_axes(
+        input_batch, axis) if expected_output_dim == 4 else one_hot(input_batch)
+    expected_layout = modify_layout(
+        initial_layout, expected_output_dim, axis, axis_name)
+    check_batch(outputs, reference, batch_size,
+                max_allowed_error=0, expected_layout=expected_layout)
 
 
 def test_one_hot_scalar():
@@ -154,8 +156,8 @@ def test_one_hot():
         layout = get_initial_layout(3)
         for i in range(10):
             for axis in [-1, 0, 1, 2, 3]:
-                yield partial(check_one_hot_operator, axis_name='O',
-                              initial_layout=layout), random_3d_tensors_batch, device, axis
+                yield partial(check_one_hot_operator, axis_name='O', initial_layout=layout), \
+                    random_3d_tensors_batch, device, axis
 
 
 def test_multi_dim_one_hot_no_initial_layout():
