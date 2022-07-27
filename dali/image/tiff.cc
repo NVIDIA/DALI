@@ -54,7 +54,7 @@ Image::Shape TiffImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
 
   const auto ifd_offset = buffer.Read<uint32_t>(4);
   const auto entry_count = buffer.Read<uint16_t>(ifd_offset);
-  bool width_read = false, height_read = false, nchannels_read = false, photometric_read = false;
+  bool width_read = false, height_read = false, samples_per_px_read = false, palette_read = false;
   int64_t width = 0, height = 0, nchannels = 0;
 
   for (int entry_idx = 0; entry_idx < entry_count; entry_idx++) {
@@ -81,19 +81,21 @@ Image::Shape TiffImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
       } else if (tag_id == HEIGHT_TAG) {
         height = value;
         height_read = true;
-      } else if (tag_id == SAMPLESPERPIXEL_TAG && !photometric_read) {
+      } else if (tag_id == SAMPLESPERPIXEL_TAG && !palette_read) {
+        // If the palette is present, the SAMPLESPERPIXEL tag is always set to 1, so it does not
+        // indicate the actual number of channels. That's why we ignore it for palette images.
         nchannels = value;
-        nchannels_read = true;
+        samples_per_px_read = true;
       } else if (tag_id == PHOTOMETRIC_INTERPRETATION_TAG && value == PHOTOMETRIC_PALETTE) {
         nchannels = 3;
-        photometric_read = true;
+        palette_read = true;
       }
     }
-    if (width_read && height_read && photometric_read)
+    if (width_read && height_read && palette_read)
       break;
   }
 
-  DALI_ENFORCE(width_read && height_read && (nchannels_read || photometric_read),
+  DALI_ENFORCE(width_read && height_read && (samples_per_px_read || palette_read),
     "TIFF image dimensions haven't been peeked properly");
 
   return {height, width, nchannels};
