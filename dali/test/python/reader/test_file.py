@@ -18,6 +18,7 @@ import os
 import random
 import tempfile
 from nvidia.dali import Pipeline, pipeline_def
+
 from nose_utils import assert_raises
 from test_utils import compare_pipelines
 
