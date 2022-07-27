@@ -129,6 +129,11 @@ TYPED_TEST(TensorVectorTest, TestCopy) {
   auto shape = this->GetRandShape();
   tl.Resize(shape);
 
+  for (int i = 0; i < shape.num_samples(); i++) {
+    tl.SetSourceInfo(i, to_string(i));
+  }
+  tl.SetLayout(std::string(shape.sample_dim(), 'X'));
+
   TensorVector<Backend> tl2s[2];
   tl2s[0].SetContiguous(this->kState);
   tl2s[1].SetContiguous(!this->kState);
@@ -138,10 +143,12 @@ TYPED_TEST(TensorVectorTest, TestCopy) {
     ASSERT_EQ(tl.num_samples(), tl2.num_samples());
     ASSERT_EQ(tl.type(), tl2.type());
     ASSERT_EQ(tl.shape().num_elements(), tl2.shape().num_elements());
+    ASSERT_EQ(tl.GetLayout(), tl2.GetLayout());
 
     for (int i = 0; i < shape.size(); ++i) {
-      ASSERT_EQ(tl.tensor_shape(i), tl.tensor_shape(i));
+      ASSERT_EQ(tl.tensor_shape(i), tl2.tensor_shape(i));
       ASSERT_EQ(volume(tl.tensor_shape(i)), volume(tl2.tensor_shape(i)));
+      ASSERT_EQ(tl.GetMeta(i).GetSourceInfo(), tl2.GetMeta(i).GetSourceInfo());
     }
   }
 }
@@ -152,6 +159,9 @@ TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
   tl.SetContiguous(this->kState);
 
   tl.template set_type<float>();
+  // TODO(klecki): Empty noncontiugous TV has no notion of layout, remove the if when supported
+  if (this->kState)
+    tl.SetLayout("XX");
 
   TensorVector<Backend> tl2s[2];
   tl2s[0].SetContiguous(this->kState);
@@ -161,6 +171,10 @@ TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
     ASSERT_EQ(tl.num_samples(), tl2.num_samples());
     ASSERT_EQ(tl.type(), tl2.type());
     ASSERT_EQ(tl.shape().num_elements(), tl2.shape().num_elements());
+
+    // TODO(klecki): Empty noncontiugous TV has no notion of layout, remove the if when supported
+    if (tl2.IsContiguous())
+      ASSERT_EQ(tl.GetLayout(), tl2.GetLayout());
   }
 }
 

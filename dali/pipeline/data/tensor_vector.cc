@@ -711,8 +711,12 @@ void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, AccessOr
   if (state_ != State::noncontiguous || !tensors_.empty()) {
     SetLayout(in_tv.GetLayout());
   }
+  if (state_ == State::contiguous) {
+    for (int i = 0; i < curr_num_tensors_; i++) {
+      tl_->SetMeta(i, in_tv.GetMeta(i));
+    }
+  }
   for (int i = 0; i < curr_num_tensors_; i++) {
-    tl_->SetMeta(i, in_tv.GetMeta(i));
     tensors_[i]->SetMeta(in_tv.GetMeta(i));
   }
   copy_impl::SyncAfter(this->order(), copy_order);
