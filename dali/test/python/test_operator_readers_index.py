@@ -194,6 +194,7 @@ def test_tfrecord_reader_alias2():
         assert len(data.shape) == 0
         assert data.dtype == np.float32
 
+
 def test_tfrecord_reader_scalars():
     test_dummy_data_path = os.path.join(get_dali_extra_path(), 'db', 'coco_dummy')
 

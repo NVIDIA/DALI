@@ -12,35 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.utils.dlpack as torch_dlpack
 import ctypes
 import numpy as np
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
+import torch
 from nvidia.dali import pipeline_def
-from nvidia.dali.backend import TensorGPU, TensorListGPU
 from nvidia.dali import types
+from nvidia.dali.backend import TensorListGPU
 
 shape = [4000000]
 batch_size = 2
 
+
 @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
 def _test_pipe():
-    get_tensor = lambda si: np.arange(si.idx_in_epoch, si.idx_in_epoch + shape[0], dtype=np.int32)
+    def get_tensor(si):
+        return np.arange(si.idx_in_epoch, si.idx_in_epoch + shape[0], dtype=np.int32)
+
     inp = fn.external_source(get_tensor, batch=False)
     return inp.gpu()
 
+
 to_torch_type = {
-    types.DALIDataType.FLOAT   : torch.float32,
-    types.DALIDataType.FLOAT64 : torch.float64,
-    types.DALIDataType.FLOAT16 : torch.float16,
-    types.DALIDataType.UINT8   : torch.uint8,
-    types.DALIDataType.INT8    : torch.int8,
-    types.DALIDataType.INT16   : torch.int16,
-    types.DALIDataType.INT32   : torch.int32,
-    types.DALIDataType.INT64   : torch.int64
+    types.DALIDataType.FLOAT: torch.float32,
+    types.DALIDataType.FLOAT64: torch.float64,
+    types.DALIDataType.FLOAT16: torch.float16,
+    types.DALIDataType.UINT8: torch.uint8,
+    types.DALIDataType.INT8: torch.int8,
+    types.DALIDataType.INT16: torch.int16,
+    types.DALIDataType.INT32: torch.int32,
+    types.DALIDataType.INT64: torch.int64
 }
+
 
 def feed_ndarray(tensor_or_tl, arr, cuda_stream=None, non_blocking=False):
     """
@@ -63,14 +66,13 @@ def feed_ndarray(tensor_or_tl, arr, cuda_stream=None, non_blocking=False):
     else:
         dali_tensor = tensor_or_tl
 
-
     assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
-            " doesn't match the element type of the target PyTorch Tensor:"
-            "{} vs {}".format(dali_type, arr.dtype))
+                                    " doesn't match the element type of the target PyTorch Tensor:"
+                                    f"{dali_type} vs {arr.dtype}")
 
-    assert dali_tensor.shape() == list(arr.size()), \
-            ("Shapes do not match: DALI tensor has size {0}"
-            ", but PyTorch Tensor has size {1}".format(dali_tensor.shape(), list(arr.size())))
+    assert dali_tensor.shape() == list(arr.size()), (
+        f"Shapes do not match: DALI tensor has size {dali_tensor.shape()}, "
+        f"but PyTorch Tensor has size {list(arr.size())}")
     cuda_stream = types._raw_cuda_stream(cuda_stream)
 
     # turn raw int to a c void pointer
@@ -78,6 +80,7 @@ def feed_ndarray(tensor_or_tl, arr, cuda_stream=None, non_blocking=False):
     stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
     tensor_or_tl.copy_to_external(c_type_pointer, stream, non_blocking)
     return arr
+
 
 def _test_copy_to_external(use_tensor_list, non_blocking):
     """Test whether the copy_to_external is properly synchronized before the
@@ -97,8 +100,7 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
 
     def ref_tensor(batch_size, sample_shape, start_value):
         volume = np.prod(sample_shape)
-        sample0 = torch.arange(start_value, start_value + volume,
-                               dtype=torch.int32,
+        sample0 = torch.arange(start_value, start_value + volume, dtype=torch.int32,
                                device="cuda:0").reshape(shape)
         return torch.stack([sample0 + i for i in range(batch_size)])
 
@@ -141,6 +143,7 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
 
             # free resources to prevent OOM in the next iteration
             del pipe
+
 
 def test_copy_to_external():
     for use_tl in [False, True]:
