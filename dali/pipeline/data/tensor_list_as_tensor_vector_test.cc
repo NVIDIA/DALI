@@ -88,8 +88,8 @@ class TensorVectorTest : public DALITest {
    * Allocate it as float
    */
   void SetupTensorVector(TensorVector<Backend> *tensor_list,
-                       const TensorListShape<>& shape,
-                       vector<Index> *offsets) {
+                         const TensorListShape<>& shape,
+                         vector<Index> *offsets) {
     const int num_tensor = shape.size();
 
     Index offset = 0;
@@ -173,8 +173,9 @@ TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
     ASSERT_EQ(tl.shape().num_elements(), tl2.shape().num_elements());
 
     // TODO(klecki): Empty noncontiugous TV has no notion of layout, remove the if when supported
-    if (tl2.IsContiguous())
+    if (tl2.IsContiguous()) {
       ASSERT_EQ(tl.GetLayout(), tl2.GetLayout());
+    }
   }
 }
 
