@@ -66,7 +66,7 @@ class LibJpegTurboDecoder : public ImageDecoder {
     static const auto props = []() {
       ImageDecoderProperties props;
       props.supported_input_kinds = InputKind::HostMemory;
-      props.supports_partial_decoding = false;  // roi support requires decoding the whole file
+      props.supports_partial_decoding = true;
       props.fallback = true;
       return props;
     }();
