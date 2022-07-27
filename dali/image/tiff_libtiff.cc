@@ -262,9 +262,8 @@ TiffImage_Libtiff::TiffImage_Libtiff(const uint8_t *encoded_buffer,
     TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_COMPRESSION, &compression_));
 
   uint16_t photometric_interpretation;
-  LIBTIFF_CALL(
-    TIFFGetFieldDefaulted(tif_.get(), TIFFTAG_PHOTOMETRIC, &photometric_interpretation));
-  if (photometric_interpretation == PHOTOMETRIC_PALETTE) {
+  if (TIFFGetField(tif_.get(), TIFFTAG_PHOTOMETRIC, &photometric_interpretation) &&
+      photometric_interpretation == PHOTOMETRIC_PALETTE) {
     shape_[2] = 3;
     palette_ = true;
   }
