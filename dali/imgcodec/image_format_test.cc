@@ -157,7 +157,7 @@ TEST_F(ImageFormatTest, Pnm) {
        TensorShape<>(536, 640, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Jpeg2000) {
+TEST_F(ImageFormatTest, Jpeg2000) {
   Test(testing::dali_extra_path() + "/db/single/jpeg2k/0/cat-3113513_640.jp2", "jpeg2000",
        TensorShape<>(299, 640, 3));
 }

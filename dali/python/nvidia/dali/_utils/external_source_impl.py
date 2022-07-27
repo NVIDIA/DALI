@@ -34,8 +34,8 @@ def import_numpy():
 
 
 class SourceKind(Enum):
-    CALLABLE       = 0
-    ITERABLE       = 1
+    CALLABLE = 0
+    ITERABLE = 1
     GENERATOR_FUNC = 2
 
 
@@ -52,11 +52,12 @@ class SourceDescription:
 
     def __str__(self) -> str:
         if self.kind == SourceKind.CALLABLE:
-            return "Callable source " + ("with" if self.has_inputs else "without") + " inputs: `{}`".format(self.source)
+            inputs = ("with" if self.has_inputs else "without")
+            return f"Callable source {inputs} inputs: `{self.source}`"
         elif self.kind == SourceKind.ITERABLE:
-            return "Iterable (or iterator) source: `{}` with cycle: `{}`.".format(self.source, self.cycle)
+            return f"Iterable (or iterator) source: `{self.source}` with cycle: `{self.cycle}`."
         else:
-            return "Generator function source: `{}` with cycle: `{}`.".format(self.source, self.cycle)
+            return f"Generator function source: `{self.source}` with cycle: `{self.cycle}`."
 
 
 _tf_sample_error_msg = (
@@ -66,7 +67,8 @@ _tf_sample_error_msg = (
 
 _tf_batch_error_msg = (
     "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
-    "DALI TensorCPU, list of those types or DALI TensorListCPU representing batch. Got `{}` instead.")
+    "DALI TensorCPU, list of those types or DALI TensorListCPU representing batch. "
+    "Got `{}` instead.")
 
 _tf_uniform_error_msg = (
     "Unsupported callback return value. TensorFlow requires that the batches produced by input "
@@ -208,9 +210,9 @@ def _is_generator_function(x):
 def _cycle_enabled(cycle):
     if cycle is None:
         return False
-    if cycle == False or cycle == "no":
+    if cycle is False or cycle == "no":
         return False
-    if cycle == True or cycle == "quiet" or cycle == "raise":
+    if cycle is True or cycle == "quiet" or cycle == "raise":
         return True
     raise ValueError("""Invalid value {} for the argument `cycle`. Valid values are
   - "no", False or None - cycling disabled
@@ -219,7 +221,8 @@ def _cycle_enabled(cycle):
 
 
 def accepted_arg_count(callable):
-    if not inspect.isfunction(callable) and not inspect.ismethod(callable) and hasattr(callable, '__call__'):
+    if not (inspect.isfunction(callable) or inspect.ismethod(callable)) \
+            and hasattr(callable, '__call__'):
         callable = callable.__call__
     if not inspect.ismethod(callable):
         implicit_args = 0
@@ -244,8 +247,9 @@ def get_callback_from_source(source, cycle, batch_info=False):
         try:
             if _cycle_enabled(cycle):
                 if inspect.isgenerator(source):
-                    raise TypeError("Cannot cycle through a generator - if the generator is a result "
-                        "of calling a generator function, pass that function instead as `source`.")
+                    raise TypeError("Cannot cycle through a generator - if the generator is "
+                                    "a result of calling a generator function, "
+                                    "pass that function instead as `source`.")
                 if _is_generator_function(source):
                     # We got a generator function, each call returns new "generator iterator"
                     desc = SourceDescription(source, SourceKind.GENERATOR_FUNC, False, cycle)
@@ -271,17 +275,19 @@ def get_callback_from_source(source, cycle, batch_info=False):
                 # in the error message.
                 iterator = iter(source)
             iterable = True
-            callback = lambda: next(iterator)
+            callback = lambda: next(iterator)  # noqa E731
         except TypeError as err:
             if "not iterable" not in str(err):
                 raise(err)
             if cycle is not None:
-                raise ValueError("The argument `cycle` can only be specified if `source` is iterable")
+                raise ValueError("The argument `cycle` can only be specified "
+                                 "if `source` is iterable")
             if not callable(source):
-                raise TypeError("Source must be callable, iterable or a parameterless generator function")
+                raise TypeError("Source must be callable, "
+                                "iterable or a parameterless generator function")
             # We got a callable
             desc = SourceDescription(source, SourceKind.CALLABLE,
-                                      accepted_arg_count(source) > 0, cycle, batch_info)
+                                     accepted_arg_count(source) > 0, cycle, batch_info)
             callback = source
     else:
         desc = None
@@ -336,7 +342,8 @@ def get_batch_iterable_from_callback(source_desc: SourceDescription):
                     argument = self.iteration
                 result = self.source(argument)
             self.iteration += 1
-            return batch_to_numpy(result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
+            return batch_to_numpy(result, _tf_batch_error_msg,
+                                  non_uniform_str=_tf_uniform_error_msg)
 
     return CallableBatchIterator, dtype, shape
 
@@ -404,7 +411,8 @@ def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
             else:
                 result = self.source()
             if is_batched:
-                return batch_to_numpy(result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
+                return batch_to_numpy(result, _tf_batch_error_msg,
+                                      non_uniform_str=_tf_uniform_error_msg)
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
 
@@ -420,7 +428,7 @@ def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_b
         first_iter = iter(source_desc.source())
     else:
         first_iter = iter(source_desc.source)
-    first =  next(first_iter)
+    first = next(first_iter)
     dtype, shape = _inspect_data(first, is_batched)
 
     class PeekFirstGenerator:
@@ -448,7 +456,8 @@ def get_iterable_from_iterable_or_generator(source_desc: SourceDescription, is_b
             else:
                 result = next(self.it)
             if is_batched:
-                return batch_to_numpy(result, _tf_batch_error_msg, non_uniform_str=_tf_uniform_error_msg)
+                return batch_to_numpy(result, _tf_batch_error_msg,
+                                      non_uniform_str=_tf_uniform_error_msg)
             else:
                 return sample_to_numpy(result, _tf_sample_error_msg)
 

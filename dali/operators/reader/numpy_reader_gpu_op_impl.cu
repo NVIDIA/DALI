@@ -34,7 +34,9 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
   auto out_view = view<T>(output);
   auto curr_batch = GetCurrBatchView<T, Dims>();
   const auto &dtype = TypeTable::GetTypeInfo<T>();
-
+  int batch_size = GetCurrBatchSize();
+  source_data_index_.clear();
+  source_data_index_.resize(batch_size);
 
   CUDA_CALL(cudaStreamWaitEvent(ws.stream(), staging_ready_, 0));
 
@@ -53,10 +55,18 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
       nsamples_transpose++;
     if (!need_slice_[i] && !need_transpose_[i])
       nsamples_copy++;
+    source_data_index_[i] = GetSample(i).source_sample_idx;
   }
 
   if (nsamples_copy) {
-    if (nsamples_copy == nsamples) {
+    bool is_padded = false;
+    for (int i = 0; i < nsamples; ++i) {
+      if (source_data_index_[i] != i) {
+        is_padded = true;
+        break;
+      }
+    }
+    if (nsamples_copy == nsamples && !is_padded) {
       std::swap(output, prefetched_batch_tensors_[curr_batch_consumer_]);
       return;
     }
@@ -64,7 +74,8 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
       if (need_slice_[i] || need_transpose_[i])
         continue;
       auto sz = out_sh.tensor_size(i) * sizeof(T);
-      sg_.AddCopy(out_view.data[i], curr_batch.data[i], sz);
+      int src_idx = source_data_index_[i];
+      sg_.AddCopy(out_view.data[i], curr_batch.data[src_idx], sz);
     }
     sg_.Run(ws.stream());
   }
@@ -100,8 +111,9 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
       args.fill_values.clear();
       args.fill_values.push_back(ConvertSat<T>(fill_value_));
 
-      from.data[j] = curr_batch.data[i];
-      from.shape.set_tensor_shape(j, curr_batch.shape[i]);
+      int src_idx = source_data_index_[i];
+      from.data[j] = curr_batch.data[src_idx];
+      from.shape.set_tensor_shape(j, curr_batch.shape[src_idx]);
 
       if (need_transpose_[i]) {
         // slice to an intermediate buffer
@@ -140,7 +152,8 @@ void NumpyReaderGPU::RunImplTyped(DeviceWorkspace &ws) {
         k++;
       } else {
         // directly from the input
-        from.data[j] = curr_batch.data[i];
+        int src_idx = source_data_index_[i];
+        from.data[j] = curr_batch.data[src_idx];
         from.shape.set_tensor_shape(j, curr_batch.tensor_shape(i));
       }
       to.data[j] = out_view[i].data;
