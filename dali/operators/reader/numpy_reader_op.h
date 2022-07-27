@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,6 @@
 
 #ifndef DALI_OPERATORS_READER_NUMPY_READER_OP_H_
 #define DALI_OPERATORS_READER_NUMPY_READER_OP_H_
-
-#define NUMPY_ALLOWED_TYPES \
-  (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, float16, \
-  double)
 
 #define NUMPY_ALLOWED_DIMS (0, 1, 2, 3, 4, 5, 6)
 

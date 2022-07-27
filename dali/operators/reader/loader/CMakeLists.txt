@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,6 @@ endif()
 set(DALI_OPERATOR_TEST_SRCS ${DALI_OPERATOR_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/loader_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/sequence_loader_test.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/numpy_loader_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/filesystem_test.cc")
 
 if (BUILD_LIBSND)
