@@ -26,30 +26,30 @@ import numba as nb
 
 
 _to_numpy = {
-    dali_types.UINT8:   "uint8",
-    dali_types.UINT16:  "uint16",
-    dali_types.UINT32:  "uint32",
-    dali_types.UINT64:  "uint64",
-    dali_types.INT8:    "int8",
-    dali_types.INT16:   "int16",
-    dali_types.INT32:   "int32",
-    dali_types.INT64:   "int64",
-    dali_types.FLOAT16: "float16",
-    dali_types.FLOAT:   "float32",
-    dali_types.FLOAT64: "float64",
+    dali_types.UINT8 : "uint8",
+    dali_types.UINT16 : "uint16",
+    dali_types.UINT32 : "uint32",
+    dali_types.UINT64 : "uint64",
+    dali_types.INT8 : "int8",
+    dali_types.INT16 : "int16",
+    dali_types.INT32 : "int32",
+    dali_types.INT64 : "int64",
+    dali_types.FLOAT16 : "float16",
+    dali_types.FLOAT : "float32",
+    dali_types.FLOAT64 : "float64",
 }
 
 _to_numba = {
-    dali_types.UINT8:   numba_types.uint8,
-    dali_types.UINT16:  numba_types.uint16,
-    dali_types.UINT32:  numba_types.uint32,
-    dali_types.UINT64:  numba_types.uint64,
-    dali_types.INT8:    numba_types.int8,
-    dali_types.INT16:   numba_types.int16,
-    dali_types.INT32:   numba_types.int32,
-    dali_types.INT64:   numba_types.int64,
-    dali_types.FLOAT:   numba_types.float32,
-    dali_types.FLOAT64: numba_types.float64,
+    dali_types.UINT8 : numba_types.uint8,
+    dali_types.UINT16 : numba_types.uint16,
+    dali_types.UINT32 : numba_types.uint32,
+    dali_types.UINT64 : numba_types.uint64,
+    dali_types.INT8 : numba_types.int8,
+    dali_types.INT16 : numba_types.int16,
+    dali_types.INT32 : numba_types.int32,
+    dali_types.INT64 : numba_types.int64,
+    dali_types.FLOAT : numba_types.float32,
+    dali_types.FLOAT64 : numba_types.float64,
 }
 
 # Numba does not support float16 in Python 3.6
@@ -74,13 +74,13 @@ def address_as_void_pointer(typingctx, src):
 def _get_shape_view(shapes_ptr, ndims_ptr, num_dims, num_samples):
     ndims = carray(address_as_void_pointer(ndims_ptr), num_dims, dtype=np.int32)
     samples = carray(address_as_void_pointer(shapes_ptr), (num_dims, num_samples), dtype=np.int64)
-    lst = []
+    l = []
     for sample, size in zip(samples, ndims):
         d = []
         for shape_ptr in sample:
             d.append(carray(address_as_void_pointer(shape_ptr), size, dtype=np.int64))
-        lst.append(d)
-    return lst
+        l.append(d)
+    return l
 
 
 class NumbaFunction(metaclass=ops._DaliOperatorMeta):
@@ -106,11 +106,11 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
 
     def _setup_fn_sig(self):
         return numba_types.void(numba_types.uint64,
-                                numba_types.uint64,
-                                numba_types.int32,
-                                numba_types.uint64,
-                                numba_types.uint64,
-                                numba_types.int32, numba_types.int32)
+                        numba_types.uint64,
+                        numba_types.int32,
+                        numba_types.uint64,
+                        numba_types.uint64,
+                        numba_types.int32, numba_types.int32)
 
     def _run_fn_sig(self, batch_processing=False):
         sig_types = []
@@ -137,38 +137,29 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         return njit(eval(eval_string))
 
     def _get_carrays_eval_lambda(self, types, ndim):
-        ret = [self._get_carray_eval_lambda(dtype, ndim) for dtype, ndim in zip(types, ndim)]
-        ret += [njit(eval(("lambda x, y: None"))) for i in range(6 - len(types))]
-        return tuple(ret)
+        return tuple([self._get_carray_eval_lambda(dtype, ndim) for dtype, ndim in zip(types, ndim)] + [njit(eval(("lambda x, y: None"))) for i in range(6 - len(types))])
 
     def _get_run_fn_lambda(self, num_outs, num_ins):
-        eval_string = ("lambda run_fn, out0, out1, out2, out3, out4, out5, "
-                       "in0, in1, in2, in3, in4, in5 : "
-                       "run_fn(")
+        eval_string = "lambda run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5 : "
+        eval_string += "run_fn("
         for i in range(num_outs):
             eval_string += "out{}".format(i)
-            eval_string += ", " if i + 1 != num_outs else ", "
+            eval_string += ", " if i + 1 != num_outs else  ", "
         for i in range(num_ins):
             eval_string += "in{}".format(i)
-            eval_string += ", " if i + 1 != num_ins else ")"
+            eval_string += ", " if i + 1 != num_ins else  ")"
         return njit(eval(eval_string))
 
     def _get_setup_fn_cpu(self, setup_fn):
         setup_fn_address = None
-        if setup_fn is not None:
+        if setup_fn != None:
             setup_fn = njit(setup_fn)
-
             @cfunc(self._setup_fn_sig(), nopython=True)
-            def setup_cfunc(out_shapes_ptr, out_ndims_ptr, num_outs,
-                            in_shapes_ptr, in_ndims_ptr, num_ins,
-                            num_samples):
-                out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr,
-                                                num_outs, num_samples)
-                in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr,
-                                               num_outs, num_samples)
+            def setup_cfunc(out_shapes_ptr, out_ndims_ptr, num_outs, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
+                out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
+                in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr, num_outs, num_samples)
                 setup_fn(out_shapes_np, in_shapes_np)
             setup_fn_address = setup_cfunc.address
-
         return setup_fn_address
 
     def _get_run_fn_gpu(self, run_fn, types, dims):
@@ -189,81 +180,55 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
         filename = code.co_filename
         linenum = code.co_firstlineno
         lib, kernel = tgt_ctx.prepare_cuda_kernel(cres.library, cres.fndesc,
-                                                  True, nvvm_options,
-                                                  filename, linenum)
+                                            True, nvvm_options,
+                                            filename, linenum)
         handle = lib.get_cufunc().handle
         return handle.value
 
     def _get_run_fn_cpu(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, batch_processing):
-        out0_lambda, out1_lambda, out2_lambda, out3_lambda, out4_lambda, out5_lambda = \
-            self._get_carrays_eval_lambda(out_types, outs_ndim)
-        in0_lambda, in1_lambda, in2_lambda, in3_lambda, in4_lambda, in5_lambda = \
-            self._get_carrays_eval_lambda(in_types, ins_ndim)
+        out0_lambda, out1_lambda, out2_lambda, out3_lambda, out4_lambda, out5_lambda = self._get_carrays_eval_lambda(out_types, outs_ndim)
+        in0_lambda, in1_lambda, in2_lambda, in3_lambda, in4_lambda, in5_lambda = self._get_carrays_eval_lambda(in_types, ins_ndim)
         run_fn = njit(run_fn)
         run_fn_lambda = self._get_run_fn_lambda(len(out_types), len(in_types))
         if batch_processing:
             @cfunc(self._run_fn_sig(batch_processing=True), nopython=True)
-            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs,
-                          in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins,
-                          num_samples):
+            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins, num_samples):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
-                out_shapes_np = _get_shape_view(out_shapes_ptr,
-                                                out_ndims_ptr,
-                                                num_outs,
-                                                num_samples)
-                out_arr = carray(address_as_void_pointer(out_ptr),
-                                 (num_outs, num_samples),
-                                 dtype=np.int64)
+                out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, num_samples)
+                out_arr = carray(address_as_void_pointer(out_ptr), (num_outs, num_samples), dtype=np.int64)
                 if num_outs >= 1:
-                    out0 = [out0_lambda(address_as_void_pointer(ptr), shape)
-                            for ptr, shape in zip(out_arr[0], out_shapes_np[0])]
+                    out0 = [out0_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[0], out_shapes_np[0])]
                 if num_outs >= 2:
-                    out1 = [out1_lambda(address_as_void_pointer(ptr), shape)
-                            for ptr, shape in zip(out_arr[1], out_shapes_np[1])]
+                    out1 = [out1_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[1], out_shapes_np[1])]
                 if num_outs >= 3:
-                    out2 = [out2_lambda(address_as_void_pointer(ptr), shape)
-                            for ptr, shape in zip(out_arr[2], out_shapes_np[2])]
+                    out2 = [out2_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[2], out_shapes_np[2])]
                 if num_outs >= 4:
-                    out3 = [out3_lambda(address_as_void_pointer(ptr), shape)
-                            for ptr, shape in zip(out_arr[3], out_shapes_np[3])]
+                    out3 = [out3_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[3], out_shapes_np[3])]
                 if num_outs >= 5:
-                    out4 = [out4_lambda(address_as_void_pointer(ptr), shape)
-                            for ptr, shape in zip(out_arr[4], out_shapes_np[4])]
+                    out4 = [out4_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[4], out_shapes_np[4])]
                 if num_outs >= 6:
-                    out5 = [out5_lambda(address_as_void_pointer(ptr), shape)
-                            for ptr, shape in zip(out_arr[5], out_shapes_np[5])]
+                    out5 = [out5_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(out_arr[5], out_shapes_np[5])]
 
                 in0 = in1 = in2 = in3 = in4 = in5 = None
                 in_shapes_np = _get_shape_view(in_shapes_ptr, in_ndims_ptr, num_ins, num_samples)
-                in_arr = carray(address_as_void_pointer(in_ptr),
-                                (num_ins, num_samples),
-                                dtype=np.int64)
+                in_arr = carray(address_as_void_pointer(in_ptr), (num_ins, num_samples), dtype=np.int64)
                 if num_ins >= 1:
-                    in0 = [in0_lambda(address_as_void_pointer(ptr), shape)
-                           for ptr, shape in zip(in_arr[0], in_shapes_np[0])]
+                    in0 = [in0_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[0], in_shapes_np[0])]
                 if num_ins >= 2:
-                    in1 = [in1_lambda(address_as_void_pointer(ptr), shape)
-                           for ptr, shape in zip(in_arr[1], in_shapes_np[1])]
+                    in1 = [in1_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[1], in_shapes_np[1])]
                 if num_ins >= 3:
-                    in2 = [in2_lambda(address_as_void_pointer(ptr), shape)
-                           for ptr, shape in zip(in_arr[2], in_shapes_np[2])]
+                    in2 = [in2_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[2], in_shapes_np[2])]
                 if num_ins >= 4:
-                    in3 = [in3_lambda(address_as_void_pointer(ptr), shape)
-                           for ptr, shape in zip(in_arr[3], in_shapes_np[3])]
+                    in3 = [in3_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[3], in_shapes_np[3])]
                 if num_ins >= 5:
-                    in4 = [in4_lambda(address_as_void_pointer(ptr), shape)
-                           for ptr, shape in zip(in_arr[4], in_shapes_np[4])]
+                    in4 = [in4_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[4], in_shapes_np[4])]
                 if num_ins >= 6:
-                    in5 = [in5_lambda(address_as_void_pointer(ptr), shape)
-                           for ptr, shape in zip(in_arr[5], in_shapes_np[5])]
+                    in5 = [in5_lambda(address_as_void_pointer(ptr), shape) for ptr, shape in zip(in_arr[5], in_shapes_np[5])]
 
-                run_fn_lambda(run_fn,
-                              out0, out1, out2, out3, out4, out5,
-                              in0, in1, in2, in3, in4, in5)
+                run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
         else:
             @cfunc(self._run_fn_sig(batch_processing=False), nopython=True)
-            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs,
-                          in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins):
+            def run_cfunc(out_ptr, out_shapes_ptr, out_ndims_ptr, num_outs, in_ptr, in_shapes_ptr, in_ndims_ptr, num_ins):
                 out0 = out1 = out2 = out3 = out4 = out5 = None
                 out_shapes_np = _get_shape_view(out_shapes_ptr, out_ndims_ptr, num_outs, 1)
                 out_arr = carray(address_as_void_pointer(out_ptr), num_outs, dtype=np.int64)
@@ -296,9 +261,7 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                 if num_ins >= 6:
                     in5 = in5_lambda(address_as_void_pointer(in_arr[5]), in_shapes_np[5][0])
 
-                run_fn_lambda(run_fn,
-                              out0, out1, out2, out3, out4, out5,
-                              in0, in1, in2, in3, in4, in5)
+                run_fn_lambda(run_fn, out0, out1, out2, out3, out4, out5, in0, in1, in2, in3, in4, in5)
         return run_cfunc.address
 
     def __call__(self, *inputs, **kwargs):
@@ -325,7 +288,8 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
                       .format(type(inp).__name__))
         op_instance = ops._OperatorInstance(inputs, self, **kwargs)
         op_instance.spec.AddArg("run_fn", self.run_fn)
-        op_instance.spec.AddArg("setup_fn", self.setup_fn) if self.setup_fn else None
+        if self.setup_fn != None:
+            op_instance.spec.AddArg("setup_fn", self.setup_fn)
         op_instance.spec.AddArg("out_types", self.out_types)
         op_instance.spec.AddArg("in_types", self.in_types)
         op_instance.spec.AddArg("outs_ndim", self.outs_ndim)
@@ -354,48 +318,28 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             outputs.append(t)
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def __init__(self, run_fn,
-                 out_types, in_types,
-                 outs_ndim, ins_ndim,
-                 setup_fn=None,
-                 device='cpu',
-                 batch_processing=False,
-                 blocks=None,
-                 threads_per_block=None,
-                 **kwargs):
+    def __init__(self, run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn=None, device='cpu', batch_processing=False, blocks=None, threads_per_block=None, **kwargs):
         if device == 'gpu':
             self._check_minimal_numba_version()
             self._check_cuda_compatibility()
 
-        assert len(in_types) == len(ins_ndim), ("Number of input types "
-                                                "and input dimensions should match.")
-        assert len(out_types) == len(outs_ndim), ("Number of output types "
-                                                  "and output dimensions should match.")
+        assert len(in_types) == len(ins_ndim), "Number of input types and input dimensions should match."
+        assert len(out_types) == len(outs_ndim), "Number of output types and output dimensions should match."
 
         if 'float16' in dir(numba_types):
             for t in [*in_types, *out_types]:
                 if t == dali_types.FLOAT16:
-                    raise RuntimeError("Numba does not support float16 for "
-                                       "current Python version. "
-                                       "Python 3.7 or newer is required")
+                    raise RuntimeError('Numba does not support float16 for current Python version. Python 3.7 or newer is required')
 
         if device == 'gpu':
-            assert batch_processing is False, ("Currently batch processing for GPU "
-                                               "is not supported.")
-            assert len(blocks) == 3, ("`blocks` array should contain 3 numbers, "
-                                      f"while received: {len(blocks)}")
+            assert batch_processing == False, "Currently batch processing for GPU is not supported."
+            assert len(blocks) == 3, f"`blocks` array should contain 3 numbers, while received: {len(blocks)}"
             for i, block_dim in enumerate(blocks):
-                assert block_dim > 0, ("All dimensions should be positive. "
-                                       "Value specified in `blocks` at index "
-                                       f"{i} is nonpositive: {block_dim}")
+                assert block_dim > 0, f"All dimensions should be positive. Value specified in `blocks` at index {i} is nonpositive: {block_dim}"
 
-            assert len(threads_per_block) == 3, ("`threads_per_block` array "
-                                                 "should contain 3 numbers, "
-                                                 f"while received: {len(threads_per_block)}")
+            assert len(threads_per_block) == 3, f"`threads_per_block` array should contain 3 numbers, while received: {len(threads_per_block)}"
             for i, threads in enumerate(threads_per_block):
-                assert threads > 0, ("All dimensions should be positive. "
-                                     "Value specified in `threads_per_block` at index "
-                                     f"{i} is nonpositive: {threads}")
+                assert threads > 0, f"All dimensions should be positive. Value specified in `threads_per_block` at index {i} is nonpositive: {threads}"
 
         if not isinstance(outs_ndim, list):
             outs_ndim = [outs_ndim]
@@ -417,15 +361,10 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
             self._spec.AddArg(key, value)
 
         if device == 'gpu':
-            self.run_fn = self._get_run_fn_gpu(run_fn,
-                                               in_types + out_types,
-                                               ins_ndim + outs_ndim)
+            self.run_fn = self._get_run_fn_gpu(run_fn, in_types + out_types, ins_ndim + outs_ndim)
             self.setup_fn = None
         else:
-            self.run_fn = self._get_run_fn_cpu(run_fn,
-                                               out_types, in_types,
-                                               outs_ndim, ins_ndim,
-                                               batch_processing)
+            self.run_fn = self._get_run_fn_cpu(run_fn, out_types, in_types, outs_ndim, ins_ndim, batch_processing)
             self.setup_fn = self._get_setup_fn_cpu(setup_fn)
         self.out_types = out_types
         self.in_types = in_types
@@ -440,19 +379,14 @@ class NumbaFunction(metaclass=ops._DaliOperatorMeta):
     def _check_minimal_numba_version(self):
         current_version = LooseVersion(nb.__version__)
         if current_version < minimal_numba_version:
-            raise RuntimeError("Insufficient Numba version. Numba GPU operator "
-                               f"requires Numba {minimal_numba_version} or higher. "
-                               f"Detected version: {LooseVersion(nb.__version__)}.")
+            raise RuntimeError(f"Insufficient Numba version. Numba GPU operator requires Numba {minimal_numba_version} or higher. Detected version: {LooseVersion(nb.__version__)}.")
+
 
     def _check_cuda_compatibility(self):
         toolkit_version = cuda.runtime.get_version()
         driver_version = cuda.driver.driver.get_version()
 
         if toolkit_version > driver_version:
-            raise RuntimeError("Environment is not compatible with Numba GPU operator. "
-                               f"Driver version is {driver_version} and CUDA Toolkit "
-                               f"version is {toolkit_version}. "
-                               "Driver cannot be older than the CUDA Toolkit")
-
+            raise RuntimeError(f"Environment is not compatible with Numba GPU operator. Driver version is {driver_version} and CUDA Toolkit version is {toolkit_version}. Driver cannot be older than the CUDA Toolkit")
 
 ops._wrap_op(NumbaFunction, "fn.experimental", "nvidia.dali.plugin.numba")
