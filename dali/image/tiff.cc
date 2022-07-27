@@ -89,7 +89,7 @@ Image::Shape TiffImage::PeekShapeImpl(const uint8_t *encoded_buffer, size_t leng
         photometric_read = true;
       }
     }
-    if (width_read && height_read && nchannels_read && photometric_read)
+    if (width_read && height_read && photometric_read)
       break;
   }
 
