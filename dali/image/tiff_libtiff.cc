@@ -375,7 +375,7 @@ bool TiffImage_Libtiff::CanDecode(DALIImageType image_type) const {
   return !is_tiled_
       && bit_depth_ == 8
       && orientation_ == ORIENTATION_TOPLEFT
-      && !palette_;
+      && !palette_;  // We don't support decoding palette images in this implementation
 }
 
 }  // namespace dali
