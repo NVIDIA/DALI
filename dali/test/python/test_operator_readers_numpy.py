@@ -611,5 +611,5 @@ def check_pad_last_sample(device):
 
 
 def test_pad_last_sample():
-    for device in ["cpu", "gpu"]:
+    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         yield check_pad_last_sample, device
