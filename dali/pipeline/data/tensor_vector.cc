@@ -654,18 +654,42 @@ void TensorVector<Backend>::Reset() {
   }
 }
 
+
 template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order) {
   // This variant will be removed with the removal of TensorList.
   SetContiguous(true);
+
+  auto copy_order = copy_impl::SyncBefore(this->order(), in_tl.order(), order);
+
+
+  tl_->Resize(in_tl.shape(), in_tl.type());
   type_ = in_tl.type_info();
   sample_dim_ = in_tl.shape().sample_dim();
-  tl_->Copy(in_tl, order);
+
+  copy_impl::SyncAfterResize(this->order(), copy_order);
+
+  // Update the metadata
+  type_ = in_tl.type_info();
+  sample_dim_ = in_tl.shape().sample_dim();
+
+  // Here both batches are contiguous
+  type_info().template Copy<Backend, SrcBackend>(
+      unsafe_raw_mutable_data(*tl_), unsafe_raw_data(in_tl), in_tl.shape().num_elements(),
+      copy_order.stream(), false);
+  copy_impl::SyncAfter(this->order(), copy_order);
 
   resize_tensors(tl_->num_samples());
+
+  // Update the metadata in internal TL, and let them be copied to the Tensors
+  SetLayout(in_tl.GetLayout());
+  for (int i = 0; i < curr_num_tensors_; i++) {
+    tl_->SetMeta(i, in_tl.GetMeta(i));
+  }
   UpdateViews();
 }
+
 
 template <typename Backend>
 template <typename SrcBackend>
@@ -684,10 +708,12 @@ void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, AccessOr
   // Update the layout and other metadata
   // TODO(klecki): Remove the check, when we have `layout_` member and the non-contiguous
   // batch can remember the layout
-  if (state_ != State::noncontiguous || !tensors_.empty())
+  if (state_ != State::noncontiguous || !tensors_.empty()) {
     SetLayout(in_tv.GetLayout());
+  }
   for (int i = 0; i < curr_num_tensors_; i++) {
-    SetMeta(i, in_tv.GetMeta(i));
+    tl_->SetMeta(i, in_tv.GetMeta(i));
+    tensors_[i]->SetMeta(in_tv.GetMeta(i));
   }
   copy_impl::SyncAfter(this->order(), copy_order);
 }
