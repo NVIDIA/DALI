@@ -148,7 +148,7 @@ Parameters
             }
 
         are equivalent to following specification using
-            ``nvidia.dali.plugin.tf.experimental.Input``::
+        ``nvidia.dali.plugin.tf.experimental.Input``::
 
             {
                 'input' : nvidia.dali.plugin.tf.experimental.Input(
