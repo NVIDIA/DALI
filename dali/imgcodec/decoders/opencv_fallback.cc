@@ -78,7 +78,7 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
       cvimg = cv::imread(in->Filename(), flags);
     } else {
       assert(in->Kind() == InputKind::HostMemory);
-      auto *raw = static_cast<const uint8_t *>(in->RawData());
+      const auto *raw = static_cast<const uint8_t *>(in->RawData());
       cvimg = cv::imdecode(cv::_InputArray(raw, in->Size()), flags);
     }
 

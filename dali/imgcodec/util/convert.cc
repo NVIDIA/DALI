@@ -27,10 +27,9 @@ namespace imgcodec {
 void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
              ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
              TensorShape<> roi_start, TensorShape<> roi_end) {
-  TensorShape<> out_shape = out.shape();
-  TensorShape<> in_shape = in.shape();
+  const auto &out_shape = out.shape();
+  const auto &in_shape = in.shape();
   assert(in_shape.sample_dim() == out_shape.sample_dim());
-  assert(in_shape.sample_dim() == in_shape.sample_dim());
   int ndim = out_shape.sample_dim();
   int spatial_ndim = ndim - 1;
   DALI_ENFORCE(ImageLayoutInfo::ChannelDimIndex(in_layout) == ndim - 1,
