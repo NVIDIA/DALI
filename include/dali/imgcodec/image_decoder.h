@@ -58,11 +58,11 @@ struct ROI {
    */
   TensorShape<> begin, end;
 
-  constexpr bool use_roi() const {
+  bool use_roi() const {
     return begin.sample_dim() || end.sample_dim();
   }
 
-  constexpr explicit operator bool() const { return use_roi(); }
+  explicit operator bool() const { return use_roi(); }
 
   /**
    * @brief Returns the extent of the region of interest as (end - begin)
