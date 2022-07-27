@@ -14,30 +14,33 @@
 
 #include <gtest/gtest.h>
 #include <string>
-#include "dali/operators/reader/loader/numpy_loader.h"
+#include <vector>
+#include "dali/util/numpy.h"
+#include "dali/core/stream.h"
 
 
 namespace dali {
+namespace numpy {
 
 TEST(NumpyLoaderTest, ParseHeader) {
   {
-    NumpyHeaderMeta target;
-    detail::ParseHeaderMetadata(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
+    HeaderData target;
+    ParseHeaderContents(target, "{'descr':'<i2', 'fortran_order':True, 'shape':(4,7),}");
     ASSERT_EQ(target.type(), DALI_INT16);
     ASSERT_EQ(target.fortran_order, true);
     ASSERT_EQ(target.shape, (TensorShape<>{7, 4}));
   }
   {
-    NumpyHeaderMeta target;
-    detail::ParseHeaderMetadata(target,
-                        "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
+    HeaderData target;
+    ParseHeaderContents(target,
+        "  {  'descr' : '<f4'   ,   'fortran_order'  : False, 'shape' : (4,)}");
     ASSERT_EQ(target.type(), DALI_FLOAT);
     ASSERT_EQ(target.fortran_order, false);
     ASSERT_EQ(target.shape, (TensorShape<>{4}));
   }
   {
-    NumpyHeaderMeta target;
-    detail::ParseHeaderMetadata(target, "{'descr':'<f8','fortran_order':False,'shape':(),}");
+    HeaderData target;
+    ParseHeaderContents(target, "{'descr':'<f8','fortran_order':False,'shape':(),}");
     ASSERT_EQ(target.type(), DALI_FLOAT64);
     ASSERT_EQ(target.fortran_order, false);
     ASSERT_TRUE(target.shape.empty());
@@ -45,7 +48,7 @@ TEST(NumpyLoaderTest, ParseHeader) {
 }
 
 TEST(NumpyLoaderTest, ParseHeaderError) {
-  NumpyHeaderMeta target;
+  HeaderData target;
   std::vector<std::string> wrong = {
     "random_string",
     "{descr:'<f4'}",
@@ -55,9 +58,10 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
     "{'descr':'<f4','fortran_order':False,'shape':[4,7],}"
   };
   for (const auto &header : wrong) {
-    EXPECT_THROW(detail::ParseHeaderMetadata(target, header), std::runtime_error);
+    EXPECT_THROW(ParseHeaderContents(target, header), std::runtime_error);
   }
 }
 
+}  // namespace numpy
 }  // namespace dali
 

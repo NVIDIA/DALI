@@ -31,13 +31,13 @@ void NumpyFileWrapperGPU::Reopen() {
 }
 
 void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
-  NumpyHeaderMeta header;
+  numpy::HeaderData header;
   bool ret = cache.GetFromCache(filename, header);
   try {
     if (ret) {
       file_stream->SeekRead(header.data_offset);
     } else {
-      detail::ParseHeader(file_stream.get(), header);
+      numpy::ParseHeader(header, file_stream.get());
       cache.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
