@@ -222,7 +222,7 @@ Tensor<CPUBackend> ReadTensor(InputStream *src) {
   Tensor<CPUBackend> data;
   data.Resize(header.shape, header.type());
   Index ret = src->Read(static_cast<uint8_t*>(data.raw_mutable_data()), header.nbytes());
-  DALI_ENFORCE(ret == (Index)header.nbytes(), "Failed to read reference numpy file");
+  DALI_ENFORCE(ret == (Index)header.nbytes(), "Failed to read numpy file");
 
   if (header.fortran_order) {
     Tensor<CPUBackend> transposed;
