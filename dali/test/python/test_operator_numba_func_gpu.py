@@ -61,8 +61,10 @@ def get_data(shapes, dtype):
 
 
 @pipeline_def
-def numba_func_cuda_pipe(shapes, dtype, run_fn=None, out_types=None, in_types=None, outs_ndim=None,
-                         ins_ndim=None, blocks=None, threads_per_block=None, setup_fn=None,
+def numba_func_cuda_pipe(shapes, dtype, run_fn=None,
+                         out_types=None, in_types=None, outs_ndim=None, ins_ndim=None,
+                         blocks=None, threads_per_block=None,
+                         setup_fn=None,
                          batch_processing=None):
     data = fn.external_source(lambda: get_data(shapes, dtype), batch=True, device="gpu")
     return numba_function(data, run_fn=run_fn, out_types=out_types, in_types=in_types,

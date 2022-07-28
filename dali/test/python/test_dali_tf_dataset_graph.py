@@ -169,7 +169,8 @@ def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
     run_tf_dataset_graph(
         dev,
         get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
-        to_dataset=external_source_to_tf_dataset, to_stop_iter=True)
+        to_dataset=external_source_to_tf_dataset,
+        to_stop_iter=True)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)
