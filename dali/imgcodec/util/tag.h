@@ -15,6 +15,7 @@
 #ifndef DALI_IMGCODEC_UTIL_TAG_H_
 #define DALI_IMGCODEC_UTIL_TAG_H_
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
