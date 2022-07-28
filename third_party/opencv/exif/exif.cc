@@ -51,6 +51,9 @@ namespace {
 namespace cv 
 {
 
+inline namespace dali_exif
+{
+
 ExifEntry_t::ExifEntry_t() :
     field_float(0), field_double(0), field_u32(0), field_s32(0),
     tag(INVALID_TAG), field_u16(0), field_s16(0), field_u8(0), field_s8(0)
@@ -529,5 +532,7 @@ std::vector<u_rational_t> ExifReader::getRefBW(const size_t offset) const
     }
     return result;
 }
+
+} //namespace dali_exif
 
 } //namespace cv

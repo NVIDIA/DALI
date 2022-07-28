@@ -53,6 +53,9 @@
 namespace cv
 {
 
+inline namespace dali_exif
+{
+
 /**
  * @brief Base Exif tags used by IFD0 (main image)
  */
@@ -225,5 +228,6 @@ private:
     static const size_t refBWComponents = 6;
 };
 
+} //namespace dali_exif
 
 } //namespace cv
