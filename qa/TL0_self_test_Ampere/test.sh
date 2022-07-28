@@ -31,7 +31,7 @@ test_body() {
   done
 
   # test decoders on A100 as well
-  ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' test_operator_decoders_image.py
+  ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' decoder/test_image.py
 }
 
 pushd ../..

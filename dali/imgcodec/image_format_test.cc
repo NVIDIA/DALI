@@ -137,7 +137,7 @@ TEST_F(ImageFormatTest, Jpeg) {
        TensorShape<>(720, 1280, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Png) {
+TEST_F(ImageFormatTest, Png) {
   Test(testing::dali_extra_path() + "/db/single/png/0/cat-3504008_640.png", "png",
        TensorShape<>(425, 640, 3));
 }
@@ -150,6 +150,11 @@ TEST_F(ImageFormatTest, DISABLED_Bmp) {
 TEST_F(ImageFormatTest, Tiff) {
   Test(testing::dali_extra_path() + "/db/single/tiff/0/cat-1245673_640.tiff", "tiff",
        TensorShape<>(423, 640, 3));
+}
+
+TEST_F(ImageFormatTest, Tiff_Palette) {
+  Test(testing::dali_extra_path() + "/db/single/tiff/0/cat-300572_640_palette.tiff", "tiff",
+       TensorShape<>(536, 640, 3));
 }
 
 TEST_F(ImageFormatTest, Pnm) {

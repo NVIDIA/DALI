@@ -21,6 +21,7 @@
 #include "dali/core/stream.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/tensor.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/transpose/transpose.h"
 
@@ -50,6 +51,8 @@ DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, InputStream *src);
 DLL_PUBLIC void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input);
 
 DLL_PUBLIC void ParseHeaderContents(HeaderData& target, const std::string &header);
+
+DLL_PUBLIC Tensor<CPUBackend> ReadTensor(InputStream *src);
 
 }  // namespace numpy
 }  // namespace dali

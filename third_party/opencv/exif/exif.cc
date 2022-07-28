@@ -48,6 +48,9 @@ namespace {
     };
 }
 
+namespace dali
+{
+
 namespace cv 
 {
 
@@ -531,3 +534,5 @@ std::vector<u_rational_t> ExifReader::getRefBW(const size_t offset) const
 }
 
 } //namespace cv
+
+} //namespace dali

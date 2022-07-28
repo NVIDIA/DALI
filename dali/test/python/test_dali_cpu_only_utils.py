@@ -30,7 +30,7 @@ def setup_test_nemo_asr_reader_cpu():
     dir_name = tmp_dir.name
 
     def create_manifest_file(manifest_file, names, lengths, rates, texts):
-        assert(len(names) == len(lengths) == len(rates) == len(texts))
+        assert len(names) == len(lengths) == len(rates) == len(texts)
         data = []
         for idx in range(len(names)):
             entry_i = {}
@@ -106,6 +106,7 @@ def setup_test_numpy_reader_cpu():
         create_numpy_file(filename, (5, 2, 8), np.float32, False)
 
     return tmp_dir
+
 
 @pipeline_def
 def pipeline_arithm_ops_cpu(source):

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -129,7 +129,7 @@ def test_fw_iter(IteratorClass, args):
     iters = args.iters
     if args.iters < 0:
         iters = pipes[0].epoch_size("Reader")
-        assert(all(pipe.epoch_size("Reader") == iters for pipe in pipes))
+        assert all(pipe.epoch_size("Reader") == iters for pipe in pipes)
         iters_tmp = iters
         iters = iters // args.batch_size
         if iters_tmp != iters * args.batch_size:

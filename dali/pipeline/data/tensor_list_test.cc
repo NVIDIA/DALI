@@ -417,16 +417,23 @@ TYPED_TEST(TensorListTest, TestCopy) {
   auto shape = this->GetRandShape();
   tl.Resize(shape);
 
+  for (int i = 0; i < shape.num_samples(); i++) {
+    tl.SetSourceInfo(i, to_string(i));
+  }
+  tl.SetLayout(std::string(shape.sample_dim(), 'X'));
+
   TensorList<TypeParam> tl2;
   tl2.Copy(tl);
 
   ASSERT_EQ(tl.num_samples(), tl2.num_samples());
   ASSERT_EQ(tl.type(), tl2.type());
   ASSERT_EQ(tl._num_elements(), tl2._num_elements());
+  ASSERT_EQ(tl.GetLayout(), tl2.GetLayout());
 
   for (int i = 0; i < shape.size(); ++i) {
-    ASSERT_EQ(tl.tensor_shape(i), tl.tensor_shape(i));
+    ASSERT_EQ(tl.tensor_shape(i), tl2.tensor_shape(i));
     ASSERT_EQ(volume(tl.tensor_shape(i)), volume(tl2.tensor_shape(i)));
+    ASSERT_EQ(tl.GetMeta(i).GetSourceInfo(), tl2.GetMeta(i).GetSourceInfo());
   }
 }
 
@@ -434,12 +441,14 @@ TYPED_TEST(TensorListTest, TestCopyEmpty) {
   TensorList<TypeParam> tl;
 
   tl.template set_type<float>();
+  tl.SetLayout("XX");
 
   TensorList<TypeParam> tl2;
   tl2.Copy(tl);
   ASSERT_EQ(tl.num_samples(), tl2.num_samples());
   ASSERT_EQ(tl.type(), tl2.type());
   ASSERT_EQ(tl._num_elements(), tl2._num_elements());
+  ASSERT_EQ(tl.GetLayout(), tl2.GetLayout());
 }
 
 TYPED_TEST(TensorListTest, TestTypeChangeError) {
