@@ -28,6 +28,7 @@
 #include "dali/core/stream.h"
 #include "dali/util/file.h"
 #include "dali/util/numpy.h"
+#include "dali/test/tensor_test_utils.h"
 
 namespace dali {
 namespace imgcodec {
@@ -66,12 +67,16 @@ class CpuDecoderTestBase : public ::testing::Test {
   * @brief Checks if two tensors are equal.
   */
   void AssertEqual(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref) {
-    EXPECT_EQ(img.shape(), ref.shape()) << "Different shapes";
-    auto img_view = view<const OutputType>(img), ref_view = view<const OutputType>(ref);
-    for (int i = 0; i < volume(img.shape()); i++) {
-      // TODO(skarpinski) Pretty-print position on error
-      ASSERT_EQ(img_view.data[i], ref_view.data[i]) << "at " << PrettyPosition(i, img.shape());
-    }
+    Check(view<const OutputType>(img), view<const OutputType>(ref));
+  }
+
+  /**
+  * @brief Checks if two tensors are equal after converting the second tensor with ConvertSatNorm
+  */
+  void AssertEqualSatNorm(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref) {
+    TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
+      Check(view<const OutputType>(img), view<const RefType>(ref), EqualConvertSatNorm());
+    ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
   }
 
   /**
@@ -140,25 +145,6 @@ class CpuDecoderTestBase : public ::testing::Test {
   virtual std::shared_ptr<ImageParser> CreateParser() = 0;
 
  private:
-  std::string PrettyPosition(size_t index, TensorShape<> shape) const {
-    std::vector<int> pos(shape.size());
-    for (size_t i = pos.size() - 1; i > 0; i--) {
-      pos[i] = index % shape[i];
-      index /= shape[i];
-    }
-
-    std::ostringstream result;
-    result << "(";
-    for (size_t i = 0; i < pos.size(); i++) {
-      result << pos[i];
-      if (i < pos.size() - 1)
-        result << ", ";
-      else
-        result << ")";
-    }
-    return result.str();
-  }
-
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;
   std::shared_ptr<ImageParser> parser_ = nullptr;
   ThreadPool tp_;
@@ -173,20 +159,6 @@ class CpuDecoderTestBase : public ::testing::Test {
 template<typename OutputType>
 class NumpyDecoderTestBase : public CpuDecoderTestBase<OutputType> {
  private:
-  /**
-  * @brief Converts a tensor to OutputType.
-  */
-  template<typename InputType>
-  Tensor<CPUBackend> Convert(const Tensor<CPUBackend> &in) {
-    Tensor<CPUBackend> out;
-    out.Resize(in.shape(), type2id<OutputType>::value);
-    auto in_view = view<const InputType>(in), out_view = view<OutputType>(out);
-    for (int i = 0; i < volume(in.shape()); i++) {
-      out_view.data[i] = ConvertSatNorm<OutputType>(in_view.data[i]);
-    }
-    return out;
-  }
-
   /**
   * @brief Reads a tensor from numpy file.
   */
@@ -214,12 +186,7 @@ class NumpyDecoderTestBase : public CpuDecoderTestBase<OutputType> {
 
  public:
   Tensor<CPUBackend> ReadReference(InputStream *src) override {
-    Tensor<CPUBackend> ref = ReadNumpy(src);
-
-    DALIDataType output_type = type2id<OutputType>::value;
-    TYPE_SWITCH(ref.type(), type2id, InputType, NUMPY_ALLOWED_TYPES, (
-      return Convert<InputType>(ref);
-    ), DALI_FAIL(make_string("Unsupported numpy reference type: ", ref.type())));  // NOLINT
+    return ReadNumpy(src);
   }
 };
 
