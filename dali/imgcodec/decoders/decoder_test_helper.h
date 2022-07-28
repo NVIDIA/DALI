@@ -158,35 +158,9 @@ class CpuDecoderTestBase : public ::testing::Test {
 */
 template<typename OutputType>
 class NumpyDecoderTestBase : public CpuDecoderTestBase<OutputType> {
- private:
-  /**
-  * @brief Reads a tensor from numpy file.
-  */
-  Tensor<CPUBackend> ReadNumpy(InputStream *src) {
-    numpy::HeaderData header;
-    numpy::ParseHeader(header, src);
-    src->SeekRead(header.data_offset, SEEK_SET);
-
-    Tensor<CPUBackend> data;
-    data.Resize(header.shape, header.type());
-    Index ret = src->Read(static_cast<uint8_t*>(data.raw_mutable_data()), header.nbytes());
-    EXPECT_EQ(ret, (Index)header.nbytes()) << "Failed to read reference numpy file";
-
-    if (header.fortran_order) {
-      Tensor<CPUBackend> transposed;
-      transposed.Resize(data.shape(), data.type());
-      SampleView<CPUBackend> input(data.raw_mutable_data(), data.shape(), data.type());
-      SampleView<CPUBackend> output(transposed.raw_mutable_data(), transposed.shape(),
-                                    transposed.type());
-      numpy::FromFortranOrder(output, input);
-      return transposed;
-    }
-    return data;
-  }
-
  public:
   Tensor<CPUBackend> ReadReference(InputStream *src) override {
-    return ReadNumpy(src);
+    return numpy::ReadTensor(src);
   }
 };
 
