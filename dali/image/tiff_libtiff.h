@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ class TiffImage_Libtiff : public GenericImage {
   uint16_t orientation_ = ORIENTATION_TOPLEFT;
   uint32_t rows_per_strip_ = 0xFFFFFFFF;
   uint16_t compression_ = COMPRESSION_NONE;
+  bool palette_ = false;
 };
 
 }  // namespace dali
