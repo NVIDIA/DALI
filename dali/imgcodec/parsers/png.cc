@@ -14,6 +14,7 @@
 
 #include "dali/core/byte_io.h"
 #include "dali/imgcodec/parsers/png.h"
+#include "dali/imgcodec/util/tag.h"
 
 namespace dali {
 namespace imgcodec {
@@ -52,7 +53,6 @@ struct IhdrChunk {
 };
 
 using chunk_type_field_t = std::array<uint8_t, 4>;
-static constexpr chunk_type_field_t expected_ihdr_type_field = {73, 72, 68, 82};
 
 // Expects the read pointer in the stream to point to the beginning of a chunk.
 static IhdrChunk ReadIhdrChunk(InputStream& stream) {
@@ -67,9 +67,8 @@ static IhdrChunk ReadIhdrChunk(InputStream& stream) {
   uint32_t length = ReadValueBE<uint32_t>(stream);
   DALI_ENFORCE(length == 4 + 4 + 5);
 
-  chunk_type_field_t chunk_type;
-  stream.ReadAll<uint8_t>(chunk_type.data(), chunk_type.size());
-  DALI_ENFORCE(chunk_type == expected_ihdr_type_field);
+  auto chunk_type = stream.ReadOne<chunk_type_field_t>();
+  DALI_ENFORCE(chunk_type == tag("IHDR"));
 
   IhdrChunk chunk;
   chunk.width = ReadValueBE<uint32_t>(stream);
