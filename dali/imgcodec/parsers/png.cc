@@ -34,16 +34,17 @@ struct IhdrChunk {
   uint8_t color_type;
   // Some fields were ommited.
 
-  int GetNumberOfChannels() {
+  int GetNumberOfChannels(bool include_alpha) {
     switch (color_type) {
       case PNG_COLOR_TYPE_GRAY:
-      case PNG_COLOR_TYPE_GRAY_ALPHA:
         return 1;
+      case PNG_COLOR_TYPE_GRAY_ALPHA:
+        return 1 + include_alpha;
       case PNG_COLOR_TYPE_RGB:
       case PNG_COLOR_TYPE_PALETTE:  // 1 byte but it's converted to 3-channel BGR by OpenCV
         return 3;
       case PNG_COLOR_TYPE_RGBA:
-        return 4;
+        return 3 + include_alpha;
       default:
         DALI_FAIL(make_string("color type not supported: ", color_type));
     }
@@ -93,7 +94,7 @@ ImageInfo PngParser::GetInfo(ImageSource *encoded) const {
   info.shape = {
     ihdr.height,
     ihdr.width,
-    ihdr.GetNumberOfChannels()
+    ihdr.GetNumberOfChannels(true)
   };
   return info;
 }
