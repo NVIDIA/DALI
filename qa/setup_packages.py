@@ -453,7 +453,10 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                         { "100" : [
                             PckgVer("2.2.0", dependencies=["protobuf<4"])],
                           "110" : [
-                            PckgVer("2.2.0", dependencies=["protobuf<4"])]})
+                            PckgVer("2.2.0", dependencies=["protobuf<4"])]}),
+                CudaPackage("numba",
+                        { "100" : ["0.55.2"],
+                          "110" : ["0.56.0"]})
                ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]
