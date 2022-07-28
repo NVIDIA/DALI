@@ -66,8 +66,8 @@ def feed_ndarray(tensor_or_tl, arr, cuda_stream=None, non_blocking=False):
     else:
         dali_tensor = tensor_or_tl
 
-    assert dali_type == arr.dtype, ("The element type of DALI Tensor/TensorList"
-                                    " doesn't match the element type of the target PyTorch Tensor:"
+    assert dali_type == arr.dtype, (f"The element type of DALI Tensor/TensorList "
+                                    f"doesn't match the element type of the target PyTorch Tensor: "
                                     f"{dali_type} vs {arr.dtype}")
 
     assert dali_tensor.shape() == list(arr.size()), (
