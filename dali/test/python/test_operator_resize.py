@@ -678,19 +678,22 @@ def test_checkerboard_dali_vs_onnx_ref():
         ref_dir, f"checkerboard_cubic_antialias_{out_size_str}.npy")
 
     # Reference generated with ONNX reference code. To regenerate uncomment
-    # from onnx.backend.test.case.node.resize import \
-    # interpolate_nd, linear_coeffs, linear_coeffs_antialias, cubic_coeffs, cubic_coeffs_antialias
-    # ref_resized_linear = interpolate_nd(
-    # checkerboard, lambda x, _: linear_coeffs(x), output_size=out_size)
+    # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, \
+    #     linear_coeffs_antialias, cubic_coeffs, cubic_coeffs_antialias
+    #
+    # ref_resized_linear = interpolate_nd(checkerboard, lambda x, _: linear_coeffs(x),
+    #                                     output_size=out_size)
     # np.save(ref_resized_linear_filename, ref_resized_linear)
-    # ref_resized_linear_antialias = interpolate_nd(
-    # checkerboard, linear_coeffs_antialias, output_size=out_size)
+    # ref_resized_linear_antialias = interpolate_nd(checkerboard, linear_coeffs_antialias,
+    #                                               output_size=out_size)
     # np.save(ref_resized_linear_antialias_filename, ref_resized_linear_antialias)
-    # ref_resized_cubic = interpolate_nd(
-    # checkerboard, lambda x, _: cubic_coeffs(x, A=-0.5), output_size=out_size)
+    # ref_resized_cubic = interpolate_nd(checkerboard, lambda x, _: cubic_coeffs(x, A=-0.5),
+    #                                    output_size=out_size)
     # np.save(ref_resized_cubic_filename, ref_resized_cubic)
-    # ref_resized_cubic_antialias = interpolate_nd(
-    # checkerboard, lambda x, scale: cubic_coeffs_antialias(x, scale, A=-0.5), output_size=out_size)
+    # ref_resized_cubic_antialias = interpolate_nd(checkerboard,
+    #                                              lambda x, scale: cubic_coeffs_antialias(x, scale,
+    #                                                                                      A=-0.5),
+    #                                              output_size=out_size)
     # np.save(ref_resized_cubic_antialias_filename, ref_resized_cubic_antialias)
 
     ref_resized_linear = np.load(ref_resized_linear_filename)
