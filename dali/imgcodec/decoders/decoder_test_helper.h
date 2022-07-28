@@ -46,17 +46,17 @@ class CpuDecoderTestBase : public ::testing::Test {
   /**
   * @brief Decodes an image and returns the result as a tensor.
   */
-  Tensor<CPUBackend> Decode(ImageSource *src, const DecodeParams &opts = {}) {
+  Tensor<CPUBackend> Decode(ImageSource *src, const DecodeParams &opts = {}, const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
     ImageInfo info = Parser()->GetInfo(src);
 
     Tensor<CPUBackend> result;
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
-    TensorShape<> shape = (opts.use_roi ? opts.roi.shape() : info.shape);
+    TensorShape<> shape = (roi.use_roi() ? roi.shape() : info.shape);
     result.Resize(shape, type2id<OutputType>::value);
 
     SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());
-    DecodeResult decode_result = Decoder()->Decode(view, src, opts);
+    DecodeResult decode_result = Decoder()->Decode(view, src, opts, roi);
     EXPECT_TRUE(decode_result.success);
 
     return result;
@@ -78,19 +78,18 @@ class CpuDecoderTestBase : public ::testing::Test {
   * @brief Crops a tensor to specified roi_shape, anchored at roi_begin.
   * Does not support padding.
   */
-  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input,
-                          const TensorShape<> &roi_begin, const TensorShape<> &roi_shape) {
+  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
     int ndim = input.shape().sample_dim();
     Tensor<CPUBackend> output;
-    output.Resize(roi_shape, type2id<OutputType>::value);
+    output.Resize(roi.shape(), type2id<OutputType>::value);
 
     VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
       auto out_view = view<OutputType, Dims>(output);
       auto in_view = view<const OutputType, Dims>(input);
       kernels::SliceCPU<OutputType, OutputType, Dims> kernel;
       kernels::SliceArgs<OutputType, Dims> args;
-      args.anchor = roi_begin;
-      args.shape = roi_shape;
+      args.anchor = roi.begin;
+      args.shape = roi.shape();
       kernels::KernelContext ctx;
       // no need to run Setup (we already know the output shape)
       kernel.Schedule(ctx, out_view, in_view, args, tp_);
@@ -192,7 +191,8 @@ class NumpyDecoderTestBase : public CpuDecoderTestBase<OutputType> {
   * @brief Reads a tensor from numpy file.
   */
   Tensor<CPUBackend> ReadNumpy(InputStream *src) {
-    numpy::HeaderData header = numpy::ParseHeader(src);
+    numpy::HeaderData header;
+    numpy::ParseHeader(header, src);
     src->SeekRead(header.data_offset, SEEK_SET);
 
     Tensor<CPUBackend> data;
