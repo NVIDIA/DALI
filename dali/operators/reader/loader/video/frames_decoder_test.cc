@@ -130,7 +130,7 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
-  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) {
+  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
     MemCopy(FrameDataCpu(), frame, ground_truth.FrameSize());
     ground_truth.CompareFrameAvgError(index, frame_cpu_buffer_.data());
   }

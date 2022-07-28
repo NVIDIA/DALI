@@ -73,8 +73,8 @@ inline void CopyToExternalImpl(void* dst,
                                                     order.stream(), use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();
-    SmallVector<const void *, 256> from;
-    SmallVector<int64_t, 256> sizes;
+    BatchVector<const void *> from;
+    BatchVector<int64_t> sizes;
     int num_samples = src_shape.num_samples();
     from.reserve(num_samples);
     sizes.reserve(num_samples);
@@ -103,7 +103,7 @@ inline void CopyToExternalImpl(void** dsts,
   const auto &type_info = src.type_info();
   const auto &src_shape = src.shape();
 
-  SmallVector<int64_t, 256> sizes;
+  BatchVector<int64_t> sizes;
   int num_samples = src_shape.num_samples();
   sizes.reserve(num_samples);
   for (int i = 0; i < num_samples; i++) {
@@ -118,9 +118,9 @@ inline void CopyToExternalImpl(void** dsts,
                                                     num_samples, order.stream(), use_copy_kernel);
 
   } else {
-    SmallVector<const void *, 256> from;
+    BatchVector<const void *> from;
     from.reserve(samples_to_copy);
-    SmallVector<void *, 256> to;
+    BatchVector<void *> to;
     to.reserve(samples_to_copy);
     for (int i = 0; i < num_samples; i++) {
       if (dsts[i] == nullptr)
