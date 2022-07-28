@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <string>
 #include "dali/imgcodec/parsers/webp.h"
+#include "dali/imgcodec/util/tag.h"
 #include "dali/core/byte_io.h"
 
 namespace dali {
@@ -62,13 +63,6 @@ struct WebpLosslessHeader {
 static_assert(sizeof(WebpLosslessHeader) == 5);
 
 #pragma pack(pop)  // end of packing scope
-
-template<size_t N>
-constexpr std::array<uint8_t, N - 1> tag(const char (&c)[N]) {
-  std::array<uint8_t, N - 1> a{};
-  std::copy(&c[0], &c[N - 1], a.begin());
-  return a;
-}
 
 bool is_valid_riff_header(const RiffHeader &header) {
   return header.riff_text == tag("RIFF") && header.webp_text == tag("WEBP");
