@@ -152,6 +152,11 @@ TEST_F(ImageFormatTest, Tiff) {
        TensorShape<>(423, 640, 3));
 }
 
+TEST_F(ImageFormatTest, Tiff_Palette) {
+  Test(testing::dali_extra_path() + "/db/single/tiff/0/cat-300572_640_palette.tiff", "tiff",
+       TensorShape<>(536, 640, 3));
+}
+
 TEST_F(ImageFormatTest, Pnm) {
   Test(testing::dali_extra_path() + "/db/single/pnm/0/cat-300572_640.pnm", "pnm",
        TensorShape<>(536, 640, 3));
