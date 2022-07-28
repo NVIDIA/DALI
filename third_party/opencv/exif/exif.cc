@@ -48,10 +48,10 @@ namespace {
     };
 }
 
-namespace cv 
+namespace dali
 {
 
-inline namespace dali_exif
+namespace cv 
 {
 
 ExifEntry_t::ExifEntry_t() :
@@ -533,6 +533,6 @@ std::vector<u_rational_t> ExifReader::getRefBW(const size_t offset) const
     return result;
 }
 
-} //namespace dali_exif
-
 } //namespace cv
+
+} //namespace dali
