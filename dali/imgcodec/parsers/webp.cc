@@ -143,9 +143,11 @@ void skip_rest_of_chunk(InputStream &stream,
 void fetch_info_from_exif_data(std::vector<uint8_t> &data, ImageInfo &info) {
   cv::ExifReader reader;
   reader.parseExif(data.data(), data.size());
-  const auto orientation_value = reader.getTag(cv::ORIENTATION).field_u16;
-  const auto exif_orientation = static_cast<ExifOrientation>(orientation_value);
-  info.orientation = FromExifOrientation(exif_orientation);
+  const auto entry = reader.getTag(cv::ORIENTATION);
+  if (entry.tag != cv::INVALID_TAG) {
+    const auto exif_orientation = static_cast<ExifOrientation>(entry.field_u16);
+    info.orientation = FromExifOrientation(exif_orientation);
+  }
 }
 
 // Iterate over the chunks seeking the EXIF chunk
@@ -186,8 +188,9 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
     }
 
     // only the last 14 bits of the fields code the dimensions
-    const int w = lossy_header.width_field & 0x3FFF;
-    const int h = lossy_header.height_field & 0x3FFF;
+    const int mask = (1 << 14) - 1;
+    const int w = lossy_header.width_field & mask;
+    const int h = lossy_header.height_field & mask;
 
     // VP8 always uses RGB
     info.shape = {h, w, 3};
@@ -201,9 +204,11 @@ ImageInfo WebpParser::GetInfo(ImageSource *encoded) const {
     }
 
     // VP8L shape information are packed inside the features field
-    const int w = (lossless_header.features & 0x00003FFF) + 1;
-    const int h = ((lossless_header.features & 0x0FFFC000) >> 14) + 1;
-    const bool alpha = lossless_header.features & 0x10000000;
+    const int bit_length = 14;
+    const int mask = (1 << bit_length) - 1;
+    const int w = (lossless_header.features & mask) + 1;
+    const int h = ((lossless_header.features >> bit_length) & mask) + 1;
+    const bool alpha = lossless_header.features & (1 << (2 * bit_length));
 
     // VP8L always uses RGBA
     info.shape = {h, w, 3 + alpha};

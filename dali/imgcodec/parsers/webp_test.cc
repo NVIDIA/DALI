@@ -45,60 +45,58 @@ class WebpParserTest : public ::testing::Test {
     EXPECT_EQ(parser_.GetInfo(&img).shape, expected_shape);
   }
 
+  // utility for joining paths
+  template<typename... Args>
+  std::string join(Args... args) {
+    return make_string_delim('/', args...);
+  }
+
   void TestRotations(const std::string &filename_prefix, TensorShape<> expected_shape) {
-    TestValidImage(filename_prefix + "_original.webp",
+    TestValidImage(make_string(filename_prefix, "_original.webp"),
                    expected_shape, {0, false, false});
-    TestValidImage(filename_prefix + "_horizontal.webp",
+    TestValidImage(make_string(filename_prefix, "_horizontal.webp"),
                    expected_shape, {0, false, false});
-    TestValidImage(filename_prefix + "_mirror_horizontal.webp",
+    TestValidImage(make_string(filename_prefix, "_mirror_horizontal.webp"),
                    expected_shape, {0, true, false});
-    TestValidImage(filename_prefix + "_rotate_180.webp",
+    TestValidImage(make_string(filename_prefix, "_rotate_180.webp"),
                    expected_shape, {180, false, false});
-    TestValidImage(filename_prefix + "_mirror_vertical.webp",
+    TestValidImage(make_string(filename_prefix, "_mirror_vertical.webp"),
                    expected_shape, {0, false, true});
-    TestValidImage(filename_prefix + "_mirror_horizontal_rotate_270_cw.webp",
+    TestValidImage(make_string(filename_prefix, "_mirror_horizontal_rotate_270_cw.webp"),
                    expected_shape, {90, true, false});
-    TestValidImage(filename_prefix + "_rotate_90_cw.webp",
+    TestValidImage(make_string(filename_prefix, "_rotate_90_cw.webp"),
                    expected_shape, {270, false, false});
-    TestValidImage(filename_prefix + "_mirror_horizontal_rotate_90_cw.webp",
+    TestValidImage(make_string(filename_prefix, "_mirror_horizontal_rotate_90_cw.webp"),
                    expected_shape, {270, true, false});
-    TestValidImage(filename_prefix + "_rotate_270_cw.webp",
+    TestValidImage(make_string(filename_prefix, "_rotate_270_cw.webp"),
                    expected_shape, {90, false, false});
   }
 
-  const std::string webp_directory_ = testing::dali_extra_path() + "/db/single/webp/";
-  const std::string orientation_directory_ = testing::dali_extra_path() +
-                                             "/db/imgcodec/webp/orientation/";
+  const std::string webp_directory_ = join(testing::dali_extra_path(), "db/single/webp");
+  const std::string orientation_directory_ = join(testing::dali_extra_path(),
+                                                  "db/imgcodec/webp/orientation");
 };
 
 TEST_F(WebpParserTest, ValidWebpLossy) {
-  TestValidImage(make_string(webp_directory_, "lossy/kitty-2948404_640.webp"),
-                 {433, 640, 3});
-  TestValidImage(make_string(webp_directory_, "lossy/domestic-cat-726989_640.webp"),
-                 {426, 640, 3});
-  TestValidImage(make_string(webp_directory_, "lossy/cat-300572_640.webp"),
-                 {536, 640, 3});
+  TestValidImage(join(webp_directory_, "lossy/kitty-2948404_640.webp"), {433, 640, 3});
+  TestValidImage(join(webp_directory_, "lossy/domestic-cat-726989_640.webp"), {426, 640, 3});
+  TestValidImage(join(webp_directory_, "lossy/cat-300572_640.webp"), {536, 640, 3});
 }
 
 TEST_F(WebpParserTest, ValidWebpLossless) {
-  TestValidImage(make_string(webp_directory_, "lossless/kitty-2948404_640.webp"),
-                 {433, 640, 3});
-  TestValidImage(make_string(webp_directory_, "lossless/domestic-cat-726989_640.webp"),
-                 {426, 640, 3});
-  TestValidImage(make_string(webp_directory_, "lossless/cat-300572_640.webp"),
-                 {536, 640, 3});
+  TestValidImage(join(webp_directory_, "lossless/kitty-2948404_640.webp"), {433, 640, 3});
+  TestValidImage(join(webp_directory_, "lossless/domestic-cat-726989_640.webp"), {426, 640, 3});
+  TestValidImage(join(webp_directory_, "lossless/cat-300572_640.webp"), {536, 640, 3});
 }
 
 TEST_F(WebpParserTest, ValidWebpLosslessAlpha) {
-  TestValidImage(make_string(webp_directory_, "lossless-alpha/camel-1987672_640.webp"),
-                 {426, 640, 4});
-  TestValidImage(make_string(webp_directory_, "lossless-alpha/elephant-3095555_640.webp"),
-                 {512, 640, 4});
+  TestValidImage(join(webp_directory_, "lossless-alpha/camel-1987672_640.webp"), {426, 640, 4});
+  TestValidImage(join(webp_directory_, "lossless-alpha/elephant-3095555_640.webp"), {512, 640, 4});
 }
 
 TEST_F(WebpParserTest, InvalidRiffHeader) {
-  for (const std::string subdir : {"lossy/", "lossless/"}) {
-    const std::string filename = webp_directory_ + subdir + "cat-1046544_640.webp";
+  for (const std::string subdir : {"lossy", "lossless"}) {
+    const std::string filename = join(webp_directory_, subdir, "cat-1046544_640.webp");
     const auto image_data = ReadFile(filename);
 
     {
@@ -115,7 +113,7 @@ TEST_F(WebpParserTest, InvalidRiffHeader) {
 }
 
 TEST_F(WebpParserTest, InvalidVp8Identifier) {
-  const auto image_data = ReadFile(webp_directory_ + "lossy/cat-111793_640.webp");
+  const auto image_data = ReadFile(join(webp_directory_, "lossy/cat-111793_640.webp"));
   {
     auto data = image_data;
     data[15] = 0;
@@ -134,7 +132,7 @@ TEST_F(WebpParserTest, InvalidVp8Identifier) {
 }
 
 TEST_F(WebpParserTest, InvalidSyncCodeLossy) {
-  const auto image_data = ReadFile(webp_directory_ + "lossy/cat-3449999_640.webp");
+  const auto image_data = ReadFile(join(webp_directory_, "lossy/cat-3449999_640.webp"));
   for (size_t i = 0; i < 3; i++) {
     auto data = image_data;
     data[23 + i]++;
@@ -143,21 +141,21 @@ TEST_F(WebpParserTest, InvalidSyncCodeLossy) {
 }
 
 TEST_F(WebpParserTest, InvalidSyncCodeLossless) {
-  auto image_data = ReadFile(webp_directory_ + "lossless/cat-3504008_640.webp");
+  auto image_data = ReadFile(join(webp_directory_, "lossless/cat-3504008_640.webp"));
   image_data[20]++;
   TestInvalidImageData(image_data);
 }
 
 TEST_F(WebpParserTest, ExifRotationsLossy) {
-  TestRotations(orientation_directory_ + "cat-lossy-2184682_640", {398, 640, 3});
+  TestRotations(join(orientation_directory_, "cat-lossy-2184682_640"), {398, 640, 3});
 }
 
 TEST_F(WebpParserTest, ExifRotationsLossless) {
-  TestRotations(orientation_directory_ + "cat-lossless-3113513_640", {299, 640, 3});
+  TestRotations(join(orientation_directory_, "cat-lossless-3113513_640"), {299, 640, 3});
 }
 
 TEST_F(WebpParserTest, ExifRotationsLosslessAlpha) {
-  TestRotations(orientation_directory_ + "camel-lossless-alpha-1987672_640", {426, 640, 4});
+  TestRotations(join(orientation_directory_, "camel-lossless-alpha-1987672_640"), {426, 640, 4});
 }
 
 }  // namespace test
