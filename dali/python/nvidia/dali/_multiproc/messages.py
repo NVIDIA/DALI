@@ -21,12 +21,12 @@ from nvidia.dali._multiproc.struct_message import Structure
 class ShmMessageDesc(Structure):
     """
     Type of C-struct like message exchanged via shared memory queue (`ShmQueue`).
-    It describes placement (shared memory chunk, offset etc.) of actual data to be read by the receiver
-    of the `ShmMessageDesc` instance.
+    It describes placement (shared memory chunk, offset etc.) of actual data to be read
+    by the receiver of the `ShmMessageDesc` instance.
     ----------
     `worker_id` : int
-        Intger identifying a process that put the message, number from [0, num_workers) range for workers,
-        -1 in case of a main process.
+        Intger identifying a process that put the message, number from [0, num_workers) range
+        for workers or -1 in case of a main process.
     `shm_chunk_id` : int
         Integer identifying shm chunk that contains pickled data to be read by the receiver
     `shm_capacity` : unsigned long long int
@@ -37,8 +37,10 @@ class ShmMessageDesc(Structure):
     `num_bytes` : unsigned long long int
         Size in bytes of the serialized message
     """
-    _fields = ("worker_id", "i"), ("shm_chunk_id", "i"), ("shm_capacity", "Q"), ("offset", "Q"), ("num_bytes", "Q")
-
+    _fields = (("worker_id", "i"),
+               ("shm_chunk_id", "i"),
+               ("shm_capacity", "Q"),
+               ("offset", "Q"), ("num_bytes", "Q"))
 
 
 class WorkerArgs:
@@ -47,21 +49,23 @@ class WorkerArgs:
     ----------
     `worker_id` : Ordinal of the worker in the workers pool
     `start_method` : Python's multiprocessing start method - `spawn` or `fork`
-    `source_descs` : Dictionary with External Source's SourceDescription instances as values. Keys are ordinals corresponding to
-        the order in which callbacks were passed to the pool.
-        If `callback_pickler` is not None, actual callback in SourceDescription is replaced with result of its serialization.
-    `shm_chunks` : list of BufShmChunk instances that describes all the shared memory chunks available
-        to the worker (they are identified by ids unique inside the pool).
+    `source_descs` : Dictionary with External Source's SourceDescription instances as values.
+        Keys are ordinals corresponding to the order in which callbacks were passed to the pool.
+        If `callback_pickler` is not None, actual callback in SourceDescription is replaced
+        with result of its serialization.
+    `shm_chunks` : list of BufShmChunk instances that describes all the shared memory chunks
+        available to the worker (they are identified by ids unique inside the pool).
     `general_task_queue` : Optional[ShmQueue]
-        Queue with tasks for sources without dedicated worker, None if all sources have dedicated worker
+        Queue with tasks for sources without dedicated worker
+        or None if all sources have dedicated worker
     `dedicated_task_queue`: Optional[ShmQueue]
         Queue with tasks for sources that are run solely in the given worker.
         If `dedicated_task_queue` is None, `general_task_queue` must be provided.
     `result_queue`: ShmQueue
         Queue to report any task done, no matter if dedicated or general.
     `setup_socket` : Optional[socket]
-        Python wrapper around Unix socket used to pass file descriptors identifying shared memory chunk to child process.
-        None if `start_method='fork'`
+        Python wrapper around Unix socket used to pass file descriptors identifying
+        shared memory chunk to child process. None if `start_method='fork'`
     `callback_pickler`
         Optional custom pickler that was applied to serialize callbacks in `source_descs`"""
 
@@ -80,16 +84,18 @@ class WorkerArgs:
 
 class SampleRange:
     """
-    Describes a batch or sub-batch of work in sample mode that consists of SampleInfo instances with consecutive
-    indices. It denotes range of samples within given `iteration` of given `epoch_idx`,
-    optionally specifying a slice/sub-range of the sample range. It does not support spanning over multiple batches.
-    Used to avoid linear dependency of the task description size on the batch size.
+    Describes a batch or sub-batch of work in sample mode that consists of SampleInfo
+    instances with consecutive indices. It denotes range of samples within given `iteration`
+    of given `epoch_idx`, optionally specifying a slice/sub-range of the sample range.
+    It does not support spanning over multiple batches. Used to avoid linear dependency of the task
+    description size on the batch size.
     """
 
-    def __init__(self, sample_start, sample_end, iteration, epoch_idx, *, slice_start=0, slice_end=None):
-        self.sample_start = sample_start # idx in epoch of first sample in batch
-        self.sample_end = sample_end # idx in epoch of one past last sample in batch
-        self.iteration = iteration # index of a batch within epoch
+    def __init__(self, sample_start, sample_end, iteration, epoch_idx, *,
+                 slice_start=0, slice_end=None):
+        self.sample_start = sample_start  # idx in epoch of first sample in batch
+        self.sample_end = sample_end  # idx in epoch of one past last sample in batch
+        self.iteration = iteration  # index of a batch within epoch
         self.epoch_idx = epoch_idx
         if slice_end is None:
             slice_end = sample_end - sample_start
@@ -107,7 +113,7 @@ class SampleRange:
             return self.slice_end + idx
         return self.slice_start + idx
 
-    def _get_slice(self, range_slice : slice):
+    def _get_slice(self, range_slice: slice):
         if range_slice.step is not None and range_slice.step != 1:
             raise ValueError("SampleRange only supports slicing with step 1")
 
@@ -152,7 +158,7 @@ class TaskArgs:
     def make_batch(cls, batch_args):
         return cls(0, batch_args=batch_args)
 
-    def __init__(self, minibatch_i, sample_range : Optional[SampleRange]=None, batch_args=None):
+    def __init__(self, minibatch_i, sample_range: Optional[SampleRange] = None, batch_args=None):
         self.minibatch_i = minibatch_i
         self.sample_range = sample_range
         self.batch_args = batch_args
@@ -177,12 +183,12 @@ class ScheduledTask:
         iterator that raised StopIteration but is set to cycle=raise.
     `task` : TaskArgs
         Describes the minibatch that should be computed by the worker. If the given source
-        is run in batch mode this simply wraps parameters that external source would pass to the
-        source in non-parallel mode. In sample mode, it is (part of) the list of nvidia.dali.types.SampleInfo
-        produced by the external source.
+        is run in batch mode this simply wraps parameters that external source would pass to
+        the source in non-parallel mode. In sample mode, it is (part of) the list
+        of nvidia.dali.types.SampleInfo produced by the external source.
     """
 
-    def __init__(self, context_i, scheduled_i, epoch_start, task : TaskArgs):
+    def __init__(self, context_i, scheduled_i, epoch_start, task: TaskArgs):
         self.context_i = context_i
         self.scheduled_i = scheduled_i
         self.epoch_start = epoch_start

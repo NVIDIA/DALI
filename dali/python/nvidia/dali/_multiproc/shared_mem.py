@@ -44,7 +44,8 @@ class SharedMem:
         self.capacity = size
 
     def __getattr__(self, key):
-        # lazily evaluate and cache 'buf' property, so that it is created only once and only when requested
+        # lazily evaluate and cache 'buf' property, so that it is created only once
+        # and only when requested
         if key == 'buf':
             buf = self.shm.buf()
             self.__dict__['buf'] = buf
@@ -110,8 +111,8 @@ class SharedMem:
 
     def close_handle(self):
         """Closes OS handle for underlying shared memory. From now on, the process cannot resize the
-           underlying memory with this handle but still can adjust the mapping if the underlying shared memory
-           is resized, for instance, by another process.
+           underlying memory with this handle but still can adjust the mapping if the underlying
+           shared memory is resized, for instance, by another process.
            This means that call to resize with ``trunc``= True will be illegal.
         """
         self.shm.close_handle()

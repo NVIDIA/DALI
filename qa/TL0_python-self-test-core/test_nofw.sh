@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy>=1.17 opencv-python pillow nvidia-ml-py==11.450.51 numba'
+pip_packages='${python_test_runner_package} numpy>=1.17 opencv-python pillow nvidia-ml-py==11.450.51 numba==0.55.2'
 
 target_dir=./dali/test/python
 

@@ -46,12 +46,14 @@ def _discover_autoserialize(module, visited):
 
 def invoke_autoserialize(head_module, filename):
     """
-    Perform the autoserialization of a function marked by :meth:`nvidia.dali.plugin.triton.autoserialize`.
+    Perform the autoserialization of a function marked by
+        :meth:`nvidia.dali.plugin.triton.autoserialize`.
 
     Assuming, that user marked a function with ``@autoserialize`` decorator, the
-    ``invoke_autoserialize`` is a utility function, which will actually perform the autoserialization.
-    It discovers the ``@autoserialize`` function in a module tree denoted by provided ``head_module``
-    and saves the serialized DALI pipeline to the file in the ``filename`` path.
+    ``invoke_autoserialize`` is a utility function, which will actually perform
+    the autoserialization.
+    It discovers the ``@autoserialize`` function in a module tree denoted by provided
+    ``head_module`` and saves the serialized DALI pipeline to the file in the ``filename`` path.
 
     Only one ``@autoserialize`` function may exist in a given module tree.
 
@@ -65,6 +67,6 @@ def invoke_autoserialize(head_module, filename):
             f"Found {len(autoserialize_functions)}: {autoserialize_functions}.")
     if len(autoserialize_functions) < 1:
         raise RuntimeError(
-            f"Precisely one autoserialize function must exist in the module. Found none.")
+            "Precisely one autoserialize function must exist in the module. Found none.")
     dali_pipeline = autoserialize_functions[0]
     dali_pipeline().serialize(filename=filename)

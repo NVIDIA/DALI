@@ -389,3 +389,23 @@ def test_pinned_input_hw_decoder():
     p = pipe()
     p.build()
     p.run()
+
+def test_tiff_palette():
+    normal = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640.tiff")
+    palette = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640_palette.tiff")
+
+    @pipeline_def(batch_size=2, device_id=0, num_threads=1)
+    def pipe():
+        encoded, _ = fn.readers.file(files=[normal, palette])
+        peeked_shapes = fn.peek_image_shape(encoded)
+        decoded = fn.decoders.image(encoded, device='cpu')
+        return decoded, peeked_shapes
+
+    p = pipe()
+    p.build()
+    imgs, peeked_shapes = p.run()
+    assert (peeked_shapes.at(0) == peeked_shapes.at(1)).all(), \
+        "Invalid peeked shape of palette TIFF"
+
+    delta = np.abs(imgs.at(0).astype('float') - imgs.at(1).astype('float'))/256
+    assert np.quantile(delta, 0.9) < 0.05, f"Original and palette TIFF differ significantly"

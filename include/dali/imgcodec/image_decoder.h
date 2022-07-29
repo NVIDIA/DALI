@@ -33,13 +33,46 @@ template <typename T, span_extent_t E = dynamic_extent>
 using cspan = span<const T, E>;
 
 struct DecodeParams {
-  bool use_roi;
-  struct {
-    TensorShape<> begin, end;
-  } roi;
-  DALIDataType dtype;
-  DALIImageType format;
-  bool planar;  // not required initially
+  DALIDataType  dtype   = DALI_UINT8;
+  DALIImageType format  = DALI_RGB;
+  bool          planar  = false;
+  bool          use_orientation = true;
+};
+
+/**
+ * @brief Region of interest
+ *
+ * Spatial coordinates of the ROI to decode. Channels shall not be included.
+ *
+ * If there are no coordinates for `begin` or `end` then no cropping is requried and the
+ * ROI is considered to include the entire image.
+ *
+ * NOTE: If the orientation of the image is adjusted, these values are in the output space
+ *       (after including the orientation).
+ */
+struct ROI {
+  /**
+   * @brief The beginning and end of the region-of-interest.
+   *
+   * If both begin and end are empty, the ROI denotes full image.
+   */
+  TensorShape<> begin, end;
+
+  bool use_roi() const {
+    return begin.sample_dim() || end.sample_dim();
+  }
+
+  explicit operator bool() const { return use_roi(); }
+
+  /**
+   * @brief Returns the extent of the region of interest as (end - begin)
+   */
+  TensorShape<> shape() const {
+    TensorShape<> out = end;
+    for (int d = 0; d < begin.sample_dim(); d++)
+      out[d] -= begin[d];
+    return out;
+  }
 };
 
 struct DecodeResult {
@@ -49,18 +82,19 @@ struct DecodeResult {
 
 struct ImageDecoderProperties {
   /**
-   * @brief Whether the codec can decode a part of the image without storing the
-   *        entire image in memory.
+   * @brief Whether the codec can decode a region of interest without decoding the entire image
    */
-  bool roi_support = false;
+  bool supports_partial_decoding = false;
 
   /**
    * @brief A mask of supported input kinds
    */
   InputKind supported_input_kinds;
 
-  // if true and the codec fails to decode an image,
-  // an attempt will be made to use other compatible codecs
+  /**
+   * @brief if true and the codec fails to decode an image,
+   *        an attempt will be made to use other compatible codecs
+   */
   bool fallback = true;
 };
 
@@ -70,37 +104,48 @@ class DLL_PUBLIC ImageDecoderInstance {
   /**
    * @brief Checks whether this codec can decode this encoded image with given parameters
    */
-  virtual bool CanDecode(ImageSource *in, DecodeParams opts) = 0;
+  virtual bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi = {}) = 0;
 
   /**
    * @brief Batch version of CanDecode
    */
-  virtual std::vector<bool> CanDecode(cspan<ImageSource *> in, cspan<DecodeParams> opts) = 0;
+  virtual std::vector<bool> CanDecode(cspan<ImageSource *> in,
+                                      DecodeParams opts,
+                                      cspan<ROI> rois = {}) = 0;
 
   /**
    * @brief Decodes a single image to a host buffer
    */
-  virtual DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in, DecodeParams opts) = 0;
+  virtual DecodeResult Decode(SampleView<CPUBackend> out,
+                              ImageSource *in,
+                              DecodeParams opts,
+                              const ROI &roi = {}) = 0;
 
   /**
    * @brief Decodes a batch of images to host buffers
    */
   virtual std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
-                                           cspan<ImageSource *> in, cspan<DecodeParams> opts) = 0;
+                                           cspan<ImageSource *> in,
+                                           DecodeParams opts,
+                                           cspan<ROI> rois = {}) = 0;
 
 
 
   /**
    * @brief Decodes a single image to a device buffer
    */
-  virtual DecodeResult Decode(SampleView<GPUBackend> out, ImageSource *in, DecodeParams opts) = 0;
+  virtual DecodeResult Decode(SampleView<GPUBackend> out,
+                              ImageSource *in,
+                              DecodeParams opts,
+                              const ROI &roi = {}) = 0;
 
   /**
    * @brief Decodes a single image to device buffers
    */
   virtual std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                           cspan<ImageSource *> in, cspan<DecodeParams> opts) = 0;
-
+                                           cspan<ImageSource *> in,
+                                           DecodeParams opts,
+                                           cspan<ROI> rois = {}) = 0;
   /**
    * @brief Sets a codec-specific parameter
    */

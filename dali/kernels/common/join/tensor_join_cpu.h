@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ ConcatenateTensors(TensorView<StorageCPU, T> output,
  */
 template<typename T, bool new_axis = true, int dims = -1>
 struct TensorJoinCPU {
-  ///@{
+  /** @{ */
   /**
    * @param in_shapes Shapes of input tensors.
    * @param axis Axis, along which tensors will be joined.
@@ -127,6 +127,10 @@ struct TensorJoinCPU {
   }
 
 
+  /**
+   * @param in Input tensors from which shapes are obtained.
+   * @param axis Axis, along which tensors will be joined.
+   */
   KernelRequirements Setup(KernelContext &ctx, span<const InTensorCPU<T, dims>> in, int axis) {
     std::vector<TensorShape<>> in_shapes(in.size());
     for (int i = 0; i < in.size(); i++) {
@@ -134,7 +138,7 @@ struct TensorJoinCPU {
     }
     return Setup(ctx, make_span(in_shapes), axis);
   }
-  ///@}
+  /** @} */
 
   static constexpr int output_dims = (dims == DynamicDimensions ? DynamicDimensions :
                                       (new_axis ? dims + 1 : dims));
@@ -166,7 +170,7 @@ struct TensorJoinCPU {
   TensorShape<dims> output_shape_;
 };
 
-///@{
+/** @{ */
 /**
  * @see TensorJoinCPU
  */
@@ -175,7 +179,7 @@ using TensorStackCPU = TensorJoinCPU<T, true, ndims>;
 
 template<typename T, int ndims = -1>
 using TensorConcatCPU = TensorJoinCPU<T, false, ndims>;
-///@}
+/** @} */
 
 }  // namespace kernels
 }  // namespace dali

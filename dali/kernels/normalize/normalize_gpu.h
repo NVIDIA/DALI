@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -116,7 +116,7 @@ class DLL_PUBLIC NormalizeGPU {
                            bool scalar_scale,
                            bool scale_is_stddev);
 
-  ///@{
+  /** @{ */
   /**
    * @brief Normalizes the data with base and scale given as tensor lists
    *
@@ -149,7 +149,7 @@ class DLL_PUBLIC NormalizeGPU {
            const OutListGPU<Out> &out, const InListGPU<In> &in,
            float base, float scale,
            float global_scale = 1, float shift = 0, float epsilon = 0);
-  ///@}
+  /** @} */
 
  private:
   struct Impl;

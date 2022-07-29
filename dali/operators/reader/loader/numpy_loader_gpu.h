@@ -49,6 +49,7 @@ struct NumpyFileWrapperGPU {
   TensorShape<> shape;
   DALIDataType type;
   DALIMeta meta;
+  int source_sample_idx = -1;
 
   std::unique_ptr<CUFileStream> file_stream;
   bool read_ahead = false;

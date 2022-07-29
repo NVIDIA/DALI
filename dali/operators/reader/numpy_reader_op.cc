@@ -47,17 +47,6 @@ static void CopyHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend
   }
 }
 
-static void TransposeHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input) {
-  int n_dims = input.shape().sample_dim();
-  SmallVector<int, 6> perm;
-  perm.resize(n_dims);
-  for (int i = 0; i < n_dims; ++i)
-    perm[i] = n_dims - i - 1;
-  TYPE_SWITCH(input.type(), type2id, T, NUMPY_ALLOWED_TYPES, (
-    kernels::TransposeGrouped(view<T>(output), view<const T>(input), make_cspan(perm));
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
-}
-
 static void SliceHelper(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input,
                         const CropWindow &roi, float fill_value, ThreadPool &thread_pool,
                         int min_blk_sz, int req_nblocks) {
@@ -262,7 +251,7 @@ void NumpyReaderCPU::RunImpl(HostWorkspace &ws) {
     } else if (need_transpose_[i]) {
       // TODO(janton): Parallelize when Transpose supports tiling
       thread_pool.AddWork([&, i, input_sample](int tid) {
-        TransposeHelper(output[i], input_sample);
+        numpy::FromFortranOrder(output[i], input_sample);
       }, sample_sz * 8);  // 8 x (heuristic)
     } else {
       CopyHelper(output[i], input_sample, thread_pool, kThreshold, blocks_per_sample);

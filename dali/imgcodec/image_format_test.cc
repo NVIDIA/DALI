@@ -15,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <experimental/filesystem>
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/parsers/bmp.h"
 #include "dali/imgcodec/parsers/jpeg.h"
@@ -25,6 +26,9 @@
 #include "dali/imgcodec/parsers/webp.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/image/image_factory.h"
+
+namespace fs = std::experimental::filesystem;
 
 namespace dali {
 namespace imgcodec {
@@ -75,6 +79,59 @@ class ImageFormatTest : public ::testing::Test {
   std::vector<char> data_;
 };
 
+
+// @brief Base class for tests comparing imgcodec with some other implementation
+class ComparisonTestBase : public ImageFormatTest {
+ protected:
+  /// @brief This method should return shape from the other implementation
+  virtual TensorShape<> ShapeOf(const std::string &filenames) const = 0;
+
+  void Run(const std::string &filename, std::string expected_format) {
+    Test(filename, expected_format, ShapeOf(filename));
+  }
+
+ public:
+  void RunOnDirectory(std::string directory, std::string expected_format,
+                      std::vector<std::string> extensions) {
+    unsigned nimages = 0;
+
+    for (const auto &entry : fs::recursive_directory_iterator(directory)) {
+      if (fs::is_regular_file(entry.path())) {
+        const auto path = entry.path().string();
+        for (const auto& ext : extensions) {
+          if (path.substr(path.size() - ext.size(), ext.size()) == ext) {
+            Run(path, expected_format);
+            nimages++;
+          }
+        }
+      }
+    }
+
+    if (nimages == 0)
+      FAIL() << "No matching images in " << directory;
+  }
+};
+
+/**
+ * @brief Compares imgcodec's parser with the old parsers
+ *
+ * Compares shapes returned by imgcodec's GetInfo with those returned by PeekShape
+ * from the old implementation.
+ */
+class CompatibilityTest : public ComparisonTestBase {
+ protected:
+  TensorShape<> ShapeOf(const std::string &filename) const {
+    SCOPED_TRACE(filename);
+    auto src = ImageSource::FromFilename(filename);
+    auto stream = src.Open();
+    std::vector<uint8_t> data(stream->Size());
+    EXPECT_EQ(data.size(), stream->Read(data.data(), data.size()));
+    auto img = ImageFactory::CreateImage(data.data(), data.size(), DALI_RGB);
+    auto shape = img->PeekShape();
+    return shape;
+  }
+};
+
 TEST_F(ImageFormatTest, Jpeg) {
   Test(testing::dali_extra_path() + "/db/single/jpeg/372/baboon-174073_1280.jpg", "jpeg",
        TensorShape<>(720, 1280, 3));
@@ -95,12 +152,17 @@ TEST_F(ImageFormatTest, Tiff) {
        TensorShape<>(423, 640, 3));
 }
 
+TEST_F(ImageFormatTest, Tiff_Palette) {
+  Test(testing::dali_extra_path() + "/db/single/tiff/0/cat-300572_640_palette.tiff", "tiff",
+       TensorShape<>(536, 640, 3));
+}
+
 TEST_F(ImageFormatTest, Pnm) {
   Test(testing::dali_extra_path() + "/db/single/pnm/0/cat-300572_640.pnm", "pnm",
        TensorShape<>(536, 640, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Jpeg2000) {
+TEST_F(ImageFormatTest, Jpeg2000) {
   Test(testing::dali_extra_path() + "/db/single/jpeg2k/0/cat-3113513_640.jp2", "jpeg2000",
        TensorShape<>(299, 640, 3));
 }
@@ -132,6 +194,35 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
   EXPECT_EQ('I', buffer[1]);
   EXPECT_EQ(42, buffer[2]);
   EXPECT_EQ(0, buffer[3]);
+}
+
+TEST_F(CompatibilityTest, DISABLED_Png) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/png/", "png", {".png"});
+}
+
+TEST_F(CompatibilityTest, DISABLED_Bmp) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/bmp/", "bmp", {".bmp"});
+}
+
+TEST_F(CompatibilityTest, Tiff) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/tiff/", "tiff", {".tiff"});
+}
+
+TEST_F(CompatibilityTest, DISABLED_Pnm) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/pnm/", "pnm",
+                 {".pnm", ".ppm", ".pgm", ".pbm"});
+}
+
+TEST_F(CompatibilityTest, DISABLED_Jpeg2000) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg2k/", "jpeg2000", {".jp2"});
+}
+
+TEST_F(CompatibilityTest, DISABLED_WebP) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/webp/", "webp", {".webp"});
+}
+
+TEST_F(CompatibilityTest, DISABLED_Jpeg) {
+  RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpg", ".jpeg"});
 }
 
 }  // namespace test

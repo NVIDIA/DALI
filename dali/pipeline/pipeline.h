@@ -260,7 +260,7 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC OpNode * GetOperatorNode(const std::string& name);
 
-  ///@{
+  /** @{ */
   /**
    * @brief Performs some checks on the user-constructed pipeline, setups data
    * for intermediate results, and marks as ready for execution. The input
@@ -268,7 +268,7 @@ class DLL_PUBLIC Pipeline {
    */
   DLL_PUBLIC void Build(const std::vector<std::pair<string, string>>& output_names);
   DLL_PUBLIC void Build(std::vector<PipelineOutputDesc> output_descs);
-  ///@}
+  /** @} */
 
   /**
    * @brief Build a pipeline from deserialized output (name, device) pairs
@@ -333,7 +333,7 @@ class DLL_PUBLIC Pipeline {
     prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
   }
 
-  ///@{
+  /** @{ */
   /**
    * @brief Set descriptors of the outputs of the pipeline. Used to update the graph without
    * running the executor and for pipeline serialization.
@@ -345,7 +345,7 @@ class DLL_PUBLIC Pipeline {
    * set, the function will fail.
    */
   void SetOutputDescs(const vector<std::pair<string /* name */, string /* device */>> &out_names);
-  ///@}
+  /** @} */
 
   /**
    * @brief Run the cpu portion of the pipeline.
@@ -402,13 +402,13 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void SaveGraphToDotFile(const std::string &filename, bool show_tensors = false,
                                      bool show_ids = false, bool use_colors = false);
 
-  /// @{
+  /** @{ */
   /**
    * @brief Returns the maximum batch size that can be processed by the Pipeline
    */
   DLL_PUBLIC inline int batch_size() const { return max_batch_size_; }
   DLL_PUBLIC inline int max_batch_size() const { return max_batch_size_; }
-  /// @}
+  /** @} */
 
   /**
    * @brief Returns the map of (node name, reader meta) for all nodes that return a valid meta

@@ -15,10 +15,12 @@
 def autoserialize(dali_pipeline):
     """
     Decorator, that marks a DALI pipeline (represented by :meth:`nvidia.dali.pipeline_def`) for
-    autoserialization in [DALI Backend's](https://github.com/triton-inference-server/dali_backend#dali-triton-backend) model repository.
+    autoserialization in [DALI Backend's]
+    (https://github.com/triton-inference-server/dali_backend#dali-triton-backend) model repository.
 
     For details about the autoserialization feature, please refer to the
-    [DALI Backend documentation](https://github.com/triton-inference-server/dali_backend#autoserialization).
+    [DALI Backend documentation]
+    (https://github.com/triton-inference-server/dali_backend#autoserialization).
 
     Only a ``pipeline_def`` can be decorated with ``autoserialize``.
 
@@ -26,7 +28,9 @@ def autoserialize(dali_pipeline):
 
     To perform autoserialization, please refer to :meth:`nvidia.dali._utils.invoke_autoserialize`.
 
-    For more information about Triton, please refer to [Triton documentation](https://github.com/triton-inference-server/server#triton-inference-server).
+    For more information about Triton, please refer to
+    [Triton documentation]
+    (https://github.com/triton-inference-server/server#triton-inference-server).
 
     :param dali_pipeline: DALI Python model definition (``pipeline_def``).
     """

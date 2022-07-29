@@ -110,6 +110,105 @@ TEST_F(JpegParserTest, Padding) {
   EXPECT_EQ(TensorShape<>(408, 640, 3), GetInfo(padded).shape);
 }
 
+class JpegParserOrientationTest : public ::testing::Test {
+ public:
+  JpegParserOrientationTest() : parser_() {}
+
+  ImageSource GetImage(const std::string& orientation) {
+    auto base = testing::dali_extra_path() + "/db/imgcodec/jpeg/orientation/padlock-406986_640_";
+    auto filename = base + orientation + ".jpg";
+    return ImageSource::FromFilename(filename);
+  }
+
+  int NormalizeAngle(int degrees) {
+    return (degrees % 360 + 360) % 360;
+  }
+
+  JpegParser parser_;
+};
+
+TEST_F(JpegParserOrientationTest, NoOrientation) {
+  auto img = GetImage("no_orientation");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, NoExif) {
+  auto img = GetImage("no_exif");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+
+TEST_F(JpegParserOrientationTest, Horizontal) {
+  auto img = GetImage("horizontal");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, MirrorHorizontal) {
+  auto img = GetImage("mirror_horizontal");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(true, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, Rotate180) {
+  auto img = GetImage("rotate_180");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(180, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, MirrorVertical) {
+  auto img = GetImage("mirror_vertical");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(0, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(true, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, MirrorHorizontalRotate270) {
+  auto img = GetImage("mirror_horizontal_rotate_270");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(360 - 270, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(true, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, Rotate90) {
+  auto img = GetImage("rotate_90");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(360 - 90, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, MirrorHorizontalRotate90) {
+  auto img = GetImage("mirror_horizontal_rotate_90");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(360 - 90, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(true, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+TEST_F(JpegParserOrientationTest, Rotate270) {
+  auto img = GetImage("rotate_270");
+  auto orientation = parser_.GetInfo(&img).orientation;
+  EXPECT_EQ(360 - 270, NormalizeAngle(orientation.rotate));
+  EXPECT_EQ(false, orientation.flip_x);
+  EXPECT_EQ(false, orientation.flip_y);
+}
+
+
 }  // namespace test
 }  // namespace imgcodec
 }  // namespace dali

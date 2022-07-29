@@ -13,11 +13,163 @@
 // limitations under the License.
 
 #include <string>
-#include "dali/pipeline/data/tensor_vector.h"
+
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
+
+namespace copy_impl {
+
+/**
+ * @defgroup copy_impl Helper code for copying batches
+ * The functions used as scaffolding for the synchronization of order for source and destination
+ * buffers and extract the pointers from contiguous and non-contiguous batches.
+ *
+ * The usage is expected to be as follows:
+ * 1. SyncBefore
+ * 2. Resize the destination buffer(s)
+ * 3. SyncAfterResize
+ * 4. Use the CopyImpl - it can copy between batch and a single contiguous allocation, assuming both
+ *    batches are correctly resized already
+ * 5. SyncAfter
+ *
+ * @{
+ */
+/**
+ * @brief Pick the order for Copy to be run on and synchronize
+ *
+ * The copy ordering can be:
+ * - explict, as specified in `order`
+ * - the one from `src_order`, if set
+ * - the one from `dst_order`
+ * @return copy_order - order on which we will do the copy
+ */
+AccessOrder SyncBefore(AccessOrder dst_order, AccessOrder src_order, AccessOrder order) {
+  if (!order)
+    order = src_order ? src_order : dst_order;
+
+  // Wait on the order on which we will run the copy for the work to finish on the dst
+  order.wait(dst_order);
+
+  return order;
+}
+
+
+/**
+ * @brief Wait for the reallocation to happen in the copy order, so we can actually proceed.
+ */
+void SyncAfterResize(AccessOrder dst_order, AccessOrder copy_order) {
+  copy_order.wait(dst_order);
+}
+
+
+/**
+ * @brief Wait for the copy to finish in the order of the dst buffer.
+ */
+void SyncAfter(AccessOrder dst_order, AccessOrder copy_order) {
+  dst_order.wait(copy_order);
+}
+
+/**
+ * @brief Copy between two non-contiguous batches
+ * Assumes matching shapes and types
+ */
+template <typename DstBackend, typename SrcBackend, template <typename> typename DstBatch,
+          template <typename> typename SrcBatch>
+void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &src,
+                        const TypeInfo &type_info, AccessOrder order,
+                        bool use_copy_kernel = false) {
+  auto num_samples = src.num_samples();
+  BatchVector<const void *> srcs;
+  srcs.reserve(num_samples);
+  BatchVector<void *> dsts;
+  dsts.reserve(num_samples);
+  BatchVector<Index> sizes;
+  sizes.reserve(num_samples);
+  for (int i = 0; i < num_samples; i++) {
+    dsts.push_back(dst.raw_mutable_tensor(i));
+    srcs.push_back(src.raw_tensor(i));
+    sizes.push_back(src.shape()[i].num_elements());
+  }
+
+  type_info.Copy<SrcBackend, DstBackend>(dsts.data(), srcs.data(), sizes.data(), num_samples,
+                                         order.stream(), use_copy_kernel);
+}
+
+
+/**
+ * @brief Copy to non-contiguous batch from contiguous source.
+ * Assumes matching shapes and type.
+ */
+template <typename DstBackend, typename SrcBackend, template <typename> typename DstBatch>
+void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const void *src, const TypeInfo &type_info,
+                        AccessOrder order, bool use_copy_kernel = false) {
+  auto num_samples = dst.num_samples();
+  BatchVector<void *> dsts;
+  dsts.reserve(num_samples);
+  BatchVector<Index> sizes;
+  sizes.reserve(num_samples);
+  for (int i = 0; i < num_samples; i++) {
+    dsts.push_back(dst.raw_mutable_tensor(i));
+    sizes.push_back(dst.shape()[i].num_elements());
+  }
+
+  type_info.Copy<DstBackend, SrcBackend>(dsts.data(), src, sizes.data(), num_samples,
+                                         order.stream(), use_copy_kernel);
+}
+
+
+/**
+ * @brief Copy from non-contiguous batch to contiguous destination.
+ * Assumes matching shapes and types.
+ */
+template <typename DstBackend, typename SrcBackend, template <typename> typename SrcBatch>
+void CopySamplewiseImpl(void *dst, const SrcBatch<SrcBackend> &src, const TypeInfo &type_info,
+                        AccessOrder order, bool use_copy_kernel = false) {
+  auto num_samples = src.num_samples();
+  BatchVector<const void *> srcs;
+  srcs.reserve(num_samples);
+  BatchVector<Index> sizes;
+  sizes.reserve(num_samples);
+  for (int i = 0; i < num_samples; i++) {
+    srcs.push_back(src.raw_tensor(i));
+    sizes.push_back(src.shape()[i].num_elements());
+  }
+
+  type_info.Copy<DstBackend, SrcBackend>(dst, srcs.data(), sizes.data(), num_samples,
+                                         order.stream(), use_copy_kernel);
+}
+
+/**
+ * @brief Copy from batch to batch, detecting the contiguous/noncontiguous setups.
+ * Assumes matching shapes and types.
+ */
+template <typename DstBackend, typename SrcBackend, template <typename> typename DstBatch,
+          template <typename> typename SrcBatch>
+void CopyImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &src, const TypeInfo &type_info,
+              AccessOrder copy_order, bool use_copy_kernel = false) {
+  if (dst.IsContiguous() && src.IsContiguous()) {
+    type_info.Copy<DstBackend, SrcBackend>(unsafe_raw_mutable_data(dst), unsafe_raw_data(src),
+                                           dst.shape().num_elements(), copy_order.stream(),
+                                           use_copy_kernel);
+  } else if (dst.IsContiguous() && !src.IsContiguous()) {
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(unsafe_raw_mutable_data(dst), src,
+                                                          type_info, copy_order, use_copy_kernel);
+  } else if (!dst.IsContiguous() && src.IsContiguous()) {
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), type_info,
+                                                          copy_order, use_copy_kernel);
+  } else {
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(dst, src, type_info, copy_order,
+                                                          use_copy_kernel);
+  }
+}
+
+/** @} */  // end of copy_impl
+
+}  // namespace copy_impl
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector()
@@ -292,7 +444,13 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
   for (int i = 0; i < curr_num_tensors_; i++) {
     tensors_[i]->Resize(new_shape[i], new_type);
   }
-  set_type(new_type);
+  if (type_.id() != new_type) {
+    type_ = TypeTable::GetTypeInfo(new_type);
+    if (state_ == State::noncontiguous) {
+      tl_->Reset();
+      tl_->set_type(new_type);
+    }
+  }
   sample_dim_ = new_shape.sample_dim();
 }
 
@@ -309,6 +467,12 @@ void TensorVector<Backend>::set_type(DALIDataType new_type_id) {
   DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
   if (type_.id() == new_type_id)
     return;
+  DALI_ENFORCE(type_.id() == new_type_id || (!has_data() || type_.id() == DALI_NO_TYPE),
+               make_string("set_type cannot be used to change the current type - it is not "
+                           "allowed to cause allocations. Currently set type: '",
+                           type_.id(), "' trying to set: '", new_type_id,
+                           "'. You may change the current type using Resize or by"
+                           " calling Reset first."));
   type_ = TypeTable::GetTypeInfo(new_type_id);
   tl_->set_type(new_type_id);
   for (auto t : tensors_) {
@@ -494,12 +658,35 @@ void TensorVector<Backend>::Reset() {
 template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order) {
+  // This variant will be removed with the removal of TensorList.
   SetContiguous(true);
+
+  auto copy_order = copy_impl::SyncBefore(this->order(), in_tl.order(), order);
+
+
+  tl_->Resize(in_tl.shape(), in_tl.type());
   type_ = in_tl.type_info();
   sample_dim_ = in_tl.shape().sample_dim();
-  tl_->Copy(in_tl, order);
+
+  copy_impl::SyncAfterResize(this->order(), copy_order);
+
+  // Update the metadata
+  type_ = in_tl.type_info();
+  sample_dim_ = in_tl.shape().sample_dim();
+
+  // Here both batches are contiguous
+  type_info().template Copy<Backend, SrcBackend>(
+      unsafe_raw_mutable_data(*tl_), unsafe_raw_data(in_tl), in_tl.shape().num_elements(),
+      copy_order.stream(), false);
+  copy_impl::SyncAfter(this->order(), copy_order);
 
   resize_tensors(tl_->num_samples());
+
+  // Update the metadata in internal TL, and let them be copied to the Tensors
+  SetLayout(in_tl.GetLayout());
+  for (int i = 0; i < curr_num_tensors_; i++) {
+    tl_->SetMeta(i, in_tl.GetMeta(i));
+  }
   UpdateViews();
 }
 
@@ -507,13 +694,32 @@ void TensorVector<Backend>::Copy(const TensorList<SrcBackend> &in_tl, AccessOrde
 template <typename Backend>
 template <typename SrcBackend>
 void TensorVector<Backend>::Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order) {
-  SetContiguous(true);
-  type_ = in_tv.type_;
-  sample_dim_ = in_tv.sample_dim_;
-  tl_->Copy(in_tv, order);
+  auto copy_order = copy_impl::SyncBefore(this->order(), in_tv.order(), order);
 
-  resize_tensors(tl_->num_samples());
-  UpdateViews();
+  Resize(in_tv.shape(), in_tv.type());
+  // After resize the state_, curr_num_tensors_, type_, sample_dim_, shape_ (and pinned)
+  // postconditions are met, as well as the buffers are correctly adjusted.
+  copy_impl::SyncAfterResize(this->order(), copy_order);
+
+  bool use_copy_kernel = false;
+
+  copy_impl::CopyImpl(*this, in_tv, this->type_info(), copy_order, use_copy_kernel);
+
+  // Update the layout and other metadata
+  // TODO(klecki): Remove the check, when we have `layout_` member and the non-contiguous
+  // batch can remember the layout
+  if (state_ != State::noncontiguous || !tensors_.empty()) {
+    SetLayout(in_tv.GetLayout());
+  }
+  if (state_ == State::contiguous) {
+    for (int i = 0; i < curr_num_tensors_; i++) {
+      tl_->SetMeta(i, in_tv.GetMeta(i));
+    }
+  }
+  for (int i = 0; i < curr_num_tensors_; i++) {
+    tensors_[i]->SetMeta(in_tv.GetMeta(i));
+  }
+  copy_impl::SyncAfter(this->order(), copy_order);
 }
 
 

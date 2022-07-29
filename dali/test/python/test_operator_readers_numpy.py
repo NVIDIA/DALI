@@ -67,7 +67,7 @@ def delete_numpy_file(filename):
 
 def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=None,
                         file_filter="*.npy", num_threads=1, device_id=0,
-                        cache_header_information=False):
+                        cache_header_information=False, pad_last_batch=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
     data = fn.readers.numpy(device=device,
                             file_list=file_list,
@@ -76,7 +76,8 @@ def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=No
                             file_filter=file_filter,
                             shard_id=0,
                             num_shards=1,
-                            cache_header_information=cache_header_information)
+                            cache_header_information=cache_header_information,
+                            pad_last_batch=pad_last_batch)
     pipe.set_outputs(data)
     return pipe
 
@@ -459,7 +460,7 @@ def test_numpy_reader_roi():
         ([1, 2], None, [20, 9], None, None, None, [0, 1], "trim_to_shape"),
         ([-10, 2], None, [8, 9], None, None, None, [0, 1], "trim_to_shape"),
         (fn.random.uniform(range=(0, 2), shape=(2, ), dtype=types.INT32), None,
-         fn.random.uniform(range=(7, 10), shape=(2, ),dtype=types.INT32),
+         fn.random.uniform(range=(7, 10), shape=(2, ), dtype=types.INT32),
          None, None, None, (0, 1), None),
         (fn.random.uniform(range=(0, 2), shape=(1, ), dtype=types.INT32), None,
          fn.random.uniform(range=(7, 10), shape=(1, ), dtype=types.INT32),
@@ -572,3 +573,43 @@ def test_numpy_reader_roi_error():
                     device, fortran_order, file_filter, roi_start, rel_roi_start, roi_end, \
                     rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy, \
                     fill_value
+
+
+def check_pad_last_sample(device):
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+        # create files
+        num_samples = 2
+        batch_size = 5
+        filenames = []
+        arr_np_list = []
+        last_file_name = None
+        for index in range(0, num_samples):
+            filename = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+            last_file_name = filename
+            filenames.append(filename)
+            create_numpy_file(filename, (5, 2, 8), np.float32, False)
+            arr_np_list.append(np.load(filename))
+        while len(arr_np_list) < batch_size:
+            arr_np_list.append(np.load(last_file_name))
+        pipe = NumpyReaderPipeline(path=test_data_root,
+                                   files=filenames,
+                                   file_list=None,
+                                   file_filter=None,
+                                   device=device,
+                                   batch_size=batch_size,
+                                   num_threads=4,
+                                   device_id=0,
+                                   pad_last_batch=True)
+        pipe.build()
+
+        for _ in range(2):
+            pipe_out = pipe.run()
+            for i in range(batch_size):
+                pipe_arr = to_array(pipe_out[0][i])
+                ref_arr = arr_np_list[i]
+                assert_array_equal(pipe_arr, ref_arr)
+
+
+def test_pad_last_sample():
+    for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
+        yield check_pad_last_sample, device

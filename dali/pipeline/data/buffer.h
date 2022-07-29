@@ -310,19 +310,26 @@ class DLL_PUBLIC Buffer {
   }
 
   /**
-   * @brief Sets the type of the buffer. If the buffer has not been
-   * allocated because it does not yet have a type, the calling type
-   * is taken to be the type of the data and the memory is allocated.
+   * @name Type setting functions.
+   * @{
+   */
+  /**
+   * @brief Set the type of the current buffer. It must be set before calling resize(Index).
+   * It cannot be used to change the type after allocation happened.
    *
-   * If the buffer already has a valid type, and the calling type does
-   * not match, the type of the buffer is reset and the underlying
-   * storage is re-allocated if the buffer does not currently own
-   * enough memory to store the current number of elements with the
-   * new data type.
+   * resize(Index, DALIDataType) can be used without prior set_type call or to request a different
+   * type after allocation.
    */
   inline void set_type(const DALIDataType new_type_id) {
     DALI_ENFORCE(new_type_id != DALI_NO_TYPE, "new_type must be valid type.");
-    if (new_type_id == type_.id()) return;
+    if (new_type_id == type_.id())
+      return;
+    DALI_ENFORCE(type_.id() == new_type_id || (!has_data() || type_.id() == DALI_NO_TYPE),
+                 make_string("set_type cannot be used to change the current type - it is not "
+                             "allowed to cause allocations. Currently set type: '",
+                             type_.id(), "' trying to set: '", new_type_id,
+                             "'. You may change the current type using Resize or by"
+                             " calling Reset first."));
     const TypeInfo &new_type = TypeTable::GetTypeInfo(new_type_id);
 
     size_t new_num_bytes = size_ * new_type.size();
@@ -342,6 +349,7 @@ class DLL_PUBLIC Buffer {
   inline void set_type() {
     set_type(TypeTable::GetTypeId<T>());
   }
+  /** @} */
 
   /**
    * @brief Reserves at least new_num_bytes of storage.

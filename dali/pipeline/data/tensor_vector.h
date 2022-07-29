@@ -240,12 +240,17 @@ class DLL_PUBLIC TensorVector {
   void SetSize(int new_size);
 
   /**
-   * @name Setup all the batch properties of this TensorVector the same way as the provided tensor:
+   * @name Configuration cloning
+   * @{
+   */
+  /**
+   * @brief Setup all the batch properties of this TensorVector the same way as the provided tensor
+   * or batch.
    *
    * Precondition: the TensorVector should not have data.
+   *
    * Configures: type, layout, pinned, order and dimensionality.
    */
-  // @{
   void SetupLike(const Tensor<Backend> &sample) {
     SetupLikeImpl(sample);
   }
@@ -257,14 +262,28 @@ class DLL_PUBLIC TensorVector {
   void SetupLike(const TensorList<Backend> &other) {
     SetupLikeImpl(other);
   }
-  // @}
+  /** @} */
 
+  /**
+   * @name Type setting functions.
+   * @{
+   */
+  /**
+   * @brief Set the type of the current batch. The type needs to be set before calling
+   * the Resize(const TensorListShape<> &) function. It cannot be used to change the type after
+   * allocation happened.
+   *
+   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
+   * request a different type after allocation.
+   */
   void set_type(DALIDataType new_type);
 
   template <typename T>
   void set_type() {
     set_type(TypeTable::GetTypeId<T>());
   }
+  /** @} */
+
 
   DALIDataType type() const;
 
@@ -398,6 +417,25 @@ class DLL_PUBLIC TensorVector {
    * for pipeline outputs).
    * @{
    */
+
+  /**
+   * @brief Return an un-typed pointer to the underlying storage.
+   * The TensorVector must be either empty or have a valid type and be contiguous.
+   */
+  friend void *unsafe_raw_mutable_data(TensorVector<Backend> &tv) {
+    DALI_ENFORCE(tv.IsContiguous(), "Data pointer can be obtain only for contiguous TensorVector.");
+    return unsafe_raw_mutable_data(*tv.tl_);
+  }
+
+  /**
+   * @brief Return an un-typed const pointer to the underlying storage.
+   * The TensorVector must be either empty or have a valid type and be contiguous.
+   */
+  friend const void *unsafe_raw_data(const TensorVector<Backend> &tv) {
+    DALI_ENFORCE(tv.IsContiguous(), "Data pointer can be obtain only for contiguous TensorVector.");
+    return unsafe_raw_data(*tv.tl_);
+  }
+
 
   /**
    * @brief Return the shared pointer, that we can use to correctly share the ownership of sample

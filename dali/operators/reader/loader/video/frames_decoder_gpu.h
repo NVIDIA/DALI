@@ -72,6 +72,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   ~FramesDecoderGpu();
 
+  static bool SupportsHevc();
+
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
   uint8_t *current_frame_output_ = nullptr;

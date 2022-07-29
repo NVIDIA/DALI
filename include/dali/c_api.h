@@ -101,7 +101,10 @@ typedef struct {
  */
 DLL_PUBLIC void daliInitialize();
 
-/// @{
+/**
+ * @name Create DALI Pipeline via deserialization.
+ * @{
+ */
 /**
  * @brief Create DALI pipeline. Setting max_batch_size,
  * num_threads or device_id here overrides
@@ -124,8 +127,6 @@ DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *
 DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
                                        const char *serialized_pipeline,
                                        int length);
-/// }@
-/// @{
 
 /**
  * Checks, if the pipeline given by the string can be deserialized. It can be assumed that the
@@ -136,7 +137,7 @@ DLL_PUBLIC void daliDeserializeDefault(daliPipelineHandle *pipe_handle,
  * @return 0, if the pipeline is serializable. 1 otherwise.
  */
 DLL_PUBLIC int daliIsDeserializable(const char* serialized_pipeline, int length);
-
+/** @} */
 
 enum {
   DALI_ext_default = 0,
@@ -169,6 +170,10 @@ enum {
 };
 
 /**
+ * @name Input batch size information
+ * @{
+ */
+/**
  * @brief Get the max batch size of a given pipeline.
  *
  * @param pipe_handle Pointer to pipeline handle
@@ -186,7 +191,12 @@ DLL_PUBLIC int daliGetMaxBatchSize(daliPipelineHandle *pipe_handle);
  */
 DLL_PUBLIC void daliSetExternalInputBatchSize(daliPipelineHandle *pipe_handle, const char *name,
                                               int batch_size);
+/** @} */
 
+/**
+ * @name Contiguous inputs
+ * @{
+ */
 /**
  * @brief Feed the data to ExternalSource as contiguous memory.
  *
@@ -236,9 +246,12 @@ daliSetExternalInput(daliPipelineHandle *pipe_handle, const char *name,
                      device_type_t device, const void *data_ptr,
                      dali_data_type_t data_type, const int64_t *shapes,
                      int sample_dim, const char *layout_str, unsigned int flags);
-///@}
-///@{
+/** @} */
 
+/**
+ * @name Sample inputs
+ * @{
+ */
 /**
  * @brief Feed the data to ExternalSource as a set of separate buffers.
  *
@@ -285,7 +298,7 @@ daliSetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
                             device_type_t device, const void *const *data_ptr,
                             dali_data_type_t data_type, const int64_t *shapes,
                             int64_t sample_dim, const char *layout_str, unsigned int flags);
-///@}
+/** @} */
 
 /**
  * @brief Get number of external inputs in the pipeline.

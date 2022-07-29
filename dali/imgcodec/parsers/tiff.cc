@@ -24,6 +24,7 @@ constexpr int ENTRY_SIZE = 12;
 enum TiffTag : uint16_t {
   WIDTH_TAG = 256,
   HEIGHT_TAG = 257,
+  PHOTOMETRIC_INTERPRETATION_TAG = 262,
   ORIENTATION_TAG = 274,
   SAMPLESPERPIXEL_TAG = 277
 };
@@ -32,6 +33,8 @@ enum TiffDataType : uint16_t {
   TYPE_WORD = 3,
   TYPE_DWORD = 4
 };
+
+constexpr int PHOTOMETRIC_PALETTE = 3;
 
 using tiff_magic_t = std::array<uint8_t, 4>;
 constexpr tiff_magic_t le_header = {'I', 'I', 42, 0}, be_header = {'M', 'M', 0, 42};
@@ -56,17 +59,15 @@ ImageInfo GetInfoImpl(ImageSource *encoded) {
   stream->SeekRead(ifd_offset, SEEK_SET);
   const auto entry_count = TiffRead<uint16_t, is_little_endian>(*stream);
 
-  bool width_read = false, height_read = false, nchannels_read = false;
+  bool width_read = false, height_read = false, samples_per_px_read = false, palette_read = false;
   int64_t width = 0, height = 0, nchannels = 0;
 
-  for (int entry_idx = 0;
-       entry_idx < entry_count && !(width_read && height_read && nchannels_read);
-       entry_idx++) {
+  for (int entry_idx = 0; entry_idx < entry_count; entry_idx++) {
     const auto entry_offset = ifd_offset + sizeof(uint16_t) + entry_idx * ENTRY_SIZE;
     stream->SeekRead(entry_offset, SEEK_SET);
     const auto tag_id = TiffRead<uint16_t, is_little_endian>(*stream);
     if (tag_id == WIDTH_TAG || tag_id == HEIGHT_TAG || tag_id == SAMPLESPERPIXEL_TAG
-        || tag_id == ORIENTATION_TAG) {
+        || tag_id == ORIENTATION_TAG || tag_id == PHOTOMETRIC_INTERPRETATION_TAG) {
       const auto value_type = TiffRead<uint16_t, is_little_endian>(*stream);
       const auto value_count = TiffRead<uint32_t, is_little_endian>(*stream);
       DALI_ENFORCE(value_count == 1);
@@ -86,17 +87,24 @@ ImageInfo GetInfoImpl(ImageSource *encoded) {
       } else if (tag_id == HEIGHT_TAG) {
         height = value;
         height_read = true;
-      } else if (tag_id == SAMPLESPERPIXEL_TAG) {
-        nchannels = value;
-        nchannels_read = true;
       } else if (tag_id == ORIENTATION_TAG) {
         info.orientation = FromExifOrientation(static_cast<ExifOrientation>(value));
+      } else if (tag_id == SAMPLESPERPIXEL_TAG && !palette_read) {
+        // If the palette is present, the SAMPLESPERPIXEL tag is always set to 1, so it does not
+        // indicate the actual number of channels. That's why we ignore it for palette images.
+        nchannels = value;
+        samples_per_px_read = true;
+      } else if (tag_id == PHOTOMETRIC_INTERPRETATION_TAG && value == PHOTOMETRIC_PALETTE) {
+        nchannels = 3;
+        palette_read = true;
       }
     }
+    if (width_read && height_read && palette_read)
+      break;
   }
 
-  DALI_ENFORCE(width_read && height_read && nchannels_read,
-    "TIFF image dims haven't been read properly");
+  DALI_ENFORCE(width_read && height_read && (samples_per_px_read || palette_read),
+    "TIFF image dimensions haven't been peeked properly");
 
   info.shape = {height, width, nchannels};
   return info;

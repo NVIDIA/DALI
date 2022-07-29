@@ -136,9 +136,9 @@ class ArgumentWorkspace {
   friend const_iterator end(const ArgumentWorkspace&);
 };
 
-/// @{
+/** @{ */
 /**
- * Iterator-handling functions for ArgumentWorkspace
+ * @brief Iterator-handling functions for ArgumentWorkspace
  */
 inline ArgumentWorkspace::const_iterator begin(const ArgumentWorkspace& ws) {
   return ArgumentWorkspace::const_iterator{ws.argument_inputs_.begin()};
@@ -147,7 +147,7 @@ inline ArgumentWorkspace::const_iterator begin(const ArgumentWorkspace& ws) {
 inline ArgumentWorkspace::const_iterator end(const ArgumentWorkspace& ws) {
   return ArgumentWorkspace::const_iterator{ws.argument_inputs_.end()};
 }
-/// @}
+/** @} */
 
 /**
  * @brief WorkspaceBase is a base class of objects
@@ -185,7 +185,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     gpu_outputs_index_.clear();
   }
 
-  /** @defgroup InputOutput Input and output APIs
+  /** @name Input and output APIs
    * Functions used to access inputs and outputs of the operator in its implementation.
    * The inputs are read-only while outputs can be modified.
    * @{
@@ -226,9 +226,9 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
 
-  /** @} */  // end of InputOutput
+  /** @} */
 
-  /** @defgroup InputOutputInternal Internal API for input and output access
+  /** @name Internal API for input and output access
    * Functions allowing mutable access to both inputs and outputs that should not be used in
    * operator implementation.
    * @{
@@ -264,7 +264,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     return OutputHandle(idx, Backend{});
   }
 
-  /** @} */  // end of InputOutputInternal
+  /** @} */
 
   /**
    * Returns shape of input at given index

@@ -120,7 +120,7 @@ def run_benchmarks(PipeType, args):
 
                 total_time = timer() - start_time
                 print("{}/{}/{}/{}: FPS={}"
-                      .format(PipeType.__name__,  executor, batch_size, num_threads,
+                      .format(PipeType.__name__, executor, batch_size, num_threads,
                               float(batch_size * args.num_iters) / total_time))
 
 
@@ -129,7 +129,7 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--batch-sizes', default=[128],
                         help='Comma separated list of batch sizes to run')
-    parser.add_argument('--thread-counts', default=[1,2,3,4],
+    parser.add_argument('--thread-counts', default=[1, 2, 3, 4],
                         help='Comma separated list of thread counts')
     parser.add_argument('--executors', default=[2],
                         help='List of executors to run')

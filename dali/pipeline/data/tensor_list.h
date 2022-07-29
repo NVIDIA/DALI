@@ -31,6 +31,22 @@
 
 namespace dali {
 
+/**
+ * @brief Size of stack-based array used to prepare the pointers and other parameters for
+ * operations on batch, like TypeInfo::Copy.
+ * For bigger batches, the list of pointers/sizes would be stored as dynamic allocation
+ * (SmallVector), used in a common pattern where we have a copy from or to a batch of samples.
+ */
+constexpr size_t kMaxStaticCopyBatchSize = 256;
+
+/**
+ * @brief SmallVector alias used when dealing with batches of data in common operations
+ *
+ * The static stack allocation size is adjusted for that purpose.
+ */
+template <typename T>
+using BatchVector = SmallVector<T, kMaxStaticCopyBatchSize>;
+
 template <typename Backend>
 class Tensor;
 
@@ -138,11 +154,11 @@ class DLL_PUBLIC TensorList {
     this->SetLayout(layout);
 
     auto nsamples = other.num_samples();
-    SmallVector<const void*, 256> srcs;
+    BatchVector<const void*> srcs;
     srcs.reserve(nsamples);
-    SmallVector<void*, 256> dsts;
+    BatchVector<void*> dsts;
     dsts.reserve(nsamples);
-    SmallVector<Index, 256> sizes;
+    BatchVector<Index> sizes;
     sizes.reserve(nsamples);
     for (int i = 0; i < nsamples; i++) {
       dsts.emplace_back(this->raw_mutable_tensor(i));
@@ -647,23 +663,26 @@ class DLL_PUBLIC TensorList {
   }
 
   /**
-   * @brief Set the type of the TensorList. The type needs to be set before calling
-   * the Resize function that gives the shape. Type can be changed, if the current storage
-   * is not big enough, the memory will be reallocated.
+   * @name Type setting functions.
+   * @{
+   */
+  /**
+   * @brief Set the type of the current batch. It must be set before calling
+   * Resize(const TensorListShape<> &). It cannot be used to change the type after allocation
+   * happened.
+   *
+   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
+   * request a different type after allocation.
    */
   inline void set_type(const DALIDataType new_type_id) {
     data_.set_type(new_type_id);
   }
 
-  /**
-   * @brief Set the type of the TensorList. The type needs to be set before calling
-   * the Resize function that gives the shape. Type can be changed, if the current storage
-   * is not big enough, the memory will be reallocated.
-   */
   template <typename T>
   inline void set_type() {
     data_.set_type(TypeTable::GetTypeId<T>());
   }
+  /** @} */
 
   /**
    * @brief Sets the type of allocation (pinned/non-pinned) for CPU TensorList
