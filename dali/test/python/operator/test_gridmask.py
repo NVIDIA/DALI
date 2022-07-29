@@ -125,6 +125,7 @@ def run_random_test(batch_size, device):
             angle = np.float32(angles[i])
             check(results[i], inputs[i], tile, ratio, angle)
 
+
 @params(*devices)
 def test_gridmask_vs_cv_random(device):
     batch_size = 4
