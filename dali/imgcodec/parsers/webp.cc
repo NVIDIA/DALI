@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include "dali/imgcodec/parsers/webp.h"
+#include "dali/imgcodec/util/tag.h"
 #include "dali/core/byte_io.h"
 #include "dali/core/endian_util.h"
 #include "third_party/opencv/exif/exif.h"
@@ -93,13 +94,6 @@ const uint8_t EXTENDED_LAYOUT_XMP_METADATA = 1 << 2;
 const uint8_t EXTENDED_LAYOUT_EXIF_METADATA = 1 << 3;
 const uint8_t EXTENDED_LAYOUT_ALPHA = 1 << 4;
 const uint8_t EXTENDED_LAYOUT_ICC_PROFILE = 1 << 5;
-
-template<size_t N>
-constexpr std::array<uint8_t, N - 1> tag(const char (&c)[N]) {
-  std::array<uint8_t, N - 1> a{};
-  std::copy(&c[0], &c[N - 1], a.begin());
-  return a;
-}
 
 bool is_valid_riff_header(const RiffHeader &header) {
   return header.riff_text == tag("RIFF") && header.webp_text == tag("WEBP");
