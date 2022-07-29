@@ -30,15 +30,28 @@ sequence_length = 10
 class InputImagesIter(object):
     def __init__(self, sequence_length):
         self.sequence_length = sequence_length
-        with open(os.path.join(images_dir, 'image_list.txt')) as file:
-            self.files = [line.rstrip() for line in file if line != '']
+
+        # A bunch of images to be used as frames of a sequence
+        filenames = [
+            'cat-3449999_640.tiff',
+            'cat-1046544_640.tiff',
+            'cat-1245673_640.tiff',
+            'cat-300572_640.tiff',
+            'cat-111793_640.tiff',
+            'domestic-cat-726989_640.tiff',
+            'cat-3504008_640.tiff',
+            'cat-3591348_640.tiff',
+            'cat-2184682_640.tiff',
+            'cat-3113513_640.tiff',
+        ]
+        self.files = [os.path.join(images_dir, '0', filename) for filename in filenames]
         shuffle(self.files)
 
     def _load_next(self):
         in_img = None
         # Skip input image if format isn't supported by OpenCV
         while in_img is None:
-            filename, label = self.files[self.i].split(' ')
+            filename = self.files[self.i]
             in_img = cv2.imread(os.path.join(images_dir, filename))
             self.i = (self.i + 1) % len(self.files)
         # Convert to rgb, to match dali channel order
