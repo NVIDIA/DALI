@@ -17,7 +17,7 @@
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/kernels/kernel_params.h"
-#include "dali/kernels/signal/resampling_cpu.h"
+#include "dali/kernels/signal/resampling.h"
 #include "dali/operators/audio/resampling_params.h"
 
 namespace dali {
@@ -178,7 +178,7 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
   }
 
  private:
-  kernels::signal::resampling::ResamplerCPU R;
+  kernels::signal::resampling::Resampler R;
   std::vector<std::vector<float>> in_fp32;
 };
 

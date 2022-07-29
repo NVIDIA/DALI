@@ -25,7 +25,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/kernels/signal/resampling_cpu.h"
+#include "dali/kernels/signal/resampling.h"
 #include "dali/operators/decoder/audio/audio_decoder.h"
 #include "dali/operators/decoder/audio/audio_decoder_impl.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
@@ -181,7 +181,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample> {
   double max_duration_;
   bool read_text_;
   int num_threads_;
-  kernels::signal::resampling::ResamplerCPU resampler_;
+  kernels::signal::resampling::Resampler resampler_;
   std::vector<std::vector<float>> decode_scratch_;
   std::vector<std::vector<float>> resample_scratch_;
 };

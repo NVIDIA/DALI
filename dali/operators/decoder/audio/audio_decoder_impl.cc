@@ -48,7 +48,7 @@ TensorShape<> DecodedAudioShape(const AudioMetadata &meta, float target_sample_r
 
 template <typename T>
 void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecoderBase &decoder,
-                 const AudioMetadata &meta, kernels::signal::resampling::ResamplerCPU &resampler,
+                 const AudioMetadata &meta, kernels::signal::resampling::Resampler &resampler,
                  span<float> decode_scratch_mem,
                  span<float> resample_scratch_mem,
                  float target_sample_rate, bool downmix,
@@ -107,7 +107,7 @@ void DecodeAudio(TensorView<StorageCPU, T, DynamicDimensions> audio, AudioDecode
 #define DECLARE_IMPL(OutType)                                                                     \
   template void DecodeAudio<OutType>(                                                             \
       TensorView<StorageCPU, OutType, DynamicDimensions> audio, AudioDecoderBase & decoder,       \
-      const AudioMetadata &meta, kernels::signal::resampling::ResamplerCPU &resampler,            \
+      const AudioMetadata &meta, kernels::signal::resampling::Resampler &resampler,               \
       span<float> decode_scratch_mem, span<float> resample_scratch_mem,                           \
       float target_sample_rate, bool downmix, const char *audio_filepath);
 
