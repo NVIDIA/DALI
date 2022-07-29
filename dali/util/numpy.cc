@@ -214,5 +214,27 @@ size_t HeaderData::nbytes() const {
   return type_info ? type_info->size() * size() : 0_uz;
 }
 
+Tensor<CPUBackend> ReadTensor(InputStream *src) {
+  numpy::HeaderData header;
+  numpy::ParseHeader(header, src);
+  src->SeekRead(header.data_offset, SEEK_SET);
+
+  Tensor<CPUBackend> data;
+  data.Resize(header.shape, header.type());
+  auto ret = src->Read(static_cast<uint8_t*>(data.raw_mutable_data()), header.nbytes());
+  DALI_ENFORCE(ret == header.nbytes(), "Failed to read numpy file");
+
+  if (header.fortran_order) {
+    Tensor<CPUBackend> transposed;
+    transposed.Resize(data.shape(), data.type());
+    SampleView<CPUBackend> input(data.raw_mutable_data(), data.shape(), data.type());
+    SampleView<CPUBackend> output(transposed.raw_mutable_data(), transposed.shape(),
+                                  transposed.type());
+    numpy::FromFortranOrder(output, input);
+    return transposed;
+  }
+  return data;
+}
+
 }  // namespace numpy
 }  // namespace dali

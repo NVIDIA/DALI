@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018-2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -224,6 +224,21 @@ struct EqualUlp {
   }
 
   int ulp_ = 4;
+};
+
+
+/**
+ * @brief Functor for comparing value after converting the reference with ConvertSatNorm
+ *
+ * @remark Be aware, that when using this functor in `Check()`, order of arguments matters!
+ */
+struct EqualConvertSatNorm {
+  EqualConvertSatNorm() = default;
+
+  template <typename Output, typename Reference>
+  bool operator()(Output out, Reference ref) {
+    return out == ConvertSatNorm<Output>(ref);
+  }
 };
 
 
