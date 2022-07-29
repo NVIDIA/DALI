@@ -15,13 +15,11 @@
 #ifndef DALI_KERNELS_SIGNAL_RESAMPLING_H_
 #define DALI_KERNELS_SIGNAL_RESAMPLING_H_
 
-#ifndef __NVCC__
 #ifdef __SSE2__
 #include <emmintrin.h>
 #endif
-#ifdef __ARM_NEON
+#if !defined(__NVCC__) && defined(__ARM_NEON)
 #include <arm_neon.h>
-#endif
 #endif
 
 #include <cmath>
@@ -109,7 +107,7 @@ struct ResamplingWindow {
   }
 #endif
 
-#if !defined(__NVCC__) && defined(__SSE2__)
+#if defined(__SSE2__)
   inline __m128 operator()(__m128 x) const {
     __m128 fi = _mm_add_ps(x * _mm_set1_ps(scale), _mm_set1_ps(center));
     __m128i i = _mm_cvttps_epi32(fi);
@@ -188,7 +186,7 @@ struct Resampler {
     i_ref = i;
     return vget_lane_f32(f2, 0);
   }
-#elif !defined(__NVCC__) && defined(__SSE2__)
+#elif defined(__SSE2__)
   inline float filter_vec(int &i_ref, float in_pos, int i1, const float *in) const {
     __m128 f4 = _mm_setzero_ps();
     int i = i_ref;
