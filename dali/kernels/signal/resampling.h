@@ -15,12 +15,15 @@
 #ifndef DALI_KERNELS_SIGNAL_RESAMPLING_H_
 #define DALI_KERNELS_SIGNAL_RESAMPLING_H_
 
+#ifndef __NVCC__
 #ifdef __SSE2__
 #include <emmintrin.h>
 #endif
 #ifdef __ARM_NEON
 #include <arm_neon.h>
 #endif
+#endif
+
 #include <cmath>
 #include <functional>
 #include <utility>
@@ -45,7 +48,7 @@ inline double Hann(double x) {
   return 0.5 * (1 + std::cos(x * M_PI));
 }
 
-#ifdef __ARM_NEON
+#if !defined(__NVCC__) && defined(__ARM_NEON)
 
 inline float32x4_t vsetq_f32(float x0, float x1, float x2, float x3) {
     float32x4_t x;
@@ -83,7 +86,7 @@ struct ResamplingWindow {
     return lookup[i] + di * (lookup[i + 1] - lookup[i]);
   }
 
-#ifdef __ARM_NEON
+#if !defined(__NVCC__) && defined(__ARM_NEON)
   inline float32x4_t operator()(float32x4_t x) const {
     float32x4_t fi = vfmaq_n_f32(vdupq_n_f32(center), x, scale);
     int32x4_t i = vcvtq_s32_f32(fi);
@@ -106,7 +109,7 @@ struct ResamplingWindow {
   }
 #endif
 
-#ifdef __SSE2__
+#if !defined(__NVCC__) && defined(__SSE2__)
   inline __m128 operator()(__m128 x) const {
     __m128 fi = _mm_add_ps(x * _mm_set1_ps(scale), _mm_set1_ps(center));
     __m128i i = _mm_cvttps_epi32(fi);
@@ -121,7 +124,6 @@ struct ResamplingWindow {
     return _mm_add_ps(curr, _mm_mul_ps(di, _mm_sub_ps(next, curr)));
   }
 #endif
-
 
   float scale = 1, center = 1;
   int lobes = 0, coeffs = 0;
@@ -167,7 +169,7 @@ struct Resampler {
     windowed_sinc(window, lookup_size, lobes);
   }
 
-#if defined(__ARM_NEON)
+#if !defined(__NVCC__) && defined(__ARM_NEON)
   inline float filter_vec(int &i_ref, float in_pos, int i1, const float *in) const {
     const float32x4_t _0123 = vsetq_f32(0, 1, 2, 3);
     float32x4_t f4 = vdupq_n_f32(0);
@@ -186,7 +188,7 @@ struct Resampler {
     i_ref = i;
     return vget_lane_f32(f2, 0);
   }
-#elif  defined(__SSE2__)
+#elif !defined(__NVCC__) && defined(__SSE2__)
   inline float filter_vec(int &i_ref, float in_pos, int i1, const float *in) const {
     __m128 f4 = _mm_setzero_ps();
     int i = i_ref;
