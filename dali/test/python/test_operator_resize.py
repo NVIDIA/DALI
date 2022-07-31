@@ -623,6 +623,7 @@ def _test_empty_input(dim, device):
             else:
                 assert np.prod(out_with_empty.at(i).shape) == 0
 
+
 def test_empty_input():
     for device in ["cpu", "gpu"]:
         for dim in [2, 3]:
@@ -670,20 +671,29 @@ def test_checkerboard_dali_vs_onnx_ref():
     out_size = (17, 13)
     out_size_str = '_'.join([str(n) for n in out_size])
     ref_resized_linear_filename = os.path.join(ref_dir, f"checkerboard_linear_{out_size_str}.npy")
-    ref_resized_linear_antialias_filename = os.path.join(ref_dir, f"checkerboard_linear_antialias_{out_size_str}.npy")
+    ref_resized_linear_antialias_filename = os.path.join(
+        ref_dir, f"checkerboard_linear_antialias_{out_size_str}.npy")
     ref_resized_cubic_filename = os.path.join(ref_dir, f"checkerboard_cubic_{out_size_str}.npy")
-    ref_resized_cubic_antialias_filename = os.path.join(ref_dir, f"checkerboard_cubic_antialias_{out_size_str}.npy")
+    ref_resized_cubic_antialias_filename = os.path.join(
+        ref_dir, f"checkerboard_cubic_antialias_{out_size_str}.npy")
 
     # Reference generated with ONNX reference code. To regenerate uncomment
-    # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, linear_coeffs_antialias, \
-    #                                                 cubic_coeffs, cubic_coeffs_antialias
-    # ref_resized_linear = interpolate_nd(checkerboard, lambda x, _: linear_coeffs(x), output_size=out_size)
+    # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, \
+    #     linear_coeffs_antialias, cubic_coeffs, cubic_coeffs_antialias
+    #
+    # ref_resized_linear = interpolate_nd(checkerboard, lambda x, _: linear_coeffs(x),
+    #                                     output_size=out_size)
     # np.save(ref_resized_linear_filename, ref_resized_linear)
-    # ref_resized_linear_antialias = interpolate_nd(checkerboard, linear_coeffs_antialias, output_size=out_size)
+    # ref_resized_linear_antialias = interpolate_nd(checkerboard, linear_coeffs_antialias,
+    #                                               output_size=out_size)
     # np.save(ref_resized_linear_antialias_filename, ref_resized_linear_antialias)
-    # ref_resized_cubic = interpolate_nd(checkerboard, lambda x, _: cubic_coeffs(x, A=-0.5), output_size=out_size)
+    # ref_resized_cubic = interpolate_nd(checkerboard, lambda x, _: cubic_coeffs(x, A=-0.5),
+    #                                    output_size=out_size)
     # np.save(ref_resized_cubic_filename, ref_resized_cubic)
-    # ref_resized_cubic_antialias = interpolate_nd(checkerboard, lambda x, scale: cubic_coeffs_antialias(x, scale, A=-0.5), output_size=out_size)
+    # ref_resized_cubic_antialias = interpolate_nd(checkerboard,
+    #                                              lambda x, scale: cubic_coeffs_antialias(x, scale,
+    #                                                                                      A=-0.5),
+    #                                              output_size=out_size)
     # np.save(ref_resized_cubic_antialias_filename, ref_resized_cubic_antialias)
 
     ref_resized_linear = np.load(ref_resized_linear_filename)
@@ -702,12 +712,12 @@ def test_checkerboard_dali_vs_onnx_ref():
     antialias_OFF = False
     ref_data = {
         types.INTERP_LINEAR: {
-            antialias_OFF : ref_resized_linear,
-            antialias_ON : ref_resized_linear_antialias
+            antialias_OFF: ref_resized_linear,
+            antialias_ON: ref_resized_linear_antialias
         },
         types.INTERP_CUBIC: {
-            antialias_OFF : ref_resized_cubic,
-            antialias_ON : ref_resized_cubic_antialias
+            antialias_OFF: ref_resized_cubic,
+            antialias_ON: ref_resized_cubic_antialias
         }
     }
 
