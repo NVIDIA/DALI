@@ -23,6 +23,7 @@ set(PYTHON_LINT_PATHS
         ${PROJECT_SOURCE_DIR}/dali
         ${PROJECT_SOURCE_DIR}/tools
         ${PROJECT_SOURCE_DIR}/dali_tf_plugin
+        ${PROJECT_SOURCE_DIR}/qa
 )
 
 add_custom_target(lint-python

@@ -16,9 +16,11 @@ from urllib.request import urlopen, HTTPError, Request, URLError
 
 PYTHON_VERSION = ".".join([str(x) for x in sys.version_info[0:2]])
 
+
 class PckgVer():
     """Class that holds a version string accompanied with maximum and minimum python version that
-        this version should support. If python falls beyond version bounds it evaluates to the empty string
+        this version should support. If python falls beyond version bounds it evaluates to the
+        empty string
 
         Parameters
         ----------
@@ -34,7 +36,8 @@ class PckgVer():
             List of packages in ["name==version", ] format that should be installed together with
             a given package
     """
-    def __init__(self, ver, python_min_ver=None, python_max_ver=None, alias=None, dependencies=None):
+    def __init__(self, ver, python_min_ver=None, python_max_ver=None, alias=None,
+                 dependencies=None):
         self.ver = ver
         self.python_min_ver = python_min_ver
         self.python_max_ver = python_max_ver
@@ -42,8 +45,9 @@ class PckgVer():
         self.dependent_packages = dependencies
 
     def __bool__(self):
-        return (not self.python_min_ver or parse(PYTHON_VERSION) >= parse(self.python_min_ver)) and \
-           (not self.python_max_ver or parse(PYTHON_VERSION) <= parse(self.python_max_ver))
+        return (not self.python_min_ver or
+                parse(PYTHON_VERSION) >= parse(self.python_min_ver)) and \
+                (not self.python_max_ver or parse(PYTHON_VERSION) <= parse(self.python_max_ver))
 
     def __repr__(self):
         if self:
@@ -58,6 +62,7 @@ class PckgVer():
     @property
     def dependencies(self):
         return self.dependent_packages
+
 
 class BasePackage():
     """Class describing basic methods that package should provide
@@ -102,7 +107,6 @@ class BasePackage():
                 Package version
         """
         return getattr(version, "alias", None)
-
 
     def get_dependencies(self, cuda_version=None, idx=None):
         """Obtains dependant packages list if exists. Otherwise return None
@@ -206,10 +210,11 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
-        pkg_cmd = "{name}=={version}".format(name=self.get_name(cuda_version, idx), version=self.get_version(idx, cuda_version))
+        pkg_cmd = "{name}=={version}".format(name=self.get_name(cuda_version, idx),
+                                             version=self.get_version(idx, cuda_version))
         deps_cmd = self.get_dependencies(cuda_version, idx)
         if deps_cmd is not None:
-            pkg_cmd =  " ".join([pkg_cmd] + deps_cmd)
+            pkg_cmd = " ".join([pkg_cmd] + deps_cmd)
         return pkg_cmd
 
     def get_all_install_strings(self, cuda_version=None):
@@ -237,6 +242,7 @@ class BasePackage():
         """
         return ""
 
+
 class PlainPackage(BasePackage):
     """Class describing a simple package with a key/name and a list of versions.
         Cuda version is irrelevant for this package
@@ -256,6 +262,7 @@ class PlainPackage(BasePackage):
     def get_all_versions(self, cuda_version=None):
         return self.filter_versions(self.versions)
 
+
 class CudaPackage(BasePackage):
     """Class describing a cuda package with a key/name and a dictionary where the key
         is a cuda version and value is the list of versions supported.
@@ -273,7 +280,8 @@ class CudaPackage(BasePackage):
     def __init__(self, key, versions, name=None):
         super(CudaPackage, self).__init__(key, versions, name)
         if not isinstance(versions, dict):
-            raise TypeError("versions argument should by dict type [cuda_version : list_of_versions")
+            raise TypeError("versions argument should by dict type [cuda_version :" +
+                            "list_of_versions")
 
     def get_name(self, cuda_version=None, idx=None):
         cuda_version = self.max_cuda_version(cuda_version)
@@ -320,7 +328,8 @@ class CudaPackageExtraIndex(CudaPackage):
     def __init__(self, key, versions, name=None, extra_index=""):
         super(CudaPackageExtraIndex, self).__init__(key, versions, name)
         if not isinstance(versions, dict):
-            raise TypeError("versions argument should be a dictionary {cuda_version_str : list_of_versions}")
+            raise TypeError("versions argument should be a dictionary" +
+                            " {cuda_version_str : list_of_versions}")
         self.extra_index = extra_index
 
     def get_extra_index(self, cuda_version):
@@ -333,6 +342,7 @@ class CudaPackageExtraIndex(CudaPackage):
         """
         cuda_version = self.max_cuda_version(cuda_version)
         return self.extra_index.format(cuda_v=cuda_version)
+
 
 class CudaHttpPackage(CudaPackage):
     """Class describing a cuda package with a key/name and a dictionary where the key
@@ -380,7 +390,7 @@ class CudaHttpPackage(CudaPackage):
         url[-1] = urllib.parse.quote(url[-1])
         url = "://".join(url)
         request = Request(url)
-        request.get_method = lambda : 'HEAD'
+        request.get_method = lambda: 'HEAD'
         attempts = 3
         while attempts:
             try:
@@ -410,71 +420,90 @@ class CudaHttpPackage(CudaPackage):
         """
         if isinstance(p.get_supported()[0], tuple):
             # old PIP returns tuple
-            for py_ver in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and 'any' not in y]:
+            for py_ver in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and
+                           'any' not in y]:
                 py_ver = "-".join(py_ver)
                 ret = self.test_request(url.format(platform=py_ver, cuda_v=cuda_version))
                 if ret:
                     return ret
         else:
             # new PIP returns object
-            for py_ver in [tag for tag in p.get_supported() if tag.abi != 'none' and tag.platform != 'any']:
+            for py_ver in [tag for tag in p.get_supported() if tag.abi != 'none' and
+                           tag.platform != 'any']:
                 py_ver = str(py_ver)
                 ret = self.test_request(url.format(platform=py_ver, cuda_v=cuda_version))
                 if ret:
                     return ret
         return ""
 
+
 all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                 CudaPackage("cupy",
-                        { "100" : ["8.6.0"],
-                          "110" : ["8.6.0"],
-                          "111" : ["8.6.0"] },
-                        "cupy-cuda{cuda_v}"),
+                            {"100": ["8.6.0"],
+                             "110": ["8.6.0"],
+                             "111": ["8.6.0"]},
+                            "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
-                        { "100" : ["1.8.0.post0"] },
-                        "mxnet-cu{cuda_v}"),
+                            {"100": ["1.8.0.post0"]},
+                            "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
-                        { "100" : [
-                              PckgVer("1.15.5", python_max_ver="3.7", dependencies=["protobuf<4"]),
-                              PckgVer("2.3.4", python_max_ver="3.8", dependencies=["protobuf<4"])],
-                          "110" : [
-                              PckgVer("1.15.5", python_max_ver="3.7", dependencies=["protobuf<4"]),
-                              PckgVer("2.8.1", python_min_ver="3.7", dependencies=["protobuf<4"]),
-                              PckgVer("2.9.0", python_min_ver="3.7", dependencies=["protobuf<4"]),
-                              PckgVer("1.15.5+nv22.05", python_min_ver="3.8", python_max_ver="3.8", alias="nvidia-tensorflow", dependencies=["protobuf<4"])]
-                        }),
+                            {"100": [
+                                PckgVer("1.15.5", python_max_ver="3.7",
+                                        dependencies=["protobuf<4"]),
+                                PckgVer("2.3.4", python_max_ver="3.8",
+                                        dependencies=["protobuf<4"])],
+                             "110": [
+                                PckgVer("1.15.5", python_max_ver="3.7",
+                                        dependencies=["protobuf<4"]),
+                                PckgVer("2.8.1", python_min_ver="3.7",
+                                        dependencies=["protobuf<4"]),
+                                PckgVer("2.9.0", python_min_ver="3.7",
+                                        dependencies=["protobuf<4"]),
+                                PckgVer("1.15.5+nv22.05", python_min_ver="3.8",
+                                        python_max_ver="3.8", alias="nvidia-tensorflow",
+                                        dependencies=["protobuf<4"])]}),
                 CudaPackageExtraIndex("torch",
-                        { "101" : ["1.8.0"],
-                          "111" : ["1.8.0"] }, extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
+                                      {"101": ["1.8.0"],
+                                       "111": ["1.8.0"]},
+                                      extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackageExtraIndex("torchvision",
-                        { "101" : ["0.9.0"],
-                          "111" : ["0.9.0"] }, extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
+                                      {"101": ["0.9.0"],
+                                       "111": ["0.9.0"]},
+                                      extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackage("paddlepaddle-gpu",
-                        { "100" : [
-                            PckgVer("2.2.0", dependencies=["protobuf<4"])],
-                          "110" : [
-                            PckgVer("2.2.0", dependencies=["protobuf<4"])]}),
+                            {"100": [
+                                PckgVer("2.2.0", dependencies=["protobuf<4"])],
+                             "110": [
+                                PckgVer("2.2.0", dependencies=["protobuf<4"])]}),
                 CudaPackage("numba",
-                        { "100" : [
-                            PckgVer("0.55.2", python_min_ver="3.7"),
-                            PckgVer("0.53.1", python_max_ver="3.6")],
-                          "110" : [
-                            PckgVer("0.56.0", python_min_ver="3.7"),
-                            PckgVer("0.53.1", python_max_ver="3.6")]})
-               ]
+                            {"100": [
+                                PckgVer("0.55.2", python_min_ver="3.7"),
+                                PckgVer("0.53.1", python_max_ver="3.6")],
+                             "110": [
+                                PckgVer("0.56.0", python_min_ver="3.7"),
+                                PckgVer("0.53.1", python_max_ver="3.6")]})
+                ]
 
 all_packages_keys = [pckg.key for pckg in all_packages]
 
 parser = argparse.ArgumentParser(description='Env setup helper')
 parser.add_argument('--list', '-l', help='list configs', action='store_true', default=False)
-parser.add_argument('--num', '-n', help='return number of all configurations possible', action='store_true', default=False)
-parser.add_argument('--install', '-i', dest='install', type=int, help="get Nth configuration", default=-1)
-parser.add_argument('--all', '-a', dest='getall', action='store_true', help='return packages in all versions')
-parser.add_argument('--remove', '-r', dest='remove', help="list packages to remove", action='store_true', default=False)
+parser.add_argument('--num', '-n', help='return number of all configurations possible',
+                    action='store_true', default=False)
+parser.add_argument('--install', '-i', dest='install', type=int, help="get Nth configuration",
+                    default=-1)
+parser.add_argument('--all', '-a', dest='getall', action='store_true',
+                    help='return packages in all versions')
+parser.add_argument('--remove', '-r', dest='remove', help="list packages to remove",
+                    action='store_true', default=False)
 parser.add_argument('--cuda', dest='cuda', default="90", help="CUDA version to use")
-parser.add_argument('--use', '-u', dest='use', default=[], help="provide only packages from this list", nargs='*')
-parser.add_argument('--extra_index', '-e', dest='extra_index', help="return relevant extra indices list for pip", action='store_true', default=False)
+parser.add_argument('--use', '-u', dest='use', default=[],
+                    help="provide only packages from this list", nargs='*')
+parser.add_argument('--extra_index', '-e', dest='extra_index',
+                    help="return relevant extra indices list for pip", action='store_true',
+                    default=False)
 args = parser.parse_args()
+
 
 def print_configs(cuda_version):
     """Prints all available configurations"""
@@ -486,6 +515,7 @@ def print_configs(cuda_version):
                 v = "{}=={}".format(alias, v)
             print("\t{}".format(v))
 
+
 def cal_num_of_configs(packages, cuda_version):
     """Calculates how many different version configurations are available for given
        packages and cuda version"""
@@ -494,6 +524,7 @@ def cal_num_of_configs(packages, cuda_version):
         if pckg.key in packages:
             ret *= pckg.get_num_of_version(cuda_version)
     return ret
+
 
 def for_all_pckg(packages, fun, add_additional_packages=True):
     """Iterates over all packages, executes a function. Returns all function results as a list"""
@@ -507,16 +538,19 @@ def for_all_pckg(packages, fun, add_additional_packages=True):
         additional = [v for v in packages if v not in all_packages_keys]
     return ret + additional
 
+
 def get_remove_string(packages, cuda_version):
     """Creates pip remove string for given cuda version and package list"""
     # Remove only these which version we want to change
     ret = for_all_pckg(packages, lambda pckg: pckg.get_uninstall_names(cuda_version))
     return " ".join(ret)
 
+
 def get_all_strings(packages, cuda_version):
     """Prints all available configurations for given package list and cuda version"""
     ret = for_all_pckg(packages, lambda pckg: pckg.get_all_install_strings(cuda_version))
     return " ".join(ret)
+
 
 def get_install_string(idx, packages, cuda_version):
     """Creates pip install string for given cuda version, variant number and package list"""
@@ -524,11 +558,14 @@ def get_install_string(idx, packages, cuda_version):
     # add all remaining used packages with default versions
     return " ".join(ret)
 
+
 def get_extra_indices(idx, packages, cuda_version):
     """Get all extra indices for given packages"""
-    ret = for_all_pckg(packages, lambda pckg: pckg.get_extra_index(cuda_version), add_additional_packages=False)
+    ret = for_all_pckg(packages, lambda pckg: pckg.get_extra_index(cuda_version),
+                       add_additional_packages=False)
     # add all remaining used packages with default versions
     return " ".join(ret)
+
 
 def main():
     global args
@@ -544,6 +581,7 @@ def main():
         print(get_install_string(args.install, args.use, args.cuda))
     elif args.extra_index:
         print(get_extra_indices(args.install, args.use, args.cuda))
+
 
 if __name__ == "__main__":
     main()
