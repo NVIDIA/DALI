@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -208,6 +208,11 @@ DALI_HOST_DEV DALI_FORCEINLINE vec<3, uint8_t> ycbcr_to_rgb(vec<3, uint8_t> ycbc
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_gray(vec<3, Input> rgb) {
   return jpeg::rgb_to_y<Output>(rgb);
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> gray_to_rgb(Input gray) {
+  return {gray, gray, gray};
 }
 
 }  // namespace color

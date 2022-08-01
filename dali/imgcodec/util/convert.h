@@ -69,23 +69,52 @@ void Convert(Out *out, const int64_t *out_strides,
   }
 }
 
-struct ConvertRgb2Gray {
-  template <typename Out, typename In>
-  void operator()(Out *out, const In *in) {
-    vec3 rgb(ConvertNorm<float>(in[0]),
-             ConvertNorm<float>(in[in_channel_stride]),
-             ConvertNorm<float>(in[in_channel_stride*2]));
-    *out = kernels::color::rgb_to_gray<Out>(rgb);
-  }
-  ptrdiff_t in_channel_stride;
-};
+/**
+ * @brief A functor for converting between color spaces.
+ *
+ * It reads the input data from a tensor, passes it to user-provided conversion function, and
+ * then stores the result. Both the argument and return value of the conversion function can
+ * either be a scalar or a vector.
+ */
+template <typename FuncIn, typename FuncOut>
+struct ConvertColorSpace {
+  using FuncType = FuncOut(*)(FuncIn);
 
-struct ConvertGray2Rgb {
-  template <typename Out, typename In>
-  void operator()(Out *out, const In *in) {
-    out[0] = out[out_channel_stride] = out[out_channel_stride*2] = ConvertSatNorm<Out>(*in);
+  using InVec = typename std::conditional<is_vec<FuncIn>::value, FuncIn, vec<1, FuncIn>>::type;
+  using OutVec = typename std::conditional<is_vec<FuncOut>::value, FuncOut, vec<1, FuncOut>>::type;
+  using In = typename InVec::element_t;
+  using Out = typename OutVec::element_t;
+
+  void load(In& target, const In *in) {
+    target = *in;
   }
-  ptrdiff_t out_channel_stride;
+
+  void load(InVec& target, const In *in) {
+    for (int i = 0; i < target.size(); i++)
+      target[i] = in[i * in_channel_stride];
+  }
+
+  void store(Out *out, Out source) {
+    *out = source;
+  }
+
+  void store(Out *out, const OutVec& source) {
+    for (int i = 0; i < source.size(); i++)
+      out[i * out_channel_stride] = source[i];
+  }
+
+  void operator()(Out *out, const In *in) {
+    FuncIn func_in;
+    load(func_in, in);
+    store(out, func(func_in));
+  }
+
+  ConvertColorSpace(FuncType func,
+                    ptrdiff_t out_channel_stride = 1, ptrdiff_t in_channel_stride = 1)
+    : func(func), out_channel_stride(out_channel_stride), in_channel_stride(in_channel_stride) {}
+
+  FuncType func;
+  ptrdiff_t out_channel_stride, in_channel_stride;
 };
 
 /**
@@ -108,9 +137,9 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
   if (in_format == out_format) {
     convert_func = &ConvertDType<Out, In>;
   } else if (in_format == DALI_RGB && out_format == DALI_GRAY) {
-    convert_func = ConvertRgb2Gray{1};
+    convert_func = ConvertColorSpace(kernels::color::rgb_to_gray<Out, In>, 1, 1);
   } else if (in_format == DALI_GRAY && out_format == DALI_RGB) {
-    convert_func = ConvertGray2Rgb{1};
+    convert_func = ConvertColorSpace(kernels::color::gray_to_rgb<Out, In>, 1, 1);
   } else {
     DALI_FAIL(make_string("Not implemented: conversion from ", to_string(in_format), " to ",
               to_string(out_format), " is not supported"));
