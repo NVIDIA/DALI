@@ -233,7 +233,8 @@ def accepted_arg_count(callable):
 
 
 def get_callback_from_source(source, cycle, batch_info=False):
-    """Repack the source into a unified callback function. Additionally prepare the SourceDescription.
+    """Repack the source into a unified callback function. Additionally prepare
+    the SourceDescription.
 
     `batch_info` is usable only with callables.
 
@@ -278,7 +279,7 @@ def get_callback_from_source(source, cycle, batch_info=False):
             callback = lambda: next(iterator)  # noqa E731
         except TypeError as err:
             if "not iterable" not in str(err):
-                raise(err)
+                raise err
             if cycle is not None:
                 raise ValueError("The argument `cycle` can only be specified "
                                  "if `source` is iterable")

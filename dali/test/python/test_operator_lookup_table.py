@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ def check_lookup_table_vs_python_op(device, batch_size, layout, shape, dtype, di
     elif dictionary_type == 'small':
         dictionary = {0: 0.1, 200: 0.99}
     else:
-        assert (False)
+        assert False
     compare_pipelines(
         LookupTablePipeline(device, batch_size, iter(eii1), data_shape=shape, data_layout=layout,
                             dtype=dtype, dictionary=dictionary, default_value=default_value),

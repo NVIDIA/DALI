@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
             else:
                 out_coords = outputs[1].at(sample)
             if in_coords.shape == () or in_coords.shape[0] == 0:
-                assert(out_coords.shape == () or out_coords.shape[0] == 0)
+                assert out_coords.shape == () or out_coords.shape[0] == 0
                 continue
 
             flip_x = outputs[2].at(sample)
@@ -69,7 +69,7 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
             flip_z = None
             if len(layout) == 3:
                 flip_z = outputs[4].at(sample)
-            npoints, ndim = in_coords.shape
+            _, ndim = in_coords.shape
 
             flip_dim = [flip_x, flip_y]
             if ndim == 3:

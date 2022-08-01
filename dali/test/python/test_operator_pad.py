@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,21 +62,21 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
         axes = []
         for axis_name in axis_names:
             axis_idx = layout.find(axis_name)
-            assert (axis_idx >= 0)
+            assert axis_idx >= 0
             axes.append(axis_idx)
 
     actual_axes = axes if (axes and len(axes) > 0) else range(len(input_max_shape))
-    assert (len(actual_axes) > 0)
+    assert len(actual_axes) > 0
 
     if not shape_arg or len(shape_arg) == 0:
         shape_arg = [-1] * len(actual_axes)
-    assert (len(shape_arg) == len(actual_axes))
+    assert len(shape_arg) == len(actual_axes)
 
     if not align or len(align) == 0:
         align = [1] * len(actual_axes)
     elif len(align) == 1 and len(actual_axes) > 1:
         align = [align[0] for _ in actual_axes]
-    assert (len(align) == len(actual_axes))
+    assert len(align) == len(actual_axes)
 
     for k in range(5):
         out1, out2 = pipe.run()
@@ -110,7 +110,7 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
                 remainder = expected_extent % align_val
                 if remainder > 0:
                     expected_extent = expected_extent - remainder + align_val
-                assert (output_shape[dim] == expected_extent)
+                assert output_shape[dim] == expected_extent
 
 
 def test_pad():

@@ -25,7 +25,7 @@ SEED = 12345
 
 def preemph_func(border, coeff, signal):
     in_shape = signal.shape
-    assert (len(in_shape) == 1)  # 1D
+    assert len(in_shape) == 1  # 1D
     out = np.copy(signal)
     # nothing to do for border == 'zero'
     if border == 'clamp':
