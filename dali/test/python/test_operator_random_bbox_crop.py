@@ -129,8 +129,8 @@ class RandomBBoxCropSynthDataPipeline(Pipeline):
 
 def crop_contains(crop_anchor, crop_shape, point):
     ndim = len(crop_shape)
-    assert (len(crop_shape) == ndim)
-    assert (len(point) == ndim)
+    assert len(crop_shape) == ndim
+    assert len(point) == ndim
 
     point = np.array(point)
     crop_anchor = np.array(crop_anchor)
@@ -178,14 +178,14 @@ def check_processed_bboxes(crop_anchor, crop_shape, original_boxes, processed_bo
         filtered_boxes = np.array(original_boxes[bbox_indices])
     else:
         filtered_boxes = filter_by_centroid(crop_anchor, crop_shape, original_boxes)
-    assert (len(original_boxes) >= len(filtered_boxes))
-    assert (len(filtered_boxes) == len(processed_boxes))
+    assert len(original_boxes) >= len(filtered_boxes)
+    assert len(filtered_boxes) == len(processed_boxes)
     nboxes = len(filtered_boxes)
     for i in range(nboxes):
         box = filtered_boxes[i]
         processed_box = processed_boxes[i]
         expected_box = map_box(box, crop_anchor, crop_shape)
-        assert (np.allclose(expected_box, processed_box, atol=1e-6))
+        assert np.allclose(expected_box, processed_box, atol=1e-6)
 
 
 def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
@@ -196,11 +196,11 @@ def check_crop_dims_variable_size(anchor, shape, scaling, aspect_ratio):
     max_extent = 0.0
     for d in range(ndim):
         max_extent = shape[d] if shape[d] > max_extent else max_extent
-    assert (max_extent >= scaling[0] or np.isclose(max_extent, scaling[0]))
-    assert (max_extent <= scaling[1] or np.isclose(max_extent, scaling[1]))
+    assert max_extent >= scaling[0] or np.isclose(max_extent, scaling[0])
+    assert max_extent <= scaling[1] or np.isclose(max_extent, scaling[1])
     for d in range(ndim):
         assert anchor[d] >= 0.0 and anchor[d] <= 1.0, anchor
-        assert (anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= 1.0)
+        assert anchor[d] + shape[d] > 0.0 and anchor[d] + shape[d] <= 1.0
 
         for d2 in range(d + 1, ndim):
             ar = shape[d] / shape[d2]
@@ -341,7 +341,7 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
                 if is_box_in:
                     at_least_one_box_in = True
                     break
-            assert (at_least_one_box_in)
+            assert at_least_one_box_in
 
 
 def test_random_bbox_crop_overlap():

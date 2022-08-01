@@ -49,8 +49,8 @@ def test_empty_tensor_tensorlist():
     tensor = TensorCPU(arr, "NHWC")
     tensorlist = TensorListCPU(arr, "NHWC")
     assert_array_equal(np.array(tensor), tensorlist.as_array())
-    assert (np.array(tensor).shape == (0,))
-    assert (tensorlist.as_array().shape == (0,))
+    assert np.array(tensor).shape == (0,)
+    assert tensorlist.as_array().shape == (0,)
 
 
 def test_tensorlist_getitem_cpu():
@@ -83,7 +83,7 @@ def test_data_ptr_tensor_list_cpu():
     tensor = tensorlist.as_tensor()
     from_tensor_list = py_buffer_from_address(tensorlist.data_ptr(), tensor.shape(),
                                               types.to_numpy_type(tensor.dtype))
-    assert (np.array_equal(arr, from_tensor_list))
+    assert np.array_equal(arr, from_tensor_list)
 
 
 def test_array_interface_tensor_cpu():
@@ -130,8 +130,8 @@ def test_array_interface_types():
 #    arr = np.random.rand(3, 5, 6)
 #    tensorlist = TensorListCPU(arr, "NHWC")
 #    two_first_tensors = tensorlist[0:2]
-#    assert (type(two_first_tensors) == tuple)
-#    assert (type(two_first_tensors[0]) == TensorCPU)
+#    assert type(two_first_tensors) == tuple
+#    assert type(two_first_tensors[0]) == TensorCPU
 
 
 def test_tensor_cpu_squeeze():

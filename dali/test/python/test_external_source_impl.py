@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -774,7 +774,7 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
                 run_and_check(pipe, source)
         except AssertionError:
             if_raised = True
-        assert (if_raised)
+        assert if_raised
     else:
         run_and_check(pipe, source)
 

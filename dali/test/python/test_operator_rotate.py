@@ -326,8 +326,8 @@ class RotatePerFrameParamsProvider(ParamsProvider):
         params_dict = {param_data.desc.name: param_data for param_data in expanded_params}
         expanded_angles = params_dict.get('angle')
         expanded_axis = params_dict.get('axis')
-        assert (expanded_angles is not None and 'size' not in self.fixed_params
-                and 'size' not in params_dict)
+        assert expanded_angles is not None and 'size' not in self.fixed_params and \
+               'size' not in params_dict
         sequence_extents = [
           [sample.shape[0] for sample in input_batch]
           for input_batch in self.input_data.data]
