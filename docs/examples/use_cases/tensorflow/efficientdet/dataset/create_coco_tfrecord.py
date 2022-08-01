@@ -327,7 +327,7 @@ def main(_):
     assert FLAGS.image_dir, "`image_dir` missing."
     assert (FLAGS.image_info_file or
             FLAGS.object_annotations_file or
-            FLAGS.caption_annotations_file, "All annotation files are " "missing.")
+            FLAGS.caption_annotations_file, "All annotation files are missing.")
     if FLAGS.image_info_file:
         image_info_file = FLAGS.image_info_file
     elif FLAGS.object_annotations_file:
