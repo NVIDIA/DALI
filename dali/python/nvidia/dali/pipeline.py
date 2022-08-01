@@ -846,7 +846,9 @@ Parameters
             self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
     def feed_input(self, data_node, data, layout=None, cuda_stream=None, use_copy_kernel=False):
-        """Pass a mutlidimensional array or DLPack (or a list thereof) to an output of ExternalSource.
+        """Pass a multidimensional array or DLPack (or a list thereof) to an output of
+           ExternalSource.
+
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by feed_input. See ``cuda_stream`` parameter for details.
 

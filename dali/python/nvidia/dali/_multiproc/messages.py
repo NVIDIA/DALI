@@ -162,7 +162,7 @@ class TaskArgs:
         self.minibatch_i = minibatch_i
         self.sample_range = sample_range
         self.batch_args = batch_args
-        assert ((self.sample_range is None) != (self.batch_args is None))
+        assert (self.sample_range is None) != (self.batch_args is None)
 
     def is_sample_mode(self):
         return self.sample_range is not None

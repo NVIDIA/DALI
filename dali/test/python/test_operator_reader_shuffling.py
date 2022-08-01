@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -218,8 +218,8 @@ def test_global_shuffle_random_shuffle():
 
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
 
-    assert (img_ids_list_set[0].union(img_ids_list_set[1]) ==
-            img_ids_list_set_new[0].union(img_ids_list_set_new[1]))
+    assert img_ids_list_set[0].union(img_ids_list_set[1]) == \
+           img_ids_list_set_new[0].union(img_ids_list_set_new[1])
 
 
 def test_global_shuffle_random_shuffle_2():
@@ -277,8 +277,8 @@ def test_global_shuffle_dont_mix_epochs():
 
     assert img_ids_list_set[0] != img_ids_list_set_new[0]
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
-    assert (img_ids_list_set[0].union(img_ids_list_set[1]) ==
-            img_ids_list_set_new[0].union(img_ids_list_set_new[1]))
+    assert img_ids_list_set[0].union(img_ids_list_set[1]) == \
+           img_ids_list_set_new[0].union(img_ids_list_set_new[1])
 
 
 def test_dont_mix_epochs():
