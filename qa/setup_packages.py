@@ -280,7 +280,7 @@ class CudaPackage(BasePackage):
     def __init__(self, key, versions, name=None):
         super(CudaPackage, self).__init__(key, versions, name)
         if not isinstance(versions, dict):
-            raise TypeError("versions argument should by dict type [cuda_version :" +
+            raise TypeError("versions argument should by dict type [cuda_version :"
                             "list_of_versions")
 
     def get_name(self, cuda_version=None, idx=None):
@@ -328,7 +328,7 @@ class CudaPackageExtraIndex(CudaPackage):
     def __init__(self, key, versions, name=None, extra_index=""):
         super(CudaPackageExtraIndex, self).__init__(key, versions, name)
         if not isinstance(versions, dict):
-            raise TypeError("versions argument should be a dictionary" +
+            raise TypeError("versions argument should be a dictionary"
                             " {cuda_version_str : list_of_versions}")
         self.extra_index = extra_index
 
@@ -420,16 +420,16 @@ class CudaHttpPackage(CudaPackage):
         """
         if isinstance(p.get_supported()[0], tuple):
             # old PIP returns tuple
-            for py_ver in [(x, y, z) for (x, y, z) in p.get_supported() if y != 'none' and
-                           'any' not in y]:
+            for py_ver in [(x, y, z) for (x, y, z) in p.get_supported()
+                           if y != 'none' and 'any' not in y]:
                 py_ver = "-".join(py_ver)
                 ret = self.test_request(url.format(platform=py_ver, cuda_v=cuda_version))
                 if ret:
                     return ret
         else:
             # new PIP returns object
-            for py_ver in [tag for tag in p.get_supported() if tag.abi != 'none' and
-                           tag.platform != 'any']:
+            for py_ver in [tag for tag in p.get_supported()
+                           if tag.abi != 'none' and tag.platform != 'any']:
                 py_ver = str(py_ver)
                 ret = self.test_request(url.format(platform=py_ver, cuda_v=cuda_version))
                 if ret:
