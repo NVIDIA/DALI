@@ -55,7 +55,7 @@ def get_axes(layout, axis_names):
     axes = []
     for axis_name in axis_names:
         axis_idx = layout.find(axis_name)
-        assert(axis_idx >= 0)
+        assert (axis_idx >= 0)
         axes.append(axis_idx)
     return axes
 
@@ -91,17 +91,17 @@ def erase_func(anchor, shape, axis_names, axes, layout, fill_value, image):
         fill_value = 0
 
     roi_starts, roi_ends = get_regions(layout, image.shape, axes, anchor, shape)
-    assert(len(roi_starts) == len(roi_ends))
+    assert (len(roi_starts) == len(roi_ends))
     for region_idx in range(len(roi_starts)):
         start = roi_starts[region_idx]
         end = roi_ends[region_idx]
-        assert(len(start) == len(end))
+        assert (len(start) == len(end))
         if len(start) == 3:
             image[start[0]:end[0], start[1]:end[1], start[2]:end[2]] = fill_value
         elif len(start) == 4:
             image[start[0]:end[0], start[1]:end[1], start[2]:end[2], start[3]:end[3]] = fill_value
         else:
-            assert(False)
+            assert (False)
     return image
 
 

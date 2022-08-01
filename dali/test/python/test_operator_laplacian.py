@@ -107,7 +107,7 @@ def _test_kernels(device, num_dims, smoothing, normalize):
     kernels = [np.array(ker)[(slice(1, -1),) * num_dims] for ker in kernels]
     scales = [np.array(sf).item() for sf in scales]
     win_sizes = range(min_window_size, max_window_size + 2, 2)
-    assert(len(kernels) == len(win_sizes) == len(scales))
+    assert (len(kernels) == len(win_sizes) == len(scales))
     baseline_kernels = [
         get_cv2_kernel(win_size, smoothing) * scale
         for win_size, scale in zip(win_sizes, scales)]
@@ -183,7 +183,7 @@ def _test_vs_open_cv(device, batch_size, window_size, in_type, out_type, normali
             imgs, window_size, in_type, out_type, scale, grayscale)
         edges = to_batch(edges, batch_size)
         actual_out_type = out_type if out_type is not None else in_type
-        assert(len(edges) == len(baseline_cv))
+        assert (len(edges) == len(baseline_cv))
         if actual_out_type == types.FLOAT:
             max_error = 1e-7 if window_size <= 11 else 1e-4
         else:
@@ -292,7 +292,7 @@ def spread_values(out, axes):
         return [out[0]] * axes
     if len(out) == axes:
         return [out[i] for i in range(axes)]
-    assert(False)
+    assert (False)
 
 
 def get_windows(window_sizes):

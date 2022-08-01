@@ -1157,10 +1157,10 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num,
             loader.reset()
     if total_iter_num < 0:
         # infinite source of data
-        assert(count == iter_num * epochs)
+        assert (count == iter_num * epochs)
     else:
         # at most total_iter_num should be returned by the iterator
-        assert(count == min(total_iter_num, iter_num * epochs))
+        assert (count == min(total_iter_num, iter_num * epochs))
 
 
 @raises(Exception, glob="Negative size is supported only for a single pipeline")
@@ -1203,7 +1203,7 @@ def check_iterator_wrapper_first_iteration(BaseIterator, *args, **kwargs):
 
         # Asserting if __next__ is called, unless self._allow_next has been set to True explicitly
         def __next__(self):
-            assert(self._allow_next)
+            assert (self._allow_next)
             _ = super(IteratorWrapper, self).__next__()
 
     pipe = Pipeline(batch_size=16, num_threads=1, device_id=0)

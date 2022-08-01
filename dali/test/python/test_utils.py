@@ -342,7 +342,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs=None):
     if ref_is_list_of_outputs is None:
         ref_is_list_of_outputs = len(outputs) > 1
 
-    assert(ref_is_list_of_outputs or (len(outputs) == 1))
+    assert (ref_is_list_of_outputs or (len(outputs) == 1))
 
     for idx in range(len(outputs)):
         out = outputs[idx]
@@ -353,7 +353,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs=None):
             if not np.array_equal(out[i], ref[i]):
                 print("Out: ", out.at(i))
                 print("Ref: ", ref[i])
-            assert(np.array_equal(out[i], ref[i]))
+            assert (np.array_equal(out[i], ref[i]))
 
 
 def dali_type(t):

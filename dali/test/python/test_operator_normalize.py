@@ -195,7 +195,7 @@ def err(l1, l2):
 
 def check_float(l1, l2, eps=1e-3):
     for i, a in enumerate(zip(l1, l2)):
-        assert(np.allclose(a[0], a[1], rtol=1e-3, atol=eps))
+        assert (np.allclose(a[0], a[1], rtol=1e-3, atol=eps))
 
 
 def check_integer(actual, ref, input=None):
@@ -205,7 +205,7 @@ def check_integer(actual, ref, input=None):
         max = np.iinfo(t).max
         a1 = np.clip(a[1], min, max)
         # actual values are saturated, so we must clip the reference, too
-        assert(np.allclose(a[0], a1, atol=2))
+        assert (np.allclose(a[0], a1, atol=2))
 
 
 def shift_scale(batch, shift, scale):

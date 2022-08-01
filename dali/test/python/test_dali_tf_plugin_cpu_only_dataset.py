@@ -49,4 +49,4 @@ def test_dali_tf_dataset_cpu_only():
                                  output_shapes=[1])
     ds = iter(ds)
     data = next(ds)
-    assert(data == np.array([value]))
+    assert (data == np.array([value]))

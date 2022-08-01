@@ -47,7 +47,7 @@ def _test_fn_rotate(device):
         [3, 7, 11],
         [2, 6, 10],
         [1, 5, 9]])[:, :, np.newaxis]
-    assert(np.array_equal(arr, ref))
+    assert (np.array_equal(arr, ref))
 
 
 def test_set_outputs():
@@ -96,8 +96,8 @@ def test_fn_python_function():
         pipe.set_outputs(out)
     pipe.build()
 
-    assert(np.array_equal(pipe.run()[0].at(0), batch1[0] + 1))
-    assert(np.array_equal(pipe.run()[0].at(0), batch2[0] + 1))
+    assert (np.array_equal(pipe.run()[0].at(0), batch1[0] + 1))
+    assert (np.array_equal(pipe.run()[0].at(0), batch2[0] + 1))
 
 
 def test_fn_multiple_input_sets():
@@ -129,8 +129,8 @@ def test_fn_multiple_input_sets():
     ref2 = np.array([
         [20, 40, 60],
         [10, 30, 50]], dtype=np.uint8)[:, :, np.newaxis]
-    assert(np.array_equal(arr1, ref1))
-    assert(np.array_equal(arr2, ref2))
+    assert (np.array_equal(arr1, ref1))
+    assert (np.array_equal(arr2, ref2))
 
 
 def test_scalar_constant():
@@ -164,9 +164,9 @@ def test_scalar_constant():
         [20, 40, 60],
         [10, 30, 50]], dtype=np.uint8)[:, :, np.newaxis]
     ref3 = np.array(90)
-    assert(np.array_equal(arr1, ref1))
-    assert(np.array_equal(arr2, ref2))
-    assert(np.array_equal(arr3, ref3))
+    assert (np.array_equal(arr1, ref1))
+    assert (np.array_equal(arr2, ref2))
+    assert (np.array_equal(arr3, ref3))
 
 
 def test_to_snake_case_impl():

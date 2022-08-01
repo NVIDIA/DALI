@@ -130,8 +130,8 @@ def test_array_interface_types():
 #    arr = np.random.rand(3, 5, 6)
 #    tensorlist = TensorListCPU(arr, "NHWC")
 #    two_first_tensors = tensorlist[0:2]
-#    assert(type(two_first_tensors) == tuple)
-#    assert(type(two_first_tensors[0]) == TensorCPU)
+#    assert (type(two_first_tensors) == tuple)
+#    assert (type(two_first_tensors[0]) == TensorCPU)
 
 
 def test_tensor_cpu_squeeze():

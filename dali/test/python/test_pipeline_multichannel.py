@@ -51,7 +51,7 @@ def crop_func_help(image, layout, crop_y=0.2, crop_x=0.3, crop_h=220, crop_w=224
     elif layout == "HWC":
         return image[start_y:end_y, start_x:end_x, :]
     else:
-        assert(False)  # should not happen
+        assert (False)  # should not happen
 
 
 def crop_NHWC_func(image):
@@ -168,7 +168,7 @@ def get_numpy_func(tested_operator):
     elif tested_operator == 'normalize':
         return normalize_func
     else:
-        assert(False)
+        assert (False)
 
 
 def check_multichannel_synth_data_vs_numpy(tested_operator, device, batch_size, shape):

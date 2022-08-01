@@ -440,7 +440,7 @@ for pipe_name in test_data.keys():
 
         if args.iters < 0:
             iters = pipes[0].epoch_size("Reader")
-            assert(all(pipe.epoch_size("Reader") == iters for pipe in pipes))
+            assert (all(pipe.epoch_size("Reader") == iters for pipe in pipes))
             iters_tmp = iters
             iters = iters // BATCH_SIZE
             if iters_tmp != iters * BATCH_SIZE:
