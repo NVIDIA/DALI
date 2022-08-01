@@ -198,7 +198,7 @@ class SliceArgsIterator(object):
             for axis_name in self.axis_names:
                 assert axis_name in self.image_layout
                 self.axes.append(self.image_layout.index(axis_name))
-        assert (len(self.axes) > 0)
+        assert len(self.axes) > 0
 
     def __iter__(self):
         self.i = 0
@@ -247,7 +247,7 @@ def slice_func_helper(axes, axis_names, layout,
     if axis_names:
         axes = []
         for axis_name in axis_names:
-            assert (axis_name in layout)
+            assert axis_name in layout
             axis_pos = layout.find(axis_name)
             axes.append(axis_pos)
 
@@ -272,7 +272,7 @@ def slice_func_helper(axes, axis_names, layout,
     elif len(full_slice_anchor) == 4:
         return image[start[0]:end[0], start[1]:end[1], start[2]:end[2], start[3]:end[3]]
     else:
-        assert (False)
+        assert False
 
 
 class SliceSynthDataPipelinePythonOp(Pipeline):
@@ -482,7 +482,7 @@ def check_slice_output(sample_in, sample_out,
             assert all([abs_slice_shape[i] == out_shape[i]
                         for i in range(naxes)])
     elif out_of_bounds_policy == "trim_to_shape":
-        assert (all([out_shape[i] <= in_shape[i] for i in range(naxes)]))
+        assert all([out_shape[i] <= in_shape[i] for i in range(naxes)])
         for i in range(naxes):
             if abs_start[i] < 0:
                 abs_start[i] = 0
@@ -552,9 +552,9 @@ def check_slice_with_out_of_bounds_policy_support(device,
     axis_names = "HW"
     axes = None
     layout = "HWC"
-    assert (len(input_shape) == 3)
+    assert len(input_shape) == 3
     if fill_values is not None and len(fill_values) > 1:
-        assert (input_shape[2] == len(fill_values))
+        assert input_shape[2] == len(fill_values)
 
     eii = RandomDataIterator(batch_size, shape=input_shape)
     eii_arg = SliceArgsIterator(batch_size, len(input_shape),
@@ -578,7 +578,7 @@ def check_slice_with_out_of_bounds_policy_support(device,
     for _ in range(3):
         outs = pipe.run()
         out, in_data, anchor_data, shape_data = outs
-        assert (batch_size == len(out))
+        assert batch_size == len(out)
         for idx in range(batch_size):
             sample_in = as_array(in_data[idx])
             sample_out = as_array(out[idx])
@@ -609,7 +609,7 @@ def check_slice_with_out_of_bounds_error(device, batch_size, input_shape=(100, 2
     axis_names = "HW"
     axes = None
     layout = "HWC"
-    assert (len(input_shape) == 3)
+    assert len(input_shape) == 3
 
     eii = RandomDataIterator(batch_size, shape=input_shape)
     eii_arg = SliceArgsIterator(batch_size, len(input_shape), image_shape=input_shape,

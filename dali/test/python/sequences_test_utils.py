@@ -191,7 +191,7 @@ def dummy_source(batches):
 
 
 def unfold_batch(batch, num_expand):
-    assert (num_expand >= 0)
+    assert num_expand >= 0
     if num_expand == 0:
         return batch
     if num_expand > 1:
@@ -224,8 +224,8 @@ def expand_arg(expandable_layout, arg_has_frames, input_batch, arg_batch):
             expanded_batch.extend(arg_sample for _ in range(num_frames))
         else:
             frame_idx = expandable_layout.find("F")
-            assert (frame_idx >= 0)
-            assert (len(arg_sample) == input_sample.shape[frame_idx])
+            assert frame_idx >= 0
+            assert len(arg_sample) == input_sample.shape[frame_idx]
             if num_expand == 1:
                 expanded_batch.extend(
                     arg_frame for arg_frame in arg_sample)
@@ -295,7 +295,7 @@ def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_da
         assert params_provider.unfold_output_layout(seq_batch.layout()) == baseline_batch.layout()
         batch = params_provider.unfold_output(as_batch(seq_batch))
         baseline_batch = as_batch(baseline_batch)
-        assert (len(batch) == len(baseline_batch))
+        assert len(batch) == len(baseline_batch)
         check_batch(batch, baseline_batch, len(batch))
 
 
@@ -308,7 +308,7 @@ def get_input_arg_per_sample(input_data, param_cb, rng):
 
 def get_input_arg_per_frame(input_data: ArgData, param_cb, rng, check_broadcasting):
     frame_idx = input_data.desc.expandable_prefix.find("F")
-    assert (frame_idx >= 0)
+    assert frame_idx >= 0
 
     def arg_for_sample(sample_idx, batch_idx, sample):
         if check_broadcasting and rng.randint(1, 4) == 1:
@@ -326,7 +326,7 @@ def get_input_arg_per_frame(input_data: ArgData, param_cb, rng, check_broadcasti
 
 def compute_input_params_data(input_data: ArgData, rng, input_params: List[ArgCb]):
     def input_param_data(arg_cb):
-        assert (arg_cb.desc.expandable_prefix in ["", "F"])
+        assert arg_cb.desc.expandable_prefix in ["", "F"]
         if arg_cb.desc.expandable_prefix == "F":
             return get_input_arg_per_frame(
                 input_data, arg_cb.cb, rng, not arg_cb.desc.is_positional_arg)
@@ -438,7 +438,7 @@ def vid_pipeline(num_frames, width, height, seq_layout):
     elif seq_layout == "CFHW":
         vid = fn.transpose(vid, perm=[3, 0, 1, 2])
     else:
-        assert (seq_layout == "FHWC")
+        assert seq_layout == "FHWC"
     return vid
 
 
@@ -473,7 +473,7 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
     expandable_extents = "FC" if expand_channels else "F"
     layouts = ["FHWC"]
     if not test_channel_first:
-        assert (not expand_channels)
+        assert not expand_channels
     else:
         layouts.append("FCHW")
         if expand_channels:

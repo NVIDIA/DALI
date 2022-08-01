@@ -129,7 +129,7 @@ def test_fw_iter(IteratorClass, args):
     iters = args.iters
     if args.iters < 0:
         iters = pipes[0].epoch_size("Reader")
-        assert (all(pipe.epoch_size("Reader") == iters for pipe in pipes))
+        assert all(pipe.epoch_size("Reader") == iters for pipe in pipes)
         iters_tmp = iters
         iters = iters // args.batch_size
         if iters_tmp != iters * args.batch_size:

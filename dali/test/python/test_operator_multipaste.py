@@ -65,7 +65,7 @@ def prepare_cuts(
         out_of_bounds_count=0,
 ):
     # Those two will not work together
-    assert (out_of_bounds_count == 0 or not no_intersections)
+    assert out_of_bounds_count == 0 or not no_intersections
 
     in_idx_l = [np.zeros(shape=(0,), dtype=np.int32) for _ in range(batch_size)]
     in_anchors_l = [np.zeros(shape=(0, 2), dtype=np.int32) for _ in range(batch_size)]

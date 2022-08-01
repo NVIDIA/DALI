@@ -121,7 +121,7 @@ def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
     else:
         expected_out_layout = "" if in_layout is None else in_layout
 
-    assert (out[0].layout() == expected_out_layout)
+    assert out[0].layout() == expected_out_layout
 
 
 def test_transpose_layout():
