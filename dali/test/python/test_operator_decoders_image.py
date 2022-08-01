@@ -390,6 +390,7 @@ def test_pinned_input_hw_decoder():
     p.build()
     p.run()
 
+
 def test_tiff_palette():
     normal = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640.tiff")
     palette = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640_palette.tiff")
@@ -408,4 +409,4 @@ def test_tiff_palette():
         "Invalid peeked shape of palette TIFF"
 
     delta = np.abs(imgs.at(0).astype('float') - imgs.at(1).astype('float'))/256
-    assert np.quantile(delta, 0.9) < 0.05, f"Original and palette TIFF differ significantly"
+    assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"

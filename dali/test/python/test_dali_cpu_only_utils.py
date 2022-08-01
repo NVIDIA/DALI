@@ -107,6 +107,7 @@ def setup_test_numpy_reader_cpu():
 
     return tmp_dir
 
+
 @pipeline_def
 def pipeline_arithm_ops_cpu(source):
     data = fn.external_source(source=source, layout="HWC")

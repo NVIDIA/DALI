@@ -50,6 +50,9 @@
 #include <vector>
 #include <iostream>
 
+namespace dali
+{
+
 namespace cv
 {
 
@@ -225,5 +228,6 @@ private:
     static const size_t refBWComponents = 6;
 };
 
-
 } //namespace cv
+
+} //namespace dali

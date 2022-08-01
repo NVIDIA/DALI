@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} pillow opencv-python torch numba==0.55.2'
+pip_packages='${python_test_runner_package} pillow opencv-python torch numba'
 
 target_dir=./dali/test/python
 

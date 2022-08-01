@@ -32,4 +32,4 @@ add_custom_target(lint-python
 )
 
 add_custom_target(lint)
-add_dependencies(lint lint-cpp)  #TODO(mszolucha): add lint-python when linter errors are resolved
+add_dependencies(lint lint-cpp lint-python)
