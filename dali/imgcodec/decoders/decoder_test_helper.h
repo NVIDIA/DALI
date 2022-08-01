@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/image_decoder.h"
+#include "dali/pipeline/util/thread_pool.h"
 #include "dali/test/dali_test.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/core/stream.h"
@@ -54,6 +55,7 @@ class CpuDecoderTestBase : public ::testing::Test {
     Tensor<CPUBackend> result;
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
     TensorShape<> shape = (roi.use_roi() ? roi.shape() : info.shape);
+    *(shape.end() - 1) = NumberOfChannels(opts.format);
     result.Resize(shape, type2id<OutputType>::value);
 
     SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());

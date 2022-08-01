@@ -19,8 +19,10 @@
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/geom/vec.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
 namespace dali {
 namespace imgcodec {
@@ -67,12 +69,52 @@ void Convert(Out *out, const int64_t *out_strides,
   }
 }
 
+struct ConvertRgb2Gray {
+  template <typename Out, typename In>
+  void operator()(Out *out, const In *in) {
+    vec3 rgb(ConvertNorm<float>(in[0]),
+             ConvertNorm<float>(in[in_channel_stride]),
+             ConvertNorm<float>(in[in_channel_stride*2]));
+    *out = kernels::color::rgb_to_gray<Out>(rgb);
+  }
+  ptrdiff_t in_channel_stride;
+};
+
+struct ConvertGray2Rgb {
+  template <typename Out, typename In>
+  void operator()(Out *out, const In *in) {
+    out[0] = out[out_channel_stride] = out[out_channel_stride*2] = ConvertSatNorm<Out>(*in);
+  }
+  ptrdiff_t out_channel_stride;
+};
+
 /**
  * @brief Converts a data type of a single-channel value.
  */
 template <typename Out, typename In>
 inline void ConvertDType(Out *out, const In *in) {
   *out = ConvertSatNorm<Out>(*in);
+}
+
+
+template <typename Out, typename In>
+void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
+             const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
+             const int64_t *size, int ndim) {
+  DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
+    make_string("Chanel must be the last dim for now", out_channel_dim, in_channel_dim, ndim));
+  std::function<void(Out *, const In *)> convert_func;
+  if (in_format == out_format) {
+    convert_func = [](Out *out, const In *in){ConvertDType(out, in);};
+  } else if (in_format == DALI_RGB && out_format == DALI_GRAY) {
+    convert_func = ConvertRgb2Gray{1};
+  } else if (in_format == DALI_GRAY && out_format == DALI_RGB) {
+    convert_func = ConvertGray2Rgb{1};
+  } else {
+    DALI_FAIL(make_string("No supported conversion from ", in_format, " to ", out_format));
+  }
+  int ndim_new = (in_format == out_format ? ndim : ndim - 1);
+  Convert(out, out_strides, in, in_strides, size, ndim_new, convert_func);
 }
 
 /**
