@@ -102,17 +102,20 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
              const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
              const int64_t *size, int ndim) {
   DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
-    make_string("Chanel must be the last dim for now", out_channel_dim, in_channel_dim, ndim));
+    "Not implemented: currently only channels-last layout is supported");
+
   std::function<void(Out *, const In *)> convert_func;
   if (in_format == out_format) {
-    convert_func = [](Out *out, const In *in){ConvertDType(out, in);};
+    convert_func = &ConvertDType<Out, In>;
   } else if (in_format == DALI_RGB && out_format == DALI_GRAY) {
     convert_func = ConvertRgb2Gray{1};
   } else if (in_format == DALI_GRAY && out_format == DALI_RGB) {
     convert_func = ConvertGray2Rgb{1};
   } else {
-    DALI_FAIL(make_string("No supported conversion from ", in_format, " to ", out_format));
+    DALI_FAIL(make_string("Not implemented: conversion from ", to_string(in_format), " to ",
+              to_string(out_format), " is not supported"));
   }
+
   int ndim_new = (in_format == out_format ? ndim : ndim - 1);
   Convert(out, out_strides, in, in_strides, size, ndim_new, convert_func);
 }
