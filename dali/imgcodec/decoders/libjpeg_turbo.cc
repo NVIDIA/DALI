@@ -22,11 +22,12 @@ namespace imgcodec {
 
 DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
                                                  ImageSource *in,
-                                                 DecodeParams opts) {
+                                                 DecodeParams opts,
+                                                 const ROI &roi) {
   jpeg::UncompressFlags flags;
 
   auto &type = opts.format;
-  auto info = JpegParser().GetInfo(in);
+  auto info = JpegParser{}.GetInfo(in);
 
   flags.components = info.shape[2];
   if (type == DALI_ANY_DATA)
@@ -40,11 +41,12 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
     flags.dct_method = JDCT_FASTEST;
   }
 
-  if ((flags.crop = opts.use_roi)) {
-    flags.crop_y = opts.roi.begin[0];
-    flags.crop_x = opts.roi.begin[1];
-    flags.crop_height = opts.roi.shape()[0];
-    flags.crop_width = opts.roi.shape()[1];
+  if (roi) {
+    flags.crop = true;
+    flags.crop_y = roi.begin[0];
+    flags.crop_x = roi.begin[1];
+    flags.crop_height = roi.shape()[0];
+    flags.crop_width = roi.shape()[1];
   }
 
   const uint8_t *encoded_data;

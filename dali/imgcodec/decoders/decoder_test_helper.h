@@ -53,7 +53,17 @@ class CpuDecoderTestBase : public ::testing::Test {
 
     Tensor<CPUBackend> result;
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
-    TensorShape<> shape = (roi.use_roi() ? roi.shape() : info.shape);
+    TensorShape<> shape;
+    if (roi) {
+      shape = roi.shape();
+      int ndim = shape.sample_dim();
+      if (ndim != info.shape.sample_dim()) {
+        shape.resize(ndim + 1);
+        shape[ndim] = info.shape[ndim];
+      }
+    } else {
+      shape = info.shape;
+    }
     result.Resize(shape, type2id<OutputType>::value);
 
     SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());

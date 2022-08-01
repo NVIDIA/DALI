@@ -26,19 +26,20 @@ namespace imgcodec {
 /**
  * @brief JPEG decoder, using libjpeg-turbo.
  */
-class DLL_PUBLIC LibJpegTurboDecoderInstance
-  : public BatchParallelDecoderImpl<LibJpegTurboDecoderInstance> {
+class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  using Base = BatchParallelDecoderImpl<LibJpegTurboDecoderInstance>;
-  LibJpegTurboDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
+  LibJpegTurboDecoderInstance(int device_id, ThreadPool *tp)
+  : BatchParallelDecoderImpl(device_id, tp) {}
 
-  bool CanDecode(ImageSource *in, DecodeParams opts) override {
+  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) override {
     return opts.format != DALI_YCbCr;  // not supported by libjpeg-turbo
   }
 
-  using Base::Decode;
-
-  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in, DecodeParams opts) override;
+  using BatchParallelDecoderImpl::Decode;
+  DecodeResult Decode(SampleView<CPUBackend> out,
+                      ImageSource *in,
+                      DecodeParams opts,
+                      const ROI &roi) override;
 
   void SetParam(const char *name, const any &value) override {
     if (strcmp(name, "fast_idct") == 0) {
