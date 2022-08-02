@@ -60,6 +60,7 @@ class CpuDecoderTestBase : public ::testing::Test {
       if (ndim != info.shape.sample_dim()) {
         shape.resize(ndim + 1);
         shape[ndim] = info.shape[ndim];
+        assert(shape.sample_dim() == info.shape.sample_dim());
       }
     } else {
       shape = info.shape;

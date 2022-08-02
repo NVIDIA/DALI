@@ -55,7 +55,7 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
     encoded_data = in->RawData<uint8_t>();
     data_size = in->Size();
   } else {
-    DALI_FAIL("InputKind not supported");
+    DALI_FAIL(make_string("InputKind not supported: ", static_cast<int>(in->Kind())));
   }
 
   DecodeResult res;
