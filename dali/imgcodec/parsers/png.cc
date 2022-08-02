@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <optional>
+#include <string>
+#include <vector>
 #include "dali/core/byte_io.h"
 #include "dali/imgcodec/parsers/png.h"
 #include "dali/imgcodec/util/tag.h"
+#include "third_party/opencv/exif/exif.h"
 
 namespace dali {
 namespace imgcodec {
@@ -80,6 +84,40 @@ static IhdrChunk ReadIhdrChunk(InputStream& stream) {
   return chunk;
 }
 
+// Expects the read pointer in the stream to point to the beginning of an EXIF chunk.
+static std::optional<ExifOrientation> ParseExifChunk(InputStream& stream, uint32_t length) {
+  std::vector<uint8_t> chunk(length);
+  stream.ReadAll(chunk.data(), chunk.size());
+
+  cv::ExifReader reader;
+  if (reader.parseExif(chunk.data(), chunk.size())) {
+    auto entry = reader.getTag(cv::ORIENTATION);
+    if (entry.tag != cv::INVALID_TAG) {
+      return static_cast<ExifOrientation>(entry.field_u16);
+    } else {
+      return std::nullopt;
+    }
+  } else {
+    DALI_FAIL("Parsing EXIF data failed");
+  }
+}
+
+static std::optional<ExifOrientation> GetExifOrientation(InputStream& stream) {
+  // Iterate through chunks until eXIf or end of PNG file marker is found.
+  while (true) {
+    uint32_t length = ReadValueBE<uint32_t>(stream);
+    auto chunk_type = stream.ReadOne<chunk_type_field_t>();
+
+    if (chunk_type == tag("eXIf")) {
+      return ParseExifChunk(stream, length);
+    } else if (chunk_type == tag("IEND")) {
+      return std::nullopt;
+    } else {
+      stream.Skip(length + 4);  // Skip chunk's data and the CRC checksum.
+    }
+  }
+}
+
 using png_signature_t = std::array<uint8_t, 8>;
 static constexpr png_signature_t expected_signature = {137, 80, 78, 71, 13, 10, 26, 10};
 
@@ -88,6 +126,7 @@ ImageInfo PngParser::GetInfo(ImageSource *encoded) const {
 
   stream->Skip(expected_signature.size());  // Skip the PNG signature.
   auto ihdr = ReadIhdrChunk(*stream);  // First chunk is required to be IHDR.
+  auto exif_orientation_opt = GetExifOrientation(*stream);  // Try to find EXIF orientation.
 
   ImageInfo info;
   info.shape = {
@@ -95,6 +134,10 @@ ImageInfo PngParser::GetInfo(ImageSource *encoded) const {
     ihdr.width,
     ihdr.GetNumberOfChannels(true)
   };
+  if (exif_orientation_opt) {
+    info.orientation = FromExifOrientation(*exif_orientation_opt);
+  }
+
   return info;
 }
 
