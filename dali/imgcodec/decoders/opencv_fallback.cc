@@ -41,10 +41,12 @@ inline DALIDataType CV2DaliType(int cv_type_id) {
   }
 }
 
-DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
-                                           ImageSource *in,
-                                           DecodeParams opts,
-                                           const ROI &roi) {
+DecodeResult OpenCVDecoderInstance::DecodeImplTask(SampleView<CPUBackend> out,
+                                                   ImageSource *in,
+                                                   DecodeParams opts,
+                                                   const ROI &roi,
+                                                   int thread_idx) {
+  (void) thread_idx;  // this implementation doesn't use per-thread resources
   int flags = 0;
   bool adjust_orientation = false;
 

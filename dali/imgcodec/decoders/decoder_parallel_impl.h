@@ -64,6 +64,26 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     return ParallelDecodeImpl(out, in, opts, rois);
   }
 
+  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in,
+                      DecodeParams opts, const ROI &roi) override {
+    DecodeResult ret;
+    tp_->AddWork([&](int tid) {
+      ret = DecodeImplTask(out, in, opts, roi, tid);
+    }, volume(out.shape()));
+    tp_->RunAll();
+    return ret;
+  }
+
+  DecodeResult Decode(SampleView<GPUBackend> out, ImageSource *in,
+                      DecodeParams opts, const ROI &roi) override {
+    DecodeResult ret;
+    tp_->AddWork([&](int tid) {
+      ret = DecodeImplTask(out, in, opts, roi, tid);
+    }, volume(out.shape()));
+    tp_->RunAll();
+    return ret;
+  }
+
   template <typename Backend>
   std::vector<DecodeResult> ParallelDecodeImpl(span<SampleView<Backend>> out,
                                                cspan<ImageSource *> in,
@@ -74,12 +94,42 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     std::vector<DecodeResult> ret(out.size());
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
-      tp_->AddWork([&, i](int) {
-        ret[i] = Decode(out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
+      tp_->AddWork([&, i](int tid) {
+        ret[i] = DecodeImplTask(out[i], in[i], opts, rois.empty() ? no_roi : rois[i], tid);
       }, volume(out[i].shape()));
     }
     tp_->RunAll();
     return ret;
+  }
+
+  /**
+   * @brief Single image decode CPU implementation, executed in a thread pool context.
+   * 
+   * @param out output sample view
+   * @param in encoded image source
+   * @param opts decoding parameters
+   * @param roi region-of-interest
+   * @param thread_idx thread index in the thread pool
+   * @return std::vector<DecodeResult> 
+   */
+  virtual DecodeResult DecodeImplTask(SampleView<CPUBackend> out, ImageSource *in,
+                                      DecodeParams opts, const ROI &roi, int thread_idx) {
+    throw std::logic_error("Backend not supported");
+  }
+
+  /**
+   * @brief Single image decode GPU implementation, executed in a thread pool context.
+   * 
+   * @param out output sample view
+   * @param in encoded image source
+   * @param opts decoding parameters
+   * @param roi region-of-interest
+   * @param thread_idx thread index in the thread pool
+   * @return std::vector<DecodeResult> 
+   */
+  virtual DecodeResult DecodeImplTask(SampleView<GPUBackend> out, ImageSource *in,
+                                      DecodeParams opts, const ROI &roi, int thread_idx) {
+    throw std::logic_error("Backend not supported");
   }
 };
 
