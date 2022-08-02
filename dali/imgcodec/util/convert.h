@@ -140,6 +140,8 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
     convert_func = ConvertColorSpace(kernels::color::rgb_to_gray<Out, In>, 1, 1);
   } else if (in_format == DALI_GRAY && out_format == DALI_RGB) {
     convert_func = ConvertColorSpace(kernels::color::gray_to_rgb<Out, In>, 1, 1);
+  } else if (in_format == DALI_RGB && out_format == DALI_YCbCr) {
+    convert_func = ConvertColorSpace(kernels::color::rgb_to_ycbcr<Out, In>, 1, 1);
   } else {
     DALI_FAIL(make_string("Not implemented: conversion from ", to_string(in_format), " to ",
               to_string(out_format), " is not supported"));

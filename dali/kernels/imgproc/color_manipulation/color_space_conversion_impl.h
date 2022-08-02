@@ -215,6 +215,13 @@ DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> gray_to_rgb(Input gray) {
   return {gray, gray, gray};
 }
 
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
+  return {itu_r_bt_601::rgb_to_y<Output>(rgb),
+          itu_r_bt_601::rgb_to_cb<Output>(rgb),
+          itu_r_bt_601::rgb_to_cr<Output>(rgb)};
+}
+
 }  // namespace color
 }  // namespace kernels
 }  // namespace dali
