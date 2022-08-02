@@ -99,8 +99,9 @@ struct ConvertColorSpace {
   }
 
   void store(Out *out, const OutVec& source) {
-    for (int i = 0; i < source.size(); i++)
+    for (int i = 0; i < source.size(); i++) {
       out[i * out_channel_stride] = source[i];
+    }
   }
 
   void operator()(Out *out, const In *in) {
@@ -112,7 +113,6 @@ struct ConvertColorSpace {
   ConvertColorSpace(FuncType func,
                     ptrdiff_t out_channel_stride = 1, ptrdiff_t in_channel_stride = 1)
     : func(func), out_channel_stride(out_channel_stride), in_channel_stride(in_channel_stride) {}
-
   FuncType func;
   ptrdiff_t out_channel_stride, in_channel_stride;
 };
@@ -125,6 +125,57 @@ inline void ConvertDType(Out *out, const In *in) {
   *out = ConvertSatNorm<Out>(*in);
 }
 
+template <typename Out, typename In>
+inline std::function<void(Out *, const In *)> GetConversionFunc(
+    DALIImageType out_format, ptrdiff_t out_channel_stride,
+    DALIImageType in_format, ptrdiff_t in_channel_stride) {
+
+  if (in_format == out_format) {
+    return &ConvertDType<Out, In>;
+  } else if ((in_format == DALI_RGB && out_format == DALI_BGR) ||
+             (in_format == DALI_BGR && out_format == DALI_RGB)) {
+    return ConvertColorSpace(kernels::color::rgb_to_bgr<Out, In>,
+                                     out_channel_stride, in_channel_stride);
+  } else if (out_format == DALI_BGR) {
+    auto rgb_func = GetConversionFunc<Out, In>(DALI_RGB, -out_channel_stride,
+                                              in_format, in_channel_stride);
+    return [=](Out *out, const In *in){
+      rgb_func(out + 2 * out_channel_stride, in);
+    };
+  } else if (in_format == DALI_BGR) {
+    auto rgb_func = GetConversionFunc<Out, In>(out_format, out_channel_stride,
+                                              DALI_RGB, -in_channel_stride);
+    return [=](Out *out, const In *in){
+      rgb_func(out, in + 2 * in_channel_stride);
+    };
+  } else if (in_format == DALI_RGB) {
+    if (out_format == DALI_GRAY) {
+      return ConvertColorSpace(kernels::color::rgb_to_gray<Out, In>,
+                               out_channel_stride, in_channel_stride);
+    } else if (out_format == DALI_YCbCr) {
+      return ConvertColorSpace(kernels::color::rgb_to_ycbcr<Out, In>,
+                               out_channel_stride, in_channel_stride);
+    }
+  } else if (in_format == DALI_GRAY) {
+    if (out_format == DALI_RGB) {
+      return ConvertColorSpace(kernels::color::gray_to_rgb<Out, In>,
+                               out_channel_stride, in_channel_stride);
+    } else if (out_format == DALI_YCbCr) {
+      return ConvertColorSpace(kernels::color::itu_r_bt_601::gray_to_ycbcr<Out, In>,
+                               out_channel_stride, in_channel_stride);
+    }
+  } else if (in_format == DALI_YCbCr) {
+    if (out_format == DALI_RGB) {
+      return ConvertColorSpace(kernels::color::itu_r_bt_601::ycbcr_to_rgb<Out, In>,
+                               out_channel_stride, in_channel_stride);
+    } else if (out_format == DALI_GRAY) {
+      return ConvertColorSpace(kernels::color::itu_r_bt_601::ycbcr_to_gray<Out, In>,
+                               out_channel_stride, in_channel_stride);
+    }
+  }
+  throw std::logic_error(make_string("Not implemented: conversion from ", to_string(in_format),
+                         " to ", to_string(out_format), " is not supported"));
+}
 
 template <typename Out, typename In>
 void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
@@ -133,22 +184,9 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
   DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
     "Not implemented: currently only channels-last layout is supported");
 
-  std::function<void(Out *, const In *)> convert_func;
-  if (in_format == out_format) {
-    convert_func = &ConvertDType<Out, In>;
-  } else if (in_format == DALI_RGB && out_format == DALI_GRAY) {
-    convert_func = ConvertColorSpace(kernels::color::rgb_to_gray<Out, In>, 1, 1);
-  } else if (in_format == DALI_GRAY && out_format == DALI_RGB) {
-    convert_func = ConvertColorSpace(kernels::color::gray_to_rgb<Out, In>, 1, 1);
-  } else if (in_format == DALI_RGB && out_format == DALI_YCbCr) {
-    convert_func = ConvertColorSpace(kernels::color::rgb_to_ycbcr<Out, In>, 1, 1);
-  } else {
-    DALI_FAIL(make_string("Not implemented: conversion from ", to_string(in_format), " to ",
-              to_string(out_format), " is not supported"));
-  }
-
   int ndim_new = (in_format == out_format ? ndim : ndim - 1);
-  Convert(out, out_strides, in, in_strides, size, ndim_new, convert_func);
+  auto conversion_func = GetConversionFunc<Out, In>(out_format, 1, in_format, 1);
+  Convert(out, out_strides, in, in_strides, size, ndim_new, conversion_func);
 }
 
 /**

@@ -30,21 +30,20 @@ namespace test {
 namespace {
 const auto &dali_extra = dali::testing::dali_extra_path();
 auto dir = dali_extra + "/db/imgcodec/colorspaces/";
+auto img = "cat-111793_640";
 
-auto rgb_path = dir + "/cat-111793_640_rgb_uint8.npy";
-auto gray_path = dir + "/cat-111793_640_gray_uint8.npy";
-auto ycbcr_path = dir + "/cat-111793_640_ycbcr_uint8.npy";
+std::string image_path(const std::string &name, const std::string &type_name) {
+  return make_string(dir, img, "_", name, "_", type_name, ".npy");
+}
 
-auto rgb_ref_path = dir + "/cat-111793_640_rgb_float.npy";
-auto gray_ref_path = dir + "/cat-111793_640_gray_float.npy";
-auto ycbcr_ref_path = dir + "/cat-111793_640_ycbcr_float.npy";
 }  // namespace
 
-class ColorConversionTest : public NumpyDecoderTestBase<uint8_t> {
+template <typename ImageType>
+class ColorConversionTest : public NumpyDecoderTestBase<ImageType> {
  public:
   Tensor<CPUBackend> RunConvert(const std::string& input_path,
                                 DALIImageType input_format, DALIImageType output_format) {
-    auto input = ReadReferenceFrom(input_path);
+    auto input = this->ReadReferenceFrom(input_path);
     ConstSampleView<CPUBackend> input_view(input.raw_mutable_data(), input.shape(), input.type());
 
     Tensor<CPUBackend> output;
@@ -59,11 +58,35 @@ class ColorConversionTest : public NumpyDecoderTestBase<uint8_t> {
     return output;
   }
 
-  void Test(const std::string& input_path,
+  void Test(const std::string& input_name,
             DALIImageType input_format, DALIImageType output_format,
-            const std::string& reference_path) {
-    AssertClose(RunConvert(input_path, input_format, output_format),
-                ReadReferenceFrom(reference_path), 0.501);
+            const std::string& reference_name) {
+    auto input_path = this->InputImagePath(input_name);
+    auto reference_path = this->ReferencePath(reference_name);
+    this->AssertClose(this->RunConvert(input_path, input_format, output_format),
+                      this->ReadReferenceFrom(reference_path), this->Eps());
+  }
+
+  std::string InputImagePath(const std::string &name) {
+    return image_path(name, this->TypeName());
+  }
+
+  std::string ReferencePath(const std::string &name) {
+    return image_path(name, "float");
+  }
+
+  std::string TypeName() {
+    if (std::is_same_v<uint8_t, ImageType>) return "uint8";
+    else if (std::is_same_v<float, ImageType>) return "float";
+    else
+      DALI_FAIL("Unsupported ImageType in ColorConversionTest");
+  }
+
+  double Eps() {
+    if (std::is_same_v<uint8_t, ImageType>) return 3.001;
+    else if (std::is_same_v<float, ImageType>) return 0.001;
+    else
+      DALI_FAIL("Unsupported ImageType in ColorConversionTest");
   }
 
  protected:
@@ -76,27 +99,55 @@ class ColorConversionTest : public NumpyDecoderTestBase<uint8_t> {
   }
 };
 
-TEST_F(ColorConversionTest, RgbToGray) {
-  Test(rgb_path, DALI_RGB, DALI_GRAY, gray_ref_path);
+using ImageTypes = ::testing::Types<uint8_t, float>;
+TYPED_TEST_SUITE(ColorConversionTest, ImageTypes);
+
+TYPED_TEST(ColorConversionTest, RgbToGray) {
+  this->Test("rgb", DALI_RGB, DALI_GRAY, "gray");
 }
 
-TEST_F(ColorConversionTest, GrayToRgb) {
-  auto rgb = RunConvert(gray_path, DALI_GRAY, DALI_RGB);
-
-  auto w = rgb.shape()[0], h = rgb.shape()[1];
-  auto red   = Crop(rgb, {{0, 0, 0}, {w, h, 1}});
-  auto green = Crop(rgb, {{0, 0, 1}, {w, h, 2}});
-  auto blue  = Crop(rgb, {{0, 0, 2}, {w, h, 3}});
-
-  auto gray = ReadReferenceFrom(gray_path);
-
-  AssertClose(red, gray, 0.501);
-  AssertClose(green, gray, 0.501);
-  AssertClose(blue, gray, 0.501);
+TYPED_TEST(ColorConversionTest, GrayToRgb) {
+  this->Test("gray", DALI_GRAY, DALI_RGB, "rgb_from_gray");
 }
 
-TEST_F(ColorConversionTest, RgbToYcbCr) {
-  Test(rgb_path, DALI_RGB, DALI_YCbCr, ycbcr_ref_path);
+TYPED_TEST(ColorConversionTest, RgbToYCbCr) {
+  this->Test("rgb", DALI_RGB, DALI_YCbCr, "ycbcr");
+}
+
+TYPED_TEST(ColorConversionTest, YCbCrToRgb) {
+  this->Test("ycbcr", DALI_YCbCr, DALI_RGB, "rgb");
+}
+
+TYPED_TEST(ColorConversionTest, YCbCrToGray) {
+  this->Test("ycbcr", DALI_YCbCr, DALI_GRAY, "gray");
+}
+
+TYPED_TEST(ColorConversionTest, GrayToYCbCr) {
+  this->Test("gray", DALI_GRAY, DALI_YCbCr, "ycbcr_from_gray");
+}
+
+TYPED_TEST(ColorConversionTest, RgbToBgr) {
+  this->Test("rgb", DALI_RGB, DALI_BGR, "bgr");
+}
+
+TYPED_TEST(ColorConversionTest, BgrToRgb) {
+  this->Test("bgr", DALI_BGR, DALI_RGB, "rgb");
+}
+
+TYPED_TEST(ColorConversionTest, BgrToGray) {
+  this->Test("bgr", DALI_BGR, DALI_GRAY, "gray");
+}
+
+TYPED_TEST(ColorConversionTest, BgrToYCbCr) {
+  this->Test("bgr", DALI_BGR, DALI_YCbCr, "ycbcr");
+}
+
+TYPED_TEST(ColorConversionTest, GrayToBgr) {
+  this->Test("gray", DALI_GRAY, DALI_BGR, "bgr_from_gray");
+}
+
+TYPED_TEST(ColorConversionTest, YCbCrToBgr) {
+  this->Test("ycbcr", DALI_YCbCr, DALI_BGR, "bgr");
 }
 
 }  // namespace test

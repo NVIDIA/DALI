@@ -39,6 +39,11 @@ DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, float> x) {
   return x;
 }
 
+template <typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE float norm(Input x) {
+  return norm(vec<1, Input>{x})[0];
+}
+
 }  // namespace detail
 
 // Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
@@ -111,7 +116,7 @@ DALI_HOST_DEV DALI_FORCEINLINE Output gray_to_y(Input y_in) {
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE uint8_t gray_to_y(uint8_t y) {
   constexpr float scale = 0.257f + 0.504f + 0.098f;
-  return ConvertSat<uint8_t>(y * scale + 0.0625f);
+  return ConvertSat<uint8_t>(y * scale + 16);
 }
 
 template <typename Output, typename Input>
@@ -135,6 +140,17 @@ DALI_HOST_DEV DALI_FORCEINLINE vec<3, uint8_t> ycbcr_to_rgb(vec<3, uint8_t> ycbc
   auto g = ConvertSat<uint8_t>(tmp_y - 0.813f * tmp_r - 0.392f * tmp_b);
   auto b = ConvertSat<uint8_t>(tmp_y + 2.017f * tmp_b);
   return {r, g, b};
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE Output ycbcr_to_gray(vec<3, Input> ycbcr) {
+  return y_to_gray<Output>(ycbcr[0]);
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> gray_to_ycbcr(Input gray) {
+  auto chroma = ConvertNorm<Output>(0.5f);
+  return {gray_to_y<Output>(gray), chroma, chroma};
 }
 
 }  // namespace itu_r_bt_601
@@ -220,6 +236,11 @@ DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
   return {itu_r_bt_601::rgb_to_y<Output>(rgb),
           itu_r_bt_601::rgb_to_cb<Output>(rgb),
           itu_r_bt_601::rgb_to_cr<Output>(rgb)};
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> rgb_to_bgr(vec<3, Input> rgb) {
+  return {rgb[2], rgb[1], rgb[0]};
 }
 
 }  // namespace color
