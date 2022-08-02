@@ -50,7 +50,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
         curl -O https://bootstrap.pypa.io/get-pip.py; \
     fi && python3 get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
-    pip install clang && pip install libclang && \
+    pip install clang && pip install libclang flake8 && \
     rm -rf /root/.cache/pip/ && \
     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
     ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
