@@ -18,14 +18,14 @@ limitations under the License.
 // This file defines functions to compress and uncompress JPEG data
 // to and from memory, as well as some direct manipulations of JPEG string
 
-#include "dali/image/jpeg_mem.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
 #include <setjmp.h>
 #include <cstring>
 #include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
-#include "dali/image/jpeg_handle.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_handle.h"
 #include "dali/core/error_handling.h"
 
 namespace dali {
