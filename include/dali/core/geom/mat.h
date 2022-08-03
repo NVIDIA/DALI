@@ -101,7 +101,7 @@ struct mat {
   #if MAT_LAYOUT_ROW_MAJOR
     return m[r];
   #else
-    vec<cols, Element> ret = {};
+    vec<cols, Element> ret{};
     for (int j = 0; j < cols; j++)
       ret[j] = at(r, j);
     return ret;
@@ -111,7 +111,7 @@ struct mat {
   DALI_HOST_DEV DALI_FORCEINLINE
   constexpr auto col(int c) const {
   #if MAT_LAYOUT_ROW_MAJOR
-    vec<rows, Element> ret = {};
+    vec<rows, Element> ret{};
     for (int i = 0; i < rows; i++)
       ret[i] = at(i, c);
     return ret;
@@ -170,7 +170,7 @@ struct mat {
 
   DALI_HOST_DEV
   constexpr mat<cols, rows, Element> T() const {
-    mat<cols, rows, Element> retval = {};
+    mat<cols, rows, Element> retval{};
     MAT_ELEMENT_LOOP(i, j)
       retval(j, i) = at(i, j);
     return retval;
@@ -179,7 +179,7 @@ struct mat {
   template <typename U>
   DALI_HOST_DEV
   constexpr mat<rows, cols, U> cast() const {
-    mat<rows, cols, U> result = {};
+    mat<rows, cols, U> result{};
     MAT_ELEMENT_LOOP(i, j)
       result(i, j) = static_cast<U>(at(i, j));
     return result;
@@ -259,9 +259,9 @@ struct mat {
 
   template <typename U, int rhs_cols>
   DALI_HOST_DEV
-  inline auto operator*(const mat<cols, rhs_cols, U> &rhs) const {
+  constexpr auto operator*(const mat<cols, rhs_cols, U> &rhs) const {
     using R = promote_vec_t<Element, U>;
-    mat<rows, rhs_cols, R> result = {};
+    mat<rows, rhs_cols, R> result{};
   #if MAT_LAYOUT_ROW_MAJOR
     for (int i = 0; i < rows; i++) {
       for (int j = 0; j < rhs_cols; j++) {
@@ -280,10 +280,10 @@ struct mat {
 
   template <typename U>
   DALI_HOST_DEV
-  inline auto operator*(const vec<cols, U> &v) const {
+  constexpr auto operator*(const vec<cols, U> &v) const {
     using R = promote_vec_t<Element, U>;
   #if MAT_LAYOUT_ROW_MAJOR
-    vec<rows, R> result;
+    vec<rows, R> result{};
     for (int i = 0; i < rows; i++) {
       R s = m[i][0] * v[0];
       for (int j = 1; j < cols; j++)
@@ -337,7 +337,7 @@ constexpr bool operator!=(const mat<rows, cols, T> &a, const mat<rows, cols, U> 
 template <int rows, int cols, int in_rows, int in_cols, typename Element>
 DALI_HOST_DEV DALI_FORCEINLINE
 constexpr auto sub(const mat<in_rows, in_cols, Element> &m, int r = 0, int c = 0) {
-  mat<rows, cols, Element> result = {};
+  mat<rows, cols, Element> result{};
   MAT_ELEMENT_LOOP(i, j)
     result(i, j) = m(i+r, j+c);
   return result;
@@ -349,7 +349,7 @@ constexpr auto sub(const mat<in_rows, in_cols, Element> &m, int r = 0, int c = 0
   constexpr auto operator op(const mat<rows, cols, T1> &a,    \
                              const mat<rows, cols, T2> &b) {  \
     using R = promote_vec_t<T1, T2>;                          \
-    mat<rows, cols, R> result;                                \
+    mat<rows, cols, R> result{};                              \
     MAT_ELEMENT_LOOP(i, j)                                    \
       result(i, j) = a(i, j) op b(i, j);                      \
     return result;                                            \
@@ -361,7 +361,7 @@ constexpr auto sub(const mat<in_rows, in_cols, Element> &m, int r = 0, int c = 0
   DALI_HOST_DEV                                                         \
   constexpr std::enable_if_t<is_scalar<T2>::value, mat<rows, cols, R>>  \
     operator op(const mat<rows, cols, T1> &a, const T2 &b) {            \
-    mat<rows, cols, R> result;                                          \
+    mat<rows, cols, R> result{};                                        \
     MAT_ELEMENT_LOOP(i, j)                                              \
       result(i, j) = a(i, j) op b;                                      \
     return result;                                                      \
@@ -373,7 +373,7 @@ constexpr auto sub(const mat<in_rows, in_cols, Element> &m, int r = 0, int c = 0
   DALI_HOST_DEV                                                         \
   constexpr std::enable_if_t<is_scalar<T1>::value, mat<rows, cols, R>>  \
   operator op(const T1 &a, const mat<rows, cols, T2> &b) {              \
-    mat<rows, cols, R> result;                                          \
+    mat<rows, cols, R> result{};                                        \
     MAT_ELEMENT_LOOP(i, j)                                              \
       result(i, j) = a op b(i, j);                                      \
     return result;                                                      \
