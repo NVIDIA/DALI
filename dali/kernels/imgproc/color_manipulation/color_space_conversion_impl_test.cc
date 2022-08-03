@@ -19,27 +19,70 @@ namespace dali {
 namespace kernels {
 namespace color {
 
-namespace jpeg {
+namespace {
+  template <typename T>
+  constexpr double to_norm_fp(T x) {
+    return is_fp_or_half<T>::value ? 1.0 : static_cast<double>(std::numeric_limits<T>::max());
+  }
+
+  template <typename T>
+  constexpr T from_norm_fp(T x) {
+    return is_fp_or_half<T>::value ? 1.0 : static_cast<double>(std::numeric_limits<T>::max() * x);
+  }
+
+  template <typename T>
+  constexpr float chroma_bias() {
+    return 0.5f * detail::bias_scale<T>();
+  }
+
+  static_assert(chroma_bias<float>()    == 0.5f);
+  static_assert(chroma_bias<uint8_t>()  == 128.0f);
+  static_assert(chroma_bias<int8_t>()   == 64.0f);
+  static_assert(chroma_bias<uint16_t>() == 32768.0f);
+  static_assert(chroma_bias<int16_t>()  == 16384.0f);
+  static_assert(chroma_bias<uint32_t>() == static_cast<float>(0x80000000u));
+  static_assert(chroma_bias<int32_t>()  == static_cast<float>(0x40000000));
+
+}  // namespace
+
 namespace test {
 
-template <typename Out, typename In>
-vec<3, Out> rgb_to_ycbcr(vec<3, In> rgb) {
-  return { rgb_to_y<Out, In>(rgb), rgb_to_cb<Out, In>(rgb), rgb_to_cr<Out, In>(rgb) };
-}
+struct itu_ref {
 
-template <typename T>
-vec<3, T> rgb_to_ycbcr(vec<3, T> rgb) {
-  return rgb_to_ycbcr<T, T>(rgb);
-}
+  template <int out_bits = 0>
+  static constexpr vec3 rgb_to_ycbcr(vec3 rgb) {
+    double r = rgb[0];
+    double g = rgb[1];
+    double b = rgb[2];
+    double y = 0.299 * r + 0.587 * g + 0.114 * b;
+    double cr = (r - y) * (0.5 / (1 - 0.299));  // scale so that R has a weight of 0.5
+    double cb = (b - y) * (0.5 / (1 - 0.114));  // scale so that B has a weight of 0.5
 
-TEST(ColorSpaceConversionTest, rgb_to_ycbcr_u8) {
+    double ybias = 1/16.0;
+    double cbias = 0.5f;
+    if (out_bits > 0) {
+      ybias = 1 << (out_bits - 4);
+      cbias = 1 << (out_bits - 1);
+    }
 
-  std::cout << (ivec3)rgb_to_ycbcr(u8vec3(128, 128, 128)) << std::endl;
-  std::cout << (ivec3)rgb_to_ycbcr(u8vec3(127, 128, 128)) << std::endl;
-  std::cout << (ivec3)rgb_to_ycbcr(u8vec3(128, 127, 128)) << std::endl;
-  std::cout << (ivec3)rgb_to_ycbcr(u8vec3(128, 128, 127)) << std::endl;
+    return vec3(
+      y  * 219/255 + ybias,
+      cb * 224/255 + cbias,
+      cr * 224/255 + cbias
+    );
+  }
 
-  /*EXPECT_EQ(rgb_to_y(u8vec3(0, 0, 0)), 16);
+};
+
+static_assert(itu_ref::rgb_to_ycbcr<8>({0, 0, 0}) == vec3(16, 128, 128));
+static_assert(itu_ref::rgb_to_ycbcr<8>({255, 255, 255}) == vec3(235, 128, 128));
+
+
+TEST(ColorSpaceConversion_ITU_R_BT601_Test, rgb_to_ycbcr_u8) {
+  auto rgb_to_y  = [](auto rgb) { return itu_r_bt_601::rgb_to_y<uint8_t>(rgb); };
+  auto rgb_to_cb = [](auto rgb) { return itu_r_bt_601::rgb_to_cb<uint8_t>(rgb); };
+  auto rgb_to_cr = [](auto rgb) { return itu_r_bt_601::rgb_to_cr<uint8_t>(rgb); };
+  EXPECT_EQ(rgb_to_y(u8vec3(0, 0, 0)), 16);
   EXPECT_EQ(rgb_to_y(u8vec3(255, 255, 255)), 235);
   EXPECT_EQ(rgb_to_y(u8vec3(255, 0, 0)), 82);
   EXPECT_EQ(rgb_to_y(u8vec3(0, 255, 0)), 145);
@@ -61,17 +104,7 @@ TEST(ColorSpaceConversionTest, rgb_to_ycbcr_u8) {
   EXPECT_EQ(rgb_to_cb(u8vec3(  0,   0, 255)), 240);
   EXPECT_EQ(rgb_to_cr(u8vec3(  0,   0, 255)), 110);
   EXPECT_EQ(rgb_to_cb(u8vec3(255,   0, 255)), 202);
-  EXPECT_EQ(rgb_to_cr(u8vec3(255,   0, 255)), 222);*/
-}
-/*
-template <typename T>
-constexpr double to_norm_fp(T x) {
-  return is_fp_or_half<T>::value ? 1.0 : static_cast<double>(std::numeric_limits<T>::max());
-}
-
-template <typename T>
-constexpr T from_norm_fp(T x) {
-  return is_fp_or_half<T>::value ? 1.0 : static_cast<double>(std::numeric_limits<T>::max() * x);
+  EXPECT_EQ(rgb_to_cr(u8vec3(255,   0, 255)), 222);
 }
 
 template <typename TypeParam>
@@ -94,39 +127,38 @@ using Backends = ::testing::Types<
 TYPED_TEST_SUITE(ColorSpaceConversionTypedTest, Backends);
 
 TYPED_TEST(ColorSpaceConversionTypedTest, rgb_to_ycbcr) {
+  using Out = typename TypeParam::first_type;
+  using In = typename TypeParam::second_type;
 
+  using ref = itu_ref;
+  using method = itu_r_bt_601;
 
-  auto rgb = [](double r, double g, double b) {
-    return vec
+  constexpr int bits = std::is_integral<Out>::value
+    ? sizeof(Out) * 8 - std::is_signed<Out>::value : 0;
+
+  double eps = std::is_integral<Out>::value ? 0.51 : 1e-3;
+
+  auto make_rgb = [](float r, float g, float b) {
+    return vec<3, In>(vec<3>(r, g, b) * detail::scale_factor<float, In>());
+  };
+  auto make_rgb_ref = [](float r, float g, float b) {
+    return vec<3>(r, g, b) * detail::scale_factor<float, Out>();
   };
 
-  EXPECT_EQ(rgb_to_y(rgb(0, 0, 0)), scale(16));
-  EXPECT_EQ(rgb_to_y(rgb(1, 1, 1)), scale(235));
-  EXPECT_EQ(rgb_to_y(rgb(1, 0, 0)), scale(82));
-  EXPECT_EQ(rgb_to_y(rgb(0, 1, 0)), scale(145));
-  EXPECT_EQ(rgb_to_y(rgb(0, 0, 1)), scale(41));
 
-  EXPECT_EQ(rgb_to_cb(rgb(0, 0, 0)), scale(128));
-  EXPECT_EQ(rgb_to_cr(rgb(0, 0, 0)), scale(128));
-  EXPECT_EQ(rgb_to_cb(rgb(1, 1, 1)), scale(128));
-  EXPECT_EQ(rgb_to_cr(rgb(1, 1, 1)), scale(128));
+  auto check = [&](float r, float g, float b) {
+    auto rgb = make_rgb(r, g ,b);
+    auto ycbcr = ref::rgb_to_ycbcr<bits>(make_rgb_ref(r, g, b));
+    EXPECT_NEAR(method::rgb_to_y<Out>(rgb) , ycbcr[0], eps) << "RGB = " << vec3(rgb);
+    EXPECT_NEAR(method::rgb_to_cb<Out>(rgb), ycbcr[1], eps) << "RGB = " << vec3(rgb);
+    EXPECT_NEAR(method::rgb_to_cr<Out>(rgb), ycbcr[2], eps) << "RGB = " << vec3(rgb);
+  };
 
-  EXPECT_EQ(rgb_to_cb(rgb(1, 0, 0)), scale(90));
-  EXPECT_EQ(rgb_to_cr(rgb(1, 0, 0)), scale(240));
-  EXPECT_EQ(rgb_to_cb(rgb(1, 1, 0)), scale(16));
-  EXPECT_EQ(rgb_to_cr(rgb(1, 1, 0)), scale(146));
-  EXPECT_EQ(rgb_to_cb(rgb(0, 1, 0)), scale(54));
-  EXPECT_EQ(rgb_to_cr(rgb(0, 1, 0)), scale(34));
-  EXPECT_EQ(rgb_to_cb(rgb(0, 1, 1)), scale(166));
-  EXPECT_EQ(rgb_to_cr(rgb(0, 1, 1)), scale(16));
-  EXPECT_EQ(rgb_to_cb(rgb(0, 0, 1)), scale(240));
-  EXPECT_EQ(rgb_to_cr(rgb(0, 0, 1)), scale(110));
-  EXPECT_EQ(rgb_to_cb(rgb(1, 0, 1)), scale(202));
-  EXPECT_EQ(rgb_to_cr(rgb(1, 0, 1)), scale(222));
-}*/
+  check(0, 0, 0);
+  check(1, 1, 1);
+}
 
 }  // namespace test
-}  // namespace itu_r_bt_601
 }  // namespace color
 }  // namespace kernels
 }  // namespace dali
