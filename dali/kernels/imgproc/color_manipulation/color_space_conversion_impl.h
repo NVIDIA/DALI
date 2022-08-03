@@ -134,27 +134,26 @@ struct itu_r_bt_601 {
     auto b = ConvertSatNorm<Output>(tmp_y + 2.017f * tmp_b);
     return {r, g, b};
   }
-
 };  // struct itu_r_bt_601
 
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE
 uint8_t itu_r_bt_601::rgb_to_y<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.257f, 0.504f, 0.098f);
+  constexpr vec3 coeffs(0.25678823529f, 0.50412941176f, 0.09790588235f);
   return ConvertSat<uint8_t>(dot(coeffs, rgb) + 16.0f);
 }
 
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE
 uint8_t itu_r_bt_601::rgb_to_cb<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(-0.148f, -0.291f, 0.439f);
+  constexpr vec3 coeffs(-0.14822289945f, -0.29099278682f, 0.43921568627f);
   return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
 }
 
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE
 uint8_t itu_r_bt_601::rgb_to_cr<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.439f, -0.368f, -0.071f);
+  constexpr vec3 coeffs(0.43921568627f, -0.36778831435f, -0.07142737192);
   return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
 }
 

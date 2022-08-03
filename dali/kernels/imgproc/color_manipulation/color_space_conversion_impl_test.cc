@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <limits>
+#include <utility>
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
 namespace dali {
@@ -48,7 +50,6 @@ namespace {
 namespace test {
 
 struct itu_ref {
-
   template <int out_bits = 0>
   static constexpr vec3 rgb_to_ycbcr(vec3 rgb) {
     double r = rgb[0];
@@ -65,13 +66,12 @@ struct itu_ref {
       cbias = 1 << (out_bits - 1);
     }
 
-    return vec3(
+    return {
       y  * 219/255 + ybias,
       cb * 224/255 + cbias,
       cr * 224/255 + cbias
-    );
+    };
   }
-
 };
 
 static_assert(itu_ref::rgb_to_ycbcr<8>({0, 0, 0}) == vec3(16, 128, 128));
@@ -82,29 +82,29 @@ TEST(ColorSpaceConversion_ITU_R_BT601_Test, rgb_to_ycbcr_u8) {
   auto rgb_to_y  = [](auto rgb) { return itu_r_bt_601::rgb_to_y<uint8_t>(rgb); };
   auto rgb_to_cb = [](auto rgb) { return itu_r_bt_601::rgb_to_cb<uint8_t>(rgb); };
   auto rgb_to_cr = [](auto rgb) { return itu_r_bt_601::rgb_to_cr<uint8_t>(rgb); };
-  EXPECT_EQ(rgb_to_y(u8vec3(0, 0, 0)), 16);
-  EXPECT_EQ(rgb_to_y(u8vec3(255, 255, 255)), 235);
-  EXPECT_EQ(rgb_to_y(u8vec3(255, 0, 0)), 82);
-  EXPECT_EQ(rgb_to_y(u8vec3(0, 255, 0)), 145);
-  EXPECT_EQ(rgb_to_y(u8vec3(0, 0, 255)), 41);
+  EXPECT_EQ(rgb_to_y(u8vec3{0, 0, 0}), 16);
+  EXPECT_EQ(rgb_to_y(u8vec3{255, 255, 255}), 235);
+  EXPECT_EQ(rgb_to_y(u8vec3{255, 0, 0}), 81);
+  EXPECT_EQ(rgb_to_y(u8vec3{0, 255, 0}), 145);
+  EXPECT_EQ(rgb_to_y(u8vec3{0, 0, 255}), 41);
 
-  EXPECT_EQ(rgb_to_cb(u8vec3(0, 0, 0)), 128);
-  EXPECT_EQ(rgb_to_cr(u8vec3(0, 0, 0)), 128);
-  EXPECT_EQ(rgb_to_cb(u8vec3(255, 255, 255)), 128);
-  EXPECT_EQ(rgb_to_cr(u8vec3(255, 255, 255)), 128);
+  EXPECT_EQ(rgb_to_cb(u8vec3{0, 0, 0}), 128);
+  EXPECT_EQ(rgb_to_cr(u8vec3{0, 0, 0}), 128);
+  EXPECT_EQ(rgb_to_cb(u8vec3{255, 255, 255}), 128);
+  EXPECT_EQ(rgb_to_cr(u8vec3{255, 255, 255}), 128);
 
-  EXPECT_EQ(rgb_to_cb(u8vec3(255,   0,   0)), 90);
-  EXPECT_EQ(rgb_to_cr(u8vec3(255,   0,   0)), 240);
-  EXPECT_EQ(rgb_to_cb(u8vec3(255, 255,   0)), 16);
-  EXPECT_EQ(rgb_to_cr(u8vec3(255, 255,   0)), 146);
-  EXPECT_EQ(rgb_to_cb(u8vec3(  0, 255,   0)), 54);
-  EXPECT_EQ(rgb_to_cr(u8vec3(  0, 255,   0)), 34);
-  EXPECT_EQ(rgb_to_cb(u8vec3(  0, 255, 255)), 166);
-  EXPECT_EQ(rgb_to_cr(u8vec3(  0, 255, 255)), 16);
-  EXPECT_EQ(rgb_to_cb(u8vec3(  0,   0, 255)), 240);
-  EXPECT_EQ(rgb_to_cr(u8vec3(  0,   0, 255)), 110);
-  EXPECT_EQ(rgb_to_cb(u8vec3(255,   0, 255)), 202);
-  EXPECT_EQ(rgb_to_cr(u8vec3(255,   0, 255)), 222);
+  EXPECT_EQ(rgb_to_cb(u8vec3{255,   0,   0}), 90);
+  EXPECT_EQ(rgb_to_cr(u8vec3{255,   0,   0}), 240);
+  EXPECT_EQ(rgb_to_cb(u8vec3{255, 255,   0}), 16);
+  EXPECT_EQ(rgb_to_cr(u8vec3{255, 255,   0}), 146);
+  EXPECT_EQ(rgb_to_cb(u8vec3{  0, 255,   0}), 54);
+  EXPECT_EQ(rgb_to_cr(u8vec3{  0, 255,   0}), 34);
+  EXPECT_EQ(rgb_to_cb(u8vec3{  0, 255, 255}), 166);
+  EXPECT_EQ(rgb_to_cr(u8vec3{  0, 255, 255}), 16);
+  EXPECT_EQ(rgb_to_cb(u8vec3{  0,   0, 255}), 240);
+  EXPECT_EQ(rgb_to_cr(u8vec3{  0,   0, 255}), 110);
+  EXPECT_EQ(rgb_to_cb(u8vec3{255,   0, 255}), 202);
+  EXPECT_EQ(rgb_to_cr(u8vec3{255,   0, 255}), 222);
 }
 
 template <typename TypeParam>
@@ -136,10 +136,10 @@ TYPED_TEST(ColorSpaceConversionTypedTest, rgb_to_ycbcr) {
   constexpr int bits = std::is_integral<Out>::value
     ? sizeof(Out) * 8 - std::is_signed<Out>::value : 0;
 
-  double eps = std::is_integral<Out>::value ? 0.51 : 1e-3;
+  double eps = std::is_integral<Out>::value ? 0.52 : 1e-3;
 
   auto make_rgb = [](float r, float g, float b) {
-    return vec<3, In>(vec<3>(r, g, b) * detail::scale_factor<float, In>());
+    return vec<3, In>(ConvertSatNorm<In>(r), ConvertSatNorm<In>(g), ConvertSatNorm<In>(b));
   };
   auto make_rgb_ref = [](float r, float g, float b) {
     return vec<3>(r, g, b) * detail::scale_factor<float, Out>();
@@ -147,15 +147,26 @@ TYPED_TEST(ColorSpaceConversionTypedTest, rgb_to_ycbcr) {
 
 
   auto check = [&](float r, float g, float b) {
-    auto rgb = make_rgb(r, g ,b);
+    auto rgb = make_rgb(r, g, b);
     auto ycbcr = ref::rgb_to_ycbcr<bits>(make_rgb_ref(r, g, b));
     EXPECT_NEAR(method::rgb_to_y<Out>(rgb) , ycbcr[0], eps) << "RGB = " << vec3(rgb);
     EXPECT_NEAR(method::rgb_to_cb<Out>(rgb), ycbcr[1], eps) << "RGB = " << vec3(rgb);
     EXPECT_NEAR(method::rgb_to_cr<Out>(rgb), ycbcr[2], eps) << "RGB = " << vec3(rgb);
   };
 
-  check(0, 0, 0);
-  check(1, 1, 1);
+  float h = 1.0f * ConvertNorm<In>(0.5) / ConvertNorm<In>(1.0);
+
+  check(0.0f, 0.0f, 0.0f);
+  check(h, h, h);
+  check(1.0f, 1.0f, 1.0f);
+
+  check(1.0f, 0.0f, 0.0f);
+  check(0.0f, 1.0f, 0.0f);
+  check(0.0f, 0.0f, 1.0f);
+
+  check(1.0f, 1.0f, 0.0f);
+  check(0.0f, 1.0f, 1.0f);
+  check(1.0f, 0.0f, 1.0f);
 }
 
 }  // namespace test
