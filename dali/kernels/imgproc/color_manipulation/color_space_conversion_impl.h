@@ -185,43 +185,61 @@ constexpr vec<3, uint8_t> ycbcr_to_rgb<uint8_t, uint8_t>(vec<3, uint8_t> ycbcr) 
 namespace jpeg {
 
 template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb));
+DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs = vec3(0.299f, 0.587f, 0.114f) * detail::scale_factor<Input, Output>();
+  float y = dot(coeffs, rgb_in);
+  return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
 }
 
 template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_y(vec<3, uint8_t> rgb) {
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr uint8_t rgb_to_y<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
   constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
   return ConvertSat<uint8_t>(dot(coeffs, rgb));
 }
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cb(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr uint8_t rgb_to_y(vec<3, uint8_t> rgb) {
+  return rgb_to_y<uint8_t, uint8_t>(rgb);
 }
 
 template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
+DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_cb(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs = vec3(-0.16873589f, -0.33126411f, 0.5f) * detail::scale_factor<Input, Output>();
+  constexpr float bias = 0.5f * detail::scale_factor<float, Output>();
+  float y = dot(coeffs, rgb_in) + bias;
+  return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
 }
 
 template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
+DALI_HOST_DEV DALI_FORCEINLINE constexpr uint8_t rgb_to_cb<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
+  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128);
 }
+
+DALI_HOST_DEV DALI_FORCEINLINE constexpr uint8_t rgb_to_cb(vec<3, uint8_t> rgb) {
+  return rgb_to_cb<uint8_t, uint8_t>(rgb);
+}
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_cr(vec<3, Input> rgb_in) {
+  constexpr vec3 coeffs = vec3(0.5f, -0.41868759f, -0.08131241f) * detail::scale_factor<Input, Output>();
+  constexpr float bias = 0.5f * detail::scale_factor<float, Output>();
+  float y = dot(coeffs, rgb_in) + bias;
+  return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+}
+
+template <>
+DALI_HOST_DEV DALI_FORCEINLINE constexpr uint8_t rgb_to_cr<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
+  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
+  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128);
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE constexpr uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
+  return rgb_to_cr<uint8_t, uint8_t>(rgb);
+}
+
+///////////////////////////////
 
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr_in) {
