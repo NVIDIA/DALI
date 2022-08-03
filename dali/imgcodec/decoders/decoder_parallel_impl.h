@@ -144,16 +144,16 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
   /**
    * @brief Single image decode GPU implementation, executed in a thread pool context.
    * 
-   * @param stream CUDA stream to synchronize with
    * @param thread_idx thread index in the thread pool
+   * @param stream CUDA stream to synchronize with
    * @param out output sample view
    * @param in encoded image source
    * @param opts decoding parameters
    * @param roi region-of-interest
    * @return std::vector<DecodeResult> 
    */
-  virtual DecodeResult DecodeImplTask(cudaStream_t stream,
-                                      int thread_idx,
+  virtual DecodeResult DecodeImplTask(int thread_idx,
+                                      cudaStream_t stream,
                                       SampleView<GPUBackend> out,
                                       ImageSource *in,
                                       DecodeParams opts,
