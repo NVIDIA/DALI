@@ -55,7 +55,6 @@ class CpuDecoderTestBase : public ::testing::Test {
     Tensor<CPUBackend> result;
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
     TensorShape<> shape = (roi.use_roi() ? roi.shape() : info.shape);
-    *(shape.end() - 1) = NumberOfChannels(opts.format, *(info.shape.end() - 1));
     result.Resize(shape, type2id<OutputType>::value);
 
     SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());
