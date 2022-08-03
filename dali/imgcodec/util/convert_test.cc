@@ -93,8 +93,8 @@ class ColorConversionTest : public NumpyDecoderTestBase<ImageType> {
     ConstSampleView<CPUBackend> input_view(input.raw_mutable_data(), input.shape(), input.type());
 
     Tensor<CPUBackend> output;
-    output.Resize({input.shape()[0], input.shape()[1], NumberOfChannels(output_format)},
-                  input.type());
+    int output_channels = NumberOfChannels(output_format, NumberOfChannels(input_format));
+    output.Resize({input.shape()[0], input.shape()[1], output_channels}, input.type());
     SampleView<CPUBackend> output_view(output.raw_mutable_data(), output.shape(), output.type());
 
     Convert(output_view, TensorLayout("HWC"), output_format,
@@ -155,6 +155,11 @@ TYPED_TEST(ColorConversionTest, RgbToYCbCr) {
 
 TYPED_TEST(ColorConversionTest, RgbToBgr) {
   this->Test("rgb", DALI_RGB, DALI_BGR, "bgr");
+}
+
+TYPED_TEST(ColorConversionTest, RgbToAny) {
+  // Conversion to DALI_ANY_DATA should be a no-op
+  this->Test("rgb", DALI_RGB, DALI_ANY_DATA, "rgb");
 }
 
 

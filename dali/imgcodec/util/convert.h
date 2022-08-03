@@ -137,10 +137,6 @@ inline std::function<void(Out *, const In *)> GetConversionFunc(
     DALIImageType out_format, ptrdiff_t out_channel_stride,
     DALIImageType in_format, ptrdiff_t in_channel_stride) {
 
-  if (in_format == out_format) {
-    return &ConvertDType<Out, In>;
-  }
-
   // BGR conversions use the RGB conversion functions, but call them with negative strides to access
   // the colors in reverse order.
   if ((in_format == DALI_RGB && out_format == DALI_BGR) ||
@@ -201,13 +197,14 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
   DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
     "Not implemented: currently only channels-last layout is supported");
 
-  // If the color conversion will be needed, we strip the last (channel) dimension to let the
-  // conversion function work on whole pixels and not single values.
-  if (in_format != out_format)
-    ndim--;
-
-  auto conversion_func = GetConversionFunc<Out, In>(out_format, 1, in_format, 1);
-  Convert(out, out_strides, in, in_strides, size, ndim, conversion_func);
+  if (in_format == out_format || out_format == DALI_ANY_DATA) {
+    Convert(out, out_strides, in, in_strides, size, ndim, &ConvertDType<Out, In>);
+  } else {
+    // If the color conversion will be needed, we strip the last (channel) dimension to let the
+    // conversion function work on whole pixels and not single values.
+    auto conversion_func = GetConversionFunc<Out, In>(out_format, 1, in_format, 1);
+    Convert(out, out_strides, in, in_strides, size, ndim - 1, conversion_func);
+  }
 }
 
 /**
