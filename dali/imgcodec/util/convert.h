@@ -80,23 +80,29 @@ template <typename FuncIn, typename FuncOut>
 struct ConvertColorSpace {
   using FuncType = FuncOut(*)(FuncIn);
 
-  using InVec = typename std::conditional<is_vec<FuncIn>::value, FuncIn, vec<1, FuncIn>>::type;
-  using OutVec = typename std::conditional<is_vec<FuncOut>::value, FuncOut, vec<1, FuncOut>>::type;
+  static constexpr bool func_gets_vec = is_vec<FuncIn>::value;
+  static constexpr bool func_returns_vec = is_vec<FuncOut>::value;
+
+  using InVec = typename std::conditional<func_gets_vec, FuncIn, vec<1, FuncIn>>::type;
+  using OutVec = typename std::conditional<func_returns_vec, FuncOut, vec<1, FuncOut>>::type;
+
   using In = typename InVec::element_t;
   using Out = typename OutVec::element_t;
 
-  void load(In& target, const In *in) {
-    target = *in;
+  template <typename T = In>
+  static constexpr typename std::enable_if<!func_gets_vec, T>::type load(const In *in) {
+    return *in;
   }
 
-  void load(InVec& target, const In *in) {
+  template <typename T = InVec>
+  constexpr typename std::enable_if<func_gets_vec, T>::type load(const In *in) {
+    InVec target = {};
     for (int i = 0; i < target.size(); i++)
       target[i] = in[i * in_channel_stride];
+    return target;
   }
 
-  void store(Out *out, Out source) {
-    *out = source;
-  }
+  static void store(Out *out, Out source) { *out = source; }
 
   void store(Out *out, const OutVec& source) {
     for (int i = 0; i < source.size(); i++)
@@ -104,9 +110,7 @@ struct ConvertColorSpace {
   }
 
   void operator()(Out *out, const In *in) {
-    FuncIn func_in;
-    load(func_in, in);
-    store(out, func(func_in));
+    store(out, func(load(in)));
   }
 
   ConvertColorSpace(FuncType func,
