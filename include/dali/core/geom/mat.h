@@ -259,7 +259,7 @@ struct mat {
 
   template <typename U, int rhs_cols>
   DALI_HOST_DEV
-  inline auto operator*(const mat<cols, rhs_cols, U> &rhs) const {
+  constexpr auto operator*(const mat<cols, rhs_cols, U> &rhs) const {
     using R = promote_vec_t<Element, U>;
     mat<rows, rhs_cols, R> result{};
   #if MAT_LAYOUT_ROW_MAJOR
