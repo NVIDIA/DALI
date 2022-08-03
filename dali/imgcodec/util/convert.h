@@ -214,9 +214,10 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
  * When roi_start or roi_end is empty, it is assumed to be the lower bound and upport bound
  * of the spatial extent. Channel dimension must not be included in ROI specification.
  */
-void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
-             ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-             TensorShape<> roi_start, TensorShape<> roi_end);
+void DLL_PUBLIC Convert(
+    SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
+    ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
+    TensorShape<> roi_start, TensorShape<> roi_end);
 
 
 }  // namespace imgcodec

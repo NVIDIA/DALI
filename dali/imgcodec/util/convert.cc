@@ -24,7 +24,7 @@
 namespace dali {
 namespace imgcodec {
 
-void DLL_PUBLIC Convert(
+void Convert(
              SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
              ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
              TensorShape<> roi_start, TensorShape<> roi_end) {
