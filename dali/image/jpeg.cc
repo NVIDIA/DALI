@@ -80,7 +80,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
-  jpeg::UncompressFlags flags;
+  imgcodec::jpeg::UncompressFlags flags;
   if (UseFastIdct()) {
     flags.dct_method = JDCT_FASTEST;
   }
@@ -106,7 +106,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   std::shared_ptr<uint8_t> decoded_image;
   int cropped_h = 0;
   int cropped_w = 0;
-  uint8_t* result = jpeg::Uncompress(
+  uint8_t* result = imgcodec::jpeg::Uncompress(
     jpeg, length, flags, nullptr /* nwarn */,
     [&decoded_image, &cropped_h, &cropped_w](int width, int height, int channels) -> uint8* {
       decoded_image.reset(
@@ -133,7 +133,7 @@ Image::Shape JpegImage::PeekShapeImpl(const uint8_t *encoded_buffer,
   int height = 0, width = 0, components = 0;
 #ifdef DALI_USE_JPEG_TURBO
   DALI_ENFORCE(
-    jpeg::GetImageInfo(encoded_buffer, length, &width, &height, &components) == true);
+    imgcodec::jpeg::GetImageInfo(encoded_buffer, length, &width, &height, &components) == true);
 #else
   DALI_ENFORCE(get_jpeg_size(encoded_buffer, length, &height, &width, &components));
 #endif
