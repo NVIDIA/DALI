@@ -64,23 +64,20 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
   /**
    * @brief To be overriden by a GPU/mixed codec implementation
    */
-  DecodeResult Decode(SampleView<GPUBackend> out, ImageSource *in,
-                      DecodeParams opts, const ROI &roi,
-                      cudaStream_t stream) override {
+  DecodeResult Decode(cudaStream_t stream, SampleView<GPUBackend> out, ImageSource *in,
+                      DecodeParams opts, const ROI &roi) override {
     throw std::logic_error("Backend not supported");
   }
 
-  std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                   cspan<ImageSource *> in,
-                                   DecodeParams opts,
-                                   cspan<ROI> rois,
-                                   cudaStream_t stream) override {
+  std::vector<DecodeResult> Decode(cudaStream_t stream, span<SampleView<GPUBackend>> out,
+                                   cspan<ImageSource *> in, DecodeParams opts,
+                                   cspan<ROI> rois) override {
     assert(out.size() == in.size());
     assert(rois.empty() || rois.size() == in.size());
     std::vector<DecodeResult> ret(out.size());
     ROI no_roi;
     for (int i = 0 ; i < in.size(); i++)
-      ret[i] = Decode(out[i], in[i], opts, rois.empty() ? no_roi : rois[i], stream);
+      ret[i] = Decode(stream, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
     return ret;
   }
 

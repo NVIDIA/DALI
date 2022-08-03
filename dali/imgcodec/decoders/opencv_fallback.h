@@ -30,8 +30,11 @@ class DLL_PUBLIC OpenCVDecoderInstance : public BatchParallelDecoderImpl {
   using Base = BatchParallelDecoderImpl;
   OpenCVDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
 
-  DecodeResult DecodeImplTask(SampleView<CPUBackend> out, ImageSource *in,
-                              DecodeParams opts, const ROI &roi, int thread_idx) override;
+  DecodeResult DecodeImplTask(int thread_idx,
+                              SampleView<CPUBackend> out,
+                              ImageSource *in,
+                              DecodeParams opts,
+                              const ROI &roi) override;
 };
 
 class OpenCVDecoder : public ImageDecoder {
