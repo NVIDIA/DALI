@@ -43,7 +43,6 @@ bool same_owner(const std::weak_ptr<void> &x, const std::shared_ptr<void> &y) {
   return true;
 }
 
-
 // TODO(klecki): move this to the class?
 TensorShape<> empty_shape(int dim) {
   TensorShape<> result;

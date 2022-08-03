@@ -215,9 +215,6 @@ TYPED_TEST(TensorVectorTest, TestReserveResize) {
 
 TYPED_TEST(TensorVectorTest, TestResizeWithoutType) {
   using Backend = std::tuple_element_t<0, TypeParam>;
-  constexpr BatchState state = std::tuple_element_t<1, TypeParam>::value ?
-                                   BatchState::Contiguous :
-                                   BatchState::Noncontiguous;
   TensorVector<Backend> tl;
   tl.SetContiguous(this->kState);
 
@@ -524,7 +521,25 @@ TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
   }
 }
 
-TYPED_TEST(TensorVectorTest, TestTypeChangeSameSize) {
+TYPED_TEST(TensorVectorTest, TestTypeChangeError) {
+  using Backend = std::tuple_element_t<0, TypeParam>;
+  TensorVector<Backend> tensor_list;
+  tensor_list.SetContiguous(this->kState);
+  auto shape = this->GetRandShape();
+
+  tensor_list.set_type(DALI_UINT8);
+  tensor_list.set_type(DALI_FLOAT);
+  tensor_list.set_type(DALI_INT32);
+  tensor_list.Resize(shape);
+  ASSERT_NE(tensor_list.template mutable_tensor<int32_t>(0), nullptr);
+
+  ASSERT_THROW(tensor_list.set_type(DALI_FLOAT), std::runtime_error);
+
+  tensor_list.Resize(shape, DALI_FLOAT);
+  ASSERT_NE(tensor_list.template mutable_tensor<float>(0), nullptr);
+}
+
+TYPED_TEST(TensorVectorTest, TestTypeChange) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
   tensor_list.SetContiguous(this->kState);
@@ -534,82 +549,50 @@ TYPED_TEST(TensorVectorTest, TestTypeChangeSameSize) {
   vector<Index> offsets;
 
   this->SetupTensorVector(&tensor_list, shape, &offsets);
+
+  DALIDataType initial_type = DALI_FLOAT;
+  std::array<DALIDataType, 4> types = {DALI_FLOAT, DALI_INT32, DALI_UINT8, DALI_FLOAT64};
+  const auto *base_ptr = this->kState ? unsafe_raw_data(tensor_list) : nullptr;
+  size_t nbytes = shape.num_elements() * sizeof(float);
 
   // Save the pointers
   std::vector<const void *> ptrs;
   for (int i = 0; i < tensor_list.num_samples(); i++) {
     ptrs.push_back(tensor_list.raw_tensor(i));
   }
-  size_t nbytes = tensor_list.nbytes();
 
-  // Change the data type
-  tensor_list.template set_type<int>();
+  for (auto new_type : types) {
+    if (initial_type != new_type) {
+      // Simply changing the type of the buffer is not allowed
+      ASSERT_THROW(tensor_list.set_type(new_type), std::runtime_error);
+      tensor_list.Resize(shape, new_type);
+    }
 
-  // Check the internals
-  ASSERT_EQ(tensor_list.num_samples(), shape.size());
-  for (int i = 0; i < tensor_list.num_samples(); ++i) {
-    ASSERT_EQ(ptrs[i], tensor_list.raw_tensor(i));
-    ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
+    // Check the internals
+    ASSERT_EQ(tensor_list.num_samples(), shape.num_samples());
+    ASSERT_EQ(tensor_list.shape(), shape);
+    ASSERT_EQ(tensor_list.sample_dim(), shape.sample_dim());
+    ASSERT_EQ(tensor_list.type(), new_type);
+    for (int i = 0; i < tensor_list.num_samples(); ++i) {
+      ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
+      ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
+    }
+
+    // The side-effects of only reallocating when we need a bigger buffer, we may use padding
+    if (TypeTable::GetTypeInfo(new_type).size() <= TypeTable::GetTypeInfo(initial_type).size()) {
+      if (this->kState) {
+        ASSERT_EQ(unsafe_raw_data(tensor_list), base_ptr);
+      } else {
+        for (int i = 0; i < tensor_list.num_samples(); ++i) {
+          ASSERT_EQ(tensor_list.raw_tensor(i), ptrs[i]);
+        }
+      }
+    }
+
+    ASSERT_EQ(nbytes / TypeTable::GetTypeInfo(initial_type).size() *
+                  TypeTable::GetTypeInfo(new_type).size(),
+              tensor_list.nbytes());
   }
-
-  // No memory allocation should have occurred
-  ASSERT_EQ(nbytes, tensor_list.nbytes());
-}
-
-TYPED_TEST(TensorVectorTest, TestTypeChangeSmaller) {
-  using Backend = std::tuple_element_t<0, TypeParam>;
-  TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguous(this->kState);
-
-  // Setup shape and offsets
-  auto shape = this->GetRandShape();
-  vector<Index> offsets;
-
-  this->SetupTensorVector(&tensor_list, shape, &offsets);
-
-  size_t nbytes = tensor_list.nbytes();
-  const auto *base_ptr = this->kState ? unsafe_raw_data(tensor_list) : nullptr;
-
-  // Change the data type to something smaller
-  tensor_list.template set_type<uint8>();
-
-  // Check the internals
-  ASSERT_EQ(tensor_list.num_samples(), shape.size());
-  if (this->kState) {
-    ASSERT_EQ(unsafe_raw_data(tensor_list), base_ptr);
-  }
-  for (int i = 0; i < tensor_list.num_samples(); ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-  }
-
-  // nbytes should have reduced by a factor of 4
-  ASSERT_EQ(nbytes / sizeof(float) * sizeof(uint8), tensor_list.nbytes());
-}
-
-TYPED_TEST(TensorVectorTest, TestTypeChangeLarger) {
-  using Backend = std::tuple_element_t<0, TypeParam>;
-  TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguous(this->kState);
-
-  // Setup shape and offsets
-  auto shape = this->GetRandShape();
-  vector<Index> offsets;
-
-  this->SetupTensorVector(&tensor_list, shape, &offsets);
-
-  size_t nbytes = tensor_list.nbytes();
-
-  // Change the data type to something larger
-  tensor_list.template set_type<double>();
-
-  // Check the internals
-  ASSERT_EQ(tensor_list.num_samples(), shape.size());
-  for (int i = 0; i < tensor_list.num_samples(); ++i) {
-    ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-  }
-
-  // nbytes should have increased by a factor of 2
-  ASSERT_EQ(nbytes / sizeof(float) * sizeof(double), tensor_list.nbytes());
 }
 
 TYPED_TEST(TensorVectorTest, DeviceIdPropagationMultiGPU) {
@@ -626,7 +609,7 @@ TYPED_TEST(TensorVectorTest, DeviceIdPropagationMultiGPU) {
   TensorListShape<> shape{{42}};
   for (int device_id = 0; device_id < num_devices; device_id++) {
     TensorVector<Backend> batch;
-    batch.SetContiguous(!this->kState);
+    batch.SetContiguous(BatchState::Default);
     DeviceGuard dg(device_id);
     batch.set_order(order);
     void *data_ptr;

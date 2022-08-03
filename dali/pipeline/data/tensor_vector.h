@@ -38,6 +38,23 @@ namespace dali {
 
 
 /**
+ * @brief Size of stack-based array used to prepare the pointers and other parameters for
+ * operations on batch, like TypeInfo::Copy.
+ * For bigger batches, the list of pointers/sizes would be stored as dynamic allocation
+ * (SmallVector), used in a common pattern where we have a copy from or to a batch of samples.
+ */
+constexpr size_t kMaxStaticCopyBatchSize = 256;
+
+/**
+ * @brief SmallVector alias used when dealing with batches of data in common operations
+ *
+ * The static stack allocation size is adjusted for that purpose.
+ */
+template <typename T>
+using BatchVector = SmallVector<T, kMaxStaticCopyBatchSize>;
+
+
+/**
  * @brief Merges TensorList<Backend> and std::vector<std::shared_ptr<Tensor<Backend>>> APIs
  * providing an uniform way of handling a collection/batch of tensors_.
  *
@@ -620,7 +637,6 @@ class DLL_PUBLIC TensorVector {
    * for pipeline outputs).
    * @{
    */
-
   /**
    * @brief Return an un-typed pointer to the underlying storage.
    * The TensorList must be either empty or have a valid type and be contiguous.
