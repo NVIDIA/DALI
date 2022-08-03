@@ -141,6 +141,10 @@ TYPED_TEST_SUITE(ColorConversionTest, ImageTypes);
 
 // RGB -> *
 
+TYPED_TEST(ColorConversionTest, RgbToRgb) {
+  this->Test("rgb", DALI_RGB, DALI_RGB, "rgb");
+}
+
 TYPED_TEST(ColorConversionTest, RgbToGray) {
   this->Test("rgb", DALI_RGB, DALI_GRAY, "gray");
 }
@@ -158,6 +162,10 @@ TYPED_TEST(ColorConversionTest, RgbToBgr) {
 
 TYPED_TEST(ColorConversionTest, GrayToRgb) {
   this->Test("gray", DALI_GRAY, DALI_RGB, "rgb_from_gray");
+}
+
+TYPED_TEST(ColorConversionTest, GrayToGray) {
+  this->Test("gray", DALI_GRAY, DALI_GRAY, "gray");
 }
 
 TYPED_TEST(ColorConversionTest, GrayToYCbCr) {
@@ -179,6 +187,10 @@ TYPED_TEST(ColorConversionTest, YCbCrToGray) {
   this->Test("ycbcr", DALI_YCbCr, DALI_GRAY, "gray");
 }
 
+TYPED_TEST(ColorConversionTest, YCbCrToYCbCr) {
+  this->Test("ycbcr", DALI_YCbCr, DALI_YCbCr, "ycbcr");
+}
+
 TYPED_TEST(ColorConversionTest, YCbCrToBgr) {
   this->Test("ycbcr", DALI_YCbCr, DALI_BGR, "bgr");
 }
@@ -196,6 +208,10 @@ TYPED_TEST(ColorConversionTest, BgrToGray) {
 
 TYPED_TEST(ColorConversionTest, BgrToYCbCr) {
   this->Test("bgr", DALI_BGR, DALI_YCbCr, "ycbcr");
+}
+
+TYPED_TEST(ColorConversionTest, BgrToBgr) {
+  this->Test("bgr", DALI_BGR, DALI_BGR, "bgr");
 }
 
 
