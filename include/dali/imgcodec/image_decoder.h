@@ -137,7 +137,8 @@ class DLL_PUBLIC ImageDecoderInstance {
   virtual DecodeResult Decode(SampleView<GPUBackend> out,
                               ImageSource *in,
                               DecodeParams opts,
-                              const ROI &roi = {}) = 0;
+                              const ROI &roi = {},
+                              cudaStream_t stream = 0) = 0;
 
   /**
    * @brief Decodes a single image to device buffers
@@ -145,7 +146,8 @@ class DLL_PUBLIC ImageDecoderInstance {
   virtual std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
-                                           cspan<ROI> rois = {}) = 0;
+                                           cspan<ROI> rois = {},
+                                           cudaStream_t stream = 0) = 0;
   /**
    * @brief Sets a codec-specific parameter
    */
