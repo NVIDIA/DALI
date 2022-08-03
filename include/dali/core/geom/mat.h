@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -191,16 +191,16 @@ struct mat {
   }
 
   DALI_HOST_DEV
-  inline mat operator-() const {
-    mat result;
+  constexpr mat operator-() const {
+    mat result{};
     MAT_ELEMENT_LOOP(i, j)
       result(i, j) = -at(i, j);
     return result;
   }
 
   DALI_HOST_DEV
-  inline mat operator~() const {
-    mat result;
+  constexpr mat operator~() const {
+    mat result{};
     MAT_ELEMENT_LOOP(i, j)
       result(i, j) = ~at(i, j);
     return result;
@@ -343,39 +343,40 @@ constexpr auto sub(const mat<in_rows, in_cols, Element> &m, int r = 0, int c = 0
   return result;
 }
 
-#define DEFINE_ELEMENTWISE_MAT_MAT_BINOP(op)                            \
-  template <int rows, int cols, typename T1, typename T2>         \
-  DALI_HOST_DEV inline auto operator op(const mat<rows, cols, T1> &a,   \
-                                        const mat<rows, cols, T2> &b) { \
-    using R = promote_vec_t<T1, T2>;                                    \
+#define DEFINE_ELEMENTWISE_MAT_MAT_BINOP(op)                  \
+  template <int rows, int cols, typename T1, typename T2>     \
+  DALI_HOST_DEV                                               \
+  constexpr auto operator op(const mat<rows, cols, T1> &a,    \
+                             const mat<rows, cols, T2> &b) {  \
+    using R = promote_vec_t<T1, T2>;                          \
+    mat<rows, cols, R> result;                                \
+    MAT_ELEMENT_LOOP(i, j)                                    \
+      result(i, j) = a(i, j) op b(i, j);                      \
+    return result;                                            \
+  }
+
+#define DEFINE_ELEMENTWISE_RHS_BINOP(op)                                \
+  template <int rows, int cols, typename T1, typename T2,               \
+            typename R = promote_vec_scalar_t<T1, T2>>                  \
+  DALI_HOST_DEV                                                         \
+  constexpr std::enable_if_t<is_scalar<T2>::value, mat<rows, cols, R>>  \
+    operator op(const mat<rows, cols, T1> &a, const T2 &b) {            \
     mat<rows, cols, R> result;                                          \
     MAT_ELEMENT_LOOP(i, j)                                              \
-      result(i, j) = a(i, j) op b(i, j);                                \
+      result(i, j) = a(i, j) op b;                                      \
     return result;                                                      \
   }
 
-#define DEFINE_ELEMENTWISE_RHS_BINOP(op)                            \
-  template <int rows, int cols, typename T1, typename T2,     \
-            typename R = promote_vec_scalar_t<T1, T2>>              \
-  DALI_HOST_DEV                                                     \
-  inline std::enable_if_t<is_scalar<T2>::value, mat<rows, cols, R>> \
-    operator op(const mat<rows, cols, T1> &a, const T2 &b) {        \
-    mat<rows, cols, R> result;                                      \
-    MAT_ELEMENT_LOOP(i, j)                                          \
-      result(i, j) = a(i, j) op b;                                  \
-    return result;                                                  \
-  }
-
-#define DEFINE_ELEMENTWISE_LHS_BINOP(op)                            \
-  template <int rows, int cols, typename T1, typename T2,     \
-            typename R = promote_vec_scalar_t<T2, T1>>              \
-  DALI_HOST_DEV                                                     \
-  inline std::enable_if_t<is_scalar<T1>::value, mat<rows, cols, R>> \
-  operator op(const T1 &a, const mat<rows, cols, T2> &b) {          \
-    mat<rows, cols, R> result;                                      \
-    MAT_ELEMENT_LOOP(i, j)                                          \
-      result(i, j) = a op b(i, j);                                  \
-    return result;                                                  \
+#define DEFINE_ELEMENTWISE_LHS_BINOP(op)                                \
+  template <int rows, int cols, typename T1, typename T2,               \
+            typename R = promote_vec_scalar_t<T2, T1>>                  \
+  DALI_HOST_DEV                                                         \
+  constexpr std::enable_if_t<is_scalar<T1>::value, mat<rows, cols, R>>  \
+  operator op(const T1 &a, const mat<rows, cols, T2> &b) {              \
+    mat<rows, cols, R> result;                                          \
+    MAT_ELEMENT_LOOP(i, j)                                              \
+      result(i, j) = a op b(i, j);                                      \
+    return result;                                                      \
   }
 
 #define DEFINE_ELEMENTWISE_MAT_BINOP(op)\
@@ -437,8 +438,8 @@ DEFINE_MAT_ALIASES(4, 4)
 
 template <typename T, int rows, int c1, int c2>
 DALI_HOST_DEV
-inline mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c2, T> &b) {
-  mat<rows, c1+c2, T> ret;
+constexpr mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c2, T> &b) {
+  mat<rows, c1+c2, T> ret{};
 #if MAT_LAYOUT_ROW_MAJOR
   for (int i = 0; i < rows; i++)
     ret.set_row(i, cat(a.row(i), b.row(i)));
@@ -453,8 +454,8 @@ inline mat<rows, c1+c2, T> cat_cols(const mat<rows, c1, T> &a, const mat<rows, c
 
 template <typename T, int rows, int cols>
 DALI_HOST_DEV
-mat<rows, cols+1> cat_cols(const mat<rows, cols, T> &a, const vec<rows, T> &v) {
-  mat<rows, cols+1, T> ret;
+constexpr mat<rows, cols+1> cat_cols(const mat<rows, cols, T> &a, const vec<rows, T> &v) {
+  mat<rows, cols+1, T> ret{};
 #if MAT_LAYOUT_ROW_MAJOR
   for (int i = 0; i < rows; i++)
     ret.set_row(i, cat(a.row(i), v[i]));
@@ -468,8 +469,8 @@ mat<rows, cols+1> cat_cols(const mat<rows, cols, T> &a, const vec<rows, T> &v) {
 
 template <typename T, int rows, int cols>
 DALI_HOST_DEV
-mat<rows, cols+1> cat_cols(const vec<rows, T> &v, const mat<rows, cols, T> &a) {
-  mat<rows, cols+1, T> ret;
+constexpr mat<rows, cols+1> cat_cols(const vec<rows, T> &v, const mat<rows, cols, T> &a) {
+  mat<rows, cols+1, T> ret{};
 #if MAT_LAYOUT_ROW_MAJOR
   for (int i = 0; i < rows; i++)
     ret.set_row(i, cat(v[i], a.row(i)));
@@ -483,8 +484,8 @@ mat<rows, cols+1> cat_cols(const vec<rows, T> &v, const mat<rows, cols, T> &a) {
 
 template <typename T, int rows>
 DALI_HOST_DEV
-mat<rows, 2> cat_cols(const vec<rows, T> &a, const vec<rows, T> &b) {
-  mat<rows, 2, T> ret;
+constexpr mat<rows, 2> cat_cols(const vec<rows, T> &a, const vec<rows, T> &b) {
+  mat<rows, 2, T> ret{};
 #if MAT_LAYOUT_ROW_MAJOR
   for (int i = 0; i < rows; i++)
     ret.set_row(i, vec<2, T>(a[i], b[i]));
@@ -497,8 +498,8 @@ mat<rows, 2> cat_cols(const vec<rows, T> &a, const vec<rows, T> &b) {
 
 template <int r1, int r2, int cols, typename T>
 DALI_HOST_DEV
-mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &b) {
-  mat<r1+r2, cols, T> ret;
+constexpr mat<r1+r2, cols, T> cat_rows(const mat<r1, cols, T> &a, const mat<r2, cols, T> &b) {
+  mat<r1+r2, cols, T> ret{};
 #if MAT_LAYOUT_ROW_MAJOR
   for (int i = 0; i < r1; i++)
     ret.set_row(i, a.row(i));
