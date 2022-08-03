@@ -85,7 +85,7 @@ class ColorConversionTest : public NumpyDecoderTestBase<ImageType> {
   }
 
   /**
-   * @brief Reads and image and converts it from `input_format` to `output_format`
+   * @brief Reads an image and converts it from `input_format` to `output_format`
    */
   Tensor<CPUBackend> RunConvert(const std::string& input_path,
                                 DALIImageType input_format, DALIImageType output_format) {
