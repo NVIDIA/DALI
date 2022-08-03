@@ -72,9 +72,9 @@ void Convert(Out *out, const int64_t *out_strides,
 /**
  * @brief A functor for converting between color spaces.
  *
- * It reads the input data from a tensor, passes it to user-provided conversion function, and
- * then stores the result. Both the argument and return value of the conversion function can
- * either be a scalar or a vector.
+ * It reads the input data from memory, passes it to user-provided conversion function, and then
+ * stores the result. Both the argument and return value of the conversion function can either be
+ * a scalar or a vector.
  */
 template <typename FuncIn, typename FuncOut>
 struct ConvertColorSpace {
@@ -99,9 +99,8 @@ struct ConvertColorSpace {
   }
 
   void store(Out *out, const OutVec& source) {
-    for (int i = 0; i < source.size(); i++) {
+    for (int i = 0; i < source.size(); i++)
       out[i * out_channel_stride] = source[i];
-    }
   }
 
   void operator()(Out *out, const In *in) {
@@ -113,6 +112,7 @@ struct ConvertColorSpace {
   ConvertColorSpace(FuncType func,
                     ptrdiff_t out_channel_stride = 1, ptrdiff_t in_channel_stride = 1)
     : func(func), out_channel_stride(out_channel_stride), in_channel_stride(in_channel_stride) {}
+
   FuncType func;
   ptrdiff_t out_channel_stride, in_channel_stride;
 };
@@ -125,6 +125,9 @@ inline void ConvertDType(Out *out, const In *in) {
   *out = ConvertSatNorm<Out>(*in);
 }
 
+/**
+ * @brief Returns a color space conversion function to use with Convert.
+ */
 template <typename Out, typename In>
 inline std::function<void(Out *, const In *)> GetConversionFunc(
     DALIImageType out_format, ptrdiff_t out_channel_stride,
@@ -132,28 +135,30 @@ inline std::function<void(Out *, const In *)> GetConversionFunc(
 
   if (in_format == out_format) {
     return &ConvertDType<Out, In>;
-  } else if ((in_format == DALI_RGB && out_format == DALI_BGR) ||
-             (in_format == DALI_BGR && out_format == DALI_RGB)) {
+  }
+
+  // BGR conversions use the RGB conversion functions, but call them with negative strides to access
+  // the colors in reverse order.
+  if ((in_format == DALI_RGB && out_format == DALI_BGR) ||
+      (in_format == DALI_BGR && out_format == DALI_RGB)) {
     return ConvertColorSpace(kernels::color::rgb_to_bgr<Out, In>,
-                                     out_channel_stride, in_channel_stride);
+                             out_channel_stride, in_channel_stride);
   } else if (out_format == DALI_BGR) {
     auto rgb_func = GetConversionFunc<Out, In>(DALI_RGB, -out_channel_stride,
                                               in_format, in_channel_stride);
-    return [=](Out *out, const In *in){
-      rgb_func(out + 2 * out_channel_stride, in);
-    };
+    return [=](Out *out, const In *in){ rgb_func(out + 2 * out_channel_stride, in); };
   } else if (in_format == DALI_BGR) {
     auto rgb_func = GetConversionFunc<Out, In>(out_format, out_channel_stride,
                                               DALI_RGB, -in_channel_stride);
-    return [=](Out *out, const In *in){
-      rgb_func(out, in + 2 * in_channel_stride);
-    };
-  } else if (in_format == DALI_RGB) {
+    return [=](Out *out, const In *in){ rgb_func(out, in + 2 * in_channel_stride); };
+  }
+
+  if (in_format == DALI_RGB) {
     if (out_format == DALI_GRAY) {
       return ConvertColorSpace(kernels::color::rgb_to_gray<Out, In>,
                                out_channel_stride, in_channel_stride);
     } else if (out_format == DALI_YCbCr) {
-      return ConvertColorSpace(kernels::color::rgb_to_ycbcr<Out, In>,
+      return ConvertColorSpace(kernels::color::itu_r_bt_601::rgb_to_ycbcr<Out, In>,
                                out_channel_stride, in_channel_stride);
     }
   } else if (in_format == DALI_GRAY) {
@@ -173,20 +178,32 @@ inline std::function<void(Out *, const In *)> GetConversionFunc(
                                out_channel_stride, in_channel_stride);
     }
   }
+
   throw std::logic_error(make_string("Not implemented: conversion from ", to_string(in_format),
                          " to ", to_string(out_format), " is not supported"));
 }
 
+/**
+ * @brief Converts an image stored in `in` and stores it in `out`.
+ *
+ * This is a wrapper for more generic variant of Convert. Based on image format and strides it
+ * chooses an appropriate conversion function and runs the generic Convert with it.
+ */
 template <typename Out, typename In>
 void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
              const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
              const int64_t *size, int ndim) {
+  // TODO(skarpinski) Support other layouts
   DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
     "Not implemented: currently only channels-last layout is supported");
 
-  int ndim_new = (in_format == out_format ? ndim : ndim - 1);
+  // If the color conversion will be needed, we strip the last (channel) dimension to let the
+  // conversion function work on whole pixels and not single values.
+  if (in_format != out_format)
+    ndim--;
+
   auto conversion_func = GetConversionFunc<Out, In>(out_format, 1, in_format, 1);
-  Convert(out, out_strides, in, in_strides, size, ndim_new, conversion_func);
+  Convert(out, out_strides, in, in_strides, size, ndim, conversion_func);
 }
 
 /**

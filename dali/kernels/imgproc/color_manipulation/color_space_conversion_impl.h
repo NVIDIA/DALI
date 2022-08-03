@@ -116,6 +116,7 @@ DALI_HOST_DEV DALI_FORCEINLINE Output gray_to_y(Input y_in) {
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE uint8_t gray_to_y(uint8_t y) {
   constexpr float scale = 0.257f + 0.504f + 0.098f;
+  // TODO(skarpinski) This is just a local fix, will rebase once mzient merges his work
   return ConvertSat<uint8_t>(y * scale + 16);
 }
 
@@ -152,6 +153,12 @@ DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> gray_to_ycbcr(Input gray) {
   auto chroma = ConvertNorm<Output>(0.5f);
   return {gray_to_y<Output>(gray), chroma, chroma};
 }
+
+template <typename Output, typename Input>
+DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
+  return {rgb_to_y<Output>(rgb), rgb_to_cb<Output>(rgb), rgb_to_cr<Output>(rgb)};
+}
+
 
 }  // namespace itu_r_bt_601
 
@@ -229,13 +236,6 @@ DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_gray(vec<3, Input> rgb) {
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> gray_to_rgb(Input gray) {
   return {gray, gray, gray};
-}
-
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
-  return {itu_r_bt_601::rgb_to_y<Output>(rgb),
-          itu_r_bt_601::rgb_to_cb<Output>(rgb),
-          itu_r_bt_601::rgb_to_cr<Output>(rgb)};
 }
 
 template <typename Output, typename Input>
