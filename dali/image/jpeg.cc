@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include "dali/image/jpeg.h"
 #include <cmath>
 #include <memory>
-#include "dali/image/jpeg_mem.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
 #include "dali/util/ocv.h"
 #include "dali/core/byte_io.h"
 
