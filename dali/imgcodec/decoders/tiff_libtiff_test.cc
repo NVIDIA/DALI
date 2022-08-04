@@ -70,26 +70,11 @@ TEST_F(LibTiffDecoderTest, TestROI) {
   AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
-TEST_F(LibTiffDecoderTest, TesRgbToMonochrome) {
+TEST_F(LibTiffDecoderTest, TestRgbToMonochrome) {
   auto ref = ReadReferenceFrom(bw_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
   auto img = Decode(&src, {.format = DALI_GRAY});
   AssertEqualSatNorm(img, ref);
-}
-
-TEST_F(LibTiffDecoderTest, TestMonochromeToRgb) {
-  auto ref = ReadReferenceFrom(bw_ref_path);
-  auto src = ImageSource::FromFilename(bw_path);
-  auto img = Decode(&src, {.format = DALI_RGB});
-
-  auto w = img.shape()[0], h = img.shape()[1];
-  auto red   = Crop(img, {{0, 0, 0}, {w, h, 1}});
-  auto green = Crop(img, {{0, 0, 1}, {w, h, 2}});
-  auto blue  = Crop(img, {{0, 0, 2}, {w, h, 3}});
-
-  AssertEqualSatNorm(red, ref);
-  AssertEqualSatNorm(green, ref);
-  AssertEqualSatNorm(blue, ref);
 }
 
 }  // namespace test

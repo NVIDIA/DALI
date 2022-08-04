@@ -182,10 +182,6 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
     Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
             row_in + roi.begin[1] * in_channels, in_line_strides.data(), 1, in_format,
             out_line_shape.data(), 2);
-
-    // TODO(skarpinski) Color space conversion
-    // _TIFFmemcpy(img_out + (roi_y * out_row_stride), row_in + roi.begin[1] * in_channels,
-    //        roi.shape()[1] * in_channels);
   }
 
   return {true, nullptr};
