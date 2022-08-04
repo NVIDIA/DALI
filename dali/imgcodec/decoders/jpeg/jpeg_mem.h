@@ -79,29 +79,11 @@ struct UncompressFlags {
 
 // Uncompress some raw JPEG data given by the pointer srcdata and the length
 // datasize.
-// - width and height are the address where to store the size of the
-//   uncompressed image in pixels.  May be nullptr.
-// - components is the address where the number of read components are
-//   stored.  This is *output only*: to request a specific number of
-//   components use flags.components.  May be nullptr.
-// - nwarn is the address in which to store the number of warnings.
-//   May be nullptr.
 // The function returns a pointer to the raw uncompressed data or NULL if
 // there was an error. The caller of the function is responsible for
 // freeing the memory (using delete []).
 uint8* Uncompress(const void* srcdata, int datasize,
-                  const UncompressFlags& flags, int* width, int* height,
-                  int* components,  // Output only: useful with autodetect
-                  int64* nwarn);
-
-// Version of Uncompress that allocates memory via a callback.  The callback
-// arguments are (width, height, components).  If the size is known ahead of
-// time this function can return an existing buffer; passing a callback allows
-// the buffer to be shaped based on the JPEG header.  The caller is responsible
-// for freeing the memory *even along error paths*.
-uint8* Uncompress(const void* srcdata, int datasize,
-                  const UncompressFlags& flags, int64* nwarn,
-                  std::function<uint8*(int, int, int)> allocate_output);
+                  const UncompressFlags& flags);
 
 // Read jpeg header and get image information.  Returns true on success.
 // The width, height, and components points may be null.
@@ -146,18 +128,6 @@ struct CompressFlags {
   // used will be this minimal value.
   int stride = 0;
 };
-
-// Compress some raw image given in srcdata, the data is a 2D array of size
-// stride*height with one of the formats enumerated above.
-// The encoded data is returned as a string.
-// If not empty, XMP metadata can be embedded in the image header
-// On error, returns the empty string (which is never a valid jpeg).
-string Compress(const void* srcdata, int width, int height,
-                const CompressFlags& flags);
-
-// On error, returns false and sets output to empty.
-bool Compress(const void* srcdata, int width, int height,
-              const CompressFlags& flags, string* output);
 
 }  // namespace jpeg
 }  // namespace dali
