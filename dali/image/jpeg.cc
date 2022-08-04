@@ -61,7 +61,6 @@ bool get_jpeg_size(const uint8 *data, size_t data_size, int *height, int *width,
 std::pair<std::shared_ptr<uint8_t>, Image::Shape>
 JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) const {
   const auto shape = PeekShapeImpl(jpeg, length);
-  auto target_shape = shape;
   const auto h = shape[0];
   const auto w = shape[1];
   assert(shape[2] <= 3);  // peek shape should clamp to 3 channels
@@ -69,6 +68,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     type = shape[2] == 3 ? DALI_RGB : DALI_GRAY;
   }
   const auto c = NumberOfChannels(type);
+  Image::Shape target_shape{h, w, c};
 
   DALI_ENFORCE(jpeg != nullptr);
   DALI_ENFORCE(length > 0);
@@ -98,8 +98,8 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     flags.crop_x = crop.anchor[1];
     flags.crop_height = crop.shape[0];
     flags.crop_width = crop.shape[1];
-    target_shape.shape[0] = crop.shape[0];
-    target_shape.shape[1] = crop.shape[1];
+    target_shape[0] = crop.shape[0];
+    target_shape[1] = crop.shape[1];
   }
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
