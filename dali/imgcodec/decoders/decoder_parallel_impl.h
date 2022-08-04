@@ -82,7 +82,7 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
                       const ROI &roi) override {
     DecodeResult ret;
     tp_->AddWork([&](int tid) {
-      ret = DecodeImplTask(stream, tid, out, in, opts, roi);
+      ret = DecodeImplTask(tid, stream, out, in, opts, roi);
     }, volume(out.shape()));
     tp_->RunAll();
     return ret;
@@ -116,7 +116,7 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
       tp_->AddWork([&, i](int tid) {
-        ret[i] = DecodeImplTask(stream, tid, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
+        ret[i] = DecodeImplTask(tid, stream, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
       }, volume(out[i].shape()));
     }
     tp_->RunAll();
