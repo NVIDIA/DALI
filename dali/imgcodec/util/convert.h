@@ -24,7 +24,7 @@
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
-#define IMGCODEC_SUPPORTED_IMAGE_FORMATS \
+#define DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES \
   (DALI_RGB, DALI_GRAY, DALI_YCbCr, DALI_BGR, DALI_ANY_DATA)
 
 namespace dali {
@@ -86,7 +86,7 @@ inline vec<N, Out> ConvertSatNormVec(const vec<N, In> &in) {
 /**
  * @brief A functor for converting between color spaces.
  *
- * It reads the input data from memory, passes it to user-provided conversion function, and then
+ * It reads the input data from memory, passes it to chosen color conversion function, and then
  * stores the result. Both the argument and return value of the conversion function can either be
  * a scalar or a vector.
  */
@@ -161,7 +161,8 @@ struct ConvertColorSpace {
 
   template <typename FuncRet, typename FuncArg>
   struct FunctionInfo<FuncRet(*)(FuncArg)> {
-    using arg_type = typename std::remove_const<typename std::remove_reference<FuncArg>::type>::type;
+    using arg_type = typename std::remove_const<
+                        typename std::remove_reference<FuncArg>::type>::type;
     using ret_type = FuncRet;
   };
 
@@ -190,19 +191,19 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
   DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
     "Not implemented: currently only channels-last layout is supported");
 
-    VALUE_SWITCH(out_format, OutFormat, IMGCODEC_SUPPORTED_IMAGE_FORMATS, (
-      VALUE_SWITCH(in_format, InFormat, IMGCODEC_SUPPORTED_IMAGE_FORMATS, (
+    VALUE_SWITCH(out_format, OutFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
+      VALUE_SWITCH(in_format, InFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
         if constexpr (OutFormat == InFormat || OutFormat == DALI_ANY_DATA) {
           Convert(out, out_strides, in, in_strides, size, ndim, &ConvertDType<Out, In>);
         } else {
-          // If the color conversion will be needed, we strip the last (channel) dimension to let the
-          // conversion function work on whole pixels and not single values.
+          // If the color conversion will be needed, we strip the last (channel) dimension to let
+          // the conversion function work on whole pixels and not single values.
           auto func = ConvertColorSpace<Out, In, OutFormat, InFormat>{1, 1};
           Convert(out, out_strides, in, in_strides, size, ndim - 1, func);
         }
-      ), throw std::logic_error(
+      ), throw std::logic_error(  // NOLINT
           make_string("Unsupported input format" , to_string(in_format))););  // NOLINT
-    ), throw std::logic_error(
+    ), throw std::logic_error(  // NOLINT
         make_string("Unsupported output format " , to_string(out_format))););  // NOLINT
 }
 
