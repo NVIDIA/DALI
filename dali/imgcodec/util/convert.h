@@ -191,20 +191,20 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
   DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
     "Not implemented: currently only channels-last layout is supported");
 
-    VALUE_SWITCH(out_format, OutFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
-      VALUE_SWITCH(in_format, InFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
-        if constexpr (OutFormat == InFormat || OutFormat == DALI_ANY_DATA) {
-          Convert(out, out_strides, in, in_strides, size, ndim, &ConvertDType<Out, In>);
-        } else {
-          // If the color conversion will be needed, we strip the last (channel) dimension to let
-          // the conversion function work on whole pixels and not single values.
-          auto func = ConvertColorSpace<Out, In, OutFormat, InFormat>{1, 1};
-          Convert(out, out_strides, in, in_strides, size, ndim - 1, func);
-        }
-      ), throw std::logic_error(  // NOLINT
-          make_string("Unsupported input format" , to_string(in_format))););  // NOLINT
+  VALUE_SWITCH(out_format, OutFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
+    VALUE_SWITCH(in_format, InFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
+      if constexpr (OutFormat == InFormat || OutFormat == DALI_ANY_DATA) {
+        Convert(out, out_strides, in, in_strides, size, ndim, &ConvertDType<Out, In>);
+      } else {
+        // If the color conversion will be needed, we strip the last (channel) dimension to let
+        // the conversion function work on whole pixels and not single values.
+        auto func = ConvertColorSpace<Out, In, OutFormat, InFormat>{1, 1};
+        Convert(out, out_strides, in, in_strides, size, ndim - 1, func);
+      }
     ), throw std::logic_error(  // NOLINT
-        make_string("Unsupported output format " , to_string(out_format))););  // NOLINT
+        make_string("Unsupported input format" , to_string(in_format))););  // NOLINT
+  ), throw std::logic_error(  // NOLINT
+      make_string("Unsupported output format " , to_string(out_format))););  // NOLINT
 }
 
 /**
