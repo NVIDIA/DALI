@@ -113,6 +113,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   uint32_t image_width, image_height, rows_per_strip;
   uint16_t in_channels, bit_depth, orientation, compression;
   bool is_tiled = TIFFIsTiled(tiff.get());
+
   LIBTIFF_CALL(TIFFGetField(tiff.get(), TIFFTAG_IMAGEWIDTH, &image_width));
   LIBTIFF_CALL(TIFFGetField(tiff.get(), TIFFTAG_IMAGELENGTH, &image_height));
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_SAMPLESPERPIXEL, &in_channels));
@@ -121,8 +122,9 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_COMPRESSION, &compression));
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_ROWSPERSTRIP, &rows_per_strip));
 
-  // TODO(skarpinski) support other color formats
   unsigned out_channels = NumberOfChannels(opts.format, in_channels);
+
+  // TODO(skarpinski) fail for palette images
 
   // TODO(skarpinski) support different types
   using InType = uint8_t;
@@ -141,6 +143,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
 
   ROI roi;
   if (!requested_roi.use_roi()) {
+    // TODO(skarpinski) Use 2D
     roi.begin = {0, 0, 0};
     roi.end = out.shape();
   } else {
@@ -170,14 +173,13 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   else
     in_format = DALI_RGB;
 
+  TensorShape<> in_line_shape = {roi.shape()[1], in_channels};
+  TensorShape<> in_line_strides = kernels::GetStrides(in_line_shape);
+  TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
+  TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
+
   for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
     LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + roi_y, 0));
-
-    TensorShape<> in_line_shape = {roi.shape()[1], in_channels};
-    TensorShape<> in_line_strides = kernels::GetStrides(in_line_shape);
-
-    TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
-    TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
 
     Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
             row_in + roi.begin[1] * in_channels, in_line_strides.data(), 1, in_format,
