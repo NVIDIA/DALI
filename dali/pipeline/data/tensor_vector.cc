@@ -765,9 +765,8 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
 
 
 // This is to check if we are actually laid down in contiguous memory
-// TODO(klecki): make this internal and name it something like: IsContiguouslyStored?
 template <typename Backend>
-bool TensorVector<Backend>::IsContiguousTensor() const {
+bool TensorVector<Backend>::IsContiguousInMemory() const {
   if (num_samples() == 0 || shape().num_elements() == 0) {
     return true;
   }
@@ -790,14 +789,14 @@ bool TensorVector<Backend>::IsContiguousTensor() const {
 
 template <typename Backend>
 bool TensorVector<Backend>::IsDenseTensor() const {
-  return IsContiguous() && is_uniform(shape());
+  return IsContiguousInMemory() && is_uniform(shape());
 }
 
 
 template <typename Backend>
 Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new_shape) {
-  DALI_ENFORCE(num_samples() > 0,
-               "To create a view Tensor, the batch must have at least 1 element.");
+  DALI_ENFORCE(new_shape.num_elements() == 0 || num_samples() > 0,
+               "To create a non-empty view Tensor, the batch must not be empty.");
   DALI_ENFORCE(IsValidType(type()),
                "To create a view Tensor, the batch must have a valid data type.");
   DALI_ENFORCE(
@@ -806,13 +805,13 @@ Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new
                   "batch, requested: ",
                   new_shape.num_elements(), " expected: ", shape().num_elements()));
   Tensor<Backend> result;
-  result.ShareData(unsafe_sample_owner(*tl_, 0), tl_->capacity(),
-                   tl_->is_pinned(), new_shape, type(), device_id(), order());
+  result.ShareData(unsafe_owner(*tl_), tl_->capacity(), tl_->is_pinned(), new_shape, type(),
+                   device_id(), order());
   auto result_layout = GetLayout();
-  if (!GetLayout().empty()) {
+  if (result_layout.ndim() + 1 == new_shape.sample_dim()) {
     result_layout = TensorLayout("N") + result_layout;
+    result.SetLayout(result_layout);
   }
-  result.SetLayout(result_layout);
   return result;
 }
 
@@ -822,8 +821,11 @@ Tensor<Backend> TensorVector<Backend>::AsTensor() {
   DALI_ENFORCE(IsDenseTensor(),
                "The batch must be representable tensor - it must has uniform shape and be "
                "allocated in contiguous memory.");
-  DALI_ENFORCE(shape().num_samples() > 0,
-               "To create a view Tensor, the batch must have at least 1 element.");
+  if (shape().num_samples() == 0) {
+    DALI_ENFORCE(sample_dim() > 0,
+                 "To convert empty batch to a Tensor, valid dimensionality must be set");
+    return AsReshapedTensor(TensorShape<>::empty_shape(sample_dim()));
+  }
   return AsReshapedTensor(shape_cat(shape().num_samples(), shape()[0]));
 }
 

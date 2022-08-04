@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <stdexcept>
 #include <string>
 
 #include "dali/core/access_order.h"
@@ -173,7 +174,7 @@ TYPED_TEST(TensorVectorSuite, TensorVectorAsTensorAccess) {
   tv.SetContiguous(true);
   auto shape = TensorListShape<>{{1, 2, 3}, {1, 2, 4}};
   tv.Resize(shape, DALI_INT32);
-  EXPECT_TRUE(tv.IsContiguousTensor());
+  EXPECT_TRUE(tv.IsContiguousInMemory());
   EXPECT_FALSE(tv.IsDenseTensor());
 
   {
@@ -186,7 +187,7 @@ TYPED_TEST(TensorVectorSuite, TensorVectorAsTensorAccess) {
   tv.Resize(uniform_list_shape(3, {2, 3, 4}));
   tv.SetLayout("HWC");
 
-  EXPECT_TRUE(tv.IsContiguousTensor());
+  EXPECT_TRUE(tv.IsContiguousInMemory());
   EXPECT_TRUE(tv.IsDenseTensor());
 
   {
@@ -208,6 +209,79 @@ TYPED_TEST(TensorVectorSuite, TensorVectorAsTensorAccess) {
     CompareWithMagicNumber(tensor);
   }
 }
+
+TYPED_TEST(TensorVectorSuite, EmptyTensorVectorAsTensorAccess) {
+  TensorVector<TypeParam> tv;
+  tv.SetContiguous(true);
+  tv.set_type(DALI_INT32);
+  EXPECT_TRUE(tv.IsContiguousInMemory());
+  EXPECT_TRUE(tv.IsDenseTensor());
+
+  auto shape_0d = TensorShape<>{};
+  auto shape_1d = TensorShape<>{0};
+  auto shape_2d = TensorShape<>{0, 0};
+
+  {
+    EXPECT_THROW(tv.AsReshapedTensor(shape_0d), std::runtime_error);  // empty shape has volume = 1
+    auto tensor_1d = tv.AsReshapedTensor(shape_1d);
+    auto tensor_2d = tv.AsReshapedTensor(shape_2d);
+    EXPECT_EQ(tensor_1d.shape(), shape_1d);
+    EXPECT_EQ(tensor_1d.type(), DALI_INT32);
+    EXPECT_EQ(tensor_1d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_1d.raw_data(), nullptr);
+    EXPECT_EQ(tensor_2d.shape(), shape_2d);
+    EXPECT_EQ(tensor_2d.type(), DALI_INT32);
+    EXPECT_EQ(tensor_2d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_2d.raw_data(), nullptr);
+  }
+
+  tv.reserve(1000);
+
+  {
+    EXPECT_THROW(tv.AsReshapedTensor(shape_0d), std::runtime_error);  // empty shape has volume = 1
+    auto tensor_1d = tv.AsReshapedTensor(shape_1d);
+    auto tensor_2d = tv.AsReshapedTensor(shape_2d);
+    EXPECT_EQ(tensor_1d.shape(), shape_1d);
+    EXPECT_EQ(tensor_1d.type(), DALI_INT32);
+    EXPECT_EQ(tensor_1d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_NE(tensor_1d.raw_data(), nullptr);
+    EXPECT_EQ(tensor_2d.shape(), shape_2d);
+    EXPECT_EQ(tensor_2d.type(), DALI_INT32);
+    EXPECT_EQ(tensor_2d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_NE(tensor_2d.raw_data(), nullptr);
+  }
+}
+
+TYPED_TEST(TensorVectorSuite, EmptyTensorVectorWithDimAsTensorAccess) {
+  TensorVector<TypeParam> tv;
+  tv.SetContiguous(true);
+  tv.set_type(DALI_INT32);
+  EXPECT_TRUE(tv.IsContiguousInMemory());
+  EXPECT_TRUE(tv.IsDenseTensor());
+
+  auto shape_1d = TensorShape<>{0};
+  auto shape_2d = TensorShape<>{0, 0};
+
+  {
+    EXPECT_THROW(tv.AsTensor(), std::runtime_error);
+    tv.set_sample_dim(0);
+    EXPECT_THROW(tv.AsTensor(), std::runtime_error);
+    tv.set_sample_dim(1);
+    auto tensor_1d = tv.AsTensor();
+    EXPECT_EQ(tensor_1d.shape(), shape_1d);
+    EXPECT_EQ(tensor_1d.type(), DALI_INT32);
+    EXPECT_EQ(tensor_1d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_1d.raw_data(), nullptr);
+
+    tv.set_sample_dim(2);
+    auto tensor_2d = tv.AsTensor();
+    EXPECT_EQ(tensor_2d.shape(), shape_2d);
+    EXPECT_EQ(tensor_2d.type(), DALI_INT32);
+    EXPECT_EQ(tensor_2d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_2d.raw_data(), nullptr);
+  }
+}
+
 
 TYPED_TEST(TensorVectorSuite, BatchResize) {
   TensorVector<TypeParam> tv(5);
