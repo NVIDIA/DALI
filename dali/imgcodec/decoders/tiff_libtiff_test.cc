@@ -39,6 +39,8 @@ auto rgb_ref_path = ref_dir + "/cat-111793_640.tiff.npy";
 
 auto bw_path = img_dir + "/cat-111793_640_bw.tiff";
 auto bw_ref_path = ref_dir + "/cat-111793_640_bw.tiff.npy";
+
+auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
 }  // namespace
 
 class LibTiffDecoderTest : public NumpyDecoderTestBase<uint8_t> {
@@ -75,6 +77,11 @@ TEST_F(LibTiffDecoderTest, TestRgbToMonochrome) {
   auto src = ImageSource::FromFilename(rgb_path);
   auto img = Decode(&src, {.format = DALI_GRAY});
   AssertEqualSatNorm(img, ref);
+}
+
+TEST_F(LibTiffDecoderTest, TestPaletteUnsupported) {
+  auto src = ImageSource::FromFilename(palette_path);
+  EXPECT_FALSE(Decoder()->CanDecode(&src, {}, {}));
 }
 
 }  // namespace test

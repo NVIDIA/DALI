@@ -83,56 +83,93 @@ class DecoderHelper {
   }
 };
 
-TIFF *openTiff(ImageSource *in) {
+std::unique_ptr<TIFF, void (*)(TIFF *)> OpenTiff(ImageSource *in) {
+  TIFF *tiffptr;
+
   if (in->Kind() == InputKind::Filename) {
-    return TIFFOpen(in->Filename(), "r");
+    tiffptr = TIFFOpen(in->Filename(), "r");
   } else {
     TIFFMapFileProc mapproc;
     if (in->Kind() == InputKind::HostMemory)
       mapproc = &DecoderHelper::map;
     else
       mapproc = nullptr;
-    return TIFFClientOpen("", "r", reinterpret_cast<thandle_t>(new DecoderHelper(in)),
-                          &DecoderHelper::read,
-                          &DecoderHelper::write,
-                          &DecoderHelper::seek,
-                          &DecoderHelper::close,
-                          &DecoderHelper::size,
-                          mapproc,
-                          /* unmap */ 0);
+
+    tiffptr = TIFFClientOpen("", "r", reinterpret_cast<thandle_t>(new DecoderHelper(in)),
+                             &DecoderHelper::read,
+                             &DecoderHelper::write,
+                             &DecoderHelper::seek,
+                             &DecoderHelper::close,
+                             &DecoderHelper::size,
+                             mapproc,
+                             /* unmap */ 0);
   }
+
+  DALI_ENFORCE(tiffptr != nullptr, make_string("Unable to open TIFF image: ", in->SourceInfo()));
+  return {tiffptr, &TIFFClose};
+}
+
+struct TiffInfo {
+  uint32_t image_width, image_height;
+  uint16_t channels;
+
+  uint32_t rows_per_strip;
+  uint16_t bit_depth;
+  uint16_t orientation;
+  uint16_t compression;
+
+  bool is_tiled;
+  bool is_palette;
+};
+
+TiffInfo GetTiffInfo(TIFF *tiffptr) {
+  TiffInfo info = {};
+
+  LIBTIFF_CALL(TIFFGetField(tiffptr, TIFFTAG_IMAGEWIDTH, &info.image_width));
+  LIBTIFF_CALL(TIFFGetField(tiffptr, TIFFTAG_IMAGELENGTH, &info.image_height));
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_SAMPLESPERPIXEL, &info.channels));
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_BITSPERSAMPLE, &info.bit_depth));
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_ORIENTATION, &info.orientation));
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_COMPRESSION, &info.compression));
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_ROWSPERSTRIP, &info.rows_per_strip));
+
+  info.is_tiled = TIFFIsTiled(tiffptr);
+
+  uint16_t photometric_interpretation;
+  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &photometric_interpretation) &&
+      photometric_interpretation == PHOTOMETRIC_PALETTE) {
+    info.is_palette = true;
+  }
+
+  return info;
 }
 
 }  // namespace detail
 
+bool LibTiffDecoderInstance::CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) {
+  auto tiff = detail::OpenTiff(in);
+  auto info = detail::GetTiffInfo(tiff.get());
+
+  // TODO(skarpinski) Support other bitdepths
+  if (info.bit_depth != 8) return false;
+
+  // TODO(skarpinski) Support palette images
+  if (info.is_palette) return false;
+
+  return true;
+}
+
+
 DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
                                            DecodeParams opts, const ROI &requested_roi) {
-  std::unique_ptr<TIFF, void (*)(TIFF *)> tiff = {detail::openTiff(in), &TIFFClose};
-  DALI_ENFORCE(tiff != nullptr, make_string("Unable to open TIFF image: ", in->SourceInfo()));
+  auto tiff = detail::OpenTiff(in);
+  auto info = detail::GetTiffInfo(tiff.get());
 
-  uint32_t image_width, image_height, rows_per_strip;
-  uint16_t in_channels, bit_depth, orientation, compression;
-  bool is_tiled = TIFFIsTiled(tiff.get());
-
-  LIBTIFF_CALL(TIFFGetField(tiff.get(), TIFFTAG_IMAGEWIDTH, &image_width));
-  LIBTIFF_CALL(TIFFGetField(tiff.get(), TIFFTAG_IMAGELENGTH, &image_height));
-  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_SAMPLESPERPIXEL, &in_channels));
-  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_BITSPERSAMPLE, &bit_depth));
-  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_ORIENTATION, &orientation));
-  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_COMPRESSION, &compression));
-  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_ROWSPERSTRIP, &rows_per_strip));
-
-  unsigned out_channels = NumberOfChannels(opts.format, in_channels);
-
-  // TODO(skarpinski) fail for palette images
+  unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 
   // TODO(skarpinski) support different types
   using InType = uint8_t;
   using OutType = uint8_t;
-  DALI_ENFORCE(bit_depth == 8);
-
-  // TODO(skarpinski) support tiled tiffs
-  DALI_ENFORCE(!is_tiled, "Tiled images are not supported");
 
   auto row_nbytes = TIFFScanlineSize(tiff.get());
   std::unique_ptr<InType, void(*)(void*)> row_buf{
@@ -158,7 +195,8 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   // strip. In this case, the library does not support random access to the data. The data should
   // either be accessed sequentially, or the file should be converted so that each strip is made up
   // of one row of data.
-  const bool allow_random_row_access = (compression == COMPRESSION_NONE || rows_per_strip == 1);
+  const bool allow_random_row_access = (info.compression == COMPRESSION_NONE
+                                        || info.rows_per_strip == 1);
   if (!allow_random_row_access) {
     for (int64_t y = 0; y < roi.begin[0]; y++) {
       LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, y, 0));
@@ -168,12 +206,12 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   uint64_t out_row_stride = roi.shape()[1] * out_channels;
 
   DALIImageType in_format;
-  if (in_channels == 1)
+  if (info.channels == 1)
     in_format = DALI_GRAY;
   else
     in_format = DALI_RGB;
 
-  TensorShape<> in_line_shape = {roi.shape()[1], in_channels};
+  TensorShape<> in_line_shape = {roi.shape()[1], info.channels};
   TensorShape<> in_line_strides = kernels::GetStrides(in_line_shape);
   TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
   TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
@@ -182,7 +220,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
     LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + roi_y, 0));
 
     Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
-            row_in + roi.begin[1] * in_channels, in_line_strides.data(), 1, in_format,
+            row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
             out_line_shape.data(), 2);
   }
 
