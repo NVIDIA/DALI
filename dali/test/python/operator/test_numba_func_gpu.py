@@ -136,4 +136,5 @@ def test_samples_shapes_assertion():
                          [dali_types.FLOAT], [dali_types.FLOAT], [2], [2], [1, 1, 1], [20, 10, 1],
                          None, False, [np.arange(20 * 10, dtype=np.float32).reshape((20, 10)),
                                        np.arange(20 * 10, dtype=np.float32).reshape((20, 10))])
+
                                        
