@@ -218,8 +218,8 @@ def test_global_shuffle_random_shuffle():
 
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
 
-    assert (img_ids_list_set[0].union(img_ids_list_set[1]) ==
-            img_ids_list_set_new[0].union(img_ids_list_set_new[1]))
+    assert img_ids_list_set[0].union(img_ids_list_set[1]) == \
+           img_ids_list_set_new[0].union(img_ids_list_set_new[1])
 
 
 def test_global_shuffle_random_shuffle_2():
@@ -277,8 +277,8 @@ def test_global_shuffle_dont_mix_epochs():
 
     assert img_ids_list_set[0] != img_ids_list_set_new[0]
     assert img_ids_list_set[1] != img_ids_list_set_new[1]
-    assert (img_ids_list_set[0].union(img_ids_list_set[1]) ==
-            img_ids_list_set_new[0].union(img_ids_list_set_new[1]))
+    assert img_ids_list_set[0].union(img_ids_list_set[1]) == \
+           img_ids_list_set_new[0].union(img_ids_list_set_new[1])
 
 
 def test_dont_mix_epochs():

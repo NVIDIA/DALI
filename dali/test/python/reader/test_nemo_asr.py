@@ -25,7 +25,7 @@ from test_utils import compare_pipelines
 
 
 def create_manifest_file(manifest_file, names, lengths, rates, texts):
-    assert(len(names) == len(lengths) == len(rates) == len(texts))
+    assert len(names) == len(lengths) == len(rates) == len(texts)
     data = []
     for idx in range(len(names)):
         entry_i = {}

@@ -3,12 +3,12 @@
 test_py_with_framework() {
     # numpy seems to be extremly slow with sanitizers to dissable it
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
-          FILTER_PATTERN="test_operator_readers_numpy.py\|test_external_source_parallel.py\|test_external_source_parallel_custom_serialization\|test_external_source_parallel_garbage_collection_order"
+          FILTER_PATTERN="reader/test_numpy.py\|test_external_source_parallel.py\|test_external_source_parallel_custom_serialization\|test_external_source_parallel_garbage_collection_order"
     else
         FILTER_PATTERN="#"
     fi
 
-    for test_script in $(ls test_operator_readers_*.py test_operator_decoders_*.py \
+    for test_script in $(ls reader/test_*.py decoder/test_*.py \
       test_external_source_dali.py test_external_source_numpy.py \
       test_external_source_parallel_garbage_collection_order.py \
       test_external_source_parallel_custom_serialization.py \

@@ -14,7 +14,7 @@ test_py_with_framework() {
         "numba"
     )
 
-    for test_script in $(ls test_operator_*.py test_pipeline*.py test_pool.py test_external_source_dali.py test_external_source_numpy.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py test_functional_api.py test_backend_impl.py); do
+    for test_script in $(ls operator/test_*.py reader/test_*.py decoder/test_*.py test_pipeline*.py test_pool.py test_external_source_dali.py test_external_source_numpy.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py test_functional_api.py test_backend_impl.py); do
         status=0
         for exclude in "${EXCLUDE_PACKAGES[@]}"; do
             grep -qiE ${exclude} ${test_script} && status=$((status+1))

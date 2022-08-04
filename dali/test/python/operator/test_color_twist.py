@@ -186,29 +186,6 @@ def test_video():
     yield from video_suite_helper(video_test_cases, test_channel_first=False)
 
 
-def check_ref(inp_dtype, out_dtype, has_3_dims):
-    batch_size = 32
-    n_iters = 8
-    shape = (128, 32, 3) if not has_3_dims else (random.randint(2, 5), 128, 32, 3)
-    inp_dtype = dali_type_to_np(inp_dtype)
-    ri1 = RandomDataIterator(batch_size, shape=shape, dtype=inp_dtype)
-    pipe = ColorTwistPipeline(seed=2139,
-                              batch_size=batch_size,
-                              num_threads=4,
-                              device_id=0,
-                              data_iterator=ri1,
-                              is_input_float=np.issubdtype(inp_dtype, np.floating),
-                              inp_dtype=inp_dtype,
-                              out_dtype=out_dtype)
-    pipe.build()
-    for _ in range(n_iters):
-        inp, out_cpu, out_gpu, H, S, B, C = pipe.run()
-        out_gpu = out_gpu.as_cpu()
-        for i in range(batch_size):
-            h, s, b, c = H.at(i), S.at(i), B.at(i), C.at(i)
-            check(inp.at(i), out_cpu.at(i), out_gpu.at(i), h, s, b, c, dali_type_to_np(out_dtype))
-
-
 def test_color_twist_default_dtype():
     np_types = [types.FLOAT, types.INT32, types.INT16, types.UINT8]  # Just some types
 

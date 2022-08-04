@@ -53,7 +53,7 @@ def mfcc_func(axis, dct_type, lifter, n_mfcc, norm, input_data):
         input_data = np.transpose(input_data)
 
     in_shape = input_data.shape
-    assert(len(in_shape) == 2)
+    assert len(in_shape) == 2
 
     norm_str = 'ortho' if norm else None
 

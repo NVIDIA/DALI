@@ -21,7 +21,7 @@ limitations under the License.
 // We are filling out stubs required by jpeglib, those stubs are private to
 // the implementation, we are just making available JPGMemSrc, JPGMemDest
 
-#include "dali/image/jpeg_handle.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_handle.h"
 #include <setjmp.h>
 #include <stddef.h>
 

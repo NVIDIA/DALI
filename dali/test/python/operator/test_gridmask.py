@@ -21,7 +21,6 @@ import os
 import cv2
 import itertools
 from nose2.tools import params
-from zmq import device
 from test_utils import get_dali_extra_path
 
 data_root = get_dali_extra_path()
