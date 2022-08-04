@@ -804,9 +804,21 @@ Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new
       make_string("To create a view Tensor, requested shape need to have the same volume as the "
                   "batch, requested: ",
                   new_shape.num_elements(), " expected: ", shape().num_elements()));
+
   Tensor<Backend> result;
-  result.ShareData(unsafe_owner(*tl_), tl_->capacity(), tl_->is_pinned(), new_shape, type(),
+
+  shared_ptr<void> ptr;
+  if (num_samples() > 0) {
+    ptr = unsafe_sample_owner(*tl_, 0);
+  } else if (IsContiguous()) {
+    ptr = unsafe_owner(*tl_);
+  } else {
+    ptr = nullptr;
+  }
+
+  result.ShareData(ptr, capacity(), is_pinned(), new_shape, type(),
                    device_id(), order());
+
   auto result_layout = GetLayout();
   if (result_layout.ndim() + 1 == new_shape.sample_dim()) {
     result_layout = TensorLayout("N") + result_layout;
