@@ -107,8 +107,7 @@ struct ConvertColorSpace {
       out_channel_stride = -out_channel_stride_;
     }
 
-    auto f = GetConversionFunction();
-    typename FunctionInfo<decltype(f)>::arg_type input;
+    typename FunctionInfo<decltype(GetConversionFunction())>::arg_type input;
 
     if constexpr (is_vec<decltype(input)>::value) {
       for (int i = 0; i < input.size(); i++)
@@ -117,6 +116,7 @@ struct ConvertColorSpace {
       input = *in_mem;
     }
 
+    auto f = GetConversionFunction();
     auto output = f(input);
 
     if constexpr (is_vec<decltype(output)>::value) {
