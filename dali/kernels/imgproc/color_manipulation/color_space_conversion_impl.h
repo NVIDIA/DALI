@@ -115,13 +115,13 @@ struct itu_r_bt_601 {
   }
 
   // Gray uses the full dynamic range of the type (e.g. 0..255)
-  // while ITU-R BT.601 uses a reduced range to allow for floorroom and footroom (e.g. 16..235)
+  // while ITU-R BT.601 uses a reduced range to allow for headroom and footroom (e.g. 16..235)
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output y_to_gray(Input y) {
     constexpr float scale = 255 * detail::scale_factor<Input, Output>() / 219;
-    constexpr float bias = 0.5f * detail::bias_scale<Input>();
-    return ConvertSatNorm<Output>(scale * (y - 0.0625f));
+    constexpr float bias = 0.0625f * detail::bias_scale<Input>();
+    return ConvertSat<Output>(scale * (y - bias));
   }
 
   template <typename Output, typename Input>
@@ -172,15 +172,15 @@ uint8_t itu_r_bt_601::rgb_to_cr<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE
 uint8_t itu_r_bt_601::y_to_gray<uint8_t, uint8_t>(uint8_t gray) {
-  constexpr float scale = 1 / (0.257f + 0.504f + 0.098f);
+  constexpr float scale = 255.0 / 219;
   return ConvertSat<uint8_t>(scale * (gray - 16));
 }
 
 template <>
 DALI_HOST_DEV DALI_FORCEINLINE
 uint8_t itu_r_bt_601::gray_to_y<uint8_t, uint8_t>(uint8_t y) {
-  constexpr float scale = 0.257f + 0.504f + 0.098f;
-  return ConvertSat<uint8_t>(y * scale + 0.0625f);
+  constexpr float scale = 219.0 / 255;
+  return ConvertSat<uint8_t>(y * scale + 16);
 }
 
 template <>
@@ -247,6 +247,18 @@ struct jpeg {
     auto g = ConvertSat<Output>(ys - (0.344136285f * s) * tmp_b - (0.714136285f * s) * tmp_r);
     auto b = ConvertSat<Output>(ys + (1.772f * s) * tmp_b);
     return {r, g, b};
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output gray_to_y(Input gray) {
+    return ConvertSatNorm<Output>(gray);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output y_to_gray(Input y) {
+    return ConvertSatNorm<Output>(y);
   }
 };  // struct jpeg
 

@@ -22,38 +22,37 @@
 namespace dali {
 namespace kernels {
 namespace color {
-
-namespace {
-  template <typename T>
-  constexpr double to_norm_fp(T x) {
-    return is_fp_or_half<T>::value ? 1.0 : static_cast<double>(std::numeric_limits<T>::max());
-  }
-
-  template <typename T>
-  constexpr T from_norm_fp(T x) {
-    return is_fp_or_half<T>::value ? 1.0 : static_cast<double>(std::numeric_limits<T>::max() * x);
-  }
-
-  template <typename T>
-  constexpr float chroma_bias() {
-    return 0.5f * detail::bias_scale<T>();
-  }
-
-  static_assert(chroma_bias<float>()    == 0.5f);
-  static_assert(chroma_bias<uint8_t>()  == 128.0f);
-  static_assert(chroma_bias<int8_t>()   == 64.0f);
-  static_assert(chroma_bias<uint16_t>() == 32768.0f);
-  static_assert(chroma_bias<int16_t>()  == 16384.0f);
-  static_assert(chroma_bias<uint32_t>() == static_cast<float>(0x80000000u));
-  static_assert(chroma_bias<int32_t>()  == static_cast<float>(0x40000000));
-
-}  // namespace
-
 namespace test {
 
+template <typename T>
+constexpr int integer_bits = std::is_integral_v<T>
+                           ? sizeof(T) * 8 - std::is_signed_v<T>
+                           : 0;  // floating point has 0 integer bits
+
 struct itu_ref {
-  template <int out_bits = 0>
-  static constexpr vec3 rgb_to_ycbcr(vec3 rgb) {
+  template <typename T>
+  static constexpr float y_bias() {
+    constexpr int bits = integer_bits<T>;
+    return bits ? static_cast<float>(1 << (bits - 4)) : 1.0f / 16;
+  }
+
+  template <typename Out>
+  static constexpr float gray_to_y(float g) {
+    double scale = 219.0 / 255;
+
+    if (std::is_integral_v<Out>)
+      scale = max_value<Out>() * 219 / 255;
+
+    return scale * g + y_bias<Out>();
+  }
+
+  /**
+   * @brief Converts a normalized floating point RGB vector to YCbCr with headroom and footroom
+   *
+   * The output is scaled to the dynamic range of Out, but it's kept in floating point.
+   */
+  template <typename Out>
+  static constexpr dvec3 rgb_to_ycbcr(dvec3 rgb) {
     double r = rgb[0];
     double g = rgb[1];
     double b = rgb[2];
@@ -62,23 +61,52 @@ struct itu_ref {
     double cb = (b - y) * (0.5 / (1 - 0.114));  // scale so that B has a weight of 0.5
 
     double ybias = 1/16.0;
-    double cbias = 0.5f;
-    if (out_bits > 0) {
-      ybias = 1 << (out_bits - 4);
-      cbias = 1 << (out_bits - 1);
+    double cbias = 0.5;
+    double scale = 1;
+    if constexpr (std::is_integral_v<Out>) {
+      int out_bits = integer_bits<Out>;
+      ybias = 1_i64 << (out_bits - 4);
+      cbias = 1_i64 << (out_bits - 1);
+      scale = max_value<Out>();
     }
 
     return {
-      y  * 219/255 + ybias,
-      cb * 224/255 + cbias,
-      cr * 224/255 + cbias
+      y  * scale * 219/255 + ybias,
+      cb * scale * 224/255 + cbias,
+      cr * scale * 224/255 + cbias
     };
   }
 };
 
+static_assert(itu_ref::y_bias<float>() == 1.0f / 16);
+static_assert(itu_ref::y_bias<uint8_t>() == 16);
+static_assert(itu_ref::y_bias<uint16_t>() == 4096);
+static_assert(itu_ref::y_bias<int8_t>() == 8);
+static_assert(itu_ref::y_bias<int16_t>() == 2048);
+
 struct jpeg_ref {
-  template <int out_bits = 0>
-  static constexpr vec3 rgb_to_ycbcr(vec3 rgb) {
+  template <typename T>
+  static float y_bias() {
+    return 0;
+  }
+
+  template <typename Out>
+  static constexpr float gray_to_y(float g) {
+    double scale = 1;
+
+    if (std::is_integral_v<Out>)
+      scale = max_value<Out>();
+
+    return scale * g;
+  }
+
+  /**
+   * @brief Converts a normalized floating point RGB vector to YCbCr with headroom and footroom
+   *
+   * The output is scaled to the dynamic range of Out, but it's kept in floating point.
+   */
+  template <typename Out>
+  static constexpr dvec3 rgb_to_ycbcr(dvec3 rgb) {
     double r = rgb[0];
     double g = rgb[1];
     double b = rgb[2];
@@ -87,23 +115,33 @@ struct jpeg_ref {
     double cb = (b - y) * (0.5 / (1 - 0.114));  // scale so that B has a weight of 0.5
 
     double cbias = 0.5f;
-    if (out_bits > 0) {
-      cbias = 1 << (out_bits - 1);
+    double scale = 1;
+    if constexpr (std::is_integral_v<Out>) {
+      int out_bits = integer_bits<Out>;
+      cbias = 1_i64 << (out_bits - 1);
+      scale = max_value<Out>();
     }
 
+
     return {
-      y,
-      cb + cbias,
-      cr + cbias
+      y  * scale,
+      cb * scale + cbias,
+      cr * scale + cbias
     };
   }
 };
 
-static_assert(itu_ref::rgb_to_ycbcr<8>({0, 0, 0}) == vec3(16, 128, 128));
-static_assert(itu_ref::rgb_to_ycbcr<8>({255, 255, 255}) == vec3(235, 128, 128));
+static_assert(vec3(itu_ref::rgb_to_ycbcr<uint8_t>({0, 0, 0})) == vec3(16, 128, 128));
+static_assert(vec3(itu_ref::rgb_to_ycbcr<uint8_t>({1, 1, 1})) == vec3(235, 128, 128));
+static_assert(itu_ref::gray_to_y<uint8_t>(0) == 16);
+static_assert(itu_ref::gray_to_y<uint8_t>(1) == 235);
+static_assert(itu_ref::gray_to_y<float>(0) == 0.0625f);
+static_assert(itu_ref::gray_to_y<float>(1) == static_cast<float>(0.0625 + 219.0 / 255));
 
-static_assert(jpeg_ref::rgb_to_ycbcr<8>({0, 0, 0}) == vec3(0, 128, 128));
-static_assert(jpeg_ref::rgb_to_ycbcr<8>({255, 255, 255}) == vec3(255, 128, 128));
+static_assert(vec3(jpeg_ref::rgb_to_ycbcr<uint8_t>({0, 0, 0})) == vec3(0, 128, 128));
+static_assert(vec3(jpeg_ref::rgb_to_ycbcr<uint8_t>({1, 1, 1})) == vec3(255, 128, 128));
+static_assert(jpeg_ref::gray_to_y<uint8_t>(0) == 0);
+static_assert(jpeg_ref::gray_to_y<uint8_t>(1) == 255);
 
 template <typename Method>
 struct RefMethod;
@@ -208,41 +246,40 @@ using Types = ::testing::Types<
 
 TYPED_TEST_SUITE(ColorSpaceConversionTypedTest, Types);
 
-TYPED_TEST(ColorSpaceConversionTypedTest, rgb_to_ycbcr) {
+TYPED_TEST(ColorSpaceConversionTypedTest, RGB_YCbCr_BothWays) {
   using Method = typename std::tuple_element_t<0, TypeParam>;
   using Out = typename std::tuple_element_t<1, TypeParam>;
   using In = typename std::tuple_element_t<2, TypeParam>;
 
   using ref = ref_method<Method>;
 
-  constexpr int bits = std::is_integral<Out>::value
-    ? sizeof(Out) * 8 - std::is_signed<Out>::value : 0;
+  constexpr int bits = integer_bits<Out>;
 
   // epsilon for forward conversion (rgb -> ycbcr)
-  double eps = std::is_integral<Out>::value ? 0.52 : 1e-2;
+  double eps = std::is_integral_v<Out> ? 0.52 : 1e-3;
 
   // epsilon for reverse conversion (rgb -> ycbcr - >rgb)
   double reverse_eps = 1e-3;
-  if (std::is_integral<In>::value && std::is_integral<Out>::value) {
+  if (std::is_integral_v<In> && std::is_integral_v<Out>) {
     // if we have two integers, we may lose precision when the input has more bits than the output
     reverse_eps = std::max(2.0, 2.0 * max_value<In>() / max_value<Out>());
-  } else if (std::is_integral<In>::value || std::is_integral<Out>::value) {
+  } else if (std::is_integral_v<In> || std::is_integral_v<Out>) {
     // we must accommodate for an off-by-one error when converting back and forth
     reverse_eps = 1;
   }
 
-  auto make_rgb = [](float r, float g, float b) {
+  auto make_rgb = [](double r, double g, double b) {
     return vec<3, In>(ConvertSatNorm<In>(r), ConvertSatNorm<In>(g), ConvertSatNorm<In>(b));
   };
-  auto make_rgb_ref = [](float r, float g, float b) {
-    return vec<3>(r, g, b) * detail::scale_factor<float, Out>();
+  auto make_rgb_norm = [](double r, double g, double b) {
+    return dvec<3>(r, g, b);
   };
 
 
-  auto check = [&](float r, float g, float b) {
+  auto check = [&](double r, double g, double b) {
     auto rgb = make_rgb(r, g, b);
     // calculate the reference, following the ITU-R procedure (with dynamic range scaling or not)
-    auto ref_ycbcr = ref::template rgb_to_ycbcr<bits>(make_rgb_ref(r, g, b));
+    auto ref_ycbcr = ref::template rgb_to_ycbcr<Out>(make_rgb_norm(r, g, b));
     // calculate the output using current method
     auto ycbcr = Method::template rgb_to_ycbcr<Out, In>(rgb);
     EXPECT_NEAR(ycbcr[0], ref_ycbcr[0], eps) << "RGB = " << vec3(rgb);
@@ -256,40 +293,77 @@ TYPED_TEST(ColorSpaceConversionTypedTest, rgb_to_ycbcr) {
     EXPECT_NEAR(reverse_rgb[2], rgb[2], reverse_eps);
   };
 
-  float h = 1.0f * ConvertNorm<In>(0.5) / ConvertNorm<In>(1.0);
+  double h = 1.0 * ConvertNorm<In>(0.5) / ConvertNorm<In>(1.0);
 
   // black
-  check(0.0f, 0.0f, 0.0f);
+  check(0.0, 0.0, 0.0);
   // gray
   check(h, h, h);
   // white
-  check(1.0f, 1.0f, 1.0f);
+  check(1.0, 1.0, 1.0);
 
   // red
-  check(1.0f, 0.0f, 0.0f);
+  check(1.0, 0.0, 0.0);
   // green
-  check(0.0f, 1.0f, 0.0f);
+  check(0.0, 1.0, 0.0);
   // blue
-  check(0.0f, 0.0f, 1.0f);
+  check(0.0, 0.0, 1.0);
 
   // yellow
-  check(1.0f, 1.0f, 0.0f);
+  check(1.0, 1.0, 0.0);
   // cyan
-  check(0.0f, 1.0f, 1.0f);
+  check(0.0, 1.0, 1.0);
   // magenta
-  check(1.0f, 0.0f, 1.0f);
+  check(1.0, 0.0, 1.0);
 
   // some random colors
   std::mt19937_64 rng(12345);
-  std::conditional_t<std::is_integral<In>::value,
-    std::uniform_int_distribution<In>,
-    std::uniform_real_distribution<float>
-  > dist(0, std::is_integral<In>::value ? max_value<In>() : 1);
+  std::conditional_t<std::is_integral_v<In>,
+    std::uniform_int_distribution<int64_t>,
+    std::uniform_real_distribution<double>
+  > dist(0, std::is_integral_v<In> ? max_value<In>() : 1);
   for (int i = 0; i < 1000; i++) {
-    constexpr float s = std::is_integral<In>::value ? 1.0f / max_value<In>() : 1.0f;
-    check(dist(rng) * s, dist(rng) * s, dist(rng) * s);
+    check(ConvertNorm<double>(In(dist(rng))),
+          ConvertNorm<double>(In(dist(rng))),
+          ConvertNorm<double>(In(dist(rng))));
   }
 }
+
+TYPED_TEST(ColorSpaceConversionTypedTest, gray_to_y) {
+  using Method = typename std::tuple_element_t<0, TypeParam>;
+  using Out = typename std::tuple_element_t<1, TypeParam>;
+  using In = typename std::tuple_element_t<2, TypeParam>;
+  using ref = ref_method<Method>;
+
+  double eps = std::is_integral_v<Out> ? 0.52 : 1e-3;
+
+  double reverse_eps = 1e-3;
+  if (std::is_integral_v<In> && std::is_integral_v<Out>) {
+    // if we have two integers, we may lose precision when the input has more bits than the output
+    reverse_eps = std::max(2.0, 2.0 * max_value<In>() / max_value<Out>());
+  } else if (std::is_integral_v<In> || std::is_integral_v<Out>) {
+    // we must accommodate for an off-by-one error when converting back and forth
+    reverse_eps = 1;
+  }
+
+  // some random colors
+  std::mt19937_64 rng(12345);
+  std::conditional_t<std::is_integral_v<In>,
+    std::uniform_int_distribution<In>,
+    std::uniform_real_distribution<float>
+  > dist(0, std::is_integral_v<In> ? max_value<In>() : 1);
+  for (int i = 0; i < 1000; i++) {
+    In gray = dist(rng);
+    float gray_norm = ConvertNorm<float>(gray);
+    Out y = Method::template gray_to_y<Out>(gray);
+    float ref_y = ref::template gray_to_y<Out>(gray_norm);
+    EXPECT_NEAR(y, ref_y, eps);
+    In rev_gray = Method::template y_to_gray<In>(y);
+    EXPECT_NEAR(gray, rev_gray, reverse_eps);
+  }
+
+}
+
 
 }  // namespace test
 }  // namespace color
