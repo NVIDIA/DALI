@@ -329,7 +329,7 @@ TYPED_TEST(ColorSpaceConversionTypedTest, RGB_YCbCr_BothWays) {
   }
 }
 
-TYPED_TEST(ColorSpaceConversionTypedTest, gray_to_y) {
+TYPED_TEST(ColorSpaceConversionTypedTest, Gray_Y_BothWays) {
   using Method = typename std::tuple_element_t<0, TypeParam>;
   using Out = typename std::tuple_element_t<1, TypeParam>;
   using In = typename std::tuple_element_t<2, TypeParam>;
@@ -361,7 +361,6 @@ TYPED_TEST(ColorSpaceConversionTypedTest, gray_to_y) {
     In rev_gray = Method::template y_to_gray<In>(y);
     EXPECT_NEAR(gray, rev_gray, reverse_eps);
   }
-
 }
 
 
