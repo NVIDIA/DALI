@@ -238,7 +238,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
 #else
   dstdata.reset(new JSAMPLE[target_output_width * target_output_height * components]);
 #endif
-   
+
   if (dstdata == nullptr) {
     return nullptr;
   }
@@ -357,6 +357,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
     output_line += stride;
   }
   temp.reset();
+  tempdata = nullptr;
 
 #if defined(LIBJPEG_TURBO_VERSION)
   if (flags.crop && cinfo.output_scanline < cinfo.output_height) {

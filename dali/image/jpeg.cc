@@ -106,10 +106,8 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
                "Color space not supported by libjpeg-turbo");
   flags.color_space = type;
 
-  std::shared_ptr<uint8_t> decoded_image(
-    jpeg::Uncompress(jpeg, length, flags),
-    [](uint8_t* data){ delete [] data; }
-  );
+  std::shared_ptr<uint8_t> decoded_image(jpeg::Uncompress(jpeg, length, flags),
+                                         [](uint8_t *data) { delete[] data; });
 
   if (decoded_image == nullptr) {
     // Failed to decode, fallback
