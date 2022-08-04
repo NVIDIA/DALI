@@ -390,6 +390,7 @@ def test_pinned_input_hw_decoder():
     p.build()
     p.run()
 
+
 def test_tiff_palette():
     normal = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640.tiff")
     palette = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640_palette.tiff")

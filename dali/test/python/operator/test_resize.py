@@ -623,6 +623,7 @@ def _test_empty_input(dim, device):
             else:
                 assert np.prod(out_with_empty.at(i).shape) == 0
 
+
 def test_empty_input():
     for device in ["cpu", "gpu"]:
         for dim in [2, 3]:

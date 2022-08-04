@@ -103,7 +103,7 @@ args = [
     (50, 0.532, 1),
     (51, 0.38158387, 2.6810782),
     (123, 0.456, 0.789)]
-    
+
 
 @params(*itertools.product(devices, args))
 def test_gridmask_vs_cv(device, args):

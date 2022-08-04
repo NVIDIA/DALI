@@ -18,7 +18,6 @@ from distutils.version import LooseVersion
 from numba import cuda
 
 from nvidia.dali import pipeline_def
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
 from test_utils import get_dali_extra_path
@@ -27,11 +26,13 @@ from nvidia.dali.plugin.numba.fn.experimental import numba_function
 import numba
 from nose import SkipTest, with_setup
 
+
 def check_env_compatibility():
     if LooseVersion(numba.__version__) < LooseVersion('0.55.2'):
         raise SkipTest()
     if cuda.runtime.get_version() > cuda.driver.driver.get_version():
         raise SkipTest()
+
 
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -45,18 +46,24 @@ def set_all_values_to_255_sample(in_arr, out_arr):
 
 def set_output_to_input_plus_5_sample(in_arr, out_arr):
     x, y = cuda.grid(2)
-    if x < in_arr.shape[0] and y < in_arr.shape[1] and x < out_arr.shape[0] and y < out_arr.shape[1]:
+    if (x < in_arr.shape[0] and
+       y < in_arr.shape[1] and
+       x < out_arr.shape[0] and
+       y < out_arr.shape[1]):
         out_arr[x][y] = in_arr[x][y] + 5
 
 
 def set_consecutive_values_sample(in_arr, out_arr):
     x, y = cuda.grid(2)
-    if x < in_arr.shape[0] and y < in_arr.shape[1] and x < out_arr.shape[0] and y < out_arr.shape[1]:
+    if (x < in_arr.shape[0] and
+       y < in_arr.shape[1] and
+       x < out_arr.shape[0] and
+       y < out_arr.shape[1]):
         out_arr[x][y] = y + x * in_arr.shape[1]
 
 
 def get_data(shapes, dtype):
-    return [np.ones(shape, dtype = dtype) for shape in shapes]
+    return [np.ones(shape, dtype=dtype) for shape in shapes]
 
 
 @pipeline_def

@@ -292,9 +292,9 @@ def test_nemo_asr_reader_pad_last_batch():
 
 
 def test_read_idxs():
-    batch_size=10
-    reader_seed=12345
-    
+    batch_size = 10
+    reader_seed = 12345
+
     @pipeline_def(device_id=0, num_threads=4)
     def nemo_asr_reader_read_idxs(reader_seed=reader_seed):
         audio, idx = fn.readers.nemo_asr(
