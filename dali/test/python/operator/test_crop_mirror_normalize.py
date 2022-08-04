@@ -24,7 +24,7 @@ from nvidia.dali.pipeline import Pipeline
 
 from nose_utils import assert_raises
 from nose_utils import raises
-from test_operator_slice import check_slice_output, abs_slice_start_and_end
+from test_slice import check_slice_output, abs_slice_start_and_end
 from test_utils import RandomDataIterator
 from test_utils import as_array
 from test_utils import compare_pipelines, dali_type_to_np
