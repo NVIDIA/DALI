@@ -816,8 +816,7 @@ Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new
     ptr = nullptr;
   }
 
-  result.ShareData(ptr, capacity(), is_pinned(), new_shape, type(),
-                   device_id(), order());
+  result.ShareData(ptr, capacity(), is_pinned(), new_shape, type(), device_id(), order());
 
   auto result_layout = GetLayout();
   if (result_layout.ndim() + 1 == new_shape.sample_dim()) {
