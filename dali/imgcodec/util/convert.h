@@ -23,10 +23,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
-
-#define DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES \
-  (DALI_RGB, DALI_GRAY, DALI_YCbCr, DALI_BGR, DALI_ANY_DATA)
-
 namespace dali {
 namespace imgcodec {
 
@@ -83,99 +79,98 @@ inline vec<N, Out> ConvertSatNormVec(const vec<N, In> &in) {
   return out;
 }
 
-/**
- * @brief A functor for converting between color spaces.
- *
- * It reads the input data from memory, passes it to chosen color conversion function, and then
- * stores the result. Both the argument and return value of the conversion function can either be
- * a scalar or a vector.
- */
-template <typename Out, typename In, DALIImageType OutFormat, DALIImageType InFormat>
-struct ConvertColorSpace {
-  void operator()(Out *out_mem, const In *in_mem) {
-    ptrdiff_t out_channel_stride = out_channel_stride_, in_channel_stride = in_channel_stride_;
-    ptrdiff_t out_offset = 0, in_offset = 0;
-
-    // For BGR data we will use RGB conversion functions, but we will access channels in the pixel
-    // in opposite order.
-    if constexpr (InFormat == DALI_BGR) {
-      in_offset = 2 * in_channel_stride_;
-      in_channel_stride = -in_channel_stride_;
-    }
-    if constexpr (OutFormat == DALI_BGR) {
-      out_offset = 2 * out_channel_stride_;
-      out_channel_stride = -out_channel_stride_;
-    }
-
-    typename FunctionInfo<decltype(GetConversionFunction())>::arg_type input;
-
-    if constexpr (is_vec<decltype(input)>::value) {
-      for (int i = 0; i < input.size(); i++)
-        input[i] = in_mem[i * in_channel_stride + in_offset];
-    } else {
-      input = *in_mem;
-    }
-
-    auto f = GetConversionFunction();
-    auto output = f(input);
-
-    if constexpr (is_vec<decltype(output)>::value) {
-      for (int i = 0; i < output.size(); i++)
-        out_mem[i * out_channel_stride + out_offset] = output[i];
-    } else {
-      *out_mem = output;
-    }
+template <typename Out, int out_channels, typename In, int in_channels>
+struct ColorConversionBase {
+  static In load(const In *in) {
+    return *in;
   }
 
-  static constexpr auto GetConversionFunction() {
-    // BGR conversions will use the RGB conversion functions, but we will call them with negative
-    // strides to access the colors in reverse order (see the constructor)
-    constexpr bool InRgbOrBgr = (InFormat == DALI_RGB || InFormat == DALI_BGR);
-    constexpr bool OutRgbOrBgr = (OutFormat == DALI_RGB || OutFormat == DALI_BGR);
-
-    if constexpr (InRgbOrBgr && OutRgbOrBgr) {
-      return ConvertSatNormVec<Out, In, 3>;
-    } else if constexpr (InRgbOrBgr && OutFormat == DALI_GRAY) {
-      return kernels::color::rgb_to_gray<Out, In>;
-    } else if constexpr (InRgbOrBgr && OutFormat == DALI_YCbCr) {
-      return kernels::color::itu_r_bt_601::rgb_to_ycbcr<Out, In>;
-    } else if constexpr (InFormat == DALI_GRAY && OutRgbOrBgr) {
-      return kernels::color::gray_to_rgb<Out, In>;
-    } else if constexpr (InFormat == DALI_GRAY && OutFormat == DALI_YCbCr) {
-      return kernels::color::itu_r_bt_601::gray_to_ycbcr<Out, In>;
-    } else if constexpr (InFormat == DALI_YCbCr && OutRgbOrBgr) {
-      return kernels::color::itu_r_bt_601::ycbcr_to_rgb<Out, In>;
-    } else if constexpr (InFormat == DALI_YCbCr && OutFormat == DALI_GRAY) {
-      return kernels::color::itu_r_bt_601::ycbcr_to_gray<Out, In>;
-    } else {
-      return ConversionErrorFunction;
-    }
+  vec<in_channels, In> vload(const In *in) const {
+    vec<in_channels, In> v{};
+    for (int i = 0; i < in_channels; i++)
+      v[i] = in[i * in_channel_stride];
+    return v;
   }
 
-  static constexpr Out ConversionErrorFunction(In) {
-    throw std::logic_error(make_string("Not implemented: conversion from ", to_string(InFormat),
-                                       " to ", to_string(OutFormat), " is not supported"));
+  static void store(Out *out, const Out &value) {
+    *out = value;
   }
 
-  template <typename F> struct FunctionInfo;
+  void vstore(Out *out, const vec<out_channels, Out> &v) const {
+    for (int i = 0; i < out_channels; i++)
+      out[i * out_channel_stride] = v[i];
+  }
 
-  template <typename FuncRet, typename FuncArg>
-  struct FunctionInfo<FuncRet(*)(FuncArg)> {
-    using arg_type = typename std::remove_const<
-                        typename std::remove_reference<FuncArg>::type>::type;
-    using ret_type = FuncRet;
-  };
-
-  ptrdiff_t out_channel_stride_, in_channel_stride_;
+  ptrdiff_t out_channel_stride, in_channel_stride;
 };
 
-/**
- * @brief Converts a data type of a single-channel value.
- */
+template <typename Out, typename In, int channels>
+struct ConvertPixelDType : ColorConversionBase<Out, channels, In, channels> {
+  void operator()(Out *out, const In *in) const {
+    auto v = this->vload(in);
+    this-> vstore(out, ConvertSatNormVec<Out>(v));
+  }
+};
+
+
+template <typename Out, typename In, DALIImageType out_format, DALIImageType in_format>
+struct ConvertPixel;
+
 template <typename Out, typename In>
-inline void ConvertDType(Out *out, const In *in) {
-  *out = ConvertSatNorm<Out>(*in);
-}
+struct ConvertPixel<Out, In, DALI_GRAY, DALI_GRAY> : ConvertPixelDType<Out, In, 1> {};
+
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_RGB, DALI_RGB> : ConvertPixelDType<Out, In, 3> {};
+
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_YCbCr, DALI_YCbCr> : ConvertPixelDType<Out, In, 3> {};
+
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_GRAY, DALI_RGB> : ColorConversionBase<Out, 1, In, 3> {
+  void operator()(Out *out, const In *in) const {
+    auto rgb = this->vload(in);
+    this->store(out, kernels::color::rgb_to_gray<Out, In>(rgb));
+  }
+};
+
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_YCbCr, DALI_RGB> : ColorConversionBase<Out, 3, In, 3> {
+  void operator()(Out *out, const In *in) const {
+    auto rgb = this->vload(in);
+    this->vstore(out, kernels::color::itu_r_bt_601::rgb_to_ycbcr<Out, In>(rgb));
+  }
+};
+
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_YCbCr, DALI_GRAY> : ColorConversionBase<Out, 3, In, 1> {
+  void operator()(Out *out, const In *in) const {
+    auto gray = this->load(in);
+    this->vstore(out, kernels::color::itu_r_bt_601::gray_to_ycbcr<Out, In>(gray));
+  }
+};
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_RGB, DALI_GRAY> : ColorConversionBase<Out, 3, In, 1> {
+  void operator()(Out *out, const In *in) const {
+    auto gray = this->load(in);
+    this->vstore(out, kernels::color::gray_to_rgb<Out, In>(gray));
+  }
+};
+
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_RGB, DALI_YCbCr> : ColorConversionBase<Out, 3, In, 3> {
+  void operator()(Out *out, const In *in) const {
+    auto ycbcr = this->vload(in);
+    this->vstore(out, kernels::color::itu_r_bt_601::ycbcr_to_rgb<Out, In>(ycbcr));
+  }
+};
+template <typename Out, typename In>
+struct ConvertPixel<Out, In, DALI_GRAY, DALI_YCbCr> : ColorConversionBase<Out, 1, In, 3> {
+  void operator()(Out *out, const In *in) const {
+    auto ycbcr = this->vload(in);
+    this->store(out, kernels::color::itu_r_bt_601::ycbcr_to_gray<Out, In>(ycbcr));
+  }
+};
+
 
 /**
  * @brief Converts an image stored in `in` and stores it in `out`.
@@ -190,19 +185,33 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
   // TODO(skarpinski) Support other layouts
   DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
     "Not implemented: currently only channels-last layout is supported");
+  ptrdiff_t in_channel_stride = 1, out_channel_stride = 1;
 
-  VALUE_SWITCH(out_format, OutFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
-    VALUE_SWITCH(in_format, InFormat, DALI_IMGCODEC_SUPPORTED_IMAGE_TYPES, (
-      if constexpr (OutFormat == InFormat || OutFormat == DALI_ANY_DATA) {
-        Convert(out, out_strides, in, in_strides, size, ndim, &ConvertDType<Out, In>);
-      } else {
-        // If the color conversion will be needed, we strip the last (channel) dimension to let
-        // the conversion function work on whole pixels and not single values.
-        auto func = ConvertColorSpace<Out, In, OutFormat, InFormat>{1, 1};
-        Convert(out, out_strides, in, in_strides, size, ndim - 1, func);
-      }
+  if (in_format == DALI_BGR) {
+    // We will use RGB conversion, but we will load the pixel in reverse order.
+    in_format = DALI_RGB;
+    in += 2 * in_channel_stride;
+    in_channel_stride = -in_channel_stride;
+  }
+
+  if (out_format == DALI_BGR) {
+    // We will use RGB conversion, but we will store the pixel in reverse order.
+    out_format = DALI_RGB;
+    out += 2 * out_channel_stride;
+    out_channel_stride = -out_channel_stride;
+  }
+
+  if (out_format == DALI_ANY_DATA) {
+    // Conversion to DALI_ANY_DATA is a no-op
+    out_format = in_format;
+  }
+
+  VALUE_SWITCH(out_format, OutFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
+    VALUE_SWITCH(in_format, InFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
+      auto func = ConvertPixel<Out, In, OutFormat, InFormat>{out_channel_stride, in_channel_stride};
+      Convert(out, out_strides, in, in_strides, size, ndim - 1, func);
     ), throw std::logic_error(  // NOLINT
-        make_string("Unsupported input format" , to_string(in_format))););  // NOLINT
+        make_string("Unsupported input format " , to_string(in_format))););  // NOLINT
   ), throw std::logic_error(  // NOLINT
       make_string("Unsupported output format " , to_string(out_format))););  // NOLINT
 }
