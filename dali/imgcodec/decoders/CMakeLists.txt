@@ -13,6 +13,7 @@
 # limitations under the License.
 
 add_subdirectory(jpeg)
+add_subdirectory(nvjpeg)
 
 if (BUILD_LIBTIFF)
     add_subdirectory(libtiff)

@@ -15,12 +15,17 @@
 #ifndef DALI_IMGCODEC_DECODERS_NVJPEG2K_H_
 #define DALI_IMGCODEC_DECODERS_NVJPEG2K_H_
 
+#define NVJPEG2K_ENABLED true  // using dirty hack for now
+
 #include <nvjpeg.h>
 #include <memory>
 #include <vector>
-#include "dali/imgcodec/image_decoder.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg2k_helper.h"
+#include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/core/cuda_stream_pool.h"
+#include "dali/core/cuda_event.h"
 
 namespace dali {
 namespace imgcodec {
@@ -28,26 +33,28 @@ namespace imgcodec {
 /**
  * @brief Decoder interface for nvjpeg2k library
  */
-class DLL_PUBLIC NvJpeg2kDecoderInstance : public ImageDecoderImpl {
+class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  NvJpeg2kDecoderInstance(int device_id, ThreadPool *tp)
-  : ImageDecoderImpl(device_id, tp) {}
+  NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp);
 
-  using ImageDecoderImpl::Decode;
-  DecodeResult Decode(SampleView<GPUBackend> out,
-                      ImageSource *in,
-                      DecodeParams opts,
-                      const ROI &roi) override {
-    return Decode({out}, {in}, opts, {roi});
+  using BatchParallelDecoderImpl::DecodeImplTask;
+  DecodeResult DecodeImplTask(int thread_idx,
+                              cudaStream_t stream,
+                              SampleView<GPUBackend> out,
+                              ImageSource *in,
+                              DecodeParams opts,
+                              const ROI &roi) override;
+  
+  void SetParam(const char *name, const any &value) {
+    DALI_FAIL(make_string("Unexpected param name: ", name));
   }
 
-  std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
-                                   cspan<ImageSource *> in,
-                                   DecodeParams opts,
-                                   cspan<ROI> rois) override;
+  any GetParam(const char *name) const override {
+    DALI_FAIL(make_string("Unexpected param name: ", name));
+  }
 
  private:
-  struct ProcessingInfo {
+  struct Context {
     uint8_t bpp;
     TensorShape<> shape;
     int req_nchannels;
@@ -56,23 +63,28 @@ class DLL_PUBLIC NvJpeg2kDecoderInstance : public ImageDecoderImpl {
     size_t pixel_size;
     int64_t pixels_count;
     int64_t comp_size;
+
+    NvJpeg2kDecodeState *nvjpeg2k_decode_state;
+    NvJpeg2kStream *nvjpeg2k_stream;
+    CUDAEvent *decode_event;
+    cudaStream_t *cuda_stream;
   };
 
-  bool ParseJpeg2000Info(int id, ProcessingInfo *info, ImageSource *in, DecodeParams opts);
-  bool DecodeImpl(int id, ProcessingInfo *info, ImageSource *in, uint8_t *out, DecodeParams opts);
-  bool ConvertData(int id, ProcessingInfo *info, uint8_t *in, uint8_t *out, DecodeParams opts);
+  bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context *ctx);
+  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, Context *ctx);
+  bool ConvertData(void *in, uint8_t *out, DecodeParams opts, Context *ctx);
 
-  NvJpeg2kHandle nvjpeg2k_handle_;
-  NvJpeg2kDecodeState nvjpeg2k_decoder_;
-  std::vector<NvJpeg2kStream> nvjpeg2k_streams_;
-  DeviceBuffer<uint8_t> nvjpeg2k_intermediate_buffer_;
-  cudaStream_t nvjpeg2k_cu_stream_;
-  cudaEvent_t nvjpeg2k_decode_event_;
+  NvJpeg2kHandle nvjpeg2k_handle_{};
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
   nvjpeg2kPinnedAllocator_t nvjpeg2k_pin_alloc_;
+
+  std::vector<NvJpeg2kDecodeState> nvjpeg2k_decode_states_;
+  std::vector<DeviceBuffer<uint8_t>> intermediate_buffers_;
+  std::vector<NvJpeg2kStream> nvjpeg2k_streams_;
+  std::vector<CUDAEvent> decode_events_;
 };
 
-class NvJpeg2kDecoder : public ImageDecoder {
+class NvJpeg2000Decoder : public ImageDecoder {
  public:
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
@@ -90,7 +102,7 @@ class NvJpeg2kDecoder : public ImageDecoder {
   }
 
   std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<NvJpeg2kDecoderInstance>(device_id, &tp);
+    return std::make_shared<NvJpeg2000DecoderInstance>(device_id, &tp);
   }
 };
 
