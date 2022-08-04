@@ -32,8 +32,12 @@ def check_env_compatibility():
         raise SkipTest()
     if cuda.runtime.get_version() > cuda.driver.driver.get_version():
         raise SkipTest()
+
+
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, 'db', 'lmdb')
+
+
 def set_all_values_to_255_sample(in_arr, out_arr):
     x, y = cuda.grid(2)
     if x < out_arr.shape[0] and y < out_arr.shape[1]:
@@ -83,6 +87,7 @@ def _testimpl_numba_func(shapes, dtype, run_fn, out_types, in_types, outs_ndim, 
         for i in range(batch_size):
             out_arr = np.array(outs[0][i].as_cpu())
             assert np.array_equal(out_arr, expected_out[i])
+
 
 @with_setup(check_env_compatibility)
 def test_numba_func():
