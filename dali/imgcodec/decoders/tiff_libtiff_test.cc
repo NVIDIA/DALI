@@ -37,8 +37,8 @@ auto ref_dir = dali_extra + "/db/single/reference/tiff/0/";
 auto rgb_path = img_dir + "/cat-111793_640.tiff";
 auto rgb_ref_path = ref_dir + "/cat-111793_640.tiff.npy";
 
-auto bw_path = img_dir + "/cat-111793_640_bw.tiff";
-auto bw_ref_path = ref_dir + "/cat-111793_640_bw.tiff.npy";
+auto gray_path = img_dir + "/cat-111793_640_bw.tiff";
+auto gray_ref_path = ref_dir + "/cat-111793_640_bw.tiff.npy";
 
 auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
 }  // namespace
@@ -72,11 +72,30 @@ TEST_F(LibTiffDecoderTest, TestROI) {
   AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
-TEST_F(LibTiffDecoderTest, TestRgbToMonochrome) {
-  auto ref = ReadReferenceFrom(bw_ref_path);
+TEST_F(LibTiffDecoderTest, TestRgbToGray) {
+  auto ref = ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
   auto img = Decode(&src, {.format = DALI_GRAY});
   AssertEqualSatNorm(img, ref);
+}
+
+TEST_F(LibTiffDecoderTest, TestGray) {
+  auto ref = ReadReferenceFrom(gray_ref_path);
+  auto src = ImageSource::FromFilename(gray_path);
+  auto img = Decode(&src, {.format = DALI_GRAY});
+  AssertEqualSatNorm(img, ref);
+}
+
+TEST_F(LibTiffDecoderTest, TestGrayToRgb) {
+  auto ref = ReadReferenceFrom(gray_ref_path);
+  auto src = ImageSource::FromFilename(gray_path);
+  auto img = Decode(&src, {.format = DALI_RGB});
+
+  EXPECT_EQ(img.shape(), TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
+
+  AssertEqualSatNorm(Crop(img, {{0, 0, 0}, {img.shape()[0], img.shape()[1], 1}}), ref);
+  AssertEqualSatNorm(Crop(img, {{0, 0, 1}, {img.shape()[0], img.shape()[1], 2}}), ref);
+  AssertEqualSatNorm(Crop(img, {{0, 0, 2}, {img.shape()[0], img.shape()[1], 3}}), ref);
 }
 
 }  // namespace test
