@@ -15,8 +15,9 @@
 #ifndef DALI_IMGCODEC_DECODERS_DECODER_TEST_HELPER_H_
 #define DALI_IMGCODEC_DECODERS_DECODER_TEST_HELPER_H_
 
-#include <string>
 #include <memory>
+#include <string>
+#include <type_traits>
 #include <vector>
 #include "dali/pipeline/data/tensor.h"
 #include "dali/core/static_switch.h"
@@ -40,13 +41,14 @@ namespace test {
 *
 * @tparam OutputType Type, to which the image should be decoded.
 */
-template<typename OutputType>
-class CpuDecoderTestBase : public ::testing::Test {
+template<typename Backend, typename OutputType>
+class DecoderTestBase : public ::testing::Test {
  public:
-  CpuDecoderTestBase() : tp_(4, CPU_ONLY_DEVICE_ID, false, "Decoder test") {}
+  explicit DecoderTestBase(int threads_cnt = 4)
+    : tp_(threads_cnt, GetDeviceId(), false, "Decoder test") {}
 
   /**
-  * @brief Decodes an image and returns the result as a tensor.
+  * @brief Decodes an image and returns the result as a CPU tensor.
   */
   Tensor<CPUBackend> Decode(ImageSource *src, const DecodeParams &opts = {}, const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
@@ -54,23 +56,81 @@ class CpuDecoderTestBase : public ::testing::Test {
 
     Tensor<CPUBackend> result;
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
-    TensorShape<> shape;
-    if (roi) {
-      shape = roi.shape();
-      int ndim = shape.sample_dim();
-      if (ndim != info.shape.sample_dim()) {
-        shape.resize(ndim + 1);
-        shape[ndim] = info.shape[ndim];
-        assert(shape.sample_dim() == info.shape.sample_dim());
-      }
-    } else {
-      shape = info.shape;
-    }
+    auto shape = AdjustToRoi(info.shape, roi);
     result.Resize(shape, type2id<OutputType>::value);
 
-    SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());
-    DecodeResult decode_result = Decoder()->Decode(view, src, opts, roi);
-    EXPECT_TRUE(decode_result.success);
+    if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
+      SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());
+      DecodeResult decode_result = Decoder()->Decode(view, src, opts, roi);
+      EXPECT_TRUE(decode_result.success);
+    } else {  // GPU
+      TensorList<GPUBackend> gpu_list;
+      gpu_list.Resize(TensorListShape{{result.shape()}}, result.type());
+      SampleView<GPUBackend> view(gpu_list.raw_mutable_tensor(0), result.shape(), result.type());
+
+      auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
+      auto decode_result = Decoder()->Decode(stream, view, src, opts, roi);
+      EXPECT_TRUE(decode_result.success);
+
+      TensorList<GPUBackend> cpu_list;
+      cpu_list.Copy(gpu_list);
+      result.Copy(cpu_list, 0);
+    }
+
+    return result;
+  }
+
+  /**
+   * @brief Decodes a batch of images, invoking the batch version of ImageDecoder::Decode
+   */
+  std::vector<Tensor<CPUBackend>> Decode(cspan<ImageSource *> in,
+                                         const DecodeParams &opts = {},
+                                         cspan<ROI> rois = {}) {
+    auto parser = Parser();
+    auto decoder = Decoder();
+
+    int n = in.size();
+    std::vector<TensorShape<>> shape(n);
+    std::vector<Tensor<CPUBackend>> result(n);
+    std::vector<ROI> empty_rois(n);
+
+    if (rois.size() == 0)
+      rois = make_span(empty_rois);
+    assert(rois.size() == n);
+
+    for (int i = 0; i < n; i++) {
+      EXPECT_TRUE(parser->CanParse(in[i]));
+      EXPECT_TRUE(decoder->CanDecode(in[i], opts));
+      ImageInfo info = parser->GetInfo(in[i]);
+      shape[i] = AdjustToRoi(info.shape, rois[i]);
+      result[i].Resize(shape[i], type2id<OutputType>::value);
+    }
+
+    if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
+      std::vector<SampleView<CPUBackend>> view(n);
+      for (int i = 0; i < n; i++)
+        view[i] = {result[i].raw_mutable_data(), result[i].shape(), result[i].type()};
+
+      auto decode_results = decoder->Decode(make_span(view), in, opts, rois);
+      for (auto decode_result : decode_results)
+        EXPECT_TRUE(decode_result.success);
+    } else {  // GPU
+      TensorList<GPUBackend> gpu_list;
+      gpu_list.Resize(TensorListShape{shape}, type2id<OutputType>::value);
+      std::vector<SampleView<GPUBackend>> view(n);
+      for (int i = 0; i < n; i++)
+        view[i] = {gpu_list.raw_mutable_tensor(i), result[i].shape(), result[i].type()};
+
+      auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
+      auto decode_results = decoder->Decode(stream, make_span(view), in, opts, rois);
+      for (auto decode_result : decode_results)
+        EXPECT_TRUE(decode_result.success);
+
+      TensorList<CPUBackend> cpu_list;
+      cpu_list.Copy(gpu_list);
+      for (int i = 0; i < n; i++)
+        result[i].Copy(cpu_list, i);
+    }
 
     return result;
   }
@@ -155,6 +215,20 @@ class CpuDecoderTestBase : public ::testing::Test {
   }
 
   /**
+   * @brief Get device_id for the Backend
+   */
+  int GetDeviceId() {
+    if constexpr(std::is_same<Backend, CPUBackend>::value) {
+      return CPU_ONLY_DEVICE_ID;
+    } else {
+      static_assert(std::is_same<Backend, GPUBackend>::value);
+      int device_id;
+      CUDA_CALL(cudaGetDevice(&device_id));
+      return device_id;
+    }
+  }
+
+  /**
   * @brief Reads the reference image from specified stream.
   */
   virtual Tensor<CPUBackend> ReadReference(InputStream *src) = 0;
@@ -171,6 +245,21 @@ class CpuDecoderTestBase : public ::testing::Test {
   virtual std::shared_ptr<ImageParser> CreateParser() = 0;
 
  private:
+  TensorShape<> AdjustToRoi(const TensorShape<> &shape, const ROI &roi) {
+    if (roi) {
+      auto result = roi.shape();
+      int ndim = shape.sample_dim();
+      if (roi.shape().sample_dim() != ndim) {
+        assert(roi.shape().sample_dim() + 1 == ndim);
+        result.resize(ndim);
+        result[ndim - 1] = shape[ndim - 1];
+      }
+      return result;
+    } else {
+      return shape;
+    }
+  }
+
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;
   std::shared_ptr<ImageParser> parser_ = nullptr;
   ThreadPool tp_;
@@ -182,9 +271,12 @@ class CpuDecoderTestBase : public ::testing::Test {
 *
 * @tparam OutputType Type, to which the image should be decoded.
 */
-template<typename OutputType>
-class NumpyDecoderTestBase : public CpuDecoderTestBase<OutputType> {
+template<typename Backend, typename OutputType>
+class NumpyDecoderTestBase : public DecoderTestBase<Backend, OutputType> {
  public:
+  explicit NumpyDecoderTestBase(int threads_cnt = 4)
+  : DecoderTestBase<Backend, OutputType>(threads_cnt) {}
+
   Tensor<CPUBackend> ReadReference(InputStream *src) override {
     return numpy::ReadTensor(src);
   }
