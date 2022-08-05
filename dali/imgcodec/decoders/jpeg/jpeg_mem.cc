@@ -27,6 +27,7 @@ limitations under the License.
 #include <utility>
 #include "dali/imgcodec/decoders/jpeg/jpeg_handle.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 namespace imgcodec {
@@ -47,22 +48,16 @@ enum JPEGErrors {
 // arguments in a struct struct.
 class FewerArgsForCompiler {
  public:
-  FewerArgsForCompiler(int datasize, const UncompressFlags& flags, int64* nwarn,
-                       std::function<uint8*(int, int, int)> allocate_output)
+  FewerArgsForCompiler(int datasize, const UncompressFlags& flags)
       : datasize_(datasize),
         flags_(flags),
-        pnwarn_(nwarn),
-        allocate_output_(std::move(allocate_output)),
         height_read_(0),
         height_(0),
         stride_(0) {
-    if (pnwarn_ != nullptr) *pnwarn_ = 0;
   }
 
   const int datasize_;
   const UncompressFlags flags_;
-  int64* const pnwarn_;
-  std::function<uint8*(int, int, int)> allocate_output_;
   int height_read_;  // number of scanline lines successfully read
   int height_;
   int stride_;
@@ -79,14 +74,13 @@ bool IsCropWindowValid(const UncompressFlags& flags, int input_image_width,
          flags.crop_x + flags.crop_width <= input_image_width;
 }
 
-uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
+std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   // unpack the argball
   const int datasize = argball->datasize_;
   const auto& flags = argball->flags_;
   const int ratio = flags.ratio;
   int components = flags.components;
   int stride = flags.stride;              // may be 0
-  int64* const nwarn = argball->pnwarn_;  // may be NULL
   auto color_space = flags.color_space;
 
   // Can't decode if the ratio is not recognized by libjpeg
@@ -103,7 +97,8 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   if (datasize == 0 || srcdata == nullptr) return nullptr;
 
   // Declare temporary buffer pointer here so that we can free on error paths
-  JSAMPLE* tempdata = nullptr;
+  std::unique_ptr<JSAMPLE[]> temp;
+  JSAMPLE *tempdata = nullptr;
 
   // Initialize libjpeg structures to have a memory source
   // Modify the usual jpeg error manager to catch fatal errors.
@@ -115,11 +110,14 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   cinfo.client_data = &jpeg_jmpbuf;
   jerr.error_exit = CatchError;
   if (setjmp(jpeg_jmpbuf)) {
-    delete[] tempdata;
     return nullptr;
   }
 
   jpeg_create_decompress(&cinfo);
+  auto destroy_cinfo = AtScopeExit([&cinfo]() {
+    jpeg_destroy_decompress(&cinfo);
+  });
+
   SetSrc(&cinfo, srcdata, datasize, flags.try_recover_truncated_jpeg);
   jpeg_read_header(&cinfo, TRUE);
 
@@ -137,7 +135,6 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
       break;
     default:
       ERROR_LOG << " Invalid components value " << components << std::endl;
-      jpeg_destroy_decompress(&cinfo);
       return nullptr;
   }
 
@@ -165,12 +162,10 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   if (cinfo.output_width <= 0 || cinfo.output_height <= 0) {
     ERROR_LOG << "Invalid image size: " << cinfo.output_width << " x "
               << cinfo.output_height << std::endl;
-    jpeg_destroy_decompress(&cinfo);
     return nullptr;
   }
   if (total_size >= (1LL << 29)) {
     ERROR_LOG << "Image too large: " << total_size << std::endl;
-    jpeg_destroy_decompress(&cinfo);
     return nullptr;
   }
 
@@ -195,7 +190,6 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
                 << " for image_width: " << cinfo.output_width
                 << " and image_height: " << cinfo.output_height
                 << std::endl;
-      jpeg_destroy_decompress(&cinfo);
       return nullptr;
     }
 
@@ -228,7 +222,6 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   } else if (stride < min_stride) {
     ERROR_LOG << "Incompatible stride: " << stride
               << " < " << min_stride << std::endl;
-    jpeg_destroy_decompress(&cinfo);
     return nullptr;
   }
 
@@ -236,23 +229,22 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   argball->height_ = target_output_height;
   argball->stride_ = stride;
 
+
+  std::unique_ptr<uint8[]> dstdata;
 #if !defined(LIBJPEG_TURBO_VERSION)
-  uint8* dstdata = nullptr;
-  if (flags.crop) {
-    dstdata = new JSAMPLE[stride * target_output_height];
-  } else {
-    dstdata = argball->allocate_output_(target_output_width,
-                                        target_output_height, components);
-  }
+  if (flags.crop)
+    dstdata.reset(new JSAMPLE[stride * target_output_height]);
+  else
+    dstdata.reset(new JSAMPLE[target_output_width * target_output_height * components]);
 #else
-  uint8* dstdata = argball->allocate_output_(target_output_width,
-                                             target_output_height, components);
+  dstdata.reset(new JSAMPLE[target_output_width * target_output_height * components]);
 #endif
+
   if (dstdata == nullptr) {
-    jpeg_destroy_decompress(&cinfo);
     return nullptr;
   }
-  JSAMPLE* output_line = static_cast<JSAMPLE*>(dstdata);
+
+  JSAMPLE* output_line = static_cast<JSAMPLE*>(dstdata.get());
 
   // jpeg_read_scanlines requires the buffers to be allocated based on
   // cinfo.output_width, but the target image width might be different if crop
@@ -266,11 +258,12 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
 
   if (use_cmyk) {
     // Temporary buffer used for CMYK -> RGB conversion.
-    tempdata = new JSAMPLE[cinfo.output_width * 4];
+    temp.reset(new JSAMPLE[cinfo.output_width * 4]);
   } else if (need_realign_cropped_scanline) {
     // Temporary buffer used for MCU-aligned scanline data.
-    tempdata = new JSAMPLE[cinfo.output_width * components];
+    temp.reset(new JSAMPLE[cinfo.output_width * components]);
   }
+  tempdata = temp.get();
 
   // If there is an error reading a line, this aborts the reading.
   // Save the fraction of the image that has been read.
@@ -364,7 +357,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
     DALI_ENFORCE(num_lines_read == 1);
     output_line += stride;
   }
-  delete[] tempdata;
+  temp.reset();
   tempdata = nullptr;
 
 #if defined(LIBJPEG_TURBO_VERSION)
@@ -384,7 +377,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   if (components == 4) {
     // Start on the last line.
     JSAMPLE* scanlineptr = static_cast<JSAMPLE*>(
-        dstdata + static_cast<int64>(target_output_height - 1) * stride);
+        dstdata.get() + static_cast<int64>(target_output_height - 1) * stride);
     const JSAMPLE kOpaque = -1;  // All ones appropriate for JSAMPLE.
     const int right_rgb = (target_output_width - 1) * 3;
     const int right_rgba = (target_output_width - 1) * 4;
@@ -427,13 +420,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
     default:
       // will never happen, should be catched by the previous switch
       ERROR_LOG << "Invalid components value " << components << std::endl;
-      jpeg_destroy_decompress(&cinfo);
       return nullptr;
-  }
-
-  // save number of warnings if requested
-  if (nwarn != nullptr) {
-    *nwarn = cinfo.err->num_warnings;
   }
 
   // Handle errors in JPEG
@@ -466,17 +453,13 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
                 << " for image_width: " << cinfo.output_width
                 << " and image_height: " << cinfo.output_height
                 << std::endl;
-      delete[] dstdata;
-      jpeg_destroy_decompress(&cinfo);
       return nullptr;
     }
 
-    const uint8* full_image = dstdata;
-    dstdata = argball->allocate_output_(target_output_width,
-                                        target_output_height, components);
+    const auto full_image = std::move(dstdata);
+    dstdata = std::unique_ptr<uint8[]>(
+        new JSAMPLE[target_output_width, target_output_height, components]);
     if (dstdata == nullptr) {
-      delete[] full_image;
-      jpeg_destroy_decompress(&cinfo);
       return nullptr;
     }
 
@@ -493,18 +476,16 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
       argball->height_read_ = target_output_height;
     }
     const int crop_offset = flags.crop_x * components * sizeof(JSAMPLE);
-    const uint8* full_image_ptr = full_image + flags.crop_y * full_image_stride;
-    uint8* crop_image_ptr = dstdata;
+    const uint8* full_image_ptr = full_image.get() + flags.crop_y * full_image_stride;
+    uint8* crop_image_ptr = dstdata.get();
     for (int i = 0; i < argball->height_read_; i++) {
       memcpy(crop_image_ptr, full_image_ptr + crop_offset, min_stride);
       crop_image_ptr += stride;
       full_image_ptr += full_image_stride;
     }
-    delete[] full_image;
   }
 #endif
 
-  jpeg_destroy_decompress(&cinfo);
   return dstdata;
 }
 
@@ -518,12 +499,10 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
 //  associated libraries aren't good enough to guarantee that 7
 //  parameters won't get clobbered by the longjmp.  So we help
 //  it out a little.
-uint8* Uncompress(const void* srcdata, int datasize,
-                  const UncompressFlags& flags, int64* nwarn,
-                  std::function<uint8*(int, int, int)> allocate_output) {
-  FewerArgsForCompiler argball(datasize, flags, nwarn,
-                               std::move(allocate_output));
-  uint8* const dstdata = UncompressLow(srcdata, &argball);
+std::unique_ptr<uint8[]> Uncompress(const void* srcdata, int datasize,
+                                    const UncompressFlags& flags) {
+  FewerArgsForCompiler argball(datasize, flags);
+  auto dstdata = UncompressLow(srcdata, &argball);
 
   const float fraction_read =
       argball.height_ == 0
@@ -539,29 +518,12 @@ uint8* Uncompress(const void* srcdata, int datasize,
   // set the unread pixels to black
   if (argball.height_read_ != argball.height_) {
     const int first_bad_line = argball.height_read_;
-    uint8* start = dstdata + first_bad_line * argball.stride_;
+    uint8* start = dstdata.get() + first_bad_line * argball.stride_;
     const int nbytes = (argball.height_ - first_bad_line) * argball.stride_;
     memset(static_cast<void*>(start), 0, nbytes);
   }
 
   return dstdata;
-}
-
-uint8* Uncompress(const void* srcdata, int datasize,
-                  const UncompressFlags& flags, int* pwidth, int* pheight,
-                  int* pcomponents, int64* nwarn) {
-  uint8* buffer = nullptr;
-  uint8* result =
-      Uncompress(srcdata, datasize, flags, nwarn,
-                 [=, &buffer](int width, int height, int components) {
-                   if (pwidth != nullptr) *pwidth = width;
-                   if (pheight != nullptr) *pheight = height;
-                   if (pcomponents != nullptr) *pcomponents = components;
-                   buffer = new uint8[height * width * components];
-                   return buffer;
-                 });
-  if (!result) delete[] buffer;
-  return result;
 }
 
 // ----------------------------------------------------------------------------
@@ -605,197 +567,6 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
 
   jpeg_destroy_decompress(&cinfo);
   return true;
-}
-
-// -----------------------------------------------------------------------------
-// Compression
-
-namespace {
-bool CompressInternal(const uint8* srcdata, int width, int height,
-                      const CompressFlags& flags, string* output) {
-  output->clear();
-  const int components = (static_cast<int>(flags.format) & 0xff);
-
-  int64 total_size = static_cast<int64>(width) * static_cast<int64>(height);
-  // Some of the internal routines do not gracefully handle ridiculously
-  // large images, so fail fast.
-  if (width <= 0 || height <= 0) {
-    ERROR_LOG << "Invalid image size: " << width << " x " << height << std::endl;
-    return false;
-  }
-  if (total_size >= (1_i64 << 29)) {
-    ERROR_LOG << "Image too large: " << total_size << std::endl;
-    return false;
-  }
-
-  int in_stride = flags.stride;
-  if (in_stride == 0) {
-    in_stride = width * (static_cast<int>(flags.format) & 0xff);
-  } else if (in_stride < width * components) {
-    ERROR_LOG << "Incompatible input stride" << std::endl;
-    return false;
-  }
-
-  JOCTET* buffer = nullptr;
-
-  // NOTE: for broader use xmp_metadata should be made a unicode string
-  DALI_ENFORCE(srcdata != nullptr);
-  DALI_ENFORCE(output != nullptr);
-  // This struct contains the JPEG compression parameters and pointers to
-  // working space
-  struct jpeg_compress_struct cinfo;
-  // This struct represents a JPEG error handler.
-  struct jpeg_error_mgr jerr;
-  jmp_buf jpeg_jmpbuf;  // recovery point in case of error
-
-  // Step 1: allocate and initialize JPEG compression object
-  // Use the usual jpeg error manager.
-  cinfo.err = jpeg_std_error(&jerr);
-  cinfo.client_data = &jpeg_jmpbuf;
-  jerr.error_exit = CatchError;
-  if (setjmp(jpeg_jmpbuf)) {
-    output->clear();
-    delete[] buffer;
-    return false;
-  }
-
-  jpeg_create_compress(&cinfo);
-
-  // Step 2: specify data destination
-  // We allocate a buffer of reasonable size. If we have a small image, just
-  // estimate the size of the output using the number of bytes of the input.
-  // If this is getting too big, we will append to the string by chunks of 1MB.
-  // This seems like a reasonable compromise between performance and memory.
-  int bufsize = std::min(width * height * components, 1 << 20);
-  buffer = new JOCTET[bufsize];
-  SetDest(&cinfo, buffer, bufsize, output);
-
-  // Step 3: set parameters for compression
-  cinfo.image_width = width;
-  cinfo.image_height = height;
-  switch (components) {
-    case 1:
-      cinfo.input_components = 1;
-      cinfo.in_color_space = JCS_GRAYSCALE;
-      break;
-    case 3:
-    case 4:
-      cinfo.input_components = 3;
-      cinfo.in_color_space = JCS_RGB;
-      break;
-    default:
-      ERROR_LOG << " Invalid components value " << components << std::endl;
-      output->clear();
-      delete[] buffer;
-      return false;
-  }
-  jpeg_set_defaults(&cinfo);
-  if (flags.optimize_jpeg_size) cinfo.optimize_coding = TRUE;
-
-  cinfo.density_unit = flags.density_unit;  // JFIF code for pixel size units:
-                                            // 1 = in, 2 = cm
-  cinfo.X_density = flags.x_density;        // Horizontal pixel density
-  cinfo.Y_density = flags.y_density;        // Vertical pixel density
-  jpeg_set_quality(&cinfo, flags.quality, TRUE);
-
-  if (flags.progressive) {
-    jpeg_simple_progression(&cinfo);
-  }
-
-  if (!flags.chroma_downsampling) {
-    // Turn off chroma subsampling (it is on by default).  For more details on
-    // chroma subsampling, see http://en.wikipedia.org/wiki/Chroma_subsampling.
-    for (int i = 0; i < cinfo.num_components; ++i) {
-      cinfo.comp_info[i].h_samp_factor = 1;
-      cinfo.comp_info[i].v_samp_factor = 1;
-    }
-  }
-
-  jpeg_start_compress(&cinfo, TRUE);
-
-  // Embed XMP metadata if any
-  if (!flags.xmp_metadata.empty()) {
-    // XMP metadata is embedded in the APP1 tag of JPEG and requires this
-    // namespace header string (null-terminated)
-    const string name_space = "http://ns.adobe.com/xap/1.0/";
-    const int name_space_length = name_space.size();
-    const int metadata_length = flags.xmp_metadata.size();
-    const int packet_length = metadata_length + name_space_length + 1;
-    std::unique_ptr<JOCTET[]> joctet_packet(new JOCTET[packet_length]);
-
-    for (int i = 0; i < name_space_length; i++) {
-      // Conversion char --> JOCTET
-      joctet_packet[i] = name_space[i];
-    }
-    joctet_packet[name_space_length] = 0;  // null-terminate namespace string
-
-    for (int i = 0; i < metadata_length; i++) {
-      // Conversion char --> JOCTET
-      joctet_packet[i + name_space_length + 1] = flags.xmp_metadata[i];
-    }
-    jpeg_write_marker(&cinfo, JPEG_APP0 + 1, joctet_packet.get(),
-                      packet_length);
-  }
-
-  // JSAMPLEs per row in image_buffer
-  std::unique_ptr<JSAMPLE[]> row_temp(
-      new JSAMPLE[width * cinfo.input_components]);
-  while (cinfo.next_scanline < cinfo.image_height) {
-    JSAMPROW row_pointer[1];  // pointer to JSAMPLE row[s]
-    const uint8* r = &srcdata[cinfo.next_scanline * in_stride];
-    uint8* p = static_cast<uint8*>(row_temp.get());
-    switch (flags.format) {
-      case FORMAT_RGBA: {
-        for (int i = 0; i < width; ++i, p += 3, r += 4) {
-          p[0] = r[0];
-          p[1] = r[1];
-          p[2] = r[2];
-        }
-        row_pointer[0] = row_temp.get();
-        break;
-      }
-      case FORMAT_ABGR: {
-        for (int i = 0; i < width; ++i, p += 3, r += 4) {
-          p[0] = r[3];
-          p[1] = r[2];
-          p[2] = r[1];
-        }
-        row_pointer[0] = row_temp.get();
-        break;
-      }
-      default: {
-        row_pointer[0] = reinterpret_cast<JSAMPLE*>(const_cast<JSAMPLE*>(r));
-      }
-    }
-
-    DALI_ENFORCE(
-      jpeg_write_scanlines(&cinfo, row_pointer, 1) == 1u);
-  }
-  jpeg_finish_compress(&cinfo);
-
-  // release JPEG compression object
-  jpeg_destroy_compress(&cinfo);
-  delete[] buffer;
-  return true;
-}
-
-}  // anonymous namespace
-
-// -----------------------------------------------------------------------------
-
-bool Compress(const void* srcdata, int width, int height,
-              const CompressFlags& flags, string* output) {
-  return CompressInternal(static_cast<const uint8*>(srcdata), width, height,
-                          flags, output);
-}
-
-string Compress(const void* srcdata, int width, int height,
-                const CompressFlags& flags) {
-  string temp;
-  CompressInternal(static_cast<const uint8*>(srcdata), width, height, flags,
-                   &temp);
-  // If CompressInternal fails, temp will be empty.
-  return temp;
 }
 
 }  // namespace jpeg
