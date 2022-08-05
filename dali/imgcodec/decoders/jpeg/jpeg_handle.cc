@@ -26,6 +26,7 @@ limitations under the License.
 #include <stddef.h>
 
 namespace dali {
+namespace imgcodec {
 namespace jpeg {
 
 void CatchError(j_common_ptr cinfo) {
@@ -181,4 +182,5 @@ void SetSrc(j_decompress_ptr cinfo, const void *data,
 }
 
 }  // namespace jpeg
+}  // namespace imgcodec
 }  // namespace dali

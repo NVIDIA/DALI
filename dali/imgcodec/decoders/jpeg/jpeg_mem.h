@@ -30,6 +30,7 @@ limitations under the License.
 #include "dali/imgcodec/decoders/jpeg/jpeg_utils.h"
 
 namespace dali {
+namespace imgcodec {
 namespace jpeg {
 
 // Flags for Uncompress
@@ -130,6 +131,7 @@ struct CompressFlags {
 };
 
 }  // namespace jpeg
+}  // namespace imgcodec
 }  // namespace dali
 
 #endif  // DALI_IMGCODEC_DECODERS_JPEG_JPEG_MEM_H_

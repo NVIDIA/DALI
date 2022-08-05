@@ -30,6 +30,7 @@ limitations under the License.
 #include "dali/core/call_at_exit.h"
 
 namespace dali {
+namespace imgcodec {
 namespace jpeg {
 
 // -----------------------------------------------------------------------------
@@ -569,4 +570,5 @@ bool GetImageInfo(const void* srcdata, int datasize, int* width, int* height,
 }
 
 }  // namespace jpeg
+}  // namespace imgcodec
 }  // namespace dali

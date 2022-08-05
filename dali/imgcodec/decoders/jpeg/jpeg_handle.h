@@ -26,6 +26,7 @@ limitations under the License.
 #include "dali/imgcodec/decoders/jpeg/jpeg_utils.h"
 
 namespace dali {
+namespace imgcodec {
 namespace jpeg {
 
 // Handler for fatal JPEG library errors: clean up & return
@@ -58,6 +59,7 @@ void SetDest(j_compress_ptr cinfo, void *buffer, int bufsize,
              std::string *destination);
 
 }  // namespace jpeg
+}  // namespace imgcodec
 }  // namespace dali
 
 #endif  // DALI_IMGCODEC_DECODERS_JPEG_JPEG_HANDLE_H_
