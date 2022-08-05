@@ -175,9 +175,8 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
 
   ROI roi;
   if (!requested_roi.use_roi()) {
-    // TODO(skarpinski) Use 2D
-    roi.begin = {0, 0, 0};
-    roi.end = out.shape();
+    roi.begin = {0, 0};
+    roi.end = out.shape().first(2);
   } else {
     roi = requested_roi;
   }
