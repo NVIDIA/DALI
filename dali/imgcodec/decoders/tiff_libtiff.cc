@@ -146,24 +146,16 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
 
 }  // namespace detail
 
-bool LibTiffDecoderInstance::CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) {
-  auto tiff = detail::OpenTiff(in);
-  auto info = detail::GetTiffInfo(tiff.get());
-
-  // TODO(skarpinski) Support other bitdepths
-  if (info.bit_depth != 8) return false;
-
-  // TODO(skarpinski) Support palette images
-  if (info.is_palette) return false;
-
-  return true;
-}
-
-
 DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
                                            DecodeParams opts, const ROI &requested_roi) {
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
+
+  // TODO(skarpinski) Support other bit depths
+  DALI_ENFORCE(info.bit_depth == 8, "Not implemented: Only bit depth = 8 is supported");
+
+  // TODO(skarpinski) Support palette images
+  DALI_ENFORCE(!info.is_palette, "Not implemented: Palette images are not yet supported");
 
   unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 

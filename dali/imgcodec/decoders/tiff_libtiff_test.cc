@@ -79,11 +79,6 @@ TEST_F(LibTiffDecoderTest, TestRgbToMonochrome) {
   AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, TestPaletteUnsupported) {
-  auto src = ImageSource::FromFilename(palette_path);
-  EXPECT_FALSE(Decoder()->CanDecode(&src, {}, {}));
-}
-
 }  // namespace test
 }  // namespace imgcodec
 }  // namespace dali

@@ -27,8 +27,6 @@ class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl {
   using Base = BatchParallelDecoderImpl;
   LibTiffDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
 
-  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) override;
-
   using Base::Decode;
   DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in,
                       DecodeParams opts, const ROI &roi) override;
