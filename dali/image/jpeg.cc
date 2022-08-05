@@ -68,6 +68,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     type = shape[2] == 3 ? DALI_RGB : DALI_GRAY;
   }
   const auto c = NumberOfChannels(type);
+  Image::Shape target_shape{h, w, c};
 
   DALI_ENFORCE(jpeg != nullptr);
   DALI_ENFORCE(length > 0);
@@ -97,32 +98,23 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     flags.crop_x = crop.anchor[1];
     flags.crop_height = crop.shape[0];
     flags.crop_width = crop.shape[1];
+    target_shape[0] = crop.shape[0];
+    target_shape[1] = crop.shape[1];
   }
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
                "Color space not supported by libjpeg-turbo");
   flags.color_space = type;
 
-  std::shared_ptr<uint8_t> decoded_image;
-  int cropped_h = 0;
-  int cropped_w = 0;
-  uint8_t* result = jpeg::Uncompress(
-    jpeg, length, flags, nullptr /* nwarn */,
-    [&decoded_image, &cropped_h, &cropped_w](int width, int height, int channels) -> uint8* {
-      decoded_image.reset(
-        new uint8_t[height * width * channels],
-        [](uint8_t* data){ delete [] data; } );
-      cropped_h = height;
-      cropped_w = width;
-      return decoded_image.get();
-    });
+  std::shared_ptr<uint8_t> decoded_image(jpeg::Uncompress(jpeg, length, flags).release(),
+                                         [](uint8_t *data) { delete[] data; });
 
-  if (result == nullptr) {
+  if (decoded_image == nullptr) {
     // Failed to decode, fallback
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
-  return {decoded_image, {cropped_h, cropped_w, c}};
+  return {decoded_image, target_shape};
 #else  // DALI_USE_JPEG_TURBO
   return GenericImage::DecodeImpl(type, jpeg, length);
 #endif  // DALI_USE_JPEG_TURBO
