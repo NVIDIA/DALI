@@ -46,11 +46,21 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
                               const ROI &roi) override;
   
   void SetParam(const char *name, const any &value) {
-    DALI_FAIL(make_string("Unexpected param name: ", name));
+    if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
+      nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
+    } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
+      nvjpeg2k_host_memory_padding_ = any_cast<size_t>(value);
+    }
   }
 
   any GetParam(const char *name) const override {
-    DALI_FAIL(make_string("Unexpected param name: ", name));
+    if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
+      return nvjpeg2k_device_memory_padding_;
+    } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
+      return nvjpeg2k_host_memory_padding_;
+    } else {
+      return any{};
+    }
   }
 
  private:
@@ -69,6 +79,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     CUDAEvent *decode_event;
     cudaStream_t *cuda_stream;
   };
+
+  size_t nvjpeg2k_device_memory_padding_ = 8;
+  size_t nvjpeg2k_host_memory_padding_ = 8;
 
   bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context *ctx);
   bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, Context *ctx);

@@ -29,8 +29,8 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
 , intermediate_buffers_(tp->NumThreads())
 , nvjpeg2k_streams_(tp->NumThreads())
 , decode_events_(tp->NumThreads()) {
-  size_t device_memory_padding = any_cast<size_t>(GetParam("device_memory_padding"));
-  size_t host_memory_padding = any_cast<size_t>(GetParam("host_memory_padding"));
+  size_t device_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
+  size_t host_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
 
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
@@ -39,7 +39,7 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
     nvjpeg2k_decode_states_[i] = NvJpeg2kDecodeState(nvjpeg2k_handle_);
     intermediate_buffers_[i].resize(device_memory_padding / 8);
     nvjpeg2k_streams_[i] = NvJpeg2kStream::Create();
-    decode_events_[i] = CUDAEvent::Create(device_id);
+    decode_events_[i] = CUDAEvent::Create(device_id_);
   }
 
   for (auto &thread_id : tp_->GetThreadIds()) {
@@ -55,6 +55,8 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
     }
   }
 
+  std::cerr << "initialization done\n";
+
   // unable to call this here: (from old implementation)
   // CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
 }
@@ -64,7 +66,7 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in,
                                                   Context *ctx) {
   CUDA_CALL(nvjpeg2kStreamParse(nvjpeg2k_handle_, in->RawData<uint8_t>(), in->Size(),
                                 0, 0, *ctx->nvjpeg2k_stream));
-
+  
   nvjpeg2kImageInfo_t image_info;
   CUDA_CALL(nvjpeg2kStreamGetImageInfo(*ctx->nvjpeg2k_stream, &image_info));
 
@@ -127,7 +129,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in,
     return false;
   } else {
     CUDA_CALL_EX(ret, in->SourceInfo());
-    return false;  // unreachable
+    DALI_FAIL("Unreachable");  // silence a warning
   }
 }
 
@@ -171,8 +173,6 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   if (!ParseJpeg2000Info(in, opts, &ctx)) 
     return result;
 
-  CUDA_CALL(cudaEventSynchronize(*ctx.decode_event));
-
   if (!ctx.needs_processing) {
     result.success = DecodeJpeg2000(in, out.mutable_data<uint8_t>(), opts, &ctx);
   } else {
@@ -189,8 +189,11 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
     }
   }
 
-  if (result.success)
+  if (result.success) {
     CUDA_CALL(cudaEventRecord(*ctx.decode_event, *ctx.cuda_stream));
+    CUDA_CALL(cudaEventSynchronize(*ctx.decode_event));
+  }
+
   return result;
 }
 
