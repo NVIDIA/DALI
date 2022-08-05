@@ -26,25 +26,6 @@ namespace color {
 
 namespace detail {
 
-template <int N, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, Input> x) {
-  vec<N, float> out;
-  for (int i = 0; i < N; i++)
-    out[i] = ConvertNorm<float>(x[i]);
-  return out;
-}
-
-template <int N>
-DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, float> x) {
-  return x;
-}
-
-
-template <typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE float norm(Input x) {
-  return ConvertNorm<float>(x);
-}
-
 template <typename From, typename To>
 constexpr DALI_HOST_DEV float scale_factor() {
   constexpr double to = is_fp_or_half<To>::value
@@ -148,52 +129,6 @@ struct itu_r_bt_601 {
   }
 };  // struct itu_r_bt_601
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t itu_r_bt_601::rgb_to_y<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.25678823529f, 0.50412941176f, 0.09790588235f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 16.0f);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t itu_r_bt_601::rgb_to_cb<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(-0.14822289945f, -0.29099278682f, 0.43921568627f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t itu_r_bt_601::rgb_to_cr<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.43921568627f, -0.36778831435f, -0.07142737192);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t itu_r_bt_601::y_to_gray<uint8_t, uint8_t>(uint8_t gray) {
-  constexpr float scale = 255.0 / 219;
-  return ConvertSat<uint8_t>(scale * (gray - 16));
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t itu_r_bt_601::gray_to_y<uint8_t, uint8_t>(uint8_t y) {
-  constexpr float scale = 219.0 / 255;
-  return ConvertSat<uint8_t>(y * scale + 16);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-vec<3, uint8_t> itu_r_bt_601::ycbcr_to_rgb<uint8_t, uint8_t>(vec<3, uint8_t> ycbcr) {
-  auto tmp_y = 1.164f * (ycbcr[0] - 16);
-  auto tmp_b = ycbcr[1] - 128;
-  auto tmp_r = ycbcr[2] - 128;
-  auto r = ConvertSat<uint8_t>(tmp_y + 1.5960267848f * tmp_r);
-  auto g = ConvertSat<uint8_t>(tmp_y - 0.39176228842f * tmp_b - 0.81296764538f * tmp_r);
-  auto b = ConvertSat<uint8_t>(tmp_y + 2.0172321417f * tmp_b);
-  return {r, g, b};
-}
 
 // Y, Cb, Cr formulas used in JPEG, using the whole dynamic range of the type.
 struct jpeg {
@@ -261,39 +196,6 @@ struct jpeg {
     return ConvertSatNorm<Output>(y);
   }
 };  // struct jpeg
-
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t jpeg::rgb_to_y<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  vec3 coeffs(0.299f, 0.587f, 0.114f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb));
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t jpeg::rgb_to_cb<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-uint8_t jpeg::rgb_to_cr<uint8_t, uint8_t>(vec<3, uint8_t> rgb) {
-  vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE
-vec<3, uint8_t> jpeg::ycbcr_to_rgb(vec<3, uint8_t> ycbcr) {
-  float tmp_b = ycbcr[1] - 128;
-  float tmp_r = ycbcr[2] - 128;
-  auto r = ConvertSat<uint8_t>(ycbcr[0] + 1.402f * tmp_r);
-  auto g = ConvertSat<uint8_t>(ycbcr[0] - 0.344136285f * tmp_b - 0.714136285f * tmp_r);
-  auto b = ConvertSat<uint8_t>(ycbcr[0] + 1.772f * tmp_b);
-  return {r, g, b};
-}
 
 
 template <typename Output, typename Input>
