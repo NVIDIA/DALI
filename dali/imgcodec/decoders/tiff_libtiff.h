@@ -37,7 +37,7 @@ class LibTiffDecoder : public ImageDecoder {
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
       ImageDecoderProperties props;
-      props.supported_input_kinds = InputKind::HostMemory | InputKind::Filename;
+      props.supported_input_kinds = InputKind::Stream | InputKind::HostMemory | InputKind::Filename;
 
       props.supports_partial_decoding = true;
       props.fallback = true;
