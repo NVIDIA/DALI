@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,184 +26,177 @@ namespace color {
 
 namespace detail {
 
-template <int N, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, Input> x) {
-  vec<N, float> out;
-  for (int i = 0; i < N; i++)
-    out[i] = ConvertNorm<float>(x[i]);
-  return out;
+template <typename From, typename To>
+constexpr DALI_HOST_DEV float scale_factor() {
+  constexpr double to = is_fp_or_half<To>::value
+                      ? 1.0 : static_cast<double>(max_value<To>());
+
+  constexpr double from = is_fp_or_half<From>::value
+                        ? 1.0 : static_cast<double>(max_value<From>());
+
+  constexpr float factor = to / from;
+  return factor;
 }
 
-template <int N>
-DALI_HOST_DEV DALI_FORCEINLINE vec<N, float> norm(vec<N, float> x) {
-  return x;
+template <typename T>
+constexpr DALI_HOST_DEV std::enable_if_t<std::is_integral<T>::value, float> bias_scale() {
+  // The scale is 2^positive_bits
+  // Since that value always overflows, we shift by bits-1 and then multiply x2 already in
+  // floating point.
+  return 2.0f * static_cast<float>(T(1) << (sizeof(T) * 8 - 1 - std::is_signed<T>::value));
+}
+
+template <typename T>
+constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bias_scale() {
+  return 1.0f;
 }
 
 }  // namespace detail
 
 // Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
 // footroom and headroom
-namespace itu_r_bt_601 {
+struct itu_r_bt_601 {
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(0.25678823529f, 0.50412941176f, 0.09790588235f)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.0625f * detail::bias_scale<Output>();
+    float y = dot(coeffs, rgb) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(0.257f, 0.504f, 0.098f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.0625f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cb(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(-0.14822289945f, -0.29099278682f, 0.43921568627f)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * detail::bias_scale<Output>();
+    float y = dot(coeffs, rgb) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_y(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.257f, 0.504f, 0.098f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 16.0f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cr(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(0.43921568627f, -0.36778831435f, -0.07142737192)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * detail::bias_scale<Output>();
+    float y = dot(coeffs, rgb) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(-0.148f, -0.291f, 0.439f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
+    return {
+      rgb_to_y<Output, Input>(rgb),
+      rgb_to_cb<Output, Input>(rgb),
+      rgb_to_cr<Output, Input>(rgb)
+    };
+  }
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cb(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(-0.148f, -0.291f, 0.439f);
-  if (rgb.x == rgb.y && rgb.x == rgb.z) return 128;
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
-}
+  // Gray uses the full dynamic range of the type (e.g. 0..255)
+  // while ITU-R BT.601 uses a reduced range to allow for headroom and footroom (e.g. 16..235)
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output y_to_gray(Input y) {
+    constexpr float scale = 255 * detail::scale_factor<Input, Output>() / 219;
+    constexpr float bias = 0.0625f * detail::bias_scale<Input>();
+    return ConvertSat<Output>(scale * (y - bias));
+  }
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(0.439f, -0.368f, -0.071f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output gray_to_y(Input y) {
+    constexpr float bias = 0.0625f * detail::bias_scale<Output>();
+    constexpr float scale = 219 * detail::scale_factor<Input, Output>() / 255;
+    return ConvertSat<Output>(y * scale + bias);
+  }
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.439f, -0.368f, -0.071f);
-  if (rgb.x == rgb.y && rgb.x == rgb.z) return 128;
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
+    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
+    constexpr float ybias = 0.0625f * detail::bias_scale<Input>();
+    constexpr float s = detail::scale_factor<Input, Output>();
+    float ys = (ycbcr[0] - ybias) * (255.0f / 219) * s;
+    float tmp_b = ycbcr[1] - cbias;
+    float tmp_r = ycbcr[2] - cbias;
+    auto r = ConvertSat<Output>(ys + (1.5960267848f * s) * tmp_r);
+    auto g = ConvertSat<Output>(ys - (0.39176228842f * s) * tmp_b - (0.81296764538f * s) * tmp_r);
+    auto b = ConvertSat<Output>(ys + (2.0172321417f * s) * tmp_b);
+    return {r, g, b};
+  }
+};  // struct itu_r_bt_601
 
-// Gray uses the full dynamic range of the type (e.g. 0..255)
-// while ITU-R BT.601 uses a reduced range to allow for floorroom and footroom (e.g. 16..235)
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output y_to_gray(Input gray_in) {
-  auto gray = detail::norm(gray_in);  // TODO(janton): optimize number of multiplications
-  constexpr float scale = 1 / (0.257f +  0.504f + 0.098f);
-  return ConvertSatNorm<Output>(scale * (gray - 0.0625f));
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t y_to_gray(uint8_t gray) {
-  constexpr float scale = 1 / (0.257f + 0.504f + 0.098f);
-  return ConvertSat<uint8_t>(scale * (gray - 16));
-}
-
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output gray_to_y(Input y_in) {
-  auto y = detail::norm(y_in);  // TODO(janton): optimize number of multiplications
-  constexpr float scale = 0.257f + 0.504f + 0.098f;
-  return ConvertSatNorm<Output>(y * scale + 0.0625f);
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t gray_to_y(uint8_t y) {
-  constexpr float scale = 0.257f + 0.504f + 0.098f;
-  return ConvertSat<uint8_t>(y * scale + 0.0625f);
-}
-
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr_in) {
-  auto ycbcr = detail::norm(ycbcr_in);  // TODO(janton): optimize number of multiplications
-  auto tmp_y = 1.164f * (ycbcr.x - 0.0625f);
-  auto tmp_b = ycbcr.y - 0.5f;
-  auto tmp_r = ycbcr.z - 0.5f;
-  auto r = ConvertSatNorm<Output>(tmp_y + 1.596f * tmp_r);
-  auto g = ConvertSatNorm<Output>(tmp_y - 0.813f * tmp_r - 0.392f * tmp_b);
-  auto b = ConvertSatNorm<Output>(tmp_y + 2.017f * tmp_b);
-  return {r, g, b};
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE vec<3, uint8_t> ycbcr_to_rgb(vec<3, uint8_t> ycbcr) {
-  auto tmp_y = 1.164f * (ycbcr.x - 16);
-  auto tmp_b = ycbcr.y - 128;
-  auto tmp_r = ycbcr.z - 128;
-  auto r = ConvertSat<uint8_t>(tmp_y + 1.596f * tmp_r);
-  auto g = ConvertSat<uint8_t>(tmp_y - 0.813f * tmp_r - 0.392f * tmp_b);
-  auto b = ConvertSat<uint8_t>(tmp_y + 2.017f * tmp_b);
-  return {r, g, b};
-}
-
-}  // namespace itu_r_bt_601
 
 // Y, Cb, Cr formulas used in JPEG, using the whole dynamic range of the type.
-namespace jpeg {
+struct jpeg {
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_y(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(0.299f, 0.587f, 0.114f) * detail::scale_factor<Input, Output>();
+    float y = dot(coeffs, rgb);
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_y(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb));
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cb(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(-0.16873589f, -0.33126411f, 0.5f)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * detail::bias_scale<Output>();
+    float y = dot(coeffs, rgb) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_y(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.299f, 0.587f, 0.114f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb));
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cr(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(0.5f, -0.41868759f, -0.08131241f)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * detail::bias_scale<Output>();
+    float y = dot(coeffs, rgb) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cb(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
+    return {
+      rgb_to_y<Output, Input>(rgb),
+      rgb_to_cb<Output, Input>(rgb),
+      rgb_to_cr<Output, Input>(rgb)
+    };
+  }
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cb(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(-0.16873589f, -0.33126411f, 0.5f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
+    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
+    constexpr float s = detail::scale_factor<Input, Output>();
+    float tmp_b = ycbcr[1] - cbias;
+    float tmp_r = ycbcr[2] - cbias;
+    float ys = ycbcr[0] * s;
+    auto r = ConvertSat<Output>(ys + (1.402f * s) * tmp_r);
+    auto g = ConvertSat<Output>(ys - (0.344136285f * s) * tmp_b - (0.714136285f * s) * tmp_r);
+    auto b = ConvertSat<Output>(ys + (1.772f * s) * tmp_b);
+    return {r, g, b};
+  }
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_cr(vec<3, Input> rgb_in) {
-  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
-  auto rgb = detail::norm(rgb_in);  // TODO(janton): optimize number of multiplications
-  return ConvertSatNorm<Output>(dot(coeffs, rgb) + 0.5f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output gray_to_y(Input gray) {
+    return ConvertSatNorm<Output>(gray);
+  }
 
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE uint8_t rgb_to_cr(vec<3, uint8_t> rgb) {
-  constexpr vec3 coeffs(0.5f, -0.41868759f, -0.08131241f);
-  return ConvertSat<uint8_t>(dot(coeffs, rgb) + 128.0f);
-}
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output y_to_gray(Input y) {
+    return ConvertSatNorm<Output>(y);
+  }
+};  // struct jpeg
 
-template <typename Output, typename Input>
-DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr_in) {
-  auto ycbcr = detail::norm(ycbcr_in);  // TODO(janton): optimize number of multiplications
-  float tmp_b = ycbcr.y - 0.5f;
-  float tmp_r = ycbcr.z - 0.5f;
-  auto r = ConvertSatNorm<Output>(ycbcr.x + 1.402f * tmp_r);
-  auto g = ConvertSatNorm<Output>(ycbcr.x - 0.34413629f * tmp_b - 0.71413629f * tmp_r);
-  auto b = ConvertSatNorm<Output>(ycbcr.x + 1.772f * tmp_b);
-  return {r, g, b};
-}
-
-template <>
-DALI_HOST_DEV DALI_FORCEINLINE vec<3, uint8_t> ycbcr_to_rgb(vec<3, uint8_t> ycbcr) {
-  float tmp_b = ycbcr.y - 128;
-  float tmp_r = ycbcr.z - 128;
-  auto r = ConvertSat<uint8_t>(ycbcr.x + 1.402f * tmp_r);
-  auto g = ConvertSat<uint8_t>(ycbcr.x - 0.34413629f * tmp_b - 0.71413629f * tmp_r);
-  auto b = ConvertSat<uint8_t>(ycbcr.x + 1.772f * tmp_b);
-  return {r, g, b};
-}
-
-
-}  // namespace jpeg
 
 template <typename Output, typename Input>
 DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_gray(vec<3, Input> rgb) {
