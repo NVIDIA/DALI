@@ -27,7 +27,7 @@ limitations under the License.
 #include <memory>
 #include <string>
 #include "dali/core/common.h"
-#include "dali/image/jpeg_utils.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_utils.h"
 
 namespace dali {
 namespace imgcodec {
