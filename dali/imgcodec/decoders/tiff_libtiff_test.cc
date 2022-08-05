@@ -37,8 +37,8 @@ auto ref_dir = dali_extra + "/db/single/reference/tiff/0/";
 auto rgb_path = img_dir + "/cat-111793_640.tiff";
 auto rgb_ref_path = ref_dir + "/cat-111793_640.tiff.npy";
 
-auto gray_path = img_dir + "/cat-111793_640_bw.tiff";
-auto gray_ref_path = ref_dir + "/cat-111793_640_bw.tiff.npy";
+auto gray_path = img_dir + "/cat-111793_640_gray.tiff";
+auto gray_ref_path = ref_dir + "/cat-111793_640_gray.tiff.npy";
 
 auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
 
@@ -91,13 +91,6 @@ TEST_F(LibTiffDecoderTest, ROI) {
   ROI roi = {{13, 17, 0}, {info.shape[0] - 55, info.shape[1] - 10, 3}};
   auto img = Decode(&src, params, roi);
   AssertEqualSatNorm(img, Crop(ref, roi));
-}
-
-TEST_F(LibTiffDecoderTest, RgbToGray) {
-  auto ref = ReadReferenceFrom(gray_ref_path);
-  auto src = ImageSource::FromFilename(rgb_path);
-  auto img = Decode(&src, {.format = DALI_GRAY});
-  AssertEqualSatNorm(img, ref);
 }
 
 TEST_F(LibTiffDecoderTest, Gray) {
