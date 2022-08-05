@@ -63,9 +63,7 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
 
   DecodeResult res;
   try {
-    std::shared_ptr<uint8_t> decoded_image(jpeg::Uncompress(encoded_data, data_size, flags),
-                                           [](uint8_t *data) { delete[] data; });
-
+    auto decoded_image = jpeg::Uncompress(encoded_data, data_size, flags);
     if ((res.success = decoded_image != nullptr)) {
       // JPEG images are always 8-bit, in HWC format
       SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
