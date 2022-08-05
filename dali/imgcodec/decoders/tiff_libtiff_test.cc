@@ -57,14 +57,32 @@ class LibTiffDecoderTest : public NumpyDecoderTestBase<uint8_t> {
   }
 };
 
-TEST_F(LibTiffDecoderTest, Test) {
+TEST_F(LibTiffDecoderTest, FromFilename) {
   auto ref = ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
   auto img = Decode(&src);
   AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, TestROI) {
+TEST_F(LibTiffDecoderTest, FromStream) {
+  auto ref = ReadReferenceFrom(rgb_ref_path);
+  auto stream = FileStream::Open(rgb_path, false, false);
+  auto src = ImageSource::FromStream(stream.get());
+  auto img = Decode(&src);
+  AssertEqualSatNorm(img, ref);
+}
+
+TEST_F(LibTiffDecoderTest, FromHostMem) {
+  auto ref = ReadReferenceFrom(rgb_ref_path);
+  auto stream = FileStream::Open(rgb_path, false, false);
+  std::vector<uint8_t> data(stream->Size());
+  stream->ReadBytes(data.data(), data.size());
+  auto src = ImageSource::FromHostMem(data.data(), data.size());
+  auto img = Decode(&src);
+  AssertEqualSatNorm(img, ref);
+}
+
+TEST_F(LibTiffDecoderTest, ROI) {
   auto ref = ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
   auto info = Parser()->GetInfo(&src);
@@ -75,21 +93,21 @@ TEST_F(LibTiffDecoderTest, TestROI) {
   AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
-TEST_F(LibTiffDecoderTest, TestRgbToGray) {
+TEST_F(LibTiffDecoderTest, RgbToGray) {
   auto ref = ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
   auto img = Decode(&src, {.format = DALI_GRAY});
   AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, TestGray) {
+TEST_F(LibTiffDecoderTest, Gray) {
   auto ref = ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
   auto img = Decode(&src, {.format = DALI_GRAY});
   AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, TestGrayToRgb) {
+TEST_F(LibTiffDecoderTest, GrayToRgb) {
   auto ref = ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
   auto img = Decode(&src, {.format = DALI_RGB});
@@ -101,7 +119,7 @@ TEST_F(LibTiffDecoderTest, TestGrayToRgb) {
   AssertEqualSatNorm(Crop(img, {{0, 0, 2}, {img.shape()[0], img.shape()[1], 3}}), ref);
 }
 
-TEST_F(LibTiffDecoderTest, TestMultichannelToRgb) {
+TEST_F(LibTiffDecoderTest, MultichannelToRgb) {
   auto ref = ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(multichannel_path);
   auto img = Decode(&src, {.format = DALI_RGB});
