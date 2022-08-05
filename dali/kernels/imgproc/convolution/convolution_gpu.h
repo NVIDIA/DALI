@@ -132,7 +132,7 @@ struct ConvolutionGpu {
             num_samples, "), got: ", num_scales, "."));
 
     auto* window_tmp_buffer_host_ptr =
-        ctx.scratchpad->AllocateHost<W>(num_samples * kWindowCopyBufferSize);
+        ctx.scratchpad->AllocatePinned<W>(num_samples * kWindowCopyBufferSize);
     span<W> window_tmp_buffer_host(window_tmp_buffer_host_ptr, num_samples * kWindowCopyBufferSize);
 
     // Pad and align windows in tmp memory, transfer the aligned windows to GPU
