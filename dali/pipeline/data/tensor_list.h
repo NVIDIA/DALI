@@ -828,6 +828,14 @@ class DLL_PUBLIC TensorList {
     return {tl.data_.get_data_ptr(), tl.raw_mutable_tensor(sample_idx)};
   }
 
+  /**
+   * @brief Return the shared pointer, that we can use to correctly share the ownership of the batch
+   * with -- in typical scenarios it is equivalent to unsafe_sample_owner(tl, 0);
+   */
+  friend shared_ptr<void> unsafe_owner(TensorList<Backend> &tl) {
+    return tl.data_.get_data_ptr();
+  }
+
   /** @} */  // end of ContiguousAccessorFunctions
 };
 
