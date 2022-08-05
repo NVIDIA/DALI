@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -98,18 +98,20 @@ template <bool horz_subsample, bool vert_subsample, typename T>
 __inline__ __device__
 void ycbcr_to_rgb_subsampled(ivec2 offset, const Surface2D<uint8_t>& out,
                              YCbCrSubsampled<T, horz_subsample, vert_subsample> ycbcr) {
-  using kernels::color::jpeg::ycbcr_to_rgb;
+  auto ycbcr_to_rgb = [](auto x) {
+    return kernels::color::jpeg::ycbcr_to_rgb<T>(x);
+  };
   int y = offset.y;
   int x = offset.x;
-  write_vec(out, {x, y}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[0], ycbcr.cb, ycbcr.cr)));
+  write_vec(out, {x, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[0], ycbcr.cb, ycbcr.cr)));
   if (horz_subsample && vert_subsample) {
-    write_vec(out, {x + 1, y}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
-    write_vec(out, {x, y + 1}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[2], ycbcr.cb, ycbcr.cr)));
-    write_vec(out, {x + 1, y + 1}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[3], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[2], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[3], ycbcr.cb, ycbcr.cr)));
   } else if (horz_subsample) {
-    write_vec(out, {x + 1, y}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x + 1, y}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   } else if (vert_subsample) {
-    write_vec(out, {x, y + 1}, ycbcr_to_rgb<T>(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
+    write_vec(out, {x, y + 1}, ycbcr_to_rgb(vec<3, T>(ycbcr.luma[1], ycbcr.cb, ycbcr.cr)));
   }
 }
 
