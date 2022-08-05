@@ -91,21 +91,20 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   auto crop_window_generator = GetCropWindowGenerator();
   if (crop_window_generator) {
     flags.crop = true;
-    TensorShape<> shape{static_cast<int>(h), static_cast<int>(w)};
+    TensorShape<> shape{h, w};
     auto crop = crop_window_generator(shape, "HW");
     crop.EnforceInRange(shape);
     flags.crop_y = crop.anchor[0];
     flags.crop_x = crop.anchor[1];
-    flags.crop_height = crop.shape[0];
-    flags.crop_width = crop.shape[1];
-    target_shape[0] = crop.shape[0];
-    target_shape[1] = crop.shape[1];
+    flags.crop_height = target_shape[0] = crop.shape[0];
+    flags.crop_width  = target_shape[1] = crop.shape[1];
   }
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
                "Color space not supported by libjpeg-turbo");
   flags.color_space = type;
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   std::shared_ptr<uint8_t> decoded_image;
   int cropped_h = 0;
@@ -124,6 +123,9 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   if (result == nullptr) {
 =======
   std::shared_ptr<uint8_t> decoded_image(jpeg::Uncompress(jpeg, length, flags).release(),
+=======
+  std::shared_ptr<uint8_t> decoded_image(imgcodec::jpeg::Uncompress(jpeg, length, flags).release(),
+>>>>>>> Fix
                                          [](uint8_t *data) { delete[] data; });
 
   if (decoded_image == nullptr) {
