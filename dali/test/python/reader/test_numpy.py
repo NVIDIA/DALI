@@ -70,28 +70,25 @@ def NumpyReaderPipeline(path, batch_size, device="cpu", file_list=None, files=No
                         file_filter="*.npy", num_threads=1, device_id=0,
                         cache_header_information=False, pad_last_batch=False):
     pipe = Pipeline(batch_size=batch_size, num_threads=num_threads, device_id=device_id)
-    data = fn.readers.numpy(device=device,
-                            file_list=file_list,
-                            files=files,
-                            file_root=path,
-                            file_filter=file_filter,
-                            shard_id=0,
-                            num_shards=1,
+    data = fn.readers.numpy(device=device, file_list=file_list, files=files, file_root=path,
+                            file_filter=file_filter, shard_id=0, num_shards=1,
                             cache_header_information=cache_header_information,
                             pad_last_batch=pad_last_batch)
     pipe.set_outputs(data)
     return pipe
 
 
-all_numpy_types = set(
-    [np.bool_, np.byte, np.ubyte, np.short, np.ushort, np.intc, np.uintc, np.int_, np.uint,
-     np.longlong, np.ulonglong, np.half, np.float16, np.single, np.double, np.longdouble,
-     np.csingle, np.cdouble, np.clongdouble, np.int8, np.int16, np.int32, np.int64, np.uint8,
-     np.uint16, np.uint32, np.uint64, np.intp, np.uintp, np.float32, np.float64, np.float_,
-     np.complex64, np.complex128, np.complex_])
-unsupported_numpy_types = set(
-    [np.bool_, np.csingle, np.cdouble, np.clongdouble, np.complex64, np.complex128, np.longdouble,
-     np.complex_])
+all_numpy_types = set([
+    np.bool_, np.byte, np.ubyte, np.short, np.ushort, np.intc, np.uintc, np.int_, np.uint,
+    np.longlong, np.ulonglong, np.half, np.float16, np.single, np.double, np.longdouble, np.csingle,
+    np.cdouble, np.clongdouble, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16,
+    np.uint32, np.uint64, np.intp, np.uintp, np.float32, np.float64, np.float_, np.complex64,
+    np.complex128, np.complex_
+])
+unsupported_numpy_types = set([
+    np.bool_, np.csingle, np.cdouble, np.clongdouble, np.complex64, np.complex128, np.longdouble,
+    np.complex_
+])
 rng = np.random.RandomState(12345)
 
 # Test shapes, for each number of dims
@@ -138,15 +135,10 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
         else:
             assert False
 
-        pipe = NumpyReaderPipeline(path=test_data_root,
-                                   files=files_arg,
-                                   file_list=file_list_arg,
+        pipe = NumpyReaderPipeline(path=test_data_root, files=files_arg, file_list=file_list_arg,
                                    file_filter=file_filter_arg,
-                                   cache_header_information=cache_header_information,
-                                   device=device,
-                                   batch_size=batch_size,
-                                   num_threads=num_threads,
-                                   device_id=0)
+                                   cache_header_information=cache_header_information, device=device,
+                                   batch_size=batch_size, num_threads=num_threads, device_id=0)
         pipe.build()
 
         i = 0
@@ -263,21 +255,14 @@ batch_size_alias_test = 64
 
 @pipeline_def(batch_size=batch_size_alias_test, device_id=0, num_threads=4)
 def numpy_reader_pipe(numpy_op, path, device="cpu", file_filter="*.npy"):
-    data = numpy_op(device=device,
-                    file_root=path,
-                    file_filter=file_filter,
-                    seed=1234)
+    data = numpy_op(device=device, file_root=path, file_filter=file_filter, seed=1234)
     return data
 
 
 def check_numpy_reader_alias(test_data_root, device):
-    new_pipe = numpy_reader_pipe(fn.readers.numpy,
-                                 path=test_data_root,
-                                 device=device,
+    new_pipe = numpy_reader_pipe(fn.readers.numpy, path=test_data_root, device=device,
                                  file_filter="test_*.npy")
-    legacy_pipe = numpy_reader_pipe(fn.numpy_reader,
-                                    path=test_data_root,
-                                    device=device,
+    legacy_pipe = numpy_reader_pipe(fn.numpy_reader, path=test_data_root, device=device,
                                     file_filter="test_*.npy")
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
 
@@ -303,29 +288,14 @@ def numpy_reader_roi_pipe(file_root, device="cpu", file_filter='*.npy', roi_star
                           rel_roi_start=None, roi_end=None, rel_roi_end=None, roi_shape=None,
                           rel_roi_shape=None, roi_axes=None, default_axes=[],
                           out_of_bounds_policy=None, fill_value=None):
-    data = fn.readers.numpy(
-        device=device,
-        file_root=file_root,
-        file_filter=file_filter,
-        shard_id=0,
-        num_shards=1,
-        cache_header_information=False)
-    roi_data = fn.readers.numpy(
-        device=device,
-        file_root=file_root,
-        file_filter=file_filter,
-        roi_start=roi_start,
-        rel_roi_start=rel_roi_start,
-        roi_end=roi_end,
-        rel_roi_end=rel_roi_end,
-        roi_shape=roi_shape,
-        rel_roi_shape=rel_roi_shape,
-        roi_axes=roi_axes,
-        out_of_bounds_policy=out_of_bounds_policy,
-        fill_value=fill_value,
-        shard_id=0,
-        num_shards=1,
-        cache_header_information=False)
+    data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter, shard_id=0,
+                            num_shards=1, cache_header_information=False)
+    roi_data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                roi_start=roi_start, rel_roi_start=rel_roi_start, roi_end=roi_end,
+                                rel_roi_end=rel_roi_end, roi_shape=roi_shape,
+                                rel_roi_shape=rel_roi_shape, roi_axes=roi_axes,
+                                out_of_bounds_policy=out_of_bounds_policy, fill_value=fill_value,
+                                shard_id=0, num_shards=1, cache_header_information=False)
     sliced_data = fn.slice(
         data,
         start=roi_start,
@@ -364,25 +334,12 @@ def _testimpl_numpy_reader_roi_empty_axes(testcase_name, file_root, batch_size, 
     # testcase name used for visibility in the output logs
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
     def pipe():
-        data0 = fn.readers.numpy(
-            device=device,
-            file_root=file_root,
-            file_filter=file_filter,
-            shard_id=0,
-            num_shards=1,
-            cache_header_information=False,
-            seed=1234)
-        data1 = fn.readers.numpy(
-            device=device,
-            file_root=file_root,
-            file_filter=file_filter,
-            roi_start=[],
-            roi_end=[],
-            roi_axes=[],
-            shard_id=0,
-            num_shards=1,
-            cache_header_information=False,
-            seed=1234)
+        data0 = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                 shard_id=0, num_shards=1, cache_header_information=False,
+                                 seed=1234)
+        data1 = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                 roi_start=[], roi_end=[], roi_axes=[], shard_id=0, num_shards=1,
+                                 cache_header_information=False, seed=1234)
         return data0, data1
 
     p = pipe()
@@ -399,25 +356,12 @@ def _testimpl_numpy_reader_roi_empty_range(testcase_name, file_root, batch_size,
     # testcase name used for visibility in the output logs
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
     def pipe():
-        data0 = fn.readers.numpy(
-            device=device,
-            file_root=file_root,
-            file_filter=file_filter,
-            shard_id=0,
-            num_shards=1,
-            cache_header_information=False,
-            seed=1234)
-        data1 = fn.readers.numpy(
-            device=device,
-            file_root=file_root,
-            file_filter=file_filter,
-            roi_start=[1],
-            roi_end=[1],
-            roi_axes=[1],
-            shard_id=0,
-            num_shards=1,
-            cache_header_information=False,
-            seed=1234)
+        data0 = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                 shard_id=0, num_shards=1, cache_header_information=False,
+                                 seed=1234)
+        data1 = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                 roi_start=[1], roi_end=[1], roi_axes=[1], shard_id=0, num_shards=1,
+                                 cache_header_information=False, seed=1234)
         return data0, data1
 
     p = pipe()
@@ -433,6 +377,8 @@ def _testimpl_numpy_reader_roi_empty_range(testcase_name, file_root, batch_size,
                 assert roi_arr.shape[d] == arr.shape[d]
 
 
+# roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape,
+# rel_roi_shape, roi_axes, out_of_bounds_policy
 roi_args = [
     ([1, 2], None, None, None, None, None, None, None),
     (None, [0.1, 0.2], None, None, None, None, None, None),
@@ -451,18 +397,19 @@ roi_args = [
     ([1, 2], None, [20, 9], None, None, None, [0, 1], "trim_to_shape"),
     ([-10, 2], None, [8, 9], None, None, None, [0, 1], "trim_to_shape"),
     (fn.random.uniform(range=(0, 2), shape=(2, ), dtype=types.INT32), None,
-         fn.random.uniform(range=(7, 10), shape=(2, ), dtype=types.INT32),
-        None, None, None, (0, 1), None),
+     fn.random.uniform(range=(7, 10), shape=(2, ),
+                       dtype=types.INT32), None, None, None, (0, 1), None),
     (fn.random.uniform(range=(0, 2), shape=(1, ), dtype=types.INT32), None,
-        fn.random.uniform(range=(7, 10), shape=(1, ), dtype=types.INT32),
-        None, None, None, (1, ), None),
+     fn.random.uniform(range=(7, 10), shape=(1, ),
+                       dtype=types.INT32), None, None, None, (1, ), None),
     (None, fn.random.uniform(range=(0.0, 0.2), shape=(1, )), None,
-         fn.random.uniform(range=(0.8, 1.0), shape=(1, )), None, None, (1, ), None),
+     fn.random.uniform(range=(0.8, 1.0), shape=(1, )), None, None, (1, ), None),
 ]
+
 
 @params(*roi_args)
 def test_numpy_reader_roi(roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape,
-                     roi_axes, out_of_bounds_policy):
+                          roi_axes, out_of_bounds_policy):
     # setup file
     shapes = [(10, 10), (12, 10), (10, 12), (20, 15), (10, 11), (12, 11), (13, 11), (19, 10)]
     ndim = 2
@@ -485,11 +432,11 @@ def test_numpy_reader_roi(roi_start, rel_roi_start, roi_end, rel_roi_end, roi_sh
 
             for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
                 fill_value = random.choice([None, 10.0])
-                
-                _testimpl_numpy_reader_roi(test_data_root, batch_size, ndim, dtype,
-                    device, fortran_order, file_filter, roi_start, rel_roi_start, roi_end,
-                    rel_roi_end, roi_shape, rel_roi_shape, roi_axes, out_of_bounds_policy,
-                    fill_value)
+
+                _testimpl_numpy_reader_roi(test_data_root, batch_size, ndim, dtype, device,
+                                           fortran_order, file_filter, roi_start, rel_roi_start,
+                                           roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
+                                           out_of_bounds_policy, fill_value)
 
 
 def test_numpy_reader_roi_empty_axes():
@@ -499,7 +446,6 @@ def test_numpy_reader_roi_empty_axes():
     dtype = np.uint8
     batch_size = 8
     file_filter = "*.npy"
-
 
     for fortran_order in [False, True, None]:
         with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
@@ -515,38 +461,28 @@ def test_numpy_reader_roi_empty_axes():
                 create_numpy_file(filename, sh, dtype, actual_fortran_order)
 
             for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-                _testimpl_numpy_reader_roi_empty_axes("empty axes", test_data_root,
-                    batch_size, ndim, dtype, device, fortran_order, file_filter)
-                _testimpl_numpy_reader_roi_empty_range("empty range", test_data_root,
-                    batch_size, ndim, dtype, device, fortran_order, file_filter)
+                _testimpl_numpy_reader_roi_empty_axes("empty axes", test_data_root, batch_size,
+                                                      ndim, dtype, device, fortran_order,
+                                                      file_filter)
+                _testimpl_numpy_reader_roi_empty_range("empty range", test_data_root, batch_size,
+                                                       ndim, dtype, device, fortran_order,
+                                                       file_filter)
 
 
 def _testimpl_numpy_reader_roi_error(file_root, batch_size, ndim, dtype, device,
-                                     fortran_order=False, file_filter="*.npy",
-                                     roi_start=None, rel_roi_start=None,
-                                     roi_end=None, rel_roi_end=None,
-                                     roi_shape=None, rel_roi_shape=None,
-                                     roi_axes=None,
+                                     fortran_order=False, file_filter="*.npy", roi_start=None,
+                                     rel_roi_start=None, roi_end=None, rel_roi_end=None,
+                                     roi_shape=None, rel_roi_shape=None, roi_axes=None,
                                      out_of_bounds_policy=None, fill_value=None):
 
     @pipeline_def(batch_size=batch_size, device_id=0, num_threads=8)
     def pipe():
-        data = fn.readers.numpy(
-            device=device,
-            file_root=file_root,
-            file_filter=file_filter,
-            roi_start=roi_start,
-            rel_roi_start=rel_roi_start,
-            roi_end=roi_end,
-            rel_roi_end=rel_roi_end,
-            roi_shape=roi_shape,
-            rel_roi_shape=rel_roi_shape,
-            roi_axes=roi_axes,
-            out_of_bounds_policy=out_of_bounds_policy,
-            fill_value=fill_value,
-            shard_id=0,
-            num_shards=1,
-            cache_header_information=False)
+        data = fn.readers.numpy(device=device, file_root=file_root, file_filter=file_filter,
+                                roi_start=roi_start, rel_roi_start=rel_roi_start, roi_end=roi_end,
+                                rel_roi_end=rel_roi_end, roi_shape=roi_shape,
+                                rel_roi_shape=rel_roi_shape, roi_axes=roi_axes,
+                                out_of_bounds_policy=out_of_bounds_policy, fill_value=fill_value,
+                                shard_id=0, num_shards=1, cache_header_information=False)
         return data
 
     p = pipe()
@@ -590,8 +526,8 @@ def test_numpy_reader_roi_error():
             create_numpy_file(filename, sh, dtype, fortran_order=fortran_order)
 
         for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
-            for (roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape,
-                 roi_axes, out_of_bounds_policy) in roi_args:
+            for (roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape, rel_roi_shape, roi_axes,
+                 out_of_bounds_policy) in roi_args:
                 fill_value = random.choice([None, 10.0])
                 yield _testimpl_numpy_reader_roi_error, test_data_root, batch_size, ndim, dtype, \
                     device, fortran_order, file_filter, roi_start, rel_roi_start, roi_end, \
@@ -615,15 +551,9 @@ def check_pad_last_sample(device):
             arr_np_list.append(np.load(filename))
         while len(arr_np_list) < batch_size:
             arr_np_list.append(np.load(last_file_name))
-        pipe = NumpyReaderPipeline(path=test_data_root,
-                                   files=filenames,
-                                   file_list=None,
-                                   file_filter=None,
-                                   device=device,
-                                   batch_size=batch_size,
-                                   num_threads=4,
-                                   device_id=0,
-                                   pad_last_batch=True)
+        pipe = NumpyReaderPipeline(path=test_data_root, files=filenames, file_list=None,
+                                   file_filter=None, device=device, batch_size=batch_size,
+                                   num_threads=4, device_id=0, pad_last_batch=True)
         pipe.build()
 
         for _ in range(2):
