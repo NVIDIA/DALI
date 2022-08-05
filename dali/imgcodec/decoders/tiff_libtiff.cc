@@ -200,8 +200,10 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   DALIImageType in_format;
   if (info.channels == 1)
     in_format = DALI_GRAY;
-  else
+  else if (info.channels >= 3)
     in_format = DALI_RGB;
+  else
+    in_format = DALI_ANY_DATA;
 
   TensorShape<> in_line_shape = {roi.shape()[1], info.channels};
   TensorShape<> in_line_strides = kernels::GetStrides(in_line_shape);

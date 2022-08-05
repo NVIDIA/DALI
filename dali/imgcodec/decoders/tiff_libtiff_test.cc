@@ -41,6 +41,9 @@ auto gray_path = img_dir + "/cat-111793_640_bw.tiff";
 auto gray_ref_path = ref_dir + "/cat-111793_640_bw.tiff.npy";
 
 auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
+
+auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel/" +
+                         "cat-111793_640_multichannel.tif";
 }  // namespace
 
 class LibTiffDecoderTest : public NumpyDecoderTestBase<uint8_t> {
@@ -96,6 +99,13 @@ TEST_F(LibTiffDecoderTest, TestGrayToRgb) {
   AssertEqualSatNorm(Crop(img, {{0, 0, 0}, {img.shape()[0], img.shape()[1], 1}}), ref);
   AssertEqualSatNorm(Crop(img, {{0, 0, 1}, {img.shape()[0], img.shape()[1], 2}}), ref);
   AssertEqualSatNorm(Crop(img, {{0, 0, 2}, {img.shape()[0], img.shape()[1], 3}}), ref);
+}
+
+TEST_F(LibTiffDecoderTest, TestMultichannelToRgb) {
+  auto ref = ReadReferenceFrom(rgb_ref_path);
+  auto src = ImageSource::FromFilename(multichannel_path);
+  auto img = Decode(&src, {.format = DALI_RGB});
+  AssertEqualSatNorm(img, ref);
 }
 
 }  // namespace test
