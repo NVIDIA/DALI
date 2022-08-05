@@ -47,24 +47,28 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
                                            const ROI &roi) {
   int flags = 0;
   bool adjust_orientation = false;
+  DALIImageType in_format;
 
   switch (opts.format) {
     case DALI_ANY_DATA:
       // Note: IMREAD_UNCHANGED always ignores orientation
       flags |= cv::IMREAD_UNCHANGED;
       adjust_orientation = opts.use_orientation;
+      in_format = DALI_ANY_DATA;
       break;
 
     case DALI_GRAY:
       flags |= cv::IMREAD_GRAYSCALE;
       if (!opts.use_orientation)
         flags |= cv::IMREAD_IGNORE_ORIENTATION;
+      in_format = DALI_GRAY;
       break;
 
     default:
       flags |= cv::IMREAD_COLOR;
       if (!opts.use_orientation)
         flags |= cv::IMREAD_IGNORE_ORIENTATION;
+      in_format = DALI_BGR;
       break;
   }
 
@@ -81,9 +85,6 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
       const auto *raw = static_cast<const uint8_t *>(in->RawData());
       cvimg = cv::imdecode(cv::_InputArray(raw, in->Size()), flags);
     }
-
-    if (flags & cv::IMREAD_COLOR)  // TODO(michalz) - move this to Convert
-      cv::cvtColor(cvimg, cvimg, cv::COLOR_BGR2RGB);
 
     // TODO(michalz): correct the orientation of images loaded with IMREAD_UNCHANGED
     (void)adjust_orientation;
@@ -109,7 +110,7 @@ DecodeResult OpenCVDecoderInstance::Decode(SampleView<CPUBackend> out,
       TensorLayout layout = cvimg.dims == 3 ? "DHWC" : "HWC";
 
       Convert(out, layout, opts.format,
-              in, layout, opts.format,  // TODO(michalz) - use actual format
+              in, layout, in_format,
               roi.begin, roi.end);
     }
   } catch (...) {
