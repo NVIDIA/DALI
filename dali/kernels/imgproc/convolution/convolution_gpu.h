@@ -132,13 +132,15 @@ struct ConvolutionGpu {
             num_samples, "), got: ", num_scales, "."));
 
     auto* window_tmp_buffer_host_ptr =
-        ctx.scratchpad->AllocatePinned<W>(num_samples * kWindowCopyBufferSize);
+        ctx.scratchpad->AllocateHost<W>(num_samples * kWindowCopyBufferSize);
     span<W> window_tmp_buffer_host(window_tmp_buffer_host_ptr, num_samples * kWindowCopyBufferSize);
 
     // Pad and align windows in tmp memory, transfer the aligned windows to GPU
     FillAlignedWindows(window_tmp_buffer_host, windows, in.shape);
-    // ToGPU allocates num_samples * kWindowCopyBufferSize * sizeof(W) memory through scratchpad
-    auto* window_tmp_buffer_gpu = ctx.scratchpad->ToGPU(ctx.gpu.stream, window_tmp_buffer_host);
+    // To*GPU allocates num_samples * kWindowCopyBufferSize * sizeof(W) memory through scratchpad
+    // Use ToContiguousGPU to use DALI's pinned buffer instead of system one.
+    auto* window_tmp_buffer_gpu =
+        std::get<0>(ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, window_tmp_buffer_host));
 
     Arguments args;
     args.device_params_ptr =
