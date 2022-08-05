@@ -24,6 +24,7 @@ limitations under the License.
 #define DALI_IMGCODEC_DECODERS_JPEG_JPEG_MEM_H_
 
 #include <functional>
+#include <memory>
 #include <string>
 #include "dali/core/common.h"
 #include "dali/imgcodec/decoders/jpeg/jpeg_utils.h"
@@ -79,11 +80,10 @@ struct UncompressFlags {
 
 // Uncompress some raw JPEG data given by the pointer srcdata and the length
 // datasize.
-// The function returns a pointer to the raw uncompressed data or NULL if
-// there was an error. The caller of the function is responsible for
-// freeing the memory (using delete []).
-uint8* Uncompress(const void* srcdata, int datasize,
-                  const UncompressFlags& flags);
+// The function returns a shared pointer to the uncompressed data or a null pointer if
+// there was an error.
+std::unique_ptr<uint8[]> Uncompress(const void* srcdata, int datasize,
+                                    const UncompressFlags& flags);
 
 // Read jpeg header and get image information.  Returns true on success.
 // The width, height, and components points may be null.

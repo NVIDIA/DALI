@@ -73,7 +73,7 @@ bool IsCropWindowValid(const UncompressFlags& flags, int input_image_width,
          flags.crop_x + flags.crop_width <= input_image_width;
 }
 
-uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
+std::unique_ptr<uint8[]> UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   // unpack the argball
   const int datasize = argball->datasize_;
   const auto& flags = argball->flags_;
@@ -485,7 +485,7 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
   }
 #endif
 
-  return dstdata.release();
+  return dstdata;
 }
 
 }  // anonymous namespace
@@ -498,10 +498,10 @@ uint8* UncompressLow(const void* srcdata, FewerArgsForCompiler* argball) {
 //  associated libraries aren't good enough to guarantee that 7
 //  parameters won't get clobbered by the longjmp.  So we help
 //  it out a little.
-uint8* Uncompress(const void* srcdata, int datasize,
-                  const UncompressFlags& flags) {
+std::unique_ptr<uint8[]> Uncompress(const void* srcdata, int datasize,
+                                    const UncompressFlags& flags) {
   FewerArgsForCompiler argball(datasize, flags);
-  uint8* const dstdata = UncompressLow(srcdata, &argball);
+  auto dstdata = UncompressLow(srcdata, &argball);
 
   const float fraction_read =
       argball.height_ == 0
@@ -517,7 +517,7 @@ uint8* Uncompress(const void* srcdata, int datasize,
   // set the unread pixels to black
   if (argball.height_read_ != argball.height_) {
     const int first_bad_line = argball.height_read_;
-    uint8* start = dstdata + first_bad_line * argball.stride_;
+    uint8* start = dstdata.get() + first_bad_line * argball.stride_;
     const int nbytes = (argball.height_ - first_bad_line) * argball.stride_;
     memset(static_cast<void*>(start), 0, nbytes);
   }
