@@ -85,7 +85,8 @@ class WarpGPU {
     dim3 block_dim = setup.BlockDim();
 
     if (setup.IsUniformSize()) {
-      gpu_samples = context.scratchpad->ToGPU(context.gpu.stream, setup.Samples());
+      std::tie(gpu_samples) =
+        context.scratchpad->ToContiguousGPU(context.gpu.stream, setup.Samples());
       CUDA_CALL(cudaGetLastError());
 
       auto output_size = setup.UniformOutputSize();
