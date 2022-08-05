@@ -16,6 +16,7 @@
 #include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/core/common.h"
 
 namespace dali {
 namespace imgcodec {
@@ -28,10 +29,12 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
 
   auto &type = opts.format;
   auto info = JpegParser{}.GetInfo(in);
+  auto target_shape = info.shape;
 
   flags.components = info.shape[2];
   if (type == DALI_ANY_DATA)
     type = info.shape[2] == 3 ? DALI_RGB : DALI_GRAY;
+  target_shape[2] = NumberOfChannels(type);
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
                "Color space not supported by libjpeg-turbo");
@@ -45,8 +48,8 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
     flags.crop = true;
     flags.crop_y = roi.begin[0];
     flags.crop_x = roi.begin[1];
-    flags.crop_height = roi.shape()[0];
-    flags.crop_width = roi.shape()[1];
+    flags.crop_height = target_shape[0] = roi.shape()[0];
+    flags.crop_width  = target_shape[1] = roi.shape()[1];
   }
 
   const uint8_t *encoded_data;
@@ -60,21 +63,12 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
 
   DecodeResult res;
   try {
-    std::shared_ptr<uint8_t> decoded_image;
-    uint8_t* result = jpeg::Uncompress(
-      encoded_data, data_size, flags, nullptr /* nwarn */,
-      [&decoded_image, &info](int width, int height, int channels) {
-        decoded_image.reset(
-          new uint8_t[height * width * channels],
-          [](uint8_t* data) { delete [] data; });
-        info.shape[0] = height;
-        info.shape[1] = width;
-        return decoded_image.get();
-      });
+    std::shared_ptr<uint8_t> decoded_image(jpeg::Uncompress(encoded_data, data_size, flags),
+                                           [](uint8_t *data) { delete[] data; });
 
-    if ((res.success = result != nullptr)) {
+    if ((res.success = decoded_image != nullptr)) {
       // JPEG images are always 8-bit, in HWC format
-      SampleView<CPUBackend> in(decoded_image.get(), info.shape, DALI_UINT8);
+      SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
       TensorLayout layout = "HWC";
       Convert(out, layout, type, in, layout, type, {}, {});
     }
