@@ -38,7 +38,7 @@ void Convert(Out *out, const int64_t *out_strides,
              const In *in, const int64_t *in_strides,
              const int64_t *size, int ndim,
              ConvertFunc &&func) {
-  if constexpr (static_ndim < 0) {
+  if (static_ndim < 0) {
     VALUE_SWITCH(ndim, NDim, (0, 1, 2, 3, 4),
       (Convert<NDim>(out, out_strides, in, in_strides, size, NDim,
                      std::forward<ConvertFunc>(func));
@@ -50,9 +50,9 @@ void Convert(Out *out, const int64_t *out_strides,
   int64_t in_stride = in_strides[0];
   int64_t out_stride = out_strides[0];
 
-  if constexpr (static_ndim == 0) {
+  if (static_ndim == 0) {
     func(out, in);
-  } else if constexpr (static_ndim == 1) {  // NOLINT - if constexpr not recognized
+  } else if (static_ndim == 1) {
     for (int64_t i = 0; i < extent; i++) {
       func(out + i * out_stride, in + i * in_stride);
     }
