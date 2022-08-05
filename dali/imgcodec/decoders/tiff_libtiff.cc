@@ -157,6 +157,9 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   // TODO(skarpinski) Support palette images
   DALI_ENFORCE(!info.is_palette, "Not implemented: Palette images are not yet supported");
 
+  // TODO(skarpinski) Support tiled images
+  DALI_ENFORCE(!info.is_tiled, "Not implemented: Tiled images are not yet supported");
+
   unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 
   // TODO(skarpinski) support different types
