@@ -164,8 +164,8 @@ def test_one_hot():
 def test_multi_dim_one_hot_no_initial_layout():
     np.random.seed(42)
     for axis in [-1, 0, 1, 2, 3]:
-        yield partial(check_one_hot_operator, random_3d_tensors_batch,
-                      axis=axis, initial_layout=None)
+        yield partial(check_one_hot_operator,
+                      initial_layout=None), random_3d_tensors_batch, 'cpu', axis
 
 
 def test_one_hot_reset_layout():
@@ -188,8 +188,8 @@ def test_one_hot_custom_layout_axis_name():
     np.random.seed(42)
     layout = get_initial_layout(3)
     for axis_name in "Xx01":
-        yield partial(check_one_hot_operator, random_3d_tensors_batch, axis=-1,
-                      initial_layout=layout, axis_name=axis_name)
+        yield partial(check_one_hot_operator, axis=-1, initial_layout=layout,
+                      axis_name=axis_name), random_3d_tensors_batch
 
 
 @raises(RuntimeError, glob='Unsupported axis_name value')
