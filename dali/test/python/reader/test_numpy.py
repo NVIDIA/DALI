@@ -22,7 +22,7 @@ import platform
 import random
 import tempfile
 from nose_utils import assert_raises
-from nose2.tools.params import params
+from nose2.tools import params
 from test_utils import compare_pipelines, to_array
 
 gds_data_root = '/scratch/'
