@@ -746,6 +746,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
             if (should_reserve(storage, hint, dev_static)) {
               reserve_batch(storage, *node.op, hint, max_batch_size_);
             }
+            if (op_type_static == OpType::MIXED) {
+              storage->SetContiguous(BatchState::Contiguous);
+            }
             if (node.op->CanInferOutputs()) {
               storage->SetContiguous(BatchState::Contiguous);
             }
