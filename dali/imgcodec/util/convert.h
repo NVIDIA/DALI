@@ -108,9 +108,9 @@ struct ConvertPixelDType : ColorConversionBase<Out, channels, In, channels> {
   void operator()(Out *out, const In *in) const {
     auto in_vec = this->vload(in);
     vec<channels, Out> out_vec = {};
-    for (int i = 0; i < N; i++)
+    for (int i = 0; i < channels; i++)
       out_vec[i] = ConvertSatNorm<Out>(in_vec[i]);
-    this->vstore(out, ConvertSatNormVec<Out>(v));
+    this->vstore(out, out_vec);
   }
 };
 
