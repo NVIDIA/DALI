@@ -12,145 +12,78 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
-#define DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
+#ifndef DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG_MEMORY_H_
+#define DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG_MEMORY_H_
 
-#include <nvjpeg2k.h>
-#include <string>
-#include <memory>
-#include "dali/core/error_handling.h"
-#include "dali/core/unique_handle.h"
-#include "dali/core/format.h"
-#include "dali/core/common.h"
-#include "dali/core/cuda_error.h"
+#include <nvjpeg.h>
+#include <thread>
+#include "dali/imgcodec/decoders/nvjpeg/nvjpeg2k_helper.h"
+#include "dali/core/mm/memory_resource.h"
+
 
 namespace dali {
+
 namespace imgcodec {
 
-class NvJpeg2kError : public std::runtime_error {
- public:
-  explicit NvJpeg2kError(nvjpeg2kStatus_t result, const char *details = nullptr)
-  : std::runtime_error(Message(result, details))
-  , result_(result) {}
+namespace nvjpeg_memory {
 
-  static const char *ErrorString(nvjpeg2kStatus_t result) {
-    switch (result) {
-      case NVJPEG2K_STATUS_SUCCESS:
-        return "The API call has finished successfully. Note that many of the calls are "
-                "asynchronous and some of the errors may be seen only after synchronization.";
-      case NVJPEG2K_STATUS_NOT_INITIALIZED :
-        return "The library handle was not initialized.";
-      case NVJPEG2K_STATUS_INVALID_PARAMETER:
-        return "Wrong parameter was passed. For example, a null pointer as input data, or "
-               "an invalid enum value";
-      case NVJPEG2K_STATUS_BAD_JPEG:
-        return "Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot "
-               "be handled";
-      case NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED:
-        return "Attempting to decode a JPEG2000 stream that is not supported by "
-               "the nvJPEG2000 library.";
-      case NVJPEG2K_STATUS_ALLOCATOR_FAILURE:
-        return "The user-provided allocator functions, for either memory allocation or "
-               "for releasing the memory, returned a non-zero code.";
-      case NVJPEG2K_STATUS_EXECUTION_FAILED:
-        return "Error during the execution of the device tasks.";
-      case NVJPEG2K_STATUS_ARCH_MISMATCH:
-        return "The device capabilities are not enough for the set of input parameters provided.";
-      case NVJPEG2K_STATUS_INTERNAL_ERROR:
-        return "Unknown error occurred in the library.";
-      case NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED:
-        return "API is not supported by the backend.";
-      default:
-        return "< unknown error >";
-    }
-  }
+/**
+ * @brief Returns a buffer of at least the requested size, preferrably from the preallocated pool
+ *        If no buffer that satisfies the requested arguments already exists in the pool, an allocation
+ *        will take place
+ */
+template <typename MemoryKind>
+void* GetBuffer(std::thread::id thread_id, size_t size);
 
-  static std::string Message(nvjpeg2kStatus_t result, const char *details) {
-    if (details && *details) {
-      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result),
-                         "\nDetails:\n", details);
-    } else {
-      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result));
-    }
-  }
+/**
+ * @brief Returns a host or pinned buffer, depending on the value returned by RestrictPinnedMemUsage
+ */
+void* GetHostBuffer(std::thread::id thread_id, size_t size);
 
-  nvjpeg2kStatus_t result() const { return result_; }
+/**
+ * @brief Adds a new buffer to the pool for a given thread id, to be consumed later by ``GetBuffer``
+ */
+template <typename MemoryKind>
+void AddBuffer(std::thread::id thread_id, size_t size);
 
- private:
-  nvjpeg2kStatus_t result_;
-};
+/**
+ * @brief Adds a host or pinned buffer, depending on the value returned by RestrictPinnedMemUsage
+ */
+void AddHostBuffer(std::thread::id thread_id, size_t size);
 
-struct NvJpeg2kHandle : public UniqueHandle<nvjpeg2kHandle_t, NvJpeg2kHandle> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kHandle_t, NvJpeg2kHandle);
+/**
+ * @brief Deletes all the buffers associated with a given thread id
+ */
+void DeleteAllBuffers(std::thread::id thread_id);
 
-  NvJpeg2kHandle() = default;
+/**
+ * @brief Enables/disables nvJPEG allocation statistics collection
+ */
+void SetEnableMemStats(bool enabled);
 
-  NvJpeg2kHandle(nvjpeg2kDeviceAllocator_t *dev_alloc, nvjpeg2kPinnedAllocator_t *pin_alloc) {
-    if (nvjpeg2kCreate(NVJPEG2K_BACKEND_DEFAULT, dev_alloc, pin_alloc, &handle_) !=
-        NVJPEG2K_STATUS_SUCCESS) {
-      handle_ = null_handle();
-    }
-  }
+/**
+ * @brief Adds an allocation to the statistics
+ */
+template <typename MemoryKind>
+void AddMemStats(size_t size);
 
-  static constexpr nvjpeg2kHandle_t null_handle() { return nullptr; }
+/**
+ * @brief Prints nvJPEG memory allocation statistics
+ */
+void PrintMemStats();
 
-  static void DestroyHandle(nvjpeg2kHandle_t handle) {
-    nvjpeg2kDestroy(handle);
-  }
-};
+nvjpegDevAllocator_t GetDeviceAllocator();
+nvjpegPinnedAllocator_t GetPinnedAllocator();
 
-struct NvJpeg2kStream : public UniqueHandle<nvjpeg2kStream_t, NvJpeg2kStream> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kStream_t, NvJpeg2kStream);
+#if NVJPEG2K_ENABLED
+nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k();
+nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k();
+#endif  // NVJPEG2K_ENABLED
 
-  static NvJpeg2kStream Create() {
-    nvjpeg2kStream_t handle{};
-    CUDA_CALL(nvjpeg2kStreamCreate(&handle));
-    return NvJpeg2kStream(handle);
-  }
-
-  static constexpr nvjpeg2kStream_t null_handle() { return nullptr; }
-
-  static void DestroyHandle(nvjpeg2kStream_t handle) {
-    nvjpeg2kStreamDestroy(handle);
-  }
-};
-
-struct NvJpeg2kDecodeState : public UniqueHandle<nvjpeg2kDecodeState_t, NvJpeg2kDecodeState> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kDecodeState_t, NvJpeg2kDecodeState);
-
-  explicit NvJpeg2kDecodeState(nvjpeg2kHandle_t nvjpeg2k_handle) {
-    CUDA_CALL(nvjpeg2kDecodeStateCreate(nvjpeg2k_handle, &handle_));
-  }
-
-  static constexpr nvjpeg2kDecodeState_t null_handle() { return nullptr; }
-
-  static void DestroyHandle(nvjpeg2kDecodeState_t handle) {
-    nvjpeg2kDecodeStateDestroy(handle);
-  }
-};
+}  // namespace nvjpeg_memory
 
 }  // namespace imgcodec
 
-template <>
-inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status) {
-  switch (status) {
-  case NVJPEG2K_STATUS_SUCCESS:
-    return;
-  default:
-    throw dali::imgcodec::NvJpeg2kError(status);
-  }
-}
-
-template <>
-inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status, const string &extra) {
-  switch (status) {
-  case NVJPEG2K_STATUS_SUCCESS:
-    return;
-  default:
-    throw dali::imgcodec::NvJpeg2kError(status, extra.c_str());
-  }
-}
-
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
+#endif  // DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG_MEMORY_H_

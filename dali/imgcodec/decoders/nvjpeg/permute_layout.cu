@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,145 +12,115 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
-#define DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
-
-#include <nvjpeg2k.h>
-#include <string>
-#include <memory>
+#include <cassert>
 #include "dali/core/error_handling.h"
-#include "dali/core/unique_handle.h"
 #include "dali/core/format.h"
-#include "dali/core/common.h"
-#include "dali/core/cuda_error.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/util.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_kernel.cuh"
+#include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
 
 namespace dali {
 namespace imgcodec {
 
-class NvJpeg2kError : public std::runtime_error {
- public:
-  explicit NvJpeg2kError(nvjpeg2kStatus_t result, const char *details = nullptr)
-  : std::runtime_error(Message(result, details))
-  , result_(result) {}
-
-  static const char *ErrorString(nvjpeg2kStatus_t result) {
-    switch (result) {
-      case NVJPEG2K_STATUS_SUCCESS:
-        return "The API call has finished successfully. Note that many of the calls are "
-                "asynchronous and some of the errors may be seen only after synchronization.";
-      case NVJPEG2K_STATUS_NOT_INITIALIZED :
-        return "The library handle was not initialized.";
-      case NVJPEG2K_STATUS_INVALID_PARAMETER:
-        return "Wrong parameter was passed. For example, a null pointer as input data, or "
-               "an invalid enum value";
-      case NVJPEG2K_STATUS_BAD_JPEG:
-        return "Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot "
-               "be handled";
-      case NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED:
-        return "Attempting to decode a JPEG2000 stream that is not supported by "
-               "the nvJPEG2000 library.";
-      case NVJPEG2K_STATUS_ALLOCATOR_FAILURE:
-        return "The user-provided allocator functions, for either memory allocation or "
-               "for releasing the memory, returned a non-zero code.";
-      case NVJPEG2K_STATUS_EXECUTION_FAILED:
-        return "Error during the execution of the device tasks.";
-      case NVJPEG2K_STATUS_ARCH_MISMATCH:
-        return "The device capabilities are not enough for the set of input parameters provided.";
-      case NVJPEG2K_STATUS_INTERNAL_ERROR:
-        return "Unknown error occurred in the library.";
-      case NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED:
-        return "API is not supported by the backend.";
-      default:
-        return "< unknown error >";
-    }
+template <int C, typename Output, typename Input>
+__global__ void planar_to_interleaved(Output *output, const Input *input, int64_t npixels) {
+  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid >= npixels) return;
+  Output *out = output + C * tid;
+  for (int c = 0; c < C; ++c) {
+    out[c] = ConvertSatNorm<Output>(input[c * npixels + tid]);
   }
+}
 
-  static std::string Message(nvjpeg2kStatus_t result, const char *details) {
-    if (details && *details) {
-      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result),
-                         "\nDetails:\n", details);
-    } else {
-      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result));
-    }
+template <typename Output, typename Input>
+__global__ void planar_rgb_to_bgr(Output *output, const Input *input, int64_t npixels) {
+  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid >= npixels) return;
+  Output r = ConvertSatNorm<Output>(input[tid]);
+  Output g = ConvertSatNorm<Output>(input[tid + npixels]);
+  Output b = ConvertSatNorm<Output>(input[tid + 2 * npixels]);
+  Output *out = output + 3 * tid;
+  out[0] = b;
+  out[1] = g;
+  out[2] = r;
+}
+
+template <typename Output, typename Input>
+__global__ void planar_rgb_to_ycbcr(Output *output, const Input *input, int64_t npixels) {
+  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid >= npixels) return;
+  vec<3, float> rgb = {ConvertNorm<float>(input[tid]), ConvertNorm<float>(input[tid + npixels]),
+                       ConvertNorm<float>(input[tid + 2 * npixels])};
+  Output *out = output + 3 * tid;
+  out[0] = kernels::color::itu_r_bt_601::rgb_to_y<Output>(rgb);
+  out[1] = kernels::color::itu_r_bt_601::rgb_to_cb<Output>(rgb);
+  out[2] = kernels::color::itu_r_bt_601::rgb_to_cr<Output>(rgb);
+}
+
+template <typename Output, typename Input>
+__global__ void planar_rgb_to_gray(Output *output, const Input *input, int64_t npixels) {
+  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (tid >= npixels) return;
+  vec<3, float> rgb = {ConvertNorm<float>(input[tid]), ConvertNorm<float>(input[tid + npixels]),
+                       ConvertNorm<float>(input[tid + 2 * npixels])};
+  output[tid] = kernels::color::rgb_to_gray<Output>(rgb);
+}
+
+template <typename Output, typename Input>
+void PlanarToInterleaved(Output *output, const Input *input, int64_t npixels,
+                         int64_t comp_count, DALIImageType out_img_type, DALIDataType pixel_type,
+                         cudaStream_t stream) {
+  if (comp_count < 2) {
+    CUDA_CALL(
+      cudaMemcpyAsync(output, input, npixels * comp_count, cudaMemcpyDeviceToDevice, stream));
+    return;
   }
+  int num_blocks = div_ceil(npixels, 1024);
+  int block_size = (npixels < 1024) ? npixels : 1024;
 
-  nvjpeg2kStatus_t result() const { return result_; }
-
- private:
-  nvjpeg2kStatus_t result_;
-};
-
-struct NvJpeg2kHandle : public UniqueHandle<nvjpeg2kHandle_t, NvJpeg2kHandle> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kHandle_t, NvJpeg2kHandle);
-
-  NvJpeg2kHandle() = default;
-
-  NvJpeg2kHandle(nvjpeg2kDeviceAllocator_t *dev_alloc, nvjpeg2kPinnedAllocator_t *pin_alloc) {
-    if (nvjpeg2kCreate(NVJPEG2K_BACKEND_DEFAULT, dev_alloc, pin_alloc, &handle_) !=
-        NVJPEG2K_STATUS_SUCCESS) {
-      handle_ = null_handle();
-    }
+  if (out_img_type == DALI_RGB || out_img_type == DALI_ANY_DATA) {
+    VALUE_SWITCH(comp_count, c_static, (2, 3, 4), (
+      planar_to_interleaved<c_static>
+        <<<num_blocks, block_size, 0, stream>>>(output, input, npixels);
+    ), DALI_FAIL(make_string("Unsupported number of components: ", comp_count)););  // NOLINT
+  } else if (out_img_type == DALI_BGR) {
+    planar_rgb_to_bgr<<<num_blocks, block_size, 0, stream>>>(output, input, npixels);
+  } else if (out_img_type == DALI_YCbCr) {
+    planar_rgb_to_ycbcr<<<num_blocks, block_size, 0, stream>>>(output, input, npixels);
+  } else {
+    assert(false);
   }
+  CUDA_CALL(cudaGetLastError());
+}
 
-  static constexpr nvjpeg2kHandle_t null_handle() { return nullptr; }
+template <typename Output, typename Input>
+void PlanarRGBToGray(Output *output, const Input *input, int64_t npixels,
+                     DALIDataType pixel_type, cudaStream_t stream) {
+  int num_blocks = div_ceil(npixels, 1024);
+  int block_size = (npixels < 1024) ? npixels : 1024;
+  planar_rgb_to_gray<<<num_blocks, block_size, 0, stream>>>(output, input, npixels);
+  CUDA_CALL(cudaGetLastError());
+}
 
-  static void DestroyHandle(nvjpeg2kHandle_t handle) {
-    nvjpeg2kDestroy(handle);
-  }
-};
+template <typename Output, typename Input>
+void Convert_RGB_to_YCbCr(Output *out_data, const Input *in_data, int64_t npixels,
+                          cudaStream_t stream) {
+  kernels::color::RunColorSpaceConversionKernel(out_data, in_data, DALI_YCbCr, DALI_RGB, npixels,
+                                                stream);
+}
 
-struct NvJpeg2kStream : public UniqueHandle<nvjpeg2kStream_t, NvJpeg2kStream> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kStream_t, NvJpeg2kStream);
 
-  static NvJpeg2kStream Create() {
-    nvjpeg2kStream_t handle{};
-    CUDA_CALL(nvjpeg2kStreamCreate(&handle));
-    return NvJpeg2kStream(handle);
-  }
-
-  static constexpr nvjpeg2kStream_t null_handle() { return nullptr; }
-
-  static void DestroyHandle(nvjpeg2kStream_t handle) {
-    nvjpeg2kStreamDestroy(handle);
-  }
-};
-
-struct NvJpeg2kDecodeState : public UniqueHandle<nvjpeg2kDecodeState_t, NvJpeg2kDecodeState> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kDecodeState_t, NvJpeg2kDecodeState);
-
-  explicit NvJpeg2kDecodeState(nvjpeg2kHandle_t nvjpeg2k_handle) {
-    CUDA_CALL(nvjpeg2kDecodeStateCreate(nvjpeg2k_handle, &handle_));
-  }
-
-  static constexpr nvjpeg2kDecodeState_t null_handle() { return nullptr; }
-
-  static void DestroyHandle(nvjpeg2kDecodeState_t handle) {
-    nvjpeg2kDecodeStateDestroy(handle);
-  }
-};
+template void PlanarToInterleaved<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t, int64_t,
+                                                     DALIImageType, DALIDataType, cudaStream_t);
+template void PlanarToInterleaved<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, int64_t,
+                                                    DALIImageType, DALIDataType, cudaStream_t);
+template void PlanarRGBToGray<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t, DALIDataType,
+                                                 cudaStream_t);
+template void PlanarRGBToGray<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, DALIDataType,
+                                                cudaStream_t);
+template void Convert_RGB_to_YCbCr<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t,
+                                                     cudaStream_t);
 
 }  // namespace imgcodec
-
-template <>
-inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status) {
-  switch (status) {
-  case NVJPEG2K_STATUS_SUCCESS:
-    return;
-  default:
-    throw dali::imgcodec::NvJpeg2kError(status);
-  }
-}
-
-template <>
-inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status, const string &extra) {
-  switch (status) {
-  case NVJPEG2K_STATUS_SUCCESS:
-    return;
-  default:
-    throw dali::imgcodec::NvJpeg2kError(status, extra.c_str());
-  }
-}
-
 }  // namespace dali
-
-#endif  // DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_

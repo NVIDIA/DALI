@@ -12,145 +12,384 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
-#define DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
-
-#include <nvjpeg2k.h>
-#include <string>
+#include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
+#include <nvjpeg.h>
+#include <shared_mutex>
+#include <atomic>
+#include <cassert>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <mutex>
+#include <utility>
+#include <vector>
 #include <memory>
-#include "dali/core/error_handling.h"
-#include "dali/core/unique_handle.h"
-#include "dali/core/format.h"
-#include "dali/core/common.h"
+#include <unordered_map>
 #include "dali/core/cuda_error.h"
+#include "dali/core/mm/memory.h"
+#include "dali/core/mm/memory_kind.h"
+#include "dali/core/mm/malloc_resource.h"
+#include "dali/pipeline/data/buffer.h"
 
 namespace dali {
+
 namespace imgcodec {
 
-class NvJpeg2kError : public std::runtime_error {
- public:
-  explicit NvJpeg2kError(nvjpeg2kStatus_t result, const char *details = nullptr)
-  : std::runtime_error(Message(result, details))
-  , result_(result) {}
+namespace nvjpeg_memory {
 
-  static const char *ErrorString(nvjpeg2kStatus_t result) {
-    switch (result) {
-      case NVJPEG2K_STATUS_SUCCESS:
-        return "The API call has finished successfully. Note that many of the calls are "
-                "asynchronous and some of the errors may be seen only after synchronization.";
-      case NVJPEG2K_STATUS_NOT_INITIALIZED :
-        return "The library handle was not initialized.";
-      case NVJPEG2K_STATUS_INVALID_PARAMETER:
-        return "Wrong parameter was passed. For example, a null pointer as input data, or "
-               "an invalid enum value";
-      case NVJPEG2K_STATUS_BAD_JPEG:
-        return "Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot "
-               "be handled";
-      case NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED:
-        return "Attempting to decode a JPEG2000 stream that is not supported by "
-               "the nvJPEG2000 library.";
-      case NVJPEG2K_STATUS_ALLOCATOR_FAILURE:
-        return "The user-provided allocator functions, for either memory allocation or "
-               "for releasing the memory, returned a non-zero code.";
-      case NVJPEG2K_STATUS_EXECUTION_FAILED:
-        return "Error during the execution of the device tasks.";
-      case NVJPEG2K_STATUS_ARCH_MISMATCH:
-        return "The device capabilities are not enough for the set of input parameters provided.";
-      case NVJPEG2K_STATUS_INTERNAL_ERROR:
-        return "Unknown error occurred in the library.";
-      case NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED:
-        return "API is not supported by the backend.";
-      default:
-        return "< unknown error >";
+struct AllocInfo {
+  mm::memory_kind_id kind;
+  mm::Deleter deleter;
+  size_t size;
+  std::thread::id thread_id;
+};
+
+std::unordered_map<void*, AllocInfo> alloc_info_;
+std::shared_timed_mutex alloc_info_mutex_;
+
+struct Deleter {
+  inline void operator()(void *p) const {
+    AllocInfo ai;
+    {
+      std::lock_guard<std::shared_timed_mutex> lock(alloc_info_mutex_);
+      auto it = alloc_info_.find(p);
+      assert(it != alloc_info_.end());
+      ai = std::move(it->second);
+      alloc_info_.erase(it);
+    }
+    ai.deleter(p);
+  }
+};
+
+using unique_ptr_t = std::unique_ptr<char, Deleter>;
+
+struct Buffer {
+  Buffer(unique_ptr_t unq_ptr, mm::memory_kind_id kind, size_t sz)
+      : ptr(std::move(unq_ptr)), kind(kind), size(sz) {}
+  unique_ptr_t ptr;
+  mm::memory_kind_id kind;
+  size_t size;
+};
+
+using MemoryPool = std::array<std::vector<Buffer>, static_cast<size_t>(mm::memory_kind_id::count)>;
+using BufferPool = std::map<std::thread::id, MemoryPool>;
+
+namespace {
+struct NVJpegMem {
+  BufferPool buffer_pool_;
+  std::shared_timed_mutex buffer_pool_mutex_;
+
+  struct MemoryStats {
+    size_t nallocs = 0;
+    size_t biggest_alloc = 0;
+  };
+
+  std::array<MemoryStats, static_cast<size_t>(mm::memory_kind_id::count)> mem_stats_;
+  std::mutex mem_stats_mutex_;
+  std::atomic<bool> mem_stats_enabled_ = {true};
+
+  static NVJpegMem &instance() {
+    // ensure proper destruction order
+    (void)mm::GetDefaultResource<mm::memory_kind::host>();
+    (void)mm::GetDefaultResource<mm::memory_kind::pinned>();
+    (void)mm::cuda_malloc_memory_resource::instance();
+    static NVJpegMem mem;
+    return mem;
+  }
+
+  void SetEnableMemStats(bool enabled) {
+    mem_stats_enabled_ = enabled;
+  }
+
+  template <typename MemoryKind>
+  void AddMemStats(size_t size) {
+    if (mem_stats_enabled_) {
+      std::lock_guard<std::mutex> lock(mem_stats_mutex_);
+      auto &stats = mem_stats_[static_cast<size_t>(mm::kind2id_v<MemoryKind>)];
+      stats.nallocs++;
+      if (size > stats.biggest_alloc)
+        stats.biggest_alloc = size;
     }
   }
 
-  static std::string Message(nvjpeg2kStatus_t result, const char *details) {
-    if (details && *details) {
-      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result),
-                         "\nDetails:\n", details);
+  void PrintMemStats() {
+    if (mem_stats_enabled_) {
+      std::lock_guard<std::mutex> lock(mem_stats_mutex_);
+
+      const char* log_filename = std::getenv("DALI_LOG_FILE");
+      std::ofstream log_file;
+      if (log_filename) log_file.open(log_filename);
+      std::ostream& out = log_filename ? log_file : std::cout;
+      out << std::dec;  // Don't want numbers printed as hex
+      out << "#################### NVJPEG STATS ####################" << std::endl;
+      auto &device_mem_stats = mem_stats_[static_cast<size_t>(mm::memory_kind_id::device)];
+      out << "Device memory: " << device_mem_stats.nallocs
+          << " allocations, largest = " << device_mem_stats.biggest_alloc << " bytes\n";
+      auto &pinned_mem_stats = mem_stats_[static_cast<size_t>(mm::memory_kind_id::pinned)];
+      out << "Host (pinned) memory: " << pinned_mem_stats.nallocs
+          << " allocations, largest = " << pinned_mem_stats.biggest_alloc << " bytes\n";
+      auto &host_mem_stats = mem_stats_[static_cast<size_t>(mm::memory_kind_id::host)];
+      out << "Host (regular) memory: " << host_mem_stats.nallocs
+          << " allocations, largest = " << host_mem_stats.biggest_alloc << " bytes\n";
+      out << "################## END NVJPEG STATS ##################" << std::endl;
+    }
+  }
+
+  template <typename MemoryKind>
+  unique_ptr_t Allocate(mm::memory_resource<MemoryKind> *mr,
+                        std::thread::id thread_id, size_t size) {
+    auto ptr = mm::alloc_raw_unique<char>(mr, size);
+    std::unique_lock<std::shared_timed_mutex> lock(alloc_info_mutex_);
+    AllocInfo &ai = alloc_info_[ptr.get()];  // create entry first (before moving out the deleter)
+    mm::memory_kind_id kind = mm::kind2id_v<MemoryKind>;
+    ai = { kind, std::move(ptr.get_deleter()), size, thread_id};
+    return {ptr.release(), {}};
+  }
+
+  template <typename MemoryKind>
+  unique_ptr_t Allocate(std::thread::id thread_id, size_t size) {
+    return Allocate(mm::GetDefaultResource<MemoryKind>(), thread_id, size);
+  }
+
+  template <typename MemoryKind>
+  void* GetBuffer(std::thread::id thread_id, size_t size) {
+    std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+    mm::memory_kind_id kind = mm::kind2id_v<MemoryKind>;
+    auto it = buffer_pool_.find(thread_id);
+    auto end_it =  buffer_pool_.end();
+    lock.unlock();
+    // only if pool exits for given thread_id search it, otherwise just allocate
+    if (it != end_it) {
+      auto &buffers = it->second[static_cast<size_t>(kind)];
+      auto best_fit = buffers.end();
+      auto smallest = buffers.end();
+      for (auto it = buffers.begin(); it != buffers.end(); ++it) {
+        if (smallest == buffers.end() || it->size < smallest->size) {
+          smallest = it;
+        }
+        if (it->size >= size && (best_fit == buffers.end() || it->size < best_fit->size)) {
+          best_fit = it;
+        }
+      }
+      if (best_fit != buffers.end()) {
+        std::swap(*best_fit, buffers.back());
+        auto buffer = std::move(buffers.back());
+        buffers.pop_back();
+        return buffer.ptr.release();
+      }
+      if (smallest != buffers.end()) {
+        std::swap(*smallest, buffers.back());
+        buffers.pop_back();
+      }
+    }
+    // Couldn't find a preallocated buffer, proceed to allocate
+    AddMemStats<MemoryKind>(size);
+    return Allocate<MemoryKind>(thread_id, size).release();
+  }
+
+  int ReturnBufferToPool(void *raw_ptr) {
+    std::shared_lock<std::shared_timed_mutex> info_lock(alloc_info_mutex_);
+    auto info_it = alloc_info_.find(raw_ptr);
+    assert(info_it != alloc_info_.end());
+    auto info = info_it->second;
+    info_lock.unlock();
+    std::unique_ptr<char, Deleter> ptr(reinterpret_cast<char*>(raw_ptr), {});
+    std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+    auto it = buffer_pool_.find(info.thread_id);
+    auto end_it =  buffer_pool_.end();
+    lock.unlock();
+    MemoryPool *pool;
+    if (it != end_it) {
+      pool = &(it->second);
     } else {
-      return make_string("nvJPEG2000 error (", result, "): ", ErrorString(result));
+      // if nothing has been preallocated create a pool for given thread_id
+      std::unique_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+      pool = &(buffer_pool_[info.thread_id]);
     }
+    auto &buffers = (*pool)[static_cast<size_t>(info.kind)];
+    buffers.emplace_back(std::move(ptr), info.kind, info.size);
+    return 0;
   }
 
-  nvjpeg2kStatus_t result() const { return result_; }
+  template <typename MemoryKind>
+  void AddBuffer(std::thread::id thread_id, size_t size) {
+    std::unique_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+    auto kind = mm::kind2id_v<MemoryKind>;
+    auto& thread_buffer_pool = buffer_pool_[thread_id];
+    lock.unlock();
 
- private:
-  nvjpeg2kStatus_t result_;
-};
+    auto &buffers = thread_buffer_pool[static_cast<size_t>(kind)];
+    buffers.emplace_back(Allocate<MemoryKind>(thread_id, size), kind, size);
+    AddMemStats<MemoryKind>(size);
+  }
 
-struct NvJpeg2kHandle : public UniqueHandle<nvjpeg2kHandle_t, NvJpeg2kHandle> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kHandle_t, NvJpeg2kHandle);
-
-  NvJpeg2kHandle() = default;
-
-  NvJpeg2kHandle(nvjpeg2kDeviceAllocator_t *dev_alloc, nvjpeg2kPinnedAllocator_t *pin_alloc) {
-    if (nvjpeg2kCreate(NVJPEG2K_BACKEND_DEFAULT, dev_alloc, pin_alloc, &handle_) !=
-        NVJPEG2K_STATUS_SUCCESS) {
-      handle_ = null_handle();
+  void DeleteAllBuffers(std::thread::id thread_id) {
+    std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
+    auto it = buffer_pool_.find(thread_id);
+    // no buffers have been preallocated/returned to the pool
+    if (it == buffer_pool_.end()) {
+      return;
     }
-  }
-
-  static constexpr nvjpeg2kHandle_t null_handle() { return nullptr; }
-
-  static void DestroyHandle(nvjpeg2kHandle_t handle) {
-    nvjpeg2kDestroy(handle);
+    lock.unlock();
+    auto &buffers = it->second;
+    for (auto &buffer : buffers)
+      buffer.clear();
   }
 };
 
-struct NvJpeg2kStream : public UniqueHandle<nvjpeg2kStream_t, NvJpeg2kStream> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kStream_t, NvJpeg2kStream);
+template <>
+unique_ptr_t NVJpegMem::Allocate<mm::memory_kind::device>(std::thread::id thread_id, size_t size) {
+  // use plain cudaMalloc
+  return Allocate(&mm::cuda_malloc_memory_resource::instance(), thread_id, size);
+}
 
-  static NvJpeg2kStream Create() {
-    nvjpeg2kStream_t handle{};
-    CUDA_CALL(nvjpeg2kStreamCreate(&handle));
-    return NvJpeg2kStream(handle);
+}  // namespace
+
+template <typename MemoryKind>
+void AddBuffer(std::thread::id thread_id, size_t size) {
+  NVJpegMem::instance().AddBuffer<MemoryKind>(thread_id, size);
+}
+
+
+void AddHostBuffer(std::thread::id thread_id, size_t size) {
+  if (RestrictPinnedMemUsage())
+    NVJpegMem::instance().AddBuffer<mm::memory_kind::host>(thread_id, size);
+  else
+    NVJpegMem::instance().AddBuffer<mm::memory_kind::pinned>(thread_id, size);
+}
+
+
+template <typename MemoryKind>
+void *GetBuffer(std::thread::id thread_id, size_t size) {
+  return NVJpegMem::instance().GetBuffer<MemoryKind>(thread_id, size);
+}
+
+void *GetHostBuffer(std::thread::id thread_id, size_t size) {
+  if (RestrictPinnedMemUsage())
+    return NVJpegMem::instance().GetBuffer<mm::memory_kind::host>(thread_id, size);
+  else
+    return NVJpegMem::instance().GetBuffer<mm::memory_kind::pinned>(thread_id, size);
+}
+
+void DeleteAllBuffers(std::thread::id thread_id) {
+  NVJpegMem::instance().DeleteAllBuffers(thread_id);
+}
+
+template <typename MemoryKind>
+void AddMemStats(std::thread::id thread_id, size_t size) {
+  NVJpegMem::instance().AddBuffer<MemoryKind>(thread_id, size);
+}
+
+void SetEnableMemStats(bool enabled) {
+  NVJpegMem::instance().SetEnableMemStats(enabled);
+}
+
+void PrintMemStats() {
+  NVJpegMem::instance().PrintMemStats();
+}
+
+static int ReturnBufferToPool(void *raw_ptr) {
+  return NVJpegMem::instance().ReturnBufferToPool(raw_ptr);
+}
+
+template void AddBuffer<mm::memory_kind::device>(std::thread::id thread_id, size_t size);
+template void AddBuffer<mm::memory_kind::pinned>(std::thread::id thread_id, size_t size);
+
+static int DeviceNew(void **ptr, size_t size) {
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
   }
-
-  static constexpr nvjpeg2kStream_t null_handle() { return nullptr; }
-
-  static void DestroyHandle(nvjpeg2kStream_t handle) {
-    nvjpeg2kStreamDestroy(handle);
+  // this function should not throw, but return a proper result
+  try {
+    *ptr = GetBuffer<mm::memory_kind::device>(std::this_thread::get_id(), size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (const std::bad_alloc &) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
   }
-};
+}
 
-struct NvJpeg2kDecodeState : public UniqueHandle<nvjpeg2kDecodeState_t, NvJpeg2kDecodeState> {
-  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kDecodeState_t, NvJpeg2kDecodeState);
-
-  explicit NvJpeg2kDecodeState(nvjpeg2kHandle_t nvjpeg2k_handle) {
-    CUDA_CALL(nvjpeg2kDecodeStateCreate(nvjpeg2k_handle, &handle_));
+static int PinnedNew(void **ptr, size_t size, unsigned int flags) {
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
   }
-
-  static constexpr nvjpeg2kDecodeState_t null_handle() { return nullptr; }
-
-  static void DestroyHandle(nvjpeg2kDecodeState_t handle) {
-    nvjpeg2kDecodeStateDestroy(handle);
+  // this function should not throw, but return a proper result
+  try {
+    *ptr = GetBuffer<mm::memory_kind::pinned>(std::this_thread::get_id(), size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (const std::bad_alloc &) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
   }
-};
+}
+
+
+static int HostNew(void **ptr, size_t size, unsigned int flags) {
+  if (size == 0) {
+    *ptr = nullptr;
+    return cudaSuccess;
+  }
+  // this function should not throw, but return a proper result
+  try {
+    *ptr = RestrictPinnedMemUsage()
+        ? GetBuffer<mm::memory_kind::host>(std::this_thread::get_id(), size)
+        : GetBuffer<mm::memory_kind::pinned>(std::this_thread::get_id(), size);
+    return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
+  } catch (const std::bad_alloc &) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  } catch (const CUDAError &e) {
+    return e.is_rt_api() ? e.rt_error() : cudaErrorUnknown;
+  } catch (...) {
+    *ptr = nullptr;
+    return cudaErrorUnknown;
+  }
+}
+
+nvjpegDevAllocator_t GetDeviceAllocator() {
+  nvjpegDevAllocator_t allocator;
+  allocator.dev_malloc = &DeviceNew;
+  allocator.dev_free = &ReturnBufferToPool;
+  return allocator;
+}
+
+nvjpegPinnedAllocator_t GetPinnedAllocator() {
+  nvjpegPinnedAllocator_t allocator;
+  allocator.pinned_malloc = &HostNew;
+  allocator.pinned_free = &ReturnBufferToPool;
+  return allocator;
+}
+
+#if NVJPEG2K_ENABLED
+nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k() {
+  nvjpeg2kDeviceAllocator_t allocator;
+  allocator.device_malloc = &DeviceNew;
+  allocator.device_free = &ReturnBufferToPool;
+  return allocator;
+}
+
+nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k() {
+  nvjpeg2kPinnedAllocator_t allocator;
+  allocator.pinned_malloc = &HostNew;
+  allocator.pinned_free = &ReturnBufferToPool;
+  return allocator;
+}
+#endif  // NVJPEG2K_ENABLED
+
+}  // namespace nvjpeg_memory
 
 }  // namespace imgcodec
 
-template <>
-inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status) {
-  switch (status) {
-  case NVJPEG2K_STATUS_SUCCESS:
-    return;
-  default:
-    throw dali::imgcodec::NvJpeg2kError(status);
-  }
-}
-
-template <>
-inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status, const string &extra) {
-  switch (status) {
-  case NVJPEG2K_STATUS_SUCCESS:
-    return;
-  default:
-    throw dali::imgcodec::NvJpeg2kError(status, extra.c_str());
-  }
-}
-
 }  // namespace dali
-
-#endif  // DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
