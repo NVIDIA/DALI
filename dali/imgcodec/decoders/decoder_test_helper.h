@@ -26,11 +26,14 @@
 #include "dali/imgcodec/image_decoder.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/test/dali_test.h"
+#include "dali/test/test_tensors.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/core/stream.h"
 #include "dali/util/file.h"
 #include "dali/util/numpy.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/core/cuda_event_pool.h"
+#include "dali/core/cuda_stream_pool.h"
 
 namespace dali {
 namespace imgcodec {
@@ -50,105 +53,89 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Decodes an image and returns the result as a CPU tensor.
   */
-  Tensor<CPUBackend> Decode(ImageSource *src, const DecodeParams &opts = {}, const ROI &roi = {}) {
+  TensorView<StorageCPU, OutputType> Decode(ImageSource *src, const DecodeParams &opts = {}, 
+                                            const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
-    ImageInfo info = Parser()->GetInfo(src);
-
-    Tensor<CPUBackend> result;
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
+
+    ImageInfo info = Parser()->GetInfo(src);
     auto shape = AdjustToRoi(info.shape, roi);
-    result.Resize(shape, type2id<OutputType>::value);
+    output_.reshape({{shape}});
 
     if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
-      SampleView<CPUBackend> view(result.raw_mutable_data(), result.shape(), result.type());
+      auto tv = output_.cpu()[0];
+      SampleView<CPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
       DecodeResult decode_result = Decoder()->Decode(view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
+      return tv;
     } else {  // GPU
-      TensorList<GPUBackend> gpu_list;
-      gpu_list.Resize(TensorListShape{{result.shape()}}, result.type());
-      SampleView<GPUBackend> view(gpu_list.raw_mutable_tensor(0), result.shape(), result.type());
-
+      auto tv = output_.gpu()[0];
+      SampleView<GPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
       auto decode_result = Decoder()->Decode(stream, view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
-
-      TensorList<GPUBackend> cpu_list;
-      cpu_list.Copy(gpu_list);
-      result.Copy(cpu_list, 0);
+      StreamSync(stream);
+      return output_.cpu()[0];
     }
-
-    return result;
   }
 
   /**
    * @brief Decodes a batch of images, invoking the batch version of ImageDecoder::Decode
    */
-  std::vector<Tensor<CPUBackend>> Decode(cspan<ImageSource *> in,
+  TensorListView<StorageCPU, OutputType> Decode(cspan<ImageSource *> in,
                                          const DecodeParams &opts = {},
                                          cspan<ROI> rois = {}) {
-    auto parser = Parser();
-    auto decoder = Decoder();
-
     int n = in.size();
     std::vector<TensorShape<>> shape(n);
     std::vector<Tensor<CPUBackend>> result(n);
-    std::vector<ROI> empty_rois(n);
-
-    if (rois.size() == 0)
-      rois = make_span(empty_rois);
-    assert(rois.size() == n);
 
     for (int i = 0; i < n; i++) {
-      EXPECT_TRUE(parser->CanParse(in[i]));
-      EXPECT_TRUE(decoder->CanDecode(in[i], opts));
-      ImageInfo info = parser->GetInfo(in[i]);
-      shape[i] = AdjustToRoi(info.shape, rois[i]);
+      EXPECT_TRUE(Parser()->CanParse(in[i]));
+      EXPECT_TRUE(Decoder()->CanDecode(in[i], opts));
+      ImageInfo info = Parser()->GetInfo(in[i]);
+      shape[i] = AdjustToRoi(info.shape, rois.empty() ? ROI{} : rois[i]);
       result[i].Resize(shape[i], type2id<OutputType>::value);
     }
 
+    output_.reshape(TensorListShape{shape});
+
     if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
+      auto tlv = output_.cpu();
       std::vector<SampleView<CPUBackend>> view(n);
       for (int i = 0; i < n; i++)
-        view[i] = {result[i].raw_mutable_data(), result[i].shape(), result[i].type()};
-
-      auto decode_results = decoder->Decode(make_span(view), in, opts, rois);
-      for (auto decode_result : decode_results)
+        view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
+      auto res = Decoder()->Decode(make_span(view), in, opts, rois);
+      for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
+      return tlv;
     } else {  // GPU
-      TensorList<GPUBackend> gpu_list;
-      gpu_list.Resize(TensorListShape{shape}, type2id<OutputType>::value);
+      auto tlv = output_.gpu();
       std::vector<SampleView<GPUBackend>> view(n);
       for (int i = 0; i < n; i++)
-        view[i] = {gpu_list.raw_mutable_tensor(i), result[i].shape(), result[i].type()};
-
+        view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
-      auto decode_results = decoder->Decode(stream, make_span(view), in, opts, rois);
-      for (auto decode_result : decode_results)
+      auto res = Decoder()->Decode(stream, make_span(view), in, opts, rois);
+      for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
-
-      TensorList<CPUBackend> cpu_list;
-      cpu_list.Copy(gpu_list);
-      for (int i = 0; i < n; i++)
-        result[i].Copy(cpu_list, i);
+      StreamSync(stream);
+      return output_.cpu();
     }
-
-    return result;
   }
 
   /**
   * @brief Checks if the image and the reference are equal
   */
-  void AssertEqual(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref) {
-    Check(view<const OutputType>(img), view<const OutputType>(ref));
+  void AssertEqual(const TensorView<StorageCPU, OutputType> &img, const Tensor<CPUBackend> &ref) {
+    Check(img, view<const OutputType>(ref));
   }
 
   /**
   * @brief Checks if the image and the reference are equal after converting the reference
   * with ConvertSatNorm
   */
-  void AssertEqualSatNorm(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref) {
+  void AssertEqualSatNorm(const TensorView<StorageCPU, OutputType> &img, const Tensor<CPUBackend> &ref) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
-      Check(view<const OutputType>(img), view<const RefType>(ref), EqualConvertSatNorm());
+      Check(img, view<const RefType>(ref), EqualConvertSatNorm());
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
   }
 
@@ -260,8 +247,15 @@ class DecoderTestBase : public ::testing::Test {
     }
   }
 
+  void StreamSync(const CUDAStreamLease &stream) {
+    auto event = CUDAEventPool::instance().Get(GetDeviceId());
+    CUDA_CALL(cudaEventRecord(event, stream));
+    CUDA_CALL(cudaEventSynchronize(event));
+  }
+
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;
   std::shared_ptr<ImageParser> parser_ = nullptr;
+  kernels::TestTensorList<OutputType> output_;
   ThreadPool tp_;
 };
 
