@@ -53,7 +53,7 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Decodes an image and returns the result as a CPU tensor.
   */
-  TensorView<StorageCPU, OutputType> Decode(ImageSource *src, const DecodeParams &opts = {}, 
+  TensorView<StorageCPU, OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
                                             const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
@@ -133,7 +133,8 @@ class DecoderTestBase : public ::testing::Test {
   * @brief Checks if the image and the reference are equal after converting the reference
   * with ConvertSatNorm
   */
-  void AssertEqualSatNorm(const TensorView<StorageCPU, OutputType> &img, const Tensor<CPUBackend> &ref) {
+  void AssertEqualSatNorm(const TensorView<StorageCPU, OutputType> &img,
+                          const Tensor<CPUBackend> &ref) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
       Check(img, view<const RefType>(ref), EqualConvertSatNorm());
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
