@@ -151,8 +151,8 @@ struct ConvertPixel<Out, In, DALI_YCbCr, DALI_GRAY> : ColorConversionBase<Out, 3
 template <typename Out, typename In>
 struct ConvertPixel<Out, In, DALI_RGB, DALI_GRAY> : ColorConversionBase<Out, 3, In, 1> {
   void operator()(Out *out, const In *in) const {
-    auto gray = this->load(in);
-    this->vstore(out, kernels::color::gray_to_rgb<Out, In>(gray));
+    auto gray = ConvertSatNorm<Out>(this->load(in));
+    this->vstore(out, vec<3, Out>{gray, gray, gray});
   }
 };
 
