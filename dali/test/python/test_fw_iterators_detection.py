@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -157,18 +157,18 @@ def test_api_fw_check2(iter_type, data_definition):
         train_loader = iter_type([pipe], data_definition, EPOCH_SIZE, auto_reset=False,
                                  dynamic_shape=True)
         train_loader.__next__()
-        assert (False)
+        assert False
     except RuntimeError:
-        assert (True)
+        assert True
     # disable check
     pipe.enable_api_check(False)
     try:
         train_loader = iter_type([pipe], data_definition, EPOCH_SIZE, auto_reset=False,
                                  dynamic_shape=True)
         train_loader.__next__()
-        assert (True)
+        assert True
     except RuntimeError:
-        assert (False)
+        assert False
     yield check, iter_type
 
 

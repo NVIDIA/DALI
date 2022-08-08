@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ from nvidia.dali._multiproc.shared_queue import Dispatcher
 
 
 class _WorkerProcessingResult:
-    """Internal worker message containing computed minibatch or error message sent from the main thread
-    to the dispatcher thread. The dispatcher thread serializes the batch or the error and
+    """Internal worker message containing computed minibatch or error message sent from the main
+    thread to the dispatcher thread. The dispatcher thread serializes the batch or the error and
     forwards the result as `CompletedTask` to the main process"""
 
     def __init__(self, scheduled, shm_chunk, data_batch=None, exception=None,

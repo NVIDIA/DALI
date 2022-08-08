@@ -21,11 +21,12 @@ limitations under the License.
 // We are filling out stubs required by jpeglib, those stubs are private to
 // the implementation, we are just making available JPGMemSrc, JPGMemDest
 
-#include "dali/image/jpeg_handle.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_handle.h"
 #include <setjmp.h>
 #include <stddef.h>
 
 namespace dali {
+namespace imgcodec {
 namespace jpeg {
 
 void CatchError(j_common_ptr cinfo) {
@@ -181,4 +182,5 @@ void SetSrc(j_decompress_ptr cinfo, const void *data,
 }
 
 }  // namespace jpeg
+}  // namespace imgcodec
 }  // namespace dali

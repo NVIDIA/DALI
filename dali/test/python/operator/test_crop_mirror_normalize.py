@@ -24,7 +24,7 @@ from nvidia.dali.pipeline import Pipeline
 
 from nose_utils import assert_raises
 from nose_utils import raises
-from test_operator_slice import check_slice_output, abs_slice_start_and_end
+from test_slice import check_slice_output, abs_slice_start_and_end
 from test_utils import RandomDataIterator
 from test_utils import as_array
 from test_utils import compare_pipelines, dali_type_to_np
@@ -438,7 +438,7 @@ def check_cmn_crop_sequence_length(device, batch_size, dtype, input_layout, inpu
         crop_d, crop_h, crop_w, 3)
 
     for i in range(batch_size):
-        assert (out_data.at(i).shape == expected_out_shape), \
+        assert out_data.at(i).shape == expected_out_shape, \
             "Shape mismatch {} != {}".format(out_data.at(i).shape, expected_out_shape)
 
 
@@ -475,10 +475,10 @@ def check_cmn_with_out_of_bounds_policy_support(
         mirror_probability, mean, std, should_pad,
         out_of_bounds_policy=None, fill_values=(0x76, 0xb9, 0x00)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
-    assert (input_layout == "HWC")
-    assert (len(input_shape) == 3)
+    assert input_layout == "HWC"
+    assert len(input_shape) == 3
     if fill_values is not None and len(fill_values) > 1:
-        assert (input_shape[2] == len(fill_values))
+        assert input_shape[2] == len(fill_values)
     eii = RandomDataIterator(batch_size, shape=input_shape)
     crop_y, crop_x = 0.5, 0.5
     crop_h, crop_w = input_shape[0] * 2, input_shape[1] * 2
@@ -508,7 +508,7 @@ def check_cmn_with_out_of_bounds_policy_support(
         if isinstance(in_data, dali.backend_impl.TensorListGPU):
             in_data = in_data.as_cpu()
 
-        assert (batch_size == len(out))
+        assert batch_size == len(out)
         for idx in range(batch_size):
             sample_in = in_data.at(idx)
             sample_out = out.at(idx)
@@ -548,7 +548,7 @@ def test_cmn_with_out_of_bounds_policy_support():
 def check_cmn_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
     layout = "HWC"
-    assert (len(input_shape) == 3)
+    assert len(input_shape) == 3
     eii = RandomDataIterator(batch_size, shape=input_shape)
     crop_y, crop_x = 0.5, 0.5
     crop_h, crop_w = input_shape[0] * 2, input_shape[1] * 2

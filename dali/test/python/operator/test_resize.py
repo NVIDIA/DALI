@@ -433,7 +433,7 @@ def _test_ND(device, dim, batch_size, channel_first, mode, interp, dtype, w_inpu
                 print("RoI", roi_size[i])
                 print("Input size", dali_in[i].shape())
                 print("Requested output", size[i])
-                assert (max_err <= eps)
+                assert max_err <= eps
 
         ref_in = dali_in
         if isinstance(ref_in, dali.tensors.TensorListGPU):

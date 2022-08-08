@@ -776,7 +776,8 @@ def _get_eager_target_module(parent_module, submodules, make_hidden):
 
 
 def _wrap_eager_op(op_class, submodules, parent_module, wrapper_name, wrapper_doc, make_hidden):
-    """ Exposes eager operator to the appropriate module (similar to :func:`nvidia.dali.fn._wrap_op`).
+    """ Exposes eager operator to the appropriate module
+    (similar to :func:`nvidia.dali.fn._wrap_op`).
     Uses ``op_class`` for preprocessing inputs and keyword arguments and filling OpSpec for backend
     eager operators.
 

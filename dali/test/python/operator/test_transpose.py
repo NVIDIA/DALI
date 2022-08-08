@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ def check_transpose_layout(device, batch_size, shape, in_layout, permutation,
     else:
         expected_out_layout = "" if in_layout is None else in_layout
 
-    assert(out[0].layout() == expected_out_layout)
+    assert out[0].layout() == expected_out_layout
 
 
 def test_transpose_layout():

@@ -241,6 +241,19 @@ struct TensorShape<DynamicDimensions>
     return shape;
   }
 
+  /**
+   * @brief Return empty shape of specified dimensionality
+   */
+  static TensorShape<> empty_shape(int dim) {
+    assert(dim > 0);
+    TensorShape<> result;
+    result.resize(dim);
+    for (auto &elem : result) {
+      elem = 0;
+    }
+    return result;
+  }
+
   void resize(typename Base::size_type count) { shape.resize(count); }
 };
 
@@ -300,6 +313,19 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   DALI_NO_EXEC_CHECK
   DALI_HOST_DEV void resize(typename Base::size_type count) {
     assert(count == ndim && "Not supported for count other than statically defined");
+  }
+
+  /**
+   * @brief Return empty shape of specified dimensionality
+   */
+  static TensorShape<> empty_shape(int dim = ndim) {
+    assert(dim == ndim && "Not supported for count other than statically defined");
+    TensorShape<> result;
+    result.resize(dim);
+    for (auto &elem : result) {
+      elem = 0;
+    }
+    return result;
   }
 
   static_assert(ndim >= 0, "TensorShape dimension should not be negative");

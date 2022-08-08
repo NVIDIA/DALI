@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMAGE_JPEG_UTILS_H_
-#define DALI_IMAGE_JPEG_UTILS_H_
+#ifndef DALI_IMGCODEC_DECODERS_JPEG_JPEG_UTILS_H_
+#define DALI_IMGCODEC_DECODERS_JPEG_JPEG_UTILS_H_
 
 extern "C" {
 #include "jerror.h"  // NOLINT(build/include)
 #include "jpeglib.h"  // NOLINT(build/include)
 }
 
-#endif  // DALI_IMAGE_JPEG_UTILS_H_
+#endif  // DALI_IMGCODEC_DECODERS_JPEG_JPEG_UTILS_H_

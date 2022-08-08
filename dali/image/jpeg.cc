@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include "dali/image/jpeg.h"
 #include <cmath>
 #include <memory>
-#include "dali/image/jpeg_mem.h"
+#include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
 #include "dali/util/ocv.h"
 #include "dali/core/byte_io.h"
 
@@ -68,6 +68,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     type = shape[2] == 3 ? DALI_RGB : DALI_GRAY;
   }
   const auto c = NumberOfChannels(type);
+  Image::Shape target_shape{h, w, c};
 
   DALI_ENFORCE(jpeg != nullptr);
   DALI_ENFORCE(length > 0);
@@ -80,7 +81,7 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
-  jpeg::UncompressFlags flags;
+  imgcodec::jpeg::UncompressFlags flags;
   if (UseFastIdct()) {
     flags.dct_method = JDCT_FASTEST;
   }
@@ -90,39 +91,28 @@ JpegImage::DecodeImpl(DALIImageType type, const uint8 *jpeg, size_t length) cons
   auto crop_window_generator = GetCropWindowGenerator();
   if (crop_window_generator) {
     flags.crop = true;
-    TensorShape<> shape{static_cast<int>(h), static_cast<int>(w)};
+    TensorShape<> shape{h, w};
     auto crop = crop_window_generator(shape, "HW");
     crop.EnforceInRange(shape);
     flags.crop_y = crop.anchor[0];
     flags.crop_x = crop.anchor[1];
-    flags.crop_height = crop.shape[0];
-    flags.crop_width = crop.shape[1];
+    flags.crop_height = target_shape[0] = crop.shape[0];
+    flags.crop_width  = target_shape[1] = crop.shape[1];
   }
 
   DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
                "Color space not supported by libjpeg-turbo");
   flags.color_space = type;
 
-  std::shared_ptr<uint8_t> decoded_image;
-  int cropped_h = 0;
-  int cropped_w = 0;
-  uint8_t* result = jpeg::Uncompress(
-    jpeg, length, flags, nullptr /* nwarn */,
-    [&decoded_image, &cropped_h, &cropped_w](int width, int height, int channels) -> uint8* {
-      decoded_image.reset(
-        new uint8_t[height * width * channels],
-        [](uint8_t* data){ delete [] data; } );
-      cropped_h = height;
-      cropped_w = width;
-      return decoded_image.get();
-    });
+  std::shared_ptr<uint8_t> decoded_image(imgcodec::jpeg::Uncompress(jpeg, length, flags).release(),
+                                         [](uint8_t *data) { delete[] data; });
 
-  if (result == nullptr) {
+  if (decoded_image == nullptr) {
     // Failed to decode, fallback
     return GenericImage::DecodeImpl(type, jpeg, length);
   }
 
-  return {decoded_image, {cropped_h, cropped_w, c}};
+  return {decoded_image, target_shape};
 #else  // DALI_USE_JPEG_TURBO
   return GenericImage::DecodeImpl(type, jpeg, length);
 #endif  // DALI_USE_JPEG_TURBO
@@ -133,7 +123,7 @@ Image::Shape JpegImage::PeekShapeImpl(const uint8_t *encoded_buffer,
   int height = 0, width = 0, components = 0;
 #ifdef DALI_USE_JPEG_TURBO
   DALI_ENFORCE(
-    jpeg::GetImageInfo(encoded_buffer, length, &width, &height, &components) == true);
+    imgcodec::jpeg::GetImageInfo(encoded_buffer, length, &width, &height, &components) == true);
 #else
   DALI_ENFORCE(get_jpeg_size(encoded_buffer, length, &height, &width, &components));
 #endif

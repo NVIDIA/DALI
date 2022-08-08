@@ -24,7 +24,7 @@ from test_utils import as_array
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
-from test_operator_slice import check_slice_output, abs_slice_start_and_end
+from test_slice import check_slice_output, abs_slice_start_and_end
 
 
 test_data_root = get_dali_extra_path()
