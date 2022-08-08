@@ -78,7 +78,7 @@ class NvJpeg2kDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> 
   static const auto dtype = type2id<OutputType>::value;
 
   std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return NvJpeg2000Decoder{}.Create(CPU_ONLY_DEVICE_ID, tp);
+    return NvJpeg2000Decoder{}.Create(this->GetDeviceId(), tp);
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {
@@ -105,12 +105,13 @@ TYPED_TEST(NvJpeg2kDecoderTest, DecodeSingle) {
 TYPED_TEST(NvJpeg2kDecoderTest, DecodeBatch) {
   size_t batch_size = images.size();
   std::vector<ImageBuffer> imgbufs;
-  std::vector<ImageSource *> in;
   for (size_t i = 0; i < batch_size; i++) {
     const auto filename = join(img_dir, "0", images[i]) + ".jp2";
     imgbufs.emplace_back(filename);
-    in.push_back(&imgbufs[i].src);
   }
+  std::vector<ImageSource *> in(batch_size);
+  for (size_t i = 0; i < batch_size; i++)
+    in[i] = &imgbufs[i].src;
 
   auto decoded = this->Decode(make_span(in), this->GetParams());
   for (size_t i = 0; i < batch_size; i++) {

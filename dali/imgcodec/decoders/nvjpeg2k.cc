@@ -55,8 +55,6 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
     }
   }
 
-  std::cerr << "initialization done\n";
-
   // unable to call this here: (from old implementation)
   // CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
 }
@@ -75,6 +73,8 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in,
   const auto height = comp.component_height;
   const auto width = comp.component_width;
   ctx->bpp = comp.precision;
+  DALI_ENFORCE(ctx->bpp == 8 || ctx->bpp == 16,
+               make_string("Invalid bits per pixel value: ", ctx->bpp));
 
   for (uint32_t c = 1; c < image_info.num_components; c++) {
     CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(*ctx->nvjpeg2k_stream, &comp, c));
@@ -86,9 +86,6 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in,
 
   ctx->shape = {height, width, image_info.num_components};
   ctx->req_nchannels = NumberOfChannels(opts.format, ctx->shape[2]);
-
-  DALI_ENFORCE(ctx->bpp == 8 || ctx->bpp == 16,
-               make_string("Invalid bits per pixel value: ", ctx->bpp));
   ctx->needs_processing = ctx->shape[2] > 1 || ctx->bpp == 16;
   ctx->pixel_size = ctx->bpp == 16 ? sizeof(uint16_t) : sizeof(uint8_t);
   ctx->pixels_count = ctx->shape[0] * ctx->shape[1];
