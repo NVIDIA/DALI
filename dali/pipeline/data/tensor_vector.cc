@@ -211,6 +211,7 @@ TensorVector<Backend>::TensorVector() : curr_num_tensors_(0) {}
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector(int batch_size) : curr_num_tensors_(0) {
+  // We don't use negative
   // This is why we can't have nice things as `dim = 0` is already occupied
   // by competing functionality, we need to guard ourself from thinking we have some scalar
   // allocation where in fact we just have empty samples.
@@ -671,6 +672,9 @@ const DALIMeta &TensorVector<Backend>::GetMeta(int idx) const {
 template <typename Backend>
 void TensorVector<Backend>::SetMeta(int idx, const DALIMeta &meta) {
   assert(idx < curr_num_tensors_);
+  DALI_ENFORCE(GetLayout() == meta.GetLayout(),
+               make_string("Sample must have the same layout as the target batch, current: ",
+                           GetLayout(), " new: ", meta.GetLayout(), " for sample ", idx, "."));
   tensors_[idx].SetMeta(meta);
 }
 

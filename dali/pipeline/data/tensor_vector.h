@@ -53,19 +53,17 @@ class DLL_PUBLIC TensorVector {
   TensorVector();
 
   /**
-   * @brief This constructor allows to create a TensorVector with `batch_size` samples,
-   * that will be accessible as individual samples that can currently be individually resized which
-   * is still utilized by the legacy operators.
-   *
-   * TODO(klecki): The API for empty tensor batch container of given number of samples
-   * will be adjusted in next releases.
+   * @brief This constructor allows to create a TensorVector with `batch_size` samples.
+   * Automatically sets dimension to 1, and the sample shape is {0}.
    */
   explicit TensorVector(int batch_size);
 
   TensorVector(const TensorVector &) = delete;
   TensorVector &operator=(const TensorVector &) = delete;
 
+  TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;
   DLL_PUBLIC TensorVector<Backend>(TensorVector<Backend> &&other) noexcept;
+
 
   AccessOrder order() const {
     return order_;
@@ -86,55 +84,78 @@ class DLL_PUBLIC TensorVector {
    */
   void set_order(AccessOrder order, bool synchronize = true);
 
-  SampleView<Backend> operator[](size_t pos);
-
-  ConstSampleView<Backend> operator[](size_t pos) const;
-
+  /**
+   * @name Shape access
+   * @{
+   */
+  /**
+   * @brief Get the number of samples this batch holds.
+   */
   int num_samples() const noexcept {
     return curr_num_tensors_;
   }
 
   /**
-   * @brief Number of elements in Tensor List.
+   * @brief Number of elements in batch (total of all samples).
    *
    * Note: The usage of this member function is intended to be reworked in following updates.
    * For this purpose the name is distinct so we can easily search and replace.
+   * [shape_access]
    */
   int64_t _num_elements() const {
     return shape().num_elements();
   }
 
+  /**
+   * @brief Set the dimensionality for all samples in the batch
+   */
   void set_sample_dim(int sample_dim);
 
+  /**
+   * @brief Get the dimensionality of the sample in the batch
+   */
   int sample_dim() const {
     return sample_dim_;
   }
 
-  size_t nbytes() const noexcept;
-
-  size_t capacity() const noexcept;
-
   /**
-   * @brief Returns the size in bytes of the underlying data chunks
-   * TODO(klecki): Temporary API to be reworked, do not use.
+   * @brief Get the shape of the batch.
    */
-  std::vector<size_t> _chunks_nbytes() const;
-
-  /**
-   * @brief Returns the real size of the underlying allocations
-   * TODO(klecki): Temporary API to be reworked, do not use.
-   */
-  std::vector<size_t> _chunks_capacity() const;
-
   const TensorListShape<> &shape() const &;
 
+  /**
+   * @brief Get the shape of the sample.
+   *
+   * [shape_access]
+   */
   const TensorShape<> &tensor_shape(int idx) const & {
     return tensors_[idx].shape();
   }
 
+  /**
+   * @brief Get the shape of the sample.
+   *
+   * [shape_access]
+   */
   inline span<const int64_t> tensor_shape_span(int idx) const & {
     return shape_.tensor_shape_span(idx);
   }
+  /** @} */
+
+
+  /**
+   * @name Sample access
+   * @{}
+   */
+  /**
+   * @brief Get the view for the sample at given position
+   */
+  SampleView<Backend> operator[](size_t pos);
+
+  /**
+   * @brief Get the view for the sample at given position
+   */
+  ConstSampleView<Backend> operator[](size_t pos) const;
 
   /**
    * @brief Returns a typed pointer to the tensor with the given index.
@@ -165,7 +186,12 @@ class DLL_PUBLIC TensorVector {
   DLL_PUBLIC inline const void* raw_tensor(int idx) const {
     return  tensors_[idx].raw_data();
   }
+  /** @} */
 
+  /**
+   * @name Sample setting (sharing)
+   * @{
+   */
   /**
    * @brief Analogue of TensorVector[sample_idx].ShareData(src[src_sample_idx]);
    *
@@ -215,7 +241,12 @@ class DLL_PUBLIC TensorVector {
                                   bool pinned, const TensorShape<> &shape, DALIDataType type,
                                   int device_id, AccessOrder order = {},
                                   const TensorLayout &layout = "");
+  /** @} */
 
+  /**
+   * @name Sample copying
+   * @{
+   */
   /**
    * @brief Analogue of TensorVector[sample_idx].Copy(src[src_sample_idx]);
    *
@@ -235,7 +266,56 @@ class DLL_PUBLIC TensorVector {
 
   DLL_PUBLIC void UnsafeCopySample(int sample_idx, const Tensor<Backend> &src,
                                    AccessOrder order = {});
+  /** @} */
 
+
+  /**
+   * @name Type access
+   * @{
+   */
+  /**
+   * @brief Set the type of the current batch. The type needs to be set before calling
+   * the Resize(const TensorListShape<> &) function. It cannot be used to change the type after
+   * allocation happened.
+   *
+   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
+   * request a different type after allocation.
+   */
+  void set_type(DALIDataType new_type);
+
+  template <typename T>
+  void set_type() {
+    set_type(TypeTable::GetTypeId<T>());
+  }
+
+  /**
+   * @brief Get the type of samples in the batch.
+   *
+   * @note Using DALIDataType is recommended over accessing type_info().
+   */
+  DALIDataType type() const;
+
+  /**
+   * @brief Get the TypeInfo of samples in the batch.
+   */
+  const TypeInfo &type_info() const;
+  /** @} */
+
+  /**
+   * @name Size and shape, and allocation changing
+   * @{
+   */
+  /**
+   * Change the number of tensors that can be accessed as samples without the need to
+   * set them a size.
+   * @param new_size
+   */
+  void SetSize(int new_size);
+
+  /**
+   * @brief Resize the batch to fit the new shape
+   * See Resize(const TensorListShape<> &, DALIDataType, BatchState) for details
+   */
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
     DALI_ENFORCE(IsValidType(type()),
                  "TensorVector has no type, 'set_type<T>()' or Resize(shape, type) must be called "
@@ -255,7 +335,7 @@ class DLL_PUBLIC TensorVector {
    * @param new_shape requested shape
    * @param new_type requested type
    * @param state Optional change of contiguity mode.
-   *    * Default keeps the current one,
+   *    * Default keeps the current one or use one allocation if reallocation is needed
    *    * Contiguous forces the allocation to be contiguous
    *    * Noncontiguous - detach all samples, and use them separately, the contiguous buffer
    *      might still be used as backing storage until new allocations are needed for all samples
@@ -264,11 +344,15 @@ class DLL_PUBLIC TensorVector {
                          BatchState state = BatchState::Default);
 
   /**
-   * Change the number of tensors that can be accessed as samples without the need to
-   * set them a size.
-   * @param new_size
+   * @brief Reserve memory as one contiguous allocation
    */
-  void SetSize(int new_size);
+  void reserve(size_t total_bytes);
+
+  /**
+   * @brief Reserve as vector of `batch_size` allocations internally
+   */
+  void reserve(size_t bytes_per_sample, int batch_size);
+  /** @} */
 
   /**
    * @name Configuration cloning
@@ -296,42 +380,77 @@ class DLL_PUBLIC TensorVector {
   /** @} */
 
   /**
-   * @name Type setting functions.
+   * @name Configure contiguity of allocations
    * @{
    */
   /**
-   * @brief Set the type of the current batch. The type needs to be set before calling
-   * the Resize(const TensorListShape<> &) function. It cannot be used to change the type after
-   * allocation happened.
-   *
-   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
-   * request a different type after allocation.
+   * @brief If the batch is backed by contiguous buffer
    */
-  void set_type(DALIDataType new_type);
+  bool IsContiguous() const noexcept;
 
-  template <typename T>
-  void set_type() {
-    set_type(TypeTable::GetTypeId<T>());
-  }
+  /**
+   * @brief Set the current state for further allocating calls like Resize() or set_type
+   *        to use contiguous or noncontiguous backing memory
+   *        Setting BatchState::Default allows to change it with every call to Resize().
+   */
+  void SetContiguous(BatchState state);
+
+  /**
+   * @brief Set the contiguity state for further allocations. Convenient overload accepting boolean.
+   *
+   * @param state - pins the state to either Contiguous (true) or Noncontiguous (false)
+   */
+  void SetContiguous(bool state);
+
+  /**
+   * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.
+   * TODO(klecki): NOT YET IMPLEMENTED.
+   */
+  void MakeContiguous(std::weak_ptr<void> owner = {});
+
+  /**
+   * @brief Transform from contiguous allocation to individual samples without adjusting
+   * the allocation.
+   */
+  void MakeNoncontiguous();
   /** @} */
 
+  /**
+   * @brief Reset the allocations and most properties.
+   * Device related properties (device id, memory pinning, order) and contiguity status are not
+   * reset.
+   */
+  void Reset();
 
-  DALIDataType type() const;
+  /**
+   * @brief Copy whole batch
+   */
+  template <typename SrcBackend>
+  void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order = {});
 
-  const TypeInfo &type_info() const;
+  /**
+   * @brief Copy whole batch
+   */
+  template <typename SrcBackend>
+  void Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order = {},
+            bool use_copy_kernel = false);
 
-  /** @brief Set uniform layout for all samples in the list */
-  void SetLayout(const TensorLayout &layout);
+  /**
+   * @brief Set the tensor list as backing memory for this batch.
+   */
+  void ShareData(const TensorList<Backend> &in_tl);
 
-  void SetSkipSample(int idx, bool skip_sample);
+  /**
+   * @brief Set the provided buffer as backing memory for this batch.
+   */
+  DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                            const TensorListShape<> &shape, DALIDataType type, int device_id,
+                            AccessOrder order = {}, const TensorLayout &layout = "");
 
-  void SetSourceInfo(int idx, const std::string& source_info);
-
-  TensorLayout GetLayout() const;
-
-  const DALIMeta &GetMeta(int idx) const;
-
-  void SetMeta(int idx, const DALIMeta &meta);
+  /**
+   * @brief Set other batch as backing memory for this one. Preserves the contiguity status.
+   */
+  void ShareData(const TensorVector<Backend> &tv);
 
   void set_pinned(bool pinned);
 
@@ -341,64 +460,8 @@ class DLL_PUBLIC TensorVector {
 
   int device_id() const;
 
-  /**
-   * @brief Reserve as contiguous tensor list internally
-   */
-  void reserve(size_t total_bytes);
-
-  /**
-   * @brief Reserve as vector of `batch_size` tensors internally
-   */
-  void reserve(size_t bytes_per_sample, int batch_size);
-
-  /**
-   * @brief If the TensorVector is backed by TensorList (contiguous memory)
-   */
-  bool IsContiguous() const noexcept;
-
-  /**
-   * @name Configure contiguity of allocations
-   * @{
-   */
-  /**
-   * @brief Set the current state for further allocating calls like Resize() or set_type
-   *        to use contiguous or noncontiguous backing memory
-   *        Setting BatchState::Default allows to change it with every call to Resize().
-   */
-  void SetContiguous(BatchState state);
-
-  /**
-   * @brief Convenient overload accepting boolean.
-   *
-   * @param state - pins the state to either Contiguous (true) or Noncontiguous (false)
-   */
-  void SetContiguous(bool state);
-  /** @} */
-
-  void MakeContiguous(std::weak_ptr<void> owner = {});
-
-  void MakeNoncontiguous();
-
-  void Reset();
-
-  template <typename SrcBackend>
-  void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order = {});
-
-  template <typename SrcBackend>
-  void Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order = {},
-            bool use_copy_kernel = false);
-
-  void ShareData(const TensorList<Backend> &in_tl);
-
-  DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-                            const TensorListShape<> &shape, DALIDataType type, int device_id,
-                            AccessOrder order = {}, const TensorLayout &layout = "");
-
-  void ShareData(const TensorVector<Backend> &tv);
-
-  TensorVector<Backend> &operator=(TensorVector<Backend> &&other) noexcept;
-
   bool has_data() const;
+
   bool shares_data() const;
 
   /**
@@ -426,6 +489,67 @@ class DLL_PUBLIC TensorVector {
    * @brief Return a Dense Tensor representation of the underlying memory if possible.
    */
   DLL_PUBLIC Tensor<Backend> AsTensor();
+
+  /**
+   * @name Metadata access
+   * @{
+   */
+  /**
+   * @brief Set uniform layout for all samples in the batch
+   */
+  void SetLayout(const TensorLayout &layout);
+
+  /**
+   * @brief Get the layout of the sample in the batch.
+   */
+  TensorLayout GetLayout() const;
+
+  /**
+   * @brief Set uniform layout for all samples in the batch
+   */
+  void SetSkipSample(int idx, bool skip_sample);
+
+  void SetSourceInfo(int idx, const std::string& source_info);
+
+  /**
+   * @brief Get the metadata for given sample
+   */
+  const DALIMeta &GetMeta(int idx) const;
+
+  /**
+   * @brief Set the metadata for given sample
+   */
+  void SetMeta(int idx, const DALIMeta &meta);
+  /** @} */
+
+  /**
+   * @name Allocation metadata
+   * @{
+   */
+  /**
+   * @brief Returns the total size in bytes of the underlying data chunks.
+   * @note Keep in mind, that the memory can be fragmented.
+   */
+  size_t nbytes() const noexcept;
+
+  /**
+   * @brief Returns the sum of all underlying allocations.
+   * @note Keep in mind, that the memory can be fragmented.
+   */
+  size_t capacity() const noexcept;
+
+  /**
+   * @brief Returns the size in bytes of the underlying data chunks
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_nbytes() const;
+
+  /**
+   * @brief Returns the real size of the underlying allocations
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_capacity() const;
+  /** @} */
 
  private:
   /**
