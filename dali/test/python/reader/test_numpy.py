@@ -619,9 +619,15 @@ def check_pad_last_sample(device):
             arr_np_list.append(np.load(filename))
         while len(arr_np_list) < batch_size:
             arr_np_list.append(np.load(last_file_name))
-        pipe = NumpyReaderPipeline(path=test_data_root, files=filenames, file_list=None,
-                                   file_filter=None, device=device, batch_size=batch_size,
-                                   num_threads=4, device_id=0, pad_last_batch=True)
+        pipe = NumpyReaderPipeline(path=test_data_root,
+                                   files=filenames,
+                                   file_list=None,
+                                   file_filter=None,
+                                   device=device,
+                                   batch_size=batch_size,
+                                   num_threads=4,
+                                   device_id=0,
+                                   pad_last_batch=True)
         pipe.build()
 
         for _ in range(2):
