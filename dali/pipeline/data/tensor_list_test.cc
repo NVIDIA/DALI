@@ -13,7 +13,11 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
@@ -481,12 +485,6 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
   const auto *base_ptr = unsafe_raw_data(tensor_list);
   size_t nbytes = shape.num_elements() * sizeof(float);
 
-  // Save the pointers
-  std::vector<const void *> ptrs;
-  for (int i = 0; i < tensor_list.num_samples(); i++) {
-    ptrs.push_back(tensor_list.raw_tensor(i));
-  }
-
   for (auto new_type : types) {
     if (initial_type != new_type) {
       // Simply changing the type of the buffer is not allowed
@@ -502,7 +500,6 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
     for (int i = 0; i < tensor_list.num_samples(); ++i) {
       ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
       ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
-      ASSERT_EQ(tensor_list.tensor_offset(i), offsets[i]);
     }
 
     // The side-effects of only reallocating when we need a bigger buffer, we may use padding

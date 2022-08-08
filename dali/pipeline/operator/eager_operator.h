@@ -27,6 +27,7 @@
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
@@ -57,13 +58,24 @@ std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<B
   return tl;
 }
 
-template <typename StorageType>
-void MakeContiguous(std::shared_ptr<StorageType> storage) {}
-
-template <>
-void MakeContiguous(std::shared_ptr<TensorVector<CPUBackend>> storage) {
-  storage->SetContiguous(true);
+/** @defgroup WarResizeContiguous
+ * This is a WAR so we do not pin everything as contiguous, but we resize as contiguous
+ * when necessary (we got inferred outputs).
+ * The need to differentiate between TensorList and TensorVector will be dropped with
+ * the removal of TensorList.
+ * @{
+ */
+template <typename Backend>
+void ResizeImpl(TensorList<Backend> &batch, const TensorListShape<> &shape, DALIDataType type) {
+  batch.Resize(shape, type);
 }
+
+template <typename Backend>
+void ResizeImpl(TensorVector<Backend> &batch, const TensorListShape<> &shape, DALIDataType type) {
+  batch.Resize(shape, type, BatchState::Contiguous);
+}
+/** @} */  // end of WarResizeContiguous
+
 
 template <typename Backend>
 struct Backend2Types {};
@@ -314,7 +326,9 @@ EagerOperator<Backend>::RunImpl(
 
   for (size_t i = 0; i < num_outputs_; ++i) {
     auto tensor_out = std::make_shared<WSOutputType>(batch_size);
-    MakeContiguous(tensor_out);
+    if (ws_.has_stream()) {
+      tensor_out->set_order(ws_.stream());
+    }
     ws_.AddOutput(tensor_out);
   }
 
@@ -323,7 +337,7 @@ EagerOperator<Backend>::RunImpl(
   // Setup outputs.
   if (op_->Setup(output_desc, ws_) && op_->CanInferOutputs()) {
     for (size_t i = 0; i < num_outputs_; ++i) {
-      ws_.template Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type);
+      ResizeImpl(ws_.template Output<OutBackend>(i), output_desc[i].shape, output_desc[i].type);
     }
   }
 

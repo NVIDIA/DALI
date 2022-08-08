@@ -147,6 +147,8 @@ class SampleViewBase {
   ~SampleViewBase() = default;
 };
 
+template <typename Backend>
+class ConstSampleView;
 
 template <typename Backend>
 class SampleView : public SampleViewBase<Backend, void *> {
@@ -158,6 +160,7 @@ class SampleView : public SampleViewBase<Backend, void *> {
   using Base::data_;
   using Base::shape_;
   using Base::type_id_;
+  friend class ConstSampleView<Backend>;
 };
 
 
@@ -182,14 +185,12 @@ class ConstSampleView : public SampleViewBase<Backend, const void *> {
   }
 
   ConstSampleView &operator=(SampleView<Backend> &&other) {
-    if (this != &other) {
-      data_ = other.data_;
-      other.data_ = nullptr;
-      shape_ = std::move(other.shape_);
-      other.shape_ = {0};
-      type_id_ = other.type_id_;
-      other.type_id_ = DALI_NO_TYPE;
-    }
+    data_ = other.data_;
+    other.data_ = nullptr;
+    shape_ = std::move(other.shape_);
+    other.shape_ = {0};
+    type_id_ = other.type_id_;
+    other.type_id_ = DALI_NO_TYPE;
     return *this;
   }
 
