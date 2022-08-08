@@ -82,7 +82,7 @@ TEST_F(BmpParserTest, CheckInfoValidBmp) {
 TEST_F(BmpParserTest, CheckInfoValidBmpGray) {
   LoadFileStream("/db/single/bmp/0/cat-111793_640_grayscale.bmp");
   auto info = GetInfo(valid_bmp_);
-  TensorShape<> expected_shape = {426, 640, 3};
+  TensorShape<> expected_shape = {426, 640, 1};
   ASSERT_EQ(info.shape, expected_shape);
 }
 
@@ -96,7 +96,7 @@ TEST_F(BmpParserTest, CheckInfoValidBmpPalette8bit) {
 TEST_F(BmpParserTest, CheckInfoValidBmpPalette1bit) {
   LoadFileStream("/db/single/bmp/0/cat-111793_640_palette_1bit.bmp");
   auto info = GetInfo(valid_bmp_);
-  TensorShape<> expected_shape = {426, 640, 3};
+  TensorShape<> expected_shape = {426, 640, 1};
   ASSERT_EQ(info.shape, expected_shape);
 }
 
