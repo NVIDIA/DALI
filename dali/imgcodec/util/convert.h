@@ -69,16 +69,11 @@ void Convert(Out *out, const int64_t *out_strides,
 }
 
 /**
- * @brief Converts a data type of a vector.
+ * @brief Functor base for converting pixels between color spaces and data types.
+ *
+ * This base struct provides utilities for loading and storing scalars (load/store) and
+ * vectors (vload/vstore) from pixels stored in a strided tensor.
  */
-template <typename Out, typename In, int N>
-inline vec<N, Out> ConvertSatNormVec(const vec<N, In> &in) {
-  vec<N, Out> out = {};
-  for (int i = 0; i < N; i++)
-    out[i] = ConvertSatNorm<Out>(in[i]);
-  return out;
-}
-
 template <typename Out, int out_channels, typename In, int in_channels>
 struct ColorConversionBase {
   static In load(const In *in) {
@@ -104,10 +99,17 @@ struct ColorConversionBase {
   ptrdiff_t out_channel_stride, in_channel_stride;
 };
 
+
+/**
+ * @brief Converts data type of a pixel without converting its color format
+ */
 template <typename Out, typename In, int channels>
 struct ConvertPixelDType : ColorConversionBase<Out, channels, In, channels> {
   void operator()(Out *out, const In *in) const {
-    auto v = this->vload(in);
+    auto in_vec = this->vload(in);
+    vec<channels, Out> out_vec = {};
+    for (int i = 0; i < N; i++)
+      out_vec[i] = ConvertSatNorm<Out>(in_vec[i]);
     this->vstore(out, ConvertSatNormVec<Out>(v));
   }
 };
