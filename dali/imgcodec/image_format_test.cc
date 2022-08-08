@@ -142,7 +142,7 @@ TEST_F(ImageFormatTest, Png) {
        TensorShape<>(425, 640, 3));
 }
 
-TEST_F(ImageFormatTest, DISABLED_Bmp) {
+TEST_F(ImageFormatTest, Bmp) {
   Test(testing::dali_extra_path() + "/db/single/bmp/0/cat-1046544_640.bmp", "bmp",
        TensorShape<>(475, 640, 3));
 }
