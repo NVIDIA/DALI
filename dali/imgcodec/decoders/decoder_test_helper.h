@@ -97,8 +97,7 @@ class CpuDecoderTestBase : public ::testing::Test {
   *
   * The eps parameter shound be specified in the dynamic range of the image.
   */
-  void AssertClose(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref,
-                   float eps) {
+  void AssertClose(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref, float eps) {
     if (std::is_integral<OutputType>::value)
       eps /= max_value<OutputType>();
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (

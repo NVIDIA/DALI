@@ -108,7 +108,7 @@ template <typename Out, typename In, int channels>
 struct ConvertPixelDType : ColorConversionBase<Out, channels, In, channels> {
   void operator()(Out *out, const In *in) const {
     auto v = this->vload(in);
-    this-> vstore(out, ConvertSatNormVec<Out>(v));
+    this->vstore(out, ConvertSatNormVec<Out>(v));
   }
 };
 
