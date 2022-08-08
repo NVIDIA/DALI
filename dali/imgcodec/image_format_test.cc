@@ -200,7 +200,7 @@ TEST_F(CompatibilityTest, DISABLED_Png) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/png/", "png", {".png"});
 }
 
-TEST_F(CompatibilityTest, DISABLED_Bmp) {
+TEST_F(CompatibilityTest, Bmp) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/bmp/", "bmp", {".bmp"});
 }
 
