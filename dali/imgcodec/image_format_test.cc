@@ -196,7 +196,7 @@ TEST_F(ImageFormatTest, ReadHeaderStream) {
   EXPECT_EQ(0, buffer[3]);
 }
 
-TEST_F(CompatibilityTest, DISABLED_Png) {
+TEST_F(CompatibilityTest, Png) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/png/", "png", {".png"});
 }
 
@@ -208,20 +208,20 @@ TEST_F(CompatibilityTest, Tiff) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/tiff/", "tiff", {".tiff"});
 }
 
-TEST_F(CompatibilityTest, DISABLED_Pnm) {
+TEST_F(CompatibilityTest, Pnm) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/pnm/", "pnm",
                  {".pnm", ".ppm", ".pgm", ".pbm"});
 }
 
-TEST_F(CompatibilityTest, DISABLED_Jpeg2000) {
+TEST_F(CompatibilityTest, Jpeg2000) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg2k/", "jpeg2000", {".jp2"});
 }
 
-TEST_F(CompatibilityTest, DISABLED_WebP) {
+TEST_F(CompatibilityTest, WebP) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/webp/", "webp", {".webp"});
 }
 
-TEST_F(CompatibilityTest, DISABLED_Jpeg) {
+TEST_F(CompatibilityTest, Jpeg) {
   RunOnDirectory(testing::dali_extra_path() + "/db/single/jpeg/", "jpeg", {".jpg", ".jpeg"});
 }
 
