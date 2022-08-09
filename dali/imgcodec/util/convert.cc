@@ -35,7 +35,7 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   int in_channel_dim = ImageLayoutInfo::ChannelDimIndex(in_layout);
   int out_channel_dim = ImageLayoutInfo::ChannelDimIndex(out_layout);
 
-  DALI_ENFORCE(in_channel_dim == ndim - 1,
+  DALI_ENFORCE(in_channel_dim == spatial_ndim,
     "Not implemented: currently only channels-last layout is supported");
   DALI_ENFORCE(in_layout == out_layout,
     "Not implemented: currently layout transposition is not supported");

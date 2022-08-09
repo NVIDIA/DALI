@@ -179,13 +179,19 @@ struct ConvertPixel<Out, In, DALI_GRAY, DALI_YCbCr> : ColorConversionBase<Out, 1
  *
  * This is a wrapper for more generic variant of Convert. Based on image format and strides it
  * chooses an appropriate conversion function and runs the generic Convert with it.
+ *
+ * In order to have the conversion function process each pixel instead of processing each value
+ * separately, this wrapper will remove the channel dimension from the image before passing it
+ * to generic Convert.
  */
 template <typename Out, typename In>
 void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
              const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
              const int64_t *size, int ndim) {
+  int spatial_ndim = ndim - 1;
+
   // TODO(skarpinski) Support other layouts
-  DALI_ENFORCE(out_channel_dim == ndim - 1 && in_channel_dim == ndim - 1,
+  DALI_ENFORCE(out_channel_dim == spatial_ndim && in_channel_dim == spatial_ndim,
     "Not implemented: currently only channels-last layout is supported");
   ptrdiff_t in_channel_stride = 1, out_channel_stride = 1;
 
@@ -210,8 +216,10 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
 
   VALUE_SWITCH(out_format, OutFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
     VALUE_SWITCH(in_format, InFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
+      // We assume channel-last layout, so to remove channel dimension we simply pass
+      // `spatial_ndim` instead of `ndim` to Convert.
       auto func = ConvertPixel<Out, In, OutFormat, InFormat>{out_channel_stride, in_channel_stride};
-      Convert(out, out_strides, in, in_strides, size, ndim - 1, func);
+      Convert(out, out_strides, in, in_strides, size, spatial_ndim, func);
     ), throw std::logic_error(  // NOLINT
         make_string("Unsupported input format " , to_string(in_format))););  // NOLINT
   ), throw std::logic_error(  // NOLINT
