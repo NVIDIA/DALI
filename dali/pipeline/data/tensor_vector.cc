@@ -211,13 +211,10 @@ TensorVector<Backend>::TensorVector() : curr_num_tensors_(0) {}
 
 template <typename Backend>
 TensorVector<Backend>::TensorVector(int batch_size) : curr_num_tensors_(0) {
-  // We don't use negative
-  // This is why we can't have nice things as `dim = 0` is already occupied
-  // by competing functionality, we need to guard ourself from thinking we have some scalar
-  // allocation where in fact we just have empty samples.
-  // So instead we set the dim to 1, and the resize_tensor will cause the shape to be resized
-  // to appropriate number of samples and 0-initialized, so copy from batch to batch,
-  // using this as (empty) source still works. Maybe there is a better solution to this problem.
+  // We don't use negative batch size through DALI, and by default we wanted batch to
+  // not do any initial allocation unless actual shape is provided.
+  // As the -1 and 0 sample dims (the latter being reserved for scalar case already),
+  // we use `dim=1` and end up with samples of shape {0}.
   set_sample_dim(1);
   resize_tensors(batch_size);
 }
