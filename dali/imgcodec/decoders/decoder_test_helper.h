@@ -74,7 +74,7 @@ class DecoderTestBase : public ::testing::Test {
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
       auto decode_result = Decoder()->Decode(stream, view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
-      StreamSync(stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
       return output_.cpu()[0];
     }
   }
@@ -117,7 +117,7 @@ class DecoderTestBase : public ::testing::Test {
       auto res = Decoder()->Decode(stream, make_span(view), in, opts, rois);
       for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
-      StreamSync(stream);
+      CUDA_CALL(cudaStreamSynchronize(stream));
       return output_.cpu();
     }
   }
@@ -125,8 +125,9 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Checks if the image and the reference are equal
   */
-  void AssertEqual(const TensorView<StorageCPU, OutputType> &img, const Tensor<CPUBackend> &ref) {
-    Check(img, view<const OutputType>(ref));
+  void AssertEqual(const TensorView<StorageCPU, OutputType> &img,
+                   const TensorView<StorageCPU, OutputType> &ref) {
+    Check(img, ref);
   }
 
   /**
@@ -206,7 +207,7 @@ class DecoderTestBase : public ::testing::Test {
    * @brief Get device_id for the Backend
    */
   int GetDeviceId() {
-    if constexpr(std::is_same<Backend, CPUBackend>::value) {
+    if constexpr (std::is_same<Backend, CPUBackend>::value) {
       return CPU_ONLY_DEVICE_ID;
     } else {
       static_assert(std::is_same<Backend, GPUBackend>::value);
@@ -246,12 +247,6 @@ class DecoderTestBase : public ::testing::Test {
     } else {
       return shape;
     }
-  }
-
-  void StreamSync(const CUDAStreamLease &stream) {
-    auto event = CUDAEventPool::instance().Get(GetDeviceId());
-    CUDA_CALL(cudaEventRecord(event, stream));
-    CUDA_CALL(cudaEventSynchronize(event));
   }
 
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;
