@@ -88,7 +88,7 @@ TEST_F(LibTiffDecoderTest, ROI) {
   auto info = Parser()->GetInfo(&src);
 
   DecodeParams params = {};
-  ROI roi = {{13, 17, 0}, {info.shape[0] - 55, info.shape[1] - 10, 3}};
+  ROI roi = {{13, 17}, {info.shape[0] - 55, info.shape[1] - 10}};
   auto img = Decode(&src, params, roi);
   AssertEqualSatNorm(img, Crop(ref, roi));
 }

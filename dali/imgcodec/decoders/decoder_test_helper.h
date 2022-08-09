@@ -81,12 +81,18 @@ class CpuDecoderTestBase : public ::testing::Test {
   }
 
   /**
-  * @brief Crops a tensor to specified roi_shape, anchored at roi_begin.
-  * Does not support padding.
+  /**
+  * @brief Crops a tensor to specified ROI.
+  *
+  * Does not support padding. ROI can either include the last dimension or not.
   */
-  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
+  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, ROI roi) {
     int ndim = input.shape().sample_dim();
     Tensor<CPUBackend> output;
+    if (roi.begin.size() < ndim)
+      roi.begin = shape_cat(roi.begin, 0);
+    if (roi.end.size() < ndim)
+      roi.end = shape_cat(roi.end, input.shape().last(1));
     output.Resize(roi.shape(), type2id<OutputType>::value);
 
     VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
