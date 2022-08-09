@@ -37,6 +37,11 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
   NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp);
 
+  using BatchParallelDecoderImpl::CanDecode;
+  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) {
+    return !roi && (opts.dtype == DALI_UINT8);
+  }
+
   using BatchParallelDecoderImpl::DecodeImplTask;
   DecodeResult DecodeImplTask(int thread_idx,
                               cudaStream_t stream,
@@ -44,7 +49,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
                               ImageSource *in,
                               DecodeParams opts,
                               const ROI &roi) override;
-  
+
   void SetParam(const char *name, const any &value) {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
       nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
@@ -59,7 +64,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
       return nvjpeg2k_host_memory_padding_;
     } else {
-      return any{};
+      DALI_FAIL("Unrecognized param name");
     }
   }
 
@@ -77,7 +82,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     NvJpeg2kDecodeState *nvjpeg2k_decode_state;
     NvJpeg2kStream *nvjpeg2k_stream;
     CUDAEvent *decode_event;
-    cudaStream_t *cuda_stream;
+    CUDAStreamLease *cuda_stream;
   };
 
   size_t nvjpeg2k_device_memory_padding_ = 8;
@@ -95,6 +100,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   std::vector<DeviceBuffer<uint8_t>> intermediate_buffers_;
   std::vector<NvJpeg2kStream> nvjpeg2k_streams_;
   std::vector<CUDAEvent> decode_events_;
+  std::vector<CUDAStreamLease> cuda_streams_;
 };
 
 class NvJpeg2000Decoder : public ImageDecoder {
