@@ -57,15 +57,38 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     return ParallelDecodeImpl(out, in, opts, rois);
   }
 
-  std::vector<DecodeResult> Decode(span<SampleView<GPUBackend>> out,
+  std::vector<DecodeResult> Decode(cudaStream_t stream,
+                                   span<SampleView<GPUBackend>> out,
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
                                    cspan<ROI> rois) override {
-    return ParallelDecodeImpl(out, in, opts, rois);
+    return ParallelDecodeImpl(stream, out, in, opts, rois);
   }
 
-  template <typename Backend>
-  std::vector<DecodeResult> ParallelDecodeImpl(span<SampleView<Backend>> out,
+  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in,
+                      DecodeParams opts, const ROI &roi) override {
+    DecodeResult ret;
+    tp_->AddWork([&](int tid) {
+      ret = DecodeImplTask(tid, out, in, opts, roi);
+    }, volume(out.shape()));
+    tp_->RunAll();
+    return ret;
+  }
+
+  DecodeResult Decode(cudaStream_t stream,
+                      SampleView<GPUBackend> out,
+                      ImageSource *in,
+                      DecodeParams opts,
+                      const ROI &roi) override {
+    DecodeResult ret;
+    tp_->AddWork([&](int tid) {
+      ret = DecodeImplTask(tid, stream, out, in, opts, roi);
+    }, volume(out.shape()));
+    tp_->RunAll();
+    return ret;
+  }
+
+  std::vector<DecodeResult> ParallelDecodeImpl(span<SampleView<CPUBackend>> out,
                                                cspan<ImageSource *> in,
                                                DecodeParams opts,
                                                cspan<ROI> rois) {
@@ -74,12 +97,68 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     std::vector<DecodeResult> ret(out.size());
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
-      tp_->AddWork([&, i](int) {
-        ret[i] = Decode(out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
+      tp_->AddWork([&, i](int tid) {
+        ret[i] = DecodeImplTask(tid, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
       }, volume(out[i].shape()));
     }
     tp_->RunAll();
     return ret;
+  }
+
+  std::vector<DecodeResult> ParallelDecodeImpl(cudaStream_t stream,
+                                               span<SampleView<GPUBackend>> out,
+                                               cspan<ImageSource *> in,
+                                               DecodeParams opts,
+                                               cspan<ROI> rois) {
+    assert(out.size() == in.size());
+    assert(rois.empty() || rois.size() == in.size());
+    std::vector<DecodeResult> ret(out.size());
+    ROI no_roi;
+    for (int i = 0; i < in.size(); i++) {
+      tp_->AddWork([&, i](int tid) {
+        ret[i] = DecodeImplTask(tid, stream, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
+      }, volume(out[i].shape()));
+    }
+    tp_->RunAll();
+    return ret;
+  }
+
+  /**
+   * @brief Single image decode CPU implementation, executed in a thread pool context.
+   * 
+   * @param thread_idx thread index in the thread pool
+   * @param out output sample view
+   * @param in encoded image source
+   * @param opts decoding parameters
+   * @param roi region-of-interest
+   * @return std::vector<DecodeResult> 
+   */
+  virtual DecodeResult DecodeImplTask(int thread_idx,
+                                      SampleView<CPUBackend> out,
+                                      ImageSource *in,
+                                      DecodeParams opts,
+                                      const ROI &roi) {
+    throw std::logic_error("Backend not supported");
+  }
+
+  /**
+   * @brief Single image decode GPU implementation, executed in a thread pool context.
+   * 
+   * @param thread_idx thread index in the thread pool
+   * @param stream CUDA stream to synchronize with
+   * @param out output sample view
+   * @param in encoded image source
+   * @param opts decoding parameters
+   * @param roi region-of-interest
+   * @return std::vector<DecodeResult> 
+   */
+  virtual DecodeResult DecodeImplTask(int thread_idx,
+                                      cudaStream_t stream,
+                                      SampleView<GPUBackend> out,
+                                      ImageSource *in,
+                                      DecodeParams opts,
+                                      const ROI &roi) {
+    throw std::logic_error("Backend not supported");
   }
 };
 

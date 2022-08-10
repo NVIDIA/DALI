@@ -32,15 +32,13 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   assert(in_shape.sample_dim() == out_shape.sample_dim());
   int ndim = out_shape.sample_dim();
   int spatial_ndim = ndim - 1;
-  DALI_ENFORCE(ImageLayoutInfo::ChannelDimIndex(in_layout) == ndim - 1,
+  int in_channel_dim = ImageLayoutInfo::ChannelDimIndex(in_layout);
+  int out_channel_dim = ImageLayoutInfo::ChannelDimIndex(out_layout);
+
+  DALI_ENFORCE(in_channel_dim == spatial_ndim,
     "Not implemented: currently only channels-last layout is supported");
   DALI_ENFORCE(in_layout == out_layout,
     "Not implemented: currently layout transposition is not supported");
-
-  // NOTE: there's opencv-based color space conversion, but it may be unable
-  // to also perform data type conversion, which we want.
-  DALI_ENFORCE(out_format == in_format,
-    "Not implemented: color space conversion is not implemented");
 
   if (!roi_start.empty() && roi_start.sample_dim() != spatial_ndim)
     throw std::invalid_argument(
@@ -77,9 +75,9 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
 
   TYPE_SWITCH(out.type(), type2id, Out, (IMG_CONVERT_TYPES),
     TYPE_SWITCH(in.type(), type2id, In, (IMG_CONVERT_TYPES),
-      (Convert(out.mutable_data<Out>(), out_strides.data(),
-               in.data<In>() + in_offset, in_strides.data(),
-               out_shape.data(), ndim, &ConvertDType<Out, In>)),
+      (Convert(out.mutable_data<Out>(), out_strides.data(), out_channel_dim, out_format,
+               in.data<In>() + in_offset, in_strides.data(), in_channel_dim, in_format,
+               out_shape.data(), ndim)),
       (UnsupportedType("input", in.type());)),
     (UnsupportedType("output", out.type());));
 }

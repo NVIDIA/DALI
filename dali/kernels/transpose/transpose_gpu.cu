@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -227,7 +227,7 @@ class TransposeGPU::Impl {
           max_size = generic_descs_[i].size;
       }
       auto *gpu_descs = reinterpret_cast<GenericTransposeDesc<T>*>(
-        ctx.scratchpad->ToGPU(ctx.gpu.stream, generic_descs_));
+        std::get<0>(ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, generic_descs_)));
 
       dim3 grid(div_ceil(max_size, block_size * 8), generic_descs_.size());
 
@@ -285,7 +285,7 @@ class TransposeGPU::Impl {
       }
 
       auto *gpu_descs = reinterpret_cast<DeinterleaveDesc<T>*>(
-        ctx.scratchpad->ToGPU(ctx.gpu.stream, deinterleave_descs_));
+        std::get<0>(ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, deinterleave_descs_)));
 
       dim3 grid(div_ceil(max_size, 4*block_size), deinterleave_descs_.size());
       TransposeDeinterleaveBatch<<<grid, block_size, 0, ctx.gpu.stream>>>(gpu_descs);
