@@ -54,20 +54,27 @@ class ConversionTestBase : public NumpyDecoderTestBase<ImageType> {
    */
   Tensor<CPUBackend> RunConvert(const std::string& input_path,
                                 DALIImageType input_format, DALIImageType output_format,
-                                TensorLayout layout = "HWC") {
+                                TensorLayout layout = "HWC", const ROI &roi = {}) {
     auto input = this->ReadReferenceFrom(input_path);
     ConstSampleView<CPUBackend> input_view(input.raw_mutable_data(), input.shape(), input.type());
 
     Tensor<CPUBackend> output;
     int output_channels = NumberOfChannels(output_format, NumberOfChannels(input_format));
     auto output_shape = input.shape();
-    output_shape[ImageLayoutInfo::ChannelDimIndex(layout)] = output_channels;
+    int channel_index = ImageLayoutInfo::ChannelDimIndex(layout);
+    output_shape[channel_index] = output_channels;
+    if (roi) {
+      for (int d = 0; d < channel_index; d++)
+        output_shape[d] = roi.shape()[d];
+      for (int d = channel_index + 1; d < output_shape.size(); d++)
+        output_shape[d] = roi.shape()[d - 1];
+    }
     output.Resize(output_shape, input.type());
     SampleView<CPUBackend> output_view(output.raw_mutable_data(), output.shape(), output.type());
 
     Convert(output_view, layout, output_format,
             input_view, layout, input_format,
-            {}, {});
+            roi.begin, roi.end);
 
     return output;
   }
@@ -233,15 +240,20 @@ TYPED_TEST(ColorConversionTest, BgrToBgr) {
  */
 class ConvertLayoutTest : public ConversionTestBase<float> {
  public:
-  void Test(const std::string& layout_name) {
+  void Test(const std::string& layout_name, const ROI &roi = {}) {
     auto rgb_path = GetPath(layout_name, "rgb");
     auto ycbcr_path = GetPath(layout_name, "ycbcr");
 
     std::string layout_code = layout_name;
     for (auto &c : layout_code) c = toupper(c);
+    TensorLayout layout(layout_code);
 
-    this->AssertClose(this->RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout_code),
-                      this->ReadReferenceFrom(ycbcr_path), 0.01);
+    auto ref = ReadReferenceFrom(ycbcr_path);
+    if (roi) {
+      ref.SetLayout(layout);
+      ref = Crop(ref, roi);
+    }
+    AssertClose(RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout, roi), ref, 0.01);
   }
 
  protected:
@@ -260,6 +272,18 @@ TEST_F(ConvertLayoutTest, HCW) {
 
 TEST_F(ConvertLayoutTest, CHW) {
   Test("chw");
+}
+
+TEST_F(ConvertLayoutTest, RoiHWC) {
+  Test("hwc", {{20, 30}, {200, 300}});
+}
+
+TEST_F(ConvertLayoutTest, RoiHCW) {
+  Test("hcw", {{20, 30}, {200, 300}});
+}
+
+TEST_F(ConvertLayoutTest, RoiCHW) {
+  Test("chw", {{20, 30}, {200, 300}});
 }
 
 }  // namespace test

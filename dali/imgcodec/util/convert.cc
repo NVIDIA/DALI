@@ -18,6 +18,7 @@
 #include "dali/imgcodec/util/convert.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/core/tensor_shape_print.h"
 
 #define IMG_CONVERT_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
 
@@ -54,6 +55,9 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   if (roi_end.empty()) {
     roi_end = detail::RemoveDim(in_shape.begin(), in_shape.end(), in_channel_dim);
   }
+
+  std::cerr << "Requested ROI " << roi_start << " : " << roi_end << "\n";
+  std::cerr << "Out shape " << out_shape << std::endl;
 
   auto out_shape_no_channel = detail::RemoveDim(out_shape.begin(), out_shape.end(),
                                                 out_channel_dim);
