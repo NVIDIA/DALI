@@ -53,7 +53,8 @@ class ConversionTestBase : public NumpyDecoderTestBase<ImageType> {
    * @brief Reads an image and converts it from `input_format` to `output_format`
    */
   Tensor<CPUBackend> RunConvert(const std::string& input_path,
-                                DALIImageType input_format, DALIImageType output_format) {
+                                DALIImageType input_format, DALIImageType output_format,
+                                const std::string &layout = "HWC") {
     auto input = this->ReadReferenceFrom(input_path);
     ConstSampleView<CPUBackend> input_view(input.raw_mutable_data(), input.shape(), input.type());
 
@@ -62,8 +63,8 @@ class ConversionTestBase : public NumpyDecoderTestBase<ImageType> {
     output.Resize({input.shape()[0], input.shape()[1], output_channels}, input.type());
     SampleView<CPUBackend> output_view(output.raw_mutable_data(), output.shape(), output.type());
 
-    Convert(output_view, TensorLayout("HWC"), output_format,
-            input_view, TensorLayout("HWC"), input_format,
+    Convert(output_view, TensorLayout(layout), output_format,
+            input_view, TensorLayout(layout), input_format,
             {}, {});
 
     return output;
@@ -233,7 +234,11 @@ class ConvertLayoutTest : public ConversionTestBase<float> {
   void Test(const std::string& layout_name) {
     auto rgb_path = GetPath(layout_name, "rgb");
     auto ycbcr_path = GetPath(layout_name, "ycbcr");
-    this->AssertClose(this->RunConvert(rgb_path, DALI_RGB, DALI_YCbCr),
+
+    std::string layout_code = layout_name;
+    for (auto &c : layout_code) c = toupper(c);
+
+    this->AssertClose(this->RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout_code),
                       this->ReadReferenceFrom(ycbcr_path), 0.01);
   }
 
