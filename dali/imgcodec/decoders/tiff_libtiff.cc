@@ -202,7 +202,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   DALIImageType in_format;
   if (info.channels == 1)
     in_format = DALI_GRAY;
-  else if (info.channels >= 3)
+  else if (opts.format != DALI_ANY_DATA && info.channels >= 3)
     in_format = DALI_RGB;
   else
     in_format = DALI_ANY_DATA;
