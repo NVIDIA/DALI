@@ -186,6 +186,8 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   // of one row of data.
   const bool allow_random_row_access = (info.compression == COMPRESSION_NONE
                                         || info.rows_per_strip == 1);
+
+  // If random access is not allowed, need to read sequentially all previous rows
   if (!allow_random_row_access) {
     for (int64_t y = 0; y < roi.begin[0]; y++) {
       LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, y, 0));
