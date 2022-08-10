@@ -52,7 +52,7 @@ std::string image_path(const std::string &name, const std::string &type_name) {
  * @tparam ImageType The type of images to run the test on
  */
 template <typename ImageType>
-class ColorConversionTest : public NumpyDecoderTestBase<ImageType> {
+class ColorConversionTest : public NumpyDecoderTestBase<CPUBackend, ImageType> {
  public:
   /**
    * @brief Checks if the conversion result matches the reference.
