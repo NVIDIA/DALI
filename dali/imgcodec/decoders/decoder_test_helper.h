@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/image_decoder.h"
+#include "dali/pipeline/util/thread_pool.h"
 #include "dali/test/dali_test.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/core/stream.h"
@@ -75,18 +76,32 @@ class CpuDecoderTestBase : public ::testing::Test {
   }
 
   /**
-  * @brief Checks if two tensors are equal.
+  * @brief Checks if the image and the reference are equal
   */
   void AssertEqual(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref) {
     Check(view<const OutputType>(img), view<const OutputType>(ref));
   }
 
   /**
-  * @brief Checks if two tensors are equal after converting the second tensor with ConvertSatNorm
+  * @brief Checks if the image and the reference are equal after converting the reference
+  * with ConvertSatNorm
   */
   void AssertEqualSatNorm(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
       Check(view<const OutputType>(img), view<const RefType>(ref), EqualConvertSatNorm());
+    ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
+  }
+
+  /**
+  * @brief Checks if an image is close to a reference
+  *
+  * The eps parameter shound be specified in the dynamic range of the image.
+  */
+  void AssertClose(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref, float eps) {
+    if (std::is_integral<OutputType>::value)
+      eps /= max_value<OutputType>();
+    TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
+      Check(view<const OutputType>(img), view<const RefType>(ref), EqualConvertNorm(eps));
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
   }
 

@@ -241,6 +241,22 @@ struct EqualConvertSatNorm {
   }
 };
 
+/**
+ * @brief Functor for comparing value after converting both values to double with ConvertNorm.
+ *
+ * @remark Be aware, that when using this functor in `Check()`, order of arguments matters!
+ */
+struct EqualConvertNorm {
+  explicit EqualConvertNorm(float eps = 0) : equal_eps_(eps) {}
+
+  template <typename Output, typename Reference>
+  bool operator()(Output out, Reference ref) {
+    return equal_eps_(ConvertNorm<float>(out), ConvertNorm<float>(ref));
+  }
+
+  EqualEps equal_eps_;
+};
+
 
 template <typename StorageBackend, typename T1, typename T2,
         int dim1, int dim2, typename ElementsOkFunc = Equal>

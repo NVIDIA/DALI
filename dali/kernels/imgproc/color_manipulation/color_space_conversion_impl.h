@@ -26,14 +26,20 @@ namespace color {
 
 namespace detail {
 
+template<typename T>
+constexpr DALI_HOST_DEV std::enable_if_t<!is_fp_or_half<T>::value, double> get_max_value() {
+  return static_cast<double>(max_value<T>());
+}
+
+template<typename T>
+constexpr DALI_HOST_DEV std::enable_if_t<is_fp_or_half<T>::value, double> get_max_value() {
+  return 1.0;
+}
+
+
 template <typename From, typename To>
 constexpr DALI_HOST_DEV float scale_factor() {
-  constexpr double to = is_fp_or_half<To>::value
-                      ? 1.0 : static_cast<double>(max_value<To>());
-
-  constexpr double from = is_fp_or_half<From>::value
-                        ? 1.0 : static_cast<double>(max_value<From>());
-
+  constexpr double to = get_max_value<To>(), from = get_max_value<From>();
   constexpr float factor = to / from;
   return factor;
 }
@@ -126,6 +132,19 @@ struct itu_r_bt_601 {
     auto g = ConvertSat<Output>(ys - (0.39176228842f * s) * tmp_b - (0.81296764538f * s) * tmp_r);
     auto b = ConvertSat<Output>(ys + (2.0172321417f * s) * tmp_b);
     return {r, g, b};
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output ycbcr_to_gray(vec<3, Input> ycbcr) {
+    return y_to_gray<Output>(ycbcr[0]);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> gray_to_ycbcr(Input gray) {
+    auto c = ConvertNorm<Output>(0.5f);
+    return {gray_to_y<Output>(gray), c, c};
   }
 };  // struct itu_r_bt_601
 
