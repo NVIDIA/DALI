@@ -34,14 +34,7 @@ namespace detail {
 
 class DecoderHelper {
  public:
-  explicit DecoderHelper(ImageSource *in) : stream_(in->Open()), kind_(in->Kind()) {
-    if (in->Kind() == InputKind::HostMemory) {
-      buffer_ = in->RawData();
-      buffer_size_ = in->Size();
-    } else {
-      buffer_ = nullptr;
-    }
-  }
+  explicit DecoderHelper(ImageSource *in) : stream_(in->Open()), in_(in) {}
 
   static tmsize_t read(thandle_t handle, void *buffer, tmsize_t n) {
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
@@ -62,10 +55,10 @@ class DecoderHelper {
   static int map(thandle_t handle, void **base, toff_t *size) {
     // This function will be used by LibTIFF only if input is InputKind::HostMemory.
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
-    if (helper->kind_ != InputKind::HostMemory)
+    if (helper->in_->Kind() != InputKind::HostMemory)
       std::logic_error("DecoderHelper::map can only be used for InputKind::HostMemory");
-    *base = const_cast<void*>(helper->buffer_);
-    *size = helper->buffer_size_;
+    *base = const_cast<void*>(helper->in_->RawData());
+    *size = helper->in_->Size();
     return 0;
   }
 
@@ -82,11 +75,7 @@ class DecoderHelper {
 
  private:
   std::shared_ptr<InputStream> stream_;
-  InputKind kind_;
-
-  // Used only if kind_ == InputKind::HostMemory
-  const void *buffer_;
-  size_t buffer_size_;
+  ImageSource *in_;
 };
 
 std::unique_ptr<TIFF, void (*)(TIFF *)> OpenTiff(ImageSource *in) {
