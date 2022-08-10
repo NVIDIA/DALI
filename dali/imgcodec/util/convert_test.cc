@@ -54,17 +54,19 @@ class ConversionTestBase : public NumpyDecoderTestBase<ImageType> {
    */
   Tensor<CPUBackend> RunConvert(const std::string& input_path,
                                 DALIImageType input_format, DALIImageType output_format,
-                                const std::string &layout = "HWC") {
+                                TensorLayout layout = "HWC") {
     auto input = this->ReadReferenceFrom(input_path);
     ConstSampleView<CPUBackend> input_view(input.raw_mutable_data(), input.shape(), input.type());
 
     Tensor<CPUBackend> output;
     int output_channels = NumberOfChannels(output_format, NumberOfChannels(input_format));
-    output.Resize({input.shape()[0], input.shape()[1], output_channels}, input.type());
+    auto output_shape = input.shape();
+    output_shape[ImageLayoutInfo::ChannelDimIndex(layout)] = output_channels;
+    output.Resize(output_shape, input.type());
     SampleView<CPUBackend> output_view(output.raw_mutable_data(), output.shape(), output.type());
 
-    Convert(output_view, TensorLayout(layout), output_format,
-            input_view, TensorLayout(layout), input_format,
+    Convert(output_view, layout, output_format,
+            input_view, layout, input_format,
             {}, {});
 
     return output;

@@ -35,8 +35,6 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   int in_channel_dim = ImageLayoutInfo::ChannelDimIndex(in_layout);
   int out_channel_dim = ImageLayoutInfo::ChannelDimIndex(out_layout);
 
-  DALI_ENFORCE(in_channel_dim == spatial_ndim,
-    "Not implemented: currently only channels-last layout is supported");
   DALI_ENFORCE(in_layout == out_layout,
     "Not implemented: currently layout transposition is not supported");
 
@@ -54,11 +52,13 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
     roi_start.resize(spatial_ndim);
 
   if (roi_end.empty()) {
-    roi_end = in_shape.first(spatial_ndim);  // assumes channels-last
+    roi_end = detail::RemoveDim(in_shape.begin(), in_shape.end(), in_channel_dim);
   }
 
+  auto out_shape_no_channel = detail::RemoveDim(out_shape.begin(), out_shape.end(),
+                                                out_channel_dim);
   for (int d = 0; d < spatial_ndim; d++) {
-    if (roi_end[d] - roi_start[d] != out_shape[d])
+    if (roi_end[d] - roi_start[d] != out_shape_no_channel[d])
       throw std::logic_error("The requested ROI size does not match the output size");
   }
 

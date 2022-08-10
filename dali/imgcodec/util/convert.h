@@ -26,6 +26,15 @@
 namespace dali {
 namespace imgcodec {
 
+namespace detail {
+
+template <typename Iterator>
+TensorShape<> RemoveDim(Iterator begin, Iterator end, int index) {
+  TensorShape<> left(begin, begin+index), right(begin+index+1, end);
+  return shape_cat(left, right);
+}
+}  // namespace detail
+
 /**
  * @brief Applies a conversion function `func` to the input data
  *
@@ -188,12 +197,8 @@ template <typename Out, typename In>
 void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
              const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
              const int64_t *size, int ndim) {
-  int spatial_ndim = ndim - 1;
-
-  // TODO(skarpinski) Support other layouts
-  DALI_ENFORCE(out_channel_dim == spatial_ndim && in_channel_dim == spatial_ndim,
-    "Not implemented: currently only channels-last layout is supported");
-  ptrdiff_t in_channel_stride = 1, out_channel_stride = 1;
+  ptrdiff_t in_channel_stride = in_strides[in_channel_dim];
+  ptrdiff_t out_channel_stride = out_strides[out_channel_dim];
 
   if (in_format == DALI_BGR) {
     // We will use RGB conversion, but we will load the pixel in reverse order.
@@ -214,12 +219,18 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
     out_format = in_format;
   }
 
+  // Here we remove the channel dimension in order to process whole pixels
+  TensorShape<> in_strides_no_channel = detail::RemoveDim(in_strides, in_strides + ndim,
+                                                          in_channel_dim);
+  TensorShape<> out_strides_no_channel = detail::RemoveDim(out_strides, out_strides + ndim,
+                                                           out_channel_dim);
+  TensorShape<> size_no_channel = detail::RemoveDim(size, size + ndim, in_channel_dim);
+
   VALUE_SWITCH(out_format, OutFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
     VALUE_SWITCH(in_format, InFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
-      // We assume channel-last layout, so to remove channel dimension we simply pass
-      // `spatial_ndim` instead of `ndim` to Convert.
       auto func = ConvertPixel<Out, In, OutFormat, InFormat>{out_channel_stride, in_channel_stride};
-      Convert(out, out_strides, in, in_strides, size, spatial_ndim, func);
+      Convert(out, out_strides_no_channel.data(), in, in_strides_no_channel.data(),
+              size_no_channel.data(), ndim - 1, func);
     ), throw std::logic_error(  // NOLINT
         make_string("Unsupported input format " , to_string(in_format))););  // NOLINT
   ), throw std::logic_error(  // NOLINT
