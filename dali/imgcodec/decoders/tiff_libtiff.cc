@@ -56,7 +56,7 @@ class DecoderHelper {
     // This function will be used by LibTIFF only if input is InputKind::HostMemory.
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
     if (helper->in_->Kind() != InputKind::HostMemory)
-      std::logic_error("DecoderHelper::map can only be used for InputKind::HostMemory");
+      return -1;
     *base = const_cast<void*>(helper->in_->RawData());
     *size = helper->in_->Size();
     return 0;
