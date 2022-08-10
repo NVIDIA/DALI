@@ -680,6 +680,7 @@ Parameters
             return
         self._py_pool = WorkerPool.from_groups(self._parallel_input_callbacks,
                                                self._prefetch_queue_depth,
+                                               self._max_batch_size,
                                                self._py_start_method,
                                                self._py_num_workers,
                                                py_callback_pickler=self._py_callback_pickler)

@@ -137,7 +137,7 @@ class _ExternalSourceGroup(object):
 
     def __init__(self, callback, source_desc, is_multioutput, instances=[], *,
                  cuda_stream=None, use_copy_kernel=None, batch=True, parallel=False,
-                 prefetch_queue_depth=None, batch_info=None):
+                 prefetch_queue_depth=None, bytes_per_sample_hint=None, batch_info=None):
         self.instances = list(instances)  # we need a copy!
         self.utilized_instances = self.instances
         self.is_multioutput = is_multioutput
@@ -155,6 +155,7 @@ class _ExternalSourceGroup(object):
         self.current_sample = 0
         self.parallel = parallel
         self.prefetch_queue_depth = prefetch_queue_depth
+        self.bytes_per_sample_hint = bytes_per_sample_hint
         if callback is not None:
             arg_count = _accepted_arg_count(callback)
             if arg_count not in [0, 1]:
@@ -522,12 +523,20 @@ Keyword Args
 `prefetch_queue_depth` : int, option, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in
     advance and stored in the internal buffer, otherwise parameter is ignored.
+
+`bytes_per_sample_hint`: int, option, default = None
+    If specified in ``parallel=True`` mode, the value is used as a hint when
+    calculating initial capacity of shared memory slots used by the worker processes to pass
+    parallel external source outputs to the pipeline. It may help to avoid reallocation
+    of shared memory during pipeline run, which in turn can improve performance and prevent
+    DALI from overestimation of the needed virtual memory capacity.
+    The value must be a positive integer.
 """
 
     def __init__(self, source=None, num_outputs=None, *, cycle=None, layout=None, dtype=None,
                  ndim=None, name=None, device="cpu", cuda_stream=None, use_copy_kernel=None,
                  batch=None, parallel=None, no_copy=None, prefetch_queue_depth=None,
-                 batch_info=None, **kwargs):
+                 bytes_per_sample_hint=None, batch_info=None, **kwargs):
         self._schema = _b.GetSchema("ExternalSource")
         self._spec = _b.OpSpec("ExternalSource")
         self._device = device
@@ -553,6 +562,7 @@ Keyword Args
         self._parallel = parallel
         self._no_copy = no_copy
         self._prefetch_queue_depth = prefetch_queue_depth
+        self._bytes_per_sample_hint = bytes_per_sample_hint
         self._batch_info = batch_info
 
         self._spec.AddArg("device", device)
@@ -577,7 +587,7 @@ Keyword Args
 
     def __call__(self, *, source=None, cycle=None, name=None, layout=None, dtype=None, ndim=None,
                  cuda_stream=None, use_copy_kernel=None, batch=None, parallel=None, no_copy=None,
-                 prefetch_queue_depth=None, batch_info=None, **kwargs):
+                 prefetch_queue_depth=None, bytes_per_sample_hint=None, batch_info=None, **kwargs):
         ""
         from nvidia.dali.ops import _OperatorInstance
         if batch_info is None:
@@ -627,6 +637,12 @@ Keyword Args
             raise ValueError(
                 "The argument ``prefetch_queue_depth`` already specified in constructor.")
 
+        if bytes_per_sample_hint is None:
+            bytes_per_sample_hint = self._bytes_per_sample_hint
+        elif self._bytes_per_sample_hint is not None:
+            raise ValueError(
+                "The argument ``bytes_per_sample_hint`` already specified in constructor.")
+
         if no_copy is None:
             no_copy = self._no_copy
         elif self._no_copy is not None:
@@ -644,6 +660,11 @@ Keyword Args
                 raise ValueError(
                     "``prefetch_queue_depth`` must be a positive integer, got {}.".format(
                         prefetch_queue_depth))
+            if bytes_per_sample_hint is not None and bytes_per_sample_hint < 1:
+                raise ValueError(
+                    f"``bytes_per_sample_hint`` must be a positive integer, "
+                    f"got {bytes_per_sample_hint}."
+                )
             if source_desc.kind == _SourceKind.CALLABLE:
                 if not source_desc.has_inputs:
                     raise TypeError(
@@ -663,9 +684,11 @@ Keyword Args
                     "(specify `batch=True` in the external source definition and make sure "
                     "your source returns batches)".format(what))
         else:
-            if prefetch_queue_depth is not None:
-                raise ValueError("The argument `prefetch_queue_depth` is valid only for "
-                                 "parallel external sources (when ``parallel`` is True).")
+            for kwarg_value, kwarg_name in ((prefetch_queue_depth, "prefetch_queue_depth"),
+                                            (bytes_per_sample_hint, "bytes_per_sample_hint")):
+                if kwarg_value is not None:
+                    raise ValueError(f"The argument `{kwarg_name}` is valid only for "
+                                     "parallel external sources (when ``parallel`` is True).")
 
         if self._layout is not None:
             if layout is not None:
@@ -712,6 +735,7 @@ Keyword Args
             'batch_info': batch_info,
             'parallel': parallel,
             'prefetch_queue_depth': prefetch_queue_depth,
+            'bytes_per_sample_hint': bytes_per_sample_hint,
         }
 
         if self._num_outputs is not None:

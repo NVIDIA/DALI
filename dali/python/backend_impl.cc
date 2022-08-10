@@ -1558,7 +1558,7 @@ PYBIND11_MODULE(backend_impl, m) {
 #if SHM_WRAPPER_ENABLED
 
   py::class_<SharedMem>(m, "SharedMem")
-      .def(py::init<int, int>())
+      .def(py::init<int, uint64_t>())
       .def_property_readonly("size", &SharedMem::size)
       .def_property_readonly("handle", &SharedMem::handle)
       .def("buf",
