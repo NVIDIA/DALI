@@ -33,24 +33,19 @@ namespace imgcodec {
 namespace detail {
 
 class DecoderHelper {
- private:
-  std::shared_ptr<InputStream> stream;
-  const void *buffer;
-  size_t buffer_size;
-
  public:
-  explicit DecoderHelper(ImageSource *in) : stream(in->Open()) {
+  explicit DecoderHelper(ImageSource *in) : stream_(in->Open()), kind_(in->Kind()) {
     if (in->Kind() == InputKind::HostMemory) {
-      buffer = in->RawData();
-      buffer_size = in->Size();
+      buffer_ = in->RawData();
+      buffer_size_ = in->Size();
     } else {
-      buffer = nullptr;
+      buffer_ = nullptr;
     }
   }
 
   static tmsize_t read(thandle_t handle, void *buffer, tmsize_t n) {
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
-    return helper->stream->Read(buffer, n);
+    return helper->stream_->Read(buffer, n);
   }
 
   static tmsize_t write(thandle_t, void *, tmsize_t) {
@@ -60,20 +55,23 @@ class DecoderHelper {
 
   static toff_t seek(thandle_t handle, toff_t offset, int whence) {
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
-    helper->stream->SeekRead(offset, whence);
-    return helper->stream->TellRead();
+    helper->stream_->SeekRead(offset, whence);
+    return helper->stream_->TellRead();
   }
 
   static int map(thandle_t handle, void **base, toff_t *size) {
+    // This function will be used by LibTIFF only if input is InputKind::HostMemory.
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
-    *base = const_cast<void*>(helper->buffer);
-    *size = helper->buffer_size;
+    if (helper->kind_ != InputKind::HostMemory)
+      std::logic_error("DecoderHelper::map can only be used for InputKind::HostMemory");
+    *base = const_cast<void*>(helper->buffer_);
+    *size = helper->buffer_size_;
     return 0;
   }
 
   static toff_t size(thandle_t handle) {
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
-    return helper->stream->Size();
+    return helper->stream_->Size();
   }
 
   static int close(thandle_t handle) {
@@ -81,6 +79,14 @@ class DecoderHelper {
     delete helper;
     return 0;
   }
+
+ private:
+  std::shared_ptr<InputStream> stream_;
+  InputKind kind_;
+
+  // Used only if kind_ == InputKind::HostMemory
+  const void *buffer_;
+  size_t buffer_size_;
 };
 
 std::unique_ptr<TIFF, void (*)(TIFF *)> OpenTiff(ImageSource *in) {
@@ -147,7 +153,7 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
 }  // namespace detail
 
 DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
-                                           DecodeParams opts, const ROI &requested_roi) {
+                                            DecodeParams opts, const ROI &requested_roi) {
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
 
@@ -217,7 +223,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
 
     Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
             row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
-            out_line_shape.data(), 2);
+            out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
   }
 
   return {true, nullptr};
