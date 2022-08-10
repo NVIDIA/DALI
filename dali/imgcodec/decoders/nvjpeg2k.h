@@ -15,8 +15,6 @@
 #ifndef DALI_IMGCODEC_DECODERS_NVJPEG2K_H_
 #define DALI_IMGCODEC_DECODERS_NVJPEG2K_H_
 
-#define NVJPEG2K_ENABLED true  // using dirty hack for now
-
 #include <nvjpeg.h>
 #include <memory>
 #include <vector>
@@ -85,6 +83,26 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     CUDAStreamLease *cuda_stream;
   };
 
+  struct ThreadResources {
+    ThreadResources() {}
+    ThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
+                    size_t device_memory_padding, int device_id)
+    : nvjpeg2k_decode_state(nvjpeg2k_handle)
+    , intermediate_buffer()
+    , nvjpeg2k_stream(NvJpeg2kStream::Create())
+    , decode_event(CUDAEvent::Create(device_id))
+    , cuda_stream(CUDAStreamPool::instance().Get(device_id)) {
+      intermediate_buffer.resize(device_memory_padding / 8);
+      CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
+    }
+
+    NvJpeg2kDecodeState nvjpeg2k_decode_state;
+    DeviceBuffer<uint8_t> intermediate_buffer;
+    NvJpeg2kStream nvjpeg2k_stream;
+    CUDAEvent decode_event;
+    CUDAStreamLease cuda_stream;
+  };
+
   // TODO(staniewzki): remove default values
   size_t nvjpeg2k_device_memory_padding_ = 256;
   size_t nvjpeg2k_host_memory_padding_ = 256;
@@ -96,12 +114,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   NvJpeg2kHandle nvjpeg2k_handle_{};
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
   nvjpeg2kPinnedAllocator_t nvjpeg2k_pin_alloc_;
-
-  std::vector<NvJpeg2kDecodeState> nvjpeg2k_decode_states_;
-  std::vector<DeviceBuffer<uint8_t>> intermediate_buffers_;
-  std::vector<NvJpeg2kStream> nvjpeg2k_streams_;
-  std::vector<CUDAEvent> decode_events_;
-  std::vector<CUDAStreamLease> cuda_streams_;
+  std::vector<ThreadResources> thread_resources_;
 };
 
 class NvJpeg2000Decoder : public ImageDecoder {

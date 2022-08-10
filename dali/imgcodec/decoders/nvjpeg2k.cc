@@ -25,25 +25,16 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
 : BatchParallelDecoderImpl(device_id, tp)
 , nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k())
 , nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k())
-, nvjpeg2k_decode_states_(tp->NumThreads())
-, intermediate_buffers_(tp->NumThreads())
-, nvjpeg2k_streams_(tp->NumThreads())
-, decode_events_(tp->NumThreads())
-, cuda_streams_(tp->NumThreads()) {
+, thread_resources_(tp->NumThreads()) {
+  // TODO(staniewzki): pass params at construction
   size_t device_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
   size_t host_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
 
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
 
-  for (int i = 0; i < tp_->NumThreads(); i++) {
-    nvjpeg2k_decode_states_[i] = NvJpeg2kDecodeState(nvjpeg2k_handle_);
-    intermediate_buffers_[i].resize(device_memory_padding / 8);
-    nvjpeg2k_streams_[i] = NvJpeg2kStream::Create();
-    decode_events_[i] = CUDAEvent::Create(device_id_);
-    cuda_streams_[i] = CUDAStreamPool::instance().Get(device_id_);
-    CUDA_CALL(cudaEventRecord(decode_events_[i], cuda_streams_[i]));
-  }
+  for (int i = 0; i < tp_->NumThreads(); i++)
+    thread_resources_[i] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
 
   for (auto &thread_id : tp_->GetThreadIds()) {
     if (device_memory_padding > 0) {
@@ -161,10 +152,10 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
                                                        DecodeParams opts,
                                                        const ROI &roi) {
   Context ctx = {};
-  ctx.nvjpeg2k_decode_state = &nvjpeg2k_decode_states_[thread_idx];
-  ctx.nvjpeg2k_stream = &nvjpeg2k_streams_[thread_idx];
-  ctx.decode_event = &decode_events_[thread_idx];
-  ctx.cuda_stream = &cuda_streams_[thread_idx];
+  ctx.nvjpeg2k_decode_state = &thread_resources_[thread_idx].nvjpeg2k_decode_state;
+  ctx.nvjpeg2k_stream = &thread_resources_[thread_idx].nvjpeg2k_stream;
+  ctx.decode_event = &thread_resources_[thread_idx].decode_event;
+  ctx.cuda_stream = &thread_resources_[thread_idx].cuda_stream;
   DecodeResult result = {false, nullptr};
 
   if (!ParseJpeg2000Info(in, opts, &ctx))
@@ -175,7 +166,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   if (!ctx.needs_processing) {
     result.success = DecodeJpeg2000(in, out.mutable_data<uint8_t>(), opts, &ctx);
   } else {
-    auto &buffer = intermediate_buffers_[thread_idx];
+    auto &buffer = thread_resources_[thread_idx].intermediate_buffer;
     buffer.clear();
     buffer.resize(volume(ctx.shape) * ctx.pixel_size);
     try {
