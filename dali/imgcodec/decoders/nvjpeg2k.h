@@ -85,8 +85,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     CUDAStreamLease *cuda_stream;
   };
 
-  size_t nvjpeg2k_device_memory_padding_ = 8;
-  size_t nvjpeg2k_host_memory_padding_ = 8;
+  // TODO(staniewzki): remove default values
+  size_t nvjpeg2k_device_memory_padding_ = 256;
+  size_t nvjpeg2k_host_memory_padding_ = 256;
 
   bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context *ctx);
   bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, Context *ctx);
