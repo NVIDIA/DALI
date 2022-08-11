@@ -147,13 +147,16 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   auto info = detail::GetTiffInfo(tiff.get());
 
   // TODO(skarpinski) Support other bit depths
-  DALI_ENFORCE(info.bit_depth == 8, "Not implemented: Only bit depth = 8 is supported");
+  if (info.bit_depth != 8)
+    return {false, make_exception_ptr(std::logic_error("Only bit depth = 8 is supported"))};
 
   // TODO(skarpinski) Support palette images
-  DALI_ENFORCE(!info.is_palette, "Not implemented: Palette images are not yet supported");
+  if (info.is_palette)
+    return {false, make_exception_ptr(std::logic_error("Palette images are not yet supported"))};
 
   // TODO(skarpinski) Support tiled images
-  DALI_ENFORCE(!info.is_tiled, "Not implemented: Tiled images are not yet supported");
+  if (info.is_tiled)
+    return {false, make_exception_ptr(std::logic_error("Tiled images are not yet supported"))};
 
   unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 
