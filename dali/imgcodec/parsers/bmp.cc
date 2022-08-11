@@ -126,6 +126,7 @@ ImageInfo BmpParser::GetInfo(ImageSource *encoded) const {
   } else if (length >= 50 && header_size >= 40) {
     BitmapInfoHeader header = {};
     stream->ReadAll(&header, 1);
+    stream->Skip(header_size - sizeof(header));  // Skip the ignored part of header
     from_little_endian(header);
     w = abs(header.width);
     h = abs(header.heigth);
