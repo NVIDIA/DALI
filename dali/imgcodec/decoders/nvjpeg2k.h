@@ -37,6 +37,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
 
   using BatchParallelDecoderImpl::CanDecode;
   bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) {
+    // TODO(staniewzki): add support for roi and other data types
     return !roi && (opts.dtype == DALI_UINT8);
   }
 

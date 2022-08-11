@@ -168,7 +168,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
     if (!ctx.needs_processing) {
       result.success = DecodeJpeg2000(in, out.mutable_data<uint8_t>(), opts, ctx);
     } else {
-      auto &buffer = per_thread_resources_[thread_idx].intermediate_buffer;
+      auto &buffer = res.intermediate_buffer;
       buffer.clear();
       buffer.resize(volume(ctx.shape) * ctx.pixel_size);
       result.success = DecodeJpeg2000(in, buffer.data(), opts, ctx) &&
