@@ -17,7 +17,7 @@
 
 #include <nvjpeg.h>
 #include <thread>
-#include "dali/imgcodec/decoders/nvjpeg/nvjpeg2k_helper.h"
+#include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_helper.h"
 #include "dali/core/mm/memory_resource.h"
 
 
@@ -74,11 +74,6 @@ void PrintMemStats();
 
 nvjpegDevAllocator_t GetDeviceAllocator();
 nvjpegPinnedAllocator_t GetPinnedAllocator();
-
-#if NVJPEG2K_ENABLED
-nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k();
-nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k();
-#endif  // NVJPEG2K_ENABLED
 
 }  // namespace nvjpeg_memory
 
