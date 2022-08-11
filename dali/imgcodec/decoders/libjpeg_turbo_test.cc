@@ -105,6 +105,15 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
   this->AssertEqualSatNorm(decoded, ref);
 }
 
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
+  ImageBuffer image(jpeg_image);
+  auto params = this->GetParams();
+  params.format = DALI_YCbCr;
+  auto decoded = this->Decode(&image.src, params);
+  auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
+  this->AssertClose(decoded, ref, 0.01);
+}
+
 }  // namespace test
 }  // namespace imgcodec
 }  // namespace dali
