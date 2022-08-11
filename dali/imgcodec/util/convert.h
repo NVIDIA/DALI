@@ -28,11 +28,17 @@ namespace imgcodec {
 
 namespace detail {
 
-template <typename Iterator>
-TensorShape<> RemoveDim(Iterator begin, Iterator end, int index) {
+template <typename ShapeIterator>
+TensorShape<> RemoveDim(ShapeIterator begin, ShapeIterator end, int index) {
   TensorShape<> left(begin, begin+index), right(begin+index+1, end);
   return shape_cat(left, right);
 }
+
+template <typename ShapeContainer>
+TensorShape<> RemoveDim(ShapeContainer container, int index) {
+  return RemoveDim(container.begin(), container.end(), index);
+}
+
 }  // namespace detail
 
 /**

@@ -53,10 +53,9 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
     roi_start.resize(spatial_ndim);
 
   if (roi_end.empty()) {
-    roi_end = detail::RemoveDim(in_shape.begin(), in_shape.end(), in_channel_dim);
+    roi_end = detail::RemoveDim(in_shape, in_channel_dim);
   }
-  auto out_shape_no_channel = detail::RemoveDim(out_shape.begin(), out_shape.end(),
-                                                out_channel_dim);
+  auto out_shape_no_channel = detail::RemoveDim(out_shape, out_channel_dim);
   for (int d = 0; d < spatial_ndim; d++) {
     if (roi_end[d] - roi_start[d] != out_shape_no_channel[d])
       throw std::logic_error("The requested ROI size does not match the output size");
@@ -71,7 +70,7 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   TensorShape<> in_strides = kernels::GetStrides(in_shape);
   ptrdiff_t in_offset = 0;
 
-  auto in_strides_no_channel = detail::RemoveDim(in_strides.begin(), in_strides.end(), in_channel_dim);
+  auto in_strides_no_channel = detail::RemoveDim(in_strides, in_channel_dim);
 
   for (int d = 0; d < roi_start.size(); d++) {
     in_offset += in_strides_no_channel[d] * roi_start[d];
