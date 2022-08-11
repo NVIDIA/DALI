@@ -33,8 +33,8 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
 
-  for (int i = 0; i < tp_->NumThreads(); i++)
-    per_thread_resources_[i] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+  for (auto &res : per_thread_resources_)
+    res = {nvjpeg2k_handle_, device_memory_padding, device_id_};
 
   for (auto &thread_id : tp_->GetThreadIds()) {
     if (device_memory_padding > 0) {
@@ -48,6 +48,13 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
       nvjpeg_memory::AddBuffer<mm::memory_kind::pinned>(thread_id, host_memory_padding);
     }
   }
+}
+
+NvJpeg2000DecoderInstance::~NvJpeg2000DecoderInstance() {
+  for (auto &res : per_thread_resources_)
+    CUDA_CALL(cudaStreamSynchronize(res.cuda_stream));
+  for (auto &thread_id : tp_->GetThreadIds())
+    nvjpeg_memory::DeleteAllBuffers(thread_id);
 }
 
 bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in,

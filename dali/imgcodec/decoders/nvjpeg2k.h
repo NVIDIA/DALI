@@ -34,6 +34,7 @@ namespace imgcodec {
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
   NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp);
+  ~NvJpeg2000DecoderInstance();
 
   using BatchParallelDecoderImpl::CanDecode;
   bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) {
