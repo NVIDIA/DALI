@@ -28,8 +28,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |benchmark| replace:: Google Benchmark
 .. _benchmark: https://github.com/google/benchmark
-.. |benchmarkver| replace:: 1.6.1
-.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.6.1
+.. |benchmarkver| replace:: 1.7.0
+.. _benchmarkver: https://github.com/google/benchmark/releases/tag/v1.7.0
 .. |benchmarklic| replace:: Apache License 2.0
 .. _benchmarklic: https://github.com/google/benchmark/blob/master/LICENSE
 
@@ -49,8 +49,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |cutlass| replace:: CUTLASS
 .. _cutlass: https://github.com/NVIDIA/cutlass
-.. |cutlassver| replace:: 2.9.0 + patches (sha: 8c339ac03)
-.. _cutlassver: https://github.com/NVIDIA/cutlass/commit/8c339ac0392f83eb21e1319a6039432c15a6c039
+.. |cutlassver| replace:: 2.9.1
+.. _cutlassver: https://github.com/NVIDIA/cutlass/releases/tag/v2.9.1
 .. |cutlasslic| replace:: BSD 3-Clause License
 .. _cutlasslic: https://github.com/NVIDIA/cutlass/blob/master/LICENSE.txt
 
@@ -70,8 +70,8 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |googletest| replace:: GoogleTest
 .. _googletest: https://github.com/google/googletest
-.. |googletestver| replace:: 1.11.0
-.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.11.0
+.. |googletestver| replace:: 1.12.1
+.. _googletestver: https://github.com/google/googletest/releases/tag/release-1.12.1
 .. |googletestlic| replace:: BSD 3-Clause License
 .. _googletestlic: https://github.com/google/googletest/blob/master/LICENSE
 
@@ -84,14 +84,14 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |pybind11| replace:: pybind11
 .. _pybind11: https://github.com/pybind/pybind11
-.. |pybind11ver| replace:: 2.9.2
-.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.9.2
+.. |pybind11ver| replace:: 2.10.0
+.. _pybind11ver: https://github.com/pybind/pybind11/releases/tag/v2.10.0
 .. |pybind11lic| replace:: BSD 3-Clause License
 .. _pybind11lic: https://github.com/pybind/pybind11/blob/master/LICENSE
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (May 24, 2022)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/232389d4f1012dddec4ef84861face2d2ba85709
+.. |rapidjsonver| replace:: Top-of-tree (July 20, 2022)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/27c3a8dc0e2c9218fe94986d249a12b5ed838f1d
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt
