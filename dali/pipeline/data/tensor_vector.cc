@@ -752,7 +752,7 @@ void TensorVector<Backend>::recreate_views() {
 
 
 template <typename Backend>
-void TensorVector<Backend>::SetContiguous(BatchState state) {
+void TensorVector<Backend>::SetBatchState(BatchState state) {
   if (state == BatchState::Default) {
     // remove the force, keep the current state information
     state_.Setup(state_.Get(), false);
@@ -765,8 +765,8 @@ void TensorVector<Backend>::SetContiguous(BatchState state) {
 
 
 template <typename Backend>
-void TensorVector<Backend>::SetContiguous(bool state) {
-  SetContiguous(state ? BatchState::Contiguous : BatchState::Noncontiguous);
+void TensorVector<Backend>::SetBatchState(bool contiguous) {
+  SetBatchState(contiguous ? BatchState::Contiguous : BatchState::Noncontiguous);
 }
 
 

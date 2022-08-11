@@ -391,18 +391,18 @@ class DLL_PUBLIC TensorVector {
   bool IsContiguous() const noexcept;
 
   /**
-   * @brief Set the current state for further allocating calls like Resize() or set_type
-   *        to use contiguous or noncontiguous backing memory
+   * @brief Pin the current state for further allocating calls like Resize() or set_type
+   *        to use contiguous or noncontiguous backing memory.
    *        Setting BatchState::Default allows to change it with every call to Resize().
    */
-  void SetContiguous(BatchState state);
+  void SetBatchState(BatchState state);
 
   /**
    * @brief Set the contiguity state for further allocations. Convenient overload accepting boolean.
    *
-   * @param state - pins the state to either Contiguous (true) or Noncontiguous (false)
+   * @param contiguous - pins the state to either Contiguous (true) or Noncontiguous (false)
    */
-  void SetContiguous(bool state);
+  void SetBatchState(bool contiguous);
 
   /**
    * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.

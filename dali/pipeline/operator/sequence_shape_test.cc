@@ -148,7 +148,7 @@ class SequenceShapeUnfoldTest : public ::testing::Test {
     Container batch;
     constexpr bool is_device = std::is_same_v<batch_backend_t<Container>, GPUBackend>;
     batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
-    batch.SetContiguous(BatchState::Contiguous);  // TODO(klecki): or BatchState::Noncontiguous
+    batch.SetBatchState(BatchState::Contiguous);  // TODO(klecki): or BatchState::Noncontiguous
     batch.set_pinned(is_pinned);
     batch.Resize(shape, dtype);
     if (!layout.empty()) {
