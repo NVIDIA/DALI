@@ -25,7 +25,7 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
 : BatchParallelDecoderImpl(device_id, tp)
 , nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k())
 , nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k())
-, thread_resources_(tp->NumThreads()) {
+, per_thread_resources_(tp->NumThreads()) {
   // TODO(staniewzki): pass params at construction
   size_t device_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
   size_t host_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
@@ -34,7 +34,7 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
 
   for (int i = 0; i < tp_->NumThreads(); i++)
-    thread_resources_[i] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+    per_thread_resources_[i] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
 
   for (auto &thread_id : tp_->GetThreadIds()) {
     if (device_memory_padding > 0) {
@@ -52,35 +52,35 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
 
 bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in,
                                                   DecodeParams opts,
-                                                  Context *ctx) {
+                                                  Context &ctx) {
   CUDA_CALL(nvjpeg2kStreamParse(nvjpeg2k_handle_, in->RawData<uint8_t>(), in->Size(),
-                                0, 0, *ctx->nvjpeg2k_stream));
+                                0, 0, *ctx.nvjpeg2k_stream));
 
   nvjpeg2kImageInfo_t image_info;
-  CUDA_CALL(nvjpeg2kStreamGetImageInfo(*ctx->nvjpeg2k_stream, &image_info));
+  CUDA_CALL(nvjpeg2kStreamGetImageInfo(*ctx.nvjpeg2k_stream, &image_info));
 
   nvjpeg2kImageComponentInfo_t comp;
-  CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(*ctx->nvjpeg2k_stream, &comp, 0));
+  CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(*ctx.nvjpeg2k_stream, &comp, 0));
   const auto height = comp.component_height;
   const auto width = comp.component_width;
-  ctx->bpp = comp.precision;
-  DALI_ENFORCE(ctx->bpp == 8 || ctx->bpp == 16,
-               make_string("Invalid bits per pixel value: ", ctx->bpp));
+  ctx.bpp = comp.precision;
+  DALI_ENFORCE(ctx.bpp == 8 || ctx.bpp == 16,
+               make_string("Invalid bits per pixel value: ", ctx.bpp));
 
   for (uint32_t c = 1; c < image_info.num_components; c++) {
-    CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(*ctx->nvjpeg2k_stream, &comp, c));
+    CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(*ctx.nvjpeg2k_stream, &comp, c));
     if (height != comp.component_height ||
         width != comp.component_width ||
-        ctx->bpp != comp.precision)
+        ctx.bpp != comp.precision)
       return false;
   }
 
-  ctx->shape = {height, width, image_info.num_components};
-  ctx->req_nchannels = NumberOfChannels(opts.format, ctx->shape[2]);
-  ctx->needs_processing = ctx->shape[2] > 1 || ctx->bpp == 16;
-  ctx->pixel_size = ctx->bpp == 16 ? sizeof(uint16_t) : sizeof(uint8_t);
-  ctx->pixels_count = ctx->shape[0] * ctx->shape[1];
-  ctx->comp_size = ctx->pixels_count * ctx->pixel_size;
+  ctx.shape = {height, width, image_info.num_components};
+  ctx.req_nchannels = NumberOfChannels(opts.format, ctx.shape[2]);
+  ctx.needs_processing = ctx.shape[2] > 1 || ctx.bpp == 16;
+  ctx.pixel_size = ctx.bpp == 16 ? sizeof(uint16_t) : sizeof(uint8_t);
+  ctx.pixels_count = ctx.shape[0] * ctx.shape[1];
+  ctx.comp_size = ctx.pixels_count * ctx.pixel_size;
 
   return true;
 }
@@ -88,28 +88,28 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in,
 bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in,
                                                uint8_t *out,
                                                DecodeParams opts,
-                                               Context *ctx) {
+                                               Context &ctx) {
   void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
   size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
-  for (uint32_t c = 0; c < ctx->shape[2]; c++) {
-    pixel_data[c] = out + c * ctx->comp_size;
-    pitch_in_bytes[c] = ctx->shape[1] * ctx->pixel_size;
+  for (uint32_t c = 0; c < ctx.shape[2]; c++) {
+    pixel_data[c] = out + c * ctx.comp_size;
+    pitch_in_bytes[c] = ctx.shape[1] * ctx.pixel_size;
   }
 
   nvjpeg2kImage_t output_image;
   output_image.pixel_data = pixel_data;
   output_image.pitch_in_bytes = pitch_in_bytes;
-  if (ctx->bpp == 8) {
-    ctx->pixel_type = DALI_UINT8;
+  if (ctx.bpp == 8) {
+    ctx.pixel_type = DALI_UINT8;
     output_image.pixel_type = NVJPEG2K_UINT8;
-  } else {  // ctx->bpp == 16
-    ctx->pixel_type = DALI_UINT16;
+  } else {  // ctx.bpp == 16
+    ctx.pixel_type = DALI_UINT16;
     output_image.pixel_type = NVJPEG2K_UINT16;
   }
-  output_image.num_components = ctx->shape[2];
+  output_image.num_components = ctx.shape[2];
 
-  auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, *ctx->nvjpeg2k_decode_state,
-                            *ctx->nvjpeg2k_stream, &output_image, *ctx->cuda_stream);
+  auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, *ctx.nvjpeg2k_decode_state,
+                            *ctx.nvjpeg2k_stream, &output_image, *ctx.cuda_stream);
 
   if (ret == NVJPEG2K_STATUS_SUCCESS) {
     return true;
@@ -124,23 +124,23 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in,
 bool NvJpeg2000DecoderInstance::ConvertData(void *in,
                                             uint8_t *out,
                                             DecodeParams opts,
-                                            Context *ctx) {
+                                            Context &ctx) {
   if (opts.format == DALI_GRAY) {
     // Converting to Gray, dropping alpha channels if needed
-    assert(ctx->shape[2] >= 3);
-    TYPE_SWITCH(ctx->pixel_type, type2id, Input, (uint8_t, uint16_t), (
+    assert(ctx.shape[2] >= 3);
+    TYPE_SWITCH(ctx.pixel_type, type2id, Input, (uint8_t, uint16_t), (
       PlanarRGBToGray<uint8_t, Input>(
-        out, reinterpret_cast<Input*>(in), ctx->pixels_count,
-        ctx->pixel_type, *ctx->cuda_stream);
-    ), DALI_FAIL(make_string("Unsupported input type: ", ctx->pixel_type)));  // NOLINT
+        out, reinterpret_cast<Input*>(in), ctx.pixels_count,
+        ctx.pixel_type, *ctx.cuda_stream);
+    ), DALI_FAIL(make_string("Unsupported input type: ", ctx.pixel_type)));  // NOLINT
   } else {
     // Converting to interleaved, dropping alpha channels if needed
-    assert(ctx->shape[2] >= 3);
-    TYPE_SWITCH(ctx->pixel_type, type2id, Input, (uint8_t, uint16_t), (
+    assert(ctx.shape[2] >= 3);
+    TYPE_SWITCH(ctx.pixel_type, type2id, Input, (uint8_t, uint16_t), (
       PlanarToInterleaved<uint8_t, Input>(
-        out, reinterpret_cast<Input*>(in), ctx->pixels_count,
-        ctx->req_nchannels, opts.format, ctx->pixel_type, *ctx->cuda_stream);
-    ), DALI_FAIL(make_string("Unsupported input type: ", ctx->pixel_type)));  // NOLINT
+        out, reinterpret_cast<Input*>(in), ctx.pixels_count,
+        ctx.req_nchannels, opts.format, ctx.pixel_type, *ctx.cuda_stream);
+    ), DALI_FAIL(make_string("Unsupported input type: ", ctx.pixel_type)));  // NOLINT
   }
   return true;
 }
@@ -152,31 +152,31 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
                                                        DecodeParams opts,
                                                        const ROI &roi) {
   Context ctx = {};
-  ctx.nvjpeg2k_decode_state = &thread_resources_[thread_idx].nvjpeg2k_decode_state;
-  ctx.nvjpeg2k_stream = &thread_resources_[thread_idx].nvjpeg2k_stream;
-  ctx.decode_event = &thread_resources_[thread_idx].decode_event;
-  ctx.cuda_stream = &thread_resources_[thread_idx].cuda_stream;
+  auto &res = per_thread_resources_[thread_idx];
+  ctx.nvjpeg2k_decode_state = &res.nvjpeg2k_decode_state;
+  ctx.nvjpeg2k_stream = &res.nvjpeg2k_stream;
+  ctx.decode_event = &res.decode_event;
+  ctx.cuda_stream = &res.cuda_stream;
   DecodeResult result = {false, nullptr};
 
-  if (!ParseJpeg2000Info(in, opts, &ctx))
+  if (!ParseJpeg2000Info(in, opts, ctx))
     return result;
 
   CUDA_CALL(cudaEventSynchronize(*ctx.decode_event));
 
-  if (!ctx.needs_processing) {
-    result.success = DecodeJpeg2000(in, out.mutable_data<uint8_t>(), opts, &ctx);
-  } else {
-    auto &buffer = thread_resources_[thread_idx].intermediate_buffer;
-    buffer.clear();
-    buffer.resize(volume(ctx.shape) * ctx.pixel_size);
-    try {
-      result.success =
-        DecodeJpeg2000(in, buffer.data(), opts, &ctx) &&
-        ConvertData(buffer.data(), out.mutable_data<uint8_t>(), opts, &ctx);
-    } catch (...) {
-      result.success = false;
-      result.exception = std::current_exception();
+  try {
+    if (!ctx.needs_processing) {
+      result.success = DecodeJpeg2000(in, out.mutable_data<uint8_t>(), opts, ctx);
+    } else {
+      auto &buffer = per_thread_resources_[thread_idx].intermediate_buffer;
+      buffer.clear();
+      buffer.resize(volume(ctx.shape) * ctx.pixel_size);
+      result.success = DecodeJpeg2000(in, buffer.data(), opts, ctx) &&
+                       ConvertData(buffer.data(), out.mutable_data<uint8_t>(), opts, ctx);
     }
+  } catch (...) {
+    result.success = false;
+    result.exception = std::current_exception();
   }
 
   if (result.success) {

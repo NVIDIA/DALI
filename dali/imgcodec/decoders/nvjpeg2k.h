@@ -83,9 +83,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     CUDAStreamLease *cuda_stream;
   };
 
-  struct ThreadResources {
-    ThreadResources() {}
-    ThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
+  struct PerThreadResources {
+    PerThreadResources() {}
+    PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
                     size_t device_memory_padding, int device_id)
     : nvjpeg2k_decode_state(nvjpeg2k_handle)
     , intermediate_buffer()
@@ -107,14 +107,14 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   size_t nvjpeg2k_device_memory_padding_ = 256;
   size_t nvjpeg2k_host_memory_padding_ = 256;
 
-  bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context *ctx);
-  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, Context *ctx);
-  bool ConvertData(void *in, uint8_t *out, DecodeParams opts, Context *ctx);
+  bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, Context &ctx);
+  bool ConvertData(void *in, uint8_t *out, DecodeParams opts, Context &ctx);
 
   NvJpeg2kHandle nvjpeg2k_handle_{};
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
   nvjpeg2kPinnedAllocator_t nvjpeg2k_pin_alloc_;
-  std::vector<ThreadResources> thread_resources_;
+  std::vector<PerThreadResources> per_thread_resources_;
 };
 
 class NvJpeg2000Decoder : public ImageDecoder {
