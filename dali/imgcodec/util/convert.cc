@@ -55,10 +55,6 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   if (roi_end.empty()) {
     roi_end = detail::RemoveDim(in_shape.begin(), in_shape.end(), in_channel_dim);
   }
-
-  std::cerr << "Requested ROI " << roi_start << " : " << roi_end << "\n";
-  std::cerr << "Out shape " << out_shape << std::endl;
-
   auto out_shape_no_channel = detail::RemoveDim(out_shape.begin(), out_shape.end(),
                                                 out_channel_dim);
   for (int d = 0; d < spatial_ndim; d++) {
@@ -74,8 +70,12 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   TensorShape<> out_strides = kernels::GetStrides(out_shape);
   TensorShape<> in_strides = kernels::GetStrides(in_shape);
   ptrdiff_t in_offset = 0;
-  for (int d = 0; d < roi_start.size(); d++)
-    in_offset += in_strides[d] * roi_start[d];
+
+  auto in_strides_no_channel = detail::RemoveDim(in_strides.begin(), in_strides.end(), in_channel_dim);
+
+  for (int d = 0; d < roi_start.size(); d++) {
+    in_offset += in_strides_no_channel[d] * roi_start[d];
+  }
 
   TYPE_SWITCH(out.type(), type2id, Out, (IMG_CONVERT_TYPES),
     TYPE_SWITCH(in.type(), type2id, In, (IMG_CONVERT_TYPES),
