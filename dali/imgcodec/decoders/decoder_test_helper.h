@@ -187,7 +187,7 @@ class DecoderTestBase : public ::testing::Test {
   */
   template <typename T, int ndim>
   void Crop(const TensorView<StorageCPU, T, ndim> &output,
-            const TensorView<StorageCPU, const T, ndim> &input,
+            const TensorView<StorageCPU, T, ndim> &input,
             const ROI &roi) {
     static_assert(ndim >= 0, "expected static ndim");
     ASSERT_TRUE(output.shape() == roi.shape());  // output should have the desired shape
