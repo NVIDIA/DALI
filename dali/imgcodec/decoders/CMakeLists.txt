@@ -13,6 +13,7 @@
 # limitations under the License.
 
 add_subdirectory(jpeg)
+add_subdirectory(nvjpeg)
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_IMGCODEC_SRCS PARENT_SCOPE)
