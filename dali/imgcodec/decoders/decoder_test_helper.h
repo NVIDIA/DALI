@@ -185,15 +185,15 @@ class DecoderTestBase : public ::testing::Test {
   * @brief Crops a tensor to specified roi_shape, anchored at roi_begin.
   * Does not support padding.
   */
-  template <int ndim>
-  void Crop(const TensorView<StorageCPU, OutputType, ndim> &output,
-            const TensorView<StorageCPU, const OutputType, ndim> &input,
+  template <typename T, int ndim>
+  void Crop(const TensorView<StorageCPU, T, ndim> &output,
+            const TensorView<StorageCPU, const T, ndim> &input,
             const ROI &roi) {
     static_assert(ndim >= 0, "expected static ndim");
     ASSERT_TRUE(output.shape() == roi.shape());  // output should have the desired shape
 
-    kernels::SliceCPU<OutputType, OutputType, ndim> kernel;
-    kernels::SliceArgs<OutputType, ndim> args;
+    kernels::SliceCPU<T, T, ndim> kernel;
+    kernels::SliceArgs<T, ndim> args;
     args.anchor = roi.begin;
     args.shape = roi.shape();
     kernels::KernelContext ctx;
