@@ -53,7 +53,7 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Decodes an image and returns the result as a CPU tensor.
   */
-  TensorView<StorageCPU, OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
+  TensorView<StorageCPU, const OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
                                             const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
@@ -82,7 +82,7 @@ class DecoderTestBase : public ::testing::Test {
   /**
    * @brief Decodes a batch of images, invoking the batch version of ImageDecoder::Decode
    */
-  TensorListView<StorageCPU, OutputType> Decode(cspan<ImageSource *> in,
+  TensorListView<StorageCPU, const OutputType> Decode(cspan<ImageSource *> in,
                                                 const DecodeParams &opts = {},
                                                 cspan<ROI> rois = {}) {
     int n = in.size();
@@ -123,8 +123,8 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Checks if the image and the reference are equal
   */
-  void AssertEqual(const TensorView<StorageCPU, OutputType> &img,
-                   const TensorView<StorageCPU, OutputType> &ref) {
+  void AssertEqual(const TensorView<StorageCPU, const OutputType> &img,
+                   const TensorView<StorageCPU, const OutputType> &ref) {
     Check(img, ref);
   }
 
@@ -133,12 +133,12 @@ class DecoderTestBase : public ::testing::Test {
   * with ConvertSatNorm
   */
   template <typename RefType>
-  void AssertEqualSatNorm(const TensorView<StorageCPU, OutputType> &img,
-                          const TensorView<StorageCPU, RefType> &ref) {
+  void AssertEqualSatNorm(const TensorView<StorageCPU, const OutputType> &img,
+                          const TensorView<StorageCPU, const RefType> &ref) {
     Check(img, ref, EqualConvertSatNorm());
   }
 
-  void AssertEqualSatNorm(const TensorView<StorageCPU, OutputType> &img,
+  void AssertEqualSatNorm(const TensorView<StorageCPU, const OutputType> &img,
                           const Tensor<CPUBackend> &ref) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
       Check(img, view<const RefType>(ref), EqualConvertSatNorm());
@@ -156,15 +156,15 @@ class DecoderTestBase : public ::testing::Test {
   * The eps parameter shound be specified in the dynamic range of the image.
   */
   template <typename RefType>
-  void AssertClose(const TensorView<StorageCPU, OutputType> &img,
-                   const TensorView<StorageCPU, RefType> &ref,
+  void AssertClose(const TensorView<StorageCPU, const OutputType> &img,
+                   const TensorView<StorageCPU, const RefType> &ref,
                    float eps) {
     if (std::is_integral<OutputType>::value)
       eps /= max_value<OutputType>();
     Check(img, ref, EqualConvertNorm(eps));
   }
 
-  void AssertClose(const TensorView<StorageCPU, OutputType> &img,
+  void AssertClose(const TensorView<StorageCPU, const OutputType> &img,
                    const Tensor<CPUBackend> &ref,
                    float eps) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
@@ -187,10 +187,10 @@ class DecoderTestBase : public ::testing::Test {
   */
   template <typename T, int ndim>
   void Crop(const TensorView<StorageCPU, T, ndim> &output,
-            const TensorView<StorageCPU, T, ndim> &input,
+            const TensorView<StorageCPU, const T, ndim> &input,
             const ROI &roi) {
     static_assert(ndim >= 0, "expected static ndim");
-    ASSERT_TRUE(output.shape() == roi.shape());  // output should have the desired shape
+    ASSERT_TRUE(output.shape == roi.shape());  // output should have the desired shape
 
     kernels::SliceCPU<T, T, ndim> kernel;
     kernels::SliceArgs<T, ndim> args;
@@ -202,23 +202,24 @@ class DecoderTestBase : public ::testing::Test {
   }
 
   template <typename T, int ndim>
-  Tensor<CPUBackend> Crop(const TensorView<StorageCPU, T, ndim> &input,
+  Tensor<CPUBackend> Crop(const TensorView<StorageCPU, const T, ndim> &input,
                           const ROI &roi) {
     auto num_dims = input.shape.sample_dim();
     assert(roi.shape().sample_dim() == num_dims);
     Tensor<CPUBackend> output;
     output.Resize(roi.shape(), type2id<OutputType>::value);
 
-    VALUE_SWITCH(num_dims, Dims, (2, 3, 4), (
-      auto out_view = view<OutputType, Dims>(output);
-      Crop(out_view, input, roi);
-    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
+    auto out_view = view<OutputType, ndim>(output);
+    Crop(out_view, input, roi);
 
     return output;
   }
 
   Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
-    return Crop(view<const OutputType>(input), roi);
+    int ndim = input.shape().sample_dim();
+    VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
+      return Crop(view<const OutputType, Dims>(input), roi);
+    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
   }
 
   /**
