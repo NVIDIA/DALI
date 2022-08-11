@@ -201,18 +201,24 @@ class DecoderTestBase : public ::testing::Test {
     kernel.Run(ctx, output, input, args);
   }
 
-  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
-    int ndim = input.shape().sample_dim();
+  template <typename T, int ndim>
+  Tensor<CPUBackend> Crop(const TensorView<StorageCPU, T, ndim> &input,
+                          const ROI &roi) {
+    auto num_dims = input.shape.sample_dim();
+    assert(roi.shape().sample_dim() == num_dims);
     Tensor<CPUBackend> output;
     output.Resize(roi.shape(), type2id<OutputType>::value);
 
-    VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
+    VALUE_SWITCH(num_dims, Dims, (2, 3, 4), (
       auto out_view = view<OutputType, Dims>(output);
-      auto in_view = view<const OutputType, Dims>(input);
-      Crop(out_view, in_view, roi);
+      Crop(out_view, input, roi);
     ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
 
     return output;
+  }
+
+  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
+    return Crop(view<const OutputType>(input), roi);
   }
 
   /**
