@@ -174,6 +174,7 @@ TYPED_TEST(TensorVectorTest, TestReserveResize) {
 
   auto shape = this->GetRandShape();
   tl.reserve(shape.num_elements() * sizeof(float));  // This reserve already makes it contiguous
+  // Can't change the pinned status after allocation happened (reserve)
   ASSERT_THROW(tl.set_pinned(true), std::runtime_error);
 
   ASSERT_TRUE(tl.has_data());
@@ -224,6 +225,7 @@ TYPED_TEST(TensorVectorTest, TestResizeWithoutType) {
 }
 
 TYPED_TEST(TensorVectorTest, TestSetNoType) {
+  // After type is set we cannot revert to DALI_NO_TYPE
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
   tl.SetContiguous(this->kState);
@@ -256,7 +258,7 @@ TYPED_TEST(TensorVectorTest, TestGetContiguousPointer) {
   ASSERT_NE(unsafe_raw_data(tl), nullptr);
 }
 
-TYPED_TEST(TensorVectorTest, TestGetBytesThenNoAlloc) {
+TYPED_TEST(TensorVectorTest, TestGetBytesThenAccess) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
   tl.SetContiguous(this->kState);
@@ -291,52 +293,11 @@ TYPED_TEST(TensorVectorTest, TestGetBytesThenNoAlloc) {
     ASSERT_EQ(tl.num_samples(), num_tensor);
     ASSERT_TRUE(tl.shares_data());
 
-    // Give the buffer a type smaller than float.
-    // Although we should have enough shared bytes,
-    // we don't allow for a partial access to data
+    // Access can't change the underlying data type (which can happen only through Resize)
     ASSERT_THROW(tl.template mutable_tensor<int16>(0), std::runtime_error);
-  }
-}
-
-TYPED_TEST(TensorVectorTest, TestGetBytesThenAlloc) {
-  using Backend = std::tuple_element_t<0, TypeParam>;
-  TensorVector<Backend> tl;
-  tl.SetContiguous(this->kState);
-  TensorVector<Backend> sharers[2];
-  sharers[0].SetContiguous(this->kState);
-  sharers[1].SetContiguous(!this->kState);
-
-  // Allocate the sharer
-  for (auto &sharer : sharers) {
-    sharer.template set_type<float>();
-    auto shape = this->GetRandShape();
-    sharer.Resize(shape);
-
-    // Share the data to give the tl bytes
-    tl.ShareData(sharer);
-
-    int num_tensor = shape.size();
-    vector<Index> offsets;
-    Index size = 0;
-    for (int i = 0; i < shape.size(); i++) {
-      offsets.push_back(size);
-      size += volume(shape[i]);
-    }
-
-    // Verify the internals
-    for (int i = 0; i < tl.num_samples(); i++) {
-      ASSERT_EQ(tl.raw_tensor(i), sharer.raw_tensor(i));
-    }
-    ASSERT_EQ(tl._num_elements(), size);
-    ASSERT_EQ(tl.nbytes(), size*sizeof(float));
-    ASSERT_EQ(tl.type(), sharer.type());
-    ASSERT_EQ(tl.num_samples(), num_tensor);
-    ASSERT_TRUE(tl.shares_data());
-
-    // Give the buffer a type bigger than float.
-    // This normally would cause a reallocation,
-    // but we that's forbidden when using shared data.
     ASSERT_THROW(tl.template mutable_tensor<double>(0), std::runtime_error);
+    // We also cannot allocate bigger
+    ASSERT_THROW(tl.Resize(tl.shape(), DALI_FLOAT64), std::runtime_error);
   }
 }
 
@@ -451,22 +412,22 @@ TYPED_TEST(TensorVectorTest, TestMultipleResize) {
       offsets.push_back(offset);
       offset += volume(shape[i]);
     }
-  }
+    // Resize the buffer
+    tensor_list.Resize(shape, DALI_FLOAT);
 
-  // Resize the buffer
-  tensor_list.Resize(shape, DALI_FLOAT);
+    // Neither of the accessors can cause the allocation
+    ASSERT_THROW(tensor_list.template mutable_tensor<double>(0), std::runtime_error);
+    ASSERT_TRUE(tensor_list.has_data());
+    ASSERT_NE(tensor_list.template mutable_tensor<float>(0), nullptr);
 
-  // Neither of the accessors can cause the allocation
-  ASSERT_THROW(tensor_list.template mutable_tensor<double>(0), std::runtime_error);
-  ASSERT_TRUE(tensor_list.has_data());
-  ASSERT_NE(tensor_list.template mutable_tensor<float>(0), nullptr);
-
-  ASSERT_EQ(tensor_list.num_samples(), num_tensor);
-  for (int i = 0; i < num_tensor; ++i) {
-    ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
-    ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
+    ASSERT_EQ(tensor_list.num_samples(), num_tensor);
+    for (int i = 0; i < num_tensor; ++i) {
+      ASSERT_NE(tensor_list.raw_tensor(i), nullptr);
+      ASSERT_EQ(tensor_list.tensor_shape(i), shape[i]);
+    }
   }
 }
+
 TYPED_TEST(TensorVectorTest, TestCopy) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
@@ -533,6 +494,7 @@ TYPED_TEST(TensorVectorTest, TestTypeChangeError) {
   tensor_list.Resize(shape);
   ASSERT_NE(tensor_list.template mutable_tensor<int32_t>(0), nullptr);
 
+  // After we have a shape, we cannot change the type with set_type
   ASSERT_THROW(tensor_list.set_type(DALI_FLOAT), std::runtime_error);
 
   tensor_list.Resize(shape, DALI_FLOAT);

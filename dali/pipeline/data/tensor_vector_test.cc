@@ -486,6 +486,7 @@ TYPED_TEST(TensorVectorSuite, NoForcedChangeContiguousToNoncontiguous) {
   TensorVector<TypeParam> tv;
   tv.SetContiguous(BatchState::Contiguous);
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  // State was forced to be contiguous, cannot change it with just Resize.
   EXPECT_THROW(tv.Resize(new_shape, DALI_FLOAT, BatchState::Noncontiguous), std::runtime_error);
 }
 
@@ -494,6 +495,7 @@ TYPED_TEST(TensorVectorSuite, NoForcedChangeNoncontiguousToContiguous) {
   TensorVector<TypeParam> tv;
   tv.SetContiguous(BatchState::Noncontiguous);
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  // State was forced to be noncontiguous, cannot change it with just Resize.
   EXPECT_THROW(tv.Resize(new_shape, DALI_FLOAT, BatchState::Contiguous), std::runtime_error);
 }
 
@@ -596,7 +598,7 @@ TYPED_TEST(TensorVectorSuite, BreakContiguity) {
   tv.UnsafeSetSample(1, t);
   EXPECT_FALSE(tv.IsContiguous());
 
-  EXPECT_NE(tv[1].raw_data(), nullptr);
+  EXPECT_EQ(tv[1].raw_data(), t.raw_data());
   EXPECT_EQ(tv[1].shape(), t.shape());
   EXPECT_EQ(tv[1].type(), DALI_FLOAT);
   CompareWithNumber(tv[1], 42.f);
@@ -698,6 +700,7 @@ TYPED_TEST(TensorVectorSuite, Reserve) {
 // TODO(klecki): reverse pinned and capacity tests
 
 TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
+  // pinned status cannot be changed after allocation
   TensorVector<TypeParam> tv_0, tv_1;
   tv_0.reserve(100);
   EXPECT_THROW(tv_0.set_pinned(false), std::runtime_error);
@@ -713,6 +716,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterReserveThrows) {
 TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   TensorVector<TypeParam> tv;
   tv.reserve(100);
+  // Resize can only be used when type is known
   EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
   tv.Resize({{2, 4}, {4, 2}}, DALI_INT32);
   ASSERT_EQ(tv.num_samples(), 2);
@@ -721,6 +725,7 @@ TYPED_TEST(TensorVectorSuite, PinnedAfterResizeThrows) {
   EXPECT_EQ(tv[1].shape(), TensorShape<>(4, 2));
   EXPECT_EQ(tv[0].type(), DALI_INT32);
   EXPECT_EQ(tv[1].type(), DALI_INT32);
+  // pinned status cannot be changed after allocation
   ASSERT_THROW(tv.set_pinned(false), std::runtime_error);
 }
 
@@ -728,6 +733,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeContiguous) {
   TensorVector<TypeParam> tv;
   tv.set_pinned(false);
   tv.reserve(100);
+  // Resize can only be used when type is known
   EXPECT_THROW(tv.Resize({{2, 4}, {4, 2}}), std::runtime_error);
   tv.template set_type<int32_t>();
   tv.Resize({{2, 4}, {4, 2}});
@@ -854,6 +860,8 @@ TYPED_TEST(TensorVectorSuite, EmptyTensorVectorWithDimAsTensorAccess) {
   auto shape_2d = TensorShape<>{0, 0};
 
   {
+    // Cannot access empty batch as tensor if we don't have positive dimensionality
+    // so we can produce 0-shape of correct dim.
     EXPECT_THROW(tv.AsTensor(), std::runtime_error);
     tv.set_sample_dim(0);
     EXPECT_THROW(tv.AsTensor(), std::runtime_error);

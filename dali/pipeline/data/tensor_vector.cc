@@ -43,16 +43,6 @@ bool same_owner(const std::weak_ptr<void> &x, const std::shared_ptr<void> &y) {
   return true;
 }
 
-// TODO(klecki): move this to the class?
-TensorShape<> empty_shape(int dim) {
-  TensorShape<> result;
-  result.resize(dim);
-  for (auto &elem : result) {
-    elem = 0;
-  }
-  return result;
-}
-
 }  // namespace
 
 namespace copy_impl {
@@ -293,9 +283,10 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const TensorVector<B
     return;
   VerifySampleShareConformance(src.type(), src.shape().sample_dim(), src.GetLayout(),
                                src.is_pinned(), src.order(), src.device_id(),
-                               make_string(" for ", sample_idx, " <- ", src_sample_idx, "."));
+                               make_string(" for source sample idx: ", src_sample_idx,
+                                           " and target sample idx: ", sample_idx, "."));
 
-  shape_.set_tensor_shape(sample_idx, src.shape()[src_sample_idx]);
+  shape_.set_tensor_shape(sample_idx, src.shape().tensor_shape_span(src_sample_idx));
 
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
@@ -315,7 +306,7 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend
   MakeNoncontiguous();
   VerifySampleShareConformance(owner.type(), owner.shape().sample_dim(), owner.GetLayout(),
                                owner.is_pinned(), owner.order(), owner.device_id(),
-                               make_string(" for ", sample_idx, "."));
+                               make_string(" for sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, owner.shape());
 
@@ -339,7 +330,7 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
   VerifySampleShareConformance(type, shape.sample_dim(), layout, pinned, order, device_id,
-                               make_string(" for ", sample_idx, "."));
+                               make_string(" for sample idx: ", sample_idx, "."));
 
   DALI_ENFORCE(!IsContiguous());
   shape_.set_tensor_shape(sample_idx, shape);
@@ -392,7 +383,8 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const TensorVector<
   assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
   VerifySampleCopyConformance(src.type(), src.shape().sample_dim(), src.GetLayout(),
                               shape()[sample_idx], src.shape()[src_sample_idx],
-                              make_string(" for ", sample_idx, " <- ", src_sample_idx, "."));
+                              make_string(" for source sample idx: ", src_sample_idx,
+                                          " and target sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, src.shape()[src_sample_idx]);
   tensors_[sample_idx].Copy(src.tensors_[src_sample_idx], order);
@@ -409,7 +401,7 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const Tensor<Backen
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   VerifySampleCopyConformance(src.type(), src.shape().sample_dim(), src.GetLayout(),
                               shape()[sample_idx], src.shape(),
-                              make_string(" for ", sample_idx, "."));
+                              make_string(" for sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, src.shape());
   tensors_[sample_idx].Copy(src, order);
@@ -744,17 +736,17 @@ bool TensorVector<Backend>::IsContiguous() const noexcept {
 template <typename Backend>
 void TensorVector<Backend>::recreate_views() {
   // precondition: type, shape are configured
-  uint8_t *base_ptr = static_cast<uint8_t *>(contiguous_buffer_.raw_mutable_data());
+  uint8_t *sample_ptr = static_cast<uint8_t *>(contiguous_buffer_.raw_mutable_data());
   int64_t num_samples = shape().num_samples();
   for (int64_t i = 0; i < num_samples; i++) {
     // or any other way
     auto tensor_size = shape().tensor_size(i);
 
-    std::shared_ptr<void> sample_alias(contiguous_buffer_.get_data_ptr(), base_ptr);
+    std::shared_ptr<void> sample_alias(contiguous_buffer_.get_data_ptr(), sample_ptr);
     tensors_[i].ShareData(sample_alias, tensor_size * type_info().size(), is_pinned(), shape()[i],
                           type(), device_id(), order());
     tensors_[i].set_device_id(device_id());
-    base_ptr += tensor_size * type_info().size();
+    sample_ptr += tensor_size * type_info().size();
   }
 }
 
@@ -783,7 +775,7 @@ void TensorVector<Backend>::MakeContiguous(std::weak_ptr<void> owner) {
   if (state_.IsContiguous()) {
     return;
   }
-  DALI_FAIL("Don't know how to coalesce the buffer yet");
+  DALI_FAIL("Coalescing the buffer to Contiguous state is not yet implemented.");
 }
 
 
@@ -817,9 +809,7 @@ void TensorVector<Backend>::DoMakeNoncontiguous() {
 
 template <typename Backend>
 void TensorVector<Backend>::Reset() {
-  if (IsContiguous()) {
-    contiguous_buffer_.reset();
-  }
+  contiguous_buffer_.reset();
   buffer_bkp_.reset();
   // TODO(klecki): Is there any benefit to call Reset on all?
   tensors_.clear();
@@ -990,7 +980,7 @@ Tensor<Backend> TensorVector<Backend>::AsReshapedTensor(const TensorShape<> &new
                   "batch, requested: ",
                   new_shape.num_elements(), " expected: ", shape().num_elements()));
   DALI_ENFORCE(IsContiguousInMemory(),
-               "To create a view Tensor, the butch must be laid down in contiguous memory.");
+               "To create a view Tensor, the batch must be in contiguous memory.");
 
   Tensor<Backend> result;
 
@@ -1074,8 +1064,8 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
       if (type() != DALI_NO_TYPE) {
         tensors_[i].set_type(type());
         if (sample_dim_ >= 0) {
-          tensors_[i].Resize(empty_shape(sample_dim()));
-          shape_.set_tensor_shape(i, empty_shape(sample_dim()));
+          tensors_[i].Resize(TensorShape<>::empty_shape(sample_dim()));
+          shape_.set_tensor_shape(i, TensorShape<>::empty_shape(sample_dim()));
         }
       }
       tensors_[i].SetLayout(GetLayout());

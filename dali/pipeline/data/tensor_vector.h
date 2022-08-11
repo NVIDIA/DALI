@@ -306,9 +306,11 @@ class DLL_PUBLIC TensorVector {
    * @{
    */
   /**
-   * Change the number of tensors that can be accessed as samples without the need to
-   * set them a size.
-   * @param new_size
+   * Change the number of samples in the batch without specifying their shape or type (that is
+   * calling the Resize).
+   * It can be used to adjust the batch to given size and than to set individual samples.
+   * If the new_size is bigger than the current one, new samples have 0-element shape of
+   * correct sample dimensionality.
    */
   void SetSize(int new_size);
 
@@ -562,7 +564,6 @@ class DLL_PUBLIC TensorVector {
     // TODO(klecki): Any sensible defaults?
     State() : contiguous_(false), forced_(false) {}
     State(BatchState state, bool forced) {
-      DALI_ENFORCE(state != BatchState::Default);
       Setup(state, forced);
     }
     State(const State&) = default;
@@ -602,22 +603,9 @@ class DLL_PUBLIC TensorVector {
       if (Get() == requested_state) {
         return false;
       }
+      // Here it is guaranteed that we are changing state, so swap it.
       contiguous_ = !contiguous_;
       return true;
-    }
-
-    /**
-     * @brief Returns true if the requested state changes the current state
-     * Validates if the enforced state is not broken
-     */
-    bool IsStateUpdate(BatchState requested_state) {
-      if (requested_state == BatchState::Default) {
-        return false;
-      }
-      if (forced_) {
-        DALI_ENFORCE(requested_state == Get(), "The state is enforced and cannot be changed");
-      }
-      return Get() != requested_state;
     }
 
     bool IsContiguous() const {
@@ -716,7 +704,8 @@ class DLL_PUBLIC TensorVector {
   Buffer<Backend> contiguous_buffer_;
   std::weak_ptr<void> buffer_bkp_;
   // Memory, sample aliases and metadata
-  // TODO(klecki): Remove SampleWorkspace and swap to plain Buffer instead of using actual Tensors.
+  // TODO(klecki): Remove SampleWorkspace (only place where we actually need those Tensor objects)
+  // and swap to plain Buffer instead of using actual Tensors.
   std::vector<Tensor<Backend>> tensors_;
 
   // State and metadata that should be uniform regardless of the contiguity state.
