@@ -116,7 +116,6 @@ class CpuDecoderTestBase : public ::testing::Test {
     int channel_dim = ImageLayoutInfo::ChannelDimIndex(input.GetLayout());
     if (channel_dim == -1) channel_dim = input.shape().size() - 1;
 
-    std::cerr << roi.begin << " " << channel_dim << std::endl;
     if (roi.begin.size() < ndim)
       roi.begin = shape_cat(shape_cat(roi.begin.first(channel_dim), 0),
                             roi.begin.last(roi.begin.size() - channel_dim));
