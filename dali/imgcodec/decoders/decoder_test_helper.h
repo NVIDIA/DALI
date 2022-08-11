@@ -54,7 +54,7 @@ class DecoderTestBase : public ::testing::Test {
   * @brief Decodes an image and returns the result as a CPU tensor.
   */
   TensorView<StorageCPU, const OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
-                                            const ROI &roi = {}) {
+                                                  const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
 
@@ -83,8 +83,8 @@ class DecoderTestBase : public ::testing::Test {
    * @brief Decodes a batch of images, invoking the batch version of ImageDecoder::Decode
    */
   TensorListView<StorageCPU, const OutputType> Decode(cspan<ImageSource *> in,
-                                                const DecodeParams &opts = {},
-                                                cspan<ROI> rois = {}) {
+                                                      const DecodeParams &opts = {},
+                                                      cspan<ROI> rois = {}) {
     int n = in.size();
     std::vector<TensorShape<>> shape(n);
 
