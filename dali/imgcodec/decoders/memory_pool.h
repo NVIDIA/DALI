@@ -90,7 +90,7 @@ struct BufferPoolManager {
 };
 
 template <>
-unique_ptr_t BufferPoolManager::Allocate<mm::memory_kind::device>(std::thread::id thread_id, 
+unique_ptr_t BufferPoolManager::Allocate<mm::memory_kind::device>(std::thread::id thread_id,
                                                                  size_t size);
 
 int ReturnBufferToPool(void *raw_ptr);
