@@ -103,17 +103,13 @@ TEST_F(LibTiffDecoderTest, Gray) {
 TEST_F(LibTiffDecoderTest, GrayToRgb) {
   auto ref = ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
-  auto img_view = Decode(&src, {.format = DALI_RGB});
-  auto img = AsTensor(img_view);
+  auto img = Decode(&src, {.format = DALI_RGB});
 
-  EXPECT_EQ(img_view.shape, TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
+  EXPECT_EQ(img.shape, TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
 
-
-  EXPECT_EQ(img.shape(), TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
-
-  auto red = Crop(img, {{0, 0, 0}, {img.shape()[0], img.shape()[1], 1}});
-  auto green = Crop(img, {{0, 0, 1}, {img.shape()[0], img.shape()[1], 2}});
-  auto blue = Crop(img, {{0, 0, 2}, {img.shape()[0], img.shape()[1], 3}});
+  auto red = Crop(img.to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
+  auto green = Crop(img.to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
+  auto blue = Crop(img.to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
 
   AssertEqualSatNorm(view<uint8_t>(red), ref);
   AssertEqualSatNorm(view<uint8_t>(green), ref);
