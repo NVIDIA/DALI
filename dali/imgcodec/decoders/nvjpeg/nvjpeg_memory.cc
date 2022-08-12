@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@
 #include "dali/core/mm/memory_kind.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
-#include "dali/imgcodec/decoders/nvjpeg/memory_pool.h"
+#include "dali/imgcodec/decoders/memory_pool.h"
 #include "dali/pipeline/data/buffer.h"
 
 namespace dali {
@@ -40,46 +40,38 @@ namespace nvjpeg_memory {
 
 template <typename MemoryKind>
 void AddBuffer(std::thread::id thread_id, size_t size) {
-  NVJpegMem::instance().AddBuffer<MemoryKind>(thread_id, size);
+  BufferPoolManager::instance().AddBuffer<MemoryKind>(thread_id, size);
 }
 
 void AddHostBuffer(std::thread::id thread_id, size_t size) {
   if (RestrictPinnedMemUsage())
-    NVJpegMem::instance().AddBuffer<mm::memory_kind::host>(thread_id, size);
+    BufferPoolManager::instance().AddBuffer<mm::memory_kind::host>(thread_id, size);
   else
-    NVJpegMem::instance().AddBuffer<mm::memory_kind::pinned>(thread_id, size);
+    BufferPoolManager::instance().AddBuffer<mm::memory_kind::pinned>(thread_id, size);
 }
-
-/*
-template <typename MemoryKind>
-void *GetBuffer(std::thread::id thread_id, size_t size) {
-  return NVJpegMem::instance().GetBuffer<MemoryKind>(thread_id, size);
-}
-This function is implemented in memory_pool.cc
-*/
 
 void *GetHostBuffer(std::thread::id thread_id, size_t size) {
   if (RestrictPinnedMemUsage())
-    return NVJpegMem::instance().GetBuffer<mm::memory_kind::host>(thread_id, size);
+    return BufferPoolManager::instance().GetBuffer<mm::memory_kind::host>(thread_id, size);
   else
-    return NVJpegMem::instance().GetBuffer<mm::memory_kind::pinned>(thread_id, size);
+    return BufferPoolManager::instance().GetBuffer<mm::memory_kind::pinned>(thread_id, size);
 }
 
 void DeleteAllBuffers(std::thread::id thread_id) {
-  NVJpegMem::instance().DeleteAllBuffers(thread_id);
+  BufferPoolManager::instance().DeleteAllBuffers(thread_id);
 }
 
 template <typename MemoryKind>
 void AddMemStats(std::thread::id thread_id, size_t size) {
-  NVJpegMem::instance().AddBuffer<MemoryKind>(thread_id, size);
+  BufferPoolManager::instance().AddBuffer<MemoryKind>(thread_id, size);
 }
 
 void SetEnableMemStats(bool enabled) {
-  NVJpegMem::instance().SetEnableMemStats(enabled);
+  BufferPoolManager::instance().SetEnableMemStats(enabled);
 }
 
 void PrintMemStats() {
-  NVJpegMem::instance().PrintMemStats();
+  BufferPoolManager::instance().PrintMemStats();
 }
 
 template void AddBuffer<mm::memory_kind::device>(std::thread::id thread_id, size_t size);

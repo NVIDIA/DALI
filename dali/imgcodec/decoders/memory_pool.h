@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_NVJPEG_MEMORY_POOL_H_
-#define DALI_IMGCODEC_DECODERS_NVJPEG_MEMORY_POOL_H_
+#ifndef DALI_IMGCODEC_DECODERS_MEMORY_POOL_H_
+#define DALI_IMGCODEC_DECODERS_MEMORY_POOL_H_
 
 #include <atomic>
 #include <thread>
@@ -24,10 +24,7 @@
 #include "dali/core/mm/memory_kind.h"
 
 namespace dali {
-
 namespace imgcodec {
-
-namespace nvjpeg_memory {
 
 struct AllocInfo {
   mm::memory_kind_id kind;
@@ -52,7 +49,7 @@ struct Buffer {
 using MemoryPool = std::array<std::vector<Buffer>, static_cast<size_t>(mm::memory_kind_id::count)>;
 using BufferPool = std::map<std::thread::id, MemoryPool>;
 
-struct NVJpegMem {
+struct BufferPoolManager {
   BufferPool buffer_pool_;
   std::shared_timed_mutex buffer_pool_mutex_;
 
@@ -65,7 +62,7 @@ struct NVJpegMem {
   std::mutex mem_stats_mutex_;
   std::atomic<bool> mem_stats_enabled_ = {true};
 
-  static NVJpegMem &instance();
+  static BufferPoolManager &instance();
 
   void SetEnableMemStats(bool enabled);
 
@@ -93,7 +90,8 @@ struct NVJpegMem {
 };
 
 template <>
-unique_ptr_t NVJpegMem::Allocate<mm::memory_kind::device>(std::thread::id thread_id, size_t size);
+unique_ptr_t BufferPoolManager::Allocate<mm::memory_kind::device>(std::thread::id thread_id, 
+                                                                 size_t size);
 
 int ReturnBufferToPool(void *raw_ptr);
 
@@ -103,10 +101,7 @@ int PinnedNew(void **ptr, size_t size, unsigned int flags);
 
 int HostNew(void **ptr, size_t size, unsigned int flags);
 
-}  // namespace nvjpeg_memory
-
 }  // namespace imgcodec
-
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_DECODERS_NVJPEG_MEMORY_POOL_H_
+#endif  // DALI_IMGCODEC_DECODERS_MEMORY_POOL_H_

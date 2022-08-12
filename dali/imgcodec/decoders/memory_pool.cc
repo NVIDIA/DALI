@@ -19,16 +19,13 @@
 #include <shared_mutex>
 #include <utility>
 #include <unordered_map>
-#include "dali/imgcodec/decoders/nvjpeg/memory_pool.h"
+#include "dali/imgcodec/decoders/memory_pool.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/pipeline/data/buffer.h"
 
 namespace dali {
-
 namespace imgcodec {
-
-namespace nvjpeg_memory {
 
 std::unordered_map<void*, AllocInfo> alloc_info_;
 std::shared_timed_mutex alloc_info_mutex_;
@@ -48,21 +45,21 @@ void Deleter::operator()(void *p) const {
 Buffer::Buffer(unique_ptr_t unq_ptr, mm::memory_kind_id kind, size_t sz)
 : ptr(std::move(unq_ptr)), kind(kind), size(sz) {}
 
-NVJpegMem& NVJpegMem::instance() {
+BufferPoolManager& BufferPoolManager::instance() {
   // ensure proper destruction order
   (void)mm::GetDefaultResource<mm::memory_kind::host>();
   (void)mm::GetDefaultResource<mm::memory_kind::pinned>();
   (void)mm::cuda_malloc_memory_resource::instance();
-  static NVJpegMem mem;
+  static BufferPoolManager mem;
   return mem;
 }
 
-void NVJpegMem::SetEnableMemStats(bool enabled) {
+void BufferPoolManager::SetEnableMemStats(bool enabled) {
   mem_stats_enabled_ = enabled;
 }
 
 template <typename MemoryKind>
-void NVJpegMem::AddMemStats(size_t size) {
+void BufferPoolManager::AddMemStats(size_t size) {
   if (mem_stats_enabled_) {
     std::lock_guard<std::mutex> lock(mem_stats_mutex_);
     auto &stats = mem_stats_[static_cast<size_t>(mm::kind2id_v<MemoryKind>)];
@@ -72,7 +69,7 @@ void NVJpegMem::AddMemStats(size_t size) {
   }
 }
 
-void NVJpegMem::PrintMemStats() {
+void BufferPoolManager::PrintMemStats() {
   if (mem_stats_enabled_) {
     std::lock_guard<std::mutex> lock(mem_stats_mutex_);
 
@@ -96,7 +93,7 @@ void NVJpegMem::PrintMemStats() {
 }
 
 template <typename MemoryKind>
-unique_ptr_t NVJpegMem::Allocate(mm::memory_resource<MemoryKind> *mr,
+unique_ptr_t BufferPoolManager::Allocate(mm::memory_resource<MemoryKind> *mr,
                       std::thread::id thread_id, size_t size) {
   auto ptr = mm::alloc_raw_unique<char>(mr, size);
   std::unique_lock<std::shared_timed_mutex> lock(alloc_info_mutex_);
@@ -107,12 +104,12 @@ unique_ptr_t NVJpegMem::Allocate(mm::memory_resource<MemoryKind> *mr,
 }
 
 template <typename MemoryKind>
-unique_ptr_t NVJpegMem::Allocate(std::thread::id thread_id, size_t size) {
+unique_ptr_t BufferPoolManager::Allocate(std::thread::id thread_id, size_t size) {
   return Allocate(mm::GetDefaultResource<MemoryKind>(), thread_id, size);
 }
 
 template <typename MemoryKind>
-void* NVJpegMem::GetBuffer(std::thread::id thread_id, size_t size) {
+void* BufferPoolManager::GetBuffer(std::thread::id thread_id, size_t size) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   mm::memory_kind_id kind = mm::kind2id_v<MemoryKind>;
   auto it = buffer_pool_.find(thread_id);
@@ -147,14 +144,14 @@ void* NVJpegMem::GetBuffer(std::thread::id thread_id, size_t size) {
   return Allocate<MemoryKind>(thread_id, size).release();
 }
 
-template void* NVJpegMem::GetBuffer<mm::memory_kind::device>(std::thread::id thread_id,
-                                                             size_t size);
-template void* NVJpegMem::GetBuffer<mm::memory_kind::pinned>(std::thread::id thread_id,
-                                                             size_t size);
-template void* NVJpegMem::GetBuffer<mm::memory_kind::host>(std::thread::id thread_id,
-                                                           size_t size);
+template void* BufferPoolManager::GetBuffer<mm::memory_kind::device>(std::thread::id thread_id,
+                                                                    size_t size);
+template void* BufferPoolManager::GetBuffer<mm::memory_kind::pinned>(std::thread::id thread_id,
+                                                                    size_t size);
+template void* BufferPoolManager::GetBuffer<mm::memory_kind::host>(std::thread::id thread_id,
+                                                                  size_t size);
 
-int NVJpegMem::ReturnBufferToPool(void *raw_ptr) {
+int BufferPoolManager::ReturnBufferToPool(void *raw_ptr) {
   std::shared_lock<std::shared_timed_mutex> info_lock(alloc_info_mutex_);
   auto info_it = alloc_info_.find(raw_ptr);
   assert(info_it != alloc_info_.end());
@@ -176,10 +173,10 @@ int NVJpegMem::ReturnBufferToPool(void *raw_ptr) {
   auto &buffers = (*pool)[static_cast<size_t>(info.kind)];
   buffers.emplace_back(std::move(ptr), info.kind, info.size);
   return 0;
-  }
+}
 
 template <typename MemoryKind>
-void NVJpegMem::AddBuffer(std::thread::id thread_id, size_t size) {
+void BufferPoolManager::AddBuffer(std::thread::id thread_id, size_t size) {
   std::unique_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   auto kind = mm::kind2id_v<MemoryKind>;
   auto& thread_buffer_pool = buffer_pool_[thread_id];
@@ -190,11 +187,14 @@ void NVJpegMem::AddBuffer(std::thread::id thread_id, size_t size) {
   AddMemStats<MemoryKind>(size);
 }
 
-template void NVJpegMem::AddBuffer<mm::memory_kind::device>(std::thread::id thread_id, size_t size);
-template void NVJpegMem::AddBuffer<mm::memory_kind::pinned>(std::thread::id thread_id, size_t size);
-template void NVJpegMem::AddBuffer<mm::memory_kind::host>(std::thread::id thread_id, size_t size);
+template void BufferPoolManager::AddBuffer<mm::memory_kind::device>(std::thread::id thread_id,
+                                                                   size_t size);
+template void BufferPoolManager::AddBuffer<mm::memory_kind::pinned>(std::thread::id thread_id,
+                                                                   size_t size);
+template void BufferPoolManager::AddBuffer<mm::memory_kind::host>(std::thread::id thread_id,
+                                                                 size_t size);
 
-void NVJpegMem::DeleteAllBuffers(std::thread::id thread_id) {
+void BufferPoolManager::DeleteAllBuffers(std::thread::id thread_id) {
   std::shared_lock<std::shared_timed_mutex> lock(buffer_pool_mutex_);
   auto it = buffer_pool_.find(thread_id);
   // no buffers have been preallocated/returned to the pool
@@ -208,14 +208,15 @@ void NVJpegMem::DeleteAllBuffers(std::thread::id thread_id) {
 }
 
 template <>
-unique_ptr_t NVJpegMem::Allocate<mm::memory_kind::device>(std::thread::id thread_id, size_t size) {
+unique_ptr_t BufferPoolManager::Allocate<mm::memory_kind::device>(std::thread::id thread_id,
+                                                                 size_t size) {
   // use plain cudaMalloc
   return Allocate(&mm::cuda_malloc_memory_resource::instance(), thread_id, size);
 }
 
 template <typename MemoryKind>
 void *GetBuffer(std::thread::id thread_id, size_t size) {
-  return NVJpegMem::instance().GetBuffer<MemoryKind>(thread_id, size);
+  return BufferPoolManager::instance().GetBuffer<MemoryKind>(thread_id, size);
 }
 
 template void *GetBuffer<mm::memory_kind::device>(std::thread::id thread_id, size_t size);
@@ -223,7 +224,7 @@ template void *GetBuffer<mm::memory_kind::pinned>(std::thread::id thread_id, siz
 template void *GetBuffer<mm::memory_kind::host>(std::thread::id thread_id, size_t size);
 
 int ReturnBufferToPool(void *raw_ptr) {
-  return NVJpegMem::instance().ReturnBufferToPool(raw_ptr);
+  return BufferPoolManager::instance().ReturnBufferToPool(raw_ptr);
 }
 
 int DeviceNew(void **ptr, size_t size) {
@@ -288,8 +289,5 @@ int HostNew(void **ptr, size_t size, unsigned int flags) {
   }
 }
 
-}  // namespace nvjpeg_memory
-
 }  // namespace imgcodec
-
 }  // namespace dali

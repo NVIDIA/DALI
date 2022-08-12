@@ -13,8 +13,7 @@
 // limitations under the License.
 
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_memory.h"
-#include "dali/imgcodec/decoders/nvjpeg/memory_pool.h"
-// #include "dali/pipeline/data/buffer.h"
+#include "dali/imgcodec/decoders/memory_pool.h"
 
 namespace dali {
 namespace imgcodec {
