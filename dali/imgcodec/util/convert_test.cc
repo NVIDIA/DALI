@@ -47,7 +47,7 @@ std::string image_path(const std::string &name, const std::string &type_name) {
 }  // namespace
 
 template <typename ImageType>
-class ConversionTestBase : public NumpyDecoderTestBase<ImageType> {
+class ConversionTestBase : public NumpyDecoderTestBase<CPUBackend, ImageType> {
  protected:
   /**
    * @brief Reads an image and converts it from `input_format` to `output_format`

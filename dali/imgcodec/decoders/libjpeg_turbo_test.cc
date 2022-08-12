@@ -69,7 +69,7 @@ TEST(LibJpegTurboDecoderTest, Factory) {
 }
 
 template<typename OutputType>
-class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<OutputType> {
+class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputType> {
  protected:
   static const auto dtype = type2id<OutputType>::value;
 
