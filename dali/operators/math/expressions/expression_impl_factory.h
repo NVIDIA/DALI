@@ -148,7 +148,7 @@ inline InputSamplePtr GetInputSamplePointer(DeviceWorkspace &ws, int input_idx, 
 template <typename Backend>
 inline OutputSamplePtr GetOutput(const ExprFunc &func, workspace_t<Backend> &ws, TileDesc tile) {
   return reinterpret_cast<char *>(GetOutputSamplePointer(ws, 0, tile.sample_idx)) +
-         tile.tile_size * tile.extent_idx * TypeTable::GetTypeInfo(func.GetTypeId()).size();
+         volume(tile.tile_size) * tile.extent_idx * TypeTable::GetTypeInfo(func.GetTypeId()).size();
 }
 
 /**
@@ -165,12 +165,13 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
     if (IsScalarLike(func[i])) {
       if (func[i].GetNodeType() == NodeType::Constant) {
         const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
-        result[i] = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
+        result[i].data = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
       } else if (func[i].GetNodeType() == NodeType::Tensor) {
         // No tile offset, just take the pointer for this element as this is a scalar
         const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
         auto input_idx = tensor.GetInputIndex();
-        result[i] = GetInputSamplePointer(ws, input_idx, tile.sample_idx);
+        // TODO(janton): fill dtype and shape
+        result[i].data = GetInputSamplePointer(ws, input_idx, tile.sample_idx);
       }
     } else if (func[i].GetNodeType() == NodeType::Tensor) {
       const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
@@ -178,8 +179,9 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
       const auto *ptr =
           reinterpret_cast<const char *>(GetInputSamplePointer(ws, input_idx, tile.sample_idx));
       auto tile_offset =
-          tile.tile_size * tile.extent_idx * TypeTable::GetTypeInfo(tensor.GetTypeId()).size();
-      result[i] = ptr + tile_offset;
+          volume(tile.tile_size) * tile.extent_idx * TypeTable::GetTypeInfo(tensor.GetTypeId()).size();
+      // TODO(janton): fill dtype and shape
+      result[i].data = ptr + tile_offset;
     }
   }
   return result;
@@ -204,8 +206,8 @@ void TransformDescs(std::vector<ExtendedTileDesc> &extended_tiles,
     in_types[i] = func[i].GetTypeId();
   }
   for (auto &tile : tiles) {
-    extended_tiles.emplace_back(tile, GetOutput<Backend>(func, ws, tile),
-                                GetArgPack(func, ws, st, spec, tile), func.GetTypeId(), in_types);
+    extended_tiles.emplace_back(tile, GetOutput<Backend>(func, ws, tile), func.GetTypeId(),
+                                GetArgPack(func, ws, st, spec, tile));
   }
 }
 
