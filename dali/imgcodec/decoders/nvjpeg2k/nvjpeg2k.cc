@@ -14,7 +14,7 @@
 
 #include <string>
 #include <vector>
-#include "dali/imgcodec/decoders/nvjpeg2k.h"
+#include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k.h"
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
