@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,12 +32,12 @@ namespace dali {
 struct TileDesc {
   int sample_idx;       // id of sample inside within the batch
   int extent_idx;       // the index of tile within this sample_idx
-  int64_t extent_size;  // actually covered extent in this tile, the last can be smaller
-  int64_t tile_size;    // the size of regular tile
+  TensorShape<> extent_size;
+  TensorShape<> tile_size;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const TileDesc &v) {
-  os << "{" << v.sample_idx << ", " << v.extent_idx << ", " << v.extent_size << ", " << v.tile_size
+  os << "{" << v.sample_idx << ", " << v.extent_idx << ", " << volume(v.extent_size) << ", " << volume(v.tile_size)
      << "}";
   return os;
 }
@@ -54,7 +54,14 @@ inline std::ostream &operator<<(std::ostream &os, const TileRange &v) {
 
 using OutputSamplePtr = void *;
 using InputSamplePtr = const void *;
-using ArgPack = SmallVector<InputSamplePtr, kMaxArity>;
+
+struct OperandData {
+  InputSamplePtr data = nullptr;
+  DALIDataType dtype = DALI_NO_TYPE;
+  TensorShape<> shape{};
+};
+
+using ArgPack = SmallVector<OperandData, kMaxArity>;
 
 /**
  * @brief Describe tile with pointers to output and input data for that tile.
@@ -68,14 +75,13 @@ using ArgPack = SmallVector<InputSamplePtr, kMaxArity>;
 struct ExtendedTileDesc {
   ExtendedTileDesc() = default;
 
-  ExtendedTileDesc(const TileDesc &desc, const OutputSamplePtr &output, const ArgPack &args,
-                   DALIDataType out_type, const SmallVector<DALIDataType, kMaxArity> &in_types)
-      : desc(desc), output(output), args(args), out_type(out_type), in_types(in_types) {}
+  ExtendedTileDesc(const TileDesc &desc, OutputSamplePtr output, DALIDataType out_type,
+                   const ArgPack &args)
+      : desc(desc), output(output), out_type(out_type), args(args) {}
   TileDesc desc;
   OutputSamplePtr output;
-  ArgPack args;
   DALIDataType out_type;
-  SmallVector<DALIDataType, kMaxArity> in_types;
+  ArgPack args;
 };
 
 }  // namespace dali

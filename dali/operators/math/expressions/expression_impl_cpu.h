@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,8 +36,9 @@ class ExprImplCpuT : public ExprImplBase {
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
     auto output = static_cast<Result *>(tile.output);
-    auto input = static_cast<const Input *>(tile.args[0]);
-    Execute(output, input, tile.desc.extent_size);
+    auto &left = tile.args[0];
+    auto input = static_cast<const Input *>(left.data);
+    Execute(output, input, volume(tile.desc.extent_size));
   }
 
  private:
@@ -59,9 +60,11 @@ class ExprImplCpuTT : public ExprImplBase {
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
     auto output = static_cast<Result *>(tile.output);
-    auto left = static_cast<const Left *>(tile.args[0]);
-    auto right = static_cast<const Right *>(tile.args[1]);
-    Execute(output, left, right, tile.desc.extent_size);
+    auto &left = tile.args[0];
+    auto &right = tile.args[1];
+    auto left_ptr = static_cast<const Left *>(left.data);
+    auto right_ptr = static_cast<const Right *>(right.data);
+    Execute(output, left_ptr, right_ptr, volume(tile.desc.extent_size));
   }
 
  private:
@@ -83,9 +86,11 @@ class ExprImplCpuCT : public ExprImplBase {
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
     auto output = static_cast<Result *>(tile.output);
-    auto left = static_cast<const Left *>(tile.args[0]);
-    auto right = static_cast<const Right *>(tile.args[1]);
-    Execute(output, *left, right, tile.desc.extent_size);
+    auto &left = tile.args[0];
+    auto &right = tile.args[1];
+    auto left_ptr = static_cast<const Left *>(left.data);
+    auto right_ptr = static_cast<const Right *>(right.data);
+    Execute(output, *left_ptr, right_ptr, volume(tile.desc.extent_size));
   }
 
  private:
@@ -107,9 +112,11 @@ class ExprImplCpuTC : public ExprImplBase {
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
     auto output = static_cast<Result *>(tile.output);
-    auto left = static_cast<const Left *>(tile.args[0]);
-    auto right = static_cast<const Right *>(tile.args[1]);
-    Execute(output, left, *right, tile.desc.extent_size);
+    auto &left = tile.args[0];
+    auto &right = tile.args[1];
+    auto left_ptr = static_cast<const Left *>(left.data);
+    auto right_ptr = static_cast<const Right *>(right.data);
+    Execute(output, left_ptr, *right_ptr, volume(tile.desc.extent_size));
   }
 
  private:
@@ -134,15 +141,16 @@ class ExprImplCpuTernary : public ExprImplBase {
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
     auto output = static_cast<Result *>(tile.output);
-    const void *first = tile.args[0];
-    const void *second = tile.args[1];
-    const void *third = tile.args[2];
+
+    auto &first = tile.args[0];
+    auto &second = tile.args[1];
+    auto &third = tile.args[2]; 
     Execute(output,
-            expression_detail::Pass<IsFirstTensor, Result>(first, tile.in_types[0]),
-            expression_detail::Pass<IsSecondTensor, Result>(second, tile.in_types[1]),
-            expression_detail::Pass<IsThirdTensor, Result>(third, tile.in_types[2]),
-            tile.in_types[0], tile.in_types[1], tile.in_types[2],
-            tile.desc.extent_size);
+            expression_detail::Pass<IsFirstTensor, Result>(first.data, first.dtype),
+            expression_detail::Pass<IsSecondTensor, Result>(second.data, second.dtype),
+            expression_detail::Pass<IsThirdTensor, Result>(third.data, third.dtype),
+            first.dtype, second.dtype, third.dtype,
+            volume(tile.desc.extent_size));
   }
 
  private:

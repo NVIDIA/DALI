@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,8 +61,8 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
         int tile_id = sample_id * TestConfig::tiles_per_sample + extent_id;
         tile_descs[tile_id].sample_idx = sample_id;
         tile_descs[tile_id].extent_idx = extent_id;
-        tile_descs[tile_id].tile_size = TestConfig::tile_size;
-        tile_descs[tile_id].extent_size = TestConfig::tile_size;
+        tile_descs[tile_id].tile_size = TensorShape<>{TestConfig::tile_size, };
+        tile_descs[tile_id].extent_size = TensorShape<>{TestConfig::tile_size, };
       }
     }
 
@@ -101,10 +101,10 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
         tiles_cpu(tile_id)->output =
             result.gpu(stream)[sample_id].data + extent_id * TestConfig::tile_size;
         tiles_cpu(tile_id)->args.resize(2);
-        tiles_cpu(tile_id)->args[0] =
+        tiles_cpu(tile_id)->args[0].data =
             left.gpu(stream)[sample_id].data +
             (TestConfig::IsLeftTensor ? extent_id * TestConfig::tile_size : 0);
-        tiles_cpu(tile_id)->args[1] =
+        tiles_cpu(tile_id)->args[1].data =
             right.gpu(stream)[sample_id].data +
             (TestConfig::IsRightTensor ? extent_id * TestConfig::tile_size : 0);
       }

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -130,8 +130,8 @@ template <ArithmeticOp op, typename Result, typename Input>
 __global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   auto output = static_cast<Result *>(tile.output);
-  auto in = static_cast<const Input *>(tile.args[0]);
-  ExecuteUnOp<op>(output, in, tile.desc.extent_size);
+  auto in = static_cast<const Input *>(tile.args[0].data);
+  ExecuteUnOp<op>(output, in, volume(tile.desc.extent_size));
 }
 
 /**
@@ -142,10 +142,10 @@ template <ArithmeticOp op, typename Result, typename Left, typename Right, bool 
 __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   auto output = static_cast<Result *>(tile.output);
-  auto left = static_cast<const Left *>(tile.args[0]);
-  auto right = static_cast<const Right *>(tile.args[1]);
+  auto left = static_cast<const Left *>(tile.args[0].data);
+  auto right = static_cast<const Right *>(tile.args[1].data);
   ExecuteBinOp<op>(output, expression_detail::Pass<IsLeftTensor>(left),
-                   expression_detail::Pass<IsRightTensor>(right), tile.desc.extent_size);
+                   expression_detail::Pass<IsRightTensor>(right), volume(tile.desc.extent_size));
 }
 
 
@@ -157,16 +157,16 @@ template <ArithmeticOp op, typename Result,
 __global__ void ExecuteTiledTernaryOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   auto output = static_cast<Result *>(tile.output);
-  const void* first = tile.args[0];
-  const void* second = tile.args[1];
-  const void* third = tile.args[2];
+  const void* first = tile.args[0].data;
+  const void* second = tile.args[1].data;
+  const void* third = tile.args[2].data;
   ExecuteTernaryOp<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>(
       output,
-      expression_detail::Pass<IsFirstTensor, Result>(first, tile.in_types[0]),
-      expression_detail::Pass<IsSecondTensor, Result>(second, tile.in_types[1]),
-      expression_detail::Pass<IsThirdTensor, Result>(third, tile.in_types[2]),
-      tile.in_types[0], tile.in_types[1], tile.in_types[2],
-      tile.desc.extent_size);
+      expression_detail::Pass<IsFirstTensor, Result>(first, tile.args[0].dtype),
+      expression_detail::Pass<IsSecondTensor, Result>(second, tile.args[1].dtype),
+      expression_detail::Pass<IsThirdTensor, Result>(third,tile.args[2].dtype),
+      tile.args[0].dtype, tile.args[0].dtype, tile.args[0].dtype,
+      volume(tile.desc.extent_size));
 }
 
 template <ArithmeticOp op, typename Result, typename Input>
