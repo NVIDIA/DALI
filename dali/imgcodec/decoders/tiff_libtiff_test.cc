@@ -96,14 +96,18 @@ TEST_F(LibTiffDecoderTest, ROI) {
 TEST_F(LibTiffDecoderTest, Gray) {
   auto ref = ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
-  auto img = Decode(&src, {.format = DALI_GRAY});
+  DecodeParams params = {};
+  params.format = DALI_GRAY;
+  auto img = Decode(&src, params);
   AssertEqualSatNorm(img, ref);
 }
 
 TEST_F(LibTiffDecoderTest, GrayToRgb) {
   auto ref = ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
-  auto img = Decode(&src, {.format = DALI_RGB});
+  DecodeParams params = {};
+  params.format = DALI_RGB;
+  auto img = Decode(&src, params);
 
   EXPECT_EQ(img.shape, TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
 
@@ -119,7 +123,9 @@ TEST_F(LibTiffDecoderTest, GrayToRgb) {
 TEST_F(LibTiffDecoderTest, MultichannelToRgb) {
   auto ref = ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(multichannel_path);
-  auto img = Decode(&src, {.format = DALI_RGB});
+  DecodeParams params = {};
+  params.format = DALI_RGB;
+  auto img = Decode(&src, params);
   AssertEqualSatNorm(img, ref);
 }
 
