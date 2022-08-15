@@ -116,7 +116,7 @@ class OperatorBench : public DALIBenchmark {
     op_ptr->Run(ws);
     CUDA_CALL(cudaStreamSynchronize(0));
 
-    uint64_t batches = 0;
+    int64_t batches = 0;
 
     while (st.KeepRunning()) {
       op_ptr->Run(ws);
