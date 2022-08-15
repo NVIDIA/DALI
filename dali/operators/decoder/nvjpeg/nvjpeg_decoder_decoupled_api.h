@@ -180,7 +180,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 
     nvjpeg_memory::SetEnableMemStats(spec.GetArgument<bool>("memory_stats"));
 
-    for (auto thread_id : thread_pool_.GetThreadIds()) {
+    for (const auto& thread_id : thread_pool_.GetThreadIds()) {
       if (device_memory_padding > 0) {
         nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding);
       }

@@ -402,7 +402,7 @@ class DALISingleOpTest : public DALITest {
     if (!args || args->empty())
       return *spec;
 
-    for (auto param : *args) {
+    for (const auto& param : *args) {
       const auto &val = param.m_val;
       const auto &name = param.m_Name;
       switch (param.type) {

@@ -73,7 +73,7 @@ TEST_F(RandomCropGeneratorTest, DifferentSeedProduceDifferentResultBatchedVersio
 }
 
 TEST_F(RandomCropGeneratorTest, DimensionH1W1) {
-    for (auto crop : MakeGenerator().GenerateCropWindows({1, 1}, 1000)) {
+    for (const auto& crop : MakeGenerator().GenerateCropWindows({1, 1}, 1000)) {
         EXPECT_TRUE(crop.IsInRange({1, 1}));
         EXPECT_EQ(0, crop.anchor[1]);
         EXPECT_EQ(0, crop.anchor[0]);
@@ -83,7 +83,7 @@ TEST_F(RandomCropGeneratorTest, DimensionH1W1) {
 }
 
 TEST_F(RandomCropGeneratorTest, DimensionH1) {
-    for (auto crop : MakeGenerator().GenerateCropWindows({1, default_W_}, 1000)) {
+    for (const auto& crop : MakeGenerator().GenerateCropWindows({1, default_W_}, 1000)) {
         EXPECT_TRUE(crop.IsInRange({1, default_W_}));
         EXPECT_EQ(0, crop.anchor[0]);
         EXPECT_EQ(1, crop.shape[0]);
@@ -92,7 +92,7 @@ TEST_F(RandomCropGeneratorTest, DimensionH1) {
 }
 
 TEST_F(RandomCropGeneratorTest, DimensionW1) {
-    for (auto crop : MakeGenerator().GenerateCropWindows({default_H_, 1}, 1000)) {
+    for (const auto& crop : MakeGenerator().GenerateCropWindows({default_H_, 1}, 1000)) {
         EXPECT_TRUE(crop.IsInRange({default_H_, 1}));
         EXPECT_EQ(0, crop.anchor[1]);
         EXPECT_EQ(1, crop.shape[0]);

@@ -47,8 +47,8 @@ struct GPUHog {
   void run(cudaStream_t stream, int count = 1) {
     for (int i = 0; i < count; i++) {
       hog<<<div_ceil(size, 512), 512, 0, stream>>>(mem.get(), size);
+      CUDA_CALL(cudaGetLastError());
     }
-    CUDA_CALL(cudaGetLastError());
   }
 
   mm::uptr<float> mem;
