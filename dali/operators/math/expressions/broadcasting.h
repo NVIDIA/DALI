@@ -16,7 +16,6 @@
 #define DALI_OPERATORS_MATH_EXPRESSIONS_BROADCASTING_H_
 
 #include <utility>
-#include "dali/core/small_vector.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 
@@ -121,16 +120,11 @@ DLL_PUBLIC TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh,
 DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
 
 /**
- * @brief It simplifies shapes for arithmetic op execution with broadcasting.
- *        It detects and collapses adjacent dimensions into groups of dimensions
- *        that either broadcasted or not.
- * @param shapes span of shapes to broadcast
+ * @brief It simplifies a shape for arithmetic op execution with broadcasting.
+ *        It detects and collapses adjacent dimensions that are not broadcasted
  * @remarks For shapes that don't need broadcasting, it results in a 1D shape.
  */
-void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes);
-DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
-DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<> &c);
-
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs);
 
 }  // namespace dali
 

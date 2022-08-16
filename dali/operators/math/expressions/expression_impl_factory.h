@@ -30,6 +30,7 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
+#include "dali/kernels/common/utils.h"
 
 namespace dali {
 
@@ -162,6 +163,8 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
   for (int i = 0; i < func.GetSubexpressionCount(); i++) {
     DALI_ENFORCE(func[i].GetNodeType() != NodeType::Function,
                  "Function nodes are not supported as subexpressions");
+    result[i].shape = {};
+    result[i].strides = {};
     if (IsScalarLike(func[i])) {
       if (func[i].GetNodeType() == NodeType::Constant) {
         const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
@@ -170,25 +173,27 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
         // No tile offset, just take the pointer for this element as this is a scalar
         const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
         auto input_idx = tensor.GetInputIndex();
-        // TODO(janton): fill dtype and shape
         result[i].data = GetInputSamplePointer(ws, input_idx, tile.sample_idx);
+        result[i].dtype = tensor.GetTypeId();
       }
     } else if (func[i].GetNodeType() == NodeType::Tensor) {
       const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
       auto input_idx = tensor.GetInputIndex();
       const auto *ptr =
           reinterpret_cast<const char *>(GetInputSamplePointer(ws, input_idx, tile.sample_idx));
-      auto tile_offset =
-          volume(tile.tile_size) * tile.extent_idx * TypeTable::GetTypeInfo(tensor.GetTypeId()).size();
-      // TODO(janton): fill dtype and shape
+      auto tile_offset = volume(tile.tile_size) * tile.extent_idx *
+                         TypeTable::GetTypeInfo(tensor.GetTypeId()).size();
       result[i].data = ptr + tile_offset;
+      result[i].dtype = tensor.GetTypeId();
+      result[i].shape = ws.template Input<Backend>(input_idx).tensor_shape(tile.sample_idx);
+      kernels::CalcStrides(result[i].strides, result[i].shape);
     }
   }
   return result;
 }
 
 /**
- * @brief Transfor vector of TileDesc into vector of ExtendedTileDesc
+ * @brief Transform vector of TileDesc into vector of ExtendedTileDesc
  * based on the ExprFunc by extracting the input and output pointers to data
  * from workspace and constant storage.
  *

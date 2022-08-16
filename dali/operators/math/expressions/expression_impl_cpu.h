@@ -63,16 +63,48 @@ class ExprImplCpuTT : public ExprImplBase {
     auto &left = tile.args[0];
     auto &right = tile.args[1];
     auto left_ptr = static_cast<const Left *>(left.data);
+    auto &left_shape = left.shape;
     auto right_ptr = static_cast<const Right *>(right.data);
+    auto &right_shape = right.shape;
+    DALI_ENFORCE(!right_shape.empty());
     Execute(output, left_ptr, right_ptr, volume(tile.desc.extent_size));
   }
 
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
 
+  // TODO(janton): Remove
   static void Execute(Result *result, const Left *l, const Right *r, int64_t extent) {
     for (int64_t i = 0; i < extent; i++) {
       result[i] = meta_t::impl(l[i], r[i]);
+    }
+  }
+
+  template <int ndim>
+  static void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
+                      const Left* in0, const int64_t *in0_strides,
+                      const Right* in1, const int64_t *in1_strides,
+                      std::integral_constant<int, ndim>) {
+    static_assert(ndim > 1);
+    for (int64_t i = 0; i < *out_shape; i++) {
+      Execute(out, out_shape + 1, out_strides + 1,
+              in0, in1_strides + 1, in1, in1_strides + 1,
+              std::integral_constant<int, ndim - 1>());
+      in0 += *in0_strides;
+      in1 += *in1_strides;
+      out += *out_strides;
+    }
+  }
+
+  void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
+                const Left* in0, const int64_t *in0_strides,
+                const Right* in1, const int64_t *in1_strides,
+                std::integral_constant<int, 1>) {
+    for (int64_t i = 0; i < *out_shape; i++) {
+      *out = meta_t::impl(*in0, *in1);
+      in0 += *in0_strides;
+      in1 += *in1_strides;
+      out += *out_strides;
     }
   }
 };
@@ -144,7 +176,7 @@ class ExprImplCpuTernary : public ExprImplBase {
 
     auto &first = tile.args[0];
     auto &second = tile.args[1];
-    auto &third = tile.args[2]; 
+    auto &third = tile.args[2];
     Execute(output,
             expression_detail::Pass<IsFirstTensor, Result>(first.data, first.dtype),
             expression_detail::Pass<IsSecondTensor, Result>(second.data, second.dtype),

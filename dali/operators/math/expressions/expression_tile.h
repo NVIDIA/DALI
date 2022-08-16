@@ -37,8 +37,8 @@ struct TileDesc {
 };
 
 inline std::ostream &operator<<(std::ostream &os, const TileDesc &v) {
-  os << "{" << v.sample_idx << ", " << v.extent_idx << ", " << volume(v.extent_size) << ", " << volume(v.tile_size)
-     << "}";
+  os << "{" << v.sample_idx << ", " << v.extent_idx << ", " << volume(v.extent_size) << ", "
+     << volume(v.tile_size) << "}";
   return os;
 }
 
@@ -59,6 +59,7 @@ struct OperandData {
   InputSamplePtr data = nullptr;
   DALIDataType dtype = DALI_NO_TYPE;
   TensorShape<> shape{};
+  TensorShape<> strides{};
 };
 
 using ArgPack = SmallVector<OperandData, kMaxArity>;
