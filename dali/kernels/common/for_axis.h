@@ -48,7 +48,7 @@ void ForAxis(OutputType *out_ptr,
               in_ptr + i * in_strides[current_dim],
               out_shape, out_strides,
               in_shape, in_strides,
-              axis, ndim, std::forward<Functor>(func), current_dim+1);
+              axis, ndim, func, current_dim+1);
     }
   }
 }
