@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_IMAGE_DECODER_H_
-#define DALI_IMGCODEC_IMAGE_DECODER_H_
+#ifndef DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
+#define DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 
 #include <memory>
 #include <stdexcept>
@@ -74,6 +74,19 @@ struct ROI {
     return out;
   }
 };
+
+template <typename OutputShape>
+void OutputShape(OutputShape &out_shape,
+                 const ImageInfo &info, const DecodeParams &params, const ROI &roi) {
+  resize_if_possible(out_shape, info.shape);
+  int ndim = info.shape.sample_dim();
+  assert(size(out_shape) == ndim);  // check the size, in case we couldn't resize
+  #error work in progress
+  int num_channels =
+  if (params.planar) {
+    out_shape[0] =
+  }
+}
 
 struct DecodeResult {
   bool success;
@@ -151,16 +164,16 @@ class DLL_PUBLIC ImageDecoderInstance {
   /**
    * @brief Sets a codec-specific parameter
    */
-  virtual void SetParam(const char *key, const any &value) = 0;
+  virtual bool SetParam(const char *key, const any &value) = 0;
   /**
    * @brief Gets a codec-specific parameter
    */
   virtual any GetParam(const char *key) const = 0;
 
   template <typename T>
-  inline enable_if_t<!std::is_same<std::remove_reference_t<T>, any>::value>
-  SetParam(const char *key, T value) {
-    SetParam(key, any(value));
+  inline enable_if_t<!std::is_same<std::remove_reference_t<T>, any>::value, bool>
+  SetParam(const char *key, T &&value) {
+    return SetParam(key, any(std::forward<T>(value)));
   }
 
   template <typename T>
@@ -197,4 +210,4 @@ class DLL_PUBLIC ImageDecoderFactory {
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_IMAGE_DECODER_H_
+#endif  // DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
