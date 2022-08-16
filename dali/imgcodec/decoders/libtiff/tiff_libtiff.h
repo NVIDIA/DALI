@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_TIFF_LIBTIFF_H_
-#define DALI_IMGCODEC_DECODERS_TIFF_LIBTIFF_H_
+#ifndef DALI_IMGCODEC_DECODERS_LIBTIFF_TIFF_LIBTIFF_H_
+#define DALI_IMGCODEC_DECODERS_LIBTIFF_TIFF_LIBTIFF_H_
 
 #include <memory>
 #include "dali/imgcodec/image_decoder.h"
@@ -58,4 +58,4 @@ class LibTiffDecoder : public ImageDecoder {
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_DECODERS_TIFF_LIBTIFF_H_
+#endif  // DALI_IMGCODEC_DECODERS_LIBTIFF_TIFF_LIBTIFF_H_

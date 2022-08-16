@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <tiffio.h>
-#include "dali/imgcodec/decoders/tiff_libtiff.h"
+#include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
 #include "dali/imgcodec/util/convert.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/common/utils.h"
