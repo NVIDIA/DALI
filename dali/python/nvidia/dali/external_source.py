@@ -525,12 +525,22 @@ Keyword Args
     advance and stored in the internal buffer, otherwise parameter is ignored.
 
 `bytes_per_sample_hint`: int, option, default = None
-    If specified in ``parallel=True`` mode, the value is used as a hint when
+    If specified in ``parallel=True`` mode, the value serves as a hint when
     calculating initial capacity of shared memory slots used by the worker processes to pass
-    parallel external source outputs to the pipeline. It may help to avoid reallocation
-    of shared memory during pipeline run, which in turn can improve performance and prevent
-    DALI from overestimation of the needed virtual memory capacity.
+    parallel external source outputs to the pipeline. Setting a value large enough to
+    accommodate the incoming data can prevent DALI from reallocation of shared memory
+    during the pipeline's run. Furthermore, providing the hint manually can prevent DALI from
+    overestimating the necessary shared memory capacity.
+
     The value must be a positive integer.
+    Please note that the samples in shared memory are accompanied by some internal meta-data,
+    thus, the actual demand for the shared memory is slightly higher than just the size
+    of binary data produced by the external source. The actual meta-data size depends on
+    the number of factors and, for example, may change between Python or DALI
+    releases without notice.
+
+    Please refer to pipeline's ``external_source_shm_statistics`` for inspecting how much
+    shared memory is allocated for data produced by the pipeline's parallel external sources.
 """
 
     def __init__(self, source=None, num_outputs=None, *, cycle=None, layout=None, dtype=None,
