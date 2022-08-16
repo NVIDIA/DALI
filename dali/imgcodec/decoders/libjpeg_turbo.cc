@@ -34,7 +34,7 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
   if (out_type == DALI_ANY_DATA) {
     flags.color_space = out_type = info.shape[2] == 3 ? DALI_RGB : DALI_GRAY;
   } else if (out_type == DALI_YCbCr) {
-    flags.color_space = DALI_RGB;
+    flags.color_space = DALI_RGB;  // The conversion will be handled by Convert
   } else {
     assert(out_type == DALI_RGB || out_type == DALI_BGR || out_type == DALI_GRAY);
     flags.color_space = out_type;
