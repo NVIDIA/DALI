@@ -164,7 +164,7 @@ __global__ void ExecuteTiledTernaryOp(const ExtendedTileDesc *tiles) {
       output,
       expression_detail::Pass<IsFirstTensor, Result>(first, tile.args[0].dtype),
       expression_detail::Pass<IsSecondTensor, Result>(second, tile.args[1].dtype),
-      expression_detail::Pass<IsThirdTensor, Result>(third,tile.args[2].dtype),
+      expression_detail::Pass<IsThirdTensor, Result>(third, tile.args[2].dtype),
       tile.args[0].dtype, tile.args[0].dtype, tile.args[0].dtype,
       volume(tile.desc.extent_size));
 }

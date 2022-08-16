@@ -25,14 +25,14 @@ struct Add {
 };
 
 template <typename Operator, typename Out, typename In0, typename In1, int ndim>
-void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out_strides, 
+void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out_strides,
            const In0* in0, const int64_t *in0_shape, const int64_t *in0_strides,
-           const In1* in1, const int64_t *in1_shape, const int64_t *in1_strides, 
+           const In1* in1, const int64_t *in1_shape, const int64_t *in1_strides,
            std::integral_constant<int, ndim>) {
   static_assert(ndim > 1);
   if (*in0_shape > 1 && *in1_shape > 1) {
     for (int64_t i = 0; i < *out_shape; i++) {
-      BinOp(std::forward<Operator>(op), 
+      BinOp(op,
             out, out_shape + 1, out_strides + 1,
             in0, in0_shape + 1, in1_strides + 1,
             in1, in1_shape + 1, in1_strides + 1,
@@ -43,7 +43,7 @@ void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out
     }
   } else if (*in0_shape > 1 && *in1_shape == 1) {
     for (int64_t i = 0; i < *out_shape; i++) {
-      BinOp(std::forward<Operator>(op),
+      BinOp(op,
             out, out_shape + 1, out_strides + 1,
             in0, in0_shape + 1, in1_strides + 1,
             in1, in1_shape + 1, in1_strides + 1,
@@ -53,7 +53,7 @@ void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out
     }
   } else if (*in0_shape == 1 && *in1_shape > 1) {
     for (int64_t i = 0; i < *out_shape; i++) {
-      BinOp(std::forward<Operator>(op),
+      BinOp(op,
             out, out_shape + 1, out_strides + 1,
             in0, in0_shape + 1, in1_strides + 1,
             in1, in1_shape + 1, in1_strides + 1,
@@ -63,7 +63,7 @@ void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out
     }
   } else {
     assert(*in0_shape == 1 && *in1_shape == 1);
-    BinOp(std::forward<Operator>(op), 
+    BinOp(std::forward<Operator>(op),
           out, out_shape + 1, out_strides + 1,
           in0, in0_shape + 1, in1_strides + 1,
           in1, in1_shape + 1, in1_strides + 1,
@@ -72,9 +72,9 @@ void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out
 }
 
 template <typename Operator, typename Out, typename In0, typename In1>
-void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out_strides, 
+void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out_strides,
            const In0* in0, const int64_t *in0_shape, const int64_t *in0_strides,
-           const In1* in1, const int64_t *in1_shape, const int64_t *in1_strides, 
+           const In1* in1, const int64_t *in1_shape, const int64_t *in1_strides,
            std::integral_constant<int, 1>) {
   if (*in0_shape > 1 && *in1_shape > 1) {
     for (int64_t i = 0; i < *out_shape; i++) {
@@ -103,7 +103,7 @@ void BinOp(Operator &&op, Out *out, const int64_t *out_shape, const int64_t *out
 
 
 TEST(ArithmOpBcastTest, Bcast) {
-  uint8_t a[] = {1, 2, 3, 
+  uint8_t a[] = {1, 2, 3,
                  4, 5, 6};
   int64_t a_shape[] = {2, 3};
   int64_t a_strides[] = {3, 1};
@@ -111,7 +111,7 @@ TEST(ArithmOpBcastTest, Bcast) {
   int64_t b_shape[] = {1, 3};
   int64_t b_strides[] = {1, 1};
 
-  uint8_t out[] = {0, 0, 0, 
+  uint8_t out[] = {0, 0, 0,
                    0, 0, 0};
   int64_t out_shape[] = {2, 3};
   int64_t out_strides[] = {3, 1};
@@ -125,7 +125,7 @@ TEST(ArithmOpBcastTest, Bcast) {
   auto ptr = out;
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < 3; j++) {
-      std::cout << " " << (int) *ptr++; 
+      std::cout << " " << static_cast<int>(*ptr++);
     }
     std::cout << "\n";
   }
