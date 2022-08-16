@@ -307,7 +307,6 @@ class DecoderTestBase : public ::testing::Test {
     int channel_dim = ImageLayoutInfo::ChannelDimIndex(layout);
     if (channel_dim == -1) channel_dim = shape.size() - 1;
 
-    // TODO(skarpinski) Don't assume channel-last layout
     int ndim = shape.sample_dim();
     if (roi.begin.size() == ndim - 1) {
       roi.begin = shape_cat(shape_cat(roi.begin.first(channel_dim), 0),
