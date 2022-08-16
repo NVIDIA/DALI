@@ -437,7 +437,7 @@ Parameters
     def external_source_shm_statistics(self):
         """Returns a list of sizes (in bytes) of shared memory slots allocated for data produced
         by the parallel external source. To tune the initial size of the chunks, please refer
-        to external source's `bytes_per_sample_hint` parameter."""
+        to external source's ``bytes_per_sample_hint`` parameter."""
         if self._py_pool is None:
             return []
         return [

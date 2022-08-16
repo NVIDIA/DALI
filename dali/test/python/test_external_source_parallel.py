@@ -732,3 +732,130 @@ def test_permute_dataset():
             for reader_queue_depth in (1, 5):
                 yield _test_permute_dataset, batch_size, epoch_size, trailing_samples, \
                       cb, 4, 1, reader_queue_depth
+
+
+def per_iter_shape_cb(shapes):
+
+    def cb(sample_info):
+        batch_idx = sample_info.iteration
+        shape = shapes[batch_idx % len(shapes)]
+        return np.full(shape, sample_info.idx_in_epoch, dtype=np.uint8)
+
+    return cb
+
+
+def per_iter_shape_pipeline(shapes, py_num_workers=4, batch_size=4, parallel=True,
+                            bytes_per_sample_hint=None):
+    @dali.pipeline_def
+    def pipeline():
+        return dali.fn.external_source(
+            per_iter_shape_cb(shapes),
+            batch=False, parallel=parallel,
+            bytes_per_sample_hint=bytes_per_sample_hint)
+    pipe = pipeline(
+        batch_size=batch_size, py_num_workers=py_num_workers,
+        device_id=0, num_threads=4, py_start_method="spawn")
+    pipe.build()
+    return pipe
+
+
+def test_no_parallel_no_shm():
+    shapes = [(4, 1024, 1024)]
+    pipe = per_iter_shape_pipeline(shapes, parallel=False)
+    for _ in range(5):
+        pipe.run()
+    assert pipe.external_source_shm_statistics() == []
+
+
+def test_default_shm_size():
+    default_shm_size = 1024 * 1024
+    shapes = [(16, 1024, 1024)]
+
+    pipe_default = per_iter_shape_pipeline(shapes)
+    default_sizes = pipe_default.external_source_shm_statistics()
+    assert len(default_sizes) > 0
+    for size in default_sizes:
+        assert size == default_shm_size, (
+            f"Expected initial size to be {default_shm_size}, got {size}.")
+
+    pipe_too_small_hint = per_iter_shape_pipeline(
+        shapes, bytes_per_sample_hint=1024)
+    sizes = pipe_too_small_hint.external_source_shm_statistics()
+    assert len(sizes) > 0
+    for size in sizes:
+        assert size == default_shm_size, (
+            f"Expected initial size to be {default_shm_size}, got {size}.")
+
+
+def test_initial_hint():
+    sample_size = 32 * 1024 * 1024
+    shapes = [(32, 1024, 1024)]
+    # make the initial size still smaller than necessary to check if reallocation works
+    bytes_per_sample_hint = 4 * 1024 * 1024
+    batch_size = 7
+    num_workers = 3
+    min_samples_in_mini_batch = batch_size // num_workers
+    max_samples_in_mini_batch = (batch_size + num_workers - 1) // num_workers
+    initial_shm_size = max_samples_in_mini_batch * bytes_per_sample_hint
+    expected_min_chunk_size = min_samples_in_mini_batch * sample_size
+
+    pipe = per_iter_shape_pipeline(
+        shapes, bytes_per_sample_hint=bytes_per_sample_hint,
+        batch_size=batch_size, py_num_workers=num_workers)
+    sizes = pipe.external_source_shm_statistics()
+    assert len(sizes) > 0
+    for size in sizes:
+        assert size == initial_shm_size, (
+            f"Expected initial size to be {initial_shm_size}, got {size}.")
+
+    for _ in range(5):
+        pipe.run()
+
+    sizes = pipe.external_source_shm_statistics()
+    assert len(sizes) > 0
+    for size in sizes:
+        assert size >= expected_min_chunk_size, (
+            f"Expected the size to be at least {expected_min_chunk_size}, got {size}.")
+
+
+def test_variable_sample_size():
+    shapes = [(31, 1024, 1024), (32, 1024, 1024)]
+    # make the initial enough to hold samples of any of the two shapes
+    bytes_per_sample_hint = 32 * 1024 * 1024
+    # add some extra bytes to accommodate meta-data (we purposely do not stipulate
+    # the exact number, as 1. we may want to modify the exact meta-data stored,
+    # 2. they are pickled, so that could change with pickle itself)
+    bytes_per_sample_hint += 4096
+    batch_size = 8
+    num_workers = 4
+    max_samples_in_mini_batch = batch_size // num_workers
+    initial_shm_size = max_samples_in_mini_batch * bytes_per_sample_hint
+
+    pipe = per_iter_shape_pipeline(
+        shapes, bytes_per_sample_hint=bytes_per_sample_hint,
+        batch_size=batch_size, py_num_workers=num_workers)
+    no_hint_pipe = per_iter_shape_pipeline(
+        shapes, batch_size=batch_size, py_num_workers=num_workers)
+    sizes = pipe.external_source_shm_statistics()
+    assert len(sizes) > 0
+    for size in sizes:
+        assert size == initial_shm_size, (
+            f"Expected initial size to be {initial_shm_size}, got {size}.")
+
+    for _ in range(5):
+        pipe.run()
+        no_hint_pipe.run()
+
+    sizes = pipe.external_source_shm_statistics()
+    assert len(sizes) > 0
+    for size in sizes:
+        assert size >= initial_shm_size, (
+            f"Expected the size to be unchanged and equal {initial_shm_size}, got {size}.")
+
+    # This demonstrates that providing a hint can improve memory usage, but if one day
+    # DALI changes strategy of dynamic shm reallocation it can be simply removed
+    no_hint_pipe_shm_size = min(no_hint_pipe.external_source_shm_statistics())
+    sizes = pipe.external_source_shm_statistics()
+    for size in sizes:
+        assert size < no_hint_pipe_shm_size, (
+            f"Expected the size to be less than {no_hint_pipe_shm_size}, got {size}.")
