@@ -81,7 +81,9 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
     return ret;
   }
 
-  void SetParam(const char*, const any &) override {}
+  bool SetParam(const char*, const any &) override {
+    return false;
+  }
 
   any GetParam(const char *key) const override {
     return {};
