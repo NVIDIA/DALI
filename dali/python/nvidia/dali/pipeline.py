@@ -434,6 +434,13 @@ Parameters
             raise RuntimeError("Pipeline must be built first.")
         return self._pipe.executor_statistics()
 
+    def external_source_shm_statistics(self):
+        """Returns a list of sizes of shared memory chunks allocated for data produced
+        by parallel external source."""
+        if self._py_pool is None:
+            return []
+        return [shm for context in self._py_pool.contexts for shm in context.shm_manager.shm_pool]
+
     def reader_meta(self, name=None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides
         a dictionary with data for all readers as {reader_name : meta}
