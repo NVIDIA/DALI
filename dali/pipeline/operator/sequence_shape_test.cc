@@ -290,7 +290,8 @@ template <typename Backend>
 class SequenceShapeBroadcastTest;
 
 template <typename Backend, typename BoolType>
-class SequenceShapeBroadcastTest<std::pair<TensorVector<Backend>, BoolType>> : public ::testing::Test {
+class SequenceShapeBroadcastTest<std::pair<TensorVector<Backend>, BoolType>>
+    : public ::testing::Test {
  protected:
   static constexpr auto kContiguous = BoolType::value;
   template <typename Dummy>
