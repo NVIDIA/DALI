@@ -400,7 +400,7 @@ void CompareWithNumber(ConstSampleView<GPUBackend> sample, T number) {
 template <typename Backend>
 Tensor<Backend> ReturnTvAsTensor(uint8_t number) {
   TensorVector<Backend> tv;
-  tv.SetContiguity(true);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   tv.Resize(uniform_list_shape(4, {1, 2, 3}), DALI_UINT8);
   tv.SetLayout("HWC");
   FillWithNumber(tv, number);
@@ -769,7 +769,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
 TYPED_TEST(TensorVectorSuite, TensorVectorAsTensorAccess) {
   TensorVector<TypeParam> tv;
   constexpr uint8_t kMagicNumber = 42;
-  tv.SetContiguity(true);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   auto shape = TensorListShape<>{{1, 2, 3}, {1, 2, 4}};
   tv.Resize(shape, DALI_INT32);
   EXPECT_TRUE(tv.IsContiguousInMemory());
@@ -810,7 +810,7 @@ TYPED_TEST(TensorVectorSuite, TensorVectorAsTensorAccess) {
 
 TYPED_TEST(TensorVectorSuite, EmptyTensorVectorAsTensorAccess) {
   TensorVector<TypeParam> tv;
-  tv.SetContiguity(true);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   tv.set_type(DALI_INT32);
   EXPECT_TRUE(tv.IsContiguousInMemory());
   EXPECT_TRUE(tv.IsDenseTensor());
@@ -852,7 +852,7 @@ TYPED_TEST(TensorVectorSuite, EmptyTensorVectorAsTensorAccess) {
 
 TYPED_TEST(TensorVectorSuite, EmptyTensorVectorWithDimAsTensorAccess) {
   TensorVector<TypeParam> tv;
-  tv.SetContiguity(true);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   tv.set_type(DALI_INT32);
   EXPECT_TRUE(tv.IsContiguousInMemory());
   EXPECT_TRUE(tv.IsDenseTensor());

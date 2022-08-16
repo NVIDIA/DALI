@@ -23,6 +23,7 @@
 
 #include "dali/core/access_order.h"
 #include "dali/core/common.h"
+#include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
@@ -51,7 +52,7 @@ template <typename TypeParam>
 class TensorVectorTest : public DALITest {
  public:
   using Backend = std::tuple_element_t<0, TypeParam>;
-  static constexpr bool kState = std::tuple_element_t<1, TypeParam>::value;
+  static constexpr auto kContiguity = std::tuple_element_t<1, TypeParam>::value;
 
   TensorListShape<> GetRandShape() {
     int num_tensor = this->RandInt(1, 64);
@@ -110,12 +111,21 @@ class TensorVectorTest : public DALITest {
       ASSERT_EQ(tensor_list->tensor_shape(i), shape[i]);
     }
   }
+
+  BatchContiguity inverse(BatchContiguity contiguity) {
+    DALI_ENFORCE(contiguity != BatchContiguity::Automatic,
+                 "This tests don't support BatchContiguity::Automatic");
+    return contiguity == BatchContiguity::Contiguous ? BatchContiguity::Noncontiguous :
+                                                       BatchContiguity::Contiguous;
+  }
 };
 
 // Pairs of BackendType, ContiguousOption to be used in tests
-using TensorVectorBackendContiguous =
-    ::testing::Types<std::pair<CPUBackend, std::true_type>, std::pair<CPUBackend, std::false_type>,
-                     std::pair<GPUBackend, std::true_type>, std::pair<GPUBackend, std::false_type>>;
+using TensorVectorBackendContiguous = ::testing::Types<
+    std::pair<CPUBackend, std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>,
+    std::pair<CPUBackend, std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>,
+    std::pair<GPUBackend, std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>,
+    std::pair<GPUBackend, std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>>;
 
 TYPED_TEST_SUITE(TensorVectorTest, TensorVectorBackendContiguous);
 
@@ -132,7 +142,7 @@ TYPED_TEST_SUITE(TensorVectorTest, TensorVectorBackendContiguous);
 TYPED_TEST(TensorVectorTest, TestGetTypeSizeBytes) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetContiguity(this->kState);
+  tl.SetContiguity(this->kContiguity);
 
   // Give the tensor a type
   tl.template set_type<float>();
@@ -217,7 +227,7 @@ TYPED_TEST(TensorVectorTest, TestReserveResize) {
 TYPED_TEST(TensorVectorTest, TestResizeWithoutType) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetContiguity(this->kState);
+  tl.SetContiguity(this->kContiguity);
 
   // Give the tensor a size - setting shape on non-typed TL is invalid and results in an error
   auto shape = this->GetRandShape();
@@ -228,7 +238,7 @@ TYPED_TEST(TensorVectorTest, TestSetNoType) {
   // After type is set we cannot revert to DALI_NO_TYPE
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetContiguity(this->kState);
+  tl.SetContiguity(this->kContiguity);
 
   tl.set_type(DALI_FLOAT);
   ASSERT_THROW(tl.set_type(DALI_NO_TYPE), std::runtime_error);
@@ -261,10 +271,10 @@ TYPED_TEST(TensorVectorTest, TestGetContiguousPointer) {
 TYPED_TEST(TensorVectorTest, TestGetBytesThenAccess) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetContiguity(this->kState);
+  tl.SetContiguity(this->kContiguity);
   TensorVector<Backend> sharers[2];
-  sharers[0].SetContiguity(this->kState);
-  sharers[1].SetContiguity(!this->kState);
+  sharers[0].SetContiguity(this->kContiguity);
+  sharers[1].SetContiguity(this->inverse(this->kContiguity));
 
   // Allocate the sharer
   for (auto &sharer : sharers) {
@@ -304,7 +314,7 @@ TYPED_TEST(TensorVectorTest, TestGetBytesThenAccess) {
 TYPED_TEST(TensorVectorTest, TestZeroSizeResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   TensorListShape<> shape;
   tensor_list.template set_type<float>();
@@ -319,7 +329,7 @@ TYPED_TEST(TensorVectorTest, TestZeroSizeResize) {
 TYPED_TEST(TensorVectorTest, TestMultipleZeroSizeResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   int num_tensor = this->RandInt(0, 128);
   auto shape = uniform_list_shape(num_tensor, TensorShape<>{ 0 });
@@ -341,7 +351,7 @@ TYPED_TEST(TensorVectorTest, TestMultipleZeroSizeResize) {
 TYPED_TEST(TensorVectorTest, TestFakeScalarResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   int num_scalar = this->RandInt(1, 128);
   auto shape = uniform_list_shape(num_scalar, {1});  // {1} on purpose
@@ -362,7 +372,7 @@ TYPED_TEST(TensorVectorTest, TestFakeScalarResize) {
 TYPED_TEST(TensorVectorTest, TestTrueScalarResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   int num_scalar = this->RandInt(1, 128);
   auto shape = uniform_list_shape(num_scalar, TensorShape<>{});
@@ -383,7 +393,7 @@ TYPED_TEST(TensorVectorTest, TestTrueScalarResize) {
 TYPED_TEST(TensorVectorTest, TestResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   // Setup shape and offsets
   auto shape = this->GetRandShape();
@@ -396,7 +406,7 @@ TYPED_TEST(TensorVectorTest, TestResize) {
 TYPED_TEST(TensorVectorTest, TestMultipleResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   int rand = this->RandInt(1, 20);
   TensorListShape<> shape;
@@ -431,7 +441,7 @@ TYPED_TEST(TensorVectorTest, TestMultipleResize) {
 TYPED_TEST(TensorVectorTest, TestCopy) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetContiguity(this->kState);
+  tl.SetContiguity(this->kContiguity);
 
   tl.template set_type<float>();
 
@@ -444,8 +454,8 @@ TYPED_TEST(TensorVectorTest, TestCopy) {
   tl.SetLayout(std::string(shape.sample_dim(), 'X'));
 
   TensorVector<Backend> tl2s[2];
-  tl2s[0].SetContiguity(this->kState);
-  tl2s[1].SetContiguity(!this->kState);
+  tl2s[0].SetContiguity(this->kContiguity);
+  tl2s[1].SetContiguity(this->inverse(this->kContiguity));
   for (auto &tl2 : tl2s) {
     tl2.Copy(tl);
 
@@ -465,14 +475,14 @@ TYPED_TEST(TensorVectorTest, TestCopy) {
 TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetContiguity(this->kState);
+  tl.SetContiguity(this->kContiguity);
 
   tl.template set_type<float>();
   tl.SetLayout("XX");
 
   TensorVector<Backend> tl2s[2];
-  tl2s[0].SetContiguity(this->kState);
-  tl2s[1].SetContiguity(!this->kState);
+  tl2s[0].SetContiguity(this->kContiguity);
+  tl2s[1].SetContiguity(this->inverse(this->kContiguity));
   for (auto &tl2 : tl2s) {
     tl2.Copy(tl);
     ASSERT_EQ(tl.num_samples(), tl2.num_samples());
@@ -485,7 +495,7 @@ TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
 TYPED_TEST(TensorVectorTest, TestTypeChangeError) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
   auto shape = this->GetRandShape();
 
   tensor_list.set_type(DALI_UINT8);
@@ -504,7 +514,7 @@ TYPED_TEST(TensorVectorTest, TestTypeChangeError) {
 TYPED_TEST(TensorVectorTest, TestTypeChange) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   // Setup shape and offsets
   auto shape = this->GetRandShape();
@@ -514,7 +524,8 @@ TYPED_TEST(TensorVectorTest, TestTypeChange) {
 
   DALIDataType initial_type = DALI_FLOAT;
   std::array<DALIDataType, 4> types = {DALI_FLOAT, DALI_INT32, DALI_UINT8, DALI_FLOAT64};
-  const auto *base_ptr = this->kState ? unsafe_raw_data(tensor_list) : nullptr;
+  const auto *base_ptr =
+      this->kContiguity == BatchContiguity::Contiguous ? unsafe_raw_data(tensor_list) : nullptr;
   size_t nbytes = shape.num_elements() * sizeof(float);
 
   // Save the pointers
@@ -542,7 +553,7 @@ TYPED_TEST(TensorVectorTest, TestTypeChange) {
 
     // The side-effects of only reallocating when we need a bigger buffer, we may use padding
     if (TypeTable::GetTypeInfo(new_type).size() <= TypeTable::GetTypeInfo(initial_type).size()) {
-      if (this->kState) {
+      if (this->kContiguity == BatchContiguity::Contiguous) {
         ASSERT_EQ(unsafe_raw_data(tensor_list), base_ptr);
       } else {
         for (int i = 0; i < tensor_list.num_samples(); ++i) {
@@ -594,7 +605,7 @@ TYPED_TEST(TensorVectorTest, DeviceIdPropagationMultiGPU) {
 TYPED_TEST(TensorVectorTest, TestShareData) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetContiguity(this->kState);
+  tensor_list.SetContiguity(this->kContiguity);
 
   // Setup shape and offsets
   auto shape = this->GetRandShape();
@@ -604,8 +615,8 @@ TYPED_TEST(TensorVectorTest, TestShareData) {
 
   // Create a new tensor_list w/ a smaller data type
   TensorVector<Backend> tensor_lists[2];
-  tensor_lists[0].SetContiguity(this->kState);
-  tensor_lists[1].SetContiguity(!this->kState);
+  tensor_lists[0].SetContiguity(this->kContiguity);
+  tensor_lists[1].SetContiguity(this->inverse(this->kContiguity));
 
   for (auto &tensor_list2 : tensor_lists) {
     // Share the data

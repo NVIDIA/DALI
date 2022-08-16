@@ -38,7 +38,7 @@ class GPUBackend;
 class CPUBackend;
 
 /**
- * @brief State of a batch object. Can be used to pin the state to one of the two contiguous /
+ * @brief State of a batch object. Can be used to force the state to one of the two contiguous /
  * noncontiguous modes or to change the mode when resizing, if it was not pinned.
  * See TensorVector::Resize for detailed behaviour.
  * * Automatic - means we are leaving it to the Batch to decide when to coalesce the allocation,

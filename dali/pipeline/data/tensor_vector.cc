@@ -30,14 +30,14 @@ namespace {
  * @brief Check if both shared pointers have the same managed pointer (not the one returned by
  * .get())
  */
-bool same_owner(const std::shared_ptr<void> &x, const std::shared_ptr<void> &y) {
+bool has_same_owner(const std::shared_ptr<void> &x, const std::shared_ptr<void> &y) {
   if (x.owner_before(y) || y.owner_before(x))
     return false;
   return true;
 }
 
 
-bool same_owner(const std::weak_ptr<void> &x, const std::shared_ptr<void> &y) {
+bool has_same_owner(const std::weak_ptr<void> &x, const std::shared_ptr<void> &y) {
   if (x.owner_before(y) || y.owner_before(x))
     return false;
   return true;
@@ -204,7 +204,8 @@ TensorVector<Backend>::TensorVector(int batch_size) : curr_num_tensors_(0) {
   // We don't use negative batch size through DALI, and by default we wanted batch to
   // not do any initial allocation unless actual shape is provided.
   // As the -1 and 0 sample dims (the latter being reserved for scalar case already),
-  // we use `dim=1` and end up with samples of shape {0}.
+  // are not widely supported within DALI codebase, we use `dim=1` and end up with samples
+  // of shape {0}.
   set_sample_dim(1);
   resize_tensors(batch_size);
 }
@@ -240,10 +241,10 @@ TensorVector<Backend> &TensorVector<Backend>::operator=(TensorVector<Backend> &&
 
 
 template <typename Backend>
-void TensorVector<Backend>::VerifySampleShareConformance(DALIDataType type, int sample_dim,
-                                                         TensorLayout layout, bool pinned,
-                                                         AccessOrder order, int device_id,
-                                                         const std::string &error_suffix) {
+void TensorVector<Backend>::VerifySampleShareCompatibility(DALIDataType type, int sample_dim,
+                                                           TensorLayout layout, bool pinned,
+                                                           AccessOrder order, int device_id,
+                                                           const std::string &error_suffix) {
   // Checks in the order of class members
   DALI_ENFORCE(this->type() == type,
                make_string("Sample must have the same type as the target batch, current: ",
@@ -281,10 +282,10 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const TensorVector<B
   MakeNoncontiguous();
   if (&src.tensors_[src_sample_idx] == &tensors_[sample_idx])
     return;
-  VerifySampleShareConformance(src.type(), src.shape().sample_dim(), src.GetLayout(),
-                               src.is_pinned(), src.order(), src.device_id(),
-                               make_string(" for source sample idx: ", src_sample_idx,
-                                           " and target sample idx: ", sample_idx, "."));
+  VerifySampleShareCompatibility(src.type(), src.shape().sample_dim(), src.GetLayout(),
+                                 src.is_pinned(), src.order(), src.device_id(),
+                                 make_string(" for source sample idx: ", src_sample_idx,
+                                             " and target sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, src.shape().tensor_shape_span(src_sample_idx));
 
@@ -304,9 +305,9 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
-  VerifySampleShareConformance(owner.type(), owner.shape().sample_dim(), owner.GetLayout(),
-                               owner.is_pinned(), owner.order(), owner.device_id(),
-                               make_string(" for sample idx: ", sample_idx, "."));
+  VerifySampleShareCompatibility(owner.type(), owner.shape().sample_dim(), owner.GetLayout(),
+                                 owner.is_pinned(), owner.order(), owner.device_id(),
+                                 make_string(" for sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, owner.shape());
 
@@ -329,8 +330,8 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
-  VerifySampleShareConformance(type, shape.sample_dim(), layout, pinned, order, device_id,
-                               make_string(" for sample idx: ", sample_idx, "."));
+  VerifySampleShareCompatibility(type, shape.sample_dim(), layout, pinned, order, device_id,
+                                 make_string(" for sample idx: ", sample_idx, "."));
 
   DALI_ENFORCE(!IsContiguous());
   shape_.set_tensor_shape(sample_idx, shape);
@@ -346,11 +347,11 @@ void TensorVector<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<voi
 
 
 template <typename Backend>
-void TensorVector<Backend>::VerifySampleCopyConformance(DALIDataType type, int sample_dim,
-                                                        TensorLayout layout,
-                                                        const TensorShape<> &current_shape,
-                                                        const TensorShape<> &new_shape,
-                                                        const std::string &error_suffix) {
+void TensorVector<Backend>::VerifySampleCopyCompatibility(DALIDataType type, int sample_dim,
+                                                          TensorLayout layout,
+                                                          const TensorShape<> &current_shape,
+                                                          const TensorShape<> &new_shape,
+                                                          const std::string &error_suffix) {
   // Checks in the order of class members
   DALI_ENFORCE(this->type() == type,
                make_string("Sample must have the same type as the target batch, current: ",
@@ -381,10 +382,10 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const TensorVector<
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
-  VerifySampleCopyConformance(src.type(), src.shape().sample_dim(), src.GetLayout(),
-                              shape()[sample_idx], src.shape()[src_sample_idx],
-                              make_string(" for source sample idx: ", src_sample_idx,
-                                          " and target sample idx: ", sample_idx, "."));
+  VerifySampleCopyCompatibility(src.type(), src.shape().sample_dim(), src.GetLayout(),
+                                shape()[sample_idx], src.shape()[src_sample_idx],
+                                make_string(" for source sample idx: ", src_sample_idx,
+                                            " and target sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, src.shape()[src_sample_idx]);
   tensors_[sample_idx].Copy(src.tensors_[src_sample_idx], order);
@@ -399,9 +400,9 @@ void TensorVector<Backend>::UnsafeCopySample(int sample_idx, const Tensor<Backen
                                              AccessOrder order) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
-  VerifySampleCopyConformance(src.type(), src.shape().sample_dim(), src.GetLayout(),
-                              shape()[sample_idx], src.shape(),
-                              make_string(" for sample idx: ", sample_idx, "."));
+  VerifySampleCopyCompatibility(src.type(), src.shape().sample_dim(), src.GetLayout(),
+                                shape()[sample_idx], src.shape(),
+                                make_string(" for sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, src.shape());
   tensors_[sample_idx].Copy(src, order);
@@ -734,6 +735,12 @@ bool TensorVector<Backend>::IsContiguous() const noexcept {
 
 
 template <typename Backend>
+BatchContiguity TensorVector<Backend>::GetContiguity() const noexcept {
+  return state_.Get();
+}
+
+
+template <typename Backend>
 void TensorVector<Backend>::recreate_views() {
   // precondition: type, shape are configured
   uint8_t *sample_ptr = static_cast<uint8_t *>(contiguous_buffer_.raw_mutable_data());
@@ -761,12 +768,6 @@ void TensorVector<Backend>::SetContiguity(BatchContiguity state) {
   DALI_ENFORCE(state_.Get() == state || !has_data(),
                "Contiguous or non-contiguous mode cannot be set to already allocated buffer.");
   state_.Setup(state, true);
-}
-
-
-template <typename Backend>
-void TensorVector<Backend>::SetContiguity(bool contiguous) {
-  SetContiguity(contiguous ? BatchContiguity::Contiguous : BatchContiguity::Noncontiguous);
 }
 
 
@@ -800,7 +801,7 @@ void TensorVector<Backend>::DoMakeNoncontiguous() {
     // This will allow for the individual buffers to be resized.
     // The downside of this is we may keep the big contiguous buffer until all individual
     // samples are replaced.
-    if (same_owner(buffer_bkp_, t.data_)) {
+    if (has_same_owner(buffer_bkp_, t.data_)) {
       t.detach();
     }
   }
@@ -1143,8 +1144,8 @@ bool TensorVector<Backend>::shares_data() const {
     return contiguous_buffer_.shares_data();
   }
   for (const auto &tensor : tensors_) {
-    if (tensor.shares_data() && !same_owner(contiguous_buffer_.get_data_ptr(),
-                                            tensor.get_data_ptr())) {
+    if (tensor.shares_data() &&
+        !has_same_owner(contiguous_buffer_.get_data_ptr(), tensor.get_data_ptr())) {
       return true;
     }
   }

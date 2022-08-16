@@ -144,7 +144,8 @@ template <typename ContainerContiguous>
 class SequenceShapeUnfoldTest : public ::testing::Test {
  protected:
   using Container = std::tuple_element_t<0, ContainerContiguous>;
-  static constexpr bool kContiguous = std::tuple_element_t<1, ContainerContiguous>::value;
+  static constexpr auto kContiguous = std::tuple_element_t<1, ContainerContiguous>::value;
+
   std::tuple<Container, std::shared_ptr<Container>> CreateTestBatch(
       DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
       TensorListShape<> shape = {{3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
@@ -194,12 +195,19 @@ class SequenceShapeUnfoldTest : public ::testing::Test {
   }
 };
 
-using Containers = ::testing::Types<std::pair<TensorVector<CPUBackend>, std::true_type>,
-                                    std::pair<TensorVector<CPUBackend>, std::false_type>,
-                                    std::pair<TensorVector<GPUBackend>, std::true_type>,
-                                    std::pair<TensorVector<GPUBackend>, std::false_type>,
-                                    std::pair<TensorList<CPUBackend>, std::false_type>,
-                                    std::pair<TensorList<GPUBackend>, std::false_type>>;
+using Containers = ::testing::Types<
+    std::pair<TensorVector<CPUBackend>,
+              std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>,
+    std::pair<TensorVector<CPUBackend>,
+              std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>,
+    std::pair<TensorVector<GPUBackend>,
+              std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>,
+    std::pair<TensorVector<GPUBackend>,
+              std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>,
+    std::pair<TensorList<CPUBackend>,
+              std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>,
+    std::pair<TensorList<GPUBackend>,
+              std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>>;
 
 TYPED_TEST_SUITE(SequenceShapeUnfoldTest, Containers);
 
@@ -281,9 +289,10 @@ TYPED_TEST(SequenceShapeUnfoldTest, Unfold3Extents) {
 template <typename Backend>
 class SequenceShapeBroadcastTest;
 
-template <typename Backend>
-class SequenceShapeBroadcastTest<TensorVector<Backend>> : public ::testing::Test {
+template <typename Backend, typename BoolType>
+class SequenceShapeBroadcastTest<std::pair<TensorVector<Backend>, BoolType>> : public ::testing::Test {
  protected:
+  static constexpr auto kContiguous = BoolType::value;
   template <typename Dummy>
   std::tuple<TensorVector<Backend>, std::shared_ptr<TensorVector<Backend>>> CreateTestBatch(
       DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
@@ -292,6 +301,7 @@ class SequenceShapeBroadcastTest<TensorVector<Backend>> : public ::testing::Test
     constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
     batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
     batch.set_pinned(is_pinned);
+    batch.SetContiguity(kContiguous);
     batch.Resize(shape, dtype);
     if (!layout.empty()) {
       batch.SetLayout(layout);
@@ -375,8 +385,8 @@ class TensorListBroadcastTestBase<GPUBackend> {
 };
 
 
-template <typename Backend>
-class SequenceShapeBroadcastTest<TensorList<Backend>>
+template <typename Backend, typename BoolType>
+class SequenceShapeBroadcastTest<std::pair<TensorList<Backend>, BoolType>>
     : public ::testing::Test, public TensorListBroadcastTestBase<Backend> {
  protected:
   template <typename T>

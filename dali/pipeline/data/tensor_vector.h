@@ -145,7 +145,7 @@ class DLL_PUBLIC TensorVector {
 
   /**
    * @name Sample access
-   * @{}
+   * @{
    */
   /**
    * @brief Get the view for the sample at given position
@@ -161,7 +161,7 @@ class DLL_PUBLIC TensorVector {
    * @brief Returns a typed pointer to the tensor with the given index.
    */
   template <typename T>
-  DLL_PUBLIC inline T* mutable_tensor(int idx) {
+  DLL_PUBLIC inline T *mutable_tensor(int idx) {
     return tensors_[idx].template mutable_data<T>();
   }
 
@@ -169,22 +169,22 @@ class DLL_PUBLIC TensorVector {
    * @brief Returns a const typed pointer to the tensor with the given index.
    */
   template <typename T>
-  DLL_PUBLIC inline const T* tensor(int idx) const {
+  DLL_PUBLIC inline const T *tensor(int idx) const {
     return tensors_[idx].template data<T>();
   }
 
   /**
    * @brief Returns a raw pointer to the tensor with the given index.
    */
-  DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
+  DLL_PUBLIC inline void *raw_mutable_tensor(int idx) {
     return tensors_[idx].raw_mutable_data();
   }
 
   /**
    * @brief Returns a const raw pointer to the tensor with the given index.
    */
-  DLL_PUBLIC inline const void* raw_tensor(int idx) const {
-    return  tensors_[idx].raw_data();
+  DLL_PUBLIC inline const void *raw_tensor(int idx) const {
+    return tensors_[idx].raw_data();
   }
   /** @} */
 
@@ -290,13 +290,13 @@ class DLL_PUBLIC TensorVector {
 
   /**
    * @brief Get the type of samples in the batch.
-   *
-   * @note Using DALIDataType is recommended over accessing type_info().
    */
   DALIDataType type() const;
 
   /**
    * @brief Get the TypeInfo of samples in the batch.
+   *
+   * @note Using DALIDataType via type() is recommended over accessing type_info().
    */
   const TypeInfo &type_info() const;
   /** @} */
@@ -398,11 +398,9 @@ class DLL_PUBLIC TensorVector {
   void SetContiguity(BatchContiguity state);
 
   /**
-   * @brief Set the contiguity state for further allocations. Convenient overload accepting boolean.
-   *
-   * @param contiguous - pins the state to either Contiguous (true) or Noncontiguous (false)
+   * @brief Check the batch contiguity state.
    */
-  void SetContiguity(bool contiguous);
+  BatchContiguity GetContiguity() const noexcept;
 
   /**
    * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.
@@ -507,11 +505,14 @@ class DLL_PUBLIC TensorVector {
   TensorLayout GetLayout() const;
 
   /**
-   * @brief Set uniform layout for all samples in the batch
+   * @brief Set cache metadata for given sample
    */
   void SetSkipSample(int idx, bool skip_sample);
 
-  void SetSourceInfo(int idx, const std::string& source_info);
+  /**
+   * @brief Set source information for given sample
+   */
+  void SetSourceInfo(int idx, const std::string &source_info);
 
   /**
    * @brief Get the metadata for given sample
@@ -566,8 +567,8 @@ class DLL_PUBLIC TensorVector {
     State(BatchContiguity state, bool forced) {
       Setup(state, forced);
     }
-    State(const State&) = default;
-    State &operator=(const State&) = default;
+    State(const State &) = default;
+    State &operator=(const State &) = default;
 
     /**
      * @brief Override current state.
@@ -632,18 +633,18 @@ class DLL_PUBLIC TensorVector {
                              int data_idx, int thread_idx);
   friend void FixBatchPropertiesConsistency(class HostWorkspace &ws, bool contiguous);
 
-  auto& tensor_handle(size_t pos) {
+  auto &tensor_handle(size_t pos) {
     return tensors_[pos];
   }
 
-  auto& tensor_handle(size_t pos) const {
+  auto &tensor_handle(size_t pos) const {
     return tensors_[pos];
   }
 
   template <typename T>
   void SetupLikeImpl(const T &other) {
     DALI_ENFORCE(!has_data(),
-                "Batch object can be initialized this way only when it isn't allocated.");
+                 "Batch object can be initialized this way only when it isn't allocated.");
     set_type(other.type());
     set_sample_dim(other.shape().sample_dim());
     SetLayout(other.GetLayout());
@@ -682,9 +683,9 @@ class DLL_PUBLIC TensorVector {
    *
    * @param error_suffix Additional description added to the error message
    */
-  void VerifySampleShareConformance(DALIDataType type, int sample_dim, TensorLayout layout,
-                                    bool pinned, AccessOrder order, int device_id,
-                                    const std::string &error_suffix = ".");
+  void VerifySampleShareCompatibility(DALIDataType type, int sample_dim, TensorLayout layout,
+                                      bool pinned, AccessOrder order, int device_id,
+                                      const std::string &error_suffix = ".");
 
   /**
    * @brief Check if the metadata provided for new sample match the ones currently set for the batch
@@ -696,10 +697,10 @@ class DLL_PUBLIC TensorVector {
    *
    * @param error_suffix Additional description added to the error message
    */
-  void VerifySampleCopyConformance(DALIDataType type, int sample_dim, TensorLayout layout,
-                                   const TensorShape<> &current_shape,
-                                   const TensorShape<> &new_shape,
-                                   const std::string &error_suffix = ".");
+  void VerifySampleCopyCompatibility(DALIDataType type, int sample_dim, TensorLayout layout,
+                                     const TensorShape<> &current_shape,
+                                     const TensorShape<> &new_shape,
+                                     const std::string &error_suffix = ".");
 
   // Memory backing
   Buffer<Backend> contiguous_buffer_;
@@ -735,7 +736,7 @@ class DLL_PUBLIC TensorVector {
    */
   /**
    * @brief Return an un-typed pointer to the underlying storage.
-   * The TensorList must be either empty or have a valid type and be contiguous.
+   * The TensorVector must be either empty or have a valid type and be contiguous.
    */
   friend void *unsafe_raw_mutable_data(TensorVector<Backend> &batch) {
     DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
