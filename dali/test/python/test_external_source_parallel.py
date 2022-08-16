@@ -823,8 +823,10 @@ def test_variable_sample_size():
     # make the initial enough to hold samples of any of the two shapes
     bytes_per_sample_hint = 32 * 1024 * 1024
     # add some extra bytes to accommodate meta-data (we purposely do not stipulate
-    # the exact number, as 1. we may want to modify the exact meta-data stored,
-    # 2. they are pickled, so that could change with pickle itself)
+    # the exact number in the docs, as
+    # 1. we may want to modify the exact meta-data stored,
+    # 2. they are pickled, so the serialized data size could change with pickle itself,
+    # 3. there are things like idx_in_epoch serialized that are truly unbound in Python)
     bytes_per_sample_hint += 4096
     batch_size = 8
     num_workers = 4
