@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages='jupyter matplotlib==3.5.2 numpy'
+pip_packages='jupyter matplotlib<3.5.3 numpy'
 target_dir=./docs/examples/general
 
 test_body() {
