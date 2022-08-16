@@ -103,7 +103,7 @@ void ForEachBlock(TensorShape<ndim> start, TensorShape<ndim> end, const SplitFac
   }
 
   if (split_factor[d] == 1) {
-    ForEachBlock(start, end, split_factor, d + 1, max_split_dim, std::forward<OnBlockFunc>(func));
+    ForEachBlock(start, end, split_factor, d + 1, max_split_dim, func);
   } else {
     int64_t start_d = start[d];
     int64_t extent_d = end[d] - start_d;

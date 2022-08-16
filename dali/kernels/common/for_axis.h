@@ -40,8 +40,8 @@ void ForAxis(OutputType *out_ptr,
   }
 
   if (axis == current_dim) {
-    ForAxis(out_ptr, in_ptr, out_shape, out_strides, in_shape, in_strides,
-            axis, ndim, std::forward<Functor>(func), current_dim+1);
+    ForAxis(out_ptr, in_ptr, out_shape, out_strides, in_shape, in_strides, axis, ndim, func,
+            current_dim + 1);
   } else {
     for (int i = 0; i < in_shape[current_dim]; i++) {
       ForAxis(out_ptr + i * out_strides[current_dim],

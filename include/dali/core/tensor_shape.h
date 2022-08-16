@@ -1194,7 +1194,7 @@ void collapse_dims(span<int64_t> result, span<const int64_t> shape, const DimGro
   int out_dim = result.size();
   int in_d = 0;
   int out_d = 0;
-  for (const auto& group : dim_groups) {
+  for (auto group : dim_groups) {
     assert(group.first >= in_d && "dim_groups not sorted");
     while (in_d < group.first) {
       result[out_d++] = shape[in_d++];

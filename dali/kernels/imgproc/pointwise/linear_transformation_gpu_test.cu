@@ -96,7 +96,7 @@ class LinearTransformationGpuTest : public ::testing::Test {
 
   size_t dataset_size(const std::vector<TensorShape<kNDims>> &shapes) {
     int ret = 0;
-    for (const auto& sh : shapes) {
+    for (const auto &sh : shapes) {
       ret += volume(sh);
     }
     return ret;
