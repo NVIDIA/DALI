@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # used pip packages
-pip_packages='jupyter matplotlib==3.5.2 paddlepaddle-gpu'
+pip_packages='jupyter matplotlib<3.5.3 paddlepaddle-gpu'
 target_dir=./docs/examples/
 
 do_once() {

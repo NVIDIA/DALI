@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='numpy pillow torch torchvision mlperf_compliance matplotlib==3.5.2 Cython pycocotools'
+pip_packages='numpy pillow torch torchvision mlperf_compliance matplotlib<3.5.3 Cython pycocotools'
 target_dir=./docs/examples/use_cases/pytorch/single_stage_detector/
 
 test_body() {
@@ -31,4 +31,3 @@ test_body() {
 pushd ../..
 source ./qa/test_template.sh
 popd
-
