@@ -27,6 +27,13 @@
 namespace dali {
 namespace imgcodec {
 
+namespace {
+template <typename MemoryKind>
+void *GetBuffer(std::thread::id thread_id, size_t size) {
+  return BufferPoolManager::instance().GetBuffer<MemoryKind>(thread_id, size);
+}
+}  // namespace
+
 std::unordered_map<void*, AllocInfo> alloc_info_;
 std::shared_timed_mutex alloc_info_mutex_;
 
@@ -213,15 +220,6 @@ unique_ptr_t BufferPoolManager::Allocate<mm::memory_kind::device>(std::thread::i
   // use plain cudaMalloc
   return Allocate(&mm::cuda_malloc_memory_resource::instance(), thread_id, size);
 }
-
-template <typename MemoryKind>
-void *GetBuffer(std::thread::id thread_id, size_t size) {
-  return BufferPoolManager::instance().GetBuffer<MemoryKind>(thread_id, size);
-}
-
-template void *GetBuffer<mm::memory_kind::device>(std::thread::id thread_id, size_t size);
-template void *GetBuffer<mm::memory_kind::pinned>(std::thread::id thread_id, size_t size);
-template void *GetBuffer<mm::memory_kind::host>(std::thread::id thread_id, size_t size);
 
 int ReturnBufferToPool(void *raw_ptr) {
   return BufferPoolManager::instance().ReturnBufferToPool(raw_ptr);

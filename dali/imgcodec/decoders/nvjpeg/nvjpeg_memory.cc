@@ -50,6 +50,11 @@ void AddHostBuffer(std::thread::id thread_id, size_t size) {
     BufferPoolManager::instance().AddBuffer<mm::memory_kind::pinned>(thread_id, size);
 }
 
+template <typename MemoryKind>
+void* GetBuffer(std::thread::id thread_id, size_t size) {
+  return BufferPoolManager::instance().GetBuffer<MemoryKind>(thread_id, size);
+}
+
 void *GetHostBuffer(std::thread::id thread_id, size_t size) {
   if (RestrictPinnedMemUsage())
     return BufferPoolManager::instance().GetBuffer<mm::memory_kind::host>(thread_id, size);
@@ -62,8 +67,8 @@ void DeleteAllBuffers(std::thread::id thread_id) {
 }
 
 template <typename MemoryKind>
-void AddMemStats(std::thread::id thread_id, size_t size) {
-  BufferPoolManager::instance().AddBuffer<MemoryKind>(thread_id, size);
+void AddMemStats(size_t size) {
+  BufferPoolManager::instance().AddMemStats<MemoryKind>(size);
 }
 
 void SetEnableMemStats(bool enabled) {
