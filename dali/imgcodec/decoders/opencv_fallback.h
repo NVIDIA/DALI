@@ -37,7 +37,7 @@ class DLL_PUBLIC OpenCVDecoderInstance : public BatchParallelDecoderImpl {
                               const ROI &roi) override;
 };
 
-class OpenCVDecoder : public ImageDecoder {
+class OpenCVDecoderFactory : public ImageDecoderFactory {
  public:
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
