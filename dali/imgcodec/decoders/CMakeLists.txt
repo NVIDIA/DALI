@@ -17,3 +17,12 @@ add_subdirectory(jpeg)
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_IMGCODEC_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_IMGCODEC_TEST_SRCS PARENT_SCOPE)
+
+if (NOT BUILD_LIBTIFF)
+    list(REMOVE_ITEM DALI_SRCS
+        ${DALI_SRC_DIR}/dali/imgcodec/decoders/tiff_libtiff.cc
+    )
+    list(REMOVE_ITEM DALI_IMGCODEC_TEST_SRCS
+        ${DALI_SRC_DIR}/dali/imgcodec/decoders/tiff_libtiff_test.cc
+    )
+endif()
