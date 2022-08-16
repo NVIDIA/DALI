@@ -66,11 +66,6 @@ void DeleteAllBuffers(std::thread::id thread_id) {
   BufferPoolManager::instance().DeleteAllBuffers(thread_id);
 }
 
-template <typename MemoryKind>
-void AddMemStats(size_t size) {
-  BufferPoolManager::instance().AddMemStats<MemoryKind>(size);
-}
-
 void SetEnableMemStats(bool enabled) {
   BufferPoolManager::instance().SetEnableMemStats(enabled);
 }
