@@ -60,6 +60,11 @@ class DecoderTestBase : public ::testing::Test {
 
     ImageInfo info = Parser()->GetInfo(src);
     auto shape = AdjustToRoi(info.shape, roi);
+
+    // Number of channels can be different than input's due to color conversion
+    // TODO(skarpinski) Don't assume channel-last layout here
+    *(shape.end() - 1) = NumberOfChannels(opts.format, *(info.shape.end() - 1));
+
     output_.reshape({{shape}});
 
     if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
@@ -188,7 +193,9 @@ class DecoderTestBase : public ::testing::Test {
   template <typename T, int ndim>
   void Crop(const TensorView<StorageCPU, T, ndim> &output,
             const TensorView<StorageCPU, const T, ndim> &input,
-            const ROI &roi) {
+            const ROI &requested_roi) {
+    auto roi = ExtendRoi(requested_roi, input.shape);
+
     static_assert(ndim >= 0, "expected static ndim");
     ASSERT_TRUE(output.shape == roi.shape());  // output should have the desired shape
 
@@ -203,7 +210,8 @@ class DecoderTestBase : public ::testing::Test {
 
   template <typename T, int ndim>
   Tensor<CPUBackend> Crop(const TensorView<StorageCPU, const T, ndim> &input,
-                          const ROI &roi) {
+                          const ROI &requested_roi) {
+    auto roi = ExtendRoi(requested_roi, input.shape);
     auto num_dims = input.shape.sample_dim();
     assert(roi.shape().sample_dim() == num_dims);
     Tensor<CPUBackend> output;
@@ -290,6 +298,21 @@ class DecoderTestBase : public ::testing::Test {
     } else {
       return shape;
     }
+  }
+
+  /**
+   * @brief Extends ROI with channel dimension of given shape.
+   */
+  ROI ExtendRoi(ROI roi, const TensorShape<> &shape) {
+    // TODO(skarpinski) Don't assume channel-last layout
+    int ndim = shape.sample_dim();
+    if (roi.begin.size() == ndim - 1) {
+      roi.begin = shape_cat(roi.begin, 0);
+    }
+    if (roi.end.size() == ndim - 1) {
+      roi.end = shape_cat(roi.end, *(shape.end() - 1));
+    }
+    return roi;
   }
 
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;
