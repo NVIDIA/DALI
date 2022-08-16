@@ -72,7 +72,7 @@ void ResizeImpl(TensorList<Backend> &batch, const TensorListShape<> &shape, DALI
 
 template <typename Backend>
 void ResizeImpl(TensorVector<Backend> &batch, const TensorListShape<> &shape, DALIDataType type) {
-  batch.Resize(shape, type, BatchState::Contiguous);
+  batch.Resize(shape, type, BatchContiguity::Contiguous);
 }
 /** @} */  // end of WarResizeContiguous
 

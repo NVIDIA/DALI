@@ -67,7 +67,7 @@ TYPED_TEST(TensorVectorSuite, SetupAndSetSizeNoncontiguous) {
   tv.set_order(order);
   tv.set_sample_dim(2);
   tv.SetLayout("XY");
-  tv.SetBatchState(BatchState::Noncontiguous);
+  tv.SetContiguity(BatchContiguity::Noncontiguous);
   tv.SetSize(3);
 
 
@@ -215,7 +215,7 @@ TYPED_TEST(TensorVectorSuite, PartialSetupSetMultiGPU) {
     std::iota(idxs.begin(), idxs.end(), 0);
     do {
       TensorVector<TypeParam> tv;
-      tv.SetBatchState(BatchState::Noncontiguous);
+      tv.SetContiguity(BatchContiguity::Noncontiguous);
       tv.SetSize(4);
       tv.set_pinned(false);
       for (auto idx : idxs) {
@@ -279,7 +279,7 @@ TYPED_TEST(TensorVectorSuite, PartialSetupCopyMultiGPU) {
     std::iota(idxs.begin(), idxs.end(), 0);
     do {
       TensorVector<TypeParam> tv;
-      tv.SetBatchState(BatchState::Noncontiguous);
+      tv.SetContiguity(BatchContiguity::Noncontiguous);
       tv.SetSize(4);
       for (auto idx : idxs) {
         if (idx == excluded) {
@@ -324,7 +324,7 @@ TYPED_TEST(TensorVectorSuite, FullSetupSetMultiGPU) {
   std::iota(idxs.begin(), idxs.end(), 0);
   do {
     TensorVector<TypeParam> tv;
-    tv.SetBatchState(BatchState::Noncontiguous);
+    tv.SetContiguity(BatchContiguity::Noncontiguous);
     tv.SetSize(4);
     for (auto idx : idxs) {
       setups[idx].second(tv);
@@ -400,7 +400,7 @@ void CompareWithNumber(ConstSampleView<GPUBackend> sample, T number) {
 template <typename Backend>
 Tensor<Backend> ReturnTvAsTensor(uint8_t number) {
   TensorVector<Backend> tv;
-  tv.SetBatchState(true);
+  tv.SetContiguity(true);
   tv.Resize(uniform_list_shape(4, {1, 2, 3}), DALI_UINT8);
   tv.SetLayout("HWC");
   FillWithNumber(tv, number);
@@ -417,7 +417,7 @@ TYPED_TEST(TensorVectorSuite, ResizeSetSize) {
   tv.set_order(order);
   tv.set_sample_dim(2);
   tv.SetLayout("XY");
-  tv.SetBatchState(BatchState::Contiguous);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   tv.SetSize(3);
 
 
@@ -484,19 +484,20 @@ TYPED_TEST(TensorVectorSuite, ResizeSetSize) {
 TYPED_TEST(TensorVectorSuite, NoForcedChangeContiguousToNoncontiguous) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   TensorVector<TypeParam> tv;
-  tv.SetBatchState(BatchState::Contiguous);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
   // State was forced to be contiguous, cannot change it with just Resize.
-  EXPECT_THROW(tv.Resize(new_shape, DALI_FLOAT, BatchState::Noncontiguous), std::runtime_error);
+  EXPECT_THROW(tv.Resize(new_shape, DALI_FLOAT, BatchContiguity::Noncontiguous),
+               std::runtime_error);
 }
 
 TYPED_TEST(TensorVectorSuite, NoForcedChangeNoncontiguousToContiguous) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   TensorVector<TypeParam> tv;
-  tv.SetBatchState(BatchState::Noncontiguous);
+  tv.SetContiguity(BatchContiguity::Noncontiguous);
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
   // State was forced to be noncontiguous, cannot change it with just Resize.
-  EXPECT_THROW(tv.Resize(new_shape, DALI_FLOAT, BatchState::Contiguous), std::runtime_error);
+  EXPECT_THROW(tv.Resize(new_shape, DALI_FLOAT, BatchContiguity::Contiguous), std::runtime_error);
 }
 
 
@@ -505,7 +506,7 @@ TYPED_TEST(TensorVectorSuite, ContiguousResize) {
   const auto order = is_device ? AccessOrder(cuda_stream) : AccessOrder::host();
   TensorVector<TypeParam> tv;
   tv.set_order(order);
-  tv.SetBatchState(BatchState::Contiguous);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
   tv.Resize(new_shape, DALI_FLOAT);
   EXPECT_TRUE(tv.IsContiguous());
@@ -540,7 +541,7 @@ TYPED_TEST(TensorVectorSuite, NoncontiguousResize) {
   const auto order = is_device ? AccessOrder(cuda_stream) : AccessOrder::host();
   TensorVector<TypeParam> tv;
   tv.set_order(order);
-  tv.SetBatchState(BatchState::Noncontiguous);
+  tv.SetContiguity(BatchContiguity::Noncontiguous);
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
   tv.Resize(new_shape, DALI_FLOAT);
   EXPECT_FALSE(tv.IsContiguous());
@@ -573,10 +574,10 @@ TYPED_TEST(TensorVectorSuite, NoncontiguousResize) {
 TYPED_TEST(TensorVectorSuite, BreakContiguity) {
   TensorVector<TypeParam> tv;
   // anything goes
-  tv.SetBatchState(BatchState::Default);
+  tv.SetContiguity(BatchContiguity::Automatic);
 
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
-  tv.Resize(new_shape, DALI_FLOAT, BatchState::Contiguous);
+  tv.Resize(new_shape, DALI_FLOAT, BatchContiguity::Contiguous);
   EXPECT_TRUE(tv.IsContiguous());
 
   for (int i = 0; i < 3; i++) {
@@ -608,10 +609,10 @@ TYPED_TEST(TensorVectorSuite, BreakContiguity) {
 TYPED_TEST(TensorVectorSuite, CoalescingAllocation) {
   TensorVector<TypeParam> tv;
   // anything goes
-  tv.SetBatchState(BatchState::Default);
+  tv.SetContiguity(BatchContiguity::Automatic);
 
   auto first_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
-  tv.Resize(first_shape, DALI_FLOAT, BatchState::Noncontiguous);
+  tv.Resize(first_shape, DALI_FLOAT, BatchContiguity::Noncontiguous);
   EXPECT_FALSE(tv.IsContiguous());
 
   for (int i = 0; i < 3; i++) {
@@ -621,7 +622,7 @@ TYPED_TEST(TensorVectorSuite, CoalescingAllocation) {
   }
 
   auto smaller_shape = TensorListShape<>{{1, 2, 1}, {1, 3, 1}, {3, 4, 1}};
-  tv.Resize(smaller_shape, DALI_FLOAT, BatchState::Noncontiguous);
+  tv.Resize(smaller_shape, DALI_FLOAT, BatchContiguity::Noncontiguous);
   EXPECT_FALSE(tv.IsContiguous());
 
   for (int i = 0; i < 3; i++) {
@@ -642,7 +643,7 @@ TYPED_TEST(TensorVectorSuite, CoalescingAllocation) {
   }
 
   // Go back
-  tv.Resize(bigger_shape, DALI_FLOAT, BatchState::Noncontiguous);
+  tv.Resize(bigger_shape, DALI_FLOAT, BatchContiguity::Noncontiguous);
   EXPECT_FALSE(tv.IsContiguous());
 
   for (int i = 0; i < 3; i++) {
@@ -652,7 +653,7 @@ TYPED_TEST(TensorVectorSuite, CoalescingAllocation) {
   }
 
   // Go back again
-  tv.Resize(bigger_shape, DALI_FLOAT, BatchState::Contiguous);
+  tv.Resize(bigger_shape, DALI_FLOAT, BatchContiguity::Contiguous);
   EXPECT_TRUE(tv.IsContiguous());
 
   for (int i = 0; i < 3; i++) {
@@ -670,11 +671,11 @@ TYPED_TEST(TensorVectorSuite, CoalescingAllocation) {
 TYPED_TEST(TensorVectorSuite, Reserve) {
   // Verify that we still keep the memory reserved in sample mode
   TensorVector<TypeParam> tv;
-  tv.SetBatchState(BatchState::Default);
+  tv.SetContiguity(BatchContiguity::Automatic);
   tv.reserve(100, 4);
 
   auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 50}};
-  tv.Resize(new_shape, DALI_FLOAT, BatchState::Noncontiguous);
+  tv.Resize(new_shape, DALI_FLOAT, BatchContiguity::Noncontiguous);
 
   EXPECT_FALSE(tv.IsContiguous());
 
@@ -768,7 +769,7 @@ TYPED_TEST(TensorVectorSuite, PinnedBeforeResizeNoncontiguous) {
 TYPED_TEST(TensorVectorSuite, TensorVectorAsTensorAccess) {
   TensorVector<TypeParam> tv;
   constexpr uint8_t kMagicNumber = 42;
-  tv.SetBatchState(true);
+  tv.SetContiguity(true);
   auto shape = TensorListShape<>{{1, 2, 3}, {1, 2, 4}};
   tv.Resize(shape, DALI_INT32);
   EXPECT_TRUE(tv.IsContiguousInMemory());
@@ -809,7 +810,7 @@ TYPED_TEST(TensorVectorSuite, TensorVectorAsTensorAccess) {
 
 TYPED_TEST(TensorVectorSuite, EmptyTensorVectorAsTensorAccess) {
   TensorVector<TypeParam> tv;
-  tv.SetBatchState(true);
+  tv.SetContiguity(true);
   tv.set_type(DALI_INT32);
   EXPECT_TRUE(tv.IsContiguousInMemory());
   EXPECT_TRUE(tv.IsDenseTensor());
@@ -851,7 +852,7 @@ TYPED_TEST(TensorVectorSuite, EmptyTensorVectorAsTensorAccess) {
 
 TYPED_TEST(TensorVectorSuite, EmptyTensorVectorWithDimAsTensorAccess) {
   TensorVector<TypeParam> tv;
-  tv.SetBatchState(true);
+  tv.SetContiguity(true);
   tv.set_type(DALI_INT32);
   EXPECT_TRUE(tv.IsContiguousInMemory());
   EXPECT_TRUE(tv.IsDenseTensor());
@@ -909,7 +910,7 @@ TYPED_TEST(TensorVectorSuite, VariableBatchResizeUp) {
 
 TYPED_TEST(TensorVectorSuite, EmptyShareContiguous) {
   TensorVector<TypeParam> tv;
-  tv.SetBatchState(BatchState::Contiguous);
+  tv.SetContiguity(BatchContiguity::Contiguous);
   TensorListShape<> shape = {{100, 0, 0}, {42, 0, 0}};
   tv.Resize(shape, DALI_UINT8);
   for (int i = 0; i < shape.num_samples(); i++) {
@@ -930,7 +931,7 @@ TYPED_TEST(TensorVectorSuite, EmptyShareContiguous) {
 
 TYPED_TEST(TensorVectorSuite, EmptyShareNonContiguous) {
   TensorVector<TypeParam> tv;
-  tv.SetBatchState(BatchState::Noncontiguous);
+  tv.SetContiguity(BatchContiguity::Noncontiguous);
   TensorListShape<> shape = {{100, 0, 0}, {42, 0, 0}};
   tv.Resize(shape, DALI_UINT8);
   for (int i = 0; i < shape.num_samples(); i++) {

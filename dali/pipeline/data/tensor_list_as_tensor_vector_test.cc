@@ -43,7 +43,7 @@ namespace test {
  * Remove APIs that will be not ported: tensor_offset
  * Tests were generalized over contiguous/noncontiguous option (see the pairs in
    TensorVectorBackendContiguous)
- * SetBatchState(true) was added in few places, as there is a difference in defaults between
+ * SetContiguity(true) was added in few places, as there is a difference in defaults between
    current TensorVector and TensorList.
  **************************************************************************************************/
 
@@ -132,7 +132,7 @@ TYPED_TEST_SUITE(TensorVectorTest, TensorVectorBackendContiguous);
 TYPED_TEST(TensorVectorTest, TestGetTypeSizeBytes) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetBatchState(this->kState);
+  tl.SetContiguity(this->kState);
 
   // Give the tensor a type
   tl.template set_type<float>();
@@ -217,7 +217,7 @@ TYPED_TEST(TensorVectorTest, TestReserveResize) {
 TYPED_TEST(TensorVectorTest, TestResizeWithoutType) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetBatchState(this->kState);
+  tl.SetContiguity(this->kState);
 
   // Give the tensor a size - setting shape on non-typed TL is invalid and results in an error
   auto shape = this->GetRandShape();
@@ -228,7 +228,7 @@ TYPED_TEST(TensorVectorTest, TestSetNoType) {
   // After type is set we cannot revert to DALI_NO_TYPE
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetBatchState(this->kState);
+  tl.SetContiguity(this->kState);
 
   tl.set_type(DALI_FLOAT);
   ASSERT_THROW(tl.set_type(DALI_NO_TYPE), std::runtime_error);
@@ -240,7 +240,7 @@ TYPED_TEST(TensorVectorTest, TestSetNoType) {
 TYPED_TEST(TensorVectorTest, TestGetContiguousPointer) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetBatchState(BatchState::Contiguous);
+  tl.SetContiguity(BatchContiguity::Contiguous);
 
   // Give the tensor a size and a type - uniform allocation
   auto shape = this->GetRandShape();
@@ -261,10 +261,10 @@ TYPED_TEST(TensorVectorTest, TestGetContiguousPointer) {
 TYPED_TEST(TensorVectorTest, TestGetBytesThenAccess) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetBatchState(this->kState);
+  tl.SetContiguity(this->kState);
   TensorVector<Backend> sharers[2];
-  sharers[0].SetBatchState(this->kState);
-  sharers[1].SetBatchState(!this->kState);
+  sharers[0].SetContiguity(this->kState);
+  sharers[1].SetContiguity(!this->kState);
 
   // Allocate the sharer
   for (auto &sharer : sharers) {
@@ -304,7 +304,7 @@ TYPED_TEST(TensorVectorTest, TestGetBytesThenAccess) {
 TYPED_TEST(TensorVectorTest, TestZeroSizeResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   TensorListShape<> shape;
   tensor_list.template set_type<float>();
@@ -319,7 +319,7 @@ TYPED_TEST(TensorVectorTest, TestZeroSizeResize) {
 TYPED_TEST(TensorVectorTest, TestMultipleZeroSizeResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   int num_tensor = this->RandInt(0, 128);
   auto shape = uniform_list_shape(num_tensor, TensorShape<>{ 0 });
@@ -341,7 +341,7 @@ TYPED_TEST(TensorVectorTest, TestMultipleZeroSizeResize) {
 TYPED_TEST(TensorVectorTest, TestFakeScalarResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   int num_scalar = this->RandInt(1, 128);
   auto shape = uniform_list_shape(num_scalar, {1});  // {1} on purpose
@@ -362,7 +362,7 @@ TYPED_TEST(TensorVectorTest, TestFakeScalarResize) {
 TYPED_TEST(TensorVectorTest, TestTrueScalarResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   int num_scalar = this->RandInt(1, 128);
   auto shape = uniform_list_shape(num_scalar, TensorShape<>{});
@@ -383,7 +383,7 @@ TYPED_TEST(TensorVectorTest, TestTrueScalarResize) {
 TYPED_TEST(TensorVectorTest, TestResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   // Setup shape and offsets
   auto shape = this->GetRandShape();
@@ -396,7 +396,7 @@ TYPED_TEST(TensorVectorTest, TestResize) {
 TYPED_TEST(TensorVectorTest, TestMultipleResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   int rand = this->RandInt(1, 20);
   TensorListShape<> shape;
@@ -431,7 +431,7 @@ TYPED_TEST(TensorVectorTest, TestMultipleResize) {
 TYPED_TEST(TensorVectorTest, TestCopy) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetBatchState(this->kState);
+  tl.SetContiguity(this->kState);
 
   tl.template set_type<float>();
 
@@ -444,8 +444,8 @@ TYPED_TEST(TensorVectorTest, TestCopy) {
   tl.SetLayout(std::string(shape.sample_dim(), 'X'));
 
   TensorVector<Backend> tl2s[2];
-  tl2s[0].SetBatchState(this->kState);
-  tl2s[1].SetBatchState(!this->kState);
+  tl2s[0].SetContiguity(this->kState);
+  tl2s[1].SetContiguity(!this->kState);
   for (auto &tl2 : tl2s) {
     tl2.Copy(tl);
 
@@ -465,14 +465,14 @@ TYPED_TEST(TensorVectorTest, TestCopy) {
 TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tl;
-  tl.SetBatchState(this->kState);
+  tl.SetContiguity(this->kState);
 
   tl.template set_type<float>();
   tl.SetLayout("XX");
 
   TensorVector<Backend> tl2s[2];
-  tl2s[0].SetBatchState(this->kState);
-  tl2s[1].SetBatchState(!this->kState);
+  tl2s[0].SetContiguity(this->kState);
+  tl2s[1].SetContiguity(!this->kState);
   for (auto &tl2 : tl2s) {
     tl2.Copy(tl);
     ASSERT_EQ(tl.num_samples(), tl2.num_samples());
@@ -485,7 +485,7 @@ TYPED_TEST(TensorVectorTest, TestCopyEmpty) {
 TYPED_TEST(TensorVectorTest, TestTypeChangeError) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
   auto shape = this->GetRandShape();
 
   tensor_list.set_type(DALI_UINT8);
@@ -504,7 +504,7 @@ TYPED_TEST(TensorVectorTest, TestTypeChangeError) {
 TYPED_TEST(TensorVectorTest, TestTypeChange) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   // Setup shape and offsets
   auto shape = this->GetRandShape();
@@ -571,7 +571,7 @@ TYPED_TEST(TensorVectorTest, DeviceIdPropagationMultiGPU) {
   TensorListShape<> shape{{42}};
   for (int device_id = 0; device_id < num_devices; device_id++) {
     TensorVector<Backend> batch;
-    batch.SetBatchState(BatchState::Default);
+    batch.SetContiguity(BatchContiguity::Automatic);
     DeviceGuard dg(device_id);
     batch.set_order(order);
     void *data_ptr;
@@ -594,7 +594,7 @@ TYPED_TEST(TensorVectorTest, DeviceIdPropagationMultiGPU) {
 TYPED_TEST(TensorVectorTest, TestShareData) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorVector<Backend> tensor_list;
-  tensor_list.SetBatchState(this->kState);
+  tensor_list.SetContiguity(this->kState);
 
   // Setup shape and offsets
   auto shape = this->GetRandShape();
@@ -604,8 +604,8 @@ TYPED_TEST(TensorVectorTest, TestShareData) {
 
   // Create a new tensor_list w/ a smaller data type
   TensorVector<Backend> tensor_lists[2];
-  tensor_lists[0].SetBatchState(this->kState);
-  tensor_lists[1].SetBatchState(!this->kState);
+  tensor_lists[0].SetContiguity(this->kState);
+  tensor_lists[1].SetContiguity(!this->kState);
 
   for (auto &tensor_list2 : tensor_lists) {
     // Share the data

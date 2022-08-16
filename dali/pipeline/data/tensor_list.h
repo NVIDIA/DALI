@@ -360,8 +360,9 @@ class DLL_PUBLIC TensorList {
    * @brief TensorList is always backed by contiguous buffer
    *        Cannot be set to noncontiguous
    */
-  void SetBatchState(BatchState state) {
-    DALI_ENFORCE(BatchState::Noncontiguous != state, "TensorList cannot be made noncontiguous");
+  void SetContiguity(BatchContiguity state) {
+    DALI_ENFORCE(BatchContiguity::Noncontiguous != state,
+                 "TensorList cannot be made noncontiguous");
   }
 
   /**

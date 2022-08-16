@@ -316,7 +316,7 @@ class DLL_PUBLIC TensorVector {
 
   /**
    * @brief Resize the batch to fit the new shape
-   * See Resize(const TensorListShape<> &, DALIDataType, BatchState) for details
+   * See Resize(const TensorListShape<> &, DALIDataType, BatchContiguity) for details
    */
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
     DALI_ENFORCE(IsValidType(type()),
@@ -337,13 +337,13 @@ class DLL_PUBLIC TensorVector {
    * @param new_shape requested shape
    * @param new_type requested type
    * @param state Optional change of contiguity mode.
-   *    * Default keeps the current one or use one allocation if reallocation is needed
+   *    * Automatic keeps the current one or use one allocation if reallocation is needed
    *    * Contiguous forces the allocation to be contiguous
    *    * Noncontiguous - detach all samples, and use them separately, the contiguous buffer
    *      might still be used as backing storage until new allocations are needed for all samples
    */
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, DALIDataType new_type,
-                         BatchState state = BatchState::Default);
+                         BatchContiguity state = BatchContiguity::Automatic);
 
   /**
    * @brief Reserve memory as one contiguous allocation
@@ -393,16 +393,16 @@ class DLL_PUBLIC TensorVector {
   /**
    * @brief Pin the current state for further allocating calls like Resize() or set_type
    *        to use contiguous or noncontiguous backing memory.
-   *        Setting BatchState::Default allows to change it with every call to Resize().
+   *        Setting BatchContiguity::Automatic allows to change it with every call to Resize().
    */
-  void SetBatchState(BatchState state);
+  void SetContiguity(BatchContiguity state);
 
   /**
    * @brief Set the contiguity state for further allocations. Convenient overload accepting boolean.
    *
    * @param contiguous - pins the state to either Contiguous (true) or Noncontiguous (false)
    */
-  void SetBatchState(bool contiguous);
+  void SetContiguity(bool contiguous);
 
   /**
    * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.
@@ -563,7 +563,7 @@ class DLL_PUBLIC TensorVector {
    public:
     // TODO(klecki): Any sensible defaults?
     State() : contiguous_(false), forced_(false) {}
-    State(BatchState state, bool forced) {
+    State(BatchContiguity state, bool forced) {
       Setup(state, forced);
     }
     State(const State&) = default;
@@ -572,27 +572,28 @@ class DLL_PUBLIC TensorVector {
     /**
      * @brief Override current state.
      */
-    void Setup(BatchState state, bool forced = false) {
+    void Setup(BatchContiguity state, bool forced = false) {
       if (forced) {
-        DALI_ENFORCE(state == BatchState::Contiguous || state == BatchState::Noncontiguous,
-                     "Only specific state can be enforced");
+        DALI_ENFORCE(
+            state == BatchContiguity::Contiguous || state == BatchContiguity::Noncontiguous,
+            "Only specific state can be enforced");
       }
-      if (state != BatchState::Default) {
-        contiguous_ = state == BatchState::Contiguous;
+      if (state != BatchContiguity::Automatic) {
+        contiguous_ = state == BatchContiguity::Contiguous;
       }
       forced_ = forced;
     }
 
     /**
      * @brief Update current state obeying the enforced state.
-     * BatchState::Default is always allowed and does not change the state
+     * BatchContiguity::Automatic is always allowed and does not change the state
      *
      * State can be changed unless it is enforced, in that case it will raise an error.
      *
      * @return true if the state changed.
      */
-    bool Update(BatchState requested_state) {
-      if (requested_state == BatchState::Default) {
+    bool Update(BatchContiguity requested_state) {
+      if (requested_state == BatchContiguity::Automatic) {
         return false;
       }
       if (forced_) {
@@ -616,8 +617,8 @@ class DLL_PUBLIC TensorVector {
       return forced_;
     }
 
-    BatchState Get() const {
-      return contiguous_ ? BatchState::Contiguous : BatchState::Noncontiguous;
+    BatchContiguity Get() const {
+      return contiguous_ ? BatchContiguity::Contiguous : BatchContiguity::Noncontiguous;
     }
 
    private:

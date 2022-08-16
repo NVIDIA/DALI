@@ -41,13 +41,13 @@ class CPUBackend;
  * @brief State of a batch object. Can be used to pin the state to one of the two contiguous /
  * noncontiguous modes or to change the mode when resizing, if it was not pinned.
  * See TensorVector::Resize for detailed behaviour.
- * * Default - means we are leaving it to the Batch to decide when to coalesce the allocation,
+ * * Automatic - means we are leaving it to the Batch to decide when to coalesce the allocation,
  *   or keep the current one unchanged.
  * Contiguous and Noncontiguous allow to request one backing allocation or separate ones for each
  * sample.
  */
-enum class BatchState {
-  Default = 0,
+enum class BatchContiguity {
+  Automatic = 0,
   Contiguous = 1,
   Noncontiguous = 2,
 };

@@ -522,7 +522,7 @@ ConstSampleView<Backend> TensorVector<Backend>::operator[](size_t pos) const {
 
 template <typename Backend>
 void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataType new_type,
-                                   BatchState state) {
+                                   BatchContiguity state) {
   DALI_ENFORCE(IsValidType(new_type),
                "TensorVector cannot be resized with invalid type. To zero out the TensorVector "
                "Reset() can be used.");
@@ -545,7 +545,7 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
     if (state_.IsContiguous()) {
       return false;  // already coalesced
     }
-    if (state == BatchState::Noncontiguous) {
+    if (state == BatchContiguity::Noncontiguous) {
       return false;  // we were requested to keep it non-contiguous
     }
     // TODO(klecki): as an alternative, coalesce every time?
@@ -561,7 +561,7 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
   shape_ = new_shape;
 
   if (should_coalesce) {
-    state_.Update(BatchState::Contiguous);
+    state_.Update(BatchContiguity::Contiguous);
   }
 
   if (state_.IsContiguous()) {
@@ -707,7 +707,7 @@ void TensorVector<Backend>::reserve(size_t total_bytes) {
     tensors_.clear();
     resize_tensors(0);
   }
-  state_.Setup(BatchState::Contiguous);
+  state_.Setup(BatchContiguity::Contiguous);
   contiguous_buffer_.reserve(total_bytes);
   if (IsValidType(type_)) {
     resize_tensors(batch_size_bkp);
@@ -719,7 +719,7 @@ void TensorVector<Backend>::reserve(size_t total_bytes) {
 template <typename Backend>
 void TensorVector<Backend>::reserve(size_t bytes_per_sample, int batch_size) {
   assert(batch_size > 0);
-  state_.Setup(BatchState::Noncontiguous);
+  state_.Setup(BatchContiguity::Noncontiguous);
   resize_tensors(batch_size);
   for (int i = 0; i < curr_num_tensors_; i++) {
     tensors_[i].reserve(bytes_per_sample);
@@ -752,8 +752,8 @@ void TensorVector<Backend>::recreate_views() {
 
 
 template <typename Backend>
-void TensorVector<Backend>::SetBatchState(BatchState state) {
-  if (state == BatchState::Default) {
+void TensorVector<Backend>::SetContiguity(BatchContiguity state) {
+  if (state == BatchContiguity::Automatic) {
     // remove the force, keep the current state information
     state_.Setup(state_.Get(), false);
     return;
@@ -765,8 +765,8 @@ void TensorVector<Backend>::SetBatchState(BatchState state) {
 
 
 template <typename Backend>
-void TensorVector<Backend>::SetBatchState(bool contiguous) {
-  SetBatchState(contiguous ? BatchState::Contiguous : BatchState::Noncontiguous);
+void TensorVector<Backend>::SetContiguity(bool contiguous) {
+  SetContiguity(contiguous ? BatchContiguity::Contiguous : BatchContiguity::Noncontiguous);
 }
 
 
@@ -785,7 +785,7 @@ void TensorVector<Backend>::MakeNoncontiguous() {
     return;
   }
 
-  state_.Update(BatchState::Noncontiguous);
+  state_.Update(BatchContiguity::Noncontiguous);
   DoMakeNoncontiguous();
 }
 
@@ -883,7 +883,7 @@ template <typename Backend>
 void TensorVector<Backend>::ShareData(const TensorList<Backend> &in_tl) {
   Reset();
 
-  state_.Setup(BatchState::Contiguous);
+  state_.Setup(BatchContiguity::Contiguous);
   curr_num_tensors_ = in_tl.num_samples();
   type_ = in_tl.type_info();
   sample_dim_ = in_tl.shape().sample_dim();
@@ -1029,7 +1029,7 @@ void TensorVector<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes,
   tensors_.clear();
   tensors_.resize(shape.num_samples());
 
-  state_.Update(BatchState::Contiguous);
+  state_.Update(BatchContiguity::Contiguous);
   curr_num_tensors_ = shape.num_samples();
   type_ = TypeTable::GetTypeInfo(type);
   sample_dim_ = shape.sample_dim();
@@ -1085,7 +1085,7 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
 
 template <typename Backend>
 void TensorVector<Backend>::UpdatePropertiesFromSamples(bool contiguous) {
-  state_.Update(contiguous ? BatchState::Contiguous : BatchState::Noncontiguous);
+  state_.Update(contiguous ? BatchContiguity::Contiguous : BatchContiguity::Noncontiguous);
   // assume that the curr_num_tensors_ is valid
   DALI_ENFORCE(curr_num_tensors_ > 0,
                "Unexpected empty output of per-sample operator. Internal DALI error.");
