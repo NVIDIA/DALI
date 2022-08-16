@@ -37,11 +37,12 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
                       DecodeParams opts,
                       const ROI &roi) override;
 
-  void SetParam(const char *name, const any &value) override {
+  bool SetParam(const char *name, const any &value) override {
     if (strcmp(name, "fast_idct") == 0) {
       use_fast_idct_ = any_cast<bool>(value);
+      return true;
     } else {
-      DALI_FAIL("Unexpected param name: " + std::string(name));
+      return false;
     }
   }
 
@@ -49,7 +50,7 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
     if (strcmp(name, "fast_idct") == 0) {
       return use_fast_idct_;
     } else {
-      DALI_FAIL("Unexpected param name: " + std::string(name));
+      return {};
     }
   }
 
