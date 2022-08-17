@@ -15,11 +15,14 @@
 #ifndef DALI_IMGCODEC_IMAGE_DECODER_H_
 #define DALI_IMGCODEC_IMAGE_DECODER_H_
 
-#include <memory>
 #include <map>
+#include <memory>
+#include <string>
+#include <vector>
 #include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/image_format.h"
-
+#include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/tensor_vector.h"
 
 namespace dali {
 namespace imgcodec {
@@ -76,6 +79,29 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
                       DecodeParams opts,
                       const ROI &roi = {}) override;
 
+  DecodeResult Decode(cudaStream_t stream,
+                      SampleView<GPUBackend> out,
+                      ImageSource *in,
+                      DecodeParams opts,
+                      const ROI &roi = {}) override;
+
+
+  /**
+   * @brief Decodes a single image to device buffers
+   */
+  std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois = {}) override;
+
+  /**
+   * @brief Decodes a single image to device buffers
+   */
+  std::vector<DecodeResult> Decode(TensorVector<CPUBackend> out,
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois = {});
+
   /**
    * @brief Decodes a single image to device buffers
    */
@@ -89,7 +115,7 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
    * @brief Decodes a single image to device buffers
    */
   std::vector<DecodeResult> Decode(cudaStream_t stream,
-                                   TensorListView<GPUBackend>> out,
+                                   TensorList<GPUBackend> out,
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
                                    cspan<ROI> rois = {});

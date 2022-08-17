@@ -16,6 +16,7 @@
 #define DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 
 #include <memory>
+#include <utility>
 #include <stdexcept>
 #include <vector>
 #include "dali/core/any.h"
@@ -96,7 +97,7 @@ void OutputShape(OutputShape &out_shape,
         throw std::logic_error("Orientation only applied to 2D images.");
       in_d = 1 - d;
     }
-    int extent = info.shape[d];
+    int extent = info.shape[in_d];
     if (d < roi.end.size())
       extent = roi.end[d];
     if (d < roi.begin.size())
