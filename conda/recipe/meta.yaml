@@ -76,6 +76,7 @@ requirements:
     - dali-opencv
     - dali-ffmpeg
     - lmdb
+    - zlib
     - libtiff
     - libsndfile
     - libtar
@@ -92,6 +93,7 @@ requirements:
     - tensorflow-estimator =2.6.2
     - tensorboard
     - lmdb
+    - zlib
     - libtiff
     - libsndfile
     - libvorbis =1.3.7
