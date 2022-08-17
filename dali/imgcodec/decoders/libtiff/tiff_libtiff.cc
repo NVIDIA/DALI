@@ -163,6 +163,10 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
 
+  if (info.bit_depth != 8 && info.bit_depth != 16 && info.bit_depth != 32)
+    return {false, make_exception_ptr(std::logic_error(
+                      make_string("Unsupported bit depth: ", info.bit_depth)))};
+
   // TODO(skarpinski) Support palette images
   if (info.is_palette)
     return {false, make_exception_ptr(std::logic_error("Palette images are not yet supported"))};
