@@ -12,29 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
+#include <map>
+#include <vector>
 #include "dali/imgcodec/image_decoder.h"
 
 namespace dali {
 namespace imgcodec {
 
-bool ImageDecoder::CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi = {}) {
+bool ImageDecoder::CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) {
   return true;
 }
 
 std::vector<bool> ImageDecoder::CanDecode(cspan<ImageSource *> in,
                                           DecodeParams opts,
-                                          cspan<ROI> rois = {}) {
+                                          cspan<ROI> rois) {
     return std::vector<bool>(in.size(), true);
 }
 
-bool SetParam(const char *key, const any &value) override {
-
+bool ImageDecoder::SetParam(const char *key, const any &value) {
+  params_[key] = value;
+  return true;
 }
 
 any ImageDecoder::GetParam(const char *key) const {
   auto it = params_.find(key);
-  return it != params_.end() ? it->second : {};
+  return it != params_.end() ? it->second : any{};
 }
 
-}  // namespace dali
 }  // namespace imgcodec
+}  // namespace dali
