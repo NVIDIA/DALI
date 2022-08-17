@@ -76,8 +76,8 @@ struct ROI {
   }
 };
 
-template <typename OutputShape>
-void OutputShape(OutputShape &out_shape,
+template <typename OutShape>
+void OutputShape(OutShape &out_shape,
                  const ImageInfo &info, const DecodeParams &params, const ROI &roi) {
   int ndim = info.shape.sample_dim();
   resize_if_possible(out_shape, ndim);
