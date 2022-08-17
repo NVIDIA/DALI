@@ -153,7 +153,8 @@ class SequenceShapeUnfoldTest : public ::testing::Test {
     if (!layout.empty()) {
       batch.SetLayout(layout);
     }
-    return {std::move(batch), expanded_like(batch)};
+    auto expanded = expanded_like(batch);
+    return {std::move(batch), std::move(expanded)};
   }
 
   void TestUnfolding(Container &unfolded_batch, const Container &batch, int ndims_to_unfold) {
@@ -288,7 +289,8 @@ class SequenceShapeBroadcastTest<TensorVector<Backend>> : public ::testing::Test
     if (!layout.empty()) {
       batch.SetLayout(layout);
     }
-    return {std::move(batch), expanded_like(batch)};
+    auto expanded = expanded_like(batch);
+    return {std::move(batch), std::move(expanded)};
   }
 
   template <typename Dummy>
@@ -384,7 +386,8 @@ class SequenceShapeBroadcastTest<TensorList<Backend>>
       batch.SetLayout(layout);
     }
     this->template FillBatch<T>(batch);
-    return {std::move(batch), expanded_like(batch)};
+    auto expanded = expanded_like(batch);
+    return {std::move(batch), std::move(expanded)};
   }
 
   template <typename T>
