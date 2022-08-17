@@ -231,7 +231,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
         LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + roi_y, 0));
         Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
                 row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
-                out_line_shape.data(), 2);
+                out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
       }
     ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
