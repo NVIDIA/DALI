@@ -105,10 +105,10 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     return opts;
   }
 
-  void RunSingleTest(std::string image_name, std::string ref_name) {
-    ImageBuffer image(join(img_dir, "0", images[0]) + ".jp2");
-    auto decoded = this->Decode(&image.src, this->GetParams());
-    auto ref = this->ReadReferenceFrom(join(ref_dir, "0", images[0]) + ".npy");
+  void RunSingleTest(std::string image_name, std::string ref_name, ROI roi = {}) {
+    ImageBuffer image(image_name);
+    auto decoded = this->Decode(&image.src, this->GetParams(), roi);
+    auto ref = this->ReadReferenceFrom(ref_name);
     this->AssertEqualSatNorm(decoded, ref);
   }
 

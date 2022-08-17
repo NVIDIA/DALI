@@ -68,22 +68,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   }
 
  private:
-  /**
-   * @brief Context for image decoding, one per picture.
-   */
-  struct Context {
-    /** @brief Bits per pixel */
-    uint8_t bpp;
-    /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
-    DALIDataType pixel_type;
-    TensorShape<> shape;
-
-    NvJpeg2kDecodeState *nvjpeg2k_decode_state;
-    NvJpeg2kStream *nvjpeg2k_stream;
-    CUDAEvent *decode_event;
-    CUDAStreamLease *cuda_stream;
-  };
-
   struct PerThreadResources {
     PerThreadResources() = default;
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
@@ -104,13 +88,40 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     CUDAStreamLease cuda_stream;
   };
 
+  /**
+   * @brief Context for image decoding, one per picture.
+   */
+  struct Context {
+    Context(DecodeParams opts, const ROI &roi, const PerThreadResources &res)
+    : opts(opts)
+    , roi(roi),
+    , nvjpeg2k_decode_state(res.nvjpeg2k_decode_state)
+    , nvjpeg2k_stream(res.nvjpeg2k_stream)
+    , decode_event(res.decode_event)
+    , cuda_stream(res.cuda_stream) {}
+
+    /** @brief Bits per pixel */
+    uint8_t bpp;
+    /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
+    DALIDataType pixel_type;
+    TensorShape<> shape;
+
+    DecodeParams opts;
+    const ROI &roi;
+
+    const NvJpeg2kDecodeState &nvjpeg2k_decode_state;
+    const NvJpeg2kStream &nvjpeg2k_stream;
+    const CUDAEvent &decode_event;
+    const CUDAStreamLease &cuda_stream;
+  };
+
   // TODO(staniewzki): remove default values
   size_t nvjpeg2k_device_memory_padding_ = 256;
   size_t nvjpeg2k_host_memory_padding_ = 256;
 
-  bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context &ctx);
-  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, const Context &ctx);
-  bool ConvertData(void *in, uint8_t *out, DecodeParams opts, const Context &ctx);
+  bool ParseJpeg2000Info(ImageSource *in, Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx);
+  bool ConvertData(void *in, uint8_t *out, const Context &ctx);
 
   NvJpeg2kHandle nvjpeg2k_handle_{};
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
