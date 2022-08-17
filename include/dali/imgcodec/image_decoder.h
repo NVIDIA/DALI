@@ -24,15 +24,35 @@
 namespace dali {
 namespace imgcodec {
 
-class DLL_PUBLIC ImageDecoder {
+class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser {
  public:
   explicit ImageDecoder(shared_ptr<ImageFormatRegistry> registry
                         = std::make_shared<ImageFormatRegistry>());
 
-  ImageInfo GetInfo(ImageSource *encoded) const {
+  bool CanParse(ImageSource *encoded) const override {
+    return registry_->GetImageFormat(encoded) != nullptr;;
+  }
+
+  ImageInfo GetInfo(ImageSource *encoded) const override {
+    if (auto *format = registry_->GetImageFormat(encoded))
+      return format->Parser()->GetInfo(encoded);
+    else
+      DALI_FAIL(make_string("Cannot parse the image: ", encoded->SourceInfo()));
   }
 
   std::vector<bool> GetInfo(span<ImageInfo> info, span<ImageSource*> sources) {
+    assert(info.size() == sources.size());
+    std::vector<bool> ret(size(info), false);
+    for (int i = 0, n = info.size(); i < n; i++) {
+      if (auto *format = registry_->GetImageFormat(sources[i])) {
+        info[i] = format->Parser()->GetInfo(sources[i]);
+        ret[i] = true;
+      } else {
+        info[i] = {};
+        ret[i] = false;
+      }
+    }
+    return ret;
   }
 
   std::shared_ptr<ImageFormatRegistry> FormatRegistry() const {
@@ -40,12 +60,21 @@ class DLL_PUBLIC ImageDecoder {
   }
 
   /**
-   * @brief Decodes a single image to a host buffer
+   * @brief Stubbed; returns true.
    */
+  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi = {}) override;
+
+  /**
+   * @brief Stubbed; returns true for all images in the batch.
+   */
+  std::vector<bool> CanDecode(cspan<ImageSource *> in,
+                              DecodeParams opts,
+                              cspan<ROI> rois = {}) override;
+
   DecodeResult Decode(SampleView<CPUBackend> out,
                       ImageSource *in,
                       DecodeParams opts,
-                      const ROI &roi = {}) = 0;
+                      const ROI &roi = {}) override;
 
   /**
    * @brief Decodes a single image to device buffers
@@ -54,7 +83,7 @@ class DLL_PUBLIC ImageDecoder {
                                    span<SampleView<GPUBackend>> out,
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
-                                   cspan<ROI> rois = {}) = 0;
+                                   cspan<ROI> rois = {}) override;
 
   /**
    * @brief Decodes a single image to device buffers
@@ -63,11 +92,29 @@ class DLL_PUBLIC ImageDecoder {
                                    TensorListView<GPUBackend>> out,
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
-                                   cspan<ROI> rois = {}) = 0;
+                                   cspan<ROI> rois = {});
+
+  /**
+   * @brief Sets a value of a parameter.
+   *
+   * It sets a value of a parameter for all existing sub-decoders as well ones that will be
+   * created in the future.
+   *
+   * This function succeeds even if no sub-decoder recognizes the key.
+   * If the value is incorrect for one of the decoders, but that decoder has not yet
+   * been constructed, an error may be thrown at a later time, when the decoder is instantiated.
+   */
+  bool SetParam(const char *key, const any &value) override;
+
+  /**
+   * @brief Gets a value previously passed to `SetParam` with the given key.
+   */
+  any GetParam(const char *key) const override;
 
 
  private:
   std::shared_ptr<ImageFormatRegistry> registry_;
+  std::map<std::string, any> params_;
 };
 
 }  // namespace imgcodec
