@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,8 @@ cmake -DCMAKE_BUILD_TYPE=RELEASE \
     -DWITH_CUDA=OFF -DWITH_1394=OFF -DWITH_IPP=OFF -DWITH_OPENCL=OFF -DWITH_GTK=OFF \
     -DBUILD_JPEG=OFF -DWITH_JPEG=ON \
     -DBUILD_TIFF=OFF -DWITH_TIFF=ON \
-    -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PNG=ON \
+    -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF \
+    -DBUILD_ZLIB=ON -DBUILD_PNG=ON \
     -DBUILD_opencv_cudalegacy=OFF -DBUILD_opencv_stitching=OFF \
     -DWITH_TBB=OFF -DWITH_OPENMP=OFF -DWITH_PTHREADS_PF=OFF -DWITH_CSTRIPES=OFF ..
 
