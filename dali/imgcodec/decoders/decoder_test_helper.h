@@ -313,8 +313,8 @@ class DecoderTestBase : public ::testing::Test {
                             roi.begin.last(roi.begin.size() - channel_dim));
     }
     if (roi.end.size() == ndim - 1) {
-            roi.end = shape_cat(shape_cat(roi.end.first(channel_dim), shape[channel_dim]),
-                                roi.end.last(roi.end.size() - channel_dim));
+      roi.end = shape_cat(shape_cat(roi.end.first(channel_dim), shape[channel_dim]),
+                          roi.end.last(roi.end.size() - channel_dim));
     }
     return roi;
   }

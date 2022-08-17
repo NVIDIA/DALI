@@ -249,8 +249,8 @@ class ConvertLayoutTest : public ConversionTestBase<float> {
     TensorLayout layout(layout_code);
 
     auto ref = ReadReferenceFrom(ycbcr_path);
+    ref.SetLayout(layout);
     if (roi) {
-      ref.SetLayout(layout);
       ref = Crop(ref, roi);
     }
     AssertClose(RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout, roi), ref, 0.01);
