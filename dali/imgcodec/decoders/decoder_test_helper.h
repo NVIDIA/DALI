@@ -34,6 +34,7 @@
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/imgcodec/util/convert.h"
 
 namespace dali {
 namespace imgcodec {
@@ -215,9 +216,9 @@ class DecoderTestBase : public ::testing::Test {
     auto num_dims = input.shape.sample_dim();
     assert(roi.shape().sample_dim() == num_dims);
     Tensor<CPUBackend> output;
-    output.Resize(roi.shape(), type2id<OutputType>::value);
+    output.Resize(roi.shape(), type2id<T>::value);
 
-    auto out_view = view<OutputType, ndim>(output);
+    auto out_view = view<T, ndim>(output);
     Crop(out_view, input, roi);
 
     return output;
@@ -225,8 +226,11 @@ class DecoderTestBase : public ::testing::Test {
 
   Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
     int ndim = input.shape().sample_dim();
+
     VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
-      return Crop(view<const OutputType, Dims>(input), roi, input.GetLayout());
+      TYPE_SWITCH(input.type(), type2id, InputType, (IMGCODEC_TYPES), (
+        return Crop(view<const InputType, Dims>(input), roi, input.GetLayout());
+      ), DALI_FAIL(make_string("Unsupported type ", input.type())););
     ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
   }
 
