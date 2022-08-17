@@ -66,7 +66,8 @@ class ExprImplCpuTT : public ExprImplBase {
     auto &left_shape = left.shape;
     auto right_ptr = static_cast<const Right *>(right.data);
     auto &right_shape = right.shape;
-    DALI_ENFORCE(!right_shape.empty());
+    // DALI_ENFORCE(right_shape.empty(),
+    //   make_string("right: ", right_shape, " left: ", left_shape));
     Execute(output, left_ptr, right_ptr, volume(tile.desc.extent_size));
   }
 

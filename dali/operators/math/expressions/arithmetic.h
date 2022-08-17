@@ -27,6 +27,7 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/type_tag.h"
+#include "dali/operators/math/expressions/broadcasting.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 #include "dali/operators/math/expressions/expression_impl_factory.h"
 #include "dali/pipeline/operator/operator.h"
@@ -155,28 +156,6 @@ inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, Expr
   return result;
 }
 
-inline TensorListShape<> ShapePromotion(const std::string &op,
-                                        span<const TensorListShape<> *> shapes,
-                                        int batch_size) {
-  const TensorListShape<> *out_shape = nullptr;
-  bool only_scalars = true;
-  for (int i = 0; i < shapes.size(); i++) {
-    bool scalar_input = IsScalarLike(*shapes[i]);
-    if (only_scalars) {
-      if (!out_shape || shapes[i]->sample_dim() > out_shape->sample_dim() || !scalar_input)
-        out_shape = shapes[i];
-      if (!scalar_input)
-        only_scalars = false;
-    } else {
-      DALI_ENFORCE(scalar_input || *out_shape == *shapes[i],
-                   make_string("Input shapes of elemenetwise arithemtic operator \"", op,
-                               "\" do not match. Expected equal shapes, got: ", op, "(",
-                               *out_shape, ", ", *shapes[i], ")."));
-    }
-  }
-  return *out_shape;
-}
-
 /**
  * @brief Recurse over expression tree and propagate shapes between expression nodes.
  *
@@ -200,12 +179,24 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
   DALI_ENFORCE(0 < subexpression_count && subexpression_count <= kMaxArity,
                "Only unary, binary and ternary expressions are supported");
 
-  SmallVector<const TensorListShape<> *, kMaxArity> shapes;
+  SmallVector<TensorListShape<>, kMaxArity> shapes;
   shapes.resize(subexpression_count);
   for (int i = 0; i < subexpression_count; i++) {
-    shapes[i] = &PropagateShapes<Backend>(func[i], ws, batch_size);
+    shapes[i] = PropagateShapes<Backend>(func[i], ws, batch_size);
   }
-  func.SetShape(ShapePromotion(func.GetFuncName(), make_span(shapes), batch_size));
+
+  auto shapes_span = make_cspan(shapes);
+  if (!CanBroadcast(shapes_span)) {
+    std::stringstream ss;
+    ss << "Can't broadcast shapes:";
+    for (auto &sh : shapes_span) {
+      ss << " " << sh;
+    }
+    DALI_FAIL(ss.str());
+  }
+  TensorListShape<> out_shape;
+  BroadcastShape(out_shape, shapes_span);
+  func.SetShape(out_shape);
   return func.GetShape();
 }
 
@@ -335,6 +326,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 
+    // TODO(janton): Keep tiling only for 1D
     output_desc[0] = {result_shape_, result_type_id_};
     std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
     return true;
