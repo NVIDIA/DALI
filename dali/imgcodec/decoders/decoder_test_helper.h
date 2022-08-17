@@ -226,7 +226,6 @@ class DecoderTestBase : public ::testing::Test {
 
   Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
     int ndim = input.shape().sample_dim();
-
     VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
       TYPE_SWITCH(input.type(), type2id, InputType, (IMGCODEC_TYPES), (
         return Crop(view<const InputType, Dims>(input), roi, input.GetLayout());

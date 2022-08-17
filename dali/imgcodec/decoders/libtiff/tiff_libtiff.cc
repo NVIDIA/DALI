@@ -142,6 +142,7 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
 
 template <int depth>
 struct depth2type;
+
 template <>
 struct depth2type<8> {
   using type = uint8_t;
