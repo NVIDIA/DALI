@@ -78,13 +78,30 @@ struct ROI {
 template <typename OutputShape>
 void OutputShape(OutputShape &out_shape,
                  const ImageInfo &info, const DecodeParams &params, const ROI &roi) {
-  resize_if_possible(out_shape, info.shape);
   int ndim = info.shape.sample_dim();
+  resize_if_possible(out_shape, ndim);
   assert(size(out_shape) == ndim);  // check the size, in case we couldn't resize
-  #error work in progress
-  int num_channels =
-  if (params.planar) {
-    out_shape[0] =
+
+  int spatial_ndim = ndim - 1;
+  int in_channel_dim = ndim - 1;
+  int num_channels = NumberOfChannels(params.format, info.shape[in_channel_dim]);
+  int out_channel_dim = params.planar ? 0 : ndim - 1;
+
+  out_shape[out_channel_dim] = num_channels;
+
+  for (int d = 0; d < spatial_ndim; d++) {
+    int in_d = d;
+    if (params.use_orientation && ((info.orientation.rotate / 90) & 1)) {
+      if (spatial_ndim != 2)
+        throw std::logic_error("Orientation only applied to 2D images.");
+      in_d = 1 - d;
+    }
+    int extent = info.shape[d];
+    if (d < roi.end.size())
+      extent = roi.end[d];
+    if (d < roi.begin.size())
+      extent -= roi.begin[d];
+    out_shape[d + (d >= out_channel_dim)] = extent;
   }
 }
 
