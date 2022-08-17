@@ -62,7 +62,7 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
   bool use_fast_idct_ = false;
 };
 
-class LibJpegTurboDecoder : public ImageDecoder {
+class LibJpegTurboDecoderFactory : public ImageDecoderFactory {
  public:
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {

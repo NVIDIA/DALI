@@ -37,17 +37,17 @@ auto img_palette = dali_extra + "/db/single/bmp/0/cat-111793_640_palette_8bit.bm
 
 
 TEST(OpenCVFallbackTest, Factory) {
-  OpenCVDecoder decoder;
-  EXPECT_TRUE(decoder.IsSupported(CPU_ONLY_DEVICE_ID));
-  auto props = decoder.GetProperties();
+  OpenCVDecoderFactory factory;
+  EXPECT_TRUE(factory.IsSupported(CPU_ONLY_DEVICE_ID));
+  auto props = factory.GetProperties();
   EXPECT_TRUE(!!(props.supported_input_kinds & InputKind::HostMemory));
   EXPECT_TRUE(!!(props.supported_input_kinds & InputKind::Filename));
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "OpenCV decoder test");
-  auto instance = decoder.Create(CPU_ONLY_DEVICE_ID, tp);
-  EXPECT_NE(instance, nullptr);
+  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "OpenCV factory test");
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  EXPECT_NE(decoder, nullptr);
 }
 
 template <typename OutputType>
@@ -61,11 +61,11 @@ TYPED_TEST(OpenCVFallbackDecodeTest, Decode) {
   using OutputType = TypeParam;
 
   ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "OpenCV decoder test");
-  OpenCVDecoder decoder;
+  OpenCVDecoderFactory factory;
   auto fname = img_color;
   auto source = ImageSource::FromFilename(fname);
-  auto instance = decoder.Create(CPU_ONLY_DEVICE_ID, tp);
-  ASSERT_NE(instance, nullptr);
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  ASSERT_NE(decoder, nullptr);
 
   BmpParser parser;
   EXPECT_TRUE(parser.CanParse(&source));
@@ -76,7 +76,7 @@ TYPED_TEST(OpenCVFallbackDecodeTest, Decode) {
   ASSERT_LE(n, 100000000);  // sanity check - less than 100M elements
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), info.shape, type2id<OutputType>::value);
-  auto result = instance->Decode(sv, &source, params);
+  auto result = decoder->Decode(sv, &source, params);
   if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
   }
@@ -101,11 +101,11 @@ TYPED_TEST(OpenCVFallbackDecodeTest, DecodeROI) {
   using OutputType = TypeParam;
 
   ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "OpenCV decoder test");
-  OpenCVDecoder decoder;
+  OpenCVDecoderFactory factory;
   auto fname = img_palette;
   auto source = ImageSource::FromFilename(fname);
-  auto instance = decoder.Create(CPU_ONLY_DEVICE_ID, tp);
-  ASSERT_NE(instance, nullptr);
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  ASSERT_NE(decoder, nullptr);
 
   BmpParser parser;
   EXPECT_TRUE(parser.CanParse(&source));
@@ -124,7 +124,7 @@ TYPED_TEST(OpenCVFallbackDecodeTest, DecodeROI) {
   ASSERT_LE(n, 100000000);  // sanity check - less than 100M elements
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), out_shape, type2id<OutputType>::value);
-  auto result = instance->Decode(sv, &source, params, roi);
+  auto result = decoder->Decode(sv, &source, params, roi);
   if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
   }

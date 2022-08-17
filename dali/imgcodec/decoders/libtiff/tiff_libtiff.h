@@ -32,7 +32,7 @@ class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl {
                       DecodeParams opts, const ROI &roi) override;
 };
 
-class LibTiffDecoder : public ImageDecoder {
+class LibTiffDecoderFactory : public ImageDecoderFactory {
  public:
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
