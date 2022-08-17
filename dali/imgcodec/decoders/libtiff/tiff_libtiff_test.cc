@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
-#include "dali/imgcodec/decoders/tiff_libtiff.h"
+#include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"

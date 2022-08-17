@@ -12,12 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_subdirectory(jpeg)
-
-if (BUILD_LIBTIFF)
-    add_subdirectory(libtiff)
-endif ()
-
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_IMGCODEC_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_IMGCODEC_TEST_SRCS PARENT_SCOPE)
