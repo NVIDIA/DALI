@@ -20,8 +20,6 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/core/tensor_shape_print.h"
 
-#define IMG_CONVERT_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
-
 namespace dali {
 namespace imgcodec {
 
@@ -63,7 +61,7 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
 
   auto UnsupportedType = [](const char *which_type, DALIDataType type_id) {
     DALI_FAIL(make_string("Unsupported ", which_type, " type: ", type_id,
-                          ListTypeNames<IMG_CONVERT_TYPES>()));
+                          ListTypeNames<IMGCODEC_TYPES>()));
   };
 
   TensorShape<> out_strides = kernels::GetStrides(out_shape);
@@ -76,8 +74,8 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
     in_offset += in_strides_no_channel[d] * roi_start[d];
   }
 
-  TYPE_SWITCH(out.type(), type2id, Out, (IMG_CONVERT_TYPES),
-    TYPE_SWITCH(in.type(), type2id, In, (IMG_CONVERT_TYPES),
+  TYPE_SWITCH(out.type(), type2id, Out, (IMGCODEC_TYPES),
+    TYPE_SWITCH(in.type(), type2id, In, (IMGCODEC_TYPES),
       (Convert(out.mutable_data<Out>(), out_strides.data(), out_channel_dim, out_format,
                in.data<In>() + in_offset, in_strides.data(), in_channel_dim, in_format,
                out_shape.data(), ndim)),

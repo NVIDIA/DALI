@@ -24,6 +24,7 @@
 #include "dali/core/mm/memory.h"
 #include "dali/core/convert.h"
 #include "dali/imgcodec/decoders/decoder_test_helper.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace imgcodec {
@@ -44,9 +45,18 @@ auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
 
 auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel/" +
                          "cat-111793_640_multichannel.tif";
+
+auto depth8_path  = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_8bit.tiff";
+auto depth16_path = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_16bit.tiff";
+auto depth32_path = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_32bit.tiff";
+
+auto depth8_ref_path  = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_8bit.tiff.npy";
+auto depth16_ref_path = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_16bit.tiff.npy";
+auto depth32_ref_path = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_32bit.tiff.npy";
 }  // namespace
 
-class LibTiffDecoderTest : public NumpyDecoderTestBase<CPUBackend, uint8_t> {
+template <typename OutType>
+class LibTiffDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutType> {
  protected:
   std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
     LibTiffDecoderFactory factory;
@@ -55,78 +65,97 @@ class LibTiffDecoderTest : public NumpyDecoderTestBase<CPUBackend, uint8_t> {
   std::shared_ptr<ImageParser> CreateParser() override {
     return std::make_shared<TiffParser>();
   }
+
+  static const auto dtype = type2id<OutType>::value;
 };
 
-TEST_F(LibTiffDecoderTest, FromFilename) {
-  auto ref = ReadReferenceFrom(rgb_ref_path);
+using LibTiffDecoderTypes = ::testing::Types<uint8_t, uint16_t, uint32_t>;
+TYPED_TEST_SUITE(LibTiffDecoderTest, LibTiffDecoderTypes);
+
+TYPED_TEST(LibTiffDecoderTest, FromFilename) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
-  auto img = Decode(&src);
-  AssertEqualSatNorm(img, ref);
+  auto img = this->Decode(&src, {this->dtype});
+  this->AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, FromStream) {
-  auto ref = ReadReferenceFrom(rgb_ref_path);
+TYPED_TEST(LibTiffDecoderTest, FromStream) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto stream = FileStream::Open(rgb_path, false, false);
   auto src = ImageSource::FromStream(stream.get());
-  auto img = Decode(&src);
-  AssertEqualSatNorm(img, ref);
+  auto img = this->Decode(&src, {this->dtype});
+  this->AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, FromHostMem) {
-  auto ref = ReadReferenceFrom(rgb_ref_path);
+TYPED_TEST(LibTiffDecoderTest, FromHostMem) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto stream = FileStream::Open(rgb_path, false, false);
   std::vector<uint8_t> data(stream->Size());
   stream->ReadBytes(data.data(), data.size());
   auto src = ImageSource::FromHostMem(data.data(), data.size());
-  auto img = Decode(&src);
-  AssertEqualSatNorm(img, ref);
+  auto img = this->Decode(&src, {this->dtype});
+  this->AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, ROI) {
-  auto ref = ReadReferenceFrom(rgb_ref_path);
+TYPED_TEST(LibTiffDecoderTest, ROI) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
-  auto info = Parser()->GetInfo(&src);
+  auto info = this->Parser()->GetInfo(&src);
 
-  DecodeParams params = {};
   ROI roi = {{13, 17}, {info.shape[0] - 55, info.shape[1] - 10}};
-  auto img = Decode(&src, params, roi);
-  AssertEqualSatNorm(img, Crop(ref, roi));
+  auto img = this->Decode(&src, {this->dtype}, roi);
+  this->AssertEqualSatNorm(img, this->Crop(ref, roi));
 }
 
-TEST_F(LibTiffDecoderTest, Gray) {
-  auto ref = ReadReferenceFrom(gray_ref_path);
+TYPED_TEST(LibTiffDecoderTest, Gray) {
+  auto ref = this->ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
-  DecodeParams params = {};
-  params.format = DALI_GRAY;
-  auto img = Decode(&src, params);
-  AssertEqualSatNorm(img, ref);
+  auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
+  this->AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderTest, GrayToRgb) {
-  auto ref = ReadReferenceFrom(gray_ref_path);
+TYPED_TEST(LibTiffDecoderTest, GrayToRgb) {
+  auto ref = this->ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
-  DecodeParams params = {};
-  params.format = DALI_RGB;
-  auto img = Decode(&src, params);
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB});
 
   EXPECT_EQ(img.shape, TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
 
-  auto red = Crop(img.to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
-  auto green = Crop(img.to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
-  auto blue = Crop(img.to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
+  auto red = this->Crop(img.template to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
+  auto green = this->Crop(img.template to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
+  auto blue = this->Crop(img.template to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
 
-  AssertEqualSatNorm(view<uint8_t>(red), ref);
-  AssertEqualSatNorm(view<uint8_t>(green), ref);
-  AssertEqualSatNorm(view<uint8_t>(blue), ref);
+  this->AssertEqualSatNorm(red, ref);
+  this->AssertEqualSatNorm(green, ref);
+  this->AssertEqualSatNorm(blue, ref);
 }
 
-TEST_F(LibTiffDecoderTest, MultichannelToRgb) {
-  auto ref = ReadReferenceFrom(rgb_ref_path);
+TYPED_TEST(LibTiffDecoderTest, MultichannelToRgb) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(multichannel_path);
-  DecodeParams params = {};
-  params.format = DALI_RGB;
-  auto img = Decode(&src, params);
-  AssertEqualSatNorm(img, ref);
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB});
+  this->AssertEqualSatNorm(img, ref);
+}
+
+TYPED_TEST(LibTiffDecoderTest, Depth8) {
+  auto ref = this->ReadReferenceFrom(depth8_ref_path);
+  auto src = ImageSource::FromFilename(depth8_path);
+  auto img = this->Decode(&src, {this->dtype});
+  this->AssertEqualSatNorm(img, ref);
+}
+
+TYPED_TEST(LibTiffDecoderTest, Depth16) {
+  auto ref = this->ReadReferenceFrom(depth16_ref_path);
+  auto src = ImageSource::FromFilename(depth16_path);
+  auto img = this->Decode(&src, {this->dtype});
+  this->AssertEqualSatNorm(img, ref);
+}
+
+TYPED_TEST(LibTiffDecoderTest, Depth32) {
+  auto ref = this->ReadReferenceFrom(depth32_ref_path);
+  auto src = ImageSource::FromFilename(depth32_path);
+  auto img = this->Decode(&src, {this->dtype});
+  this->AssertEqualSatNorm(img, ref);
 }
 
 }  // namespace test

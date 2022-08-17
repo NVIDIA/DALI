@@ -17,6 +17,7 @@
 #include "dali/imgcodec/util/convert.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/core/static_switch.h"
 
 #define LIBTIFF_CALL_SUCCESS 1
 #define LIBTIFF_CALL(call)                                \
@@ -139,16 +140,28 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
   return info;
 }
 
+template <int depth>
+struct depth2type;
+template <>
+struct depth2type<8> {
+  using type = uint8_t;
+};
+
+template <>
+struct depth2type<16> {
+  using type = uint16_t;
+};
+template <>
+struct depth2type<32> {
+  using type = uint32_t;
+};
+
 }  // namespace detail
 
 DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
                                             DecodeParams opts, const ROI &requested_roi) {
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
-
-  // TODO(skarpinski) Support other bit depths
-  if (info.bit_depth != 8)
-    return {false, make_exception_ptr(std::logic_error("Only bit depth = 8 is supported"))};
 
   // TODO(skarpinski) Support palette images
   if (info.is_palette)
@@ -160,16 +173,9 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
 
   unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 
-  // TODO(skarpinski) support different types
-  using InType = uint8_t;
-  using OutType = uint8_t;
-
   auto row_nbytes = TIFFScanlineSize(tiff.get());
-  std::unique_ptr<InType, void(*)(void*)> row_buf{
-    static_cast<InType *>(_TIFFmalloc(row_nbytes)), _TIFFfree};
+  std::unique_ptr<void, void(*)(void*)> row_buf{_TIFFmalloc(row_nbytes), _TIFFfree};
   DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
-  InType * const row_in  = row_buf.get();
-  OutType * const img_out = out.mutable_data<OutType>();
 
   ROI roi;
   if (!requested_roi.use_roi()) {
@@ -193,7 +199,7 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   // If random access is not allowed, need to read sequentially all previous rows
   if (!allow_random_row_access) {
     for (int64_t y = 0; y < roi.begin[0]; y++) {
-      LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, y, 0));
+      LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), y, 0));
     }
   }
 
@@ -212,17 +218,23 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
   TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
   TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
 
-  for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
-    LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + roi_y, 0));
+  TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
+    VALUE_SWITCH(info.bit_depth, Depth, (8, 16, 32), (
+      using InputType = detail::depth2type<Depth>::type;
+      auto *row_in  = static_cast<InputType *>(row_buf.get());
+      OutType *const img_out = out.mutable_data<OutType>();
+      for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
+        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + roi_y, 0));
+        Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
+                row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
+                out_line_shape.data(), 2);
+      }
+    ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
 
-    Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
-            row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
-            out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
-  }
 
   return {true, nullptr};
 }
-
 
 }  // namespace imgcodec
 }  // namespace dali
