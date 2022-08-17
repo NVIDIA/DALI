@@ -669,8 +669,22 @@ class DLL_PUBLIC TensorVector {
    */
   void UpdatePropertiesFromSamples(bool contiguous);
 
+  /**
+   * @brief Adjust the tensors_ member size, so they can be used with setters for individual
+   * tensors. Bring them back to scope while preserving the allocation (if possible) in a manner
+   * that is compatible with the current batch state (like type and dimensionality).
+   */
   void resize_tensors(int size);
 
+  /**
+   * @brief When bringing the tensors_ back to scope, fill it with correct allocation metadata
+   */
+  void setup_tensor_allocation(int index);
+
+  /**
+   * @brief When using one contiguous allocation, rebuild the view Tensors (sharing part of the
+   * contiguous buffer) that represent samples.
+   */
   void recreate_views();
 
   /**

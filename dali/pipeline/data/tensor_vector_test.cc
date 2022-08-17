@@ -130,6 +130,63 @@ TYPED_TEST(TensorVectorSuite, SetupAndSetSizeNoncontiguous) {
   EXPECT_THROW(tv.Resize(uniform_list_shape(3, {10, 12, 3})), std::runtime_error);
 }
 
+TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
+  // Check if the tensors that get back to the scope are correctly typed
+  for (auto contiguity : {BatchContiguity::Contiguous, BatchContiguity::Noncontiguous}) {
+    TensorVector<TypeParam> tv;
+    tv.SetContiguity(contiguity);
+    tv.set_pinned(true);
+    auto shape0 = TensorListShape<>({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+    tv.Resize(shape0, DALI_UINT8);
+    EXPECT_EQ(tv.shape().num_samples(), 3);
+    for (int i = 0; i < 3; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), shape0[i]);
+    }
+
+    auto shape1 = TensorListShape<>({{1, 2}, {3, 4}});
+    tv.Resize(shape1, DALI_FLOAT);
+    EXPECT_EQ(tv.shape().num_samples(), 2);
+    for (int i = 0; i < 2; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_FLOAT);
+      EXPECT_EQ(tv[i].shape(), shape1[i]);
+    }
+
+    auto shape2 = TensorListShape<>({{2, 3}, {4, 5}, {5, 6}, {6, 7}, {7, 8}});
+    tv.Resize(shape2, DALI_FLOAT64);
+    EXPECT_EQ(tv.shape().num_samples(), 5);
+    for (int i = 0; i < 5; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_FLOAT64);
+      EXPECT_EQ(tv[i].shape(), shape2[i]);
+    }
+
+    auto shape3 = TensorListShape<>({{2, 3}, {4, 5}, {5, 6}});
+    tv.SetSize(3);
+    EXPECT_EQ(tv.shape().num_samples(), 3);
+    for (int i = 0; i < 3; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_FLOAT64);
+      EXPECT_EQ(tv[i].shape(), shape3[i]);
+    }
+
+    auto shape4 = TensorListShape<>({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+    tv.Resize(shape4, DALI_UINT8);
+    EXPECT_EQ(tv.shape().num_samples(), 3);
+    for (int i = 0; i < 3; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), shape4[i]);
+    }
+
+    auto shape5 =
+        TensorListShape<>({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}});
+    tv.SetSize(6);
+    EXPECT_EQ(tv.shape().num_samples(), 6);
+    for (int i = 0; i < 6; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), shape5[i]);
+    }
+  }
+}
+
 
 TYPED_TEST(TensorVectorSuite, SetupLikeMultiGPU) {
   int ndev = 0;

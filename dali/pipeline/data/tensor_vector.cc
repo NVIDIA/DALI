@@ -533,11 +533,25 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
       DoMakeNoncontiguous();
     }
   }
-  resize_tensors(new_shape.num_samples());
+
+  // Resize the tensors_ and setup the allocation metadata on the tensors, just in case
+  // we will be resizing them. Rest of their metadata (like shape and type) will be updated
+  // by either the recreate_views or Tensor::Resize.
+  int old_size = tensors_.size();
+  if (old_size < new_shape.num_samples()) {
+    tensors_.resize(new_shape.num_samples());
+  }
+  for (int i = old_size; i < new_shape.num_samples(); i++) {
+    setup_tensor_allocation(i);
+  }
+  curr_num_tensors_ = new_shape.num_samples();
+
   if (type_.id() != new_type) {
     type_ = TypeTable::GetTypeInfo(new_type);
-    // calling appropriate resize and/or recreate_views propagates type to individual samples
   }
+
+  sample_dim_ = new_shape.sample_dim();
+  shape_ = new_shape;
 
   bool should_coalesce = [&]() {
     if (!state_.IsContiguous() && state_.IsForced()) {
@@ -558,9 +572,6 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
     return false;
   }();
 
-  sample_dim_ = new_shape.sample_dim();
-  shape_ = new_shape;
-
   if (should_coalesce) {
     state_.Update(BatchContiguity::Contiguous);
   }
@@ -580,6 +591,7 @@ void TensorVector<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataT
     order_ = tensors_[0].order();
     device_ = tensors_[0].device_id();
   }
+  SetLayout(GetLayout());
 }
 
 
@@ -752,7 +764,6 @@ void TensorVector<Backend>::recreate_views() {
     std::shared_ptr<void> sample_alias(contiguous_buffer_.get_data_ptr(), sample_ptr);
     tensors_[i].ShareData(sample_alias, tensor_size * type_info().size(), is_pinned(), shape()[i],
                           type(), device_id(), order());
-    tensors_[i].set_device_id(device_id());
     sample_ptr += tensor_size * type_info().size();
   }
 }
@@ -1044,6 +1055,19 @@ void TensorVector<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes,
 
 
 template <typename Backend>
+void TensorVector<Backend>::setup_tensor_allocation(int index) {
+  if (tensors_[index].has_data() && tensors_[index].is_pinned() != is_pinned()) {
+    tensors_[index].Reset();
+  }
+  if (!tensors_[index].has_data()) {
+    tensors_[index].set_pinned(is_pinned());
+  }
+  tensors_[index].set_device_id(device_id());
+  tensors_[index].set_order(order());
+}
+
+
+template <typename Backend>
 void TensorVector<Backend>::resize_tensors(int new_size) {
   // This doesn't update with the same order as the class members are listed
   // We need to make sure everything is updated for the tensors that come back into scope
@@ -1054,19 +1078,16 @@ void TensorVector<Backend>::resize_tensors(int new_size) {
     auto old_size = curr_num_tensors_;
     tensors_.resize(new_size);
     for (int i = old_size; i < new_size; i++) {
-      // TODO(klecki) same validation as when updating properties - or reset
-      if (!tensors_[i].has_data()) {
-        tensors_[i].set_pinned(is_pinned());
-      } else {
-        DALI_ENFORCE(tensors_[i].is_pinned() == is_pinned());
-      }
-      tensors_[i].set_order(order());
-      tensors_[i].set_device_id(device_id());
+      setup_tensor_allocation(i);
       if (type() != DALI_NO_TYPE) {
-        tensors_[i].set_type(type());
         if (sample_dim_ >= 0) {
-          tensors_[i].Resize(TensorShape<>::empty_shape(sample_dim()));
+          tensors_[i].Resize(
+              sample_dim() > 0 ? TensorShape<>::empty_shape(sample_dim()) : TensorShape<>({}),
+              type());
           shape_.set_tensor_shape(i, TensorShape<>::empty_shape(sample_dim()));
+        } else if (type() != tensors_[i].type()) {
+          tensors_[i].Reset();
+          tensors_[i].set_type(type());
         }
       }
       tensors_[i].SetLayout(GetLayout());

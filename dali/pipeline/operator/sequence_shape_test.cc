@@ -205,9 +205,9 @@ using Containers = ::testing::Types<
     std::pair<TensorVector<GPUBackend>,
               std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>,
     std::pair<TensorList<CPUBackend>,
-              std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>,
+              std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>,
     std::pair<TensorList<GPUBackend>,
-              std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>>;
+              std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>>;
 
 TYPED_TEST_SUITE(SequenceShapeUnfoldTest, Containers);
 
