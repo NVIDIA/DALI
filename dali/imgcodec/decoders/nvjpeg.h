@@ -1,0 +1,87 @@
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_IMGCODEC_DECODERS_NVJPEG_H_
+#define DALI_IMGCODEC_DECODERS_NVJPEG_H_
+
+#include <memory>
+#include <nvjpeg.h>
+#include <vector>
+#include "dali/core/cuda_event.h"
+#include "dali/core/cuda_stream_pool.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/imgcodec/decoders/decoder_parallel_impl.h"
+#include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
+
+namespace dali {
+namespace imgcodec {
+
+class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
+ public:
+  NvJpegDecoderInstance(int device_id, ThreadPool *tp);
+
+  DecodeResult DecodeImplTask(int thread_idx,
+                              cudaStream_t stream,
+                              SampleView<GPUBackend> out,
+                              ImageSource *in,
+                              DecodeParams opts,
+                              const ROI &roi) override;
+  ~NvJpegDecoderInstance();
+
+  void SetParam(const char *name, const any &value) override;
+  any GetParam(const char *name) const override;
+
+ private:
+  nvjpegHandle_t nvjpeg_handle_;
+
+  size_t device_memory_padding_;
+  size_t host_memory_padding_;
+  nvjpegDevAllocator_t device_allocator_;
+  nvjpegPinnedAllocator_t pinned_allocator_;
+
+  struct DecoderData {
+    nvjpegJpegDecoder_t decoder = nullptr;
+    nvjpegJpegState_t state = nullptr;
+  };
+
+  struct PerThreadResources {
+    DecoderData decoder_data;
+
+    nvjpegBufferDevice_t device_buffer;
+    nvjpegBufferPinned_t pinned_buffer;
+
+    nvjpegJpegStream_t jpeg_stream;
+    cudaStream_t stream;
+    cudaEvent_t decode_event;
+  };
+
+  std::vector<PerThreadResources> resources_;
+
+  struct DecodingContext {
+    PerThreadResources& resources;
+
+    nvjpegDecodeParams_t params;
+    nvjpegChromaSubsampling_t subsampling;
+
+    TensorShape<> shape;
+  };
+
+  void ParseJpeg(ImageSource& in, DecodeParams opts, DecodingContext& ctx);
+  void DecodeJpeg(ImageSource& in, uint8_t *out, DecodeParams opts, DecodingContext &ctx);
+};
+
+}  // namespace imgcodec
+}  // namespace dali
+
+#endif  // DALI_IMGCODEC_DECODERS_NVJPEG_H_
