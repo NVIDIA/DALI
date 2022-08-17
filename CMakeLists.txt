@@ -274,16 +274,48 @@ endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wsign-compare")
+  execute_process(COMMAND
+      find ${CMAKE_SOURCE_DIR}/dali ${CMAKE_SOURCE_DIR}/include
+      -type f
+      -regex ".*\\.\\(h\\|hpp\\|cuh\\|inl\\)$"
+      OUTPUT_VARIABLE ALL_HEADERS
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+      #ECHO_OUTPUT_VARIABLE
+      #COMMAND_ECHO STDOUT)
+  # string(REGEX REPLACE "\n$" "|" ALL_HEADERS "${ALL_HEADERS}")
+  # string(REPLACE "\n" ";" ALL_HEADERS_LIST ${ALL_HEADERS})
+  # Remove the absolute path so we can apply filter file easily.
+  string(REPLACE "${CMAKE_SOURCE_DIR}/" "" ALL_HEADERS ${ALL_HEADERS})
+  # string(REGEX REPLACE "\\." "\." ALL_HEADERS "${ALL_HEADERS}")
+  message(STATUS "ALL_HEADERS is set to ${ALL_HEADERS}")
+  set(TEST_LIST "include/dali/core/tensor_shape\\.h|include/dali/core/util\\.h")
+
+  file(READ ".clang-tidy-filter" CLANG_TIDY_LINE_FILTER)
+  # make this a list
+  string(REPLACE "\n" ";" CLANG_TIDY_LINE_FILTER ${CLANG_TIDY_LINE_FILTER})
+  foreach(FILTERED IN ITEMS ${CLANG_TIDY_LINE_FILTER})
+    string(REPLACE ${FILTERED} "" ALL_HEADERS ${ALL_HEADERS})
+  endforeach()
+  # nice and consistent argument order, we need to strip
+  string(STRIP ${ALL_HEADERS} ALL_HEADERS)
+
+  # Format into the regex - make every line an alternative, swap . into \. and
+  # We may have some empty newlines after the filtering
+  string(REGEX REPLACE "(\n)+" "|" ALL_HEADERS ${ALL_HEADERS})
+  string(REPLACE "." "\\." ALL_HEADERS ${ALL_HEADERS})
+  message(STATUS "ALL_HEADERS is set to ${ALL_HEADERS}")
+
 
   # Settings specific to builds where Clang is used for compiling CUDA code
   if (DALI_CLANG_ONLY)
     # Full power of clang-tidy
     # Remove some that appera in fp16 and tests, and try again
-    file(READ ".clang-tidy-filter.json" CLANG_TIDY_LINE_FILTER)
     set(CMAKE_CXX_CLANG_TIDY "clang-tidy"
-      "-warnings-as-errors=-*,bugprone-*,misc-*,modernize-*,clang-analyzer-*"
-      "-checks=-clang-analyzer-security.FloatLoopCounter,-clang-analyzer-core.DivideZero,-clang-analyzer-core.UndefinedBinaryOperatorResult"
-      "-header-filter=.*")
+    "-header-filter=${ALL_HEADERS}")
+      # "--extra-arg-before=--system-header-prefix=include/dali/util/half.hpp")
+      # "-warnings-as-errors=-*,bugprone-*,misc-*,modernize-*,clang-analyzer-*"
+      # "-checks=-clang-analyzer-security.FloatLoopCounter,-clang-analyzer-core.DivideZero,-clang-analyzer-core.UndefinedBinaryOperatorResult"
+      # "-header-filter=.*")
       # Line filter filters too much
       # "-line-filter=${CLANG_TIDY_LINE_FILTER}")
     message(STATUS "CMAKE_CXX_CLANG_TIDY is set to ${CMAKE_CXX_CLANG_TIDY}")

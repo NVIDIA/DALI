@@ -1,0 +1,4 @@
+LIST OF HEADER FILES TO BE IGNORED BY CLANG TIDY
+include/dali/util/half.hpp
+include/dali/core/tensor_shape.h
+include/dali/core/access_order.h
