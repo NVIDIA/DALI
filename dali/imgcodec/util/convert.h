@@ -249,7 +249,7 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
 /**
  * @brief Converts an image stored in `in` and stores it in `out`.
  *
-* The function converts data type (normalizing) and color space.
+ * The function converts data type (normalizing) and color space.
  * When roi_start or roi_end is empty, it is assumed to be the lower bound and upport bound
  * of the spatial extent. Channel dimension must not be included in ROI specification.
  */
