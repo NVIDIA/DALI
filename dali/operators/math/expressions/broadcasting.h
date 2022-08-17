@@ -22,112 +22,81 @@
 namespace dali {
 
 /**
- * @brief Calculates the shape of broadcasting two compatible shapes. It is allowed that the shape
- *        has different number of dimensions. In such case, the shape with fewer dimensions will be
- *        prepended with leading dimensions with extend 1.
+ * @brief Returns the number of dimensions of the broadcasted shape
+ */
+DLL_PUBLIC int BroadcastNdim(span<const TensorShape<>> shapes);
+DLL_PUBLIC int BroadcastNdim(span<const TensorListShape<>> shapes);
+
+/**
+ * @brief Verifies that all shapes have the same number of samples
+ */
+DLL_PUBLIC void CheckNumSamples(span<const TensorListShape<>> shapes);
+
+/**
+ * @brief Calculates the resulting shape of broadcasting two or more compatible shapes.
+ *        It is allowed that the shape has different number of dimensions, in which case 
+ *        the shape with fewer dimensions will be prepended with leading dimensions
+ *        with extend 1.
  *        Example: lhs=(10, 10, 3), rhs=(1, 3) -> result=(10, 10, 3)
  * 
+ * @param result resulting shape (should as many dimensions as the operands)
  * @param lhs shape of left hand side operand
  * @param rhs shape of right hand side operand
  * @return TensorShape<> resulting shape
  */
-TensorShape<> BroadcastShape(const TensorShape<> &lhs, const TensorShape<> &rhs) {
-  TensorShape<> sh;
+DLL_PUBLIC void BroadcastShape(TensorShape<>& result, span<const TensorShape<>> shapes);
+DLL_PUBLIC void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>> shapes);
 
-  const int64_t *a = lhs.shape.data(), *b = rhs.shape.data();
-  size_t a_ndim = lhs.shape.size(), b_ndim = rhs.shape.size();
-  if (a_ndim < b_ndim) {
-    std::swap(a, b);
-    std::swap(a_ndim, b_ndim);
-  }
+template <typename Shape>
+void BroadcastShape(Shape &result, const Shape& a, const Shape& b) {
+  std::array<Shape, 2> arr = {a, b};
+  BroadcastShape(result, make_cspan(arr));
+}
 
-  size_t i = 0, j = 0;
-  for (; i < (a_ndim - b_ndim); i++) {
-    sh.shape.push_back(a[i]);
-  }
-  for (; i < a_ndim; i++, j++) {
-    DALI_ENFORCE(a[i] == b[j] || a[i] == 1 || b[j] == 1,
-                 make_string("Shapes ", lhs, " and ", rhs, " can't be broadcasted (",
-                             a[i], ", ", b[j], ")."));
-    sh.shape.push_back(std::max(a[i], b[j]));
-  }
-  return sh;
+template <typename Shape>
+void BroadcastShape(Shape &result, const Shape &a, const Shape &b, const Shape &c) {
+  std::array<Shape, 3> arr = {a, b, c};
+  BroadcastShape(result, make_cspan(arr));
 }
 
 /**
- * @brief Calculates strides to cover a possibly broadcasted shape. Those stride for
- *        broadcasted dimensions is changed to 0
- * 
- * @param out_sh broadcasted shape
- * @param in_sh original shape
- * @param in_strides original strides
- * @return TensorShape<> modified strides
+ * @brief Verifies whether two shapes or more can be broadcasted
+ *        Two shapes can be broadcasted if all the extents are either 
+ *        equal or one of them is equal to one for the `ndim` rightmost
+ *        dimensions, being `ndim` the minimum number of dimensions of 
+ *        the two.
  */
-TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh, const TensorShape<> &in_sh,
-                                     const TensorShape<> &in_strides) {
-  TensorShape<> strides;
-  assert(in_sh.size() == in_strides.size());
-  assert(in_sh.size() <= out_sh.size());
-  int i = 0;
-  int out_ndim = out_sh.size();
-  strides.shape.resize(out_ndim, 0);
-  for (int i = (out_ndim - in_sh.size()); i < out_ndim; i++) {
-    assert(in_sh[i] == out_sh[i] || in_sh[i] == 1);
-    if (in_sh[i] == out_sh[i])
-      strides[i] = in_strides[i];
-    else
-      strides[i] = 0;
-  }
-  return strides;
+DLL_PUBLIC bool CanBroadcast(span<const TensorShape<>> shapes);
+DLL_PUBLIC bool CanBroadcast(span<const TensorListShape<>> shapes);
+
+template <typename Shape>
+bool CanBroadcast(const Shape &a, const Shape &b) {
+  std::array<Shape, 2> arr = {a, b};
+  return CanBroadcast(make_cspan(arr));
 }
 
-void ExpandToNDims(TensorShape<> &sh, int ndim) {
-  assert(sh.size() <= ndim);
-  if (sh.size() == ndim)
-    return;
-  TensorShape<> sh2;
-  sh2.shape.resize(ndim);
-  int i = 0;
-  for (; i < (ndim - sh.size()); i++)
-    sh2[i] = 1;
-  for (int j = 0; j < sh.size(); j++, i++)
-    sh2[i] = sh[j];
-  std::swap(sh, sh2);
+template <typename Shape>
+bool CanBroadcast(const Shape &a, const Shape &b, const Shape& c) {
+  std::array<Shape, 3> arr = {a, b, c};
+  return CanBroadcast(make_cspan(arr));
 }
+
+/**
+ * @brief Calculates strides to cover a possibly broadcasted shape. 
+ *        The stride for those broadcasted dimensions is set to 0
+ */
+DLL_PUBLIC TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh,
+                                                const TensorShape<> &in_sh,
+                                                const TensorShape<> &in_strides);
+
+DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
 
 /**
  * @brief It simplifies a shape for arithmetic op execution with broadcasting.
  *        It detects and collapses adjacent dimensions that are not broadcasted
- * 
+ * @remarks For shapes that don't need broadcasting, it results in a 1D shape.
  */
-void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs) {
-  // First, if needed expand dimensions
-  int full_ndim = std::max(lhs.size(), rhs.size());
-  if (lhs.size() != rhs.size()) {
-    ExpandToNDims(lhs, full_ndim);
-    ExpandToNDims(rhs, full_ndim);
-  }
-
-  int i = 0;
-  SmallVector<std::pair<int, int>, 5> group_dims;
-  while (i < full_ndim) {
-    if (lhs[i] != rhs[i]) {
-      i++;
-      continue;
-    }
-    int j = i;
-    for (; j < full_ndim; j++) {
-      if (lhs[j] != rhs[j]) break;
-    }
-    if (i < j) {
-      group_dims.emplace_back(i, j-i);
-    }
-    i = j;
-  }
-
-  lhs = collapse_dims(lhs, group_dims);
-  rhs = collapse_dims(rhs, group_dims);
-}
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs);
 
 }  // namespace dali
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -413,6 +413,60 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
     for (int i = 0; i < tensor_elements; i++) {
       EXPECT_EQ(result0[i], static_cast<float>(data0[i]) / data1[i]);
       EXPECT_EQ(result1_cpu[i], static_cast<float>(data0[i]) / data1[i]);
+    }
+  }
+}
+
+TEST(ArithmeticOpsTest, BroadcastCPU) {
+  constexpr int batch_size = 3;
+  constexpr int num_threads = 4;
+  const auto tensor_a_sh = uniform_list_shape(batch_size, {2, 2, 3});
+  const auto tensor_b_sh = uniform_list_shape(batch_size, {2, 1, 3});
+  Pipeline pipe(batch_size, num_threads, 0);
+
+  pipe.AddExternalInput("data0");
+  pipe.AddExternalInput("data1");
+
+  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                       .AddArg("device", "cpu")
+                       .AddArg("expression_desc", "fdiv(&0 &1)")
+                       .AddInput("data0", "cpu")
+                       .AddInput("data1", "cpu")
+                       .AddOutput("result0", "cpu"),
+                   "arithm_cpu");
+
+  vector<std::pair<string, string>> outputs = {{"result0", "cpu"}};
+
+  pipe.Build(outputs);
+
+  TensorList<CPUBackend> batch[2];
+  FillBatch<int>(batch[0], tensor_a_sh);
+  FillBatch<int>(batch[1], tensor_b_sh);
+
+  pipe.SetExternalInput("data0", batch[0]);
+  pipe.SetExternalInput("data1", batch[1]);
+  pipe.RunCPU();
+  pipe.RunGPU();
+  DeviceWorkspace ws;
+  pipe.Outputs(&ws);
+  ASSERT_EQ(DALI_FLOAT, ws.Output<CPUBackend>(0).type());
+  ASSERT_EQ(tensor_a_sh, ws.Output<CPUBackend>(0).shape());
+
+  for (int sample_id = 0; sample_id < batch_size; sample_id++) {
+    const auto *data0 = batch[0].tensor<int>(sample_id);
+    const auto *data1 = batch[1].tensor<int>(sample_id);
+    auto *result0 = ws.Output<CPUBackend>(0).tensor<float>(sample_id);
+
+    TensorShape<> strides_a = {2*3, 3, 1};
+    TensorShape<> strides_b = {2*3, 0, 1};
+    for (int i0 = 0, i = 0; i0 < 2; i0++) {
+      for (int i1 = 0; i1 < 2; i1++) {
+        for (int i2 = 0; i2 < 3; i2++, i++) {
+          auto a = data0[i0 * strides_a[0] + i1 * strides_a[1] + i2 * strides_a[2]];
+          auto b = data0[i0 * strides_b[0] + i1 * strides_b[1] + i2 * strides_b[2]];
+          EXPECT_EQ(result0[i], static_cast<float>(a) / b);
+        }
+      }
     }
   }
 }
