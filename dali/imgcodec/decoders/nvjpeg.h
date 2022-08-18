@@ -87,11 +87,10 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
 class NvJpegDecoder : public ImageDecoder {
  public:
   ImageDecoderProperties GetProperties() const override {
-    ImageDecoderProperties props = {
-      .supports_partial_decoding = false,
-      .supported_input_kinds = InputKind::HostMemory,
-      .fallback = true
-    };
+    ImageDecoderProperties props;
+    props.supports_partial_decoding = false;
+    props.supported_input_kinds = InputKind::HostMemory;
+    props.fallback = true;
 
     return props;
   }

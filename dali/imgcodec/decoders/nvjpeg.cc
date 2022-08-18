@@ -111,9 +111,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
                                                    ImageSource *in,
                                                    DecodeParams opts,
                                                    const ROI &roi) {
-  DecodingContext ctx = DecodingContext {
-    .resources = resources_[thread_idx],
-  };
+  DecodingContext ctx = DecodingContext{ resources_[thread_idx] };
   CUDA_CALL(nvjpegDecodeParamsCreate(nvjpeg_handle_, &ctx.params));
   CUDA_CALL(nvjpegDecodeParamsSetOutputFormat(ctx.params, GetFormat(opts.format)));
   CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.params, true));
