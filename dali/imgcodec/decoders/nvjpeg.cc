@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <utility>
+#include "dali/core/device_guard.h"
 #include "dali/imgcodec/decoders/nvjpeg.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
@@ -25,6 +26,7 @@ NvJpegDecoderInstance::NvJpegDecoderInstance(int device_id, ThreadPool *tp)
 : BatchParallelDecoderImpl(device_id, tp)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
+  DeviceGuard dg(device_id_);
   CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
   resources_.reserve(tp->NumThreads());
 
@@ -66,6 +68,8 @@ NvJpegDecoderInstance::PerThreadResources::PerThreadResources(PerThreadResources
 }
 
 NvJpegDecoderInstance::~NvJpegDecoderInstance() {
+  DeviceGuard dg(device_id_);
+
   for (auto &thread_id : tp_->GetThreadIds()) {
     nvjpeg_memory::DeleteAllBuffers(thread_id);
   }
