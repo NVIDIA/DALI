@@ -37,6 +37,22 @@ namespace dali {
 class GPUBackend;
 class CPUBackend;
 
+/**
+ * @brief State of a batch object. Can be used to force the state to one of the two contiguous /
+ * noncontiguous modes or to change the mode when resizing, if it was not pinned.
+ * See TensorVector::Resize for detailed behaviour.
+ * * Automatic - means we are leaving it to the Batch to decide when to coalesce the allocation,
+ *   or keep the current one unchanged.
+ * Contiguous and Noncontiguous allow to request one backing allocation or separate ones for each
+ * sample.
+ */
+enum class BatchContiguity {
+  Automatic = 0,
+  Contiguous = 1,
+  Noncontiguous = 2,
+};
+
+
 
 DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes,
                                            bool pinned, int device_id,
@@ -578,8 +594,20 @@ class DLL_PUBLIC Buffer {
     num_bytes_ = 0;
   }
 
+  /**
+   * @brief Clear the ShareData flag of the buffer. It will still hold (and co-own) the data due
+   * to the shared_ptr semantics, but it is allowed to call resize() on it.
+   * Intended to be used by the Batch object only.
+   */
+  void detach() {
+    shares_data_ = false;
+  }
+
   template <typename>
   friend class TensorList;
+
+  template <typename>
+  friend class TensorVector;
 
   static double growth_factor_;
   static double shrink_threshold_;

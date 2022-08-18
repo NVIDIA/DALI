@@ -25,10 +25,10 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   for (int i = 0; i < num_inputs; i++) {
     if (batch.InputIsType<CPUBackend>(i)) {
       auto &input_ref = batch.UnsafeMutableInput<CPUBackend>(i);
-      sample.AddInput(input_ref.tensor_handle(data_idx).get());
+      sample.AddInput(&input_ref.tensor_handle(data_idx));
     } else {
       auto &input_ref = batch.UnsafeMutableInput<GPUBackend>(i);
-      sample.AddInput(input_ref.tensor_handle(data_idx).get());
+      sample.AddInput(&input_ref.tensor_handle(data_idx));
     }
   }
 
@@ -36,10 +36,10 @@ void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
   for (int i = 0; i < num_outputs; i++) {
     if (batch.OutputIsType<CPUBackend>(i)) {
       auto &output_ref = batch.Output<CPUBackend>(i);
-      sample.AddOutput(output_ref.tensor_handle(data_idx).get());
+      sample.AddOutput(&output_ref.tensor_handle(data_idx));
     } else {
       auto &output_ref = batch.Output<GPUBackend>(i);
-      sample.AddOutput(output_ref.tensor_handle(data_idx).get());
+      sample.AddOutput(&output_ref.tensor_handle(data_idx));
     }
   }
   for (auto& arg_pair : batch) {
