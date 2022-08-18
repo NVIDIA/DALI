@@ -77,8 +77,8 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
     TensorShape<> shape;
   };
 
-  void ParseJpeg(ImageSource& in, DecodeParams opts, DecodingContext& ctx);
-  void DecodeJpeg(ImageSource& in, uint8_t *out, DecodeParams opts, DecodingContext &ctx);
+  void ParseJpegSample(ImageSource& in, DecodeParams opts, DecodingContext& ctx);
+  void DecodeJpegSample(ImageSource& in, uint8_t *out, DecodeParams opts, DecodingContext &ctx);
 };
 
 class NvJpegDecoder : public ImageDecoder {

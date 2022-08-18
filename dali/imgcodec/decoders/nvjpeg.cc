@@ -111,8 +111,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.params, true));
 
   try {
-    ParseJpeg(*in, opts, ctx);
-    DecodeJpeg(*in, out.mutable_data<uint8_t>(), opts, ctx);
+    ParseJpegSample(*in, opts, ctx);
+    DecodeJpegSample(*in, out.mutable_data<uint8_t>(), opts, ctx);
   } catch (...) {
     return {false, std::make_exception_ptr(std::current_exception())};
   }
@@ -120,7 +120,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   return {true, nullptr};
 }
 
-void NvJpegDecoderInstance::ParseJpeg(ImageSource& in, DecodeParams opts, DecodingContext& ctx) {
+void NvJpegDecoderInstance::ParseJpegSample(ImageSource& in, DecodeParams opts,
+                                            DecodingContext& ctx) {
   int widths[NVJPEG_MAX_COMPONENT], heights[NVJPEG_MAX_COMPONENT], c;
   nvjpegChromaSubsampling_t subsampling;
   CUDA_CALL(nvjpegGetImageInfo(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(), &c,
@@ -129,8 +130,8 @@ void NvJpegDecoderInstance::ParseJpeg(ImageSource& in, DecodeParams opts, Decodi
   ctx.shape = {heights[0], widths[0], c};
 }
 
-void NvJpegDecoderInstance::DecodeJpeg(ImageSource& in, uint8_t *out, DecodeParams opts,
-                                       DecodingContext &ctx) {
+void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, DecodeParams opts,
+                                             DecodingContext &ctx) {
   auto& decoder = ctx.resources.decoder_data.decoder;
   auto& state = ctx.resources.decoder_data.state;
   auto& jpeg_stream = ctx.resources.jpeg_stream;
