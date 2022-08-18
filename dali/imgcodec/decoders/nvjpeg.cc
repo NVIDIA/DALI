@@ -123,7 +123,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
 void NvJpegDecoderInstance::ParseJpeg(ImageSource& in, DecodeParams opts, DecodingContext& ctx) {
   int widths[NVJPEG_MAX_COMPONENT], heights[NVJPEG_MAX_COMPONENT], c;
   nvjpegChromaSubsampling_t subsampling;
-  cudaResultCheck(nvjpegGetImageInfo(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(), &c,
+  CUDA_CALL(nvjpegGetImageInfo(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(), &c,
                                      &subsampling, widths, heights));
 
   ctx.shape = {heights[0], widths[0], c};
@@ -138,10 +138,10 @@ void NvJpegDecoderInstance::DecodeJpeg(ImageSource& in, uint8_t *out, DecodePara
   auto& decode_event = ctx.resources.decode_event;
   auto& device_buffer = ctx.resources.device_buffer;
 
-  cudaResultCheck(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer));
-  cudaResultCheck(nvjpegJpegStreamParse(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(),
+  CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer));
+  CUDA_CALL(nvjpegJpegStreamParse(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(),
                                         false, false, ctx.resources.jpeg_stream));
-  cudaResultCheck(nvjpegDecodeJpegHost(nvjpeg_handle_, decoder, state, ctx.params, jpeg_stream));
+  CUDA_CALL(nvjpegDecodeJpegHost(nvjpeg_handle_, decoder, state, ctx.params, jpeg_stream));
 
   nvjpegImage_t nvjpeg_image;
   // For interleaved, nvjpeg expects a single channel but 3x bigger
@@ -149,10 +149,10 @@ void NvJpegDecoderInstance::DecodeJpeg(ImageSource& in, uint8_t *out, DecodePara
   nvjpeg_image.pitch[0] = ctx.shape[1] * ctx.shape[2];
 
   CUDA_CALL(cudaEventSynchronize(decode_event));
-  cudaResultCheck(nvjpegStateAttachDeviceBuffer(state, device_buffer));
-  cudaResultCheck(nvjpegDecodeJpegTransferToDevice(nvjpeg_handle_, decoder, state, jpeg_stream,
+  CUDA_CALL(nvjpegStateAttachDeviceBuffer(state, device_buffer));
+  CUDA_CALL(nvjpegDecodeJpegTransferToDevice(nvjpeg_handle_, decoder, state, jpeg_stream,
                                                    stream));
-  cudaResultCheck(nvjpegDecodeJpegDevice(nvjpeg_handle_, decoder, state, &nvjpeg_image, stream));
+  CUDA_CALL(nvjpegDecodeJpegDevice(nvjpeg_handle_, decoder, state, &nvjpeg_image, stream));
 
   if (opts.format == DALI_YCbCr) {
     // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
