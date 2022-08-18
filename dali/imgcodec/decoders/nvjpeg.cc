@@ -23,26 +23,31 @@ namespace imgcodec {
 NvJpegDecoderInstance::NvJpegDecoderInstance(int device_id, ThreadPool *tp)
 : BatchParallelDecoderImpl(device_id, tp)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
-, pinned_allocator_(nvjpeg_memory::GetPinnedAllocator())
-, resources_(tp->NumThreads()) {
+, pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
+  resources_.reserve(tp->NumThreads());
 
-  for (auto &resource : resources_) {
-    CUDA_CALL(nvjpegJpegStreamCreate(nvjpeg_handle_, &resource.jpeg_stream));
-    CUDA_CALL(nvjpegBufferPinnedCreate(nvjpeg_handle_, &pinned_allocator_,
-                                       &resource.pinned_buffer));
-    CUDA_CALL(nvjpegBufferDeviceCreate(nvjpeg_handle_, &device_allocator_,
-                                       &resource.device_buffer));
-    CUDA_CALL(cudaStreamCreateWithFlags(&resource.stream, cudaStreamNonBlocking));
-
-    CUDA_CALL(cudaEventCreate(&resource.decode_event));
-    CUDA_CALL(cudaEventRecord(resource.decode_event, resources_[0].stream));
-
-    auto &decoder_data = resource.decoder_data;
-    auto backend = NVJPEG_BACKEND_HYBRID;  // TODO(msala) allow other backens
-    CUDA_CALL(nvjpegDecoderCreate(nvjpeg_handle_, backend, &decoder_data.decoder));
-    CUDA_CALL(nvjpegDecoderStateCreate(nvjpeg_handle_, decoder_data.decoder, &decoder_data.state));
+  for (int i = 0; i < tp->NumThreads(); i++) {
+    resources_.emplace_back(nvjpeg_handle_, &device_allocator_, &pinned_allocator_);
   }
+}
+
+NvJpegDecoderInstance::
+PerThreadResources::PerThreadResources(nvjpegHandle_t nvjpeg_handle,
+                                       nvjpegDevAllocator_t *device_allocator,
+                                       nvjpegPinnedAllocator_t *pinned_allocator) {
+  CUDA_CALL(nvjpegJpegStreamCreate(nvjpeg_handle, &jpeg_stream));
+  CUDA_CALL(nvjpegBufferPinnedCreate(nvjpeg_handle, pinned_allocator,
+                                     &pinned_buffer));
+  CUDA_CALL(nvjpegBufferDeviceCreate(nvjpeg_handle, device_allocator,
+                                     &device_buffer));
+  CUDA_CALL(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+
+  CUDA_CALL(cudaEventCreate(&decode_event));
+
+  auto backend = NVJPEG_BACKEND_HYBRID;  // TODO(msala) allow other backens
+  CUDA_CALL(nvjpegDecoderCreate(nvjpeg_handle, backend, &decoder_data.decoder));
+  CUDA_CALL(nvjpegDecoderStateCreate(nvjpeg_handle, decoder_data.decoder, &decoder_data.state));
 }
 
 NvJpegDecoderInstance::~NvJpegDecoderInstance() {
@@ -50,20 +55,23 @@ NvJpegDecoderInstance::~NvJpegDecoderInstance() {
     nvjpeg_memory::DeleteAllBuffers(thread_id);
   }
 
-  for (const auto &resource : resources_) {
-    CUDA_CALL(cudaStreamSynchronize(resource.stream));
-
-    CUDA_CALL(nvjpegJpegStreamDestroy(resource.jpeg_stream));
-    CUDA_CALL(nvjpegBufferPinnedDestroy(resource.pinned_buffer));
-    CUDA_CALL(nvjpegBufferDeviceDestroy(resource.device_buffer));
-    CUDA_CALL(cudaEventDestroy(resource.decode_event));
-    CUDA_CALL(cudaStreamDestroy(resource.stream));
-
-    CUDA_CALL(nvjpegDecoderDestroy(resource.decoder_data.decoder));
-    CUDA_CALL(nvjpegJpegStateDestroy(resource.decoder_data.state));
-  }
+  // Call destructors of all thread resources.
+  resources_.clear();
 
   CUDA_CALL(nvjpegDestroy(nvjpeg_handle_));
+}
+
+NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
+  CUDA_CALL(cudaStreamSynchronize(stream));
+
+  CUDA_CALL(nvjpegJpegStreamDestroy(jpeg_stream));
+  CUDA_CALL(nvjpegBufferPinnedDestroy(pinned_buffer));
+  CUDA_CALL(nvjpegBufferDeviceDestroy(device_buffer));
+  CUDA_CALL(cudaEventDestroy(decode_event));
+  CUDA_CALL(cudaStreamDestroy(stream));
+
+  CUDA_CALL(nvjpegDecoderDestroy(decoder_data.decoder));
+  CUDA_CALL(nvjpegJpegStateDestroy(decoder_data.state));
 }
 
 void NvJpegDecoderInstance::SetParam(const char *name, const any &value) {

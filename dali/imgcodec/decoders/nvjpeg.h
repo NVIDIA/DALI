@@ -64,6 +64,9 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
     nvjpegJpegStream_t jpeg_stream;
     cudaStream_t stream;
     cudaEvent_t decode_event;
+
+    PerThreadResources(nvjpegHandle_t, nvjpegDevAllocator_t*, nvjpegPinnedAllocator_t*);
+    ~PerThreadResources();
   };
 
   std::vector<PerThreadResources> resources_;
