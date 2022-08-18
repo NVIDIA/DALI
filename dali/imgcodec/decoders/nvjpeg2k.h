@@ -37,7 +37,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   ~NvJpeg2000DecoderInstance();
 
   using BatchParallelDecoderImpl::CanDecode;
-  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) {
+  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) override {
     // TODO(staniewzki): add support for roi and other data types
     return !roi && (opts.dtype == DALI_UINT8);
   }
@@ -50,7 +50,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
                               DecodeParams opts,
                               const ROI &roi) override;
 
-  void SetParam(const char *name, const any &value) {
+  void SetParam(const char *name, const any &value) override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
       nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
@@ -69,15 +69,15 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   }
 
  private:
+  /**
+   * @brief Context for image decoding, one per picture.
+   */
   struct Context {
+    /** @brief Bits per pixel */
     uint8_t bpp;
-    TensorShape<> shape;
-    int req_nchannels;
-    bool needs_processing;
+    /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
     DALIDataType pixel_type;
-    size_t pixel_size;
-    int64_t pixels_count;
-    int64_t comp_size;
+    TensorShape<> shape;
 
     NvJpeg2kDecodeState *nvjpeg2k_decode_state;
     NvJpeg2kStream *nvjpeg2k_stream;
@@ -86,7 +86,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   };
 
   struct PerThreadResources {
-    PerThreadResources() {}
+    PerThreadResources() = default;
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
                     size_t device_memory_padding, int device_id)
     : nvjpeg2k_decode_state(nvjpeg2k_handle)
@@ -110,8 +110,8 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   size_t nvjpeg2k_host_memory_padding_ = 256;
 
   bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context &ctx);
-  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, Context &ctx);
-  bool ConvertData(void *in, uint8_t *out, DecodeParams opts, Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, const Context &ctx);
+  bool ConvertData(void *in, uint8_t *out, DecodeParams opts, const Context &ctx);
 
   NvJpeg2kHandle nvjpeg2k_handle_{};
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
