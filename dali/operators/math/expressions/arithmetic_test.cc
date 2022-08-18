@@ -45,7 +45,8 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   ws.AddInput(in[1]);
 
   auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
-  auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
+  TensorListShape<> result_shape;
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
   auto expected_shpe = TensorListShape<>{{1}, {2}};
   EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
@@ -75,9 +76,10 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   }
   ws.AddInput(in[0]);
 
-  auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
-  auto expected_shpe = TensorListShape<>{{}, {}};
-  EXPECT_EQ(result_shape, expected_shpe);
+  TensorListShape<> result_shape;
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  auto expected_shape = TensorListShape<>{{}, {}};
+  EXPECT_EQ(result_shape, expected_shape);
 }
 
 TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
@@ -92,9 +94,10 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   }
   ws.AddInput(in[0]);
 
-  auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
-  auto expected_shpe = TensorListShape<>{{1}, {1}};
-  EXPECT_EQ(result_shape, expected_shpe);
+  TensorListShape<> result_shape;
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  auto expected_shape = TensorListShape<>{{1}, {1}};
+  EXPECT_EQ(result_shape, expected_shape);
 }
 
 TEST(ArithmeticOpsTest, TreePropagationError) {
@@ -115,7 +118,8 @@ TEST(ArithmeticOpsTest, TreePropagationError) {
   ws.AddInput(in[1]);
   ws.AddInput(in[2]);
 
-  ASSERT_THROW(PropagateShapes<CPUBackend>(expr_ref, ws, 2), std::runtime_error);
+  TensorListShape<> result_shape;
+  ASSERT_THROW(PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2), std::runtime_error);
   ASSERT_THROW(GetCommonLayout<CPUBackend>(expr_ref, ws), std::runtime_error);
 }
 
@@ -418,7 +422,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
 }
 
 TEST(ArithmeticOpsTest, BroadcastCPU) {
-  constexpr int batch_size = 3;
+  constexpr int batch_size = 1;
   constexpr int num_threads = 4;
   const auto tensor_a_sh = uniform_list_shape(batch_size, {2, 2, 3});
   const auto tensor_b_sh = uniform_list_shape(batch_size, {2, 1, 3});
@@ -429,7 +433,7 @@ TEST(ArithmeticOpsTest, BroadcastCPU) {
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
-                       .AddArg("expression_desc", "fdiv(&0 &1)")
+                       .AddArg("expression_desc", "add(&0 &1)")
                        .AddInput("data0", "cpu")
                        .AddInput("data1", "cpu")
                        .AddOutput("result0", "cpu"),
@@ -449,22 +453,24 @@ TEST(ArithmeticOpsTest, BroadcastCPU) {
   pipe.RunGPU();
   DeviceWorkspace ws;
   pipe.Outputs(&ws);
-  ASSERT_EQ(DALI_FLOAT, ws.Output<CPUBackend>(0).type());
+  ASSERT_EQ(DALI_INT32, ws.Output<CPUBackend>(0).type());
   ASSERT_EQ(tensor_a_sh, ws.Output<CPUBackend>(0).shape());
 
   for (int sample_id = 0; sample_id < batch_size; sample_id++) {
     const auto *data0 = batch[0].tensor<int>(sample_id);
     const auto *data1 = batch[1].tensor<int>(sample_id);
-    auto *result0 = ws.Output<CPUBackend>(0).tensor<float>(sample_id);
+    auto *result0 = ws.Output<CPUBackend>(0).tensor<int>(sample_id);
 
     TensorShape<> strides_a = {2*3, 3, 1};
-    TensorShape<> strides_b = {2*3, 0, 1};
+    TensorShape<> strides_b = {1*3, 0, 1};
+
     for (int i0 = 0, i = 0; i0 < 2; i0++) {
       for (int i1 = 0; i1 < 2; i1++) {
         for (int i2 = 0; i2 < 3; i2++, i++) {
-          auto a = data0[i0 * strides_a[0] + i1 * strides_a[1] + i2 * strides_a[2]];
-          auto b = data0[i0 * strides_b[0] + i1 * strides_b[1] + i2 * strides_b[2]];
-          EXPECT_EQ(result0[i], static_cast<float>(a) / b);
+          int a = data0[i0 * strides_a[0] + i1 * strides_a[1] + i2 * strides_a[2]];
+          int b = data1[i0 * strides_b[0] + i1 * strides_b[1] + i2 * strides_b[2]];
+          int expected = a + b;
+          EXPECT_EQ(result0[i], expected);
         }
       }
     }

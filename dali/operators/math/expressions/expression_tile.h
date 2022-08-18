@@ -55,6 +55,13 @@ inline std::ostream &operator<<(std::ostream &os, const TileRange &v) {
 using OutputSamplePtr = void *;
 using InputSamplePtr = const void *;
 
+struct OutputData {
+  OutputSamplePtr data = nullptr;
+  DALIDataType dtype = DALI_NO_TYPE;
+  TensorShape<> shape{};
+  TensorShape<> strides{};
+};
+
 struct OperandData {
   InputSamplePtr data = nullptr;
   DALIDataType dtype = DALI_NO_TYPE;
@@ -76,12 +83,11 @@ using ArgPack = SmallVector<OperandData, kMaxArity>;
 struct ExtendedTileDesc {
   ExtendedTileDesc() = default;
 
-  ExtendedTileDesc(const TileDesc &desc, OutputSamplePtr output, DALIDataType out_type,
+  ExtendedTileDesc(const TileDesc &desc, OutputData output, DALIDataType out_type,
                    const ArgPack &args)
-      : desc(desc), output(output), out_type(out_type), args(args) {}
+      : desc(desc), output(output), args(args) {}
   TileDesc desc;
-  OutputSamplePtr output;
-  DALIDataType out_type;
+  OutputData output;
   ArgPack args;
 };
 

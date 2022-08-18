@@ -95,18 +95,44 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     // TestTensorList just allocates memory, this can leave SmallVector in weird state
     memset(tiles_cpu.data, 0, TestConfig::num_tiles * sizeof(ExtendedTileDesc));
     for (int sample_id = 0; sample_id < TestConfig::batch_size; sample_id++) {
+      auto result_shape = result.cpu().shape[sample_id];
+      TensorShape<> result_strides;
+      kernels::CalcStrides(result_strides, result_shape);
+
+      auto left_shape = left.cpu().shape[sample_id];
+      TensorShape<> left_strides;
+      kernels::CalcStrides(left_strides, left_shape);
+
+      auto right_shape = right.cpu().shape[sample_id];
+      TensorShape<> right_strides;
+      kernels::CalcStrides(right_strides, right_shape);
+
       for (int extent_id = 0; extent_id < TestConfig::tiles_per_sample; extent_id++) {
         int tile_id = sample_id * TestConfig::tiles_per_sample + extent_id;
         tiles_cpu(tile_id)->desc = tile_descs[tile_id];
-        tiles_cpu(tile_id)->output =
-            result.gpu(stream)[sample_id].data + extent_id * TestConfig::tile_size;
+        tiles_cpu(tile_id)->output = {
+          .data = result.gpu(stream)[sample_id].data + extent_id * TestConfig::tile_size,
+          .dtype = type2id<Result>::value,
+          .shape = result_shape,
+          .strides = result_strides
+        };
         tiles_cpu(tile_id)->args.resize(2);
-        tiles_cpu(tile_id)->args[0].data =
+        tiles_cpu(tile_id)->args[0] = {
+          .data =
             left.gpu(stream)[sample_id].data +
-            (TestConfig::IsLeftTensor ? extent_id * TestConfig::tile_size : 0);
-        tiles_cpu(tile_id)->args[1].data =
+            (TestConfig::IsLeftTensor ? extent_id * TestConfig::tile_size : 0),
+          .dtype = type2id<Left>::value,
+          .shape = left_shape,
+          .strides = left_strides
+        };
+        tiles_cpu(tile_id)->args[1] = {
+          .data =
             right.gpu(stream)[sample_id].data +
-            (TestConfig::IsRightTensor ? extent_id * TestConfig::tile_size : 0);
+            (TestConfig::IsRightTensor ? extent_id * TestConfig::tile_size : 0),
+          .dtype = type2id<Right>::value,
+          .shape = right_shape,
+          .strides = right_strides
+        };
       }
     }
 

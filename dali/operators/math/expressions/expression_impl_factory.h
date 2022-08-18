@@ -147,9 +147,20 @@ inline InputSamplePtr GetInputSamplePointer(DeviceWorkspace &ws, int input_idx, 
 }
 
 template <typename Backend>
-inline OutputSamplePtr GetOutput(const ExprFunc &func, workspace_t<Backend> &ws, TileDesc tile) {
-  return reinterpret_cast<char *>(GetOutputSamplePointer(ws, 0, tile.sample_idx)) +
-         volume(tile.tile_size) * tile.extent_idx * TypeTable::GetTypeInfo(func.GetTypeId()).size();
+inline OutputData GetOutput(const ExprFunc &func, workspace_t<Backend> &ws, TileDesc tile) {
+  auto &out = ws.template Output<Backend>(0);
+  void *out_ptr =
+      static_cast<char *>(out.raw_mutable_tensor(tile.sample_idx)) +
+      volume(tile.tile_size) * tile.extent_idx * TypeTable::GetTypeInfo(func.GetTypeId()).size();
+  auto shape = out.shape()[tile.sample_idx];
+  TensorShape<> strides;
+  kernels::CalcStrides(strides, shape);
+  return {
+    .data = out_ptr,
+    .dtype = out.type(),
+    .shape = shape,
+    .strides = strides
+  };
 }
 
 /**
@@ -205,11 +216,6 @@ void TransformDescs(std::vector<ExtendedTileDesc> &extended_tiles,
                     workspace_t<Backend> &ws, const ConstantStorage<Backend> &st,
                     const OpSpec &spec) {
   extended_tiles.reserve(tiles.size());
-  SmallVector<DALIDataType, kMaxArity> in_types;
-  in_types.resize(func.GetSubexpressionCount());
-  for (int i = 0; i < func.GetSubexpressionCount(); i++) {
-    in_types[i] = func[i].GetTypeId();
-  }
   for (auto &tile : tiles) {
     extended_tiles.emplace_back(tile, GetOutput<Backend>(func, ws, tile), func.GetTypeId(),
                                 GetArgPack(func, ws, st, spec, tile));
@@ -231,7 +237,7 @@ void PrepareTilesForTasks(std::vector<std::vector<ExtendedTileDesc>> &tiles_per_
   for (size_t i = 0; i < task_exec_order.size(); i++) {
     const auto &expr_task = task_exec_order[i];
     const auto &expr_func = dynamic_cast<const ExprFunc &>(*expr_task.ctx.node);
-    tiles_per_task[i].resize(0);
+    tiles_per_task[i].clear();
     TransformDescs<Backend>(tiles_per_task[i], tiles, expr_func, ws, constant_storage, spec);
   }
 }
