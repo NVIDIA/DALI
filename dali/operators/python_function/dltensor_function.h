@@ -231,7 +231,7 @@ class DLTensorPythonFunctionImpl : public Operator<Backend> {
 
   void SetOutputLayouts(workspace_t<Backend> &ws) {
     Index output_idx = 0;
-    for (auto layout : output_layouts_) {
+    for (const auto &layout : output_layouts_) {
       auto &output = ws.template Output<Backend>(output_idx);
       output.SetLayout(layout);
       ++output_idx;

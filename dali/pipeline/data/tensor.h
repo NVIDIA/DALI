@@ -183,8 +183,8 @@ class Tensor : public Buffer<Backend> {
    * @brief Tensor is always backed by contiguous buffer
    *        Cannot be set to noncontiguous
    */
-  void SetContiguous(bool contiguous) {
-    DALI_ENFORCE(contiguous, "Tensor cannot be made noncontiguous");
+  void SetContiguity(BatchContiguity state) {
+    DALI_ENFORCE(state != BatchContiguity::Noncontiguous, "Tensor cannot be made noncontiguous");
   }
 
   using Buffer<Backend>::reserve;

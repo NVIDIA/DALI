@@ -53,13 +53,18 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Decodes an image and returns the result as a CPU tensor.
   */
-  TensorView<StorageCPU, OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
-                                            const ROI &roi = {}) {
+  TensorView<StorageCPU, const OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
+                                                  const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
     EXPECT_TRUE(Decoder()->CanDecode(src, opts));
 
     ImageInfo info = Parser()->GetInfo(src);
     auto shape = AdjustToRoi(info.shape, roi);
+
+    // Number of channels can be different than input's due to color conversion
+    // TODO(skarpinski) Don't assume channel-last layout here
+    *(shape.end() - 1) = NumberOfChannels(opts.format, *(info.shape.end() - 1));
+
     output_.reshape({{shape}});
 
     if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
@@ -82,19 +87,17 @@ class DecoderTestBase : public ::testing::Test {
   /**
    * @brief Decodes a batch of images, invoking the batch version of ImageDecoder::Decode
    */
-  TensorListView<StorageCPU, OutputType> Decode(cspan<ImageSource *> in,
-                                         const DecodeParams &opts = {},
-                                         cspan<ROI> rois = {}) {
+  TensorListView<StorageCPU, const OutputType> Decode(cspan<ImageSource *> in,
+                                                      const DecodeParams &opts = {},
+                                                      cspan<ROI> rois = {}) {
     int n = in.size();
     std::vector<TensorShape<>> shape(n);
-    std::vector<Tensor<CPUBackend>> result(n);
 
     for (int i = 0; i < n; i++) {
       EXPECT_TRUE(Parser()->CanParse(in[i]));
       EXPECT_TRUE(Decoder()->CanDecode(in[i], opts));
       ImageInfo info = Parser()->GetInfo(in[i]);
       shape[i] = AdjustToRoi(info.shape, rois.empty() ? ROI{} : rois[i]);
-      result[i].Resize(shape[i], type2id<OutputType>::value);
     }
 
     output_.reshape(TensorListShape{shape});
@@ -125,8 +128,8 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Checks if the image and the reference are equal
   */
-  void AssertEqual(const TensorView<StorageCPU, OutputType> &img,
-                   const TensorView<StorageCPU, OutputType> &ref) {
+  void AssertEqual(const TensorView<StorageCPU, const OutputType> &img,
+                   const TensorView<StorageCPU, const OutputType> &ref) {
     Check(img, ref);
   }
 
@@ -134,11 +137,22 @@ class DecoderTestBase : public ::testing::Test {
   * @brief Checks if the image and the reference are equal after converting the reference
   * with ConvertSatNorm
   */
-  void AssertEqualSatNorm(const TensorView<StorageCPU, OutputType> &img,
+  template <typename RefType>
+  void AssertEqualSatNorm(const TensorView<StorageCPU, const OutputType> &img,
+                          const TensorView<StorageCPU, const RefType> &ref) {
+    Check(img, ref, EqualConvertSatNorm());
+  }
+
+  void AssertEqualSatNorm(const TensorView<StorageCPU, const OutputType> &img,
                           const Tensor<CPUBackend> &ref) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
       Check(img, view<const RefType>(ref), EqualConvertSatNorm());
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
+  }
+
+  void AssertEqualSatNorm(const Tensor<CPUBackend> &img,
+                          const Tensor<CPUBackend> &ref) {
+    AssertEqualSatNorm(view<const OutputType>(img), ref);
   }
 
   /**
@@ -146,37 +160,74 @@ class DecoderTestBase : public ::testing::Test {
   *
   * The eps parameter shound be specified in the dynamic range of the image.
   */
-  void AssertClose(const Tensor<CPUBackend> &img, const Tensor<CPUBackend> &ref, float eps) {
+  template <typename RefType>
+  void AssertClose(const TensorView<StorageCPU, const OutputType> &img,
+                   const TensorView<StorageCPU, const RefType> &ref,
+                   float eps) {
     if (std::is_integral<OutputType>::value)
       eps /= max_value<OutputType>();
+    Check(img, ref, EqualConvertNorm(eps));
+  }
+
+  void AssertClose(const TensorView<StorageCPU, const OutputType> &img,
+                   const Tensor<CPUBackend> &ref,
+                   float eps) {
+    TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
+      Check(img, view<const RefType>(ref), EqualConvertNorm(eps));
+    ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
+  }
+
+  void AssertClose(const Tensor<CPUBackend> &img,
+                   const Tensor<CPUBackend> &ref,
+                   float eps) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
       Check(view<const OutputType>(img), view<const RefType>(ref), EqualConvertNorm(eps));
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
   }
 
+
   /**
   * @brief Crops a tensor to specified roi_shape, anchored at roi_begin.
   * Does not support padding.
   */
-  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
-    int ndim = input.shape().sample_dim();
+  template <typename T, int ndim>
+  void Crop(const TensorView<StorageCPU, T, ndim> &output,
+            const TensorView<StorageCPU, const T, ndim> &input,
+            const ROI &requested_roi) {
+    auto roi = ExtendRoi(requested_roi, input.shape);
+
+    static_assert(ndim >= 0, "expected static ndim");
+    ASSERT_TRUE(output.shape == roi.shape());  // output should have the desired shape
+
+    kernels::SliceCPU<T, T, ndim> kernel;
+    kernels::SliceArgs<T, ndim> args;
+    args.anchor = roi.begin;
+    args.shape = roi.shape();
+    kernels::KernelContext ctx;
+    // no need to run Setup (we already know the output shape)
+    kernel.Run(ctx, output, input, args);
+  }
+
+  template <typename T, int ndim>
+  Tensor<CPUBackend> Crop(const TensorView<StorageCPU, const T, ndim> &input,
+                          const ROI &requested_roi) {
+    auto roi = ExtendRoi(requested_roi, input.shape);
+    auto num_dims = input.shape.sample_dim();
+    assert(roi.shape().sample_dim() == num_dims);
     Tensor<CPUBackend> output;
     output.Resize(roi.shape(), type2id<OutputType>::value);
 
-    VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
-      auto out_view = view<OutputType, Dims>(output);
-      auto in_view = view<const OutputType, Dims>(input);
-      kernels::SliceCPU<OutputType, OutputType, Dims> kernel;
-      kernels::SliceArgs<OutputType, Dims> args;
-      args.anchor = roi.begin;
-      args.shape = roi.shape();
-      kernels::KernelContext ctx;
-      // no need to run Setup (we already know the output shape)
-      kernel.Schedule(ctx, out_view, in_view, args, tp_);
-      tp_.RunAll();
-    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
+    auto out_view = view<OutputType, ndim>(output);
+    Crop(out_view, input, roi);
 
     return output;
+  }
+
+  Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
+    int ndim = input.shape().sample_dim();
+    VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
+      return Crop(view<const OutputType, Dims>(input), roi);
+    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
   }
 
   /**
@@ -247,6 +298,21 @@ class DecoderTestBase : public ::testing::Test {
     } else {
       return shape;
     }
+  }
+
+  /**
+   * @brief Extends ROI with channel dimension of given shape.
+   */
+  ROI ExtendRoi(ROI roi, const TensorShape<> &shape) {
+    // TODO(skarpinski) Don't assume channel-last layout
+    int ndim = shape.sample_dim();
+    if (roi.begin.size() == ndim - 1) {
+      roi.begin = shape_cat(roi.begin, 0);
+    }
+    if (roi.end.size() == ndim - 1) {
+      roi.end = shape_cat(roi.end, *(shape.end() - 1));
+    }
+    return roi;
   }
 
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;

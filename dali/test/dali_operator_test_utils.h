@@ -41,9 +41,9 @@ template<typename... Ts>
 inline std::vector<testing::Arguments> cartesian(std::vector<testing::Arguments> args_vec,
                                                  Ts... args_vecs) {
   std::vector<testing::Arguments> result;
-  for (auto args : args_vec) {
+  for (auto& args : args_vec) {
     auto prod_rest = cartesian(args_vecs...);
-    for (auto args_rest : prod_rest) {
+    for (auto& args_rest : prod_rest) {
       args_rest.insert(args.begin(), args.end());
       result.push_back(std::move(args_rest));
     }

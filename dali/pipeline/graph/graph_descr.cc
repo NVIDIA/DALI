@@ -573,7 +573,7 @@ std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_
 }
 
 bool OpGraph::HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const {
-  for (auto cons_edge : tensor.consumers) {
+  for (const auto& cons_edge : tensor.consumers) {
     // We found a consumer from different stage, this tensor is a stage output
     const OpNode &cons_op = Node(cons_edge.node);
     if (cons_op.op_type != this_stage) {
