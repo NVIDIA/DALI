@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,8 +40,16 @@ struct ExprImplContext {
  */
 class ExprImplBase {
  public:
+  /**
+   * @brief Executes a range of tiles
+   */
   virtual void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
                        TileRange range) = 0;
+  /**
+   * @brief Executes a whole sample represented by a single tile
+   */
+  virtual void ExecuteWholeSample(ExprImplContext &ctx, const ExtendedTileDesc &tiles) {}
+
   virtual ~ExprImplBase() = default;
 };
 

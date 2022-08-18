@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/math/expressions/broadcasting.h"
+#include "dali/operators/math/expressions/arithmetic_meta.h"
 
 namespace dali {
 
@@ -49,7 +50,11 @@ int BroadcastNdim(span<const TensorListShape<>> shapes) {
 
 template <typename Shape>
 void BroadcastShapeImpl(Shape& result, span<const Shape> shapes) {
-  DALI_ENFORCE(shapes.size() >= 2);
+  DALI_ENFORCE(shapes.size() >= 1);
+  if (shapes.size() == 1) {
+    result = shapes[0];
+    return;
+  }
   int ndim = BroadcastNdim(shapes);
   DALI_ENFORCE(result.size() == ndim);
 
@@ -75,7 +80,11 @@ void BroadcastShape(TensorShape<>& result, span<const TensorShape<>> shapes) {
 }
 
 void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>> shapes) {
-  DALI_ENFORCE(shapes.size() >= 2);
+  DALI_ENFORCE(shapes.size() >= 1);
+  if (shapes.size() == 1) {
+    result = shapes[0];
+    return;
+  }
   int ndim = BroadcastNdim(shapes);
   CheckNumSamples(shapes);
   int nsamples = shapes[0].num_samples();
@@ -84,7 +93,7 @@ void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>> sha
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto res_sample = result.tensor_shape_span(sample_idx);
     for (int d = 0; d < ndim; d++) {
-      auto &res = res_sample[result.size() - 1 - d];
+      auto &res = res_sample[res_sample.size() - 1 - d];
       res = 1;
       for (int i = 0; i < shapes.size(); i++) {
         auto sh = shapes[i].tensor_shape_span(sample_idx);
@@ -101,7 +110,9 @@ void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>> sha
 
 template <typename Shape>
 bool CanBroadcastImpl(span<Shape> shapes) {
-  DALI_ENFORCE(shapes.size() >= 2);
+  if (shapes.size() < 2) {
+    return true;
+  }
   int ndim = BroadcastNdim(shapes);
   for (int d = 0; d < ndim; d++) {
     int64_t val = 1;
@@ -123,7 +134,9 @@ bool CanBroadcast(span<const TensorShape<>> shapes) {
 }
 
 bool CanBroadcast(span<const TensorListShape<>> shapes) {
-  DALI_ENFORCE(shapes.size() >= 2);
+  if (shapes.size() < 2) {
+    return true;
+  }
   int ndim = BroadcastNdim(shapes);
   int nsamples = shapes[0].num_samples();
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
@@ -141,6 +154,29 @@ bool CanBroadcast(span<const TensorListShape<>> shapes) {
     }
   }
   return true;
+}
+
+template <typename Shape>
+bool NeedBroadcastImpl(span<Shape> shapes) {
+  if (shapes.size() < 2)
+    return false;
+  auto *prev_sh = &shapes[0];
+  for (int i = 1; i < shapes.size(); i++) {
+    if (IsScalarLike(*prev_sh)) {
+      prev_sh = &shapes[i];
+    } else if (!IsScalarLike(shapes[i]) && *prev_sh != shapes[i]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool NeedBroadcasting(span<const TensorShape<>> shapes) {
+  return NeedBroadcastImpl(shapes);
+}
+
+bool NeedBroadcasting(span<const TensorListShape<>> shapes) {
+  return NeedBroadcastImpl(shapes);
 }
 
 TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh, const TensorShape<> &in_sh,

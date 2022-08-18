@@ -21,6 +21,7 @@
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 #include "dali/operators/math/expressions/expression_impl_factory.h"
 #include "dali/operators/math/expressions/expression_tree.h"
+#include "dali/operators/math/expressions/broadcasting.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
@@ -35,7 +36,7 @@ class ExprImplCpuT : public ExprImplBase {
     assert(range.begin + 1 == range.end &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
-    auto output = static_cast<Result *>(tile.output);
+    auto output = static_cast<Result *>(tile.output.data);
     auto &left = tile.args[0];
     auto input = static_cast<const Input *>(left.data);
     Execute(output, input, volume(tile.desc.extent_size));
@@ -59,16 +60,33 @@ class ExprImplCpuTT : public ExprImplBase {
     assert(range.begin + 1 == range.end &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
-    auto output = static_cast<Result *>(tile.output);
+    auto output_ptr = static_cast<Result *>(tile.output.data);
+    auto left_ptr = static_cast<const Left *>(tile.args[0].data);
+    auto right_ptr = static_cast<const Right *>(tile.args[1].data);
+    Execute(output_ptr, left_ptr, right_ptr, volume(tile.desc.extent_size));
+  }
+
+  void ExecuteWholeSample(ExprImplContext &ctx, const ExtendedTileDesc &tile) override {
+    auto &output = tile.output;
+    auto output_ptr = static_cast<Result *>(output.data);
+    auto output_shape = output.shape;
+    auto output_strides = output.strides;
     auto &left = tile.args[0];
     auto &right = tile.args[1];
     auto left_ptr = static_cast<const Left *>(left.data);
-    auto &left_shape = left.shape;
+    auto left_shape = left.shape;
+    auto left_strides = left.strides;
     auto right_ptr = static_cast<const Right *>(right.data);
-    auto &right_shape = right.shape;
-    // DALI_ENFORCE(right_shape.empty(),
-    //   make_string("right: ", right_shape, " left: ", left_shape));
-    Execute(output, left_ptr, right_ptr, volume(tile.desc.extent_size));
+    auto right_shape = right.shape;
+    auto right_strides = right.strides;
+
+    SimplifyShapesForBroadcasting(left_shape, right_shape);
+    left_strides = StridesForBroadcasting(output_shape, left_shape, left_strides);
+    right_strides = StridesForBroadcasting(output_shape, right_shape, right_strides);
+    Execute(output_ptr, output_shape.data(), output_strides.data(),
+            left_ptr, left_strides.data(),
+            right_ptr, right_strides.data(),
+            output_shape.size());
   }
 
  private:
@@ -89,7 +107,7 @@ class ExprImplCpuTT : public ExprImplBase {
     static_assert(ndim > 1);
     for (int64_t i = 0; i < *out_shape; i++) {
       Execute(out, out_shape + 1, out_strides + 1,
-              in0, in1_strides + 1, in1, in1_strides + 1,
+              in0, in0_strides + 1, in1, in1_strides + 1,
               std::integral_constant<int, ndim - 1>());
       in0 += *in0_strides;
       in1 += *in1_strides;
@@ -97,16 +115,28 @@ class ExprImplCpuTT : public ExprImplBase {
     }
   }
 
-  void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
-                const Left* in0, const int64_t *in0_strides,
-                const Right* in1, const int64_t *in1_strides,
-                std::integral_constant<int, 1>) {
+  static void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
+                      const Left* in0, const int64_t *in0_strides,
+                      const Right* in1, const int64_t *in1_strides,
+                      std::integral_constant<int, 1>) {
     for (int64_t i = 0; i < *out_shape; i++) {
       *out = meta_t::impl(*in0, *in1);
       in0 += *in0_strides;
       in1 += *in1_strides;
       out += *out_strides;
     }
+  }
+
+  static void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
+                      const Left* in0, const int64_t *in0_strides,
+                      const Right* in1, const int64_t *in1_strides, int ndim) {
+    VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+      return Execute(
+        out, out_shape, out_strides,
+        in0, in0_strides,
+        in1, in1_strides,
+        std::integral_constant<int, Dims>());
+    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
   }
 };
 
@@ -118,7 +148,7 @@ class ExprImplCpuCT : public ExprImplBase {
     assert(range.begin + 1 == range.end &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
-    auto output = static_cast<Result *>(tile.output);
+    auto output = static_cast<Result *>(tile.output.data);
     auto &left = tile.args[0];
     auto &right = tile.args[1];
     auto left_ptr = static_cast<const Left *>(left.data);
@@ -144,7 +174,7 @@ class ExprImplCpuTC : public ExprImplBase {
     assert(range.begin + 1 == range.end &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
-    auto output = static_cast<Result *>(tile.output);
+    auto output = static_cast<Result *>(tile.output.data);
     auto &left = tile.args[0];
     auto &right = tile.args[1];
     auto left_ptr = static_cast<const Left *>(left.data);
@@ -173,7 +203,7 @@ class ExprImplCpuTernary : public ExprImplBase {
     assert(range.begin + 1 == range.end &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[range.begin];
-    auto output = static_cast<Result *>(tile.output);
+    auto output = static_cast<Result *>(tile.output.data);
 
     auto &first = tile.args[0];
     auto &second = tile.args[1];

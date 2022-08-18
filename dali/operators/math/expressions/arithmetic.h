@@ -66,6 +66,21 @@ inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
   return std::make_tuple(descs, ranges);
 }
 
+inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
+  std::vector<TileDesc> descs;
+  descs.reserve(shape.num_samples());
+  for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
+    descs.push_back({sample_idx, 0, shape.tensor_size(sample_idx), shape.tensor_size(sample_idx)});
+  }
+  std::vector<TileRange> ranges;
+  int ntasks = descs.size();
+  ranges.reserve(ntasks);
+  for (int task = 0; task < ntasks; task++) {
+    ranges.push_back({task, task+1});
+  }
+  return std::make_tuple(descs, ranges);
+}
+
 /**
  * @brief Recurse over expression tree and return the only matching layout
  */
@@ -159,30 +174,36 @@ inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, Expr
 /**
  * @brief Recurse over expression tree and propagate shapes between expression nodes.
  *
- * @return The resulting shape of the expression
+ * @return False if the operand shapes required no broadcasting, by being either
+ *         identical shapes or scalar-like. True if the shapes needed broadcasting.
  */
 template <typename Backend>
-DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
-                                                           const workspace_t<Backend> &ws,
-                                                           int batch_size) {
+DLL_PUBLIC inline bool PropagateShapes(TensorListShape<> &result_shape,
+                                       ExprNode &expr,
+                                       const workspace_t<Backend> &ws,
+                                       int batch_size) {
   if (expr.GetNodeType() == NodeType::Constant) {
     expr.SetShape(TensorListShape<0>(batch_size));
-    return expr.GetShape();
+    result_shape = expr.GetShape();
+    return false;
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
     expr.SetShape(ws.template Input<Backend>(e.GetInputIndex()).shape());
-    return expr.GetShape();
+    result_shape = expr.GetShape();
+    return false;
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   int subexpression_count = expr.GetSubexpressionCount();
   DALI_ENFORCE(0 < subexpression_count && subexpression_count <= kMaxArity,
                "Only unary, binary and ternary expressions are supported");
 
+
   SmallVector<TensorListShape<>, kMaxArity> shapes;
   shapes.resize(subexpression_count);
+  bool needed_broadcasting = false;
   for (int i = 0; i < subexpression_count; i++) {
-    shapes[i] = PropagateShapes<Backend>(func[i], ws, batch_size);
+    needed_broadcasting |= PropagateShapes<Backend>(shapes[i], func[i], ws, batch_size);
   }
 
   auto shapes_span = make_cspan(shapes);
@@ -194,10 +215,11 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
     }
     DALI_FAIL(ss.str());
   }
-  TensorListShape<> out_shape;
-  BroadcastShape(out_shape, shapes_span);
-  func.SetShape(out_shape);
-  return func.GetShape();
+
+  BroadcastShape(result_shape, shapes_span);
+  func.SetShape(result_shape);
+  needed_broadcasting |= NeedBroadcasting(shapes_span);
+  return needed_broadcasting;
 }
 
 inline void GetConstantNodes(ExprNode &expr, std::vector<ExprConstant *> &nodes) {
@@ -322,13 +344,17 @@ class ArithmeticGenericOp : public Operator<Backend> {
       types_layout_inferred_ = true;
     }
 
-    result_shape_ = PropagateShapes<Backend>(*expr_, ws, curr_batch_size);
+    bool needed_broadcasting = PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 
-    // TODO(janton): Keep tiling only for 1D
     output_desc[0] = {result_shape_, result_type_id_};
-    std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
+
+    if (!needed_broadcasting) {  // 1D tiling only when not broadcasting
+      std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
+    } else {
+      std::tie(tile_cover_, tile_range_) = GetOneTilePerSample(result_shape_);
+    }
     return true;
   }
 

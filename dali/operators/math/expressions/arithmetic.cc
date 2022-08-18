@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,18 +25,38 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
                                    spec_);
   auto &pool = ws.GetThreadPool();
   ws.Output<CPUBackend>(0).SetLayout(result_layout_);
-  for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
-    pool.AddWork([this, task_idx](int thread_idx) {
-      auto range = tile_range_[task_idx];
-      // Go over "tiles"
-      for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
+
+  // Detecting the non-tiled case
+  // TODO(janton): Figure out a better way
+  auto batch_size = ws.GetInputBatchSize(0);
+  int ntiles = tile_range_.size();
+  if (ntiles == batch_size) {
+    for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+      pool.AddWork([this, sample_idx](int thread_idx) {
+        auto range = tile_range_[sample_idx];
+        assert(1 == (range.end - range.begin));
+        int extent_idx = range.begin;
         // Go over expression tree in some provided order
         for (size_t i = 0; i < exec_order_.size(); i++) {
-          exec_order_[i].impl->Execute(exec_order_[i].ctx, tiles_per_task_[i],
-                                       {extent_idx, extent_idx + 1});
+          exec_order_[i].impl->ExecuteWholeSample(exec_order_[i].ctx,
+                                                  tiles_per_task_[i][extent_idx]);
         }
-      }
-    }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
+      }, result_shape_.tensor_size(sample_idx));
+    }
+  } else {
+    for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
+      pool.AddWork([this, task_idx](int thread_idx) {
+        auto range = tile_range_[task_idx];
+        // Go over "tiles"
+        for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
+          // Go over expression tree in some provided order
+          for (size_t i = 0; i < exec_order_.size(); i++) {
+            exec_order_[i].impl->Execute(exec_order_[i].ctx, tiles_per_task_[i],
+                                        {extent_idx, extent_idx + 1});
+          }
+        }
+      }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
+    }
   }
   pool.RunAll();
 }

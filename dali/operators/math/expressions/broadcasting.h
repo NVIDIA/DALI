@@ -65,6 +65,8 @@ void BroadcastShape(Shape &result, const Shape &a, const Shape &b, const Shape &
  *        equal or one of them is equal to one for the `ndim` rightmost
  *        dimensions, being `ndim` the minimum number of dimensions of 
  *        the two.
+ *        If the shapes are identical (no broadcasting needed), true will
+ *        be returned.
  */
 DLL_PUBLIC bool CanBroadcast(span<const TensorShape<>> shapes);
 DLL_PUBLIC bool CanBroadcast(span<const TensorListShape<>> shapes);
@@ -79,6 +81,29 @@ template <typename Shape>
 bool CanBroadcast(const Shape &a, const Shape &b, const Shape& c) {
   std::array<Shape, 3> arr = {a, b, c};
   return CanBroadcast(make_cspan(arr));
+}
+
+
+/**
+ * @brief Returns true if the shapes require broadcasting
+ *        Two or more shapes require broadcasting if they are not scalar-like
+ *        and their shapes are not equal.
+ * @remarks This function does not check whether the shapes can be broadcasted
+ *          For this, use CanBroadcast
+ */
+DLL_PUBLIC bool NeedBroadcasting(span<const TensorShape<>> shapes);
+DLL_PUBLIC bool NeedBroadcasting(span<const TensorListShape<>> shapes);
+
+template <typename Shape>
+bool NeedBroadcasting(const Shape &a, const Shape &b) {
+  std::array<Shape, 2> arr = {a, b};
+  return NeedBroadcasting(make_cspan(arr));
+}
+
+template <typename Shape>
+bool NeedBroadcasting(const Shape &a, const Shape &b, const Shape& c) {
+  std::array<Shape, 3> arr = {a, b, c};
+  return NeedBroadcasting(make_cspan(arr));
 }
 
 /**

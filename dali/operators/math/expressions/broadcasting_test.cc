@@ -58,6 +58,7 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastTensorListShape) {
     BroadcastShape(result1, a, b);
     EXPECT_EQ(expected, result1);
   };
+  test({{2, 2, 3}}, {{2, 2, 3}}, {{2, 1, 3}});
   test({{1, 3, 2}, {3, 2, 4}, {4, 2, 1}},
        {{1, 3, 2}, {3, 2, 1}, {4, 1, 1}}, {{1, 1, 2}, {3, 2, 4}, {1, 2, 1}});
   test({{1, 3, 2}, {3, 2, 4}, {2, 4, 1}},
@@ -146,6 +147,42 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastSpanShapes) {
                                      TensorShape<>{1, 1, 1, 3, 3}};
   test_fail(make_cspan(t3));
 }
+
+
+TEST(ArithmeticOpsBroadcastingTest, NeedBroadcastShape) {
+  auto test_no_need = [](TensorShape<> a, TensorShape<> b) {
+    EXPECT_FALSE(NeedBroadcasting(a, b));
+    EXPECT_FALSE(NeedBroadcasting(b, a));
+  };
+  auto test_need = [](TensorShape<> a, TensorShape<> b) {
+    EXPECT_TRUE(NeedBroadcasting(a, b));
+    EXPECT_TRUE(NeedBroadcasting(b, a));
+  };
+
+  test_no_need({1, 2, 3}, {1, 2, 3});
+  test_no_need({1, 2, 3}, {});   // scalar
+  test_no_need({1, 2, 3}, {1});  // scalar-like
+
+  test_need({1, 2, 3}, {1, 1, 3});
+  test_need({1, 2, 2, 3}, {2, 1});
+}
+
+TEST(ArithmeticOpsBroadcastingTest, NeedBroadcastTensorListShape) {
+  auto test_no_need = [](TensorListShape<> a, TensorListShape<> b) {
+    EXPECT_FALSE(NeedBroadcasting(a, b));
+    EXPECT_FALSE(NeedBroadcasting(b, a));
+  };
+  auto test_need = [](TensorListShape<> a, TensorListShape<> b) {
+    EXPECT_TRUE(NeedBroadcasting(a, b));
+    EXPECT_TRUE(NeedBroadcasting(b, a));
+  };
+
+  test_no_need({{1, 2, 3}, {1, 2, 1}}, {{1, 2, 3}, {1, 2, 1}});
+  test_no_need({{2}, {2}}, {{1}, {1}});  // scalar-like
+
+  test_need({{1, 2, 3}, {1, 2, 1}}, {{1, 2, 1}, {1, 2, 3}});
+}
+
 
 }  // namespace test
 }  // namespace dali

@@ -129,7 +129,7 @@ __device__ void ExecuteTernaryOp(Result *result,
 template <ArithmeticOp op, typename Result, typename Input>
 __global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
-  auto output = static_cast<Result *>(tile.output);
+  auto output = static_cast<Result *>(tile.output.data);
   auto in = static_cast<const Input *>(tile.args[0].data);
   ExecuteUnOp<op>(output, in, volume(tile.desc.extent_size));
 }
@@ -141,7 +141,7 @@ template <ArithmeticOp op, typename Result, typename Left, typename Right, bool 
           bool IsRightTensor>
 __global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
-  auto output = static_cast<Result *>(tile.output);
+  auto output = static_cast<Result *>(tile.output.data);
   auto left = static_cast<const Left *>(tile.args[0].data);
   auto right = static_cast<const Right *>(tile.args[1].data);
   ExecuteBinOp<op>(output, expression_detail::Pass<IsLeftTensor>(left),
@@ -156,7 +156,7 @@ template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 __global__ void ExecuteTiledTernaryOp(const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
-  auto output = static_cast<Result *>(tile.output);
+  auto output = static_cast<Result *>(tile.output.data);
   const void* first = tile.args[0].data;
   const void* second = tile.args[1].data;
   const void* third = tile.args[2].data;
