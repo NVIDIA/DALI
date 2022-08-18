@@ -88,7 +88,7 @@ class NvJpegDecoder : public ImageDecoder {
  public:
   ImageDecoderProperties GetProperties() const override {
     ImageDecoderProperties props = {
-      .supports_partial_decoding = false,  // not yet
+      .supports_partial_decoding = false,
       .supported_input_kinds = InputKind::HostMemory,
       .fallback = true
     };
