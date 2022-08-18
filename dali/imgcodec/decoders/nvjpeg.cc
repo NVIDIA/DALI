@@ -154,7 +154,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     ParseJpegSample(*in, opts, ctx);
     DecodeJpegSample(*in, out.mutable_data<uint8_t>(), opts, ctx);
   } catch (...) {
-    return {false, std::make_exception_ptr(std::current_exception())};
+    return {false, std::current_exception()};
   }
 
   return {true, nullptr};
