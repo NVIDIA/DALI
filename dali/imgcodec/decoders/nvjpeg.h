@@ -81,6 +81,27 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
   void DecodeJpeg(ImageSource& in, uint8_t *out, DecodeParams opts, DecodingContext &ctx);
 };
 
+class NvJpegDecoder : public ImageDecoder {
+ public:
+  ImageDecoderProperties GetProperties() const override {
+    ImageDecoderProperties props = {
+      .supports_partial_decoding = false,  // not yet
+      .supported_input_kinds = InputKind::HostMemory,
+      .fallback = true
+    };
+
+    return props;
+  }
+
+  bool IsSupported(int device_id) const override {
+    return device_id >= 0;
+  }
+
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
+    return std::make_shared<NvJpegDecoderInstance>(device_id, &tp);
+  }
+};
+
 }  // namespace imgcodec
 }  // namespace dali
 
