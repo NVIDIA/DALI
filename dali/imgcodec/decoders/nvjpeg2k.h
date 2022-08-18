@@ -64,7 +64,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
       return nvjpeg2k_host_memory_padding_;
     } else {
-      DALI_FAIL("Unrecognized param name");
+      return {};
     }
   }
 
@@ -119,7 +119,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   std::vector<PerThreadResources> per_thread_resources_;
 };
 
-class NvJpeg2000Decoder : public ImageDecoder {
+class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
  public:
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
