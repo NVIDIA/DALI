@@ -21,10 +21,10 @@ namespace dali {
 namespace imgcodec {
 
 NvJpegDecoderInstance::NvJpegDecoderInstance(int device_id, ThreadPool *tp)
-: BatchParallelDecoderImpl(device_id, tp),
-  device_allocator_(nvjpeg_memory::GetDeviceAllocator()),
-  pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()),
-  resources_(tp->NumThreads()) {
+: BatchParallelDecoderImpl(device_id, tp)
+, device_allocator_(nvjpeg_memory::GetDeviceAllocator())
+, pinned_allocator_(nvjpeg_memory::GetPinnedAllocator())
+, resources_(tp->NumThreads()) {
   CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
 
   for (auto &resource : resources_) {
