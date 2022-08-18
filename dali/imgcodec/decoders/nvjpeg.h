@@ -15,8 +15,8 @@
 #ifndef DALI_IMGCODEC_DECODERS_NVJPEG_H_
 #define DALI_IMGCODEC_DECODERS_NVJPEG_H_
 
-#include <memory>
 #include <nvjpeg.h>
+#include <memory>
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
