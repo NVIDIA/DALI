@@ -135,7 +135,7 @@ any NvJpegDecoderInstance::GetParam(const char *name) const {
   } else if (strcmp(name, "host_memory_padding") == 0) {
     return host_memory_padding_;
   } else {
-    DALI_FAIL("Unrecognized param name");
+    return {};
   }
 }
 
