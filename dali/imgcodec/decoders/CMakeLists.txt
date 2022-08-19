@@ -13,6 +13,7 @@
 # limitations under the License.
 
 add_subdirectory(jpeg)
+add_subdirectory(nvjpeg)
 
 if (BUILD_LIBTIFF)
     add_subdirectory(libtiff)
@@ -21,3 +22,12 @@ endif ()
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_IMGCODEC_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_IMGCODEC_TEST_SRCS PARENT_SCOPE)
+
+if (NOT BUILD_NVJPEG2K)
+    list(REMOVE_ITEM DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg2k.h")
+    list(REMOVE_ITEM DALI_IMGCODEC_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg2k.cc")
+    list(REMOVE_ITEM DALI_IMGCODEC_TEST_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/nvjpeg2k_test.cc")
+    set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
+    set(DALI_IMGCODEC_SRCS ${DALI_IMGCODEC_SRCS} PARENT_SCOPE)
+    set(DALI_IMGCODEC_TEST_SRCS ${DALI_IMGCODEC_TEST_SRCS} PARENT_SCOPE)
+endif ()
