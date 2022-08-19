@@ -21,14 +21,6 @@
 namespace dali {
 namespace imgcodec {
 
-namespace {
-size_t pixel_size(DALIDataType pixel_type) {
-  if (pixel_type == DALI_UINT8) return sizeof(uint8_t);
-  else if (pixel_type == DALI_UINT16) return sizeof(uint16_t);
-  assert(false);
-}
-}  // namespace
-
 NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp)
 : BatchParallelDecoderImpl(device_id, tp)
 , nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k())
@@ -100,10 +92,11 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in,
                                                const Context &ctx) {
   void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
   size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
-  int64_t component_byte_size = ctx.shape[0] * ctx.shape[1] * pixel_size(ctx.pixel_type);
+  int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+  int64_t component_byte_size = ctx.shape[0] * ctx.shape[1] * pixel_size;
   for (uint32_t c = 0; c < ctx.shape[2]; c++) {
     pixel_data[c] = out + c * component_byte_size;
-    pitch_in_bytes[c] = ctx.shape[1] * pixel_size(ctx.pixel_type);
+    pitch_in_bytes[c] = ctx.shape[1] * pixel_size;
   }
 
   nvjpeg2kImage_t output_image;
@@ -178,7 +171,8 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
     } else {
       auto &buffer = res.intermediate_buffer;
       buffer.clear();
-      buffer.resize(volume(ctx.shape) * pixel_size(ctx.pixel_type));
+      int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+      buffer.resize(volume(ctx.shape) * pixel_size);
       result.success = DecodeJpeg2000(in, buffer.data(), opts, ctx) &&
                        ConvertData(buffer.data(), out.mutable_data<uint8_t>(), opts, ctx);
     }
