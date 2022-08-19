@@ -157,6 +157,46 @@ struct depth2type<32> {
   using type = uint32_t;
 };
 
+
+template<typename OutputType, bool normalize=true>
+void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t n) {
+  size_t out_type_bits = 8 * sizeof(OutputType);
+  if (out_type_bits < nbits)
+    throw std::logic_error("Unpacking bits failed: OutputType too small");
+  if (n == 0)
+    return;
+
+  auto in_ptr = static_cast<const uint8_t *>(in);
+  uint8_t buffer = *(in_ptr++);
+  constexpr size_t buffer_capacity = 8 * sizeof(buffer);
+  size_t bits_in_buffer = buffer_capacity;
+
+  for (size_t i = 0; i < n; i++) {
+    OutputType result = 0;
+    size_t bits_to_read = nbits;
+    while (bits_to_read > 0) {
+      if (bits_in_buffer > bits_to_read) {
+        result <<= bits_to_read;
+        result |= buffer >> (buffer_capacity - bits_to_read);
+        bits_in_buffer -= bits_to_read;
+        buffer <<= bits_to_read;
+        bits_to_read = 0;
+      } else {
+        result <<= bits_in_buffer;
+        result |= buffer >> (buffer_capacity - bits_in_buffer);
+        bits_to_read -= bits_in_buffer;
+        buffer = *(in_ptr++);
+        bits_in_buffer = buffer_capacity;
+      }
+    }
+    if (normalize) {
+      double coeff = static_cast<double>((1ull << out_type_bits) - 1) / ((1ull << nbits) - 1);
+      result *= coeff;
+    }
+    out[i] = result;
+  }
+}
+
 }  // namespace detail
 
 DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
@@ -165,7 +205,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
 
-  if (info.bit_depth != 8 && info.bit_depth != 16 && info.bit_depth != 32)
+  if (info.bit_depth > 32)
     return {false, make_exception_ptr(std::logic_error(
                       make_string("Unsupported bit depth: ", info.bit_depth)))};
 
@@ -224,14 +264,32 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
   TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
 
+  size_t in_type_bits;
+  if (info.bit_depth <= 8) in_type_bits = 8;
+  else if (info.bit_depth <= 16) in_type_bits = 16;
+  else if (info.bit_depth <= 32) in_type_bits = 32;
+  else DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth));
+
   TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
-    VALUE_SWITCH(info.bit_depth, Depth, (8, 16, 32), (
-      using InputType = detail::depth2type<Depth>::type;
-      auto *row_in  = static_cast<InputType *>(row_buf.get());
+    VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
+      using InputType = detail::depth2type<InTypeBits>::type;
+
+      std::vector<InputType> unpacked;
+      InputType *row_in;
+      if (info.bit_depth == InTypeBits) {
+        row_in = static_cast<InputType *>(row_buf.get());
+      } else {
+        unpacked.resize(volume(out_line_shape));
+        row_in = unpacked.data();
+      }
+
       OutType *const img_out = out.mutable_data<OutType>();
-      for (int64_t y = 0; y < roi.shape()[0]; y++) {
-        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + y, 0));
-        Convert(img_out + (y * out_row_stride), out_line_strides.data(), 1, opts.format,
+      for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
+        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), roi.begin[0] + roi_y, 0));
+        if (info.bit_depth != InTypeBits) {
+          detail::UnpackBits(info.bit_depth, row_in, row_buf.get(), volume(out_line_shape));
+        }
+        Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
                 row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
                 out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
       }

@@ -46,13 +46,17 @@ auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
 auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel/" +
                          "cat-111793_640_multichannel.tif";
 
-auto depth8_path  = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_8bit.tiff";
-auto depth16_path = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_16bit.tiff";
-auto depth32_path = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_32bit.tiff";
+std::string depth_path(int depth) {
+  return make_string(dali_extra, "/db/imgcodec/tiff/bitdepths/rgb_", depth, "bit.tiff");
+}
 
-auto depth8_ref_path  = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_8bit.tiff.npy";
-auto depth16_ref_path = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_16bit.tiff.npy";
-auto depth32_ref_path = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_32bit.tiff.npy";
+std::string depth_ref_path(int depth) {
+  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_", depth, "bit.tiff.npy");
+}
+
+std::string depth_ref_float_path(int depth) {
+  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_", depth, "bit_float.tiff.npy");
+}
 }  // namespace
 
 template <typename OutType>
@@ -65,8 +69,17 @@ class LibTiffDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutType> {
   std::shared_ptr<ImageParser> CreateParser() override {
     return std::make_shared<TiffParser>();
   }
-
   static const auto dtype = type2id<OutType>::value;
+};
+
+class LibTiffDecoderBitdepthTest : public LibTiffDecoderTest<float> {
+ protected:
+  void TestDepth(int depth) {
+    auto ref = this->ReadReferenceFrom(depth_ref_float_path(depth));
+    auto src = ImageSource::FromFilename(depth_path(depth));
+    auto img = this->Decode(&src, {DALI_FLOAT});
+    this->AssertClose(img, ref, 0.01);
+  }
 };
 
 using LibTiffDecoderTypes = ::testing::Types<uint8_t, uint16_t, uint32_t>;
@@ -138,24 +151,43 @@ TYPED_TEST(LibTiffDecoderTest, MultichannelToRgb) {
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth8) {
-  auto ref = this->ReadReferenceFrom(depth8_ref_path);
-  auto src = ImageSource::FromFilename(depth8_path);
+  auto ref = this->ReadReferenceFrom(depth_ref_path(8));
+  auto src = ImageSource::FromFilename(depth_path(8));
   auto img = this->Decode(&src, {this->dtype});
   this->AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth16) {
-  auto ref = this->ReadReferenceFrom(depth16_ref_path);
-  auto src = ImageSource::FromFilename(depth16_path);
+  auto ref = this->ReadReferenceFrom(depth_ref_path(16));
+  auto src = ImageSource::FromFilename(depth_path(16));
   auto img = this->Decode(&src, {this->dtype});
   this->AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth32) {
-  auto ref = this->ReadReferenceFrom(depth32_ref_path);
-  auto src = ImageSource::FromFilename(depth32_path);
+  auto ref = this->ReadReferenceFrom(depth_ref_path(32));
+  auto src = ImageSource::FromFilename(depth_path(32));
   auto img = this->Decode(&src, {this->dtype});
   this->AssertEqualSatNorm(img, ref);
+}
+
+TEST_F(LibTiffDecoderBitdepthTest, Depth1) {
+  this->TestDepth(1);
+}
+
+TEST_F(LibTiffDecoderBitdepthTest, Depth12) {
+  this->TestDepth(12);
+}
+
+TEST_F(LibTiffDecoderBitdepthTest, Depth24) {
+  this->TestDepth(24);
+}
+
+TEST_F(LibTiffDecoderBitdepthTest, AnyDepth) {
+  for (int depth = 1; depth < 32; depth++) {
+    SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
+    this->TestDepth(depth);
+  }
 }
 
 }  // namespace test
