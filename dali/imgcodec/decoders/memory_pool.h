@@ -16,9 +16,11 @@
 #define DALI_IMGCODEC_DECODERS_MEMORY_POOL_H_
 
 #include <atomic>
+#include <shared_mutex>
 #include <thread>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <vector>
 #include "dali/core/mm/memory.h"
 #include "dali/core/mm/memory_kind.h"
