@@ -16,7 +16,7 @@
 #define DALI_IMGCODEC_DECODERS_LIBTIFF_TIFF_LIBTIFF_H_
 
 #include <memory>
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 
 namespace dali {
