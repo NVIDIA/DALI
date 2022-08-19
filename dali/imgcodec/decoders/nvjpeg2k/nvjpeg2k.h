@@ -49,11 +49,15 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
                               DecodeParams opts,
                               const ROI &roi) override;
 
-  void SetParam(const char *name, const any &value) override {
+  bool SetParam(const char *name, const any &value) override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
       nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
+      return true;
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
       nvjpeg2k_host_memory_padding_ = any_cast<size_t>(value);
+      return true;
+    } else {
+      return false;
     }
   }
 
