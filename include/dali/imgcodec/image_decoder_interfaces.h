@@ -129,6 +129,45 @@ struct ImageDecoderProperties {
   bool fallback = true;
 };
 
+class DLL_PUBLIC DeferredDecodeResults {
+ public:
+  explicit DeferredDecodeResults(int num_samples);
+  ~DeferredDecodeResults();
+
+  DeferredDecodeResults(const DeferredDecodeResults &) = delete;
+  DeferredDecodeResults(DeferredDecodeResults &&other) : impl_(other.impl_) {
+    other.impl_ = nullptr;
+  }
+
+  DeferredDecodeResults &operator=(const DeferredDecodeResults &) = delete;
+  DeferredDecodeResults &operator=(DeferredDecodeResults &&other) {
+    std::swap(impl_, other.impl_);
+    return *this;
+  }
+
+  void wait() const;
+
+  int num_samples() const;
+
+  span<DecodeResult> get_all() const;
+
+  DecodeResult get_one(int index) const;
+
+  void set(int index, DecodeResult res);
+
+ private:
+  DecodeResult get_no_wait(int index) const;
+  class Impl;
+  Impl *impl_ = nullptr;
+};
+
+struct DecodeContext {
+  DecodeContext() = default;
+  DecodeContext(ThreadPool *tp, cudaStream_t stream) : tp(tp), stream(stream) {}
+  ThreadPool *tp = nullptr;
+  cudaStream_t stream = cudaStream_t(-1);
+};
+
 class DLL_PUBLIC ImageDecoderInstance {
  public:
   virtual ~ImageDecoderInstance() = default;
@@ -152,15 +191,29 @@ class DLL_PUBLIC ImageDecoderInstance {
                               DecodeParams opts,
                               const ROI &roi = {}) = 0;
 
+  /* virtual DeferredDecodeResults SheduleDecode(DecodeContext &ctx,
+                                              SampleView<CPUBackend> out,
+                                              ImageSource *in,
+                                              DecodeParams opts,
+                                              const ROI &roi = {}) = 0; */
+
   /**
    * @brief Decodes a batch of images to host buffers
    */
-  virtual std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
+  virtual std::vector<DecodeResult> Decode(/* DecodeContext &ctx, */
+                                           span<SampleView<CPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
                                            cspan<ROI> rois = {}) = 0;
 
-
+  /**
+   * @brief Decodes a batch of images to host buffers
+   */
+  /* virtual DeferredDecodeResults ScheduleDecode(DecodeContext &ctx,
+                                               span<SampleView<CPUBackend>> out,
+                                               cspan<ImageSource *> in,
+                                               DecodeParams opts,
+                                               cspan<ROI> rois = {}) = 0; */
 
   /**
    * @brief Decodes a single image to a device buffer
