@@ -344,13 +344,13 @@ class ArithmeticGenericOp : public Operator<Backend> {
       types_layout_inferred_ = true;
     }
 
-    bool needed_broadcasting = PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
+    broadcasting_ = PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 
     output_desc[0] = {result_shape_, result_type_id_};
 
-    if (!needed_broadcasting) {  // 1D tiling only when not broadcasting
+    if (!broadcasting_) {  // 1D tiling only when not broadcasting
       std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
     } else {
       std::tie(tile_cover_, tile_range_) = GetOneTilePerSample(result_shape_);
@@ -396,6 +396,9 @@ class ArithmeticGenericOp : public Operator<Backend> {
   // CPU packs up to 64 tiles in one task, GPU porcesses all of them in one task
   static constexpr int kTaskSize =
       std::is_same<Backend, CPUBackend>::value ? 64 : std::numeric_limits<int>::max();
+  
+  bool broadcasting_ = false;  // broadcasting required?
+
   USE_OPERATOR_MEMBERS();
 };
 
