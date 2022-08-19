@@ -20,7 +20,7 @@ namespace imgcodec {
 
 /**
  * @brief The transform that needs to be applied to rectify an image.
- *
+ * 
  * The operations are applied in the order in which they are declared.
  */
 struct Orientation {
