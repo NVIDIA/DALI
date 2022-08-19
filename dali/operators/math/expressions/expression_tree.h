@@ -46,12 +46,9 @@ class ExprImplBase {
   virtual void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) = 0;
 
   /**
-   * @brief Executes a whole sample represented by a single tile
+   * @brief Executes a range of samples sample (non-tiled)
    */
-  virtual void ExecuteWholeSample(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) {
-    // Only some implementations will require to implement this (for broadcasting)
-    DALI_FAIL("Not supported");
-  }
+  virtual void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) = 0;
 
   virtual ~ExprImplBase() = default;
 };

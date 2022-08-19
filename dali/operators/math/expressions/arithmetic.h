@@ -396,7 +396,6 @@ class ArithmeticGenericOp : public Operator<Backend> {
   // CPU packs up to 64 tiles in one task, GPU porcesses all of them in one task
   static constexpr int kTaskSize =
       std::is_same<Backend, CPUBackend>::value ? 64 : std::numeric_limits<int>::max();
-  
   bool broadcasting_ = false;  // broadcasting required?
 
   USE_OPERATOR_MEMBERS();
