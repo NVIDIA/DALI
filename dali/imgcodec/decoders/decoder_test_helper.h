@@ -23,7 +23,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/imgcodec/image_format.h"
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/test_tensors.h"

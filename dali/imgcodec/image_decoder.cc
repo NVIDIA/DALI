@@ -27,18 +27,24 @@ bool ImageDecoder::CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi)
 std::vector<bool> ImageDecoder::CanDecode(cspan<ImageSource *> in,
                                           DecodeParams opts,
                                           cspan<ROI> rois) {
-    return std::vector<bool>(in.size(), true);
+  return std::vector<bool>(in.size(), true);
 }
 
 bool ImageDecoder::SetParam(const char *key, const any &value) {
+  std::lock_guard lock(mtx_);
   params_[key] = value;
+  for (auto &[_, decoder] : decoders_)
+    decoder->SetParam(key, value);
   return true;
 }
 
 any ImageDecoder::GetParam(const char *key) const {
+  std::shared_lock lock(mtx_);
   auto it = params_.find(key);
   return it != params_.end() ? it->second : any{};
 }
+
+
 
 }  // namespace imgcodec
 }  // namespace dali

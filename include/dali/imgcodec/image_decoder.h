@@ -17,8 +17,11 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <vector>
+#include <typeinfo>
 #include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/image_format.h"
 #include "dali/pipeline/data/tensor_list.h"
@@ -141,6 +144,8 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
  private:
   std::shared_ptr<ImageFormatRegistry> registry_;
   std::map<std::string, any> params_;
+  std::map<ImageDecoderFactory*, std::unique_ptr<ImageDecoderInstance>> decoders_;
+  mutable std::shared_timed_mutex mtx_;
 };
 
 }  // namespace imgcodec
