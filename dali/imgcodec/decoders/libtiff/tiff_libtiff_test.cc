@@ -121,13 +121,13 @@ TYPED_TEST(LibTiffDecoderTest, GrayToRgb) {
 
   EXPECT_EQ(img.shape, TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
 
-  auto red = this->Crop(img.template to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
-  auto green = this->Crop(img.template to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
-  auto blue = this->Crop(img.template to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
+  auto r = this->Crop(img.template to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
+  auto g = this->Crop(img.template to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
+  auto b = this->Crop(img.template to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
 
-  this->AssertEqualSatNorm(red, ref);
-  this->AssertEqualSatNorm(green, ref);
-  this->AssertEqualSatNorm(blue, ref);
+  this->AssertEqualSatNorm(r, ref);
+  this->AssertEqualSatNorm(g, ref);
+  this->AssertEqualSatNorm(b, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, MultichannelToRgb) {

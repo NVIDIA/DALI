@@ -229,7 +229,7 @@ class DecoderTestBase : public ::testing::Test {
     VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
       TYPE_SWITCH(input.type(), type2id, InputType, (IMGCODEC_TYPES), (
         return Crop(view<const InputType, Dims>(input), roi, input.GetLayout());
-      ), DALI_FAIL(make_string("Unsupported type ", input.type())););
+      ), DALI_FAIL(make_string("Unsupported type ", input.type())););  // NOLINT
     ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
   }
 
