@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/imgcodec/decoders/tiff_libtiff.h"
 #include <tiffio.h>
+#include <vector>
 #include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
 #include "dali/imgcodec/util/convert.h"
 #include "dali/core/tensor_shape_print.h"
@@ -158,7 +160,7 @@ struct depth2type<32> {
 };
 
 
-template<typename OutputType, bool normalize=true>
+template<typename OutputType, bool normalize = true>
 void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t n) {
   size_t out_type_bits = 8 * sizeof(OutputType);
   if (out_type_bits < nbits)
@@ -268,7 +270,8 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   if (info.bit_depth <= 8) in_type_bits = 8;
   else if (info.bit_depth <= 16) in_type_bits = 16;
   else if (info.bit_depth <= 32) in_type_bits = 32;
-  else DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth));
+  else
+    DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth));
 
   TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
     VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (

@@ -51,11 +51,13 @@ std::string depth_path(int depth) {
 }
 
 std::string depth_ref_path(int depth) {
-  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_", depth, "bit.tiff.npy");
+  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_",
+                     depth, "bit.tiff.npy");
 }
 
 std::string depth_ref_float_path(int depth) {
-  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_", depth, "bit_float.tiff.npy");
+  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_",
+                     depth, "bit_float.tiff.npy");
 }
 }  // namespace
 
