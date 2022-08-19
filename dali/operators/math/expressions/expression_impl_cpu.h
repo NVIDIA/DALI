@@ -32,13 +32,17 @@ template <ArithmeticOp op, typename Result, typename Input>
 class ExprImplCpuT : public ExprImplBase {
  public:
   void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
-    assert(tiles.size() == 1 && 
+    assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[0];
     auto output = static_cast<Result *>(tile.output.data);
     auto &left = tile.args[0];
     auto input = static_cast<const Input *>(left.data);
     Execute(output, input, volume(tile.desc.extent_size));
+  }
+
+  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
+    DALI_FAIL("Logic error");
   }
 
  private:
@@ -64,16 +68,16 @@ class ExprImplCpuTT : public ExprImplBase {
     Execute(output_ptr, left_ptr, right_ptr, volume(tile.desc.extent_size));
   }
 
-  void ExecuteWholeSample(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
-    assert(tiles.size() == 1 &&
-           "CPU Expression implementation can handle only one tile at a time");
-    const auto &tile = tiles[0];
-    auto &output = tile.output;
+  void Execute(ExprImplContext &ctx, span<const SampleDesc> samples) override {
+    assert(samples.size() == 1 &&
+           "CPU Expression implementation can handle only one sample at a time");
+    const auto &sample = samples[0];
+    auto &output = sample.output;
     auto output_ptr = static_cast<Result *>(output.data);
     auto output_shape = output.shape;
     auto output_strides = output.strides;
-    auto &left = tile.args[0];
-    auto &right = tile.args[1];
+    auto &left = sample.args[0];
+    auto &right = sample.args[1];
     auto left_ptr = static_cast<const Left *>(left.data);
     auto left_shape = left.shape;
     auto left_strides = left.strides;
@@ -156,6 +160,10 @@ class ExprImplCpuCT : public ExprImplBase {
     Execute(output, *left_ptr, right_ptr, volume(tile.desc.extent_size));
   }
 
+  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
+    DALI_FAIL("Logic error");
+  }
+
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
 
@@ -179,6 +187,10 @@ class ExprImplCpuTC : public ExprImplBase {
     auto left_ptr = static_cast<const Left *>(left.data);
     auto right_ptr = static_cast<const Right *>(right.data);
     Execute(output, left_ptr, *right_ptr, volume(tile.desc.extent_size));
+  }
+
+  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
+    DALI_FAIL("Logic error");
   }
 
  private:
@@ -212,6 +224,11 @@ class ExprImplCpuTernary : public ExprImplBase {
             expression_detail::Pass<IsThirdTensor, Result>(third.data, third.dtype),
             first.dtype, second.dtype, third.dtype,
             volume(tile.desc.extent_size));
+  }
+
+  // TODO(janton): implement this
+  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
+    DALI_FAIL("Logic error");
   }
 
  private:

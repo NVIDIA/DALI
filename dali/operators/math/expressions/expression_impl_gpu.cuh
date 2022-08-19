@@ -210,6 +210,11 @@ class ExprImplGPUInvoke : public ExprImplBase {
     Invoker::Invoke(tiles_gpu, grid, block, ctx.stream);
   }
 
+  // TODO(janton): implement this
+  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
+    DALI_FAIL("Logic error");
+  }
+
  private:
   // Use BinaryArithmeticOpGpuPerfTest for tuning
   static constexpr int kThreadNum = 256;

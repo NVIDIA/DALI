@@ -217,7 +217,7 @@ void TransformDescs(std::vector<ExtendedTileDesc> &extended_tiles,
                     const OpSpec &spec) {
   extended_tiles.reserve(tiles.size());
   for (auto &tile : tiles) {
-    extended_tiles.emplace_back(tile, GetOutput<Backend>(func, ws, tile), func.GetTypeId(),
+    extended_tiles.emplace_back(tile, GetOutput<Backend>(func, ws, tile),
                                 GetArgPack(func, ws, st, spec, tile));
   }
 }

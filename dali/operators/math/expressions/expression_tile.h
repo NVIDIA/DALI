@@ -82,11 +82,17 @@ using ArgPack = SmallVector<OperandData, kMaxArity>;
  */
 struct ExtendedTileDesc {
   ExtendedTileDesc() = default;
-
-  ExtendedTileDesc(const TileDesc &desc, OutputData output, DALIDataType out_type,
-                   const ArgPack &args)
+  ExtendedTileDesc(const TileDesc &desc, OutputData output, const ArgPack &args)
       : desc(desc), output(output), args(args) {}
   TileDesc desc;
+  OutputData output;
+  ArgPack args;
+};
+
+struct SampleDesc {
+  SampleDesc() = default;
+  SampleDesc(OutputData output, const ArgPack &args)
+      : output(output), args(args) {}
   OutputData output;
   ArgPack args;
 };

@@ -34,8 +34,9 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
       pool.AddWork([this, sample_idx](int thread_idx) {
         // Go over expression tree in some provided order
         for (size_t i = 0; i < exec_order_.size(); i++) {
-          exec_order_[i].impl->ExecuteWholeSample(exec_order_[i].ctx,
-                                                  make_cspan(&tiles_per_task_[i][sample_idx], 1));
+          auto &tile = tiles_per_task_[i][sample_idx];
+          SampleDesc sample(tile.output, tile.args);
+          exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(&sample, 1));
         }
       }, result_shape_.tensor_size(sample_idx));
     }
