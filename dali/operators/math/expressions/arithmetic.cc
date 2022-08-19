@@ -26,20 +26,16 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
   auto &pool = ws.GetThreadPool();
   ws.Output<CPUBackend>(0).SetLayout(result_layout_);
 
-  // Detecting the non-tiled case
-  // TODO(janton): Figure out a better way
-  auto batch_size = ws.GetInputBatchSize(0);
-  int ntiles = tile_range_.size();
-  if (ntiles == batch_size) {
+  if (broadcasting_) {
+    auto batch_size = ws.GetInputBatchSize(0);
+    int ntiles = tile_cover_.size();
+    assert(ntiles == batch_size);
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
       pool.AddWork([this, sample_idx](int thread_idx) {
-        auto range = tile_range_[sample_idx];
-        assert(1 == (range.end - range.begin));
-        int extent_idx = range.begin;
         // Go over expression tree in some provided order
         for (size_t i = 0; i < exec_order_.size(); i++) {
           exec_order_[i].impl->ExecuteWholeSample(exec_order_[i].ctx,
-                                                  tiles_per_task_[i][extent_idx]);
+                                                  make_cspan(&tiles_per_task_[i][sample_idx], 1));
         }
       }, result_shape_.tensor_size(sample_idx));
     }
@@ -51,8 +47,8 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
         for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
           // Go over expression tree in some provided order
           for (size_t i = 0; i < exec_order_.size(); i++) {
-            exec_order_[i].impl->Execute(exec_order_[i].ctx, tiles_per_task_[i],
-                                        {extent_idx, extent_idx + 1});
+            exec_order_[i].impl->Execute(exec_order_[i].ctx,
+                                         make_cspan(&tiles_per_task_[i][extent_idx], 1));
           }
         }
       }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks

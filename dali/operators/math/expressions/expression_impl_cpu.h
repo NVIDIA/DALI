@@ -31,11 +31,10 @@ namespace dali {
 template <ArithmeticOp op, typename Result, typename Input>
 class ExprImplCpuT : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-               TileRange range) override {
-    assert(range.begin + 1 == range.end &&
+  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+    assert(tiles.size() == 1 && 
            "CPU Expression implementation can handle only one tile at a time");
-    const auto &tile = tiles[range.begin];
+    const auto &tile = tiles[0];
     auto output = static_cast<Result *>(tile.output.data);
     auto &left = tile.args[0];
     auto input = static_cast<const Input *>(left.data);
@@ -55,18 +54,20 @@ class ExprImplCpuT : public ExprImplBase {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 class ExprImplCpuTT : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-               TileRange range) override {
-    assert(range.begin + 1 == range.end &&
+  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+    assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
-    const auto &tile = tiles[range.begin];
+    const auto &tile = tiles[0];
     auto output_ptr = static_cast<Result *>(tile.output.data);
     auto left_ptr = static_cast<const Left *>(tile.args[0].data);
     auto right_ptr = static_cast<const Right *>(tile.args[1].data);
     Execute(output_ptr, left_ptr, right_ptr, volume(tile.desc.extent_size));
   }
 
-  void ExecuteWholeSample(ExprImplContext &ctx, const ExtendedTileDesc &tile) override {
+  void ExecuteWholeSample(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+    assert(tiles.size() == 1 &&
+           "CPU Expression implementation can handle only one tile at a time");
+    const auto &tile = tiles[0];
     auto &output = tile.output;
     auto output_ptr = static_cast<Result *>(output.data);
     auto output_shape = output.shape;
@@ -143,11 +144,10 @@ class ExprImplCpuTT : public ExprImplBase {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 class ExprImplCpuCT : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-               TileRange range) override {
-    assert(range.begin + 1 == range.end &&
+  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+    assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
-    const auto &tile = tiles[range.begin];
+    const auto &tile = tiles[0];
     auto output = static_cast<Result *>(tile.output.data);
     auto &left = tile.args[0];
     auto &right = tile.args[1];
@@ -169,11 +169,10 @@ class ExprImplCpuCT : public ExprImplBase {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 class ExprImplCpuTC : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-               TileRange range) override {
-    assert(range.begin + 1 == range.end &&
+  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+    assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
-    const auto &tile = tiles[range.begin];
+    const auto &tile = tiles[0];
     auto output = static_cast<Result *>(tile.output.data);
     auto &left = tile.args[0];
     auto &right = tile.args[1];
@@ -198,11 +197,10 @@ template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 class ExprImplCpuTernary : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-               TileRange range) override {
-    assert(range.begin + 1 == range.end &&
+  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+    assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
-    const auto &tile = tiles[range.begin];
+    const auto &tile = tiles[0];
     auto output = static_cast<Result *>(tile.output.data);
 
     auto &first = tile.args[0];

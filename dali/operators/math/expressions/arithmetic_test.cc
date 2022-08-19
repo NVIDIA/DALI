@@ -48,9 +48,9 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   TensorListShape<> result_shape;
   PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
-  auto expected_shpe = TensorListShape<>{{1}, {2}};
+  auto expected_shape = TensorListShape<>{{1}, {2}};
   EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
-  EXPECT_EQ(result_shape, expected_shpe);
+  EXPECT_EQ(result_shape, expected_shape);
   EXPECT_EQ(result_layout, "HW");
   EXPECT_EQ(expr_ref.GetNodeDesc(), "div:T:int32(FT:int16 CC:int32)");
   EXPECT_EQ(expr_ref.GetOutputDesc(), "FT:int32");
@@ -100,7 +100,29 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   EXPECT_EQ(result_shape, expected_shape);
 }
 
-TEST(ArithmeticOpsTest, TreePropagationError) {
+TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
+  std::string expr_str = "div(sub(&0 &1) &2)";
+  auto expr = ParseExpressionString(expr_str);
+  auto &expr_ref = *expr;
+  HostWorkspace ws;
+  std::shared_ptr<TensorVector<CPUBackend>> in[3];
+  for (auto &ptr : in) {
+    ptr = std::make_shared<TensorVector<CPUBackend>>();
+    ptr->Resize({{1}, {2}}, DALI_INT32);
+  }
+  in[2]->Resize({{10}, {2}});
+  ws.AddInput(in[0]);
+  ws.AddInput(in[1]);
+  ws.AddInput(in[2]);
+
+  TensorListShape<> result_shape;
+  ASSERT_TRUE(PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2));
+  TensorListShape<> expected_sh = {{10}, {2}};
+  ASSERT_EQ(expected_sh, result_shape);
+}
+
+
+TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
   std::string expr_str = "div(sub(&0 &1) &2)";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
@@ -113,13 +135,10 @@ TEST(ArithmeticOpsTest, TreePropagationError) {
   in[0]->SetLayout(TensorLayout());
   in[1]->SetLayout(TensorLayout("HW"));
   in[2]->SetLayout(TensorLayout("DHW"));
-  in[2]->Resize({{10}, {2}});
   ws.AddInput(in[0]);
   ws.AddInput(in[1]);
   ws.AddInput(in[2]);
 
-  TensorListShape<> result_shape;
-  ASSERT_THROW(PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2), std::runtime_error);
   ASSERT_THROW(GetCommonLayout<CPUBackend>(expr_ref, ws), std::runtime_error);
 }
 

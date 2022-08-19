@@ -43,12 +43,15 @@ class ExprImplBase {
   /**
    * @brief Executes a range of tiles
    */
-  virtual void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-                       TileRange range) = 0;
+  virtual void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) = 0;
+
   /**
    * @brief Executes a whole sample represented by a single tile
    */
-  virtual void ExecuteWholeSample(ExprImplContext &ctx, const ExtendedTileDesc &tiles) {}
+  virtual void ExecuteWholeSample(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) {
+    // Only some implementations will require to implement this (for broadcasting)
+    DALI_FAIL("Not supported");
+  }
 
   virtual ~ExprImplBase() = default;
 };

@@ -201,10 +201,9 @@ inline dim3 GetGridLayout(int extent, int tiles) {
 template <typename Invoker>
 class ExprImplGPUInvoke : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, const std::vector<ExtendedTileDesc> &tiles,
-               TileRange range) override {
+  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
     kernels::DynamicScratchpad s({}, ctx.stream);
-    auto *tiles_pinned = s.ToPinned(make_span(tiles));
+    auto *tiles_pinned = s.ToPinned(tiles);
     auto *tiles_gpu = s.ToGPU(ctx.stream, make_span(tiles_pinned, tiles.size()));
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
