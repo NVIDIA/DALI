@@ -17,6 +17,7 @@
 
 #include <vector>
 
+#include "dali/core/convert.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/format.h"
 #include "dali/core/geom/box.h"
@@ -71,6 +72,7 @@ template <typename T, int ndim>
 struct erase_sample_desc {
   const T * __restrict__ in = nullptr;
   T * __restrict__ out = nullptr;
+  const T* __restrict__ fill_values = nullptr;
   span<const ibox<ndim>> erase_regions = {};
   ivec<ndim> sample_shape;
   ivec<ndim> sample_stride;
@@ -118,7 +120,7 @@ constexpr bool is_outer_loops(int ndim, int current_dim, int channel_dim) {
  */
 template <typename Worker, int channel_dim, int current_dim = 0, typename T, int ndim>
 __device__ std::enable_if_t<is_outer_loops(ndim, current_dim, channel_dim)>
-erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill_values,
+erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region,
               span<ibox<ndim>> erase_regions = {}, ivec<ndim> coordinate = {},
               int64_t offset_base = 0) {
   constexpr int d = current_dim;
@@ -126,7 +128,7 @@ erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill
   for (int i = region.lo[d]; i < boundary; i++) {
     coordinate[d] = i;
     int64_t offset = offset_base + i * sample.sample_stride[d];
-    erase_generic<Worker, channel_dim, d + 1>(sample, region, fill_values, erase_regions,
+    erase_generic<Worker, channel_dim, d + 1>(sample, region, erase_regions,
                                               coordinate, offset);
   }
 }
@@ -141,7 +143,7 @@ erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill
  */
 template <typename Worker, int channel_dim, int current_dim = 0, typename T, int ndim>
 __device__ std::enable_if_t<ndim - current_dim == 2 && channel_dim < ndim - 2>
-erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill_values,
+erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region,
               span<ibox<ndim>> erase_regions = {}, ivec<ndim> coordinate = {},
               int64_t offset_base = 0) {
   constexpr int d = current_dim;
@@ -156,8 +158,7 @@ erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill
     for (int x = region.lo[dX] + threadIdx.x; x < boundary_x; x += blockDim.x) {
       coordinate[dX] = x;
       int64_t offset_x = offset_y + x * sample.sample_stride[dX];
-      Worker::template copy_or_erase<channel_dim>(sample, erase_regions, coordinate, offset_x,
-                                                  fill_values);
+      Worker::template copy_or_erase<channel_dim>(sample, erase_regions, coordinate, offset_x);
     }
   }
 }
@@ -176,7 +177,7 @@ erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill
  */
 template <typename Worker, int channel_dim, int current_dim = 0, typename T, int ndim>
 __device__ std::enable_if_t<ndim - current_dim == 3 && channel_dim >= ndim - 2>
-erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill_values,
+erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region,
               span<ibox<ndim>> erase_regions = {}, ivec<ndim> coordinate = {},
               int64_t offset_base = 0) {
   constexpr int d = current_dim;
@@ -208,7 +209,7 @@ erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill
           region.lo[dC] <= coordinate[dC] && coordinate[dC] < boundary_c) {
         int64_t offset_x = offset_y + flat;
         Worker::template copy_or_erase<channel_dim>(sample, erase_regions, coordinate,
-                                                             offset_x, fill_values);
+                                                    offset_x);
       }
     }
   }
@@ -219,7 +220,7 @@ erase_generic(erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill
  */
 template <typename Worker, int channel_dim, int current_dim = 0, typename T, int ndim>
 __device__ std::enable_if_t<ndim == 1> erase_generic(erase_sample_desc<T, ndim> sample,
-    ibox<ndim> region, span<T> fill_values, span<ibox<ndim>> erase_regions = {},
+    ibox<ndim> region, span<ibox<ndim>> erase_regions = {},
     ivec<ndim> coordinate = {}, int64_t offset_base = 0) {
   constexpr int d = current_dim;
   int boundary = ::min(region.hi[d], sample.sample_shape[d]);
@@ -228,7 +229,7 @@ __device__ std::enable_if_t<ndim == 1> erase_generic(erase_sample_desc<T, ndim> 
        idx += blockDim.y * blockDim.x) {
     coordinate[d] = idx;
     Worker::template copy_or_erase<channel_dim>(sample, erase_regions, coordinate,
-                                                offset_base + idx, fill_values);
+                                                offset_base + idx);
   }
 }
 
@@ -239,7 +240,7 @@ __device__ std::enable_if_t<ndim == 1> erase_generic(erase_sample_desc<T, ndim> 
  */
 template <typename Worker, int channel_dim, int current_dim = 0, typename T, int ndim>
 __device__ std::enable_if_t<(ndim == 2 && current_dim == 0 && channel_dim >= 0)> erase_generic(
-    erase_sample_desc<T, ndim> sample, ibox<ndim> region, span<T> fill_values,
+    erase_sample_desc<T, ndim> sample, ibox<ndim> region,
     span<ibox<ndim>> erase_regions = {}, ivec<ndim> coordinate = {}, int64_t offset_base = 0) {
   constexpr int d = current_dim;
   constexpr int dC = d + 1;
@@ -252,8 +253,7 @@ __device__ std::enable_if_t<(ndim == 2 && current_dim == 0 && channel_dim >= 0)>
     int64_t offset = offset_base + idx * sample.sample_stride[d];
     for (int c = region.lo[dC]; c < boundary_c; c++) {
       coordinate[dC] = c;
-      Worker::template copy_or_erase<channel_dim>(sample, erase_regions, coordinate, offset + c,
-                                                  fill_values);
+      Worker::template copy_or_erase<channel_dim>(sample, erase_regions, coordinate, offset + c);
     }
   }
 }
@@ -263,10 +263,9 @@ struct do_copy {
   template <int channel_dim, typename T, int ndim>
   __device__ static void copy_or_erase(erase_sample_desc<T, ndim> sample,
                                        span<ibox<ndim>> erase_regions, ivec<ndim> coordinate,
-                                       int64_t offset, span<T> fill_values) {
+                                       int64_t offset) {
     (void)erase_regions;
     (void)coordinate;
-    (void)fill_values;
     sample.out[offset] = sample.in[offset];
   }
 };
@@ -275,12 +274,12 @@ struct do_erase {
   template <int channel_dim, typename T, int ndim>
   __device__ static void copy_or_erase(erase_sample_desc<T, ndim> sample,
                                        span<ibox<ndim>> erase_regions, ivec<ndim> coordinate,
-                                       int64_t offset, span<T> fill_values) {
+                                       int64_t offset) {
     (void)erase_regions;
     if (channel_dim == -1) {
-      sample.out[offset] = fill_values[0];
+      sample.out[offset] = sample.fill_values[0];
     } else {
-      sample.out[offset] = fill_values[coordinate[channel_dim]];
+      sample.out[offset] = sample.fill_values[coordinate[channel_dim]];
     }
   }
 };
@@ -289,15 +288,10 @@ struct do_copy_or_erase {
   template <int channel_dim, typename T, int ndim>
   __device__ static void copy_or_erase(erase_sample_desc<T, ndim> sample,
                                        span<ibox<ndim>> erase_regions, ivec<ndim> coordinate,
-                                       int64_t offset, span<T> fill_values) {
-    auto fill_value = channel_dim == -1 ? fill_values[0] : fill_values[coordinate[channel_dim]];
-    copy_or_erase<channel_dim>(sample, erase_regions, coordinate, offset, fill_value);
-  }
+                                       int64_t offset) {
+    auto fill_value =
+        channel_dim == -1 ? sample.fill_values[0] : sample.fill_values[coordinate[channel_dim]];
 
-  template <int channel_dim, typename T, int ndim>
-  __device__ static void copy_or_erase(erase_sample_desc<T, ndim> sample,
-                                       span<ibox<ndim>> erase_regions, ivec<ndim> coordinate,
-                                       int64_t offset, T fill_value) {
     bool copy = true;
     for (auto &region : erase_regions) {
       if (region.contains(coordinate)) {
@@ -310,7 +304,7 @@ struct do_copy_or_erase {
 
 template <int channel_dim = -1, typename T, int ndim = 2>
 __global__ void erase_gpu_impl(const erase_sample_desc<T, ndim> *samples,
-                               ivec<ndim> region_shape, span<T> fill_values) {
+                               ivec<ndim> region_shape) {
   const auto region_idx = blockIdx.x;
   const auto sample_idx = blockIdx.y;
 
@@ -348,15 +342,15 @@ __global__ void erase_gpu_impl(const erase_sample_desc<T, ndim> *samples,
 
   if (total_erase_regions == 0) {
     // do a full copy
-    erase_generic<do_copy, channel_dim>(sample, region_box, fill_values);
+    erase_generic<do_copy, channel_dim>(sample, region_box);
     return;
   } else if (is_fully_erased) {
     // do a total erase
-    erase_generic<do_erase, channel_dim>(sample, region_box, fill_values,
+    erase_generic<do_erase, channel_dim>(sample, region_box,
                                          make_span(erase_regions, total_erase_regions));
     return;
   } else {
-    erase_generic<do_copy_or_erase, channel_dim>(sample, region_box, fill_values,
+    erase_generic<do_copy_or_erase, channel_dim>(sample, region_box,
                                                  make_span(erase_regions, total_erase_regions));
   }
 }
@@ -377,48 +371,35 @@ struct EraseGpu {
       "Channel dim can either be ignored (for channel_dim = -1) or must be in [0, ndim) interval.");
   using sample_t = erase_sample_desc<T, ndim>;
 
-  KernelRequirements Setup(KernelContext &context,
-                           const InListGPU<T, ndim> &in,
-                           const InListGPU<ibox<ndim>, 1> &erased_regions,
-                           span<const T> fill_values = {}) {
-    const int num_samples = in.num_samples();
+  KernelRequirements Setup(KernelContext &context, const InListGPU<T, ndim> &in) {
+    KernelRequirements req;
+    req.output_shapes = {in.shape};
+    return req;
+  }
 
-    if (channel_dim == -1) {
-      DALI_ENFORCE(fill_values.size() == 1 || fill_values.size() == 0,
-                   make_string("Kernel is unaware of channel dimension, exactly 0 or 1 fill value "
-                               "is expected, got: ",
-                               fill_values.size(), "."));
-    } else {
-      // ensure that dim `channel_dim` in every sample matches fill_values.size();
-      for (int i = 0; i < num_samples; i++) {
-        DALI_ENFORCE(in.shape.tensor_shape_span(i)[channel_dim] == fill_values.size() ||
-                         fill_values.size() == 1 || fill_values.size() == 0,
-                     make_string("Channel dimension in all samples must match the number "
-                                 "of elements provided in `fill_values` or there need to be "
-                                 "exactly 0 or 1 fill values provied. Sample ",
-                                 i, " has ", in.shape.tensor_shape_span(i)[channel_dim],
-                                 " elements, but there are ", fill_values.size(), " fill values."));
+  template <typename TLV>
+  int GetNumFillValues(TLV fill_values, const InListGPU<T, ndim> &in) {
+    int nfill_values = 0;
+    int num_samples = fill_values.num_samples();
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      if (nfill_values == 0) {
+        nfill_values = fill_values[sample_idx].shape[0];
+      } else {
+        if (nfill_values != fill_values[sample_idx].shape[0])
+          throw std::invalid_argument(
+              "The number of fill values should be the same for all the samples");
       }
     }
 
-    KernelRequirements req;
-
-    ScratchpadEstimator se;
-
-    se.add<mm::memory_kind::pinned, sample_t>(num_samples);
-    se.add<mm::memory_kind::device, sample_t>(num_samples);
-    if (channel_dim >= 0) {
-      int num_channels = in.shape.tensor_shape_span(0)[channel_dim];
-      se.add<mm::memory_kind::pinned, T>(num_channels);
-      se.add<mm::memory_kind::device, T>(num_channels);
-    } else {
-      se.add<mm::memory_kind::pinned, T>(1);
-      se.add<mm::memory_kind::device, T>(1);
+    if (nfill_values > 1) {
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        if (nfill_values != in.shape.tensor_shape_span(sample_idx)[channel_dim]) {
+          throw std::invalid_argument(
+              "The number of fill values should match the number of channels in the output slice");
+        }
+      }
     }
-
-    req.output_shapes = {in.shape};
-    req.scratch_sizes = se.sizes;
-    return req;
+    return nfill_values;
   }
 
   /**
@@ -434,18 +415,13 @@ struct EraseGpu {
            OutListGPU<T, ndim> &out,
            const InListGPU<T, ndim> &in,
            const InListGPU<ibox<ndim>, 1> &erased_regions,
-           span<const T> fill_values = {}) {
+           const InListGPU<T, 1> &fill_values) {
     auto stream = ctx.gpu.stream;  // MAYBE some runtime check if it's not used?
     const int num_samples = in.num_samples();
 
-    DeviceArray<T, 1> default_fill = {0};
-
-    if (fill_values.empty()) {
-      fill_values = make_span(default_fill);
-    }
-
-    const int num_fill_values = channel_dim >= 0 ? in.shape.tensor_shape_span(0)[channel_dim] : 1;
-
+    int nfill_values = GetNumFillValues(fill_values, in);
+    DALI_ENFORCE(nfill_values > 0);
+  
     ivec<ndim> region_dim;
 
     // Prepare Dim {2, 2, ..., 2, 64, 64}
@@ -481,7 +457,7 @@ struct EraseGpu {
 
 
     int max_regions = 1;
-    for (int i = 0; i < in.num_samples(); i++) {
+    for (int i = 0; i < num_samples; i++) {
       auto region_cover = div_ceil(to_ivec(in.shape[i]), region_dim);
       auto total_regions = volume(region_cover);
       // std::max was complaining
@@ -490,12 +466,9 @@ struct EraseGpu {
     dim3 grid_dim = {(uint32_t)max_regions, (uint32_t)num_samples, 1};
     dim3 block_dim = {32, 32, 1};  // fixed block dim
 
-    auto* sample_desc_cpu = ctx.scratchpad->AllocatePinned<sample_t>(num_samples);
-    auto* fill_values_cpu = ctx.scratchpad->AllocatePinned<T>(num_fill_values);
+    DeviceArray<T, 1> default_fill_value = {0};
 
-    for (int i = 0; i < num_fill_values; i++) {
-      fill_values_cpu[i] = fill_values.size() == 1 ? fill_values[0] : fill_values[i];
-    }
+    auto* sample_desc_cpu = ctx.scratchpad->AllocatePinned<sample_t>(num_samples);
 
     for (int i = 0; i < num_samples; i++) {
       auto &sample = sample_desc_cpu[i];
@@ -507,19 +480,72 @@ struct EraseGpu {
         sample.sample_shape[dim] = in.tensor_shape_span(i)[dim];
       }
       sample.sample_stride = GetStrides(sample.sample_shape);
+      sample.fill_values = fill_values[i].data;
+      DALI_ENFORCE(fill_values.shape.tensor_shape_span(i)[0] == nfill_values);
     }
 
-    sample_t *sample_desc_gpu;
-    T *fill_values_gpu;
-    std::tie(sample_desc_gpu, fill_values_gpu) =
-      ctx.scratchpad->ToContiguousGPU(stream, make_cspan(sample_desc_cpu, num_samples),
-                                      make_cspan(fill_values_cpu, num_fill_values));
-    auto fill_values_span = make_span(fill_values_gpu, num_fill_values);
+    sample_t *sample_desc_gpu =
+        ctx.scratchpad->ToGPU(ctx.gpu.stream, make_cspan(sample_desc_cpu, num_samples));
 
     erase_gpu_impl<channel_dim><<<grid_dim, block_dim, 0, stream>>>(
-        sample_desc_gpu, region_dim, fill_values_span);
+        sample_desc_gpu, region_dim);
+  }
+
+  void Run(KernelContext &ctx,
+           OutListGPU<T, ndim> &out,
+           const InListGPU<T, ndim> &in,
+           const InListGPU<ibox<ndim>, 1> &erased_regions,
+           span<const float> fill_values) {
+    TensorListView<StorageCPU, const float, 1> fill_values_tlv;
+    fill_values_tlv.resize(in.num_samples());
+    for (int i = 0; i < in.num_samples(); i++) {
+      fill_values_tlv.data[i] = fill_values.data();
+      fill_values_tlv.shape.tensor_shape_span(i)[0] = fill_values.size();
+    }
+    Run(ctx, out, in, erased_regions, fill_values_tlv);
+  }
+
+  template <typename T2>
+  void Run(KernelContext &ctx,
+           OutListGPU<T, ndim> &out,
+           const InListGPU<T, ndim> &in,
+           const InListGPU<ibox<ndim>, 1> &erased_regions,
+           const InListCPU<T2, 1> &fill_values) {
+    int num_samples = fill_values.size();
+    int nfill_values = GetNumFillValues(fill_values, in);
+    bool default_fill_values = false;
+    if (nfill_values == 0) {
+      nfill_values = 1;
+      default_fill_values = true;
+    }
+
+    T *fill_values_cpu = ctx.scratchpad->AllocatePinned<T>(num_samples * nfill_values);
+    for (int i = 0; i < num_samples; i++) {
+      if (default_fill_values) {
+        assert(nfill_values == 1);
+        fill_values_cpu[i] = T{0};
+      } else {
+        auto *sample_fill_values = fill_values_cpu + i * nfill_values;
+        for (int d = 0; d < nfill_values; d++)
+          sample_fill_values[d] = ConvertSat<T>(fill_values[i].data[d]);
+      }
+    }
+
+    T *fill_values_gpu = ctx.scratchpad->ToGPU(
+        ctx.gpu.stream, make_cspan(fill_values_cpu, num_samples * nfill_values));
+    CUDA_CALL(cudaGetLastError());
+
+    TensorListView<StorageGPU, const T, 1> fill_values_gpu_tlv;
+    fill_values_gpu_tlv.resize(num_samples);
+    fill_values_gpu_tlv.shape = uniform_list_shape(num_samples, TensorShape<1>{nfill_values});
+    for (int i = 0; i < num_samples; i++) {
+      fill_values_gpu_tlv.data[i] = fill_values_gpu + i * nfill_values;
+    }
+
+    Run(ctx, out, in, erased_regions, fill_values_gpu_tlv);
   }
 };
+
 
 }  // namespace kernels
 }  // namespace dali

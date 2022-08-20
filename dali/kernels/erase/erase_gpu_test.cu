@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -195,7 +195,7 @@ struct EraseGpuKernelTest :
 
     auto in_view = input_.gpu();
 
-    auto req = kernel.Setup(ctx, in_view, regions_gpu, make_span(fill_values_));
+    auto req = kernel.Setup(ctx, in_view);
 
     auto out_view = output_.gpu();
 

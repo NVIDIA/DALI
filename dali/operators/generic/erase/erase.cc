@@ -167,13 +167,14 @@ class EraseImplCpu : public OpImplBase<CPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit EraseImplCpu(const OpSpec *spec) : spec_(*spec) {}
+  explicit EraseImplCpu(const OpSpec *spec) : spec_(*spec), fill_values_("fill_values", *spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 
  private:
   const OpSpec &spec_;
+  ArgValue<float, 1> fill_values_;
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
   kernels::KernelManager kmgr_;
@@ -188,7 +189,7 @@ bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
   auto shape = input.shape();
   int nsamples = input.num_samples();
 
-  args_ = detail::GetEraseArgs<T, Dims>(spec_, ws, shape, layout);
+  args_ = detail::GetEraseArgs<T, Dims>(spec_, ws, fill_values_, shape, layout);
 
   kmgr_.Resize<EraseKernel>(nsamples);
   // the setup step is not necessary for this kernel (output and input shapes are the same)

@@ -46,7 +46,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit EraseImplGpu(const OpSpec *spec) : spec_(*spec) {
+  explicit EraseImplGpu(const OpSpec *spec) : spec_(*spec), fill_values_{"fill_values", *spec} {
     kmgr_.Resize<EraseKernel>(1);
   }
 
@@ -61,7 +61,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     kmgr_.Initialize<EraseKernel>();
     ctx_.gpu.stream = ws.stream();
     auto regions_view = view<kernels::ibox<Dims>, 1>(regions_gpu_);
-    kmgr_.Setup<EraseKernel>(0, ctx_, in_view, regions_view, make_cspan(fill_values_));
+    kmgr_.Setup<EraseKernel>(0, ctx_, in_view);
 
     output_desc.resize(1);
     output_desc[0] = {shape, input.type()};
@@ -75,14 +75,13 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     auto input = view<const T, Dims>(input_ref);
     auto output = view<T, Dims>(output_ref);
     auto regions_view = view<kernels::ibox<Dims>, 1>(regions_gpu_);
-    kmgr_.Run<EraseKernel>(0, ctx_, output, input, regions_view, make_cspan(fill_values_));
+    kmgr_.Run<EraseKernel>(0, ctx_, output, input, regions_view, fill_values_.get());
   }
 
   void AcquireArgs(const DeviceWorkspace &ws, TensorListShape<> in_shape,
                    TensorLayout in_layout) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
-    fill_values_ = spec_.template GetRepeatedArgument<float>("fill_value");
-    auto args = detail::GetEraseArgs<T, Dims>(spec_, ws, in_shape, in_layout);
+    auto args = detail::GetEraseArgs<T, Dims>(spec_, ws, fill_values_, in_shape, in_layout);
     auto regions_shape = TensorListShape<1>(curr_batch_size);
     for (int i = 0; i < curr_batch_size; ++i) {
       auto n_regions = static_cast<int>(args[i].rois.size());
@@ -104,10 +103,10 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
 
  private:
   const OpSpec &spec_;
+  ArgValue<float, 1> fill_values_;
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
   TensorList<GPUBackend> regions_gpu_;
-  SmallVector<T, 3> fill_values_;
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
 };
