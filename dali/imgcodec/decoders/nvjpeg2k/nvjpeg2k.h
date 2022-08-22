@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_NVJPEG2K_H_
-#define DALI_IMGCODEC_DECODERS_NVJPEG2K_H_
+#ifndef DALI_IMGCODEC_DECODERS_NVJPEG2K_NVJPEG2K_H_
+#define DALI_IMGCODEC_DECODERS_NVJPEG2K_NVJPEG2K_H_
 
 #include <nvjpeg.h>
 #include <memory>
 #include <vector>
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
-#include "dali/imgcodec/decoders/nvjpeg/nvjpeg2k_helper.h"
-#include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
+#include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_helper.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/cuda_event.h"
@@ -144,4 +143,4 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_DECODERS_NVJPEG2K_H_
+#endif  // DALI_IMGCODEC_DECODERS_NVJPEG2K_NVJPEG2K_H_

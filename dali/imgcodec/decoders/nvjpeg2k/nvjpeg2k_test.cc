@@ -16,7 +16,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "dali/imgcodec/decoders/nvjpeg2k.h"
+#include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k.h"
 #include "dali/imgcodec/decoders/decoder_test_helper.h"
 #include "dali/imgcodec/parsers/jpeg2000.h"
 #include "dali/test/dali_test.h"

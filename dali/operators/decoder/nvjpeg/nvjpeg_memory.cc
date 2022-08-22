@@ -273,11 +273,6 @@ void DeleteAllBuffers(std::thread::id thread_id) {
   NVJpegMem::instance().DeleteAllBuffers(thread_id);
 }
 
-template <typename MemoryKind>
-void AddMemStats(std::thread::id thread_id, size_t size) {
-  NVJpegMem::instance().AddBuffer<MemoryKind>(thread_id, size);
-}
-
 void SetEnableMemStats(bool enabled) {
   NVJpegMem::instance().SetEnableMemStats(enabled);
 }
