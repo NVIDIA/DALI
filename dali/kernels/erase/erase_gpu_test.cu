@@ -172,19 +172,19 @@ struct EraseGpuKernelTest :
     baseline_.reshape(test_shape_);
     auto cpu_input_view = input_.cpu();
     SequentialFill(cpu_input_view);
+    int nfill_values = channel_dim == -1 ? 1 : shape_[channel_dim];
     if (fill_type_ == FillType::DEFAULT) {
-      fill_values_const_.resize(0);
+      fill_values_const_.resize(nfill_values, 0);
+    } else if (fill_type_ == FillType::MAGIC_42) {
+      fill_values_const_.resize(nfill_values, 42);
     } else if (fill_type_ == FillType::CHANNEL_CONSECUTIVE) {
-      fill_values_const_.resize(shape_[channel_dim]);
+      fill_values_const_.resize(nfill_values);
       int value = 0;
       for (auto &elem : fill_values_const_) {
         elem = value++;
       }
-    } else if (fill_type_ == FillType::MAGIC_42) {
-      fill_values_const_.resize(1);
-      fill_values_const_[0] = 42;
-    } else if (fill_type_ == FillType::PER_SAMPLE_CPU && fill_type_ == FillType::PER_SAMPLE_GPU) {
-      auto fill_values_sh = uniform_list_shape<1>(batch_size_, {shape_[channel_dim]});
+    } else if (fill_type_ == FillType::PER_SAMPLE_CPU || fill_type_ == FillType::PER_SAMPLE_GPU) {
+      auto fill_values_sh = uniform_list_shape<1>(batch_size_, {nfill_values});
       fill_values_tl_.reshape(fill_values_sh);
       std::mt19937 gen(0);
       UniformRandomFill(fill_values_tl_.cpu(), gen, 0, 255);
@@ -216,11 +216,13 @@ struct EraseGpuKernelTest :
     auto out_view = output_.gpu();
 
     if (fill_type_ == FillType::PER_SAMPLE_CPU) {
-      assert(false);
       kernel.Run(ctx, out_view, in_view, regions_gpu, fill_values_tl_.cpu());
     } else if (fill_type_ == FillType::PER_SAMPLE_GPU) {
-      assert(false);
       kernel.Run(ctx, out_view, in_view, regions_gpu, fill_values_tl_.gpu());
+    } else if (fill_type_ == FillType::DEFAULT) {
+      kernel.Run(ctx, out_view, in_view, regions_gpu);
+    } else if (fill_type_ == FillType::MAGIC_42) {
+      kernel.Run(ctx, out_view, in_view, regions_gpu, T{42});
     } else {
       kernel.Run(ctx, out_view, in_view, regions_gpu, make_cspan(fill_values_const_));
     }
@@ -250,13 +252,15 @@ struct EraseGpuKernelTest :
       args.rois.resize(n_regions);
 
       SmallVector<T, 3> fill_values;
-      if (fill_type_ == FillType::PER_SAMPLE_CPU && fill_type_ == FillType::PER_SAMPLE_GPU) {
+      int nchannels = channel_dim >= 0 ? shape_[channel_dim] : 1;
+      if (fill_type_ == FillType::PER_SAMPLE_CPU || fill_type_ == FillType::PER_SAMPLE_GPU) {
         auto tlv = fill_values_tl_.cpu();
         int nfill_values = tlv.shape.tensor_shape_span(i)[0];
         for (int c = 0; c < nfill_values; c++) {
           fill_values.push_back(tlv[i].data[c]);
         }
       } else {
+        ASSERT_EQ(nchannels, fill_values_const_.size());
         fill_values = fill_values_const_;
       }
 

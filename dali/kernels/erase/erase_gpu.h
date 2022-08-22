@@ -384,8 +384,23 @@ struct EraseGpu {
     return req;
   }
 
+  static int GetNumChannels(const TensorListShape<ndim> &in_sh) {
+    assert(channel_dim >= 0);
+    int nchannels = 0;
+    int num_samples = in_sh.num_samples();
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      auto sh = in_sh.tensor_shape_span(sample_idx);
+      if (nchannels != 0 && sh[channel_dim] != nchannels) {
+        throw std::invalid_argument("Expected the same number of channels for all samples");
+      } else {
+        nchannels = sh[channel_dim];
+      }
+    }
+    return nchannels;
+  }
+
   template <typename TLV>
-  int GetNumFillValues(TLV fill_values, const InListGPU<T, ndim> &in) {
+  static int GetNumFillValues(const TLV &fill_values, const TensorListShape<ndim> &in_sh) {
     int nfill_values = 0;
     int num_samples = fill_values.num_samples();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -400,13 +415,45 @@ struct EraseGpu {
 
     if (nfill_values > 1) {
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        if (nfill_values != in.shape.tensor_shape_span(sample_idx)[channel_dim]) {
+        if (nfill_values != in_sh.tensor_shape_span(sample_idx)[channel_dim]) {
           throw std::invalid_argument(
               "The number of fill values should match the number of channels in the output slice");
         }
       }
     }
     return nfill_values;
+  }
+
+  template <typename U>
+  static TensorListView<StorageGPU, const T, 1> GetFillValuesGPU(
+      KernelContext &ctx, const TensorListView<StorageCPU, const U, 1> &values,
+      const TensorListShape<ndim> &in_sh) {
+    int num_samples = values.num_samples();
+    int nfill_values = GetNumFillValues(values, in_sh);
+    bool default_fill_values = false;
+    if (nfill_values == 0) {
+      nfill_values = 1;
+      default_fill_values = true;
+    }
+
+    T *fill_values_cpu = ctx.scratchpad->AllocatePinned<T>(num_samples * nfill_values);
+    for (int i = 0; i < num_samples; i++) {
+      if (default_fill_values) {
+        assert(nfill_values == 1);
+        fill_values_cpu[i] = T{0};
+      } else {
+        auto *sample_fill_values = fill_values_cpu + i * nfill_values;
+        for (int d = 0; d < nfill_values; d++)
+          sample_fill_values[d] = ConvertSat<T>(values[i].data[d]);
+      }
+    }
+
+    T *fill_values_gpu = ctx.scratchpad->ToGPU(
+        ctx.gpu.stream, make_cspan(fill_values_cpu, num_samples * nfill_values));
+    CUDA_CALL(cudaGetLastError());
+
+    return make_tensor_list_gpu(fill_values_gpu,
+                                uniform_list_shape<1>(num_samples, {nfill_values}));
   }
 
   /**
@@ -426,8 +473,13 @@ struct EraseGpu {
     auto stream = ctx.gpu.stream;  // MAYBE some runtime check if it's not used?
     const int num_samples = in.num_samples();
 
-    int nfill_values = GetNumFillValues(fill_values, in);
-    DALI_ENFORCE(nfill_values > 0);
+    int nfill_values = GetNumFillValues(fill_values, in.shape);
+    int nchannels = channel_dim == -1 ? 1 : GetNumChannels(in.shape);
+    if (nchannels != nfill_values) {
+      throw std::invalid_argument(make_string(
+          "Expected as many fill values as the number of channels. nchannels=", nchannels,
+          ", nfill_value=", nfill_values));
+    }
 
     ivec<ndim> region_dim;
 
@@ -500,14 +552,25 @@ struct EraseGpu {
            OutListGPU<T, ndim> &out,
            const InListGPU<T, ndim> &in,
            const InListGPU<ibox<ndim>, 1> &erased_regions,
+           T fill_value = {0}) {
+    SmallVector<T, 16> fill_values;
+    int nchannels = channel_dim >= 0 ? GetNumChannels(in.shape) : 1;
+    fill_values.resize(nchannels);
+    for (int c = 0; c < nchannels; c++)
+      fill_values[c] = fill_value;
+    Run(ctx, out, in, erased_regions, make_cspan(fill_values));
+  }
+
+  void Run(KernelContext &ctx,
+           OutListGPU<T, ndim> &out,
+           const InListGPU<T, ndim> &in,
+           const InListGPU<ibox<ndim>, 1> &erased_regions,
            span<const T> fill_values) {
     TensorListView<StorageCPU, const T, 1> fill_values_tlv;
     fill_values_tlv.resize(in.num_samples());
     for (int i = 0; i < in.num_samples(); i++) {
       fill_values_tlv.data[i] = fill_values.data();
       fill_values_tlv.shape.tensor_shape_span(i)[0] = fill_values.size();
-      std::cout << "sample " << i << " ptr " << fill_values_tlv.data[i] << " first "
-                << fill_values_tlv.data[i][0] << " size " << fill_values_tlv.shape[i] << "\n";
     }
     Run(ctx, out, in, erased_regions, fill_values_tlv);
   }
@@ -517,41 +580,7 @@ struct EraseGpu {
            const InListGPU<T, ndim> &in,
            const InListGPU<ibox<ndim>, 1> &erased_regions,
            const InListCPU<T, 1> &fill_values) {
-    int num_samples = fill_values.size();
-    int nfill_values = GetNumFillValues(fill_values, in);
-    bool default_fill_values = false;
-    if (nfill_values == 0) {
-      nfill_values = 1;
-      default_fill_values = true;
-    }
-
-    T *fill_values_cpu = ctx.scratchpad->AllocatePinned<T>(num_samples * nfill_values);
-    for (int i = 0; i < num_samples; i++) {
-      if (default_fill_values) {
-        assert(nfill_values == 1);
-        fill_values_cpu[i] = T{0};
-      } else {
-        auto *sample_fill_values = fill_values_cpu + i * nfill_values;
-        for (int d = 0; d < nfill_values; d++)
-          sample_fill_values[d] = fill_values[i].data[d];
-      }
-    }
-    std::cout << "fill_values_cpu :";
-    for (int i = 0; i < num_samples * nfill_values; i++)
-      std::cout << " " << fill_values_cpu[i];
-    std::cout << "\n";
-
-    T *fill_values_gpu = ctx.scratchpad->ToGPU(
-        ctx.gpu.stream, make_cspan(fill_values_cpu, num_samples * nfill_values));
-    CUDA_CALL(cudaGetLastError());
-
-    TensorListView<StorageGPU, const T, 1> fill_values_gpu_tlv;
-    fill_values_gpu_tlv.resize(num_samples);
-    fill_values_gpu_tlv.shape = uniform_list_shape(num_samples, TensorShape<1>{nfill_values});
-    for (int i = 0; i < num_samples; i++) {
-      fill_values_gpu_tlv.data[i] = fill_values_gpu + i * nfill_values;
-    }
-
+    auto fill_values_gpu_tlv = GetFillValuesGPU(ctx, fill_values, in.shape);
     Run(ctx, out, in, erased_regions, fill_values_gpu_tlv);
   }
 };

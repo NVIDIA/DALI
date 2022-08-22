@@ -52,7 +52,7 @@ static SmallVector<int, 6> GetAxes(const OpSpec &spec, TensorLayout layout) {
 template <typename T, int Dims>
 std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
                                                       const ArgumentWorkspace &ws,
-                                                      ArgValue<float, 1> &fill_values,
+                                                      ArgValue<float, 1> &fill_value,
                                                       TensorListShape<> in_shape,
                                                       TensorLayout in_layout) {
   int nsamples = in_shape.num_samples();
@@ -83,8 +83,10 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
 
   bool centered_anchor = spec.GetArgument<bool>("centered_anchor");
 
-  fill_values.Acquire(spec, ws, nsamples);
   auto channels_dim = in_layout.find('C');
+
+  fill_value.Acquire(spec, ws, nsamples, ArgValue_EnforceUniform);
+
   auto axes = detail::GetAxes(spec, in_layout);
   int naxes = axes.size();
   assert(naxes > 0);
@@ -92,14 +94,17 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
   std::vector<kernels::EraseArgs<T, Dims>> out;
   out.resize(nsamples);
 
+  SmallVector<T, 3> fill_value_v;
+  int nfill_values = fill_value[0].shape[0];
+  fill_value_v.resize(nfill_values);  // uniform shape is already enforced
+
   for (int i = 0; i < nsamples; i++) {
-    SmallVector<T, 3> fill_values_v;
-    fill_values_v.resize(fill_values[i].shape[0]);
-    for (int k = 0; k < fill_values[i].shape[0]; k++) {
-      fill_values_v[k] = fill_values[i].data[k];
+    assert(nfill_values == fill_value[i].shape[0]);
+    for (int k = 0; k < nfill_values; k++) {
+      fill_value_v[k] = fill_value[i].data[k];
     }
 
-    DALI_ENFORCE(channels_dim >= 0 || fill_values_v.size() <= 1,
+    DALI_ENFORCE(channels_dim >= 0 || fill_value_v.size() <= 1,
       "If a multi channel fill value is provided, the input layout must have a 'C' dimension");
 
     if (has_tensor_roi_anchor) {
@@ -127,7 +132,7 @@ std::vector<kernels::EraseArgs<T, Dims>> GetEraseArgs(const OpSpec &spec,
     args.rois.reserve(nregions);
     for (int roi_idx = 0; roi_idx < nregions; roi_idx++) {
       typename kernels::EraseArgs<T, Dims>::ROI roi;
-      roi.fill_values = fill_values_v;
+      roi.fill_values = fill_value_v;
       roi.channels_dim = channels_dim;
       for (int d = 0; d < Dims; d++) {
         roi.anchor[d] = 0;
