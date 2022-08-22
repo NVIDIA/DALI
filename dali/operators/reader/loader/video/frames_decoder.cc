@@ -19,6 +19,35 @@
 
 
 namespace dali {
+int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
+  int left_in_file = size_ - position_;
+  if (left_in_file == 0) {
+    return AVERROR_EOF;
+  }
+
+  int to_read = std::min(left_in_file, buffer_size);
+  std::copy(data_ + position_, data_ + position_ + to_read, buffer);
+  position_ += to_read;
+  return to_read;
+}
+
+int64_t MemoryVideoFile::Seek(int64_t new_position, int origin) {
+  switch (origin) {
+  case SEEK_SET:
+    position_ = new_position;
+    break;
+  case AVSEEK_SIZE:
+    return size_;
+
+  default:
+    DALI_FAIL(
+      make_string(
+        "Unsupported seeking method in FramesDecoder from memory file. Seeking method: ",
+        origin));
+  }
+
+  return position_;
+}
 
 namespace detail {
 std::string av_error_string(int ret) {
@@ -26,7 +55,20 @@ std::string av_error_string(int ret) {
     memset(msg, 0, sizeof(msg));
     return std::string(av_make_error_string(msg, AV_ERROR_MAX_STRING_SIZE, ret));
 }
+
+int read_memory_video_file(void *data_ptr, uint8_t *av_io_buffer, int av_io_buffer_size) {
+  MemoryVideoFile *memory_video_file = static_cast<MemoryVideoFile *>(data_ptr);
+
+  return memory_video_file->Read(av_io_buffer, av_io_buffer_size);
 }
+
+int64_t seek_memory_video_file(void *data_ptr, int64_t new_position, int origin) {
+  MemoryVideoFile *memory_video_file = static_cast<MemoryVideoFile *>(data_ptr);
+
+  return memory_video_file->Seek(new_position, origin);
+}
+
+}   // namespace detail
 
 using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
@@ -101,6 +143,45 @@ FramesDecoder::FramesDecoder(const std::string &filename)
       av_state_->codec_->name,
       " in file: ", filename,
       " Supported codecs: h264, HEVC."));
+  InitAvState();
+  BuildIndex();
+  DetectVfr();
+}
+
+
+
+FramesDecoder::FramesDecoder(char *memory_file, int memory_file_size)
+  : av_state_(std::make_unique<AvState>()),
+    memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
+  av_log_set_level(AV_LOG_ERROR);
+
+  av_state_->ctx_ = avformat_alloc_context();
+  DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
+
+  const int av_io_buffer_size = 32768;
+  uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(av_io_buffer_size));
+
+  AVIOContext *av_io_context = avio_alloc_context(
+    av_io_buffer,
+    av_io_buffer_size,
+    0,
+    &memory_video_file_.value(),
+    detail::read_memory_video_file,
+    nullptr,
+    detail::seek_memory_video_file);
+    // nullptr);
+
+  av_state_->ctx_->pb = av_io_context;
+
+  int ret = avformat_open_input(&av_state_->ctx_, "", nullptr, nullptr);
+
+  FindVideoStream();
+  DALI_ENFORCE(
+    CheckCodecSupport(),
+    make_string(
+      "Unsupported video codec: ",
+      av_state_->codec_->name,
+      ". Supported codecs: h264, HEVC."));
   InitAvState();
   BuildIndex();
   DetectVfr();
