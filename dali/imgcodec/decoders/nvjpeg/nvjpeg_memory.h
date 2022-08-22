@@ -17,7 +17,6 @@
 
 #include <nvjpeg.h>
 #include <thread>
-#include "dali/imgcodec/decoders/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/core/mm/memory_resource.h"
 
 
@@ -62,23 +61,12 @@ void DeleteAllBuffers(std::thread::id thread_id);
 void SetEnableMemStats(bool enabled);
 
 /**
- * @brief Adds an allocation to the statistics
- */
-template <typename MemoryKind>
-void AddMemStats(size_t size);
-
-/**
  * @brief Prints nvJPEG memory allocation statistics
  */
 void PrintMemStats();
 
 nvjpegDevAllocator_t GetDeviceAllocator();
 nvjpegPinnedAllocator_t GetPinnedAllocator();
-
-#if NVJPEG2K_ENABLED
-nvjpeg2kDeviceAllocator_t GetDeviceAllocatorNvJpeg2k();
-nvjpeg2kPinnedAllocator_t GetPinnedAllocatorNvJpeg2k();
-#endif  // NVJPEG2K_ENABLED
 
 }  // namespace nvjpeg_memory
 
