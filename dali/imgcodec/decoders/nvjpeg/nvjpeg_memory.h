@@ -17,7 +17,6 @@
 
 #include <nvjpeg.h>
 #include <thread>
-#include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_helper.h"
 #include "dali/core/mm/memory_resource.h"
 
 
