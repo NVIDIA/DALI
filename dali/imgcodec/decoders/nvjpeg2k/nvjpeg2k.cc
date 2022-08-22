@@ -38,7 +38,7 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
   for (auto &res : per_thread_resources_)
     res = {nvjpeg2k_handle_, device_memory_padding, device_id_};
 
-  for (auto &thread_id : tp_->GetThreadIds()) {
+  for (const auto &thread_id : tp_->GetThreadIds()) {
     if (device_memory_padding > 0) {
       nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, 1024);
       nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, 4 * 1024);
@@ -53,9 +53,9 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *
 }
 
 NvJpeg2000DecoderInstance::~NvJpeg2000DecoderInstance() {
-  for (auto &res : per_thread_resources_)
+  for (const auto &res : per_thread_resources_)
     CUDA_CALL(cudaStreamSynchronize(res.cuda_stream));
-  for (auto &thread_id : tp_->GetThreadIds())
+  for (const auto &thread_id : tp_->GetThreadIds())
     nvjpeg_memory::DeleteAllBuffers(thread_id);
 }
 
