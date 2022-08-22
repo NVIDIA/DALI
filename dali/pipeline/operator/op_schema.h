@@ -656,12 +656,20 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * own the storage and the associated input should be included in double-buffering
    * whenever the output should.
    *
+   * TODO(klecki): Introduce additional class of Pass Through that enables partial mappings
+   * (splitting one input into multiple outputs or merging several inputs to one output).
+   *
    * @param inout - tells which inputs are passed through to which outputs.
-   *                Multiple inputs can be passed through to one output (at
-   *                least potentially, e.g. when conditionally forwarding
-   *                one of inputs to the output), but not vice versa.
+   *                Only bijective mappings are allowed.
    */
   DLL_PUBLIC inline OpSchema &PassThrough(const std::map<int, int> &inout) {
+    std::set<int> outputs;
+    for (const auto &elems : inout) {
+      outputs.insert(elems.second);
+    }
+    DALI_ENFORCE(inout.size() == outputs.size(),
+                 "Pass through can be defined only as 1-1 mapping between inputs and outputs, "
+                 "without duplicates.");
     passthrough_map_ = inout;
     return *this;
   }
@@ -834,6 +842,13 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     if (it == passthrough_map_.end())
       return -1;
     return it->second;
+  }
+
+  DLL_PUBLIC inline bool IsPassThrough(int input_idx, int output_idx) const {
+    auto it = passthrough_map_.find(input_idx);
+    if (it == passthrough_map_.end())
+      return false;
+    return it->second == output_idx;
   }
 
   DLL_PUBLIC inline bool HasPassThrough() const {

@@ -200,25 +200,6 @@ class DLL_PUBLIC Pipeline {
 
 
   /**
-   * @brief Sets the external input with the input name to the input data
-   * @tparam Backend
-   * @param name name of the input
-   * @param tl data
-   * @param order synchronization order of the operation - a CUDA stream or host order
-   * @param sync If SetExternalInputHelper should be blocking - waits until provided data is copied
-   *             to the internal buffer
-   * @param no_copy_mode Select whether to use the parameter defined in the External Source or
-   *                     override the mode of operation forcing the copy or no-copy
-   */
-  template <typename Backend>
-  DLL_PUBLIC inline void SetExternalInput(
-      const string &name, const TensorVector<Backend> &tv, AccessOrder order = {},
-      bool sync = false, bool use_copy_kernel = false,
-      ExtSrcNoCopyMode no_copy_mode = ExtSrcNoCopyMode::DEFAULT) {
-    SetExternalInputHelper(name, tv, order, {sync, use_copy_kernel, no_copy_mode});
-  }
-
-  /**
    * @brief  Adds an Operator with the input specification to the pipeline. The
    * 'device' argument in the OpSpec determines whether the CPU or GPU version
    * of the named operator will be added to the pipeline
@@ -512,7 +493,12 @@ class DLL_PUBLIC Pipeline {
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
   using EdgeMeta = struct {
-    bool has_cpu, has_gpu, has_contiguous;
+    bool has_cpu;
+    bool has_gpu;
+    bool has_contiguous;
+    // MakeContiguous was added after this node to be used as output on specified device:
+    bool has_make_contiguous_cpu;
+    bool has_make_contiguous_gpu;
   };
 
   // Return the nearest multiple of 8 that is >= base_ptr_offset
@@ -532,6 +518,8 @@ class DLL_PUBLIC Pipeline {
     edge.has_cpu = false;
     edge.has_gpu = false;
     edge.has_contiguous = false;
+    edge.has_make_contiguous_cpu = false;
+    edge.has_make_contiguous_gpu = false;
     if (device == "cpu") {
       edge.has_cpu = true;
     } else if (device == "gpu") {
@@ -541,7 +529,7 @@ class DLL_PUBLIC Pipeline {
       edge.has_contiguous = true;
     } else {
       DALI_FAIL("Invalid device argument \"" + device + "\". "
-          "Valid options are \"cpu\", \"gpu\", \"mixed\" or \"support\"");
+          "Valid options are \"cpu\", \"gpu\" or \"mixed\".");
     }
     return edge;
   }
@@ -561,6 +549,27 @@ class DLL_PUBLIC Pipeline {
    * @return True, if the outputs passed the validation test.
    */
   bool ValidateOutputs(const DeviceWorkspace &ws) const;
+
+  /**
+   * @brief Add new MakeContiguous node (if one does not exist yet) for the requested output Edge
+   *
+   * Note that inserting mixed MakeContiguous for cpu -> gpu transfer has special rules regarding
+   * output naming.
+   *
+   * @param meta the output edge - that is edge from the operator to tensor that we need to
+   * insert MakeContiguous after
+   * @param input_name Name of the input Tensor node to the MakeContiguous
+   * @param input_dev Device placement of the input Tensor node
+   * @param device Device of the requested MakeContiguous node.
+   * @param output_dev Placement of the requested output data from the MakeContiguous.
+   * For given MakeContiguous device, we have following possible outputs:
+   *  * "mixed" -> "cpu", "gpu"
+   *  * "gpu" -> "gpu"
+   * @return The name of the output of the MakeContiguous node that replaces the requested output.
+   */
+  std::string AddMakeContiguousNode(EdgeMeta &meta, const std::string &input_name,
+                                    const std::string &input_dev, const std::string &device,
+                                    const std::string &output_dev);
 
   const int MAX_SEEDS = 1024;
 

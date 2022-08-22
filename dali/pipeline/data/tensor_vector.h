@@ -30,11 +30,33 @@
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 
 
 namespace dali {
+
+template <typename Backend>
+class DLL_PUBLIC TensorVector;
+
+template <typename Backend>
+using TensorList = TensorVector<Backend>;
+
+/**
+ * @brief Size of stack-based array used to prepare the pointers and other parameters for
+ * operations on batch, like TypeInfo::Copy.
+ * For bigger batches, the list of pointers/sizes would be stored as dynamic allocation
+ * (SmallVector), used in a common pattern where we have a copy from or to a batch of samples.
+ */
+constexpr size_t kMaxStaticCopyBatchSize = 256;
+
+/**
+ * @brief SmallVector alias used when dealing with batches of data in common operations
+ *
+ * The static stack allocation size is adjusted for that purpose.
+ */
+template <typename T>
+using BatchVector = SmallVector<T, kMaxStaticCopyBatchSize>;
+
 
 /**
  * @brief Merges TensorList<Backend> and std::vector<std::shared_ptr<Tensor<Backend>>> APIs
@@ -375,10 +397,6 @@ class DLL_PUBLIC TensorVector {
   void SetupLike(const TensorVector<Backend> &other) {
     SetupLikeImpl(other);
   }
-
-  void SetupLike(const TensorList<Backend> &other) {
-    SetupLikeImpl(other);
-  }
   /** @} */
 
   /**
@@ -426,19 +444,8 @@ class DLL_PUBLIC TensorVector {
    * @brief Copy whole batch
    */
   template <typename SrcBackend>
-  void Copy(const TensorList<SrcBackend> &in_tl, AccessOrder order = {});
-
-  /**
-   * @brief Copy whole batch
-   */
-  template <typename SrcBackend>
   void Copy(const TensorVector<SrcBackend> &in_tv, AccessOrder order = {},
             bool use_copy_kernel = false);
-
-  /**
-   * @brief Set the tensor list as backing memory for this batch.
-   */
-  void ShareData(const TensorList<Backend> &in_tl);
 
   /**
    * @brief Set the provided buffer as backing memory for this batch.

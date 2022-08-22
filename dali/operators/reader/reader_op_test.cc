@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -220,7 +220,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
-    auto shape = ws.Output<CPUBackend>(0).AsTensor()->shape();
+    auto shape = ws.Output<CPUBackend>(0).AsTensor().shape();
     // We have NFHWC format
     const auto batch_size = shape[0];
     const auto frame_count = shape[1];
@@ -235,8 +235,8 @@ TYPED_TEST(ReaderTest, SequenceTest) {
       // 13 (counting from 0, the last 3-element sequence is [13, 14, 15]).
       auto start_frame = (i * batch_size + sample) % (16 - 3 + 1);
       for (int frame = 0; frame < frame_count; frame++) {
-        auto off = sample * seq_size + frame * frame_size;
-        auto val = ws.Output<CPUBackend>(0).AsTensor()->data<uint8_t>()[off];
+        auto off = frame * frame_size;
+        auto val = ws.Output<CPUBackend>(0).tensor<uint8_t>(sample)[off];
         decltype(val) expected = start_frame + frame;
         ASSERT_EQ(val, expected);
       }
