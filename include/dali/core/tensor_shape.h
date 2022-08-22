@@ -795,9 +795,8 @@ struct TensorListShape<DynamicDimensions>
   TensorListShape &operator=(const TensorListShape &) = default;
   TensorListShape &operator=(TensorListShape &&other) {
     shapes = std::move(other.shapes);
-    nsamples = other.size();
-    ndim = other.sample_dim();
-    other.nsamples = 0;
+    nsamples = std::exchange(other.nsamples, 0);
+    ndim = other.sample_dim();  // Sample dim could be static, and it is valid to not zero it.
     return *this;
   }
 
@@ -812,9 +811,8 @@ struct TensorListShape<DynamicDimensions>
   template <int other_sample_ndim>
   TensorListShape &operator=(TensorListShape<other_sample_ndim> &&other) {
     shapes = std::move(other.shapes);
-    nsamples = other.size();
-    ndim = other.sample_dim();
-    other.nsamples = 0;
+    nsamples = std::exchange(other.nsamples, 0);
+    ndim = other.sample_dim();  // Sample dim could be static, and it is valid to not zero it.
     return *this;
   }
 
@@ -894,8 +892,7 @@ struct TensorListShape : TensorListShapeBase<TensorListShape<sample_ndim>, sampl
   TensorListShape &operator=(const TensorListShape &) = default;
   TensorListShape &operator=(TensorListShape &&other) {
     shapes = std::move(other.shapes);
-    nsamples = other.size();
-    other.nsamples = 0;
+    nsamples = std::exchange(other.nsamples, 0);
     return *this;
   }
 
