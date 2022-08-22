@@ -169,7 +169,6 @@ FramesDecoder::FramesDecoder(char *memory_file, int memory_file_size)
     detail::read_memory_video_file,
     nullptr,
     detail::seek_memory_video_file);
-    // nullptr);
 
   av_state_->ctx_->pb = av_io_context;
 
