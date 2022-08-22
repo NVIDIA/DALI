@@ -21,6 +21,7 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/erase/erase_gpu.h"
 #include "dali/kernels/scratch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
@@ -97,7 +98,9 @@ enum class RegionGen {
 enum class FillType {
   MAGIC_42,  ///< use single value `42` for erase
   CHANNEL_CONSECUTIVE,  ///< use consecutive values to erase channels
-  DEFAULT  ///< do not pass a value, use default `0`
+  DEFAULT,  ///< do not pass a value, use default `0`
+  PER_SAMPLE_CPU,  ///< use a randomly filled CPU tensor list
+  PER_SAMPLE_GPU,  ///< use a randomly filled GPU tensor list
 };
 
 template <int ndim>
@@ -136,6 +139,12 @@ std::ostream& operator<<(std::ostream& os, FillType p) {
     case FillType::DEFAULT:
       os << "FillType::DEFAULT";
       break;
+    case FillType::PER_SAMPLE_CPU:
+      os << "FillType::PER_SAMPLE_CPU";
+      break;
+    case FillType::PER_SAMPLE_GPU:
+      os << "FillType::PER_SAMPLE_GPU";
+      break;
   }
   return os;
 }
@@ -164,16 +173,21 @@ struct EraseGpuKernelTest :
     auto cpu_input_view = input_.cpu();
     SequentialFill(cpu_input_view);
     if (fill_type_ == FillType::DEFAULT) {
-      fill_values_.resize(0);
+      fill_values_const_.resize(0);
     } else if (fill_type_ == FillType::CHANNEL_CONSECUTIVE) {
-      fill_values_.resize(shape_[channel_dim]);
+      fill_values_const_.resize(shape_[channel_dim]);
       int value = 0;
-      for (auto &elem : fill_values_) {
+      for (auto &elem : fill_values_const_) {
         elem = value++;
       }
     } else if (fill_type_ == FillType::MAGIC_42) {
-      fill_values_.resize(1);
-      fill_values_[0] = 42;
+      fill_values_const_.resize(1);
+      fill_values_const_[0] = 42;
+    } else if (fill_type_ == FillType::PER_SAMPLE_CPU && fill_type_ == FillType::PER_SAMPLE_GPU) {
+      auto fill_values_sh = uniform_list_shape<1>(batch_size_, {shape_[channel_dim]});
+      fill_values_tl_.reshape(fill_values_sh);
+      std::mt19937 gen(0);
+      UniformRandomFill(fill_values_tl_.cpu(), gen, 0, 255);
     }
   }
 
@@ -188,6 +202,8 @@ struct EraseGpuKernelTest :
     EraseGpu<T, ndim, channel_dim> kernel;
     KernelContext ctx;
     ctx.gpu.stream = 0;
+    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
 
     CreateRegions();
 
@@ -199,13 +215,15 @@ struct EraseGpuKernelTest :
 
     auto out_view = output_.gpu();
 
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
-
-    kernel.Run(ctx, out_view, in_view, regions_gpu, make_span(fill_values_));
-
+    if (fill_type_ == FillType::PER_SAMPLE_CPU) {
+      assert(false);
+      kernel.Run(ctx, out_view, in_view, regions_gpu, fill_values_tl_.cpu());
+    } else if (fill_type_ == FillType::PER_SAMPLE_GPU) {
+      assert(false);
+      kernel.Run(ctx, out_view, in_view, regions_gpu, fill_values_tl_.gpu());
+    } else {
+      kernel.Run(ctx, out_view, in_view, regions_gpu, make_cspan(fill_values_const_));
+    }
     CUDA_CALL(cudaDeviceSynchronize());
     CUDA_CALL(cudaGetLastError());
 
@@ -230,11 +248,23 @@ struct EraseGpuKernelTest :
       EraseArgs<T, ndim> args;
       auto n_regions = regions_tlv[i].num_elements();
       args.rois.resize(n_regions);
+
+      SmallVector<T, 3> fill_values;
+      if (fill_type_ == FillType::PER_SAMPLE_CPU && fill_type_ == FillType::PER_SAMPLE_GPU) {
+        auto tlv = fill_values_tl_.cpu();
+        int nfill_values = tlv.shape.tensor_shape_span(i)[0];
+        for (int c = 0; c < nfill_values; c++) {
+          fill_values.push_back(tlv[i].data[c]);
+        }
+      } else {
+        fill_values = fill_values_const_;
+      }
+
       for (int j = 0; j < n_regions; j++) {
         for (int d = 0; d < ndim; d++) {
           args.rois[j].anchor[d] = regions_tlv[i](j)->lo[d];
           args.rois[j].shape[d] = regions_tlv[i](j)->hi[d] - regions_tlv[i](j)->lo[d];
-          args.rois[j].fill_values = fill_values_;
+          args.rois[j].fill_values = fill_values;
           args.rois[j].channels_dim = channel_dim;
         }
       }
@@ -288,7 +318,8 @@ struct EraseGpuKernelTest :
   int max_erase_regions_;
   RegionGen region_generation_;
   FillType fill_type_;
-  std::vector<T> fill_values_;
+  std::vector<T> fill_values_const_;
+  TestTensorList<T, 1> fill_values_tl_;
   TensorShape<ndim> shape_;
   TensorListShape<ndim> test_shape_;
   constexpr static int batch_size_ = 16;
@@ -350,6 +381,8 @@ std::vector<EraseTestParams<2>> values_2NC = {
     {1, RegionGen::FULL_ERASE, FillType::MAGIC_42, {512 * 1024, 3}},
     {1, RegionGen::RANDOM_ERASE, FillType::MAGIC_42, {512 * 1024, 3}},
     {10, RegionGen::RANDOM_ERASE, FillType::CHANNEL_CONSECUTIVE, {512 * 1024, 3}},
+    {10, RegionGen::RANDOM_ERASE, FillType::PER_SAMPLE_CPU, {512 * 1024, 3}},
+    {10, RegionGen::RANDOM_ERASE, FillType::PER_SAMPLE_GPU, {512 * 1024, 3}},
     {100, RegionGen::RANDOM_ERASE, FillType::DEFAULT, {512 * 1024, 3}},
 };
 
@@ -401,6 +434,32 @@ std::vector<EraseTestParams<3>> values_3HWC = {
     {1, RegionGen::FULL_ERASE, FillType::DEFAULT, {256, 256, 8}},
     {1, RegionGen::FULL_ERASE, FillType::DEFAULT, {256, 256, 16}},
     {1, RegionGen::FULL_ERASE, FillType::DEFAULT, {256, 256, 64}},
+
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 1}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 3}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 4}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 8}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 16}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 64}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 1}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 3}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 4}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 8}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 16}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_CPU, {256, 256, 64}},
+
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 1}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 3}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 4}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 8}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 16}},
+    {0, RegionGen::NO_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 64}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 1}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 3}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 4}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 8}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 16}},
+    {1, RegionGen::FULL_ERASE, FillType::PER_SAMPLE_GPU, {256, 256, 64}},
 
     {1, RegionGen::RANDOM_ERASE, FillType::CHANNEL_CONSECUTIVE, {256, 256, 1}},
     {10, RegionGen::RANDOM_ERASE, FillType::CHANNEL_CONSECUTIVE, {256, 256, 1}},

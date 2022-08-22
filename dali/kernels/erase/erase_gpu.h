@@ -26,6 +26,7 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/erase/erase_args.h"
+#include "dali/core/tensor_shape_print.h"
 
 namespace dali {
 namespace kernels {
@@ -291,7 +292,13 @@ struct do_copy_or_erase {
                                        int64_t offset) {
     auto fill_value =
         channel_dim == -1 ? sample.fill_values[0] : sample.fill_values[coordinate[channel_dim]];
+    copy_or_erase<channel_dim>(sample, erase_regions, coordinate, offset, fill_value);
+  }
 
+  template <int channel_dim, typename T, int ndim>
+  __device__ static void copy_or_erase(erase_sample_desc<T, ndim> sample,
+                                       span<ibox<ndim>> erase_regions, ivec<ndim> coordinate,
+                                       int64_t offset, T fill_value) {
     bool copy = true;
     for (auto &region : erase_regions) {
       if (region.contains(coordinate)) {
@@ -421,7 +428,7 @@ struct EraseGpu {
 
     int nfill_values = GetNumFillValues(fill_values, in);
     DALI_ENFORCE(nfill_values > 0);
-  
+
     ivec<ndim> region_dim;
 
     // Prepare Dim {2, 2, ..., 2, 64, 64}
@@ -466,8 +473,6 @@ struct EraseGpu {
     dim3 grid_dim = {(uint32_t)max_regions, (uint32_t)num_samples, 1};
     dim3 block_dim = {32, 32, 1};  // fixed block dim
 
-    DeviceArray<T, 1> default_fill_value = {0};
-
     auto* sample_desc_cpu = ctx.scratchpad->AllocatePinned<sample_t>(num_samples);
 
     for (int i = 0; i < num_samples; i++) {
@@ -495,22 +500,23 @@ struct EraseGpu {
            OutListGPU<T, ndim> &out,
            const InListGPU<T, ndim> &in,
            const InListGPU<ibox<ndim>, 1> &erased_regions,
-           span<const float> fill_values) {
-    TensorListView<StorageCPU, const float, 1> fill_values_tlv;
+           span<const T> fill_values) {
+    TensorListView<StorageCPU, const T, 1> fill_values_tlv;
     fill_values_tlv.resize(in.num_samples());
     for (int i = 0; i < in.num_samples(); i++) {
       fill_values_tlv.data[i] = fill_values.data();
       fill_values_tlv.shape.tensor_shape_span(i)[0] = fill_values.size();
+      std::cout << "sample " << i << " ptr " << fill_values_tlv.data[i] << " first "
+                << fill_values_tlv.data[i][0] << " size " << fill_values_tlv.shape[i] << "\n";
     }
     Run(ctx, out, in, erased_regions, fill_values_tlv);
   }
 
-  template <typename T2>
   void Run(KernelContext &ctx,
            OutListGPU<T, ndim> &out,
            const InListGPU<T, ndim> &in,
            const InListGPU<ibox<ndim>, 1> &erased_regions,
-           const InListCPU<T2, 1> &fill_values) {
+           const InListCPU<T, 1> &fill_values) {
     int num_samples = fill_values.size();
     int nfill_values = GetNumFillValues(fill_values, in);
     bool default_fill_values = false;
@@ -527,9 +533,13 @@ struct EraseGpu {
       } else {
         auto *sample_fill_values = fill_values_cpu + i * nfill_values;
         for (int d = 0; d < nfill_values; d++)
-          sample_fill_values[d] = ConvertSat<T>(fill_values[i].data[d]);
+          sample_fill_values[d] = fill_values[i].data[d];
       }
     }
+    std::cout << "fill_values_cpu :";
+    for (int i = 0; i < num_samples * nfill_values; i++)
+      std::cout << " " << fill_values_cpu[i];
+    std::cout << "\n";
 
     T *fill_values_gpu = ctx.scratchpad->ToGPU(
         ctx.gpu.stream, make_cspan(fill_values_cpu, num_samples * nfill_values));
