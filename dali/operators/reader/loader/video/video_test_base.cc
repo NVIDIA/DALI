@@ -155,4 +155,18 @@ void VideoTestBase::RunFailureTest(std::function<void()> body, std::string expec
   }
 }
 
+std::vector<char> VideoTestBase::MemoryVideo(std::string &path) {
+  std::ifstream video_file(path, std::ios::binary | std::ios::ate);
+  auto size = video_file.tellg();
+  video_file.seekg(0, std::ios::beg);
+
+  std::vector<char> memory_video(size);
+  if (!video_file.read(memory_video.data(), size)) {
+    // We can't use FAIL() because this function returns value
+    throw ::testing::AssertionFailure() << "Could not load video file to memory.";
+  }
+
+  return memory_video;
+}
+
 }  // namespace dali

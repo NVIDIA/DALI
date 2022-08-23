@@ -71,10 +71,16 @@ struct AvState {
   }
 };
 
+/**
+ * @brief Helper representing video file kept in memory. Allows reading and seeking.
+ * 
+ */
 struct MemoryVideoFile {
   explicit MemoryVideoFile(char *data, int64_t size)
     : data_(data), size_(size), position_(0) {}
+
   int Read(unsigned char *buffer, int buffer_size);
+
   int64_t Seek(int64_t new_position, int origin);
 
   char *data_;
@@ -238,7 +244,7 @@ class DLL_PUBLIC FramesDecoder {
   bool flush_state_ = false;
   bool is_vfr_ = false;
 
-  std::string filename_;
+  std::string filename_ = "";
   std::optional<MemoryVideoFile> memory_video_file_ = {};
 };
 

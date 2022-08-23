@@ -173,6 +173,8 @@ FramesDecoder::FramesDecoder(char *memory_file, int memory_file_size)
   av_state_->ctx_->pb = av_io_context;
 
   int ret = avformat_open_input(&av_state_->ctx_, "", nullptr, nullptr);
+  DALI_ENFORCE(ret == 0, make_string("Failed to open video file from memory due to ",
+                                     detail::av_error_string(ret)));
 
   FindVideoStream();
   DALI_ENFORCE(

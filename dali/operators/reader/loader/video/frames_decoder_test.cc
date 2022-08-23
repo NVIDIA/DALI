@@ -236,18 +236,46 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
-TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVideo) {
-  std::ifstream video_file(cfr_videos_paths_[1], std::ios::binary | std::ios::ate);
-  auto size = video_file.tellg();
-  video_file.seekg(0, std::ios::beg);
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryCfrVideo) {
+  auto memory_video = MemoryVideo(cfr_videos_paths_[1]);
 
-  std::vector<char> memory_video_file(size);
-  if (!video_file.read(memory_video_file.data(), size)) {
-    FAIL() << "Could not load video file to memory";
-  }
-
-  FramesDecoder decoder(memory_video_file.data(), memory_video_file.size());
+  FramesDecoder decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuTest, InMemoryCfrVideo) {
+  auto memory_video = MemoryVideo(cfr_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrVideo) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[1]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuTest, InMemoryVfrVideo) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrHevcVideo) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, InMemoryVfrVfrHevcVideo) {
+  auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
 }  // namespace dali
