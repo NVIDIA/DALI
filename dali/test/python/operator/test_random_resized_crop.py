@@ -24,6 +24,7 @@ def close(a, b):
     absdiff = a - b if b < a else b - a
     return absdiff <= eps
 
+
 def analyze_frame(image, channel_dim):
     def pixel(x, y):
         return image[:, y, x] if channel_dim == 0 else image[y, x, :]
