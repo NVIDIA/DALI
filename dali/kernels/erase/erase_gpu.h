@@ -73,7 +73,7 @@ template <typename T, int ndim>
 struct erase_sample_desc {
   const T * __restrict__ in = nullptr;
   T * __restrict__ out = nullptr;
-  const T* __restrict__ fill_values = nullptr;
+  const T* fill_values = nullptr;
   span<const ibox<ndim>> erase_regions = {};
   ivec<ndim> sample_shape;
   ivec<ndim> sample_stride;
