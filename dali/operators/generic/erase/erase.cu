@@ -119,15 +119,15 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
             ", nfill_value=", nfill_value));
       }
 
-      fill_value_cpu_.Resize(uniform_list_shape<1>(curr_batch_size, TensorShape<1>{nfill_value}),
-                              type2id<T>::value);
+      fill_value_cpu_.Resize(uniform_list_shape<1>(curr_batch_size, TensorShape<1>{nchannels}),
+                             type2id<T>::value);
 
-      auto fill_value_tlv = view<T, 1>(fill_value_cpu_);
       for (int i = 0; i < curr_batch_size; ++i) {
-        auto fill_value_tv = fill_value_tlv[i];
         auto fill_value_arg_tv = fill_value_arg_[i];
-        for (int c = 0; c < nfill_value; c++) {
-          fill_value_tv.data[c] = ConvertSat<T>(fill_value_arg_tv.data[nfill_value > 1 ? c : 0]);
+        assert(nfill_value == fill_value_arg_tv.shape[0]);
+        T *fill_value_ptr = fill_value_cpu_.mutable_tensor<T>(i);
+        for (int c = 0; c < nchannels; c++) {
+          fill_value_ptr[c] = ConvertSat<T>(fill_value_arg_tv.data[nfill_value > 1 ? c : 0]);
         }
       }
       fill_value_gpu_.Copy(fill_value_cpu_, ws.stream());
@@ -148,7 +148,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
   std::vector<int> axes_;
   std::vector<kernels::EraseArgs<T, Dims>> args_;
   TensorList<GPUBackend> regions_gpu_;
-  TensorList<GPUBackend> fill_value_cpu_;
+  TensorList<CPUBackend> fill_value_cpu_;
   TensorList<GPUBackend> fill_value_gpu_;
   kernels::KernelManager kmgr_;
 
