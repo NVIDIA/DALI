@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@ import test_utils
 
 
 def close(a, b):
-    return abs(a - b) < 1e-5 or abs(a - b) < abs(a) + abs(b) * 1e-6
-
+    eps = 1e-5 if isinstance(a, np.float32) else 1
+    absdiff = a - b if b < a else b - a
+    return absdiff <= eps
 
 def analyze_frame(image, channel_dim):
     def pixel(x, y):
@@ -57,7 +58,7 @@ def check_frame(image, frame_index, total_frames, channel_dim, roi, w, h, aspect
         area_max = roi_w_max * roi_h_max / (w * h)
 
         assert ratio_max >= aspect_ratio_range[0] and ratio_min <= aspect_ratio_range[1], \
-            "aspect ratio estimated at {}..{} outside valiid range [{} .. {}]".format(
+            "aspect ratio estimated at {}..{} outside valid range [{} .. {}]".format(
                 ratio_min, ratio_min, *aspect_ratio_range)
         assert area_max >= area_range[0] and area_min <= area_range[1], \
             "area estimated at {}..{} outside valiid range [{} .. {}]".format(
@@ -145,7 +146,8 @@ def _test_rrc(device, max_frames, layout, aspect_ratio_range, area_range, output
         input = input.gpu()
     out = fn.random_resized_crop(input, random_aspect_ratio=aspect_ratio_range,
                                  random_area=area_range, size=output_size,
-                                 interp_type=dali.types.INTERP_LINEAR, seed=12321,
+                                 interp_type=dali.types.INTERP_LINEAR,
+                                 antialias=False, seed=12321,
                                  dtype=output_type)
     pipe.set_outputs(out, shape)
     pipe.build()
