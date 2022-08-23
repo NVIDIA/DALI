@@ -145,15 +145,40 @@ class DLL_PUBLIC DeferredDecodeResults {
     return *this;
   }
 
-  void wait() const;
+  /**
+   * @brief Waits for all the results to be ready
+   */
+  void wait_all() const;
 
-  int num_samples() const;
+  /**
+   * @brief Waits for a particular result
+   */
+  void wait(int index) const;
 
+  /**
+   * @brief Get the all results
+   */
   span<DecodeResult> get_all() const;
 
-  DecodeResult get_one(int index) const;
+  /**
+   * @brief Get the a particular result
+   */
+  DecodeResult get(int index) const;
 
+  /**
+   * @brief Set the all the results
+   */
+  void set_all(span<const DecodeResult> res);
+   
+  /**
+   * @brief Set a particular result
+   */
   void set(int index, DecodeResult res);
+
+  /**
+   * @brief Number of samples
+   */
+  int num_samples() const;
 
  private:
   DecodeResult get_no_wait(int index) const;

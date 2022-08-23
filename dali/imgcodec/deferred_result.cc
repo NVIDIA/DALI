@@ -14,6 +14,7 @@
 
 #include <deque>
 #include <mutex>
+#include <set>
 #include <condition_variable>
 #include "dali/imgcodec/image_decoder_interfaces.h"
 
@@ -35,27 +36,49 @@ class DeferredDecodeResults::Impl {
     free_.emplace_back(impl);
   }
 
-  void wait() {
-    if (results_ready_ == results_.size())
+  void clear() {
+    ready_.clear();
+    results_.clear();
+  }
+
+  void wait(int index) {
+    if (ready_.find(index) != ready_.end())
       return;
     std::unique_lock lock(mtx_);
     cv_.wait(lock, [&]() {
-      return results_ready_ == results_.size();
+      return ready_.find(index) != ready_.end();
+    });
+  }
+
+  void wait_all() {
+    if (ready_.size() == results_.size())
+      return;
+    std::unique_lock lock(mtx_);
+    cv_.wait(lock, [&]() {
+      return ready_.size() == results_.size();
     });
   }
 
   void set(int index, DecodeResult res) {
-    {
-      std::lock_guard lg(mtx_);
-      results_[index] = std::move(res);
-      if (++results_ready_ == results_.size())
-        cv_.notify_all();
+    std::lock_guard lg(mtx_);
+    results_[index] = std::move(res);
+    ready_.insert(index);
+    cv_.notify_all();
+  }
+
+  void set_all(span<const DecodeResult> results) {
+    std::lock_guard lg(mtx_);
+    for (int index = 0; index < results.size(); index++) {
+      const auto &res = results[index];
+      results_[index] = res;
+      ready_.insert(index);
     }
+    cv_.notify_all();
   }
 
   std::mutex mtx_;
   std::condition_variable cv_;
-  size_t results_ready_ = 0;
+  std::set<int> ready_;
   std::vector<DecodeResult> results_;
 
   static thread_local std::deque<std::unique_ptr<Impl>> free_;
@@ -68,14 +91,13 @@ thread_local std::deque<std::unique_ptr<DeferredDecodeResults::Impl>>
 DeferredDecodeResults::DeferredDecodeResults(int num_samples) {
   impl_ = Impl::get();
   impl_->results_.resize(num_samples);
-  impl_->results_ready_ = 0;
 }
 
 DeferredDecodeResults::~DeferredDecodeResults() {
   if (impl_) {
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wexceptions"  // we want it to terminate _with a message_
-    if (impl_->results_ready_ != impl_->results_.size())
+    if (impl_->ready_.size() != impl_->results_.size())
       throw std::logic_error("Deferred results incomplete");
     #pragma GCC diagnostic pop
     Impl::put(impl_);
@@ -83,28 +105,35 @@ DeferredDecodeResults::~DeferredDecodeResults() {
   }
 }
 
-void DeferredDecodeResults::wait() const {
-  impl_->wait();
+void DeferredDecodeResults::wait(int index) const {
+  impl_->wait(index);
 }
 
-int DeferredDecodeResults::num_samples() const {
-  return impl_->results_.size();
+void DeferredDecodeResults::wait_all() const {
+  impl_->wait_all();
+}
+
+DecodeResult DeferredDecodeResults::get(int index) const {
+  wait(index);
+  return impl_->results_[index];
 }
 
 span<DecodeResult> DeferredDecodeResults::get_all() const {
-  wait();
+  wait_all();
   return make_span(impl_->results_);
-}
-
-DecodeResult DeferredDecodeResults::get_one(int index) const {
-  wait();
-  return impl_->results_[index];
 }
 
 void DeferredDecodeResults::set(int index, DecodeResult res) {
   impl_->set(index, std::move(res));
 }
 
+void DeferredDecodeResults::set_all(span<const DecodeResult> res) {
+  impl_->set_all(res);
+}
+
+int DeferredDecodeResults::num_samples() const {
+  return impl_->results_.size();
+}
 
 }  // namespace imgcodec
 }  // namespace dali
