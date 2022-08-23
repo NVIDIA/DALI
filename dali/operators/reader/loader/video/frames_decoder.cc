@@ -31,8 +31,15 @@ int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
   return to_read;
 }
 
-int64_t MemoryVideoFile::Seek(int64_t new_position, int origin) {
-  switch (origin) {
+/**
+ * @brief Method for seeking the memory video. It sets position according to provided arguments.
+ * 
+ * @param new_position Requested new_position.
+ * @param mode Chosen method of seeking. This argument changes how new_position is interpreted and how seeking is performed.
+ * @return int64_t actual new position in the file.
+ */
+int64_t MemoryVideoFile::Seek(int64_t new_position, int mode) {
+  switch (mode) {
   case SEEK_SET:
     position_ = new_position;
     break;
@@ -43,7 +50,7 @@ int64_t MemoryVideoFile::Seek(int64_t new_position, int origin) {
     DALI_FAIL(
       make_string(
         "Unsupported seeking method in FramesDecoder from memory file. Seeking method: ",
-        origin));
+        mode));
   }
 
   return position_;
@@ -150,7 +157,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
 
 
-FramesDecoder::FramesDecoder(char *memory_file, int memory_file_size)
+FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size)
   : av_state_(std::make_unique<AvState>()),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
   av_log_set_level(AV_LOG_ERROR);
@@ -158,12 +165,11 @@ FramesDecoder::FramesDecoder(char *memory_file, int memory_file_size)
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
 
-  const int av_io_buffer_size = 32768;
-  uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(av_io_buffer_size));
+  uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(default_av_buffer_size));
 
   AVIOContext *av_io_context = avio_alloc_context(
     av_io_buffer,
-    av_io_buffer_size,
+    default_av_buffer_size,
     0,
     &memory_video_file_.value(),
     detail::read_memory_video_file,

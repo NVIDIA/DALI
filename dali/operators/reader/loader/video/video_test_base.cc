@@ -155,7 +155,7 @@ void VideoTestBase::RunFailureTest(std::function<void()> body, std::string expec
   }
 }
 
-std::vector<char> VideoTestBase::MemoryVideo(std::string &path) {
+std::vector<char> VideoTestBase::MemoryVideo(const std::string &path) const {
   std::ifstream video_file(path, std::ios::binary | std::ios::ate);
   auto size = video_file.tellg();
   video_file.seekg(0, std::ios::beg);

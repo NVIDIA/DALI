@@ -76,15 +76,15 @@ struct AvState {
  * 
  */
 struct MemoryVideoFile {
-  explicit MemoryVideoFile(char *data, int64_t size)
+  MemoryVideoFile(const char *data, int64_t size)
     : data_(data), size_(size), position_(0) {}
 
   int Read(unsigned char *buffer, int buffer_size);
 
   int64_t Seek(int64_t new_position, int origin);
 
-  char *data_;
-  int64_t size_;
+  const char *data_;
+  const int64_t size_;
   int64_t position_;
 };
 
@@ -108,9 +108,12 @@ class DLL_PUBLIC FramesDecoder {
    * @brief Construct a new FramesDecoder object.
    * 
    * @param memory_file Pointer to memory with video file data.
-   * @param memory_file_size Size of memory_file.
+   * @param memory_file_size Size of memory_file in bytes.
+   * 
+   * @note This constructor assumes that the `memory_file` and
+   * `memory_file_size` arguments cover the entire video file, including the header.
    */
-  explicit FramesDecoder(char *memory_file, int memory_file_size);
+  FramesDecoder(const char *memory_file, int memory_file_size);
 
   /**
    * @brief Number of frames in the video
@@ -246,6 +249,9 @@ class DLL_PUBLIC FramesDecoder {
 
   std::string filename_ = "";
   std::optional<MemoryVideoFile> memory_video_file_ = {};
+
+  // Default size of the buffer used to load video files from memory to FFMPEG
+  const int default_av_buffer_size = (1 << 15);
 };
 
 }  // namespace dali
