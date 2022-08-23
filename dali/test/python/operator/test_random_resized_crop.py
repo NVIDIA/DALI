@@ -20,9 +20,8 @@ import test_utils
 
 
 def close(a, b):
-    eps = 1e-5 if isinstance(a, np.float32) else 1
     absdiff = a - b if b < a else b - a
-    return absdiff <= eps
+    return absdiff < 1e-5 or absdiff < abs(a) + abs(b) * 1e-6
 
 
 def analyze_frame(image, channel_dim):
