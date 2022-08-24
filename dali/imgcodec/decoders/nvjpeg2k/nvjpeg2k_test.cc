@@ -65,7 +65,7 @@ struct ImageTestingData {
   std::string ref_path;
   ROI roi;
 
-  explicit ImageTestingData(std::string filename) 
+  explicit ImageTestingData(std::string filename)
   : img_path(join(img_dir, filename) + ".jp2")
   , ref_path(join(ref_dir, filename) + ".npy")
   , roi() {}

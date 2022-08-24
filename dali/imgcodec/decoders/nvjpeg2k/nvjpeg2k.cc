@@ -34,7 +34,7 @@ bool handle_decode_ret_status(nvjpeg2kStatus_t status, ImageSource *in) {
     DALI_FAIL("Unreachable");  // silence a warning
   }
 }
-} // namespace
+}  // namespace
 
 NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp)
 : BatchParallelDecoderImpl(device_id, tp)
@@ -105,8 +105,8 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in, Context &ctx)
   return true;
 }
 
-nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(uint8_t *out, 
-                                                             void **pixel_data, 
+nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(uint8_t *out,
+                                                             void **pixel_data,
                                                              size_t *pitch_in_bytes,
                                                              int64_t output_offset_x,
                                                              int64_t output_offset_y,
@@ -135,7 +135,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, co
 
   if (!ctx.roi) {
     auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, 0, 0, ctx);
-    auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state, 
+    auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state,
                               ctx.nvjpeg2k_stream, &output_image, ctx.cuda_stream);
     return handle_decode_ret_status(ret, in);
   } else {
@@ -186,7 +186,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, co
                                         &output_image,
                                         ctx.cuda_stream);
 
-          if (ret != NVJPEG2K_STATUS_SUCCESS) 
+          if (ret != NVJPEG2K_STATUS_SUCCESS)
             return handle_decode_ret_status(ret, in);
 
           CUDA_CALL(cudaEventRecord(per_tile_ctx.decode_event, ctx.cuda_stream));

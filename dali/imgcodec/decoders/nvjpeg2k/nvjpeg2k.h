@@ -143,17 +143,17 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
 
   /**
    * @brief Sets up nvjpeg2kImage_t, so it points to specific output area
-   * 
+   *
    * @param out memory image is decoded into
    * @param pixel_data memory allocated for nvjpeg2kImage_t::pixel_data
    * @param pitch_in_bytes memory allocated for nvjpeg2kImage_t::pitch_in_bytes
    * @param output_offset_x offset in output memory to decode into
    * @param output_offset_y offset in output memory to decode into
    * @param ctx decoding context
-   * @return nvjpeg2kImage_t 
+   * @return nvjpeg2kImage_t
    */
-  nvjpeg2kImage_t PrepareOutputArea(uint8_t *out, 
-                                    void **pixel_data, 
+  nvjpeg2kImage_t PrepareOutputArea(uint8_t *out,
+                                    void **pixel_data,
                                     size_t *pitch_in_bytes,
                                     int64_t output_offset_x,
                                     int64_t output_offset_y,
