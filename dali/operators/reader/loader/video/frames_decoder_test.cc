@@ -179,7 +179,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
 
   RunConstructorFailureTest(
     path,
-    make_string("Failed to open video file at path ", path));
+    make_string("Failed to open video file ", path));
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, NoVideoStream) {
@@ -233,6 +233,48 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   }
 
   FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
+  RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryCfrVideo) {
+  auto memory_video = MemoryVideo(cfr_videos_paths_[1]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, cfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuTest, InMemoryCfrVideo) {
+  auto memory_video = MemoryVideo(cfr_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrVideo) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[1]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuTest, InMemoryVfrVideo) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrHevcVideo) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, InMemoryVfrVfrHevcVideo) {
+  auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_hevc_videos_[1]);
 }
 

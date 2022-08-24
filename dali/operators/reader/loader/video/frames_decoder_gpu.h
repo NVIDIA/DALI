@@ -58,6 +58,17 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
    */
   explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0);
 
+  /**
+ * @brief Construct a new FramesDecoder object.
+ * 
+ * @param memory_file Pointer to memory with video file data.
+ * @param memory_file_size Size of memory_file in bytes.
+ * 
+ * @note This constructor assumes that the `memory_file` and
+ * `memory_file_size` arguments cover the entire video file, including the header.
+ */
+  FramesDecoderGpu(const char *memory_file, int memory_file_size, cudaStream_t stream = 0);
+
   bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
 
   void SeekFrame(int frame_id) override;
@@ -100,6 +111,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   void InitBitStreamFilter();
 
   cudaVideoCodec GetCodecType();
+
+  void InitGpuDecoder();
 };
 
 }  // namespace dali

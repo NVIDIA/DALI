@@ -74,6 +74,8 @@ class VideoTestBase : public ::testing::Test {
     return std::max(cfr_videos_[0].FrameSize(), cfr_videos_[1].FrameSize());
   }
 
+  std::vector<char> MemoryVideo(const std::string &path) const;
+
   /**
    * @brief Utility to save decoded frame as a PNG file.
    * Frame is saved to the folder given as an argument.
