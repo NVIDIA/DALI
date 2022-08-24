@@ -22,6 +22,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -551,10 +552,29 @@ class DLL_PUBLIC Pipeline {
   bool ValidateOutputs(const DeviceWorkspace &ws) const;
 
   /**
-   * @brief Add new MakeContiguous node (if one does not exist yet) for the requested output Edge
+   * @brief Prepare the OpSpec and generate operator name and output name for a specified
+   * MakeContiguous node.
    *
    * Note that inserting mixed MakeContiguous for cpu -> gpu transfer has special rules regarding
    * output naming.
+   *
+   * @param meta the output edge - that is edge from the operator to tensor that we need to
+   * insert MakeContiguous after
+   * @param input_name Name of the input Tensor node to the MakeContiguous
+   * @param input_dev Device placement of the input Tensor node
+   * @param device Device of the requested MakeContiguous node.
+   * @param output_dev Placement of the requested output data from the MakeContiguous.
+   * For given MakeContiguous device, we have following possible outputs:
+   *  * "mixed" -> "cpu", "gpu"
+   *  * "gpu" -> "gpu"
+   * @return std::tuple<OpSpec, string, string> Operator OpSpec, Operator Name, Output Name
+   */
+  std::tuple<OpSpec, std::string, std::string> PrepareMakeContiguousNode(
+      EdgeMeta &meta, const std::string &input_name, const std::string &input_dev,
+      const std::string &device, const std::string &output_dev);
+
+  /**
+   * @brief Add new MakeContiguous node (if one does not exist yet) for the requested output Edge
    *
    * @param meta the output edge - that is edge from the operator to tensor that we need to
    * insert MakeContiguous after
