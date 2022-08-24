@@ -764,6 +764,7 @@ void TensorVector<Backend>::recreate_views() {
     std::shared_ptr<void> sample_alias(contiguous_buffer_.get_data_ptr(), sample_ptr);
     tensors_[i].ShareData(sample_alias, tensor_size * type_info().size(), is_pinned(), shape()[i],
                           type(), device_id(), order());
+    tensors_[i].SetLayout(GetLayout());
     sample_ptr += tensor_size * type_info().size();
   }
 }
