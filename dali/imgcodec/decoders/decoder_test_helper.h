@@ -315,10 +315,10 @@ class DecoderTestBase : public ::testing::Test {
     return roi;
   }
 
+  ThreadPool tp_;  // we want the thread pool to outlive the decoder instance
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;
   std::shared_ptr<ImageParser> parser_ = nullptr;
   kernels::TestTensorList<OutputType> output_;
-  ThreadPool tp_;
 };
 
 
