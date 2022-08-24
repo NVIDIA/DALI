@@ -243,11 +243,15 @@ class DLL_PUBLIC FramesDecoder {
 
   void DetectVfr();
 
+  std::string Filename() {
+    return filename_.has_value() ? filename_.value() : "memory file";
+  }
+
   int channels_ = 3;
   bool flush_state_ = false;
   bool is_vfr_ = false;
 
-  std::string filename_ = "";
+  std::optional<const std::string> filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
 
   // Default size of the buffer used to load video files from memory to FFMPEG

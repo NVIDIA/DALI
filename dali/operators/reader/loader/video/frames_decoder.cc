@@ -127,7 +127,7 @@ void FramesDecoder::FindVideoStream() {
     }
   }
 
-  DALI_FAIL(make_string("Could not find a valid video stream in a file ", filename_));
+  DALI_FAIL(make_string("Could not find a valid video stream in a file ", Filename()));
 }
 
 FramesDecoder::FramesDecoder(const std::string &filename)
@@ -138,8 +138,8 @@ FramesDecoder::FramesDecoder(const std::string &filename)
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
 
-  int ret = avformat_open_input(&av_state_->ctx_, filename.c_str(), nullptr, nullptr);
-  DALI_ENFORCE(ret == 0, make_string("Failed to open video file at path ", filename, "due to ",
+  int ret = avformat_open_input(&av_state_->ctx_, Filename().c_str(), nullptr, nullptr);
+  DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
                                      detail::av_error_string(ret)));
 
   FindVideoStream();
@@ -148,7 +148,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
     make_string(
       "Unsupported video codec: ",
       av_state_->codec_->name,
-      " in file: ", filename,
+      " in file: ", Filename(),
       " Supported codecs: h264, HEVC."));
   InitAvState();
   BuildIndex();
@@ -179,7 +179,7 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size)
   av_state_->ctx_->pb = av_io_context;
 
   int ret = avformat_open_input(&av_state_->ctx_, "", nullptr, nullptr);
-  DALI_ENFORCE(ret == 0, make_string("Failed to open video file from memory due to ",
+  DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
                                      detail::av_error_string(ret)));
 
   FindVideoStream();
@@ -335,7 +335,7 @@ void FramesDecoder::Reset() {
     ret >= 0,
     make_string(
       "Could not seek to the first frame of video ",
-      filename_,
+      Filename(),
       "due to",
       detail::av_error_string(ret)));
   avcodec_flush_buffers(av_state_->codec_ctx_);
@@ -372,7 +372,7 @@ void FramesDecoder::SeekFrame(int frame_id) {
       "with keyframe",
       keyframe_id,
       "in video ",
-      filename_,
+      Filename(),
       "due to ",
       detail::av_error_string(ret)));
 

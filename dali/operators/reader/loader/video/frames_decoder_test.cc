@@ -179,7 +179,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
 
   RunConstructorFailureTest(
     path,
-    make_string("Failed to open video file at path ", path));
+    make_string("Failed to open video file ", path));
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, NoVideoStream) {
