@@ -27,18 +27,21 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
                                                  const ROI &roi) {
   jpeg::UncompressFlags flags;
 
-  auto &type = opts.format;
+  auto &out_type = opts.format;
   auto info = JpegParser{}.GetInfo(in);
   auto target_shape = info.shape;
 
-  flags.components = info.shape[2];
-  if (type == DALI_ANY_DATA)
-    type = info.shape[2] == 3 ? DALI_RGB : DALI_GRAY;
-  target_shape[2] = NumberOfChannels(type);
+  if (out_type == DALI_ANY_DATA) {
+    flags.color_space = out_type = info.shape[2] == 3 ? DALI_RGB : DALI_GRAY;
+  } else if (out_type == DALI_YCbCr) {
+    flags.color_space = DALI_RGB;  // The conversion will be handled by Convert
+  } else {
+    assert(out_type == DALI_RGB || out_type == DALI_BGR || out_type == DALI_GRAY);
+    flags.color_space = out_type;
+  }
 
-  DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
-               "Color space not supported by libjpeg-turbo");
-  flags.color_space = type;
+  flags.components = info.shape[2];
+  target_shape[2] = NumberOfChannels(out_type);
 
   if (any_cast<bool>(GetParam("fast_idct"))) {
     flags.dct_method = JDCT_FASTEST;
@@ -68,7 +71,7 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
       // JPEG images are always 8-bit, in HWC format
       SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
       TensorLayout layout = "HWC";
-      Convert(out, layout, type, in, layout, type, {}, {});
+      Convert(out, layout, out_type, in, layout, flags.color_space, {}, {});
     }
   } catch (...) {
     res.exception = std::current_exception();
