@@ -23,6 +23,19 @@
 namespace dali {
 namespace imgcodec {
 
+namespace {
+bool handle_decode_ret_status(nvjpeg2kStatus_t status, ImageSource *in) {
+  if (status == NVJPEG2K_STATUS_SUCCESS) {
+    return true;
+  } else if (status == NVJPEG2K_STATUS_BAD_JPEG || status == NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED) {
+    return false;
+  } else {
+    CUDA_CALL_EX(status, in->SourceInfo());
+    DALI_FAIL("Unreachable");  // silence a warning
+  }
+}
+} // namespace
+
 NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp)
 : BatchParallelDecoderImpl(device_id, tp)
 , nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k())
@@ -63,20 +76,18 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in, Context &ctx)
   CUDA_CALL(nvjpeg2kStreamParse(nvjpeg2k_handle_, in->RawData<uint8_t>(), in->Size(),
                                 0, 0, ctx.nvjpeg2k_stream));
 
-  nvjpeg2kImageInfo_t image_info;
-  CUDA_CALL(nvjpeg2kStreamGetImageInfo(ctx.nvjpeg2k_stream, &image_info));
+  CUDA_CALL(nvjpeg2kStreamGetImageInfo(ctx.nvjpeg2k_stream, &ctx.image_info));
 
   nvjpeg2kImageComponentInfo_t comp;
   CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(ctx.nvjpeg2k_stream, &comp, 0));
-  const auto height = comp.component_height;
-  const auto width = comp.component_width;
+  auto height = comp.component_height;
+  auto width = comp.component_width;
   ctx.bpp = comp.precision;
   DALI_ENFORCE(ctx.bpp == 8 || ctx.bpp == 16,
                make_string("Unsupported bits per pixel value: ", ctx.bpp));
   ctx.pixel_type = ctx.bpp == 8 ? DALI_UINT8 : DALI_UINT16;
-  ctx.shape = {height, width, image_info.num_components};
 
-  for (uint32_t c = 1; c < image_info.num_components; c++) {
+  for (uint32_t c = 1; c < ctx.image_info.num_components; c++) {
     CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(ctx.nvjpeg2k_stream, &comp, c));
     if (height != comp.component_height ||
         width != comp.component_width ||
@@ -84,35 +95,105 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in, Context &ctx)
       return false;
   }
 
+  if (ctx.roi) {
+    auto shape = ctx.roi.shape();
+    height = shape[0];
+    width = shape[1];
+  }
+  ctx.shape = {height, width, ctx.image_info.num_components};
+
   return true;
 }
 
-bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx) {
-  void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
-  size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
-  int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-  int64_t component_byte_size = ctx.shape[0] * ctx.shape[1] * pixel_size;
+nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(uint8_t *out, 
+                                                             void **pixel_data, 
+                                                             size_t *pitch_in_bytes,
+                                                             int64_t output_offset_x,
+                                                             int64_t output_offset_y,
+                                                             const Context &ctx) {
+  const int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+  const int64_t component_byte_size = ctx.shape[0] * ctx.shape[1] * pixel_size;
+  const int64_t offset_byte_size = (ctx.shape[1] * output_offset_y + output_offset_x) * pixel_size;
   for (uint32_t c = 0; c < ctx.shape[2]; c++) {
-    pixel_data[c] = out + c * component_byte_size;
+    pixel_data[c] = out + c * component_byte_size + offset_byte_size;
     pitch_in_bytes[c] = ctx.shape[1] * pixel_size;
   }
 
-  nvjpeg2kImage_t output_image;
-  output_image.pixel_data = pixel_data;
-  output_image.pitch_in_bytes = pitch_in_bytes;
-  output_image.num_components = ctx.shape[2];
-  output_image.pixel_type = ctx.pixel_type == DALI_UINT8 ? NVJPEG2K_UINT8 : NVJPEG2K_UINT16;
+  nvjpeg2kImage_t image;
+  image.pixel_data = pixel_data;
+  image.pitch_in_bytes = pitch_in_bytes;
+  image.num_components = ctx.shape[2];
+  image.pixel_type = ctx.pixel_type == DALI_UINT8 ? NVJPEG2K_UINT8 : NVJPEG2K_UINT16;
 
-  auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state,
-                       ctx.nvjpeg2k_stream, &output_image, ctx.cuda_stream);
+  return image;
+}
 
-  if (ret == NVJPEG2K_STATUS_SUCCESS) {
-    return true;
-  } else if (ret == NVJPEG2K_STATUS_BAD_JPEG || ret == NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED) {
-    return false;
+bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx) {
+  // allocating buffers
+  void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
+  size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
+
+  if (!ctx.roi) {
+    auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, 0, 0, ctx);
+    auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state, 
+                              ctx.nvjpeg2k_stream, &output_image, ctx.cuda_stream);
+    return handle_decode_ret_status(ret, in);
   } else {
-    CUDA_CALL_EX(ret, in->SourceInfo());
-    DALI_FAIL("Unreachable");  // silence a warning
+    // Decode tile by tile: nvjpeg2kDecodeImage seems to be bugged
+    auto &image_info = ctx.image_info;
+    auto &roi = ctx.roi;
+    std::array tile_shape = {image_info.tile_height, image_info.tile_width};
+
+    int state_idx = 0;
+    for (uint32_t tile_y = 0; tile_y < image_info.num_tiles_y; tile_y++) {
+     for (uint32_t tile_x = 0; tile_x < image_info.num_tiles_x; tile_x++) {
+        auto calc_one_dimension = [&](int dim) {
+          uint32_t tile_nr = (dim == 1 ? tile_x : tile_y);
+          uint32_t tile_begin = tile_nr * tile_shape[dim];
+          uint32_t tile_end = tile_begin + tile_shape[dim];
+          uint32_t roi_begin = roi.begin[dim];
+          uint32_t roi_end = roi.end[dim];
+
+          // Intersection of roi and tile
+          uint32_t decode_begin = std::max(roi_begin, tile_begin);
+          uint32_t decode_end = std::min(roi_end, tile_end);
+          uint32_t output_offset = tile_begin > roi_begin ? tile_begin - roi_begin : 0;
+
+          return std::tuple{decode_begin, decode_end, output_offset};
+        };
+
+        auto [begin_x, end_x, output_offset_x] = calc_one_dimension(1);
+        auto [begin_y, end_y, output_offset_y] = calc_one_dimension(0);
+
+        if (begin_x < end_x && begin_y < end_y) {
+          const TileDecodingResources &per_tile_ctx = ctx.tile_dec_res[state_idx];
+          state_idx = (state_idx + 1) % ctx.tile_dec_res.size();
+
+          CUDA_CALL(cudaEventSynchronize(per_tile_ctx.decode_event));
+
+          NvJpeg2kDecodeParams params;
+          CUDA_CALL(nvjpeg2kDecodeParamsSetDecodeArea(params, begin_x, end_x, begin_y, end_y));
+
+          auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, output_offset_x,
+                                                output_offset_y, ctx);
+
+          auto ret = nvjpeg2kDecodeTile(nvjpeg2k_handle_,
+                                        per_tile_ctx.state,
+                                        ctx.nvjpeg2k_stream,
+                                        params,
+                                        tile_x + tile_y * image_info.num_tiles_x,
+                                        0,
+                                        &output_image,
+                                        ctx.cuda_stream);
+
+          if (ret != NVJPEG2K_STATUS_SUCCESS) 
+            return handle_decode_ret_status(ret, in);
+
+          CUDA_CALL(cudaEventRecord(per_tile_ctx.decode_event, ctx.cuda_stream));
+        }
+      }
+    }
+    return true;
   }
 }
 

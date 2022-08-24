@@ -52,17 +52,13 @@ struct ImageBuffer {
 
 const auto img_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg2k");
 const auto ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg2k");
-const std::vector<std::string> images = {"cat-1245673_640", "cat-2184682_640",
-                                         "cat-300572_640",  "cat-3113513_640"};
 
-auto gen_batch_input() {
-  std::vector<std::string> image_names, ref_names;
-  for (size_t i = 0; i < images.size(); i++) {
-    image_names.push_back(join(img_dir, "0", images[i]) + ".jp2");
-    ref_names.push_back(join(ref_dir, "0", images[i]) + ".npy");
-  }
-  return std::make_pair(image_names, ref_names);
-}
+const std::vector<std::string> images = {"0/cat-1245673_640", "0/cat-2184682_640",
+                                         "0/cat-300572_640",  "0/cat-3113513_640"};
+
+const std::vector<std::pair<std::string, ROI>> roi_images = {
+  {"0/cat-1245673_640", {{17, 33}, {276, 489}}},
+  {"2/tiled-cat-1046544_640", {{178, 220}, {456, 290}}}};
 }  // namespace
 
 TEST(NvJpeg2000DecoderTest, Factory) {
@@ -105,26 +101,28 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     return opts;
   }
 
-  void RunSingleTest(std::string image_name, std::string ref_name, ROI roi = {}) {
-    ImageBuffer image(image_name);
+  void RunSingleTest(std::string image_path, std::string ref_path, ROI roi = {}) {
+    ImageBuffer image(image_path);
     auto decoded = this->Decode(&image.src, this->GetParams(), roi);
-    auto ref = this->ReadReferenceFrom(ref_name);
+    auto ref = this->ReadReferenceFrom(ref_path);
     this->AssertEqualSatNorm(decoded, ref);
   }
 
-  void RunBatchTest(std::vector<std::string> image_names, std::vector<std::string> ref_names) {
-    assert(image_names.size() == ref_names.size());
-    size_t batch_size = image_names.size();
+  void RunBatchTest() {
+    size_t batch_size = images.size();
     std::vector<ImageBuffer> imgbufs;
-    for (size_t i = 0; i < batch_size; i++)
-      imgbufs.emplace_back(image_names[i]);
+    for (size_t i = 0; i < batch_size; i++) {
+      auto path = join(img_dir, images[i]) + ".jp2";
+      imgbufs.emplace_back(path);
+    }
     std::vector<ImageSource *> in(batch_size);
     for (size_t i = 0; i < batch_size; i++)
       in[i] = &imgbufs[i].src;
 
     auto decoded = this->Decode(make_span(in), this->GetParams());
     for (size_t i = 0; i < batch_size; i++) {
-      auto ref = this->ReadReferenceFrom(ref_names[i]);
+      auto path = join(ref_dir, images[i]) + ".npy";
+      auto ref = this->ReadReferenceFrom(path);
       this->AssertEqualSatNorm(decoded[i], ref);
     }
   }
@@ -134,14 +132,24 @@ using DecodeOutputTypes = ::testing::Types<uint8_t>;
 TYPED_TEST_SUITE(NvJpeg2000DecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingle) {
-  const auto image_name = join(img_dir, "0", images[0]) + ".jp2";
-  const auto ref_name = join(ref_dir, images[0]) + ".npy";
-  this->RunSingleTest(image_name, ref_name);
+  for (const auto &name : images) {
+    const auto image_path = join(img_dir, name) + ".jp2";
+    const auto ref_path = join(ref_dir, name) + ".npy";
+    this->RunSingleTest(image_path, ref_path);
+  }
+}
+
+TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingleRoi) {
+  for (const auto &[name, roi] : roi_images) {
+    std::cerr << "filename: " << name << "\n";
+    const auto image_path = join(img_dir, name) + ".jp2";
+    const auto ref_path = join(ref_dir, name) + "_roi.npy";
+    this->RunSingleTest(image_path, ref_path, roi);
+  }
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeBatchSingleThread) {
-  auto input = gen_batch_input();
-  this->RunBatchTest(input.first, input.second);
+  this->RunBatchTest();
 }
 
 template<class OutputType>
@@ -152,8 +160,7 @@ struct NvJpeg2000DecoderTestMultithreaded : NvJpeg2000DecoderTest<OutputType> {
 TYPED_TEST_SUITE(NvJpeg2000DecoderTestMultithreaded, DecodeOutputTypes);
 
 TYPED_TEST(NvJpeg2000DecoderTestMultithreaded, DecodeBatch) {
-  auto input = gen_batch_input();
-  this->RunBatchTest(input.first, input.second);
+  this->RunBatchTest();
 }
 
 }  // namespace test
