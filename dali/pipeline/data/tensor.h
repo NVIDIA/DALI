@@ -413,22 +413,13 @@ class Tensor : public Buffer<Backend> {
   Tensor<Backend>& operator=(const Tensor<Backend>&) = delete;
 
   Tensor<Backend>(Tensor<Backend> &&t) noexcept {
-    // Steal all data and set input to default state
-    shape_ = std::move(t.shape_);
-    meta_ = std::move(t.meta_);
-
-    t.shape_ = TensorShape<>();
-    t.meta_ = {};
-    move_buffer(std::move(t));
+    *this = std::move(t);
   }
 
   Tensor<Backend>& operator=(Tensor<Backend> &&t) noexcept {
     if (&t != this) {
-      shape_ = std::move(t.shape_);
-      meta_ = std::move(t.meta_);
-
-      t.shape_ = TensorShape<>();
-      t.meta_ = {};
+      shape_ = std::exchange(t.shape_, {0});
+      meta_ = std::exchange(t.meta_, {});
       move_buffer(std::move(t));
     }
     return *this;

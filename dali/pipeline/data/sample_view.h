@@ -112,12 +112,9 @@ class SampleViewBase {
 
   SampleViewBase &operator=(SampleViewBase &&other) {
     if (this != &other) {
-      data_ = other.data_;
-      other.data_ = nullptr;
-      shape_ = std::move(other.shape_);
-      other.shape_ = {0};
-      type_id_ = other.type_id_;
-      other.type_id_ = DALI_NO_TYPE;
+      data_ = std::exchange(other.data_, nullptr);
+      shape_ = std::exchange(other.shape_, {0});
+      type_id_ = std::exchange(other.type_id_, DALI_NO_TYPE);
     }
     return *this;
   }
@@ -185,12 +182,9 @@ class ConstSampleView : public SampleViewBase<Backend, const void *> {
   }
 
   ConstSampleView &operator=(SampleView<Backend> &&other) {
-    data_ = other.data_;
-    other.data_ = nullptr;
-    shape_ = std::move(other.shape_);
-    other.shape_ = {0};
-    type_id_ = other.type_id_;
-    other.type_id_ = DALI_NO_TYPE;
+    data_ = std::exchange(other.data_, nullptr);
+    shape_ = std::exchange(other.shape_, {0});
+    type_id_ = std::exchange(other.type_id_, DALI_NO_TYPE);
     return *this;
   }
 

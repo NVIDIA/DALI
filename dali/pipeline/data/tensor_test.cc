@@ -68,6 +68,35 @@ typedef ::testing::Types<CPUBackend,
                          GPUBackend> Backends;
 TYPED_TEST_SUITE(TensorTest, Backends);
 
+TYPED_TEST(TensorTest, Move) {
+  Tensor<TypeParam> t;
+
+  // Give the tensor a type
+  t.template set_type<float>();
+  auto shape = this->GetRandShape();
+  t.Resize(shape);
+  t.SetSourceInfo("test");
+
+  Tensor<TypeParam> target_move_assign;
+  target_move_assign = std::move(t);
+
+  ASSERT_TRUE(target_move_assign.has_data());
+  ASSERT_NE(target_move_assign.raw_data(), nullptr);
+  ASSERT_EQ(target_move_assign.size(), volume(shape));
+  ASSERT_EQ(target_move_assign.shape(), shape);
+  ASSERT_TRUE(IsType<float>(target_move_assign.type()));
+  ASSERT_EQ(target_move_assign.GetSourceInfo(), "test");
+
+
+  Tensor<TypeParam> target_move_construct(std::move(target_move_assign));
+  ASSERT_TRUE(target_move_construct.has_data());
+  ASSERT_NE(target_move_construct.raw_data(), nullptr);
+  ASSERT_EQ(target_move_construct.size(), volume(shape));
+  ASSERT_EQ(target_move_construct.shape(), shape);
+  ASSERT_TRUE(IsType<float>(target_move_construct.type()));
+  ASSERT_EQ(target_move_construct.GetSourceInfo(), "test");
+}
+
 // Sharing data from a raw pointer resets a Tensor to
 // and invalid state (no type). To get to a valid state
 // we can acquire a type and size in the following orders:
