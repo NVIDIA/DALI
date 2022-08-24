@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
+#include <utility>
 #include <vector>
 #include "dali/imgcodec/decoders/opencv_fallback.h"
 #include "dali/imgcodec/parsers/bmp.h"
@@ -76,7 +77,8 @@ TYPED_TEST(OpenCVFallbackDecodeTest, Decode) {
   ASSERT_LE(n, 100000000);  // sanity check - less than 100M elements
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), info.shape, type2id<OutputType>::value);
-  auto result = decoder->Decode(sv, &source, params);
+  DecodeContext ctx(&tp);
+  auto result = decoder->Decode(std::move(ctx), sv, &source, params);
   if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
   }
@@ -124,7 +126,8 @@ TYPED_TEST(OpenCVFallbackDecodeTest, DecodeROI) {
   ASSERT_LE(n, 100000000);  // sanity check - less than 100M elements
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), out_shape, type2id<OutputType>::value);
-  auto result = decoder->Decode(sv, &source, params, roi);
+  DecodeContext ctx(&tp);
+  auto result = decoder->Decode(std::move(ctx), sv, &source, params, roi);
   if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
   }

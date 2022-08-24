@@ -16,6 +16,7 @@
 #define DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 
 #include <memory>
+#include <future>
 #include <utility>
 #include <stdexcept>
 #include <vector>
@@ -107,8 +108,8 @@ void OutputShape(OutShape &out_shape,
 }
 
 struct DecodeResult {
-  bool success;
-  std::exception_ptr exception;
+  bool success = false;
+  std::exception_ptr exception = nullptr;
 };
 
 struct ImageDecoderProperties {
@@ -129,66 +130,11 @@ struct ImageDecoderProperties {
   bool fallback = true;
 };
 
-class DLL_PUBLIC DeferredDecodeResults {
- public:
-  explicit DeferredDecodeResults(int num_samples);
-  ~DeferredDecodeResults();
-
-  DeferredDecodeResults(const DeferredDecodeResults &) = delete;
-  DeferredDecodeResults(DeferredDecodeResults &&other) : impl_(other.impl_) {
-    other.impl_ = nullptr;
-  }
-
-  DeferredDecodeResults &operator=(const DeferredDecodeResults &) = delete;
-  DeferredDecodeResults &operator=(DeferredDecodeResults &&other) {
-    std::swap(impl_, other.impl_);
-    return *this;
-  }
-
-  /**
-   * @brief Waits for all the results to be ready
-   */
-  void wait_all() const;
-
-  /**
-   * @brief Waits for a particular result
-   */
-  void wait(int index) const;
-
-  /**
-   * @brief Get the all results
-   */
-  span<DecodeResult> get_all() const;
-
-  /**
-   * @brief Get the a particular result
-   */
-  DecodeResult get(int index) const;
-
-  /**
-   * @brief Set the all the results
-   */
-  void set_all(span<const DecodeResult> res);
-   
-  /**
-   * @brief Set a particular result
-   */
-  void set(int index, DecodeResult res);
-
-  /**
-   * @brief Number of samples
-   */
-  int num_samples() const;
-
- private:
-  DecodeResult get_no_wait(int index) const;
-  class Impl;
-  Impl *impl_ = nullptr;
-};
-
+using DeferredDecodeResults = std::vector<std::future<DecodeResult>>;
 struct DecodeContext {
   DecodeContext() = default;
-  DecodeContext(ThreadPool *tp, cudaStream_t stream) : tp(tp), stream(stream) {}
+  explicit DecodeContext(ThreadPool *tp, cudaStream_t stream = cudaStream_t(-1))
+      : tp(tp), stream(stream) {}
   ThreadPool *tp = nullptr;
   cudaStream_t stream = cudaStream_t(-1);
 };
@@ -211,52 +157,75 @@ class DLL_PUBLIC ImageDecoderInstance {
   /**
    * @brief Decodes a single image to a host buffer
    */
-  virtual DecodeResult Decode(SampleView<CPUBackend> out,
+  virtual DecodeResult Decode(DecodeContext ctx,
+                              SampleView<CPUBackend> out,
                               ImageSource *in,
                               DecodeParams opts,
                               const ROI &roi = {}) = 0;
 
-  /* virtual DeferredDecodeResults SheduleDecode(DecodeContext &ctx,
-                                              SampleView<CPUBackend> out,
-                                              ImageSource *in,
-                                              DecodeParams opts,
-                                              const ROI &roi = {}) = 0; */
+  /**
+   * @brief Schedules the asynchronous decoding of a single image to a host buffer
+   */
+  virtual DeferredDecodeResults ScheduleDecode(DecodeContext ctx,
+                                               SampleView<CPUBackend> out,
+                                               ImageSource *in,
+                                               DecodeParams opts,
+                                               const ROI &roi = {}) = 0;
 
   /**
    * @brief Decodes a batch of images to host buffers
    */
-  virtual std::vector<DecodeResult> Decode(/* DecodeContext &ctx, */
+  virtual std::vector<DecodeResult> Decode(DecodeContext ctx,
                                            span<SampleView<CPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
                                            cspan<ROI> rois = {}) = 0;
 
   /**
-   * @brief Decodes a batch of images to host buffers
+   * @brief  Schedules the asynchronous decoding of a batch of images to host buffers
    */
-  /* virtual DeferredDecodeResults ScheduleDecode(DecodeContext &ctx,
+  virtual DeferredDecodeResults ScheduleDecode(DecodeContext ctx,
                                                span<SampleView<CPUBackend>> out,
                                                cspan<ImageSource *> in,
                                                DecodeParams opts,
-                                               cspan<ROI> rois = {}) = 0; */
+                                               cspan<ROI> rois = {}) = 0;
 
   /**
    * @brief Decodes a single image to a device buffer
    */
-  virtual DecodeResult Decode(cudaStream_t stream,
+  virtual DecodeResult Decode(DecodeContext ctx,
                               SampleView<GPUBackend> out,
                               ImageSource *in,
                               DecodeParams opts,
                               const ROI &roi = {}) = 0;
 
   /**
+   * @brief Schedules the asynchronous decoding of a single image to a device buffer
+   */
+  virtual DeferredDecodeResults ScheduleDecode(DecodeContext ctx,
+                                               SampleView<GPUBackend> out,
+                                               ImageSource *in,
+                                               DecodeParams opts,
+                                               const ROI &roi = {}) = 0;
+
+  /**
    * @brief Decodes a single image to device buffers
    */
-  virtual std::vector<DecodeResult> Decode(cudaStream_t stream,
+  virtual std::vector<DecodeResult> Decode(DecodeContext ctx,
                                            span<SampleView<GPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
                                            cspan<ROI> rois = {}) = 0;
+
+  /**
+   * @brief  Schedules the asynchronous decoding of a batch of images to host buffers
+   */
+  virtual DeferredDecodeResults ScheduleDecode(DecodeContext ctx,
+                                               span<SampleView<GPUBackend>> out,
+                                               cspan<ImageSource *> in,
+                                               DecodeParams opts,
+                                               cspan<ROI> rois = {}) = 0;
+
   /**
    * @brief Sets a codec-specific parameter
    */

@@ -15,7 +15,10 @@
 #ifndef DALI_IMGCODEC_DECODERS_DECODER_PARALLEL_IMPL_H_
 #define DALI_IMGCODEC_DECODERS_DECODER_PARALLEL_IMPL_H_
 
+#include <memory>
+#include <utility>
 #include <vector>
+#include <thread>
 #include "dali/core/format.h"
 #include "dali/imgcodec/decoders/decoder_impl.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -50,76 +53,103 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
   }
 
   using ImageDecoderImpl::Decode;
-  std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
+  std::vector<DecodeResult> Decode(DecodeContext ctx,
+                                   span<SampleView<CPUBackend>> out,
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
                                    cspan<ROI> rois) override {
-    return ParallelDecodeImpl(out, in, opts, rois);
+    auto results = ScheduleDecode(std::move(ctx), out, in, opts, rois);
+    std::vector<DecodeResult> ret(out.size());
+    for (int i = 0; i < out.size(); i++)
+      ret[i] = results[i].get();
+    return ret;
   }
 
-  std::vector<DecodeResult> Decode(cudaStream_t stream,
+  std::vector<DecodeResult> Decode(DecodeContext ctx,
                                    span<SampleView<GPUBackend>> out,
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
                                    cspan<ROI> rois) override {
-    return ParallelDecodeImpl(stream, out, in, opts, rois);
+    auto results = ScheduleDecode(std::move(ctx), out, in, opts, rois);
+    std::vector<DecodeResult> ret(out.size());
+    for (int i = 0; i < out.size(); i++)
+      ret[i] = results[i].get();
+    return ret;
   }
 
-  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in,
+  DecodeResult Decode(DecodeContext ctx, SampleView<CPUBackend> out, ImageSource *in,
                       DecodeParams opts, const ROI &roi) override {
-    DecodeResult ret;
-    tp_->AddWork([&](int tid) {
-      ret = DecodeImplTask(tid, out, in, opts, roi);
-    }, volume(out.shape()));
-    tp_->RunAll();
-    return ret;
+    return ScheduleDecode(std::move(ctx), out, in, opts, roi)[0].get();
   }
 
-  DecodeResult Decode(cudaStream_t stream,
-                      SampleView<GPUBackend> out,
-                      ImageSource *in,
-                      DecodeParams opts,
-                      const ROI &roi) override {
-    DecodeResult ret;
-    tp_->AddWork([&](int tid) {
-      ret = DecodeImplTask(tid, stream, out, in, opts, roi);
-    }, volume(out.shape()));
-    tp_->RunAll();
-    return ret;
+  DecodeResult Decode(DecodeContext ctx, SampleView<GPUBackend> out, ImageSource *in,
+                      DecodeParams opts, const ROI &roi) override {
+    return ScheduleDecode(std::move(ctx), out, in, opts, roi)[0].get();
   }
 
-  std::vector<DecodeResult> ParallelDecodeImpl(span<SampleView<CPUBackend>> out,
-                                               cspan<ImageSource *> in,
-                                               DecodeParams opts,
-                                               cspan<ROI> rois) {
+  DeferredDecodeResults ScheduleDecode(DecodeContext ctx, SampleView<CPUBackend> out,
+                                       ImageSource *in, DecodeParams opts,
+                                       const ROI &roi) override {
+    return ScheduleDecode(std::move(ctx), make_span(&out, 1), make_cspan(&in, 1), std::move(opts),
+                          make_cspan(&roi, 1));
+  }
+
+  DeferredDecodeResults ScheduleDecode(DecodeContext ctx, SampleView<GPUBackend> out,
+                                       ImageSource *in, DecodeParams opts,
+                                       const ROI &roi) override {
+    return ScheduleDecode(std::move(ctx), make_span(&out, 1), make_cspan(&in, 1), std::move(opts),
+                          make_cspan(&roi, 1));
+  }
+
+  DeferredDecodeResults ScheduleDecode(DecodeContext ctx,
+                                       span<SampleView<CPUBackend>> out,
+                                       cspan<ImageSource *> in,
+                                       DecodeParams opts,
+                                       cspan<ROI> rois = {}) override {
+    DALI_ENFORCE(ctx.tp, "This implementation expects a valid thread pool pointer in the context");
     assert(out.size() == in.size());
     assert(rois.empty() || rois.size() == in.size());
-    std::vector<DecodeResult> ret(out.size());
+    assert(ctx.tp != nullptr);
+    DeferredDecodeResults ret;
+    ret.reserve(in.size());
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
-      tp_->AddWork([&, i](int tid) {
-        ret[i] = DecodeImplTask(tid, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
-      }, volume(out[i].shape()));
+      auto p = std::make_shared<std::promise<DecodeResult>>();
+      ret.push_back(p->get_future());
+      auto roi = rois.empty() ? no_roi : rois[i];
+      ctx.tp->AddWork([=, out = out[i], in = in[i]](int tid) {
+          p->set_value(
+            DecodeImplTask(tid, out, in, opts, roi));
+        }, volume(out[i].shape()));
     }
-    tp_->RunAll();
+    bool should_wait = false;
+    tp_->RunAll(should_wait);
     return ret;
   }
 
-  std::vector<DecodeResult> ParallelDecodeImpl(cudaStream_t stream,
-                                               span<SampleView<GPUBackend>> out,
-                                               cspan<ImageSource *> in,
-                                               DecodeParams opts,
-                                               cspan<ROI> rois) {
+  DeferredDecodeResults ScheduleDecode(DecodeContext ctx,
+                                       span<SampleView<GPUBackend>> out,
+                                       cspan<ImageSource *> in,
+                                       DecodeParams opts,
+                                       cspan<ROI> rois = {}) override {
     assert(out.size() == in.size());
     assert(rois.empty() || rois.size() == in.size());
-    std::vector<DecodeResult> ret(out.size());
+    assert(ctx.tp != nullptr);
+    DeferredDecodeResults ret;
+    ret.reserve(in.size());
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
-      tp_->AddWork([&, i](int tid) {
-        ret[i] = DecodeImplTask(tid, stream, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
-      }, volume(out[i].shape()));
+      auto p = std::make_shared<std::promise<DecodeResult>>();
+      ret.push_back(p->get_future());
+      auto roi = rois.empty() ? no_roi : rois[i];
+      ctx.tp->AddWork([=, out = out[i], in = in[i]](int tid) {
+          p->set_value(
+            DecodeImplTask(tid, ctx.stream, out, in, opts, roi));
+        },
+        volume(out[i].shape()));
     }
-    tp_->RunAll();
+    bool should_wait = false;
+    tp_->RunAll(should_wait);
     return ret;
   }
 

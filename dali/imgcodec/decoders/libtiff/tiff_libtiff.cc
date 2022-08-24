@@ -141,11 +141,12 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
 
 }  // namespace detail
 
-DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
-                                            DecodeParams opts, const ROI &requested_roi) {
+DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx, SampleView<CPUBackend> out,
+                                                    ImageSource *in, DecodeParams opts,
+                                                    const ROI &requested_roi) {
+  (void) thread_idx;
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
-
   // TODO(skarpinski) Support other bit depths
   if (info.bit_depth != 8)
     return {false, make_exception_ptr(std::logic_error("Only bit depth = 8 is supported"))};
@@ -219,7 +220,6 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
             row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
             out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
   }
-
   return {true, nullptr};
 }
 

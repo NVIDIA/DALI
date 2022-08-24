@@ -70,14 +70,16 @@ class DecoderTestBase : public ::testing::Test {
     if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
       auto tv = output_.cpu()[0];
       SampleView<CPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
-      DecodeResult decode_result = Decoder()->Decode(view, src, opts, roi);
+      DecodeContext ctx(&tp_);
+      DecodeResult decode_result = Decoder()->Decode(std::move(ctx), view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
       return tv;
     } else {  // GPU
       auto tv = output_.gpu()[0];
       SampleView<GPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
-      auto decode_result = Decoder()->Decode(stream, view, src, opts, roi);
+      DecodeContext ctx{&tp_, stream};
+      auto decode_result = Decoder()->Decode(std::move(ctx), view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return output_.cpu()[0];
@@ -107,7 +109,8 @@ class DecoderTestBase : public ::testing::Test {
       std::vector<SampleView<CPUBackend>> view(n);
       for (int i = 0; i < n; i++)
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
-      auto res = Decoder()->Decode(make_span(view), in, opts, rois);
+      DecodeContext ctx{&tp_};
+      auto res = Decoder()->Decode(std::move(ctx), make_span(view), in, opts, rois);
       for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
       return tlv;
@@ -117,7 +120,8 @@ class DecoderTestBase : public ::testing::Test {
       for (int i = 0; i < n; i++)
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
-      auto res = Decoder()->Decode(stream, make_span(view), in, opts, rois);
+      DecodeContext ctx{&tp_, stream};
+      auto res = Decoder()->Decode(std::move(ctx), make_span(view), in, opts, rois);
       for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
       CUDA_CALL(cudaStreamSynchronize(stream));
