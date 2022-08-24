@@ -39,6 +39,7 @@ std::string join(Args... args) {
 
 std::vector<uint8_t> read_file(const std::string &filename) {
     std::ifstream stream(filename, std::ios::binary);
+    assert(stream.is_open());
     return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
 }
 
@@ -58,7 +59,10 @@ const std::vector<std::string> images = {"0/cat-1245673_640", "0/cat-2184682_640
 
 const std::vector<std::pair<std::string, ROI>> roi_images = {
   {"0/cat-1245673_640", {{17, 33}, {276, 489}}},
-  {"2/tiled-cat-1046544_640", {{178, 220}, {456, 290}}}};
+  {"2/tiled-cat-1046544_640", {{178, 220}, {456, 290}}},
+  {"2/tiled-cat-111793_640", {{9, 317}, {58, 325}}},
+  {"2/tiled-cat-3113513_640", {{2, 1}, {200, 600}}},
+};
 
 struct ImageTestingData {
   std::string img_path;
