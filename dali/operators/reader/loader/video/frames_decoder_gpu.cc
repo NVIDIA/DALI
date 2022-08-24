@@ -133,11 +133,12 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     InitGpuDecoder();
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, int memory_file_size, cudaStream_t stream) :
-    FramesDecoder(memory_file, memory_file_size),
-    frame_buffer_(num_decode_surfaces_),
-    stream_(stream) {
-    InitGpuDecoder();
+FramesDecoderGpu::FramesDecoderGpu(
+  const char *memory_file, int memory_file_size, cudaStream_t stream) :
+  FramesDecoder(memory_file, memory_file_size),
+  frame_buffer_(num_decode_surfaces_),
+  stream_(stream) {
+  InitGpuDecoder();
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params) {
