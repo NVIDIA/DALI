@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1054,6 +1054,10 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
  */
 inline bool IsScalarLike(const TensorListShape<> &shape) {
   return is_uniform(shape) && shape.sample_dim() <= 1 && volume(shape.tensor_shape_span(0)) == 1;
+}
+
+inline bool IsScalarLike(const TensorShape<> &shape) {
+  return shape.size() <= 1 && volume(shape) == 1;
 }
 
 }  // namespace dali

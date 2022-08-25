@@ -24,63 +24,62 @@ namespace dali {
 /**
  * @brief Returns the number of dimensions of the broadcasted shape
  */
-DLL_PUBLIC int BroadcastNdim(span<const TensorShape<>> shapes);
-DLL_PUBLIC int BroadcastNdim(span<const TensorListShape<>> shapes);
+DLL_PUBLIC int BroadcastNdim(span<const TensorShape<>*> shapes);
+DLL_PUBLIC int BroadcastNdim(span<const TensorListShape<>*> shapes);
 
 /**
  * @brief Verifies that all shapes have the same number of samples
  */
-DLL_PUBLIC void CheckNumSamples(span<const TensorListShape<>> shapes);
+DLL_PUBLIC void CheckNumSamples(span<const TensorListShape<>*> shapes);
 
 /**
  * @brief Calculates the resulting shape of broadcasting two or more compatible shapes.
- *        It is allowed that the shape has different number of dimensions, in which case 
+ *        It is allowed that the shape has different number of dimensions, in which case
  *        the shape with fewer dimensions will be prepended with leading dimensions
- *        with extend 1.
+ *        with extent 1.
  *        Example: lhs=(10, 10, 3), rhs=(1, 3) -> result=(10, 10, 3)
- * 
- * @param result resulting shape (should as many dimensions as the operands)
+ *
+ * @param result resulting shape (should have as many dimensions as the max dimension of inputs)
  * @param lhs shape of left hand side operand
  * @param rhs shape of right hand side operand
- * @return TensorShape<> resulting shape
  */
-DLL_PUBLIC void BroadcastShape(TensorShape<>& result, span<const TensorShape<>> shapes);
-DLL_PUBLIC void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>> shapes);
+DLL_PUBLIC void BroadcastShape(TensorShape<>& result, span<const TensorShape<>*> shapes);
+DLL_PUBLIC void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>*> shapes);
 
 template <typename Shape>
 void BroadcastShape(Shape &result, const Shape& a, const Shape& b) {
-  std::array<Shape, 2> arr = {a, b};
-  BroadcastShape(result, make_cspan(arr));
+  std::array<const Shape*, 2> arr = {&a, &b};
+  BroadcastShape(result, make_span(arr));
 }
 
 template <typename Shape>
 void BroadcastShape(Shape &result, const Shape &a, const Shape &b, const Shape &c) {
-  std::array<Shape, 3> arr = {a, b, c};
-  BroadcastShape(result, make_cspan(arr));
+  std::array<const Shape*, 3> arr = {&a, &b, &c};
+  BroadcastShape(result, make_span(arr));
 }
 
 /**
  * @brief Verifies whether two shapes or more can be broadcasted
- *        Two shapes can be broadcasted if all the extents are either 
+ *        Two shapes can be broadcasted if all the extents are either
  *        equal or one of them is equal to one for the `ndim` rightmost
- *        dimensions, being `ndim` the minimum number of dimensions of 
+ *        dimensions, being `ndim` the minimum number of dimensions of
  *        the two.
  *        If the shapes are identical (no broadcasting needed), true will
  *        be returned.
  */
-DLL_PUBLIC bool CanBroadcast(span<const TensorShape<>> shapes);
-DLL_PUBLIC bool CanBroadcast(span<const TensorListShape<>> shapes);
+DLL_PUBLIC bool CanBroadcast(span<const TensorShape<>*> shapes);
+DLL_PUBLIC bool CanBroadcast(span<const TensorListShape<>*> shapes);
 
 template <typename Shape>
 bool CanBroadcast(const Shape &a, const Shape &b) {
-  std::array<Shape, 2> arr = {a, b};
-  return CanBroadcast(make_cspan(arr));
+  std::array<const Shape*, 2> arr = {&a, &b};
+  return CanBroadcast(make_span(arr));
 }
 
 template <typename Shape>
 bool CanBroadcast(const Shape &a, const Shape &b, const Shape& c) {
-  std::array<Shape, 3> arr = {a, b, c};
-  return CanBroadcast(make_cspan(arr));
+  std::array<const Shape*, 3> arr = {&a, &b, &c};
+  return CanBroadcast(make_span(arr));
 }
 
 
@@ -91,29 +90,33 @@ bool CanBroadcast(const Shape &a, const Shape &b, const Shape& c) {
  * @remarks This function does not check whether the shapes can be broadcasted
  *          For this, use CanBroadcast
  */
-DLL_PUBLIC bool NeedBroadcasting(span<const TensorShape<>> shapes);
-DLL_PUBLIC bool NeedBroadcasting(span<const TensorListShape<>> shapes);
+DLL_PUBLIC bool NeedBroadcasting(span<const TensorShape<>*> shapes);
+DLL_PUBLIC bool NeedBroadcasting(span<const TensorListShape<>*> shapes);
 
 template <typename Shape>
 bool NeedBroadcasting(const Shape &a, const Shape &b) {
-  std::array<Shape, 2> arr = {a, b};
-  return NeedBroadcasting(make_cspan(arr));
+  std::array<const Shape*, 2> arr = {&a, &b};
+  return NeedBroadcasting(make_span(arr));
 }
 
 template <typename Shape>
 bool NeedBroadcasting(const Shape &a, const Shape &b, const Shape& c) {
-  std::array<Shape, 3> arr = {a, b, c};
-  return NeedBroadcasting(make_cspan(arr));
+  std::array<const Shape*, 3> arr = {&a, &b, &c};
+  return NeedBroadcasting(make_span(arr));
 }
 
 /**
- * @brief Calculates strides to cover a possibly broadcasted shape. 
+ * @brief Calculates strides to cover a possibly broadcasted shape.
  *        The stride for those broadcasted dimensions is set to 0
  */
 DLL_PUBLIC TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh,
                                                 const TensorShape<> &in_sh,
                                                 const TensorShape<> &in_strides);
 
+/**
+ * @brief Expands a shape to have at least ndim dimensions, adding leading dimensions
+ *        with extent 1 if necessary. `sh` is expected to have no more than ndim dimensions.
+ */
 DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
 
 /**

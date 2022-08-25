@@ -24,7 +24,7 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastShape) {
   auto test = [](TensorShape<> expected, TensorShape<> a, TensorShape<> b) {
     TensorShape<> result0, result1;
     ASSERT_TRUE(CanBroadcast(a, b));
-    ASSERT_TRUE(CanBroadcast(b, b));
+    ASSERT_TRUE(CanBroadcast(b, a));
     BroadcastShape(result0, a, b);
     EXPECT_EQ(expected, result0);
     BroadcastShape(result1, a, b);
@@ -63,6 +63,8 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastTensorListShape) {
        {{1, 3, 2}, {3, 2, 1}, {4, 1, 1}}, {{1, 1, 2}, {3, 2, 4}, {1, 2, 1}});
   test({{1, 3, 2}, {3, 2, 4}, {2, 4, 1}},
        {{1, 3, 2}, {3, 2, 1}, {2, 1, 1}}, {{1, 1, 2}, {3, 2, 4}, {1, 4, 1}});
+  test({{1, 3, 2}, {3, 2, 4}, {2, 4, 1}},
+       {{3, 1}, {2, 1}, {1, 1}}, {{1, 1, 2}, {3, 1, 4}, {2, 4, 1}});
 
   auto test_fail = [](TensorListShape<> a, TensorListShape<> b) {
     TensorListShape<> result;
@@ -124,28 +126,26 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
 
 
 TEST(ArithmeticOpsBroadcastingTest, BroadcastSpanShapes) {
-  auto test = [](TensorShape<> expected, span<const TensorShape<>> shapes) {
+  auto test = [](TensorShape<> expected, auto&&... shapes) {
     TensorShape result0;
-    ASSERT_TRUE(CanBroadcast(shapes));
-    BroadcastShape(result0, shapes);
+    ASSERT_TRUE(CanBroadcast(shapes...));
+    BroadcastShape(result0, shapes...);
     EXPECT_EQ(expected, result0);
   };
-  std::array<TensorShape<>, 3> t1 = {TensorShape<>{3, 2}, TensorShape<>{1, 3, 1},
-                                     TensorShape<>{1, 2, 2, 1, 2}};
-  test({1, 2, 2, 3, 2}, make_cspan(t1));
 
-  std::array<TensorShape<>, 4> t2 = {
-      TensorShape<>{3, 20}, TensorShape<>{1, 3, 1}, TensorShape<>{20}, {}};
-  test({1, 3, 20}, make_cspan(t2));
+  test({1, 2, 2, 3, 2},
+       TensorShape<>{3, 2}, TensorShape<>{1, 3, 1}, TensorShape<>{1, 2, 2, 1, 2});
+  test({1, 3, 20},
+       TensorShape<>{3, 20}, TensorShape<>{1, 3, 1}, TensorShape<>{20});
+  test({1, 3, 20},
+       TensorShape<>{3, 20}, TensorShape<>{1, 3, 1}, TensorShape<>{});
 
-  auto test_fail = [](span<const TensorShape<>> shapes) {
+  auto test_fail = [](auto&&... shapes) {
     TensorShape<> result;
-    ASSERT_FALSE(CanBroadcast(shapes));
-    ASSERT_THROW(BroadcastShape(result, shapes), std::runtime_error);
+    ASSERT_FALSE(CanBroadcast(shapes...));
+    ASSERT_THROW(BroadcastShape(result, shapes...), std::runtime_error);
   };
-  std::array<TensorShape<>, 3> t3 = {TensorShape<>{3, 2}, TensorShape<>{1, 3, 3},
-                                     TensorShape<>{1, 1, 1, 3, 3}};
-  test_fail(make_cspan(t3));
+  test_fail(TensorShape<>{3, 2}, TensorShape<>{1, 3, 3}, TensorShape<>{1, 1, 1, 3, 3});
 }
 
 
