@@ -193,8 +193,8 @@ class DecoderTestBase : public ::testing::Test {
   template <typename T, int ndim>
   void Crop(const TensorView<StorageCPU, T, ndim> &output,
             const TensorView<StorageCPU, const T, ndim> &input,
-            const ROI &requested_roi) {
-    auto roi = ExtendRoi(requested_roi, input.shape);
+            const ROI &requested_roi, const TensorLayout &layout = "HWC") {
+    auto roi = ExtendRoi(requested_roi, input.shape, layout);
 
     static_assert(ndim >= 0, "expected static ndim");
     ASSERT_TRUE(output.shape == roi.shape());  // output should have the desired shape
@@ -210,8 +210,8 @@ class DecoderTestBase : public ::testing::Test {
 
   template <typename T, int ndim>
   Tensor<CPUBackend> Crop(const TensorView<StorageCPU, const T, ndim> &input,
-                          const ROI &requested_roi) {
-    auto roi = ExtendRoi(requested_roi, input.shape);
+                          const ROI &requested_roi, const TensorLayout &layout = "HWC") {
+    auto roi = ExtendRoi(requested_roi, input.shape, layout);
     auto num_dims = input.shape.sample_dim();
     assert(roi.shape().sample_dim() == num_dims);
     Tensor<CPUBackend> output;
@@ -226,7 +226,7 @@ class DecoderTestBase : public ::testing::Test {
   Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
     int ndim = input.shape().sample_dim();
     VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
-      return Crop(view<const OutputType, Dims>(input), roi);
+      return Crop(view<const OutputType, Dims>(input), roi, input.GetLayout());
     ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
   }
 
@@ -303,14 +303,18 @@ class DecoderTestBase : public ::testing::Test {
   /**
    * @brief Extends ROI with channel dimension of given shape.
    */
-  ROI ExtendRoi(ROI roi, const TensorShape<> &shape) {
-    // TODO(skarpinski) Don't assume channel-last layout
+  ROI ExtendRoi(ROI roi, const TensorShape<> &shape, const TensorLayout &layout) {
+    int channel_dim = ImageLayoutInfo::ChannelDimIndex(layout);
+    if (channel_dim == -1) channel_dim = shape.size() - 1;
+
     int ndim = shape.sample_dim();
     if (roi.begin.size() == ndim - 1) {
-      roi.begin = shape_cat(roi.begin, 0);
+      roi.begin = shape_cat(shape_cat(roi.begin.first(channel_dim), 0),
+                            roi.begin.last(roi.begin.size() - channel_dim));
     }
     if (roi.end.size() == ndim - 1) {
-      roi.end = shape_cat(roi.end, *(shape.end() - 1));
+      roi.end = shape_cat(shape_cat(roi.end.first(channel_dim), shape[channel_dim]),
+                          roi.end.last(roi.end.size() - channel_dim));
     }
     return roi;
   }

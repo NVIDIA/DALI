@@ -18,6 +18,7 @@
 #include "dali/imgcodec/util/convert.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/core/tensor_shape_print.h"
 
 #define IMG_CONVERT_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
 
@@ -35,8 +36,6 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   int in_channel_dim = ImageLayoutInfo::ChannelDimIndex(in_layout);
   int out_channel_dim = ImageLayoutInfo::ChannelDimIndex(out_layout);
 
-  DALI_ENFORCE(in_channel_dim == spatial_ndim,
-    "Not implemented: currently only channels-last layout is supported");
   DALI_ENFORCE(in_layout == out_layout,
     "Not implemented: currently layout transposition is not supported");
 
@@ -54,11 +53,11 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
     roi_start.resize(spatial_ndim);
 
   if (roi_end.empty()) {
-    roi_end = in_shape.first(spatial_ndim);  // assumes channels-last
+    roi_end = detail::RemoveDim(in_shape, in_channel_dim);
   }
-
+  auto out_shape_no_channel = detail::RemoveDim(out_shape, out_channel_dim);
   for (int d = 0; d < spatial_ndim; d++) {
-    if (roi_end[d] - roi_start[d] != out_shape[d])
+    if (roi_end[d] - roi_start[d] != out_shape_no_channel[d])
       throw std::logic_error("The requested ROI size does not match the output size");
   }
 
@@ -70,8 +69,12 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   TensorShape<> out_strides = kernels::GetStrides(out_shape);
   TensorShape<> in_strides = kernels::GetStrides(in_shape);
   ptrdiff_t in_offset = 0;
-  for (int d = 0; d < roi_start.size(); d++)
-    in_offset += in_strides[d] * roi_start[d];
+
+  auto in_strides_no_channel = detail::RemoveDim(in_strides, in_channel_dim);
+
+  for (int d = 0; d < roi_start.size(); d++) {
+    in_offset += in_strides_no_channel[d] * roi_start[d];
+  }
 
   TYPE_SWITCH(out.type(), type2id, Out, (IMG_CONVERT_TYPES),
     TYPE_SWITCH(in.type(), type2id, In, (IMG_CONVERT_TYPES),
