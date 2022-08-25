@@ -1291,6 +1291,7 @@ excluded_methods = [
     "readers.video_resize",          # readers do not support variable batch size yet
     "readers.webdataset",            # readers do not support variable batch size yet
     "experimental.readers.video",    # readers do not support variable batch size yet
+    "experimental.audio_resample"    # Alias of audio_resample (already tested)
 ]
 
 
