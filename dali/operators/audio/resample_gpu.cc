@@ -74,6 +74,10 @@ class ResampleGPU : public ResampleBase<GPUBackend> {
 
 }  // namespace audio
 
+
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__AudioResample, audio::ResampleGPU, GPU);
+
+DALI_REGISTER_OPERATOR(AudioResample, audio::ResampleGPU, GPU);
 
 }  // namespace dali
