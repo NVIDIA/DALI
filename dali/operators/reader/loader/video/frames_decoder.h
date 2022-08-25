@@ -25,6 +25,7 @@ extern "C" {
 #include <vector>
 #include <string>
 #include <memory>
+#include <optional>
 
 #include "dali/core/common.h"
 
@@ -71,6 +72,23 @@ struct AvState {
 };
 
 /**
+ * @brief Helper representing video file kept in memory. Allows reading and seeking.
+ * 
+ */
+struct MemoryVideoFile {
+  MemoryVideoFile(const char *data, int64_t size)
+    : data_(data), size_(size), position_(0) {}
+
+  int Read(unsigned char *buffer, int buffer_size);
+
+  int64_t Seek(int64_t new_position, int origin);
+
+  const char *data_;
+  const int64_t size_;
+  int64_t position_;
+};
+
+/**
  * @brief Object representing a video file. Allows access to frames and seeking.
  * 
  */
@@ -84,6 +102,18 @@ class DLL_PUBLIC FramesDecoder {
    * @param filename Path to a video file.
    */
   explicit FramesDecoder(const std::string &filename);
+
+
+  /**
+   * @brief Construct a new FramesDecoder object.
+   * 
+   * @param memory_file Pointer to memory with video file data.
+   * @param memory_file_size Size of memory_file in bytes.
+   * 
+   * @note This constructor assumes that the `memory_file` and
+   * `memory_file_size` arguments cover the entire video file, including the header.
+   */
+  FramesDecoder(const char *memory_file, int memory_file_size);
 
   /**
    * @brief Number of frames in the video
@@ -213,11 +243,21 @@ class DLL_PUBLIC FramesDecoder {
 
   void DetectVfr();
 
+  std::string Filename() {
+    return filename_.has_value() ? filename_.value() : "memory file";
+  }
+
   int channels_ = 3;
   bool flush_state_ = false;
-  std::string filename_;
   bool is_vfr_ = false;
+
+  std::optional<const std::string> filename_ = {};
+  std::optional<MemoryVideoFile> memory_video_file_ = {};
+
+  // Default size of the buffer used to load video files from memory to FFMPEG
+  const int default_av_buffer_size = (1 << 15);
 };
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_READER_LOADER_VIDEO_FRAMES_DECODER_H_

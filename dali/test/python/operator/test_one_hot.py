@@ -136,11 +136,19 @@ def test_one_hot_legacy():
     for device in ['cpu', 'gpu']:
         for j in range(1, 5):  # test 1..4 levels of nested 'multi-dimensional' scalars
             layout = get_initial_layout(j)
+
+            class RandomScalarLikeTensors():
+
+                def __init__(self, i):
+                    self.i = i
+
+                def __call__(self):
+                    return random_scalar_like_tensors_batch(self.i)
+
             for i in range(5):
-                def random_scalar_like_tensors(): return random_scalar_like_tensors_batch(j)
                 yield partial(check_one_hot_operator, axis=None, axis_name='O',
-                              expected_output_dim=1, initial_layout=layout), \
-                    random_scalar_like_tensors, device
+                              expected_output_dim=1,
+                              initial_layout=layout), RandomScalarLikeTensors(j), device
 
 
 def test_one_hot():
@@ -156,28 +164,32 @@ def test_one_hot():
 def test_multi_dim_one_hot_no_initial_layout():
     np.random.seed(42)
     for axis in [-1, 0, 1, 2, 3]:
-        yield partial(check_one_hot_operator, random_3d_tensors_batch,
-                      axis=axis, initial_layout=None)
+        yield partial(check_one_hot_operator,
+                      initial_layout=None), random_3d_tensors_batch, 'cpu', axis
 
 
 def test_one_hot_reset_layout():
     np.random.seed(42)
     layout = get_initial_layout(3)
     for axis in [-1, 0, 1, 2, 3]:
-        yield partial(check_one_hot_operator, random_3d_tensors_batch,
-                      axis=axis, initial_layout=layout)
-    yield partial(check_one_hot_operator, random_scalars_batch)
-    def random_scalar_like_tensors(): return random_scalar_like_tensors_batch(3)
-    yield partial(check_one_hot_operator, random_scalar_like_tensors, axis=None,
-                  expected_output_dim=1, initial_layout=layout)
+        yield partial(check_one_hot_operator,
+                      initial_layout=layout), random_3d_tensors_batch, 'cpu', axis
+
+    yield check_one_hot_operator, random_scalars_batch
+
+    def random_scalar_like_tensors():
+        return random_scalar_like_tensors_batch(3)
+
+    yield partial(check_one_hot_operator, axis=None, expected_output_dim=1,
+                  initial_layout=layout), random_scalar_like_tensors, 'cpu'
 
 
 def test_one_hot_custom_layout_axis_name():
     np.random.seed(42)
     layout = get_initial_layout(3)
     for axis_name in "Xx01":
-        yield partial(check_one_hot_operator, random_3d_tensors_batch, axis=-1,
-                      initial_layout=layout, axis_name=axis_name)
+        yield partial(check_one_hot_operator, axis=-1, initial_layout=layout,
+                      axis_name=axis_name), random_3d_tensors_batch
 
 
 @raises(RuntimeError, glob='Unsupported axis_name value')

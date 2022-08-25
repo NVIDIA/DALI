@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <vector>
-#include "dali/imgcodec/decoders/tiff_libtiff.h"
+#include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
@@ -49,8 +49,8 @@ auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel
 class LibTiffDecoderTest : public NumpyDecoderTestBase<CPUBackend, uint8_t> {
  protected:
   std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    LibTiffDecoder decoder;
-    return decoder.Create(CPU_ONLY_DEVICE_ID, tp);
+    LibTiffDecoderFactory factory;
+    return factory.Create(CPU_ONLY_DEVICE_ID, tp);
   }
   std::shared_ptr<ImageParser> CreateParser() override {
     return std::make_shared<TiffParser>();

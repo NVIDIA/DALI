@@ -533,7 +533,7 @@ def test_arithmetic_ops_selected():
 
 
 @attr('slow')
-def test_arithmetic_ops():
+def slow_test_arithmetic_ops():
     for kinds in bin_input_kinds:
         for (op, op_desc, get_range) in sane_operations:
             for types_in in itertools.product(input_types, input_types):
@@ -565,7 +565,7 @@ def test_ternary_ops_selected():
 
 
 @attr('slow')
-def test_ternary_ops_kinds():
+def slow_test_ternary_ops_kinds():
     for kinds in ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
             for types_in in [
@@ -578,7 +578,7 @@ def test_ternary_ops_kinds():
 
 
 @attr('slow')
-def test_ternary_ops_types():
+def slow_test_ternary_ops_types():
     for kinds in selected_ternary_input_kinds:
         for (op, op_desc) in ternary_operations:
             for types_in in list_product(input_types, input_types, input_types):
@@ -596,7 +596,7 @@ def test_bitwise_ops_selected():
 
 
 @attr('slow')
-def test_bitwise_ops():
+def slow_test_bitwise_ops():
     for kinds in bin_input_kinds:
         for (op, op_desc) in bitwise_operations:
             for types_in in itertools.product(input_types, input_types):
@@ -625,7 +625,7 @@ def test_comparison_ops_selected():
 
 
 @attr('slow')
-def test_comparison_ops():
+def slow_test_comparison_ops():
     for kinds in bin_input_kinds:
         for (op, op_desc) in comparisons_operations:
             for types_in in itertools.product(input_types, input_types):
@@ -674,7 +674,7 @@ def test_arithmetic_binary_float_selected():
 
 
 @attr('slow')
-def test_arithmetic_binary_float():
+def slow_test_arithmetic_binary_float():
     for kinds in bin_input_kinds:
         for types_in in itertools.product(input_types, input_types):
             for (op, op_desc, get_range) in floaty_operations:
@@ -721,7 +721,7 @@ def test_arithmetic_division_selected():
 
 
 @attr('slow')
-def test_arithmetic_division():
+def slow_test_arithmetic_division():
     for kinds in bin_input_kinds:
         for types_in in itertools.product(input_types, input_types):
             if types_in != (np.bool_, np.bool_):

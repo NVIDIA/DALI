@@ -37,7 +37,9 @@
       - libjpeg-turbo
       - libtiff
       - openjpeg
+      - zlib
     run:
       - libjpeg-turbo
       - libtiff
       - openjpeg
+      - zlib

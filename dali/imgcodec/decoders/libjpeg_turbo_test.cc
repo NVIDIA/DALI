@@ -55,17 +55,17 @@ const auto ref_prefix = join(ref_dir, "site-1534685_1280");
 }  // namespace
 
 TEST(LibJpegTurboDecoderTest, Factory) {
-  LibJpegTurboDecoder decoder;
-  EXPECT_TRUE(decoder.IsSupported(CPU_ONLY_DEVICE_ID));
-  auto props = decoder.GetProperties();
+  LibJpegTurboDecoderFactory factory;
+  EXPECT_TRUE(factory.IsSupported(CPU_ONLY_DEVICE_ID));
+  auto props = factory.GetProperties();
   EXPECT_TRUE(!!(props.supported_input_kinds & InputKind::HostMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Filename));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "libjpeg-turbo decoder test");
-  auto instance = decoder.Create(CPU_ONLY_DEVICE_ID, tp);
-  EXPECT_NE(instance, nullptr);
+  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "libjpeg-turbo factory test");
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  EXPECT_NE(decoder, nullptr);
 }
 
 template<typename OutputType>
@@ -74,7 +74,7 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
   static const auto dtype = type2id<OutputType>::value;
 
   std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return LibJpegTurboDecoder{}.Create(CPU_ONLY_DEVICE_ID, tp);
+    return LibJpegTurboDecoderFactory().Create(CPU_ONLY_DEVICE_ID, tp);
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {
@@ -103,6 +103,15 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
   auto decoded = this->Decode(&image.src, this->GetParams(), {{5, 20}, {800, 1000}});
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_roi.npy"));
   this->AssertEqualSatNorm(decoded, ref);
+}
+
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
+  ImageBuffer image(jpeg_image);
+  auto params = this->GetParams();
+  params.format = DALI_YCbCr;
+  auto decoded = this->Decode(&image.src, params);
+  auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
+  this->AssertClose(decoded, ref, 0.01);
 }
 
 }  // namespace test

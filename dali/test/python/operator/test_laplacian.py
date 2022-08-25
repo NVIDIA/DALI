@@ -212,7 +212,7 @@ def test_vs_open_cv():
 
 
 @attr('slow')
-def test_vs_open_cv_slow():
+def slow_test_vs_open_cv():
     batch_size = 10
     for device in ["cpu", "gpu"]:
         # they are independent parameters, it's just not to go overboard with test cases
@@ -456,7 +456,7 @@ def test_per_sample_laplacian():
 
 
 @attr('slow')
-def test_per_sample_laplacian_slow():
+def slow_test_per_sample_laplacian():
     batch_size = 10
     for device in ["cpu", "gpu"]:
         for in_type in [np.int16, np.int32, np.float32]:
@@ -527,7 +527,7 @@ def check_fixed_param_laplacian(device, batch_size, in_type, out_type, shape, la
 
 
 @attr('slow')
-def test_fixed_params_laplacian():
+def slow_test_fixed_params_laplacian():
     batch_size = 10
     window_size_cases = {
         1: [None, 3, 5, 9, 21],
