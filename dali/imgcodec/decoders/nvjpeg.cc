@@ -95,12 +95,6 @@ NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
   if (device_buffer) {
     CUDA_CALL(nvjpegBufferDeviceDestroy(device_buffer));
   }
-  if (decode_event) {
-    CUDA_CALL(cudaEventDestroy(decode_event));
-  }
-  if (stream) {
-    CUDA_CALL(cudaStreamDestroy(stream));
-  }
 
   if (decoder_data.decoder && decoder_data.state) {
     CUDA_CALL(nvjpegDecoderDestroy(decoder_data.decoder));
