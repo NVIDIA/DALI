@@ -199,11 +199,11 @@ bool NeedBroadcasting(span<const TensorListShape<>*> shapes) {
 TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh, const TensorShape<> &in_sh,
                                      const TensorShape<> &in_strides) {
   TensorShape<> strides;
-  assert(in_sh.size() == in_strides.size());
-  assert(in_sh.size() <= out_sh.size());
-  int out_ndim = out_sh.size();
+  assert(in_sh.sample_dim() == in_strides.sample_dim());
+  assert(in_sh.sample_dim() <= out_sh.sample_dim());
+  int out_ndim = out_sh.sample_dim();
   strides.shape.resize(out_ndim, 0);
-  for (int i = (out_ndim - in_sh.size()); i < out_ndim; i++) {
+  for (int i = (out_ndim - in_sh.sample_dim()); i < out_ndim; i++) {
     assert(in_sh[i] == out_sh[i] || in_sh[i] == 1);
     if (in_sh[i] == out_sh[i])
       strides[i] = in_strides[i];
@@ -214,16 +214,16 @@ TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh, const TensorSh
 }
 
 void ExpandToNDims(TensorShape<> &sh, int ndim) {
-  assert(sh.size() <= ndim);
-  if (sh.size() == ndim)
+  assert(sh.sample_dim() <= ndim);
+  if (sh.sample_dim() == ndim)
     return;
-  sh = shape_cat(TensorShape<>(std::vector<int64_t>(ndim - sh.size(), 1)), sh);
+  sh = shape_cat(TensorShape<>(std::vector<int64_t>(ndim - sh.sample_dim(), 1)), sh);
 }
 
 void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs) {
   // First, if needed expand dimensions
-  int full_ndim = std::max(lhs.size(), rhs.size());
-  if (lhs.size() != rhs.size()) {
+  int full_ndim = std::max(lhs.sample_dim(), rhs.sample_dim());
+  if (lhs.sample_dim() != rhs.sample_dim()) {
     ExpandToNDims(lhs, full_ndim);
     ExpandToNDims(rhs, full_ndim);
   }
