@@ -106,7 +106,7 @@ DALI_SCHEMA(experimental__AudioResample)
     .Deprecate(
         "AudioResample",
         "This operator was moved out from the experimental phase, "
-        "and is now regular DALI operator. This is just an deprecated "
+        "and is now a regular DALI operator. This is just an deprecated "
         "alias kept for backward compatibility.");  // Deprecated in 1.18
 
 namespace audio {
