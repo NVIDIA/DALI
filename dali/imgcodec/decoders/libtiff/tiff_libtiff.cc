@@ -228,9 +228,9 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
       using InputType = detail::depth2type<Depth>::type;
       auto *row_in  = static_cast<InputType *>(row_buf.get());
       OutType *const img_out = out.mutable_data<OutType>();
-      for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
-        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + roi_y, 0));
-        Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
+      for (int64_t y = 0; y < roi.shape()[0]; y++) {
+        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + y, 0));
+        Convert(img_out + (y * out_row_stride), out_line_strides.data(), 1, opts.format,
                 row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
                 out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
       }
