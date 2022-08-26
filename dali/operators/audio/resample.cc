@@ -101,11 +101,12 @@ DALI_SCHEMA(experimental__AudioResample)
     .AddParent("AudioResample")
     .NumInput(1)
     .NumOutput(1)
+    .MakeDocPartiallyHidden()
     .Deprecate(
         "AudioResample",
-        R"code(This is just an deprecated alias kept for backward compatibility.)code");  // Deprecated
-                                                                                          // in 1.18
-
+        "This operator was moved out from the experimental phase, "
+        "and is now regular DALI operator. This is just an deprecated "
+        "alias kept for backward compatibility.");  // Deprecated in 1.18
 
 namespace audio {
 
