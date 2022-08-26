@@ -27,10 +27,10 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from test_utils import check_batch, get_dali_extra_path, as_array
 
 resample_dali2pil = {
-    types.INTERP_NN: PIL.Image.NEAREST,
-    types.INTERP_TRIANGULAR: PIL.Image.BILINEAR,
-    types.INTERP_CUBIC: PIL.Image.BICUBIC,
-    types.INTERP_LANCZOS3: PIL.Image.LANCZOS
+    types.INTERP_NN: PIL.Image.Resampling.NEAREST,
+    types.INTERP_TRIANGULAR: PIL.Image.Resampling.BILINEAR,
+    types.INTERP_CUBIC: PIL.Image.Resampling.BICUBIC,
+    types.INTERP_LANCZOS3: PIL.Image.Resampling.LANCZOS
 }
 
 test_data_root = get_dali_extra_path()
@@ -95,7 +95,7 @@ def resize2D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
 
     box = list(roi_start) + list(roi_end)
 
-    has_overshoot = resample == PIL.Image.LANCZOS or resample == PIL.Image.BICUBIC
+    has_overshoot = resample == PIL.Image.Resampling.LANCZOS or resample == PIL.Image.Resampling.BICUBIC
     if has_overshoot:
         # compress dynamic range to allow for overshoot
         input = (64 + input * 0.5).round().astype(np.uint8)
@@ -119,7 +119,7 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
     if channel_first:
         input = input.transpose([1, 2, 3, 0])
 
-    has_overshoot = resample == PIL.Image.LANCZOS or resample == PIL.Image.BICUBIC
+    has_overshoot = resample == PIL.Image.Resampling.LANCZOS or resample == PIL.Image.Resampling.BICUBIC
     if has_overshoot:
         # compress dynamic range to allow for overshoot
         input = (64 + input * 0.5).round().astype(np.uint8)
