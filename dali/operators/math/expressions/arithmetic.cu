@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/kernels/type_tag.h"
 #include "dali/operators/math/expressions/arithmetic.h"
+#include <vector>
+#include "dali/kernels/type_tag.h"
 
 namespace dali {
 
@@ -25,6 +26,28 @@ void ArithmeticGenericOp<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   for (size_t i = 0; i < exec_order_.size(); i++) {
     // call impl for whole batch
     exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(tiles_per_task_[i]));
+  }
+
+  if (broadcasting_) {
+    auto batch_size = ws.GetInputBatchSize(0);
+    int ntiles = tile_cover_.size();
+    assert(ntiles == batch_size);
+    std::vector<SampleDesc> sample_descs;
+    sample_descs.reserve(batch_size);
+    // Go over expression tree in some provided order
+    for (size_t i = 0; i < exec_order_.size(); i++) {
+      sample_descs.clear();
+      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+        auto &tile = tiles_per_task_[i][sample_idx];
+        sample_descs.emplace_back(tile.output, tile.args);
+      }
+      exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(sample_descs));
+    }
+  } else {
+    for (size_t i = 0; i < exec_order_.size(); i++) {
+      // call impl for whole batch
+      exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(tiles_per_task_[i]));
+    }
   }
 }
 
