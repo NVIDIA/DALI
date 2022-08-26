@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,10 +61,10 @@ def GetSequences(channel_first, length, batch_size):
 
 
 resample_dali2pil = {
-    types.INTERP_NN:         PIL.Image.NEAREST,
-    types.INTERP_TRIANGULAR: PIL.Image.BILINEAR,
-    types.INTERP_CUBIC:      PIL.Image.BICUBIC,
-    types.INTERP_LANCZOS3:   PIL.Image.LANCZOS
+    types.INTERP_NN:         PIL.Image.Resampling.NEAREST,
+    types.INTERP_TRIANGULAR: PIL.Image.Resampling.BILINEAR,
+    types.INTERP_CUBIC:      PIL.Image.Resampling.BICUBIC,
+    types.INTERP_LANCZOS3:   PIL.Image.Resampling.LANCZOS
 }
 
 
