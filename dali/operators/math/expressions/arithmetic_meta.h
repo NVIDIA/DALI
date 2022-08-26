@@ -1057,7 +1057,7 @@ inline bool IsScalarLike(const TensorListShape<> &shape) {
 }
 
 inline bool IsScalarLike(const TensorShape<> &shape) {
-  return shape.size() <= 1 && volume(shape) == 1;
+  return shape.sample_dim() <= 1 && volume(shape) == 1;
 }
 
 }  // namespace dali
