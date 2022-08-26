@@ -21,6 +21,7 @@
 #include "dali/operators/math/expressions/expression_impl_factory.h"
 #include "dali/operators/math/expressions/expression_tree.h"
 #include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/core/fast_div.h"
 
 namespace dali {
 
@@ -59,6 +60,33 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int6
     result += stride;
     l += stride;
     r += stride;
+  }
+}
+
+/**
+ * @brief Loop over tile of `extent` length, binary op with two buffers as inputs,
+          and different strides (used for broadcasting)
+ */
+template <ArithmeticOp op, int Dims, typename Result, typename Left, typename Right>
+__device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int64_t extent,
+                             const fast_div<uint64_t> *strides_out,
+                             const uint64_t *strides_l,
+                             const uint64_t *strides_r) {
+  using meta_t = arithm_meta<op, GPUBackend>;
+  int64_t block_start = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
+
+  for (uint64_t idx = block_start; idx < extent; idx += block_step) {
+    uint64_t idx_l = 0, idx_r = 0;
+    #pragma unroll
+    for (int d = 0; d < Dims; d++) {
+      int i_d = div_mod(idx, idx, strides_out[d]);
+      idx_l += i_d * strides_l[d];
+      idx_r += i_d * strides_r[d];
+    }
+    idx_l += idx;  // remaining dims have equal strides
+    idx_r += idx;
+    result[idx] = meta_t::impl(l[idx_l], r[idx_r]);
   }
 }
 
@@ -120,6 +148,46 @@ __device__ void ExecuteTernaryOp(Result *result,
                            expression_detail::Access<Result>(third, offset, third_type));
     result += stride;
     offset += stride;
+  }
+}
+
+/**
+ * @brief Loop over tile of `extent` length, ternary op and different strides (used for broadcasting)
+ */
+template <ArithmeticOp op, int Dims, typename Result, bool IsFirstTensor, bool IsSecondTensor,
+          bool IsThirdTensor>
+__device__ void ExecuteTernaryOp(Result *result,
+                                 expression_detail::param_t<IsFirstTensor, Result> first,
+                                 expression_detail::param_t<IsSecondTensor, Result> second,
+                                 expression_detail::param_t<IsThirdTensor, Result> third,
+                                 DALIDataType first_type,
+                                 DALIDataType second_type,
+                                 DALIDataType third_type,
+                                 int64_t extent,
+                                 const fast_div<uint64_t> *strides_out,
+                                 const uint64_t *strides_first,
+                                 const uint64_t *strides_second,
+                                 const uint64_t *strides_third) {
+  using meta_t = arithm_meta<op, GPUBackend>;
+  int64_t block_start = static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
+
+  for (uint64_t idx = block_start; idx < extent; idx += block_step) {
+    uint64_t idx_first = 0, idx_second = 0, idx_third = 0;
+    #pragma unroll
+    for (int d = 0; d < Dims; d++) {
+      int i_d = div_mod(idx, idx, strides_out[d]);
+      idx_first += i_d * strides_first[d];
+      idx_second += i_d * strides_second[d];
+      idx_third += i_d * strides_third[d];
+    }
+    idx_first += idx;  // remaining dims have equal strides
+    idx_second += idx;
+    idx_third += idx;
+    result[idx] = meta_t::impl(
+      expression_detail::Access<Result>(first, idx_first, first_type),
+      expression_detail::Access<Result>(second, idx_second, third_type),
+      expression_detail::Access<Result>(third, idx_third, second_type));
   }
 }
 
