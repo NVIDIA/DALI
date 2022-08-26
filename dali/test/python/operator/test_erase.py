@@ -177,10 +177,13 @@ def check_operator_erase_vs_python(device, batch_size, input_shape,
 
     compare_pipelines(
         ErasePipeline(device, batch_size, input_layout, iter(eii1), anchor=anchor,
-                      shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value_arg1),
+                      shape=shape, axis_names=axis_names, axes=axes,
+                      fill_value=fill_value_arg1),
         ErasePythonPipeline(device, batch_size, input_layout, iter(eii2), anchor=anchor,
-                            shape=shape, axis_names=axis_names, axes=axes, fill_value=fill_value_arg2),
+                            shape=shape, axis_names=axis_names, axes=axes,
+                            fill_value=fill_value_arg2),
         batch_size=batch_size, N_iterations=3, eps=1e-04, expected_layout=input_layout)
+
 
 def test_operator_erase_vs_python():
     # layout, shape, axis_names, axes, anchor, shape, fill_value
