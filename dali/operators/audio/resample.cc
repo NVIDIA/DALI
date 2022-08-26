@@ -99,6 +99,7 @@ type. Example::
 // Deprecated alias
 DALI_SCHEMA(experimental__AudioResample)
     .AddParent("AudioResample")
+    .DocStr("Legacy alias for :meth:`audio_resample`.")
     .NumInput(1)
     .NumOutput(1)
     .MakeDocPartiallyHidden()
