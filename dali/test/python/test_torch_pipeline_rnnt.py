@@ -355,7 +355,7 @@ def rnnt_train_pipe(files,
     # Speed perturbation 0.85x - 1.15x
     if speed_perturb:
         target_sr_factor = fn.random.uniform(device="cpu", range=(1 / 1.15, 1 / 0.85))
-        audio = fn.experimental.audio_resample(audio, scale=target_sr_factor)
+        audio = fn.audio_resample(audio, scale=target_sr_factor)
 
     # Silence trimming
     if silence_trim:
