@@ -33,21 +33,21 @@ void CheckNumSamples(span<const TensorListShape<>*> shapes) {
 bool HasAnyZeroVolume(span<const TensorShape<>*> shapes) {
   for (int i = 0; i < shapes.size(); i++) {
     if (volume(*shapes[i]) == 0) {
-      return false;
+      return true;
     }
   }
-  return true;
+  return false;
 }
 
 bool HasAnyZeroVolume(span<const TensorListShape<>*> shapes) {
   for (int i = 0; i < shapes.size(); i++) {
     for (int sample_idx = 0; sample_idx < shapes[i]->num_samples(); sample_idx++) {
       if (shapes[i]->tensor_size(sample_idx) == 0) {
-        return false;
+        return true;
       }
     }
   }
-  return true;
+  return false;
 }
 
 void CheckNonZeroVolume(span<const TensorShape<>*> shapes) {
@@ -189,7 +189,7 @@ void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>*> sh
 }
 
 bool CanBroadcast(span<const TensorShape<>*> shapes) {
-  if (!HasAnyZeroVolume(shapes)) {
+  if (HasAnyZeroVolume(shapes)) {
     return false;
   }
   if (shapes.size() < 2) {
@@ -207,7 +207,7 @@ bool CanBroadcast(span<const TensorShape<>*> shapes) {
 }
 
 bool CanBroadcast(span<const TensorListShape<>*> shapes) {
-  if (!HasAnyZeroVolume(shapes)) {
+  if (HasAnyZeroVolume(shapes)) {
     return false;
   }
   if (shapes.size() < 2) {
