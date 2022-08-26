@@ -46,6 +46,8 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastShape) {
   };
   test_fail({3, 2}, {2, 3});
   test_fail({2}, {2, 3});
+  test_fail({2, 2}, {2, 0});
+  test_fail({}, {0});
 }
 
 TEST(ArithmeticOpsBroadcastingTest, BroadcastTensorListShape) {
@@ -74,6 +76,7 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastTensorListShape) {
     ASSERT_THROW(BroadcastShape(result, b, a), std::runtime_error);
   };
   test_fail({{1, 3, 2}, {3, 2, 1}, {1, 1, 1}}, {{1, 1, 2}, {3, 3, 4}, {4, 1, 1}});
+  test_fail({{1, 3, 2}, {3, 2, 1}, {4, 1, 1}}, {{1, 0, 2}, {3, 2, 4}, {1, 2, 1}});
 }
 
 
