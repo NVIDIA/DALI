@@ -25,7 +25,7 @@ namespace imgcodec {
 class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl {
  public:
   using Base = BatchParallelDecoderImpl;
-  LibTiffDecoderInstance(int device_id) : Base(device_id) {}
+  explicit LibTiffDecoderInstance(int device_id) : Base(device_id) {}
 
   using Base::Decode;
   DecodeResult Decode(DecodeContext ctx,

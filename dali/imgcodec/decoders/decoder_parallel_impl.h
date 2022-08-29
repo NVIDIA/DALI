@@ -33,7 +33,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
  public:
-  BatchParallelDecoderImpl(int device_id)
+  explicit BatchParallelDecoderImpl(int device_id)
   : ImageDecoderImpl(device_id) {}
 
   using ImageDecoderImpl::CanDecode;

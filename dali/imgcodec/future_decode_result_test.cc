@@ -29,7 +29,7 @@ TEST(FutureDecodeResultsTest, WaitNew) {
 
   DecodeResultsPromise pro(3);
   auto fut = pro.get_future();
-  tp.AddWork([pro](int) mutable {
+  tp.AddWork([pro](int tidx) mutable {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     pro.set(1, DecodeResult::Success());
     pro.set(0, DecodeResult::Success());
@@ -59,7 +59,7 @@ TEST(FutureDecodeResultsTest, Benchmark) {
   auto start = std::chrono::high_resolution_clock::now();
   for (int iter = 0; iter < num_iter; iter++) {
     DecodeResultsPromise res(100);
-    tp.AddWork([&](int) {
+    tp.AddWork([&](int tidx) {
       for (int i = 0; i < res.num_samples(); i++)
         res.set(i, DecodeResult::Success());
     }, 0, true);

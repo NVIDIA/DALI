@@ -28,7 +28,7 @@ namespace imgcodec {
 class DLL_PUBLIC OpenCVDecoderInstance : public BatchParallelDecoderImpl {
  public:
   using Base = BatchParallelDecoderImpl;
-  OpenCVDecoderInstance(int device_id) : Base(device_id) {}
+  explicit OpenCVDecoderInstance(int device_id) : Base(device_id) {}
 
   DecodeResult DecodeImplTask(int thread_idx,
                               SampleView<CPUBackend> out,

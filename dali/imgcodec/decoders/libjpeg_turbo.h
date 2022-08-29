@@ -28,7 +28,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  LibJpegTurboDecoderInstance(int device_id)
+  explicit LibJpegTurboDecoderInstance(int device_id)
   : BatchParallelDecoderImpl(device_id) {}
 
   using BatchParallelDecoderImpl::Decode;
