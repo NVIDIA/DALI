@@ -250,7 +250,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
     // http://www.libtiff.org/libtiff.html
     // (...) tile width and length must each be a multiple of 16 pixels
     return {false, make_exception_ptr(std::logic_error(
-                      make_string("TIFF tile dimensions must be a multiple of 16"))};
+                      make_string("TIFF tile dimensions must be a multiple of 16")))};
   }
 
   // Other fill orders are rare and discouraged by TIFF specification, but can happen

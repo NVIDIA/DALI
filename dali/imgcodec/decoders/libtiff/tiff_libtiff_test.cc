@@ -46,7 +46,10 @@ auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
 auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel/" +
                          "cat-111793_640_multichannel.tif";
 
-auto tiled_path = img_dir + "/cat-111793_640_tiled_16x48.tiff";
+auto tiled_dir = dali_extra + "/db/imgcodec/tiff/tiled/";
+auto tiled_path = tiled_dir + "/cat-111793_640_tiled_16x48.tiff";
+auto tiled_one_big_tile_path = tiled_dir + "/cat-111793_640_tiled_1024x1024.tiff";
+auto tiled_depth7_path = tiled_dir + "/cat-111793_640_tiled_32x32_7bpp.tiff";
 
 std::string depth_path(int depth) {
   return make_string(dali_extra, "/db/imgcodec/tiff/bitdepths/rgb_", depth, "bit.tiff");
@@ -203,6 +206,27 @@ TYPED_TEST(LibTiffDecoderTest, TiledSmallRoi) {
   ROI roi = {{3*48+17, 7*16+5}, {3*48+27, 7*16+15}};  // This fits in a single tile
   auto img = this->Decode(&src, {this->dtype, DALI_RGB}, roi);
   this->AssertEqualSatNorm(img, this->Crop(ref, roi));
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledOneBigTile) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto src = ImageSource::FromFilename(tiled_one_big_tile_path);
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB});
+  this->AssertEqualSatNorm(img, ref);
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledRgbToGray) {
+  auto ref = this->ReadReferenceFrom(gray_ref_path);
+  auto src = ImageSource::FromFilename(tiled_path);
+  auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
+  this->AssertClose(img, ref, 1);
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledDepth7) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto src = ImageSource::FromFilename(tiled_depth7_path);
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB});
+  this->AssertClose(img, ref, 4);
 }
 
 }  // namespace test
