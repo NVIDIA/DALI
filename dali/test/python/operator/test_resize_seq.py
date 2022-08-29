@@ -17,8 +17,13 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
 import os.path
-import PIL.Image
 from test_utils import check_batch
+import PIL.Image
+try:
+    from PIL.Image.Resampling import NEAREST, BILINEAR, BICUBIC, LANCZOS
+except Exception:
+    # Deprecated import, needed for Python 3.6
+    from PIL.Image import NEAREST, BILINEAR, BICUBIC, LANCZOS
 
 
 def init_video_data():
@@ -61,10 +66,10 @@ def GetSequences(channel_first, length, batch_size):
 
 
 resample_dali2pil = {
-    types.INTERP_NN:         PIL.Image.Resampling.NEAREST,
-    types.INTERP_TRIANGULAR: PIL.Image.Resampling.BILINEAR,
-    types.INTERP_CUBIC:      PIL.Image.Resampling.BICUBIC,
-    types.INTERP_LANCZOS3:   PIL.Image.Resampling.LANCZOS
+    types.INTERP_NN:         NEAREST,
+    types.INTERP_TRIANGULAR: BILINEAR,
+    types.INTERP_CUBIC:      BICUBIC,
+    types.INTERP_LANCZOS3:   LANCZOS
 }
 
 

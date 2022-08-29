@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import PIL.Image
 import cv2
 import functools
 import math
@@ -23,14 +22,20 @@ import nvidia.dali.types as types
 import os.path
 from nvidia.dali import Pipeline, pipeline_def
 from nvidia.dali.data_node import DataNode as _DataNode
-
 from test_utils import check_batch, get_dali_extra_path, as_array
 
+import PIL.Image
+try:
+    from PIL.Image.Resampling import NEAREST, BILINEAR, BICUBIC, LANCZOS
+except Exception:
+    # Deprecated import, needed for Python 3.6
+    from PIL.Image import NEAREST, BILINEAR, BICUBIC, LANCZOS
+
 resample_dali2pil = {
-    types.INTERP_NN: PIL.Image.Resampling.NEAREST,
-    types.INTERP_TRIANGULAR: PIL.Image.Resampling.BILINEAR,
-    types.INTERP_CUBIC: PIL.Image.Resampling.BICUBIC,
-    types.INTERP_LANCZOS3: PIL.Image.Resampling.LANCZOS
+    types.INTERP_NN:         NEAREST,
+    types.INTERP_TRIANGULAR: BILINEAR,
+    types.INTERP_CUBIC:      BICUBIC,
+    types.INTERP_LANCZOS3:   LANCZOS
 }
 
 test_data_root = get_dali_extra_path()
@@ -95,7 +100,7 @@ def resize2D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
 
     box = list(roi_start) + list(roi_end)
 
-    has_overshoot = resample in (PIL.Image.Resampling.LANCZOS, PIL.Image.Resampling.BICUBIC)
+    has_overshoot = resample in (LANCZOS, BICUBIC)
     if has_overshoot:
         # compress dynamic range to allow for overshoot
         input = (64 + input * 0.5).round().astype(np.uint8)
@@ -119,7 +124,7 @@ def resize3D_PIL(input, size, roi_start, roi_end, dtype, channel_first, resample
     if channel_first:
         input = input.transpose([1, 2, 3, 0])
 
-    has_overshoot = resample in (PIL.Image.Resampling.LANCZOS, PIL.Image.Resampling.BICUBIC)
+    has_overshoot = resample in (LANCZOS, BICUBIC)
     if has_overshoot:
         # compress dynamic range to allow for overshoot
         input = (64 + input * 0.5).round().astype(np.uint8)
