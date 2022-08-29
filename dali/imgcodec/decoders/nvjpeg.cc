@@ -151,6 +151,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     return {false, std::current_exception()};
   }
 
+  CUDA_CALL(cudaStreamWaitEvent(stream, ctx.resources.decode_event, 0));
   return {true, nullptr};
 }
 
@@ -159,7 +160,7 @@ void NvJpegDecoderInstance::ParseJpegSample(ImageSource& in, DecodeParams opts,
   int widths[NVJPEG_MAX_COMPONENT], heights[NVJPEG_MAX_COMPONENT], c;
   nvjpegChromaSubsampling_t subsampling;
   CUDA_CALL(nvjpegGetImageInfo(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(), &c,
-                                     &subsampling, widths, heights));
+                               &subsampling, widths, heights));
 
   ctx.shape = {heights[0], widths[0], c};
 }
@@ -186,7 +187,7 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   CUDA_CALL(cudaEventSynchronize(decode_event));
   CUDA_CALL(nvjpegStateAttachDeviceBuffer(state, device_buffer));
   CUDA_CALL(nvjpegDecodeJpegTransferToDevice(nvjpeg_handle_, decoder, state, jpeg_stream,
-                                                   stream));
+                                             stream));
   CUDA_CALL(nvjpegDecodeJpegDevice(nvjpeg_handle_, decoder, state, &nvjpeg_image, stream));
 
   if (opts.format == DALI_YCbCr) {

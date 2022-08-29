@@ -85,7 +85,8 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
     auto ref = this->ReadReferenceFrom(
       from_dali_extra("db/single/reference/jpeg/site-1534685_1280.npy"));
 
-    this->AssertEqualSatNorm(decoded, ref);
+    float eps = 1;
+    this->AssertClose(decoded, ref, eps);
   }
 };
 
