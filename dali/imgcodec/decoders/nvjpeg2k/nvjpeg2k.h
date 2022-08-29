@@ -32,7 +32,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  NvJpeg2000DecoderInstance(int device_id);
+  explicit NvJpeg2000DecoderInstance(int device_id);
   ~NvJpeg2000DecoderInstance();
 
   using BatchParallelDecoderImpl::CanDecode;

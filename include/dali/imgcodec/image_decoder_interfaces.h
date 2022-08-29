@@ -192,7 +192,7 @@ class DLL_PUBLIC FutureDecodeResults {
   DecodeResult get_one(int index) const;
 
  private:
-  FutureDecodeResults(std::shared_ptr<DecodeResultsSharedState> impl);
+  explicit FutureDecodeResults(std::shared_ptr<DecodeResultsSharedState> impl);
   friend class DecodeResultsPromise;
   std::shared_ptr<DecodeResultsSharedState> impl_ = nullptr;
 };

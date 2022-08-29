@@ -24,7 +24,7 @@ namespace imgcodec {
 
 class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
  public:
-  ImageDecoderImpl(int device_id) : device_id_(device_id) {
+  explicit ImageDecoderImpl(int device_id) : device_id_(device_id) {
   }
 
   bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
