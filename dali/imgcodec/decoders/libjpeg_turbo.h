@@ -28,11 +28,12 @@ namespace imgcodec {
  */
 class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  LibJpegTurboDecoderInstance(int device_id, ThreadPool *tp)
-  : BatchParallelDecoderImpl(device_id, tp) {}
+  LibJpegTurboDecoderInstance(int device_id)
+  : BatchParallelDecoderImpl(device_id) {}
 
   using BatchParallelDecoderImpl::Decode;
-  DecodeResult Decode(SampleView<CPUBackend> out,
+  DecodeResult Decode(DecodeContext ctx,
+                      SampleView<CPUBackend> out,
                       ImageSource *in,
                       DecodeParams opts,
                       const ROI &roi) override;
@@ -75,8 +76,8 @@ class LibJpegTurboDecoderFactory : public ImageDecoderFactory {
     return device_id < 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<LibJpegTurboDecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
+    return std::make_shared<LibJpegTurboDecoderInstance>(device_id);
   }
 };
 

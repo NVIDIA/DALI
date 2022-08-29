@@ -58,9 +58,9 @@ auto depth32_ref_path = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_
 template <typename OutType>
 class LibTiffDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutType> {
  protected:
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     LibTiffDecoderFactory factory;
-    return factory.Create(CPU_ONLY_DEVICE_ID, tp);
+    return factory.Create(CPU_ONLY_DEVICE_ID);
   }
   std::shared_ptr<ImageParser> CreateParser() override {
     return std::make_shared<TiffParser>();

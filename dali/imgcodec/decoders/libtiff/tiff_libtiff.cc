@@ -159,7 +159,8 @@ struct depth2type<32> {
 
 }  // namespace detail
 
-DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
+DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
+                                            SampleView<CPUBackend> out, ImageSource *in,
                                             DecodeParams opts, const ROI &requested_roi) {
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());

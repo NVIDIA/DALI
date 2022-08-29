@@ -25,10 +25,11 @@ namespace imgcodec {
 class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl {
  public:
   using Base = BatchParallelDecoderImpl;
-  LibTiffDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
+  LibTiffDecoderInstance(int device_id) : Base(device_id) {}
 
   using Base::Decode;
-  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in,
+  DecodeResult Decode(DecodeContext ctx,
+                      SampleView<CPUBackend> out, ImageSource *in,
                       DecodeParams opts, const ROI &roi) override;
 };
 
@@ -50,8 +51,8 @@ class LibTiffDecoderFactory : public ImageDecoderFactory {
     return device_id < 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<LibTiffDecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
+    return std::make_shared<LibTiffDecoderInstance>(device_id);
   }
 };
 

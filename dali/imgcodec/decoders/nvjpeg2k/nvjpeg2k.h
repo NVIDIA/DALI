@@ -32,7 +32,7 @@ namespace imgcodec {
  */
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp);
+  NvJpeg2000DecoderInstance(int device_id);
   ~NvJpeg2000DecoderInstance();
 
   using BatchParallelDecoderImpl::CanDecode;
@@ -139,8 +139,8 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
     return device_id >= 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<NvJpeg2000DecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
+    return std::make_shared<NvJpeg2000DecoderInstance>(device_id);
   }
 };
 
