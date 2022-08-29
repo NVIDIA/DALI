@@ -79,7 +79,7 @@ class ConversionTestBase : public NumpyDecoderTestBase<CPUBackend, ImageType> {
     return output;
   }
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     return nullptr;  // We'll only read numpy files
   }
 
