@@ -160,6 +160,16 @@ struct depth2type<32> {
 };
 
 
+/**
+ * @brief Unpacks packed bits.
+ *
+ * @tparam OutputType Required output type
+ * @tparam normalize If true, values will be upscaled to OutputType's dynamic range
+ * @param nbits Number of bits per value
+ * @param out Output array
+ * @param in Pointer to the bits to unpack
+ * @param n Number of values to unpack
+ */
 template<typename OutputType, bool normalize = true>
 void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t n) {
   size_t out_type_bits = 8 * sizeof(OutputType);
@@ -178,12 +188,14 @@ void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t
     size_t bits_to_read = nbits;
     while (bits_to_read > 0) {
       if (bits_in_buffer > bits_to_read) {
+        // If we have enough bits in the buffer, we store them and finish
         result <<= bits_to_read;
         result |= buffer >> (buffer_capacity - bits_to_read);
         bits_in_buffer -= bits_to_read;
         buffer <<= bits_to_read;
         bits_to_read = 0;
       } else {
+        // If we don't have enough bits, we store what we have and refill the buffer
         result <<= bits_in_buffer;
         result |= buffer >> (buffer_capacity - bits_in_buffer);
         bits_to_read -= bits_in_buffer;
@@ -266,6 +278,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
   TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
 
+  // We choose smallest possible type
   size_t in_type_bits;
   if (info.bit_depth <= 8) in_type_bits = 8;
   else if (info.bit_depth <= 16) in_type_bits = 16;
@@ -298,7 +311,6 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
       }
     ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
-
 
   return {true, nullptr};
 }

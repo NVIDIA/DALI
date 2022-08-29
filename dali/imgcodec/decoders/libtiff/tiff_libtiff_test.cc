@@ -173,18 +173,6 @@ TYPED_TEST(LibTiffDecoderTest, Depth32) {
   this->AssertEqualSatNorm(img, ref);
 }
 
-TEST_F(LibTiffDecoderBitdepthTest, Depth1) {
-  this->TestDepth(1);
-}
-
-TEST_F(LibTiffDecoderBitdepthTest, Depth12) {
-  this->TestDepth(12);
-}
-
-TEST_F(LibTiffDecoderBitdepthTest, Depth24) {
-  this->TestDepth(24);
-}
-
 TEST_F(LibTiffDecoderBitdepthTest, AnyDepth) {
   for (int depth = 1; depth < 32; depth++) {
     SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
