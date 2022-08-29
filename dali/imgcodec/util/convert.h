@@ -23,6 +23,9 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
+
+#define IMGCODEC_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
+
 namespace dali {
 namespace imgcodec {
 

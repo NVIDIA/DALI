@@ -59,7 +59,7 @@ auto gen_batch_input() {
   std::vector<std::string> image_names, ref_names;
   for (size_t i = 0; i < images.size(); i++) {
     image_names.push_back(join(img_dir, "0", images[i]) + ".jp2");
-    ref_names.push_back(join(ref_dir, images[i]) + ".npy");
+    ref_names.push_back(join(ref_dir, "0", images[i]) + ".npy");
   }
   return std::make_pair(image_names, ref_names);
 }
@@ -108,7 +108,7 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
   void RunSingleTest(std::string image_name, std::string ref_name) {
     ImageBuffer image(join(img_dir, "0", images[0]) + ".jp2");
     auto decoded = this->Decode(&image.src, this->GetParams());
-    auto ref = this->ReadReferenceFrom(join(ref_dir, images[0]) + ".npy");
+    auto ref = this->ReadReferenceFrom(join(ref_dir, "0", images[0]) + ".npy");
     this->AssertEqualSatNorm(decoded, ref);
   }
 
