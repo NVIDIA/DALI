@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -245,8 +245,6 @@ class SharedBatchWriter:
         shared_array.ravel()[:] = np_array.ravel()[:]
 
     def _write_batch(self, batch):
-        if not batch:
-            return
         batch = [_apply_to_sample(lambda x: _sample_to_numpy(x, _sample_error_msg), sample)
                  for sample in batch]
         meta, data_size = self._prepare_samples_meta(batch)

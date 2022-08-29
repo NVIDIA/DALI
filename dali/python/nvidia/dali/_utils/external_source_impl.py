@@ -78,7 +78,7 @@ _tf_uniform_error_msg = (
 
 def assert_cpu_sample_data_type(sample, error_str="Unsupported callback return type. Got: `{}`."):
     import_numpy()
-    if isinstance(sample, np.ndarray):
+    if isinstance(sample, (np.ndarray, np.generic)):
         return True
     if types._is_mxnet_array(sample):
         if sample.context.device_type != 'cpu':
@@ -113,7 +113,7 @@ def assert_cpu_batch_data_type(batch, error_str="Unsupported callback return typ
 def sample_to_numpy(sample, error_str="Unsupported callback return type. Got: `{}`."):
     import_numpy()
     assert_cpu_sample_data_type(sample, error_str)
-    if isinstance(sample, np.ndarray):
+    if isinstance(sample, (np.ndarray, np.generic)):
         return sample
     if types._is_mxnet_array(sample):
         if sample.context.device_type != 'cpu':
