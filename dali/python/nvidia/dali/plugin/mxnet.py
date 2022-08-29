@@ -200,8 +200,8 @@ class DALIGenericIterator(_DALIMXNetIteratorBase):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy, optional, default = LastBatchPolicy.FILL
-                What to do with the last batch when there is no enough samples in the epoch
+    last_batch_policy: optional, default = LastBatchPolicy.FILL
+                What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
                 Both ``FILL`` and ``PARTIAL`` would return a full batch but the ``pad`` property
                 value of the returned array would differ.
@@ -507,8 +507,8 @@ class DALIClassificationIterator(DALIGenericIterator):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy, optional, default = LastBatchPolicy.FILL
-                What to do with the last batch when there is no enough samples in the epoch
+    last_batch_policy: optional, default = LastBatchPolicy.FILL
+                What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`.
                 Both ``FILL`` and ``PARTIAL`` would return a full batch but the ``pad`` property
                 value of the returned array would differ.
@@ -645,8 +645,8 @@ class DALIGluonIterator(_DALIMXNetIteratorBase):
                 of self._num_gpus * self.batch_size entries which exceeds 'size'.
                 Setting this flag to False will cause the iterator to return
                 exactly 'size' entries.
-    last_batch_policy, optional, default = LastBatchPolicy.FILL
-                What to do with the last batch when there is no enough samples in the epoch
+    last_batch_policy: optional, default = LastBatchPolicy.FILL
+                What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
                 Whether the last batch provided by DALI is padded with the last sample

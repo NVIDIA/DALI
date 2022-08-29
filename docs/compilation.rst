@@ -208,7 +208,6 @@ disable them.
     --disable-doc \
     --disable-avdevice \
     --disable-swresample \
-    --disable-swscale \
     --disable-postproc \
     --disable-w32threads \
     --disable-os2threads \
@@ -216,7 +215,6 @@ disable them.
     --disable-dwt \
     --disable-error-resilience \
     --disable-lsp \
-    --disable-lzo \
     --disable-mdct \
     --disable-rdft \
     --disable-fft \

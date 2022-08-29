@@ -169,9 +169,9 @@ class DLL_PUBLIC ImageDecoderInstance {
   }
 };
 
-class DLL_PUBLIC ImageDecoder {
+class DLL_PUBLIC ImageDecoderFactory {
  public:
-  virtual ~ImageDecoder() = default;
+  virtual ~ImageDecoderFactory() = default;
 
   /**
    * @brief Gets the properties and capabilities of the codec

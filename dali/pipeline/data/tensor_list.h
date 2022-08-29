@@ -360,8 +360,9 @@ class DLL_PUBLIC TensorList {
    * @brief TensorList is always backed by contiguous buffer
    *        Cannot be set to noncontiguous
    */
-  void SetContiguous(bool contiguous) {
-    DALI_ENFORCE(contiguous, "TensorList cannot be made noncontiguous");
+  void SetContiguity(BatchContiguity state) {
+    DALI_ENFORCE(BatchContiguity::Noncontiguous != state,
+                 "TensorList cannot be made noncontiguous");
   }
 
   /**
@@ -837,6 +838,13 @@ class DLL_PUBLIC TensorList {
   }
 
   /** @} */  // end of ContiguousAccessorFunctions
+
+
+
+  // Next change removes the TensorList and replaces it by TensorVector. Heaving short lived
+  // access to the internals won't cause much coupling
+  template <typename InBackend>
+  friend class TensorVector;
 };
 
 }  // namespace dali

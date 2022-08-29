@@ -60,12 +60,6 @@ void DeleteAllBuffers(std::thread::id thread_id);
 void SetEnableMemStats(bool enabled);
 
 /**
- * @brief Adds an allocation to the statistics
- */
-template <typename MemoryKind>
-void AddMemStats(size_t size);
-
-/**
  * @brief Prints nvJPEG memory allocation statistics
  */
 void PrintMemStats();

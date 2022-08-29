@@ -19,6 +19,8 @@ import numpy as np
 import math
 import os
 import cv2
+import itertools
+from nose2.tools import params
 from test_utils import get_dali_extra_path
 
 data_root = get_dali_extra_path()
@@ -82,36 +84,49 @@ def check(result, input, tile, ratio, angle):
     assert np.all(result2 == input2)
 
 
-def test_gridmask_vs_cv():
-    batch_size = 4
-    for device in ['cpu', 'gpu']:
-        for (tile, ratio, angle) in [(40, 0.5, 0),
-                                     (100, 0.1, math.pi / 2),
-                                     (200, 0.7, math.pi / 3),
-                                     (150, 1 / 3, math.pi / 4),
-                                     (50, 0.532, 1),
-                                     (51, 0.38158387, 2.6810782),
-                                     (123, 0.456, 0.789)]:
-            pipe = get_pipeline(device, batch_size, tile, ratio, angle)
-            pipe.build()
-            results, inputs = pipe.run()
-            if device == 'gpu':
-                results, inputs = results.as_cpu(), inputs.as_cpu()
-            for i in range(batch_size):
-                yield check, results[i], inputs[i], tile, ratio, angle
+def run_test(batch_size, device, tile, ratio, angle):
+    pipe = get_pipeline(device, batch_size, tile, ratio, angle)
+    pipe.build()
+    results, inputs = pipe.run()
+    if device == 'gpu':
+        results, inputs = results.as_cpu(), inputs.as_cpu()
+    for i in range(batch_size):
+        check(results[i], inputs[i], tile, ratio, angle)
 
 
-def test_gridmask_vs_cv_random():
+devices = ['cpu', 'gpu']
+args = [
+    (40, 0.5, 0),
+    (100, 0.1, math.pi / 2),
+    (200, 0.7, math.pi / 3),
+    (150, 1 / 3, math.pi / 4),
+    (50, 0.532, 1),
+    (51, 0.38158387, 2.6810782),
+    (123, 0.456, 0.789)]
+
+
+@params(*itertools.product(devices, args))
+def test_gridmask_vs_cv(device, args):
     batch_size = 4
-    for device in ['cpu', 'gpu']:
-        pipe = get_random_pipeline(device, batch_size)
-        pipe.build()
-        for _ in range(16):
-            results, inputs, tiles, ratios, angles = pipe.run()
-            if device == 'gpu':
-                results, inputs = results.as_cpu(), inputs.as_cpu()
-            for i in range(batch_size):
-                tile = np.int32(tiles[i])
-                ratio = np.float32(ratios[i])
-                angle = np.float32(angles[i])
-                yield check, results[i], inputs[i], tile, ratio, angle
+    tile, ratio, angle = args
+    run_test(batch_size, device, tile, ratio, angle)
+
+
+def run_random_test(batch_size, device):
+    pipe = get_random_pipeline(device, batch_size)
+    pipe.build()
+    for _ in range(16):
+        results, inputs, tiles, ratios, angles = pipe.run()
+        if device == 'gpu':
+            results, inputs = results.as_cpu(), inputs.as_cpu()
+        for i in range(batch_size):
+            tile = np.int32(tiles[i])
+            ratio = np.float32(ratios[i])
+            angle = np.float32(angles[i])
+            check(results[i], inputs[i], tile, ratio, angle)
+
+
+@params(*devices)
+def test_gridmask_vs_cv_random(device):
+    batch_size = 4
+    run_random_test(batch_size, device)

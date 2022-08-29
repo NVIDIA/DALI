@@ -223,6 +223,7 @@ void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
       ws.stream(),
       static_cast<void**>(args.data()),
       NULL);
+    cudaResultCheck(result);
   }
 }
 

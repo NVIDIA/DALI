@@ -31,11 +31,6 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
   LibJpegTurboDecoderInstance(int device_id, ThreadPool *tp)
   : BatchParallelDecoderImpl(device_id, tp) {}
 
-  using BatchParallelDecoderImpl::CanDecode;
-  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) override {
-    return opts.format != DALI_YCbCr;  // not supported by libjpeg-turbo
-  }
-
   using BatchParallelDecoderImpl::Decode;
   DecodeResult Decode(SampleView<CPUBackend> out,
                       ImageSource *in,
@@ -62,7 +57,7 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
   bool use_fast_idct_ = false;
 };
 
-class LibJpegTurboDecoder : public ImageDecoder {
+class LibJpegTurboDecoderFactory : public ImageDecoderFactory {
  public:
   ImageDecoderProperties GetProperties() const override {
     static const auto props = []() {
