@@ -28,7 +28,7 @@ TEST(NvJpegDecoderTest, Factory) {
   int device_id;
   CUDA_CALL(cudaGetDevice(&device_id));
 
-  NvJpegDecoder decoder;
+  NvJpegDecoderFactory decoder;
   EXPECT_TRUE(decoder.IsSupported(device_id));
   auto props = decoder.GetProperties();
   EXPECT_TRUE(static_cast<bool>(props.supported_input_kinds & InputKind::HostMemory));;
@@ -66,7 +66,7 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
   static const auto dtype = type2id<OutputType>::value;
 
   std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return NvJpegDecoder().Create(this->GetDeviceId(), tp);
+    return NvJpegDecoderFactory().Create(this->GetDeviceId(), tp);
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {

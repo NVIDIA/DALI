@@ -86,7 +86,7 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
   void DecodeJpegSample(ImageSource& in, uint8_t *out, DecodeParams opts, DecodingContext &ctx);
 };
 
-class NvJpegDecoder : public ImageDecoder {
+class NvJpegDecoderFactory : public ImageDecoderFactory {
  public:
   ImageDecoderProperties GetProperties() const override {
     ImageDecoderProperties props;
