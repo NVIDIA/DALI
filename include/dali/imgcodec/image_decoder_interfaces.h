@@ -107,8 +107,14 @@ void OutputShape(OutShape &out_shape,
 }
 
 struct DecodeResult {
-  bool success;
-  std::exception_ptr exception;
+  bool success = false;
+  std::exception_ptr exception = nullptr;
+
+  static DecodeResult Success() { return { true, {} }; }
+
+  static DecodeResult Failure(std::exception_ptr exception) {
+    return { false, std::move(exception) };
+  }
 };
 
 struct ImageDecoderProperties {
@@ -129,36 +135,66 @@ struct ImageDecoderProperties {
   bool fallback = true;
 };
 
-class DLL_PUBLIC DeferredDecodeResults {
+class DecodeResultsSharedState;
+class FutureDecodeResults;
+
+class DLL_PUBLIC DecodeResultsPromise {
  public:
-  explicit DeferredDecodeResults(int num_samples);
-  ~DeferredDecodeResults();
+  explicit DecodeResultsPromise(int num_samples);
 
-  DeferredDecodeResults(const DeferredDecodeResults &) = delete;
-  DeferredDecodeResults(DeferredDecodeResults &&other) : impl_(other.impl_) {
-    other.impl_ = nullptr;
-  }
+  FutureDecodeResults get_future() const;
 
-  DeferredDecodeResults &operator=(const DeferredDecodeResults &) = delete;
-  DeferredDecodeResults &operator=(DeferredDecodeResults &&other) {
+  int num_samples() const;
+
+  void set(int index, DecodeResult res);
+
+  void set_all(span<DecodeResult> res);
+
+ private:
+  std::shared_ptr<DecodeResultsSharedState> impl_ = nullptr;
+};
+
+class DLL_PUBLIC FutureDecodeResults {
+ public:
+  ~FutureDecodeResults();
+
+  FutureDecodeResults(FutureDecodeResults &&other) = default;
+  FutureDecodeResults(const FutureDecodeResults &other) = delete;
+
+  FutureDecodeResults &operator=(const FutureDecodeResults &) = delete;
+  FutureDecodeResults &operator=(FutureDecodeResults &&other) {
     std::swap(impl_, other.impl_);
     return *this;
   }
 
-  void wait() const;
+  void wait_all() const;
+
+  cspan<int> wait_new() const;
+
+  void wait_one(int index) const;
 
   int num_samples() const;
 
-  span<DecodeResult> get_all() const;
+  /**
+   * @brief Gets a pointer to all results.
+   *
+   * @param wait if true, the function waits for the results; otherwise it returns the span
+   *             immediately and the caller must wait until an entry at any particular index is
+   *             available.
+   */
+  span<DecodeResult> get_all(bool wait) const;
 
+  /**
+   * @brief Waits for a result and returns it.
+   *
+   * Unlike the `get_all` function, this function always waits and returns the results by value.
+   */
   DecodeResult get_one(int index) const;
 
-  void set(int index, DecodeResult res);
-
  private:
-  DecodeResult get_no_wait(int index) const;
-  class Impl;
-  Impl *impl_ = nullptr;
+  FutureDecodeResults(std::shared_ptr<DecodeResultsSharedState> impl);
+  friend class DecodeResultsPromise;
+  std::shared_ptr<DecodeResultsSharedState> impl_ = nullptr;
 };
 
 struct DecodeContext {
@@ -174,64 +210,91 @@ class DLL_PUBLIC ImageDecoderInstance {
   /**
    * @brief Checks whether this codec can decode this encoded image with given parameters
    */
-  virtual bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi = {}) = 0;
+  virtual bool CanDecode(DecodeContext ctx,
+                         ImageSource *in,
+                         DecodeParams opts,
+                         const ROI &roi = {}) = 0;
 
   /**
    * @brief Batch version of CanDecode
    */
-  virtual std::vector<bool> CanDecode(cspan<ImageSource *> in,
+  virtual std::vector<bool> CanDecode(DecodeContext ctx,
+                                      cspan<ImageSource *> in,
                                       DecodeParams opts,
                                       cspan<ROI> rois = {}) = 0;
 
   /**
    * @brief Decodes a single image to a host buffer
    */
-  virtual DecodeResult Decode(SampleView<CPUBackend> out,
+  virtual DecodeResult Decode(DecodeContext ctx,
+                              SampleView<CPUBackend> out,
                               ImageSource *in,
                               DecodeParams opts,
                               const ROI &roi = {}) = 0;
 
-  /* virtual DeferredDecodeResults SheduleDecode(DecodeContext &ctx,
-                                              SampleView<CPUBackend> out,
-                                              ImageSource *in,
-                                              DecodeParams opts,
-                                              const ROI &roi = {}) = 0; */
+  /**
+   * @brief Schedules decoding of an image to a host buffer
+   */
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             SampleView<CPUBackend> out,
+                                             ImageSource *in,
+                                             DecodeParams opts,
+                                             const ROI &roi = {}) = 0;
 
   /**
    * @brief Decodes a batch of images to host buffers
    */
-  virtual std::vector<DecodeResult> Decode(/* DecodeContext &ctx, */
+  virtual std::vector<DecodeResult> Decode(DecodeContext ctx,
                                            span<SampleView<CPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
                                            cspan<ROI> rois = {}) = 0;
 
   /**
-   * @brief Decodes a batch of images to host buffers
+   * @brief Schedules decoding of a batch of images to host buffers
    */
-  /* virtual DeferredDecodeResults ScheduleDecode(DecodeContext &ctx,
-                                               span<SampleView<CPUBackend>> out,
-                                               cspan<ImageSource *> in,
-                                               DecodeParams opts,
-                                               cspan<ROI> rois = {}) = 0; */
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             span<SampleView<CPUBackend>> out,
+                                             cspan<ImageSource *> in,
+                                             DecodeParams opts,
+                                             cspan<ROI> rois = {}) = 0;
 
   /**
    * @brief Decodes a single image to a device buffer
    */
-  virtual DecodeResult Decode(cudaStream_t stream,
+  virtual DecodeResult Decode(DecodeContext ctx,
                               SampleView<GPUBackend> out,
                               ImageSource *in,
                               DecodeParams opts,
                               const ROI &roi = {}) = 0;
 
+
   /**
-   * @brief Decodes a single image to device buffers
+   * @brief Schedules decoding of a single image to a device buffer
    */
-  virtual std::vector<DecodeResult> Decode(cudaStream_t stream,
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             SampleView<GPUBackend> out,
+                                             ImageSource *in,
+                                             DecodeParams opts,
+                                             const ROI &roi = {}) = 0;
+
+  /**
+   * @brief Decodes a batch of images to device buffers
+   */
+  virtual std::vector<DecodeResult> Decode(DecodeContext ctx,
                                            span<SampleView<GPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
                                            cspan<ROI> rois = {}) = 0;
+
+  /**
+   * @brief Scheduls decoding of a batch of images to device buffers
+   */
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             span<SampleView<GPUBackend>> out,
+                                             cspan<ImageSource *> in,
+                                             DecodeParams opts,
+                                             cspan<ROI> rois = {}) = 0;
   /**
    * @brief Sets a codec-specific parameter
    */
@@ -275,7 +338,7 @@ class DLL_PUBLIC ImageDecoderFactory {
    *
    * Note: For decoders that carry no state, this may just increase reference count on a singleton.
    */
-  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const = 0;
+  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id) const = 0;
 };
 
 }  // namespace imgcodec

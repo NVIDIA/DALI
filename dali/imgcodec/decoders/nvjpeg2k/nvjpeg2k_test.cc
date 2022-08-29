@@ -108,8 +108,8 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
  protected:
   static const auto dtype = type2id<OutputType>::value;
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return NvJpeg2000DecoderFactory().Create(this->GetDeviceId(), tp);
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
+    return NvJpeg2000DecoderFactory().Create(this->GetDeviceId());
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {

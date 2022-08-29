@@ -21,7 +21,8 @@
 namespace dali {
 namespace imgcodec {
 
-DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
+DecodeResult LibJpegTurboDecoderInstance::Decode(DecodeContext ctx,
+                                                 SampleView<CPUBackend> out,
                                                  ImageSource *in,
                                                  DecodeParams opts,
                                                  const ROI &roi) {

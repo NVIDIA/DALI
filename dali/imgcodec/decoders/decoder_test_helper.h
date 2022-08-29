@@ -57,7 +57,9 @@ class DecoderTestBase : public ::testing::Test {
   TensorView<StorageCPU, const OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
                                                   const ROI &roi = {}) {
     EXPECT_TRUE(Parser()->CanParse(src));
-    EXPECT_TRUE(Decoder()->CanDecode(src, opts));
+    DecodeContext ctx;
+    ctx.tp = &tp_;
+    EXPECT_TRUE(Decoder()->CanDecode(ctx, src, opts));
 
     ImageInfo info = Parser()->GetInfo(src);
     auto shape = AdjustToRoi(info.shape, roi);
@@ -71,16 +73,17 @@ class DecoderTestBase : public ::testing::Test {
     if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
       auto tv = output_.cpu()[0];
       SampleView<CPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
-      DecodeResult decode_result = Decoder()->Decode(view, src, opts, roi);
+      DecodeResult decode_result = Decoder()->Decode(ctx, view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
       return tv;
     } else {  // GPU
       auto tv = output_.gpu()[0];
       SampleView<GPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
-      auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
-      auto decode_result = Decoder()->Decode(stream, view, src, opts, roi);
+      auto stream_lease = CUDAStreamPool::instance().Get(GetDeviceId());
+      ctx.stream = stream_lease;
+      auto decode_result = Decoder()->Decode(ctx, view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
-      CUDA_CALL(cudaStreamSynchronize(stream));
+      CUDA_CALL(cudaStreamSynchronize(ctx.stream));
       return output_.cpu()[0];
     }
   }
@@ -245,7 +248,8 @@ class DecoderTestBase : public ::testing::Test {
   * @brief Returns the decoder used.
   */
   std::shared_ptr<ImageDecoderInstance> Decoder() {
-    if (!decoder_) decoder_ = CreateDecoder(tp_);
+    if (!decoder_)
+      decoder_ = CreateDecoder();
     return decoder_;
   }
 
@@ -280,7 +284,7 @@ class DecoderTestBase : public ::testing::Test {
   /**
   * @brief Creates a decoder instance, working on a specified thread pool.
   */
-  virtual std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) = 0;
+  virtual std::shared_ptr<ImageDecoderInstance> CreateDecoder() = 0;
 
   /**
   * @brief Creates a parser to be used.
