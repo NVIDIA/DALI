@@ -38,11 +38,12 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, any> &params);
   ~NvJpeg2000DecoderInstance();
 
+  /*
   using BatchParallelDecoderImpl::CanDecode;
   bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
     // TODO(staniewzki): add support for roi and other data types
     return !roi && (opts.dtype == DALI_UINT8);
-  }
+  } */
 
   using BatchParallelDecoderImpl::DecodeImplTask;
   DecodeResult DecodeImplTask(int thread_idx,
@@ -83,7 +84,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
   }
 
- private:
   struct TileDecodingResources {
     NvJpeg2kDecodeState state;
     CUDAEvent decode_event;
@@ -100,11 +100,12 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
                        size_t device_memory_padding, int device_id)
     : nvjpeg2k_decode_state(nvjpeg2k_handle)
-    , intermediate_buffer()
+    , intermediate_buffers()
     , nvjpeg2k_stream(NvJpeg2kStream::Create())
     , decode_event(CUDAEvent::Create(device_id))
     , cuda_stream(CUDAStreamPool::instance().Get(device_id)) {
-      intermediate_buffer.resize(device_memory_padding / 8);
+      for (auto &buf : intermediate_buffers)
+        buf.resize(device_memory_padding / 8);
       CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
 
       constexpr int kNumParallelTiles = 10;
@@ -115,7 +116,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
 
     NvJpeg2kDecodeState nvjpeg2k_decode_state;
-    DeviceBuffer<uint8_t> intermediate_buffer;
+    std::array<DeviceBuffer<uint8_t>, 2> intermediate_buffers;
     NvJpeg2kStream nvjpeg2k_stream;
     CUDAEvent decode_event;
     CUDAStreamLease cuda_stream;
@@ -127,7 +128,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
    * @brief Context for image decoding, one per picture.
    */
   struct Context {
-    Context(DecodeParams opts, const ROI &roi, const PerThreadResources &res)
+    Context(DecodeParams opts, const ROI &roi, PerThreadResources &res)
     : opts(opts)
     , roi(roi)
     , nvjpeg2k_decode_state(res.nvjpeg2k_decode_state)
@@ -153,9 +154,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     span<const TileDecodingResources> tile_dec_res;
   };
 
+ private:
   bool ParseJpeg2000Info(ImageSource *in, Context &ctx);
-  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx);
-  bool ConvertData(void *in, uint8_t *out, const Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, void *out, const Context &ctx);
 
   /**
    * @brief Sets up nvjpeg2kImage_t, so it points to specific output area
@@ -168,7 +169,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
    * @param ctx decoding context
    * @return nvjpeg2kImage_t
    */
-  nvjpeg2kImage_t PrepareOutputArea(uint8_t *out,
+  nvjpeg2kImage_t PrepareOutputArea(void *out,
                                     void **pixel_data,
                                     size_t *pitch_in_bytes,
                                     int64_t output_offset_x,

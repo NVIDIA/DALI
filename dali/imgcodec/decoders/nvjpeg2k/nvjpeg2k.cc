@@ -17,6 +17,7 @@
 #include <vector>
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k.h"
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_memory.h"
+#include "dali/imgcodec/decoders/nvjpeg2k/convert_gpu.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
 #include "dali/core/static_switch.h"
@@ -35,6 +36,45 @@ bool check_status(nvjpeg2kStatus_t status, ImageSource *in) {
     DALI_FAIL("Unreachable");  // silence a warning
   }
 }
+
+void AdjustBitdepth(void *in, void *out, const NvJpeg2000DecoderInstance::Context &ctx) {
+  TYPE_SWITCH(ctx.pixel_type, type2id, DataType, (uint8_t, uint16_t), (
+    AdjustBitdepthImpl<DataType>(reinterpret_cast<DataType*>(in),
+                                 reinterpret_cast<DataType*>(out),
+                                 ctx.bpp,
+                                 ctx.cuda_stream,
+                                 ctx.shape);
+  ), DALI_FAIL(make_string("Unsupported input type: ", ctx.pixel_type)));  // NOLINT
+}
+
+#define IMG_CONVERT_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
+
+void ConvertDataLayout(void *in, void *out, const NvJpeg2000DecoderInstance::Context &ctx) {
+  int64_t pixels_count = ctx.shape[0] * ctx.shape[1];
+  if (ctx.opts.format == DALI_GRAY) {
+    // Converting to Gray, dropping alpha channels if needed
+    assert(ctx.shape[2] >= 3);
+    TYPE_SWITCH(ctx.pixel_type, type2id, Input, (uint8_t, uint16_t), (
+      TYPE_SWITCH(ctx.opts.dtype, type2id, Output, (IMG_CONVERT_TYPES), (
+        PlanarRGBToGray<Output, Input>(
+          reinterpret_cast<Output*>(out), reinterpret_cast<Input*>(in), pixels_count,
+          ctx.pixel_type, ctx.cuda_stream);
+      ), DALI_FAIL(make_string("Unsupported output type: ", ctx.opts.dtype)));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type: ", ctx.pixel_type)));  // NOLINT
+  } else {
+    // Converting to interleaved, dropping alpha channels if needed
+    assert(ctx.shape[2] >= 3);
+    int req_nchannels = NumberOfChannels(ctx.opts.format, ctx.shape[2]);
+    TYPE_SWITCH(ctx.pixel_type, type2id, Input, (uint8_t, uint16_t), (
+      TYPE_SWITCH(ctx.opts.dtype, type2id, Output, (IMG_CONVERT_TYPES), (
+        PlanarToInterleaved<Output, Input>(
+          reinterpret_cast<Output*>(out), reinterpret_cast<Input*>(in), pixels_count,
+          req_nchannels, ctx.opts.format, ctx.pixel_type, ctx.cuda_stream);
+      ), DALI_FAIL(make_string("Unsupported output type: ", ctx.opts.dtype)));  // NOLINT
+    ), DALI_FAIL(make_string("Unsupported input type: ", ctx.pixel_type)));  // NOLINT
+  }
+}
+
 }  // namespace
 
 NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
@@ -88,9 +128,8 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in, Context &ctx)
   auto height = comp.component_height;
   auto width = comp.component_width;
   ctx.bpp = comp.precision;
-  DALI_ENFORCE(ctx.bpp == 8 || ctx.bpp == 16,
-               make_string("Unsupported bits per pixel value: ", ctx.bpp));
-  ctx.pixel_type = ctx.bpp == 8 ? DALI_UINT8 : DALI_UINT16;
+  DALI_ENFORCE(ctx.bpp <= 16, make_string("Unsupported bits per pixel value: ", ctx.bpp));
+  ctx.pixel_type = ctx.bpp <= 8 ? DALI_UINT8 : DALI_UINT16;
 
   for (uint32_t c = 1; c < ctx.image_info.num_components; c++) {
     CUDA_CALL(nvjpeg2kStreamGetImageComponentInfo(ctx.nvjpeg2k_stream, &comp, c));
@@ -110,17 +149,18 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in, Context &ctx)
   return true;
 }
 
-nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(uint8_t *out,
+nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(void *out,
                                                              void **pixel_data,
                                                              size_t *pitch_in_bytes,
                                                              int64_t output_offset_x,
                                                              int64_t output_offset_y,
                                                              const Context &ctx) {
+  uint8_t *out_as_bytes = static_cast<uint8_t*>(out);
   const int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
   const int64_t component_byte_size = ctx.shape[0] * ctx.shape[1] * pixel_size;
   const int64_t offset_byte_size = (ctx.shape[1] * output_offset_y + output_offset_x) * pixel_size;
   for (uint32_t c = 0; c < ctx.shape[2]; c++) {
-    pixel_data[c] = out + c * component_byte_size + offset_byte_size;
+    pixel_data[c] = out_as_bytes + c * component_byte_size + offset_byte_size;
     pitch_in_bytes[c] = ctx.shape[1] * pixel_size;
   }
 
@@ -133,7 +173,7 @@ nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(uint8_t *out,
   return image;
 }
 
-bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx) {
+bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const Context &ctx) {
   // allocating buffers
   void *pixel_data[NVJPEG_MAX_COMPONENT] = {};
   size_t pitch_in_bytes[NVJPEG_MAX_COMPONENT] = {};
@@ -202,29 +242,6 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, co
   }
 }
 
-bool NvJpeg2000DecoderInstance::ConvertData(void *in, uint8_t *out, const Context &ctx) {
-  int64_t pixels_count = ctx.shape[0] * ctx.shape[1];
-  if (ctx.opts.format == DALI_GRAY) {
-    // Converting to Gray, dropping alpha channels if needed
-    assert(ctx.shape[2] >= 3);
-    TYPE_SWITCH(ctx.pixel_type, type2id, Input, (uint8_t, uint16_t), (
-      PlanarRGBToGray<uint8_t, Input>(
-        out, reinterpret_cast<Input*>(in), pixels_count,
-        ctx.pixel_type, ctx.cuda_stream);
-    ), DALI_FAIL(make_string("Unsupported input type: ", ctx.pixel_type)));  // NOLINT
-  } else {
-    // Converting to interleaved, dropping alpha channels if needed
-    assert(ctx.shape[2] >= 3);
-    int req_nchannels = NumberOfChannels(ctx.opts.format, ctx.shape[2]);
-    TYPE_SWITCH(ctx.pixel_type, type2id, Input, (uint8_t, uint16_t), (
-      PlanarToInterleaved<uint8_t, Input>(
-        out, reinterpret_cast<Input*>(in), pixels_count,
-        req_nchannels, ctx.opts.format, ctx.pixel_type, ctx.cuda_stream);
-    ), DALI_FAIL(make_string("Unsupported input type: ", ctx.pixel_type)));  // NOLINT
-  }
-  return true;
-}
-
 DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
                                                        cudaStream_t stream,
                                                        SampleView<GPUBackend> out,
@@ -240,19 +257,37 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
 
   CUDA_CALL(cudaEventSynchronize(ctx.decode_event));
 
-  // nvJPEG2000 decodes into planar layout
-  bool is_conversion_needed = ctx.shape[2] > 1 || ctx.bpp == 16;
-  try {
-    if (!is_conversion_needed) {
-      result.success = DecodeJpeg2000(in, out.mutable_data<uint8_t>(), ctx);
-    } else {
-      auto &buffer = res.intermediate_buffer;
+  int buff_nr = 0;
+  auto get_output_ptr = [&](bool is_processed_later) {
+    if (is_processed_later) {
+      auto &buffer = res.intermediate_buffers[buff_nr++];
       buffer.clear();
       int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
       buffer.resize(volume(ctx.shape) * pixel_size);
-      result.success = DecodeJpeg2000(in, buffer.data(), ctx) &&
-                       ConvertData(buffer.data(), out.mutable_data<uint8_t>(), ctx);
+      return static_cast<void*>(buffer.data());
+    } else {
+      return out.raw_mutable_data();
     }
+  };
+
+  // nvJPEG2000 decodes into planar layout
+  bool is_layout_conversion_needed = ctx.shape[2] > 1 || ctx.pixel_type == DALI_UINT16;
+  bool is_bitdepth_adjustment_needed = ctx.bpp != 8 && ctx.bpp != 16;
+
+  try {
+    void *data_ptr = get_output_ptr(is_bitdepth_adjustment_needed ||
+                                    is_layout_conversion_needed);
+
+    result.success = DecodeJpeg2000(in, data_ptr, ctx);
+
+    if (is_bitdepth_adjustment_needed) {
+      void *out_ptr = get_output_ptr(is_layout_conversion_needed);
+      AdjustBitdepth(data_ptr, out_ptr, ctx);
+      data_ptr = out_ptr;
+    }
+
+    if (is_layout_conversion_needed)
+      ConvertDataLayout(data_ptr, out.raw_mutable_data(), ctx);
   } catch (...) {
     result.success = false;
     result.exception = std::current_exception();

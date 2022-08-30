@@ -110,17 +110,27 @@ void Convert_RGB_to_YCbCr(Output *out_data, const Input *in_data, int64_t npixel
                                                 stream);
 }
 
-
-template void PlanarToInterleaved<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t, int64_t,
-                                                     DALIImageType, DALIDataType, cudaStream_t);
-template void PlanarToInterleaved<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, int64_t,
-                                                    DALIImageType, DALIDataType, cudaStream_t);
-template void PlanarRGBToGray<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t, DALIDataType,
-                                                 cudaStream_t);
-template void PlanarRGBToGray<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, DALIDataType,
-                                                cudaStream_t);
 template void Convert_RGB_to_YCbCr<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t,
                                                      cudaStream_t);
+
+#define INSTANTIATE_OUTPUT_TYPE(T) \
+  template void PlanarToInterleaved<T, uint16_t>(T *, const uint16_t *, int64_t, int64_t, \
+                                                     DALIImageType, DALIDataType, cudaStream_t); \
+  template void PlanarToInterleaved<T, uint8_t>(T *, const uint8_t *, int64_t, int64_t, \
+                                                     DALIImageType, DALIDataType, cudaStream_t); \
+  template void PlanarRGBToGray<T, uint16_t>(T *, const uint16_t *, int64_t, \
+                                                     DALIDataType, cudaStream_t); \
+  template void PlanarRGBToGray<T, uint8_t>(T *, const uint8_t *, int64_t, \
+                                                     DALIDataType, cudaStream_t)
+
+INSTANTIATE_OUTPUT_TYPE(uint8_t);
+INSTANTIATE_OUTPUT_TYPE(uint16_t);
+INSTANTIATE_OUTPUT_TYPE(uint32_t);
+INSTANTIATE_OUTPUT_TYPE(int8_t);
+INSTANTIATE_OUTPUT_TYPE(int16_t);
+INSTANTIATE_OUTPUT_TYPE(int32_t);
+INSTANTIATE_OUTPUT_TYPE(float16);
+INSTANTIATE_OUTPUT_TYPE(float);
 
 }  // namespace imgcodec
 }  // namespace dali
