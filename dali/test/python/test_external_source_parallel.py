@@ -263,6 +263,56 @@ class ext_cb():
         return np.full(self.shape, sinfo.idx_in_epoch, dtype=np.int32)
 
 
+class ext_cb_batch():
+    def __init__(self, shapes, dtype):
+        self.shapes = shapes
+        self.dtype = dtype
+
+    def __call__(self, batch_info):
+        shape = self.shapes[batch_info.iteration % len(self.shapes)]
+        return np.full(shape, batch_info.iteration, dtype=self.dtype)
+
+
+@with_setup(utils.setup_function, utils.teardown_function)
+def _test_tensor_batch(batch_sizes, sample_shape):
+    dtype = np.uint8
+    shapes = [(batch_size,) + sample_shape for batch_size in batch_sizes]
+    batch_size = max(batch_sizes)
+
+    @dali.pipeline_def(batch_size=batch_size, num_threads=4, device_id=0,
+                       py_num_workers=2, py_start_method='spawn')
+    def pipeline():
+        batch = dali.fn.external_source(
+            source=ext_cb_batch(shapes, dtype,),
+            parallel=True, batch=True, batch_info=True)
+        return batch
+
+    pipe = pipeline()
+    pipe.build()
+    utils.capture_processes(pipe._py_pool)
+    for i, batch_size in enumerate(batch_sizes):
+        (batch,) = pipe.run()
+        assert len(batch) == batch_size, (
+            f"Expected batch size of {batch_size} in iteration {i}, "
+            f"but got batch size {len(batch)}.")
+        for sample in batch:
+            sample = np.array(sample)
+            assert sample.shape == sample_shape, (
+                f"Expected shape {sample_shape} in iteration {i}, "
+                f"but got sample of shape {sample.shape}.")
+            assert sample.dtype == dtype, (
+                f"Expected dtype {dtype} but got {sample.dtype}.")
+            assert np.all(sample == i), (
+                f"Expected all values in the sample to be equal {i}, "
+                f"but got sample {sample}.")
+
+
+def test_tensor_batch():
+    for batch_sizes in [[1, 1, 1], [5, 5, 5], [1, 5, 3]]:
+        for sample_shape in [tuple(), (3, 4), (1024, 1024)]:
+            yield _test_tensor_batch, batch_sizes, sample_shape
+
+
 @with_setup(utils.setup_function, utils.teardown_function)
 def _test_vs_non_parallel(batch_size, cb_parallel, cb_seq, batch, py_num_workers):
     pipe = dali.Pipeline(batch_size=batch_size, device_id=None, num_threads=5,
