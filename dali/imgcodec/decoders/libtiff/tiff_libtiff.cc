@@ -14,12 +14,12 @@
 
 #include "dali/imgcodec/decoders/tiff_libtiff.h"
 #include <tiffio.h>
-#include <vector>
 #include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
 #include "dali/imgcodec/util/convert.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/core/static_switch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 #define LIBTIFF_CALL_SUCCESS 1
 #define LIBTIFF_CALL(call)                                \
@@ -284,26 +284,26 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   else if (info.bit_depth <= 16) in_type_bits = 16;
   else if (info.bit_depth <= 32) in_type_bits = 32;
   else
-    DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth));
+    assert(false);
 
   TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
     VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
       using InputType = detail::depth2type<InTypeBits>::type;
 
-      std::vector<InputType> unpacked;
+      DynamicScratchpad scratchpad;
       InputType *row_in;
       if (info.bit_depth == InTypeBits) {
         row_in = static_cast<InputType *>(row_buf.get());
       } else {
-        unpacked.resize(volume(out_line_shape));
-        row_in = unpacked.data();
+        row_in = scratchpad.Alloc<mm::memory_kind::host>(volume(in_line_shape) * sizeof(InputType),
+                                                         sizeof(InputType));
       }
 
       OutType *const img_out = out.mutable_data<OutType>();
       for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
         LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), roi.begin[0] + roi_y, 0));
         if (info.bit_depth != InTypeBits) {
-          detail::UnpackBits(info.bit_depth, row_in, row_buf.get(), volume(out_line_shape));
+          detail::UnpackBits(info.bit_depth, row_in, row_buf.get(), volume(in_line_shape));
         }
         Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
                 row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
