@@ -1,4 +1,3 @@
-
 // Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,6 +58,9 @@ class DecodeResultsSharedState {
       return;
 
     std::unique_lock lock(mtx_);
+    cv_any_.wait(lock, [&]() {
+      return ready_indices_.size() == results_.size();
+    });
   }
 
   cspan<int> wait_new() {
