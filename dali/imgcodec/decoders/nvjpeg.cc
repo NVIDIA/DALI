@@ -146,6 +146,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
 
   try {
     if (roi) {
+      // TODO(msala) add support for ROI decoding
       throw std::runtime_error("ROI support is not implemented yet");
     }
 
