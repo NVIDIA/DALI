@@ -14,8 +14,9 @@
 
 #include <deque>
 #include <mutex>
+#include <numeric>
 #include <condition_variable>
-#include "dali/imgcodec/image_decoder_interfaces.h"
+#include "dali/imgcodec/decode_results.h"
 
 namespace dali {
 namespace imgcodec {
@@ -174,10 +175,14 @@ int FutureDecodeResults::num_samples() const {
   return impl_->results_.size();
 }
 
-span<DecodeResult> FutureDecodeResults::get_all(bool wait) const {
-  if (wait)
-    wait_all();
+cspan<DecodeResult> FutureDecodeResults::get_all_ref() const {
+  wait_all();
   return make_span(impl_->results_);
+}
+
+std::vector<DecodeResult> FutureDecodeResults::get_all_copy() const {
+  wait_all();
+  return impl_->results_;
 }
 
 DecodeResult FutureDecodeResults::get_one(int index) const {

@@ -23,6 +23,7 @@
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/imgcodec/image_format.h"
+#include "dali/imgcodec/decode_results.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/backend.h"
 
@@ -30,8 +31,6 @@ namespace dali {
 class ThreadPool;
 
 namespace imgcodec {
-template <typename T, span_extent_t E = dynamic_extent>
-using cspan = span<const T, E>;
 
 struct DecodeParams {
   DALIDataType  dtype   = DALI_UINT8;
@@ -106,17 +105,6 @@ void OutputShape(OutShape &out_shape,
   }
 }
 
-struct DecodeResult {
-  bool success = false;
-  std::exception_ptr exception = nullptr;
-
-  static DecodeResult Success() { return { true, {} }; }
-
-  static DecodeResult Failure(std::exception_ptr exception) {
-    return { false, std::move(exception) };
-  }
-};
-
 struct ImageDecoderProperties {
   /**
    * @brief Whether the codec can decode a region of interest without decoding the entire image
@@ -133,68 +121,6 @@ struct ImageDecoderProperties {
    *        an attempt will be made to use other compatible codecs
    */
   bool fallback = true;
-};
-
-class DecodeResultsSharedState;
-class FutureDecodeResults;
-
-class DLL_PUBLIC DecodeResultsPromise {
- public:
-  explicit DecodeResultsPromise(int num_samples);
-
-  FutureDecodeResults get_future() const;
-
-  int num_samples() const;
-
-  void set(int index, DecodeResult res);
-
-  void set_all(span<DecodeResult> res);
-
- private:
-  std::shared_ptr<DecodeResultsSharedState> impl_ = nullptr;
-};
-
-class DLL_PUBLIC FutureDecodeResults {
- public:
-  ~FutureDecodeResults();
-
-  FutureDecodeResults(FutureDecodeResults &&other) = default;
-  FutureDecodeResults(const FutureDecodeResults &other) = delete;
-
-  FutureDecodeResults &operator=(const FutureDecodeResults &) = delete;
-  FutureDecodeResults &operator=(FutureDecodeResults &&other) {
-    std::swap(impl_, other.impl_);
-    return *this;
-  }
-
-  void wait_all() const;
-
-  cspan<int> wait_new() const;
-
-  void wait_one(int index) const;
-
-  int num_samples() const;
-
-  /**
-   * @brief Gets a pointer to all results.
-   *
-   * @param wait if true, the function waits for the results; otherwise it returns the span
-   *             immediately and the caller must wait until an entry at any particular index is
-   *             available.
-   */
-  span<DecodeResult> get_all(bool wait) const;
-
-  /**
-   * @brief Waits for a result and returns it.
-   *
-   * Unlike the `get_all` function, this function always waits and returns the results by value.
-   */
-  DecodeResult get_one(int index) const;
-
- private:
-  explicit FutureDecodeResults(std::shared_ptr<DecodeResultsSharedState> impl);
-  friend class DecodeResultsPromise;
-  std::shared_ptr<DecodeResultsSharedState> impl_ = nullptr;
 };
 
 struct DecodeContext {

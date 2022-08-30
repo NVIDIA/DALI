@@ -19,7 +19,7 @@
 #include <condition_variable>
 #include <chrono>
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/imgcodec/image_decoder_interfaces.h"
+#include "dali/imgcodec/decode_results.h"
 
 namespace dali {
 namespace imgcodec {
@@ -65,7 +65,8 @@ TEST(FutureDecodeResultsTest, Benchmark) {
     }, 0, true);
     auto future = res.get_future();
     future.wait_all();
-    future.get_all(true);
+    for (int  i = 0; i < res.num_samples(); i++)
+      future.get_one(i);
     tp.WaitForWork();
   }
   auto end = std::chrono::high_resolution_clock::now();

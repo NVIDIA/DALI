@@ -59,9 +59,7 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
                                    cspan<ROI> rois) override {
-    auto future = ScheduleDecode(std::move(ctx), out, in, opts, rois);
-    auto res = future.get_all(true);
-    return std::vector<DecodeResult>(res.begin(), res.end());
+    return ScheduleDecode(std::move(ctx), out, in, opts, rois).get_all();
   }
 
   std::vector<DecodeResult> Decode(DecodeContext ctx,
@@ -69,9 +67,7 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
                                    cspan<ROI> rois) override {
-    auto future = ScheduleDecode(ctx, out, in, opts, rois);
-    auto res = future.get_all(true);
-    return std::vector<DecodeResult>(res.begin(), res.end());
+    return ScheduleDecode(ctx, out, in, opts, rois).get_all();
   }
 
   DecodeResult Decode(DecodeContext ctx, SampleView<CPUBackend> out, ImageSource *in,
