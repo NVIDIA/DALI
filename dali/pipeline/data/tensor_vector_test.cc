@@ -135,6 +135,7 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
   for (auto contiguity : {BatchContiguity::Contiguous, BatchContiguity::Noncontiguous}) {
     TensorVector<TypeParam> tv;
     tv.SetContiguity(contiguity);
+    tv.SetLayout("HWC");
     tv.set_pinned(true);
     auto shape0 = TensorListShape<>({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
     tv.Resize(shape0, DALI_UINT8);
@@ -142,14 +143,17 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 3; i++) {
       EXPECT_EQ(tv[i].type(), DALI_UINT8);
       EXPECT_EQ(tv[i].shape(), shape0[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "HWC");
     }
 
     auto shape1 = TensorListShape<>({{1, 2}, {3, 4}});
     tv.Resize(shape1, DALI_FLOAT);
+    tv.SetLayout("WC");
     EXPECT_EQ(tv.shape().num_samples(), 2);
     for (int i = 0; i < 2; i++) {
       EXPECT_EQ(tv[i].type(), DALI_FLOAT);
       EXPECT_EQ(tv[i].shape(), shape1[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "WC");
     }
 
     auto shape2 = TensorListShape<>({{2, 3}, {4, 5}, {5, 6}, {6, 7}, {7, 8}});
@@ -158,6 +162,7 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 5; i++) {
       EXPECT_EQ(tv[i].type(), DALI_FLOAT64);
       EXPECT_EQ(tv[i].shape(), shape2[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "WC");
     }
 
     auto shape3 = TensorListShape<>({{2, 3}, {4, 5}, {5, 6}});
@@ -166,14 +171,17 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 3; i++) {
       EXPECT_EQ(tv[i].type(), DALI_FLOAT64);
       EXPECT_EQ(tv[i].shape(), shape3[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "WC");
     }
 
     auto shape4 = TensorListShape<>({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+    tv.SetLayout("HWC");
     tv.Resize(shape4, DALI_UINT8);
     EXPECT_EQ(tv.shape().num_samples(), 3);
     for (int i = 0; i < 3; i++) {
       EXPECT_EQ(tv[i].type(), DALI_UINT8);
       EXPECT_EQ(tv[i].shape(), shape4[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "HWC");
     }
 
     auto shape5 =
@@ -183,6 +191,7 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 6; i++) {
       EXPECT_EQ(tv[i].type(), DALI_UINT8);
       EXPECT_EQ(tv[i].shape(), shape5[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "HWC");
     }
   }
 }
