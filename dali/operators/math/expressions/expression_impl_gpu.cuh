@@ -25,6 +25,37 @@
 
 namespace dali {
 
+inline bool NeedBroadcast(span<const ExtendedTileDesc> tiles) {
+  for (const auto &tile : tiles) {
+    SmallVector<const TensorListShape<>*, kMaxArity> shapes_ptrs;
+    for (const auto &arg : tile.args)
+      shapes_ptrs.push_back(&arg.shape);
+    if (NeedBroadcast(make_span(shapes_ptrs)))
+      return true;
+  }
+  return false;
+}
+
+struct SampleDescGPU {
+  static constexpr int kMaxDims = 16;
+
+  struct {
+    void *ptr;
+    fast_div<uint64_t> strides[kMaxDims];
+    int64_t shape[kMaxDims];
+  } out;
+
+  struct {
+    const void *ptr;
+    int64_t shape[kMaxDims];
+    int64_t strides[kMaxDims];
+  } in_args[kMaxArity];
+
+  int nargs;
+  int ndim;
+  bool needs_broadcasting;
+};
+
 /**
  * @brief Loop over tile of `extent` length
  */
@@ -195,10 +226,11 @@ __device__ void ExecuteTernaryOp(Result *result,
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
  */
 template <ArithmeticOp op, typename Result, typename Input>
-__global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles) {
+__global__ void ExecuteTiledUnOp(const SampleDescGPU *samples, const TileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
-  auto output = static_cast<Result *>(tile.output.data);
-  auto in = static_cast<const Input *>(tile.args[0].data);
+  const auto &sample = samples[tile.sample_idx];
+  auto output = static_cast<Result *>(sample.output.data) + tile.desc.offset;
+  auto in = static_cast<const Input *>(sample.args[0].data) + tile.desc.offset;
   ExecuteUnOp<op>(output, in, volume(tile.desc.extent_size));
 }
 
@@ -207,13 +239,47 @@ __global__ void ExecuteTiledUnOp(const ExtendedTileDesc *tiles) {
  */
 template <ArithmeticOp op, typename Result, typename Left, typename Right, bool IsLeftTensor,
           bool IsRightTensor>
-__global__ void ExecuteTiledBinOp(const ExtendedTileDesc *tiles) {
+__global__ void ExecuteTiledBinOp(const SampleDescGPU *samples, const ExtendedTileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
-  auto output = static_cast<Result *>(tile.output.data);
-  auto left = static_cast<const Left *>(tile.args[0].data);
-  auto right = static_cast<const Right *>(tile.args[1].data);
-  ExecuteBinOp<op>(output, expression_detail::Pass<IsLeftTensor>(left),
-                   expression_detail::Pass<IsRightTensor>(right), volume(tile.desc.extent_size));
+  const auto &sample = samples[tile.sample_idx];
+  auto output = static_cast<Result *>(sample.output.data) + tile.desc.offset;
+  auto left = static_cast<const Left *>(sample.args[0].data) + tile.desc.offset;
+  auto right = static_cast<const Right *>(sample.args[1].data) + tile.desc.offset;
+  if (!sample.needs_broadcasting) {
+    ExecuteBinOp<op>(output,
+                     expression_detail::Pass<IsLeftTensor>(left),
+                     expression_detail::Pass<IsRightTensor>(right),
+                     volume(tile.desc.extent_size));
+  } else {
+    ExecuteBinOp<op>(output,
+                     expression_detail::Pass<IsLeftTensor>(left),
+                     expression_detail::Pass<IsRightTensor>(right),
+                     volume(tile.desc.extent_size),
+                     sample.output.strides,
+                     sample.args[0].strides,
+                     sample.args[1].strides);
+  }
+}
+
+/**
+ * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
+ */
+template <ArithmeticOp op, typename Result, typename Left, typename Right, bool IsLeftTensor,
+          bool IsRightTensor>
+__global__ void ExecuteTiledBinOpND(const ExtendedTileDesc *tiles) {
+  const auto &tile = tiles[blockIdx.y];
+  const auto &sample = samples[tile.sample_idx];
+  auto output = static_cast<Result *>(sample.output.data) + tile.desc.offset;
+  auto left = static_cast<const Left *>(sample.args[0].data) + tile.desc.offset;
+  auto right = static_cast<const Right *>(sample.args[1].data) + tile.desc.offset;
+  using meta_t = arithm_meta<op, GPUBackend>;
+  ExecuteBinOp<op>(output,
+                   expression_detail::Pass<IsLeftTensor>(left),
+                   expression_detail::Pass<IsRightTensor>(right),
+                   volume(tile.desc.extent_size),
+                   sample.output.strides,
+                   sample.args[0].strides,
+                   sample.args[1].strides);
 }
 
 
@@ -247,10 +313,20 @@ struct InvokerUnOp {
 template <ArithmeticOp op, typename Result, typename Left, typename Right, bool IsLeftTensor,
           bool IsRightTensor>
 struct InvokerBinOp {
-  static void Invoke(const ExtendedTileDesc *tiles, dim3 grid, dim3 block, cudaStream_t stream) {
+  static void Invoke(const ExtendedTileDesc *tiles, dim3 grid, dim3 block, cudaStream_t stream, bool need_bcast) {
+    if (need_bcast) {
+      ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
+          <<<grid, block, 0, stream>>>(tiles);
+    } else {
+      ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
+          <<<grid, block, 0, stream>>>(tiles);
+    }
+  }
+
+  static void Invoke1D(const ExtendedTileDesc *tiles, dim3 grid, dim3 block, cudaStream_t stream) {
     ExecuteTiledBinOp<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
         <<<grid, block, 0, stream>>>(tiles);
-  }
+
 };
 
 template <ArithmeticOp op, typename Result,
@@ -273,14 +349,22 @@ class ExprImplGPUInvoke : public ExprImplBase {
     kernels::DynamicScratchpad s({}, ctx.stream);
     auto *tiles_pinned = s.ToPinned(tiles);
     auto *tiles_gpu = s.ToGPU(ctx.stream, make_span(tiles_pinned, tiles.size()));
+
+    int nsamples = tiles.size();
+    auto sample_descs = ctx.scratchpad->Allocate<mm::memory_kind::pinned, SampleDescGPU>(nsamples);
+    for (int i = 0; i < nsamples; i++) {
+      auto &sample = sample_descs[i];
+      sample.out.ptr = 
+    }
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
-    Invoker::Invoke(tiles_gpu, grid, block, ctx.stream);
+    auto need_bcast = NeedBroadcast(tiles);
+    Invoker::Invoke(tiles_gpu, grid, block, ctx.stream, need_bcast);
   }
 
   // TODO(janton): implement this
-  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
-    DALI_FAIL("Logic error");
+  void Execute(ExprImplContext &ctx, span<const SampleDesc> samples) override {
+    DALI_FAIL("logic error");
   }
 
  private:
