@@ -17,6 +17,7 @@
 
 #include <nvjpeg.h>
 #include <memory>
+#include <utility>
 #include <vector>
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_helper.h"

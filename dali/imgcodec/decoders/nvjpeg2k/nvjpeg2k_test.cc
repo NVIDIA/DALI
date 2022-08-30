@@ -94,8 +94,7 @@ TEST(NvJpeg2000DecoderTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, device_id, false, "nvjpeg2k decoder test");
-  auto instance = decoder.Create(device_id, tp);
+  auto instance = decoder.Create(device_id);
   EXPECT_NE(instance, nullptr);
 }
 

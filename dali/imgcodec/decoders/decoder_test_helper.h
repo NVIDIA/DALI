@@ -97,9 +97,12 @@ class DecoderTestBase : public ::testing::Test {
     int n = in.size();
     std::vector<TensorShape<>> shape(n);
 
+    DecodeContext ctx;
+    ctx.tp = &tp_;
+
     for (int i = 0; i < n; i++) {
       EXPECT_TRUE(Parser()->CanParse(in[i]));
-      EXPECT_TRUE(Decoder()->CanDecode(in[i], opts));
+      EXPECT_TRUE(Decoder()->CanDecode(ctx, in[i], opts));
       ImageInfo info = Parser()->GetInfo(in[i]);
       shape[i] = AdjustToRoi(info.shape, rois.empty() ? ROI{} : rois[i]);
     }
@@ -111,7 +114,7 @@ class DecoderTestBase : public ::testing::Test {
       std::vector<SampleView<CPUBackend>> view(n);
       for (int i = 0; i < n; i++)
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
-      auto res = Decoder()->Decode(make_span(view), in, opts, rois);
+      auto res = Decoder()->Decode(ctx, make_span(view), in, opts, rois);
       for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
       return tlv;
@@ -121,7 +124,8 @@ class DecoderTestBase : public ::testing::Test {
       for (int i = 0; i < n; i++)
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
-      auto res = Decoder()->Decode(stream, make_span(view), in, opts, rois);
+      ctx.stream = stream;
+      auto res = Decoder()->Decode(ctx, make_span(view), in, opts, rois);
       for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
       CUDA_CALL(cudaStreamSynchronize(stream));
