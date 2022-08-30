@@ -205,20 +205,23 @@ DLL_PUBLIC inline bool PropagateShapes(TensorListShape<> &result_shape,
   for (int i = 0; i < subexpression_count; i++) {
     needed_broadcasting |= PropagateShapes<Backend>(shapes[i], func[i], ws, batch_size);
   }
-
-  auto shapes_span = make_cspan(shapes);
-  if (!CanBroadcast(shapes_span)) {
+  SmallVector<const TensorListShape<>*, kMaxArity> shapes_ptrs;
+  shapes.reserve(shapes.size());
+  for (const auto& sh : shapes)
+    shapes_ptrs.push_back(&sh);
+  auto shapes_ptrs_span = make_span(shapes_ptrs);
+  if (!CanBroadcast(shapes_ptrs_span)) {
     std::stringstream ss;
     ss << "Can't broadcast shapes:";
-    for (auto &sh : shapes_span) {
-      ss << " " << sh;
+    for (auto &sh : shapes_ptrs_span) {
+      ss << " " << *sh;
     }
     DALI_FAIL(ss.str());
   }
 
-  BroadcastShape(result_shape, shapes_span);
+  BroadcastShape(result_shape, shapes_ptrs_span);
   func.SetShape(result_shape);
-  needed_broadcasting |= NeedBroadcasting(shapes_span);
+  needed_broadcasting |= NeedBroadcasting(shapes_ptrs_span);
   return needed_broadcasting;
 }
 
