@@ -24,7 +24,7 @@ namespace dali {
 namespace imgcodec {
 
 namespace {
-bool handle_decode_ret_status(nvjpeg2kStatus_t status, ImageSource *in) {
+bool check_status(nvjpeg2kStatus_t status, ImageSource *in) {
   if (status == NVJPEG2K_STATUS_SUCCESS) {
     return true;
   } else if (status == NVJPEG2K_STATUS_BAD_JPEG || status == NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED) {
@@ -137,7 +137,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, co
     auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, 0, 0, ctx);
     auto ret = nvjpeg2kDecode(nvjpeg2k_handle_, ctx.nvjpeg2k_decode_state,
                               ctx.nvjpeg2k_stream, &output_image, ctx.cuda_stream);
-    return handle_decode_ret_status(ret, in);
+    return check_status(ret, in);
   } else {
     // Decode tile by tile: nvjpeg2kDecodeImage seems to be bugged
     auto &image_info = ctx.image_info;
@@ -187,7 +187,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, uint8_t *out, co
                                         ctx.cuda_stream);
 
           if (ret != NVJPEG2K_STATUS_SUCCESS)
-            return handle_decode_ret_status(ret, in);
+            return check_status(ret, in);
 
           CUDA_CALL(cudaEventRecord(per_tile_ctx.decode_event, ctx.cuda_stream));
         }
