@@ -88,6 +88,20 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
     float eps = 1;
     this->AssertClose(decoded, ref, eps);
   }
+
+  void RunSingleYCbCrTest() {
+    ImageBuffer image(from_dali_extra("db/single/jpeg/134/site-1534685_1280.jpg"));
+
+    auto params = this->GetParams();
+    params.format = DALI_YCbCr;
+
+    auto decoded = this->Decode(&image.src, params);
+    auto ref = this->ReadReferenceFrom(
+      from_dali_extra("db/single/reference/jpeg/site-1534685_1280_ycbcr.npy"));
+
+    float eps = 1;
+    this->AssertClose(decoded, ref, eps);
+  }
 };
 
 using DecodeOutputTypes = ::testing::Types<uint8_t>;
@@ -95,6 +109,10 @@ TYPED_TEST_SUITE(NvJpegDecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpegDecoderTest, DecodeSingle) {
   this->RunSingleTest();
+}
+
+TYPED_TEST(NvJpegDecoderTest, DecodeSingleYCbCr) {
+  this->RunSingleYCbCrTest();
 }
 
 }  // namespace test
