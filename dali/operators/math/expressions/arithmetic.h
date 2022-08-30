@@ -353,10 +353,12 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
     output_desc[0] = {result_shape_, result_type_id_};
 
-    if (!broadcasting_) {  // 1D tiling only when not broadcasting
-      std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
-    } else {
+    // 1D tiling only when not broadcasting
+    bool no_tiling = std::is_same<Backend, CPUBackend>::value && broadcasting_;
+    if (no_tiling) {  
       std::tie(tile_cover_, tile_range_) = GetOneTilePerSample(result_shape_);
+    } else {
+      std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
     }
     return true;
   }
@@ -389,6 +391,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
   std::vector<TileDesc> tile_cover_;
   std::vector<TileRange> tile_range_;
   std::vector<ExprImplTask> exec_order_;
+  std::vector<std::vector<SampleDesc>> samples_per_task_;
   std::vector<std::vector<ExtendedTileDesc>> tiles_per_task_;
   ConstantStorage<Backend> constant_storage_;
   ExprImplCache cache_;

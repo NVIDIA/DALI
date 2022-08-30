@@ -21,21 +21,18 @@ namespace dali {
 
 template <>
 void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  PrepareTilesForTasks<CPUBackend>(tiles_per_task_, exec_order_, tile_cover_, ws, constant_storage_,
-                                   spec_);
+  PrepareSamplesPerTask<CPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
   auto &pool = ws.GetThreadPool();
   ws.Output<CPUBackend>(0).SetLayout(result_layout_);
 
   if (broadcasting_) {
     auto batch_size = ws.GetInputBatchSize(0);
-    int ntiles = tile_cover_.size();
-    assert(ntiles == batch_size);
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
       pool.AddWork([this, sample_idx](int thread_idx) {
         // Go over expression tree in some provided order
         for (size_t i = 0; i < exec_order_.size(); i++) {
-          auto &tile = tiles_per_task_[i][sample_idx];
-          SampleDesc sample(tile.output, tile.args);
+          assert(batch_size == samples_per_task_[i].size());
+          auto &sample = samples_per_task_[i][sample_idx];
           exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(&sample, 1));
         }
       }, result_shape_.tensor_size(sample_idx));
@@ -45,11 +42,12 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
       pool.AddWork([this, task_idx](int thread_idx) {
         auto range = tile_range_[task_idx];
         // Go over "tiles"
+        auto samples = make_cspan(samples_per_task_[task_idx]);
         for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
           // Go over expression tree in some provided order
           for (size_t i = 0; i < exec_order_.size(); i++) {
-            exec_order_[i].impl->Execute(exec_order_[i].ctx,
-                                         make_cspan(&tiles_per_task_[i][extent_idx], 1));
+            exec_order_[i].impl->Execute(exec_order_[i].ctx, samples,
+                                         make_cspan(&tiles_cover_[extent_idx], 1));
           }
         }
       }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks

@@ -20,34 +20,12 @@ namespace dali {
 
 template <>
 void ArithmeticGenericOp<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  PrepareTilesForTasks<GPUBackend>(tiles_per_task_, exec_order_, tile_cover_, ws, constant_storage_,
-                                   spec_);
+  PrepareSamplesPerTask<CPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
   ws.Output<GPUBackend>(0).SetLayout(result_layout_);
+  auto tiles = make_cspan(tiles_cover_);
   for (size_t i = 0; i < exec_order_.size(); i++) {
     // call impl for whole batch
-    exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(tiles_per_task_[i]));
-  }
-
-  if (broadcasting_) {
-    auto batch_size = ws.GetInputBatchSize(0);
-    int ntiles = tile_cover_.size();
-    assert(ntiles == batch_size);
-    std::vector<SampleDesc> sample_descs;
-    sample_descs.reserve(batch_size);
-    // Go over expression tree in some provided order
-    for (size_t i = 0; i < exec_order_.size(); i++) {
-      sample_descs.clear();
-      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-        auto &tile = tiles_per_task_[i][sample_idx];
-        sample_descs.emplace_back(tile.output, tile.args);
-      }
-      exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(sample_descs));
-    }
-  } else {
-    for (size_t i = 0; i < exec_order_.size(); i++) {
-      // call impl for whole batch
-      exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(tiles_per_task_[i]));
-    }
+    exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(samples_per_task_), tiles);
   }
 }
 

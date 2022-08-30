@@ -32,13 +32,13 @@ namespace dali {
 struct TileDesc {
   int sample_idx;       // id of sample inside within the batch
   int extent_idx;       // the index of tile within this sample_idx
-  TensorShape<> extent_size;
-  TensorShape<> tile_size;
+  int64_t extent_size;
+  int64_t tile_size;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const TileDesc &v) {
-  os << "{" << v.sample_idx << ", " << v.extent_idx << ", " << volume(v.extent_size) << ", "
-     << volume(v.tile_size) << "}";
+  os << "{" << v.sample_idx << ", " << v.extent_idx << ", " << v.extent_size << ", "
+     << v.tile_size << "}";
   return os;
 }
 
