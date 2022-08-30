@@ -145,6 +145,10 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.params, true));
 
   try {
+    if (roi) {
+      throw std::runtime_error("ROI support is not implemented yet");
+    }
+
     ParseJpegSample(*in, opts, ctx);
     DecodeJpegSample(*in, out.mutable_data<uint8_t>(), opts, ctx);
   } catch (...) {
