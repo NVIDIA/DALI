@@ -149,7 +149,7 @@ FutureDecodeResults::FutureDecodeResults(std::shared_ptr<DecodeResultsSharedStat
 FutureDecodeResults::~FutureDecodeResults() {
   if (impl_) {
     #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wexceptions"  // we want it to terminate _with a message_
+    #pragma GCC diagnostic ignored "-Wterminate"
     if (impl_->ready_indices_.size() != impl_->results_.size())
       throw std::logic_error("Deferred results incomplete");
     #pragma GCC diagnostic pop
