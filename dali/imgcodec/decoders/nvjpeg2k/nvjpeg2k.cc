@@ -258,7 +258,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
 
   if (result.success) {
     CUDA_CALL(cudaEventRecord(ctx.decode_event, ctx.cuda_stream));
-    CUDA_CALL(cudaStreamWaitEvent(stream, ctx.decode_event));
+    CUDA_CALL(cudaStreamWaitEvent(stream, ctx.decode_event, 0));
   }
 
   return result;
