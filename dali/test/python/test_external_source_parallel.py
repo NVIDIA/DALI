@@ -382,6 +382,27 @@ def test_explicit_scalars_sample_mode():
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
+@raises(Exception, glob="Exception traceback received from worker thread:* "
+        "iteration over a 0-d array")
+def test_0_dim_batch_failure():
+    batch_size = 7
+    dtype = np.int32
+    def cb(batch_info):
+        return np.full(tuple(), 42, dtype=dtype)
+
+    @dali.pipeline_def(batch_size=batch_size, num_threads=4, device_id=0,
+                       py_num_workers=2, py_start_method='spawn')
+    def pipeline():
+        batch = dali.fn.external_source(source=cb, parallel=True, batch=True)
+        return batch
+
+    pipe = pipeline()
+    pipe.build()
+    utils.capture_processes(pipe._py_pool)
+    pipe.run()
+
+
+@with_setup(utils.setup_function, utils.teardown_function)
 def _test_vs_non_parallel(batch_size, cb_parallel, cb_seq, batch, py_num_workers):
     pipe = dali.Pipeline(batch_size=batch_size, device_id=None, num_threads=5,
                          py_num_workers=py_num_workers, py_start_method='spawn')
