@@ -346,7 +346,7 @@ float_array_ops = [
     (fn.preemphasis_filter, {}),
     (fn.spectrogram, {'nfft': 60, 'window_length': 50, 'window_step': 25}),
     (fn.to_decibels, {}),
-    (fn.experimental.audio_resample, {'devices': ['cpu'], 'scale': 1.2}),
+    (fn.audio_resample, {'devices': ['cpu'], 'scale': 1.2}),
 ]
 
 
@@ -1261,7 +1261,7 @@ tested_methods = [
     "random_bbox_crop",
     "ssd_random_crop",
     "optical_flow",
-    "experimental.audio_resample",
+    "audio_resample",
 ]
 
 excluded_methods = [
@@ -1291,6 +1291,7 @@ excluded_methods = [
     "readers.video_resize",          # readers do not support variable batch size yet
     "readers.webdataset",            # readers do not support variable batch size yet
     "experimental.readers.video",    # readers do not support variable batch size yet
+    "experimental.audio_resample"    # Alias of audio_resample (already tested)
 ]
 
 

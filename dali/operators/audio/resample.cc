@@ -22,7 +22,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__AudioResample)
+DALI_SCHEMA(AudioResample)
   .DocStr(R"(Resamples an audio signal.
 
 The resampling is achieved by applying a sinc filter with Hann window with an extent
@@ -95,6 +95,19 @@ type. Example::
 
 )",
     nullptr, false);
+
+// Deprecated alias
+DALI_SCHEMA(experimental__AudioResample)
+    .AddParent("AudioResample")
+    .DocStr("Legacy alias for :meth:`audio_resample`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "AudioResample",
+        "This operator was moved out from the experimental phase, "
+        "and is now a regular DALI operator. This is just an deprecated "
+        "alias kept for backward compatibility.");  // Deprecated in 1.18
 
 namespace audio {
 
@@ -185,6 +198,10 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
 
 }  // namespace audio
 
+
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__AudioResample, audio::ResampleCPU, CPU);
+
+DALI_REGISTER_OPERATOR(AudioResample, audio::ResampleCPU, CPU);
 
 }  // namespace dali

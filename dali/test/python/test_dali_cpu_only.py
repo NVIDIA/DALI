@@ -451,7 +451,7 @@ def test_to_decibels_cpu():
 
 
 def test_audio_resample():
-    check_single_input(fn.experimental.audio_resample, get_data=get_audio_data, input_layout=None,
+    check_single_input(fn.audio_resample, get_data=get_audio_data, input_layout=None,
                        scale=1.25)
 
 
@@ -1231,7 +1231,7 @@ tested_methods = [
     "math.min",
     "numba.fn.experimental.numba_function",
     "dl_tensor_python_function",
-    "experimental.audio_resample",
+    "audio_resample",
 ]
 
 excluded_methods = [
@@ -1243,6 +1243,7 @@ excluded_methods = [
     "readers.video_resize",  # not supported for CPU
     "optical_flow",  # not supported for CPU
     "paste",  # not supported for CPU
+    "experimental.audio_resample"  # Alias of audio_resample (already tested)
 ]
 
 

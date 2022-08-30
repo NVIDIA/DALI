@@ -90,7 +90,7 @@ def normalize_ref(image):
     normalization_mean = [0.485, 0.456, 0.406]
     normalization_std = [0.229, 0.224, 0.225]
 
-    image = image.astype(dtype=np.float).transpose((2, 0, 1)) / 255
+    image = image.astype(dtype=np.float64).transpose((2, 0, 1)) / 255
     for plane, (m, s) in zip(range(len(image)), zip(normalization_mean, normalization_std)):
         image[plane] = (image[plane] - m) / s
     return image

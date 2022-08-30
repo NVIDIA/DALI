@@ -52,9 +52,9 @@ def audio_decoder_pipe(device):
     audio1, sr1 = fn.decoders.audio(encoded, dtype=types.FLOAT, sample_rate=out_sr)
     if device == 'gpu':
         audio0 = audio0.gpu()
-    audio2 = fn.experimental.audio_resample(audio0, in_rate=sr0, out_rate=out_sr)
-    audio3 = fn.experimental.audio_resample(audio0, scale=out_sr / sr0)
-    audio4 = fn.experimental.audio_resample(audio0, out_length=fn.shapes(audio1)[0])
+    audio2 = fn.audio_resample(audio0, in_rate=sr0, out_rate=out_sr)
+    audio3 = fn.audio_resample(audio0, scale=out_sr / sr0)
+    audio4 = fn.audio_resample(audio0, out_length=fn.shapes(audio1)[0])
     return audio1, audio2, audio3, audio4
 
 
@@ -87,7 +87,7 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
     @pipeline_def(batch_size=len(in_values))
     def test_pipe(device):
         input = fn.external_source(in_data, batch=False, cycle='quiet', device=device)
-        return fn.experimental.audio_resample(input, dtype=dst_type, scale=1, quality=0)
+        return fn.audio_resample(input, dtype=dst_type, scale=1, quality=0)
 
     pipe = test_pipe(device, device_id=0, num_threads=4)
     pipe.build()
