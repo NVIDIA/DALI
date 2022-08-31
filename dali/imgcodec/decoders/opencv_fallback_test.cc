@@ -45,8 +45,7 @@ TEST(OpenCVFallbackTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "OpenCV factory test");
-  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID);
   EXPECT_NE(decoder, nullptr);
 }
 
@@ -64,7 +63,7 @@ TYPED_TEST(OpenCVFallbackDecodeTest, Decode) {
   OpenCVDecoderFactory factory;
   auto fname = img_color;
   auto source = ImageSource::FromFilename(fname);
-  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID);
   ASSERT_NE(decoder, nullptr);
 
   BmpParser parser;
@@ -76,7 +75,9 @@ TYPED_TEST(OpenCVFallbackDecodeTest, Decode) {
   ASSERT_LE(n, 100000000);  // sanity check - less than 100M elements
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), info.shape, type2id<OutputType>::value);
-  auto result = decoder->Decode(sv, &source, params);
+  DecodeContext ctx;
+  ctx.tp = &tp;
+  auto result = decoder->Decode(ctx, sv, &source, params);
   if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
   }
@@ -104,7 +105,7 @@ TYPED_TEST(OpenCVFallbackDecodeTest, DecodeROI) {
   OpenCVDecoderFactory factory;
   auto fname = img_palette;
   auto source = ImageSource::FromFilename(fname);
-  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID);
   ASSERT_NE(decoder, nullptr);
 
   BmpParser parser;
@@ -124,7 +125,9 @@ TYPED_TEST(OpenCVFallbackDecodeTest, DecodeROI) {
   ASSERT_LE(n, 100000000);  // sanity check - less than 100M elements
   auto mem = mm::alloc_raw_unique<OutputType, mm::memory_kind::host>(n);
   SampleView<CPUBackend> sv(mem.get(), out_shape, type2id<OutputType>::value);
-  auto result = decoder->Decode(sv, &source, params, roi);
+  DecodeContext ctx;
+  ctx.tp = &tp;
+  auto result = decoder->Decode(ctx, sv, &source, params, roi);
   if (result.exception) {
     EXPECT_NO_THROW(std::rethrow_exception(result.exception));
   }

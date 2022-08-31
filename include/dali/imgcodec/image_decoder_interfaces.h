@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_IMAGE_DECODER_H_
-#define DALI_IMGCODEC_IMAGE_DECODER_H_
+#ifndef DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
+#define DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 
 #include <memory>
+#include <utility>
 #include <stdexcept>
 #include <vector>
 #include "dali/core/any.h"
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/imgcodec/image_format.h"
+#include "dali/imgcodec/decode_results.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/backend.h"
 
@@ -29,8 +31,6 @@ namespace dali {
 class ThreadPool;
 
 namespace imgcodec {
-template <typename T, span_extent_t E = dynamic_extent>
-using cspan = span<const T, E>;
 
 struct DecodeParams {
   DALIDataType  dtype   = DALI_UINT8;
@@ -75,11 +75,6 @@ struct ROI {
   }
 };
 
-struct DecodeResult {
-  bool success;
-  std::exception_ptr exception;
-};
-
 struct ImageDecoderProperties {
   /**
    * @brief Whether the codec can decode a region of interest without decoding the entire image
@@ -98,69 +93,117 @@ struct ImageDecoderProperties {
   bool fallback = true;
 };
 
+struct DecodeContext {
+  DecodeContext() = default;
+  DecodeContext(ThreadPool *tp, cudaStream_t stream) : tp(tp), stream(stream) {}
+  ThreadPool *tp = nullptr;
+  cudaStream_t stream = cudaStream_t(-1);
+};
+
 class DLL_PUBLIC ImageDecoderInstance {
  public:
   virtual ~ImageDecoderInstance() = default;
   /**
    * @brief Checks whether this codec can decode this encoded image with given parameters
    */
-  virtual bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi = {}) = 0;
+  virtual bool CanDecode(DecodeContext ctx,
+                         ImageSource *in,
+                         DecodeParams opts,
+                         const ROI &roi = {}) = 0;
 
   /**
    * @brief Batch version of CanDecode
    */
-  virtual std::vector<bool> CanDecode(cspan<ImageSource *> in,
+  virtual std::vector<bool> CanDecode(DecodeContext ctx,
+                                      cspan<ImageSource *> in,
                                       DecodeParams opts,
                                       cspan<ROI> rois = {}) = 0;
 
   /**
    * @brief Decodes a single image to a host buffer
    */
-  virtual DecodeResult Decode(SampleView<CPUBackend> out,
+  virtual DecodeResult Decode(DecodeContext ctx,
+                              SampleView<CPUBackend> out,
                               ImageSource *in,
                               DecodeParams opts,
                               const ROI &roi = {}) = 0;
 
   /**
+   * @brief Schedules decoding of an image to a host buffer
+   */
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             SampleView<CPUBackend> out,
+                                             ImageSource *in,
+                                             DecodeParams opts,
+                                             const ROI &roi = {}) = 0;
+
+  /**
    * @brief Decodes a batch of images to host buffers
    */
-  virtual std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
+  virtual std::vector<DecodeResult> Decode(DecodeContext ctx,
+                                           span<SampleView<CPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
                                            cspan<ROI> rois = {}) = 0;
 
-
+  /**
+   * @brief Schedules decoding of a batch of images to host buffers
+   */
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             span<SampleView<CPUBackend>> out,
+                                             cspan<ImageSource *> in,
+                                             DecodeParams opts,
+                                             cspan<ROI> rois = {}) = 0;
 
   /**
    * @brief Decodes a single image to a device buffer
    */
-  virtual DecodeResult Decode(cudaStream_t stream,
+  virtual DecodeResult Decode(DecodeContext ctx,
                               SampleView<GPUBackend> out,
                               ImageSource *in,
                               DecodeParams opts,
                               const ROI &roi = {}) = 0;
 
+
   /**
-   * @brief Decodes a single image to device buffers
+   * @brief Schedules decoding of a single image to a device buffer
    */
-  virtual std::vector<DecodeResult> Decode(cudaStream_t stream,
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             SampleView<GPUBackend> out,
+                                             ImageSource *in,
+                                             DecodeParams opts,
+                                             const ROI &roi = {}) = 0;
+
+  /**
+   * @brief Decodes a batch of images to device buffers
+   */
+  virtual std::vector<DecodeResult> Decode(DecodeContext ctx,
                                            span<SampleView<GPUBackend>> out,
                                            cspan<ImageSource *> in,
                                            DecodeParams opts,
                                            cspan<ROI> rois = {}) = 0;
+
+  /**
+   * @brief Scheduls decoding of a batch of images to device buffers
+   */
+  virtual FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                             span<SampleView<GPUBackend>> out,
+                                             cspan<ImageSource *> in,
+                                             DecodeParams opts,
+                                             cspan<ROI> rois = {}) = 0;
   /**
    * @brief Sets a codec-specific parameter
    */
-  virtual void SetParam(const char *key, const any &value) = 0;
+  virtual bool SetParam(const char *key, const any &value) = 0;
   /**
    * @brief Gets a codec-specific parameter
    */
   virtual any GetParam(const char *key) const = 0;
 
   template <typename T>
-  inline enable_if_t<!std::is_same<std::remove_reference_t<T>, any>::value>
-  SetParam(const char *key, T value) {
-    SetParam(key, any(value));
+  inline enable_if_t<!std::is_same<std::remove_reference_t<T>, any>::value, bool>
+  SetParam(const char *key, T &&value) {
+    return SetParam(key, any(std::forward<T>(value)));
   }
 
   template <typename T>
@@ -191,10 +234,10 @@ class DLL_PUBLIC ImageDecoderFactory {
    *
    * Note: For decoders that carry no state, this may just increase reference count on a singleton.
    */
-  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const = 0;
+  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id) const = 0;
 };
 
 }  // namespace imgcodec
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_IMAGE_DECODER_H_
+#endif  // DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_

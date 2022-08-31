@@ -25,7 +25,7 @@
 
 #include "dali/imgcodec/image_source.h"
 #include "dali/imgcodec/image_format.h"
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
 
 #include "dali/imgcodec/parsers/bmp.h"
 #include "dali/imgcodec/parsers/jpeg.h"

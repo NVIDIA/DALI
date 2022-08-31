@@ -36,12 +36,15 @@ bool check_status(nvjpeg2kStatus_t status, ImageSource *in) {
 }
 }  // namespace
 
-NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp)
-: BatchParallelDecoderImpl(device_id, tp)
+NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(int device_id)
+: BatchParallelDecoderImpl(device_id)
 , nvjpeg2k_dev_alloc_(nvjpeg_memory::GetDeviceAllocatorNvJpeg2k())
-, nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k())
-, per_thread_resources_(tp->NumThreads()) {
+, nvjpeg2k_pin_alloc_(nvjpeg_memory::GetPinnedAllocatorNvJpeg2k()) {
   // TODO(staniewzki): pass params at construction
+  any num_threads_any = GetParam("nvjpeg2k_num_threads");
+  int num_threads = num_threads_any.has_value() ? any_cast<int>(num_threads_any) : 4;
+  tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpeg2000DecoderInstance");
+  per_thread_resources_ = vector<PerThreadResources>(num_threads);
   size_t device_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_device_memory_padding"));
   size_t host_memory_padding = any_cast<size_t>(GetParam("nvjpeg2k_host_memory_padding"));
 
@@ -255,7 +258,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
 
   if (result.success) {
     CUDA_CALL(cudaEventRecord(ctx.decode_event, ctx.cuda_stream));
-    CUDA_CALL(cudaStreamWaitEvent(stream, ctx.decode_event));
+    CUDA_CALL(cudaStreamWaitEvent(stream, ctx.decode_event, 0));
   }
 
   return result;

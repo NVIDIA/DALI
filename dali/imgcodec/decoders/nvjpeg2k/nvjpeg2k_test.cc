@@ -94,8 +94,7 @@ TEST(NvJpeg2000DecoderTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, device_id, false, "nvjpeg2k decoder test");
-  auto instance = decoder.Create(device_id, tp);
+  auto instance = decoder.Create(device_id);
   EXPECT_NE(instance, nullptr);
 }
 
@@ -108,8 +107,8 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
  protected:
   static const auto dtype = type2id<OutputType>::value;
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return NvJpeg2000DecoderFactory().Create(this->GetDeviceId(), tp);
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
+    return NvJpeg2000DecoderFactory().Create(this->GetDeviceId());
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {

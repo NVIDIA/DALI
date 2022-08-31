@@ -17,6 +17,7 @@
 
 #include <nvjpeg.h>
 #include <memory>
+#include <utility>
 #include <vector>
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_helper.h"
@@ -32,11 +33,11 @@ namespace imgcodec {
  */
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp);
+  explicit NvJpeg2000DecoderInstance(int device_id);
   ~NvJpeg2000DecoderInstance();
 
   using BatchParallelDecoderImpl::CanDecode;
-  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) override {
+  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
     // TODO(staniewzki): add support for roi and other data types
     return !roi && (opts.dtype == DALI_UINT8);
   }
@@ -49,11 +50,24 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
                               DecodeParams opts,
                               const ROI &roi) override;
 
-  void SetParam(const char *name, const any &value) override {
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                     span<SampleView<CPUBackend>> out,
+                                     cspan<ImageSource *> in,
+                                     DecodeParams opts,
+                                     cspan<ROI> rois = {}) override {
+    ctx.tp = tp_.get();
+    return BatchParallelDecoderImpl::ScheduleDecode(std::move(ctx), out, in, std::move(opts), rois);
+  }
+
+  bool SetParam(const char *name, const any &value) override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
       nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
+      return true;
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
       nvjpeg2k_host_memory_padding_ = any_cast<size_t>(value);
+      return true;
+    } else {
+      return false;
     }
   }
 
@@ -163,6 +177,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   size_t nvjpeg2k_device_memory_padding_ = 256;
   size_t nvjpeg2k_host_memory_padding_ = 256;
 
+  std::unique_ptr<ThreadPool> tp_;
   NvJpeg2kHandle nvjpeg2k_handle_{};
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
   nvjpeg2kPinnedAllocator_t nvjpeg2k_pin_alloc_;
@@ -186,8 +201,8 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
     return device_id >= 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<NvJpeg2000DecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
+    return std::make_shared<NvJpeg2000DecoderInstance>(device_id);
   }
 };
 
