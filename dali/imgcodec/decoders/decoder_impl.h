@@ -18,6 +18,7 @@
 #include <vector>
 #include "dali/core/format.h"
 #include "dali/imgcodec/image_decoder_interfaces.h"
+#include "dali/imgcodec/util/output_shape.h"
 
 namespace dali {
 namespace imgcodec {
