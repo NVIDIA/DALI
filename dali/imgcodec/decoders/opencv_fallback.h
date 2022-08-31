@@ -15,7 +15,9 @@
 #ifndef DALI_IMGCODEC_DECODERS_OPENCV_FALLBACK_H_
 #define DALI_IMGCODEC_DECODERS_OPENCV_FALLBACK_H_
 
+#include <map>
 #include <memory>
+#include <string>
 #include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 
@@ -28,7 +30,10 @@ namespace imgcodec {
 class DLL_PUBLIC OpenCVDecoderInstance : public BatchParallelDecoderImpl {
  public:
   using Base = BatchParallelDecoderImpl;
-  explicit OpenCVDecoderInstance(int device_id) : Base(device_id) {}
+  explicit OpenCVDecoderInstance(int device_id, const std::map<std::string, any> &params)
+  : Base(device_id, params) {
+    SetParams(params);
+  }
 
   DecodeResult DecodeImplTask(int thread_idx,
                               SampleView<CPUBackend> out,
@@ -55,8 +60,9 @@ class OpenCVDecoderFactory : public ImageDecoderFactory {
     return device_id < 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
-    return std::make_shared<OpenCVDecoderInstance>(device_id);
+  std::shared_ptr<ImageDecoderInstance> Create(
+        int device_id, const std::map<std::string, any> &params = {}) const override {
+    return std::make_shared<OpenCVDecoderInstance>(device_id, params);
   }
 };
 
