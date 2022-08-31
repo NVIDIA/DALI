@@ -24,6 +24,7 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/static_switch.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
+#include "dali/operators/math/expressions/broadcasting.h"
 #include "dali/operators/math/expressions/constant_storage.h"
 #include "dali/operators/math/expressions/expression_tile.h"
 #include "dali/operators/math/expressions/expression_tree.h"
@@ -209,6 +210,23 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
   out_samples.reserve(nsamples);
   for (int s = 0; s < nsamples; s++) {
     out_samples.emplace_back(GetOutput<Backend>(func, ws, s), GetArgPack(func, ws, st, spec, s));
+
+    SmallVector<TensorShape<>*, kMaxArity + 1> shape_ptrs;
+    for (auto &arg : out_samples.back().args) {
+      shape_ptrs.push_back(&arg.shape);
+    }
+
+    auto &out_sh = out_samples.back().output.shape;
+    auto &out_strides = out_samples.back().output.strides;
+    shape_ptrs.push_back(&out_sh);
+    span<TensorShape<>*> shape_ptrs_span = make_span(shape_ptrs);
+    SimplifyShapesForBroadcasting(shape_ptrs_span);
+    
+    for (auto &arg : out_samples.back().args) {
+      kernels::CalcStrides(arg.strides, arg.shape);
+      arg.strides = StridesForBroadcasting(out_sh, arg.shape, arg.strides);
+    }
+    kernels::CalcStrides(out_strides, out_sh);
   }
 }
 

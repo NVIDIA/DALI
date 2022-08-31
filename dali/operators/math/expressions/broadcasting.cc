@@ -274,24 +274,42 @@ void ExpandToNDims(TensorShape<> &sh, int ndim) {
   sh = shape_cat(TensorShape<>(std::vector<int64_t>(ndim - sh.sample_dim(), 1)), sh);
 }
 
-void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs) {
+void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes) {
+  if (shapes.size() < 2)
+    return;
   // First, if needed expand dimensions
-  int full_ndim = std::max(lhs.sample_dim(), rhs.sample_dim());
-  if (lhs.sample_dim() != rhs.sample_dim()) {
-    ExpandToNDims(lhs, full_ndim);
-    ExpandToNDims(rhs, full_ndim);
+  int full_ndim = shapes[0]->sample_dim();
+  for (int i = 1; i < shapes.size(); i++) {
+    full_ndim = std::max(full_ndim, shapes[i]->sample_dim());
+  }
+  for (auto *sh : shapes) {
+    ExpandToNDims(*sh, full_ndim);
   }
 
   int i = 0;
   SmallVector<std::pair<int, int>, 5> group_dims;
+
+  auto all_same = [&shapes](int dim) {
+    auto extent = shapes[0][dim];
+    for (int k = 1; k < shapes.size(); k++) {
+      if (extent != shapes[k][dim]) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   while (i < full_ndim) {
-    if (lhs[i] != rhs[i]) {
+    if (!all_same(i)) {
       i++;
       continue;
     }
+
     int j = i;
     for (; j < full_ndim; j++) {
-      if (lhs[j] != rhs[j]) break;
+      if (!all_same(j)) {
+        break;
+      }
     }
     if (i < j) {
       group_dims.emplace_back(i, j - i);
@@ -299,8 +317,20 @@ void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs) {
     i = j;
   }
 
-  lhs = collapse_dims(lhs, group_dims);
-  rhs = collapse_dims(rhs, group_dims);
+  for (auto *sh : shapes) {
+    *sh = collapse_dims(*sh, group_dims);
+  }
 }
+
+void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b) {
+  std::array<TensorShape<>*, 2> arr = {&a, &b};
+  return SimplifyShapesForBroadcasting(make_span(arr));
+}
+
+void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c) {
+  std::array<TensorShape<>*, 3> arr = {&a, &b, &c};
+  return SimplifyShapesForBroadcasting(make_span(arr));
+}
+
 
 }  // namespace dali

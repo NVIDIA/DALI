@@ -31,25 +31,24 @@ namespace dali {
 template <ArithmeticOp op, typename Result, typename Input>
 class ExprImplCpuT : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+  void Execute(ExprImplContext &ctx,
+               span<const SampleDesc> samples,
+               span<const TileDesc> tiles) override {
     assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[0];
-    auto output = static_cast<Result *>(tile.output.data);
-    auto &left = tile.args[0];
-    auto input = static_cast<const Input *>(left.data);
-    Execute(output, input, volume(tile.desc.extent_size));
-  }
-
-  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
-    DALI_FAIL("Logic error");
+    const auto &sample = samples[tile.sample_idx];
+    auto output = static_cast<Result *>(sample.output.data);
+    auto input = static_cast<const Input *>(sample.args[0].data);
+    Execute(output, input, tile.offset, tile.extent_size);
   }
 
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
 
-  static void Execute(Result *result, const Input *i0, int64_t extent) {
-    for (int64_t i = 0; i < extent; i++) {
+  static void Execute(Result *result, const Input *i0, int64_t offset, int64_t extent) {
+    int64_t end = offset + extent;
+    for (int64_t i = offset; i < end; i++) {
       result[i] = meta_t::impl(i0[i]);
     }
   }
@@ -58,48 +57,39 @@ class ExprImplCpuT : public ExprImplBase {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 class ExprImplCpuTT : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+  void Execute(ExprImplContext &ctx,
+               span<const SampleDesc> samples,
+               span<const TileDesc> tiles) override {
     assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[0];
-    auto output_ptr = static_cast<Result *>(tile.output.data);
-    auto left_ptr = static_cast<const Left *>(tile.args[0].data);
-    auto right_ptr = static_cast<const Right *>(tile.args[1].data);
-    Execute(output_ptr, left_ptr, right_ptr, volume(tile.desc.extent_size));
-  }
-
-  void Execute(ExprImplContext &ctx, span<const SampleDesc> samples) override {
-    assert(samples.size() == 1 &&
-           "CPU Expression implementation can handle only one sample at a time");
-    const auto &sample = samples[0];
+    const auto &sample = samples[tile.sample_idx];
     auto &output = sample.output;
-    auto output_ptr = static_cast<Result *>(output.data);
-    auto output_shape = output.shape;
-    auto output_strides = output.strides;
+    auto *output_ptr = static_cast<Result *>(output.data);
     auto &left = sample.args[0];
+    const auto *left_ptr = static_cast<const Left *>(sample.args[0].data);
     auto &right = sample.args[1];
-    auto left_ptr = static_cast<const Left *>(left.data);
-    auto left_shape = left.shape;
-    auto left_strides = left.strides;
-    auto right_ptr = static_cast<const Right *>(right.data);
-    auto right_shape = right.shape;
-    auto right_strides = right.strides;
-
-    SimplifyShapesForBroadcasting(left_shape, right_shape);
-    left_strides = StridesForBroadcasting(output_shape, left_shape, left_strides);
-    right_strides = StridesForBroadcasting(output_shape, right_shape, right_strides);
-    Execute(output_ptr, output_shape.data(), output_strides.data(),
-            left_ptr, left_strides.data(),
-            right_ptr, right_strides.data(),
-            output_shape.size());
+    const auto *right_ptr = static_cast<const Right *>(sample.args[1].data);
+    
+    if (sample.output.shape.sample_dim() > 1) {
+      assert(tile.offset == 0);
+      assert(tile.extent_size == volume(sample.output.shape));
+      Execute(output_ptr, output.shape.data(), output.strides.data(),
+              left_ptr, left.strides.data(), right_ptr, right.strides.data(),
+              sample.output.shape.sample_dim());
+    } else {
+      Execute(output_ptr, left_ptr, right_ptr, tile.offset, tile.extent_size);
+    }
   }
 
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
 
   // TODO(janton): Remove
-  static void Execute(Result *result, const Left *l, const Right *r, int64_t extent) {
-    for (int64_t i = 0; i < extent; i++) {
+  static void Execute(Result *result, const Left *l, const Right *r,
+                      int64_t offset, int64_t extent) {
+    int64_t end = offset + extent;
+    for (int64_t i = offset; i < end; i++) {
       result[i] = meta_t::impl(l[i], r[i]);
     }
   }
@@ -148,27 +138,25 @@ class ExprImplCpuTT : public ExprImplBase {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 class ExprImplCpuCT : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+  void Execute(ExprImplContext &ctx,
+               span<const SampleDesc> samples,
+               span<const TileDesc> tiles) override {
     assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[0];
-    auto output = static_cast<Result *>(tile.output.data);
-    auto &left = tile.args[0];
-    auto &right = tile.args[1];
-    auto left_ptr = static_cast<const Left *>(left.data);
-    auto right_ptr = static_cast<const Right *>(right.data);
-    Execute(output, *left_ptr, right_ptr, volume(tile.desc.extent_size));
-  }
-
-  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
-    DALI_FAIL("Logic error");
+    const auto &sample = samples[tile.sample_idx];
+    auto output = static_cast<Result *>(sample.output.data);
+    auto left_ptr = static_cast<const Left *>(sample.args[0].data);
+    auto right_ptr = static_cast<const Right *>(sample.args[1].data);
+    Execute(output, *left_ptr, right_ptr, tile.offset, tile.extent_size);
   }
 
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
 
-  static void Execute(Result *result, Left l, const Right *r, int64_t extent) {
-    for (int64_t i = 0; i < extent; i++) {
+  static void Execute(Result *result, Left l, const Right *r, int64_t offset, int64_t extent) {
+    int64_t end = offset + extent;
+    for (int64_t i = offset; i < end; i++) {
       result[i] = meta_t::impl(l, r[i]);
     }
   }
@@ -177,27 +165,25 @@ class ExprImplCpuCT : public ExprImplBase {
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 class ExprImplCpuTC : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+  void Execute(ExprImplContext &ctx,
+               span<const SampleDesc> samples,
+               span<const TileDesc> tiles) override {
     assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[0];
-    auto output = static_cast<Result *>(tile.output.data);
-    auto &left = tile.args[0];
-    auto &right = tile.args[1];
-    auto left_ptr = static_cast<const Left *>(left.data);
-    auto right_ptr = static_cast<const Right *>(right.data);
-    Execute(output, left_ptr, *right_ptr, volume(tile.desc.extent_size));
-  }
-
-  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
-    DALI_FAIL("Logic error");
+    const auto &sample = samples[tile.sample_idx];
+    auto output = static_cast<Result *>(sample.output.data);
+    auto left_ptr = static_cast<const Left *>(sample.args[0].data);
+    auto right_ptr = static_cast<const Right *>(sample.args[1].data);
+    Execute(output, left_ptr, *right_ptr, tile.offset, tile.extent_size);
   }
 
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
 
-  static void Execute(Result *result, const Left *l, Right r, int64_t extent) {
-    for (int64_t i = 0; i < extent; i++) {
+  static void Execute(Result *result, const Left *l, Right r, int64_t offset, int64_t extent) {
+    int64_t end = offset + extent;
+    for (int64_t i = offset; i < end; i++) {
       result[i] = meta_t::impl(l[i], r);
     }
   }
@@ -209,26 +195,28 @@ template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 class ExprImplCpuTernary : public ExprImplBase {
  public:
-  void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) override {
+  void Execute(ExprImplContext &ctx,
+               span<const SampleDesc> samples,
+               span<const TileDesc> tiles) override {
     assert(tiles.size() == 1 &&
            "CPU Expression implementation can handle only one tile at a time");
     const auto &tile = tiles[0];
-    auto output = static_cast<Result *>(tile.output.data);
+    const auto &sample = samples[tile.sample_idx];
+    auto output = static_cast<Result *>(sample.output.data);
 
-    auto &first = tile.args[0];
-    auto &second = tile.args[1];
-    auto &third = tile.args[2];
+    auto &first = sample.args[0];
+    auto &second = sample.args[1];
+    auto &third = sample.args[2];
+
+    if (sample.output.shape.sample_dim() > 1) {
+      DALI_FAIL("Broadcasting not implemented for ternary ops");
+    }
     Execute(output,
             expression_detail::Pass<IsFirstTensor, Result>(first.data, first.dtype),
             expression_detail::Pass<IsSecondTensor, Result>(second.data, second.dtype),
             expression_detail::Pass<IsThirdTensor, Result>(third.data, third.dtype),
             first.dtype, second.dtype, third.dtype,
-            volume(tile.desc.extent_size));
-  }
-
-  // TODO(janton): implement this
-  void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) override {
-    DALI_FAIL("Logic error");
+            tile.offset, tile.extent_size);
   }
 
  private:
@@ -239,8 +227,9 @@ class ExprImplCpuTernary : public ExprImplBase {
                       expression_detail::param_t<IsSecondTensor, Result> second,
                       expression_detail::param_t<IsThirdTensor, Result> third,
                       DALIDataType first_type, DALIDataType second_type, DALIDataType third_type,
-                      int64_t extent) {
-    for (int64_t i = 0; i < extent; i++) {
+                      int64_t offset, int64_t extent) {
+    int64_t end = offset + extent;
+    for (int64_t i = offset; i < end; i++) {
       result[i] = meta_t::impl(expression_detail::Access<Result>(first, i, first_type),
                                expression_detail::Access<Result>(second, i, second_type),
                                expression_detail::Access<Result>(third, i, third_type));

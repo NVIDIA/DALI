@@ -124,7 +124,9 @@ DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
  *        It detects and collapses adjacent dimensions that are not broadcasted
  * @remarks For shapes that don't need broadcasting, it results in a 1D shape.
  */
-DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c);
 
 }  // namespace dali
 
