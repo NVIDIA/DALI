@@ -113,9 +113,11 @@ struct TiffInfo {
   uint16_t bit_depth;
   uint16_t orientation;
   uint16_t compression;
+  uint16_t photometric;
 
   bool is_tiled;
   bool is_palette;
+  bool is_planar;
 };
 
 TiffInfo GetTiffInfo(TIFF *tiffptr) {
@@ -131,11 +133,15 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
 
   info.is_tiled = TIFFIsTiled(tiffptr);
 
-  uint16_t photometric_interpretation;
-  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &photometric_interpretation) &&
-      photometric_interpretation == PHOTOMETRIC_PALETTE) {
-    info.is_palette = true;
+  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &info.photometric)) {
+    info.is_palette = (info.photometric == PHOTOMETRIC_PALETTE);
+  } else {
+    info.photometric = PHOTOMETRIC_MINISBLACK;
   }
+
+  uint16_t planar_config;
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_PLANARCONFIG, &planar_config));
+  info.is_planar = (planar_config == PLANARCONFIG_SEPARATE);
 
   return info;
 }
@@ -159,10 +165,19 @@ struct depth2type<32> {
 
 }  // namespace detail
 
-DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
-                                            DecodeParams opts, const ROI &requested_roi) {
+DecodeResult LibTiffDecoderInstance::DecodeImpl(SampleView<CPUBackend> out, ImageSource *in,
+                                                DecodeParams opts, const ROI &requested_roi) {
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
+
+  if (info.photometric != PHOTOMETRIC_RGB && info.photometric != PHOTOMETRIC_MINISBLACK
+      && info.photometric != PHOTOMETRIC_PALETTE) {
+    return {false, make_exception_ptr(std::runtime_error(
+                      make_string("Unsupported photometric interpretation: ", info.photometric)))};
+  }
+
+  if (info.is_planar)
+    return {false, make_exception_ptr(std::runtime_error("Planar TIFFs are not supported"))};
 
   if (info.bit_depth != 8 && info.bit_depth != 16 && info.bit_depth != 32)
     return {false, make_exception_ptr(std::logic_error(
@@ -239,6 +254,15 @@ DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSou
 
 
   return {true, nullptr};
+}
+
+DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
+                                            DecodeParams opts, const ROI &requested_roi) {
+  try {
+    return DecodeImpl(out, in, opts, requested_roi);
+  } catch (std::exception& e) {
+    return {false, std::current_exception()};
+  }
 }
 
 }  // namespace imgcodec

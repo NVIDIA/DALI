@@ -158,6 +158,18 @@ TYPED_TEST(LibTiffDecoderTest, Depth32) {
   this->AssertEqualSatNorm(img, ref);
 }
 
+TYPED_TEST(LibTiffDecoderTest, TrimmedFile) {
+  // We cut off 3/4 of the file, which should trigger stream read failure
+  auto stream = FileStream::Open(rgb_path, false, false);
+  std::vector<uint8_t> data(stream->Size());
+  stream->ReadBytes(data.data(), data.size());
+  auto src = ImageSource::FromHostMem(data.data(), data.size()/4);
+
+  SampleView<CPUBackend> view(nullptr, 0, type2id<uint8_t>::value);
+  DecodeResult decode_result = this->Decoder()->Decode(view, &src, {}, {});
+  EXPECT_FALSE(decode_result.success);
+}
+
 }  // namespace test
 }  // namespace imgcodec
 }  // namespace dali
