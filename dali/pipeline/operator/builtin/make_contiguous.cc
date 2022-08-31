@@ -52,6 +52,7 @@ void MarkPassThrough(OperatorBase &op) {
   if (make_contiguous_gpu) {
     make_contiguous_gpu->MarkPassThrough();
   }
+  DALI_FAIL("This operation should be called only on MakeContiguous Operators.");
 }
 
 bool IsPassThrough(const OperatorBase &op) {
