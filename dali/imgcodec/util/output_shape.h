@@ -34,11 +34,14 @@ void OutputShape(OutShape &out_shape,
 
   out_shape[out_channel_dim] = num_channels;
 
+  bool rotate = params.use_orientation && ((info.orientation.rotate / 90) & 1);
+  if (rotate && spatial_ndim != 2) {
+    throw std::logic_error("Orientation only applies to 2D images.");
+  }
+
   for (int d = 0; d < spatial_ndim; d++) {
     int in_d = d;
-    if (params.use_orientation && ((info.orientation.rotate / 90) & 1)) {
-      if (spatial_ndim != 2)
-        throw std::logic_error("Orientation only applies to 2D images.");
+    if (rotate) {
       in_d = 1 - d;
     }
     int extent = info.shape[in_d];
