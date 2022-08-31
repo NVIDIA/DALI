@@ -100,12 +100,11 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
                        size_t device_memory_padding, int device_id)
     : nvjpeg2k_decode_state(nvjpeg2k_handle)
-    , intermediate_buffers()
+    , intermediate_buffer()
     , nvjpeg2k_stream(NvJpeg2kStream::Create())
     , decode_event(CUDAEvent::Create(device_id))
     , cuda_stream(CUDAStreamPool::instance().Get(device_id)) {
-      for (auto &buf : intermediate_buffers)
-        buf.resize(device_memory_padding / 8);
+      intermediate_buffer.resize(device_memory_padding / 8);
       CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
 
       constexpr int kNumParallelTiles = 10;
@@ -116,7 +115,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
 
     NvJpeg2kDecodeState nvjpeg2k_decode_state;
-    std::array<DeviceBuffer<uint8_t>, 2> intermediate_buffers;
+    DeviceBuffer<uint8_t> intermediate_buffer;
     NvJpeg2kStream nvjpeg2k_stream;
     CUDAEvent decode_event;
     CUDAStreamLease cuda_stream;

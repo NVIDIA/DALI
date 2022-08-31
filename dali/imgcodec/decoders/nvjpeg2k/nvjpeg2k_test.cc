@@ -44,6 +44,14 @@ std::vector<uint8_t> read_file(const std::string &filename) {
     return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
 }
 
+template<class T>
+void save_to_file(const std::string &filename, TensorView<StorageCPU, T> tensor) {
+  assert(sizeof(T) == 1);
+  std::ofstream stream(filename);
+  for (int i = 0; i < tensor.num_elements(); i++)
+    stream << tensor.data[i];
+}
+
 struct ImageBuffer {
   std::vector<uint8_t> buffer;
   ImageSource src;
@@ -146,8 +154,8 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     auto decoded = this->Decode(&image.src, this->GetParams(), data.roi);
     auto ref = this->ReadReferenceFrom(data.ref_path);
     static int counter = 0;
-    // if (eps) save_to_file(make_string(counter++, ".out"), decoded);
-    // this->AssertEqual(decoded, ref, eps);
+    save_to_file(make_string(counter++, ".out"), decoded);
+    this->AssertEqual(decoded, ref, eps);
   }
 
   void RunTest(const std::vector<ImageTestingData> &data, std::optional<float> eps = {}) {
@@ -166,12 +174,12 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     auto decoded = this->Decode(make_span(in), this->GetParams(), make_span(rois));
     for (size_t i = 0; i < batch_size; i++) {
       auto ref = this->ReadReferenceFrom(data[i].ref_path);
-      // this->AssertEqual(decoded[i], ref, eps);
+      this->AssertEqual(decoded[i], ref, eps);
     }
   }
 };
 
-using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
+using DecodeOutputTypes = ::testing::Types<uint8_t>; // , int16_t, float>;
 TYPED_TEST_SUITE(NvJpeg2000DecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingle) {

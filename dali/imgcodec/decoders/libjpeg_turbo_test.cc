@@ -48,6 +48,17 @@ struct ImageBuffer {
   , src(ImageSource::FromHostMem(buffer.data(), buffer.size())) {}
 };
 
+template<class T>
+void save_to_file(const std::string &filename, TensorView<StorageCPU, T> tensor) {
+  std::ofstream stream(filename);
+  for (int i = 0; i < tensor.num_elements(); i++) {
+    using array = const std::array<uint8_t, sizeof(T)>;
+    auto rep = *reinterpret_cast<array*>(&tensor.data[i]);
+    for (size_t j = 0; j < sizeof(T); j++)
+      stream << rep[j];
+  }
+}
+
 const auto img_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg");
 const auto ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg");
 const auto jpeg_image = join(img_dir, "134/site-1534685_1280.jpg");
