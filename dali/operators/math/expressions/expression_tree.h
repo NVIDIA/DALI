@@ -43,12 +43,9 @@ class ExprImplBase {
   /**
    * @brief Executes a range of tiles
    */
-  virtual void Execute(ExprImplContext &ctx, span<const ExtendedTileDesc> tiles) = 0;
-
-  /**
-   * @brief Executes a range of samples sample (non-tiled)
-   */
-  virtual void Execute(ExprImplContext &ctx, span<const SampleDesc> tiles) = 0;
+  virtual void Execute(ExprImplContext &ctx, 
+                       span<const SampleDesc> samples,
+                       span<const TileDesc> tiles) = 0;
 
   virtual ~ExprImplBase() = default;
 };

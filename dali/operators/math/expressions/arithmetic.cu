@@ -20,12 +20,12 @@ namespace dali {
 
 template <>
 void ArithmeticGenericOp<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
-  PrepareSamplesPerTask<CPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
+  PrepareSamplesPerTask<GPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
   ws.Output<GPUBackend>(0).SetLayout(result_layout_);
-  auto tiles = make_cspan(tiles_cover_);
+  auto tiles = make_cspan(tile_cover_);
   for (size_t i = 0; i < exec_order_.size(); i++) {
     // call impl for whole batch
-    exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(samples_per_task_), tiles);
+    exec_order_[i].impl->Execute(exec_order_[i].ctx, make_cspan(samples_per_task_[i]), tiles);
   }
 }
 
