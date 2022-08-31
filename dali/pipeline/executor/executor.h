@@ -516,7 +516,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.
   for (int i = 0; i < ws->NumOutput(); i++) {
     const char *error_msg =
-        "DALI internal error: all outputs from the Pipeline must be contiguous, after being "
+        "DALI internal error: all outputs from the Pipeline must be contiguous after being "
         "processed by MakeContiguous operator.";
     if (ws->OutputIsType<CPUBackend>(i)) {
       DALI_ENFORCE(ws->Output<CPUBackend>(i).IsContiguous(), error_msg);

@@ -193,10 +193,10 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     new_node.children_tensors.push_back(new_tensor.id);
 
     auto it_inserted = tensor_name_to_id_.insert({name, new_tensor.id});
-    DALI_ENFORCE(it_inserted.second, "Operator '" + new_node.instance_name +
-        "' has output with name " + name + ", but output "
-        "with this name already exists as output of op '" +
-        this->Node(TensorSourceID(name)).instance_name + "'");
+    DALI_ENFORCE(it_inserted.second,
+                 make_string("Operator '", new_node.instance_name, "' has output with name ", name,
+                             ", but output with this name already exists as output of op '",
+                             this->Node(TensorSourceID(name)).instance_name, "'"));
   }
 }
 
@@ -565,15 +565,16 @@ bool OpGraph::IsAlwaysContiguous(TensorNodeId tensor_id) const {
     return true;
   }
 
-  // see, if we were passed through
+  // Check if we were passed through.
   auto maybe_source = FollowPassThroughUp(producer_op_node_id, tensor_id);
 
-  // we were not passed through, we can assume that we are produced non-contiguous
+  // We were not passed through, we can stop here and assume that this tensor node is not guaranteed
+  // to be produced contiguous batch.
   if (maybe_source == -1) {
     return false;
   }
 
-  // otherwise check recursively
+  // Otherwise check recursively for the tensor that was passed through.
   return IsAlwaysContiguous(maybe_source);
 }
 
