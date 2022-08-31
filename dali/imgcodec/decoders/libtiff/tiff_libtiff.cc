@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/imgcodec/decoders/tiff_libtiff.h"
-#include <tiffio.h>
 #include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
+#include <tiffio.h>
 #include "dali/imgcodec/util/convert.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/common/utils.h"
@@ -115,6 +114,7 @@ struct TiffInfo {
   uint16_t bit_depth;
   uint16_t orientation;
   uint16_t compression;
+  uint16_t fill_order;
 
   bool is_tiled;
   bool is_palette;
@@ -130,6 +130,7 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_ORIENTATION, &info.orientation));
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_COMPRESSION, &info.compression));
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_ROWSPERSTRIP, &info.rows_per_strip));
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_FILLORDER, &info.fill_order));
 
   info.is_tiled = TIFFIsTiled(tiffptr);
 
@@ -172,6 +173,14 @@ struct depth2type<32> {
  */
 template<typename OutputType, bool normalize = true>
 void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t n) {
+  // We don't care about endianness here, because we read byte-by-byte and:
+  // 1) "The library attempts to hide bit- and byte-ordering differences between the image and the
+  //    native machine by converting data to the native machine order."
+  //    http://www.libtiff.org/man/TIFFReadScanline.3t.html
+  // 2) We only support FILL_ORDER=1 (i.e. big endian), which is TIFF's default and the only fill
+  //    order required in Baseline TIFF readers.
+  //    https://www.awaresystems.be/imaging/tiff/tifftags/fillorder.html
+
   size_t out_type_bits = 8 * sizeof(OutputType);
   if (out_type_bits < nbits)
     throw std::logic_error("Unpacking bits failed: OutputType too small");
@@ -231,6 +240,10 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   if (info.is_tiled)
     return {false, make_exception_ptr(std::logic_error("Tiled images are not yet supported"))};
 
+  // Other fill orders are rare and discouraged by TIFF specification, but can happen
+  if (info.fill_order != FILLORDER_MSB2LSB)
+    return {false, make_exception_ptr(std::logic_error("Only FILL_ORDER=1 is supported"))};
+
   unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 
   auto row_nbytes = TIFFScanlineSize(tiff.get());
@@ -279,7 +292,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
 
   // We choose smallest possible type
-  size_t in_type_bits;
+  size_t in_type_bits = 0;
   if (info.bit_depth <= 8) in_type_bits = 8;
   else if (info.bit_depth <= 16) in_type_bits = 16;
   else if (info.bit_depth <= 32) in_type_bits = 32;
@@ -290,13 +303,13 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
     VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
       using InputType = detail::depth2type<InTypeBits>::type;
 
-      DynamicScratchpad scratchpad;
+      kernels::DynamicScratchpad scratchpad;
       InputType *row_in;
       if (info.bit_depth == InTypeBits) {
         row_in = static_cast<InputType *>(row_buf.get());
       } else {
-        row_in = scratchpad.Alloc<mm::memory_kind::host>(volume(in_line_shape) * sizeof(InputType),
-                                                         sizeof(InputType));
+        row_in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
+                   volume(in_line_shape) * sizeof(InputType), sizeof(InputType)));
       }
 
       OutType *const img_out = out.mutable_data<OutType>();
