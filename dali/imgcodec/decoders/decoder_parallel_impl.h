@@ -43,13 +43,19 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
                               cspan<ROI> rois) override {
     assert(rois.empty() || rois.size() == in.size());
     std::vector<bool> ret(in.size());
+
+    // writing in parallel to adjacent entries in vector<bool> is not safe
+    std::vector<int> tmp(in.size());
     ROI no_roi;
     for (int i = 0; i < in.size(); i++) {
       ctx.tp->AddWork([&, ctx, i](int) {
-        ret[i] = CanDecode(ctx, in[i], opts, rois.empty() ? no_roi : rois[i]);
+        tmp[i] = CanDecode(ctx, in[i], opts, rois.empty() ? no_roi : rois[i]);
       });
     }
     ctx.tp->RunAll();
+
+    for (int i = 0; i < in.size(); i++)
+      ret[i] = tmp[i];
     return ret;
   }
 
