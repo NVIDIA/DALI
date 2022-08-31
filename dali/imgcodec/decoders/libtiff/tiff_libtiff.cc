@@ -115,9 +115,11 @@ struct TiffInfo {
   uint16_t orientation;
   uint16_t compression;
   uint16_t fill_order;
+  uint16_t photometric;
 
   bool is_tiled;
   bool is_palette;
+  bool is_planar;
 };
 
 TiffInfo GetTiffInfo(TIFF *tiffptr) {
@@ -134,11 +136,15 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
 
   info.is_tiled = TIFFIsTiled(tiffptr);
 
-  uint16_t photometric_interpretation;
-  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &photometric_interpretation) &&
-      photometric_interpretation == PHOTOMETRIC_PALETTE) {
-    info.is_palette = true;
+  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &info.photometric)) {
+    info.is_palette = (info.photometric == PHOTOMETRIC_PALETTE);
+  } else {
+    info.photometric = PHOTOMETRIC_MINISBLACK;
   }
+
+  uint16_t planar_config;
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_PLANARCONFIG, &planar_config));
+  info.is_planar = (planar_config == PLANARCONFIG_SEPARATE);
 
   return info;
 }
@@ -326,6 +332,15 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
 
   return {true, nullptr};
+}
+
+DecodeResult LibTiffDecoderInstance::Decode(SampleView<CPUBackend> out, ImageSource *in,
+                                            DecodeParams opts, const ROI &requested_roi) {
+  try {
+    return DecodeImpl(out, in, opts, requested_roi);
+  } catch (std::exception& e) {
+    return {false, std::current_exception()};
+  }
 }
 
 }  // namespace imgcodec
