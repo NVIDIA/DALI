@@ -85,6 +85,15 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
     opts.dtype = dtype;
     return opts;
   }
+
+  constexpr float GetEps() {
+    if (std::is_floating_point_v<OutputType>) {
+      return 0.01f;
+    } else {  
+      // Adjusting the epsilon to OutputType, keeping in mind that reference is 8bit
+      return 1.01f * (1 << sizeof(OutputType)) / (1 << sizeof(uint8_t));
+    }
+  }
 };
 
 using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
@@ -110,7 +119,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
   params.format = DALI_YCbCr;
   auto decoded = this->Decode(&image.src, params);
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
-  this->AssertClose(decoded, ref, 0.01);
+  this->AssertClose(decoded, ref, this->GetEps());
 }
 
 }  // namespace test
