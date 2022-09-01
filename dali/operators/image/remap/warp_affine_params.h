@@ -116,7 +116,7 @@ class WarpAffineParamProvider
     }
   }
 
-  void UseInputAsParams(const TensorVector<CPUBackend> &input, bool invert) {
+  void UseInputAsParams(const TensorList<CPUBackend> &input, bool invert) {
     CheckParamInput(input);
 
     auto *params = this->template AllocParams<mm::memory_kind::host>();
@@ -127,7 +127,7 @@ class WarpAffineParamProvider
         params[i] = *static_cast<const MappingParams *>(input.raw_tensor(i));
       }
     }
-}
+  }
 
   void UseInputAsParams(const TensorList<GPUBackend> &input, bool invert) {
     CheckParamInput(input);

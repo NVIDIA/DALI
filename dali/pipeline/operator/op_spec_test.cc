@@ -71,7 +71,7 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
   // [Try]GetRepeatedArgument does not handle Argument Inputs
   for (const auto &arg_name : {"required_tensor"s, "default_tensor"s, "no_default_tensor"s}) {
     ArgumentWorkspace ws0;
-    auto tv = std::make_shared<TensorVector<CPUBackend>>(2);
+    auto tv = std::make_shared<TensorList<CPUBackend>>(2);
     tv->Resize(TensorListShape<0>(2), DALI_INT32);
     for (int i = 0; i < 2; i++) {
       tv->mutable_tensor<int32_t>(i)[0] = 42 + i;

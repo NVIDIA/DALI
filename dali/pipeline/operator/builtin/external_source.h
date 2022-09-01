@@ -156,8 +156,9 @@ class CachingList {
 
 template<typename Backend, template<typename>class BatchContainer>
 auto get_batch_size(const BatchContainer<Backend>& container) {
-  static_assert(is_batch_container<BatchContainer, Backend>::value,
-      "Invalid container. Use TensorVector/TensorList and CPUBackend/GPUBackend/MixedBackend.");
+  static_assert(
+      is_batch_container<BatchContainer, Backend>::value,
+      "Invalid container. Use TensorList/TensorList and CPUBackend/GPUBackend/MixedBackend.");
   return container.num_samples();
 }
 
@@ -210,7 +211,7 @@ struct ExtSrcSettingMode {
 template <typename Backend>
 class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvider {
   using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
-  using uptr_tv_type = std::unique_ptr<TensorVector<Backend>>;
+  using uptr_tv_type = std::unique_ptr<TensorList<Backend>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
   using Operator<Backend>::spec_;
@@ -266,7 +267,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     DALI_ENFORCE(vect_of_tensors.size() > 0, "Provided batch cannot be empty.");
-    TensorVector<SrcBackend> tv(vect_of_tensors.size());
+    TensorList<SrcBackend> tv(vect_of_tensors.size());
     tv.SetupLike(vect_of_tensors[0]);
     for (int i = 0; i < tv.num_samples(); ++i) {
       tv.UnsafeSetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
@@ -278,7 +279,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
   template <typename SrcBackend>
-  inline void SetDataSource(const TensorVector<SrcBackend> &tv, AccessOrder order = {},
+  inline void SetDataSource(const TensorList<SrcBackend> &tv, AccessOrder order = {},
                             ExtSrcSettingMode ext_src_setting_mode = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
@@ -415,14 +416,14 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   template <typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorVector<SrcBackend> &batch, AccessOrder order = {},
+  ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder order = {},
                 bool use_copy_kernel = false) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     auto tl_elm = tl_data_.GetEmpty();
     bool copied_shared_data = false;
 
     if (batch.IsContiguous()) {
-      auto batch_owner = unsafe_sample_owner(const_cast<TensorVector<SrcBackend> &>(batch), 0);
+      auto batch_owner = unsafe_sample_owner(const_cast<TensorList<SrcBackend> &>(batch), 0);
       tl_elm.front()->ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
                                 batch.type(), batch.device_id(), batch.order());
       zero_copy_noncontiguous_gpu_input_ = true;
@@ -598,7 +599,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   struct ExternalSourceState {
     /**
      * True if the data that was shared as no_copy required copy regardless.
-     * Happens for non-contiguous TensorVector with GPU memory.
+     * Happens for non-contiguous TensorList with GPU memory.
      */
     bool copied_shared_data = false;
     /**

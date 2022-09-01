@@ -40,7 +40,7 @@ class CPUBackend;
 /**
  * @brief State of a batch object. Can be used to force the state to one of the two contiguous /
  * noncontiguous modes or to change the mode when resizing, if it was not pinned.
- * See TensorVector::Resize for detailed behaviour.
+ * See TensorList::Resize for detailed behaviour.
  * * Automatic - means we are leaving it to the Batch to decide when to coalesce the allocation,
  *   or keep the current one unchanged.
  * Contiguous and Noncontiguous allow to request one backing allocation or separate ones for each
@@ -604,7 +604,7 @@ class DLL_PUBLIC Buffer {
   }
 
   template <typename>
-  friend class TensorVector;
+  friend class TensorList;
 
   static double growth_factor_;
   static double shrink_threshold_;

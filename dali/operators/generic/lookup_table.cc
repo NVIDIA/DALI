@@ -20,8 +20,8 @@ namespace dali {
 namespace {
 
 template <typename Output, typename Input>
-void LookupValuesImpl(ThreadPool &tp, TensorVector<CPUBackend> &output,
-                      const TensorVector<CPUBackend> &input, const TensorListShape<> &shape,
+void LookupValuesImpl(ThreadPool &tp, TensorList<CPUBackend> &output,
+                      const TensorList<CPUBackend> &input, const TensorListShape<> &shape,
                       const Output *lookup_table, const Output default_value) {
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
     auto data_size = shape.tensor_size(sample_idx);

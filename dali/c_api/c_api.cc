@@ -144,7 +144,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   // that is tied to the pipeline.
   int device_id = pipeline->device_id();
 
-  dali::TensorVector<Backend> data(curr_batch_size);
+  dali::TensorList<Backend> data(curr_batch_size);
   data.set_pinned(flags & DALI_ext_pinned);
   data.set_sample_dim(sample_dim);
   data.set_type(type_id);

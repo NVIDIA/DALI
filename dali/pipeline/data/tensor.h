@@ -442,9 +442,9 @@ class Tensor : public Buffer<Backend> {
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 
-  // So TensorVector can access data_ of the tensor directly
+  // So TensorList can access data_ of the tensor directly
   template <typename InBackend>
-  friend class TensorVector;
+  friend class TensorList;
 };
 
 }  // namespace dali

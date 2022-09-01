@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,16 +23,16 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/pipeline/data/tensor_vector.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 
 template <typename Backend>
-using HostInputType = shared_ptr<TensorVector<Backend>>;
+using HostInputType = shared_ptr<TensorList<Backend>>;
 template <typename Backend>
-using HostOutputType = shared_ptr<TensorVector<Backend>>;
+using HostOutputType = shared_ptr<TensorList<Backend>>;
 
 class SampleWorkspace;
 
