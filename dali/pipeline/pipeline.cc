@@ -494,7 +494,6 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   vector<string> outputs;
   for (const auto &out_desc : output_descs_) {
     string name = out_desc.name;
-    // what device is it? Op placement, output placement, requested placement?
     string device = out_desc.device;
     auto it = edge_names_.find(name);
     DALI_ENFORCE(it != edge_names_.end(), "Requested output name '" +

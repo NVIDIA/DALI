@@ -124,7 +124,7 @@ class MakeContiguousCPU : public MakeContiguousBase<CPUBackend> {
 };
 
 /**
- * @brief Call the MakeContiguousBase::MarkPassThrough, for other Operators it is no-op.
+ * @brief Call the MakeContiguousBase::MarkPassThrough, invalid for other operators.
  */
 void MarkPassThrough(OperatorBase &make_contiguous);
 

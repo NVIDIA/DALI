@@ -43,14 +43,17 @@ void MarkPassThrough(OperatorBase &op) {
   auto *make_contiguous_cpu = dynamic_cast<MakeContiguousBase<CPUBackend> *>(&op);
   if (make_contiguous_cpu) {
     make_contiguous_cpu->MarkPassThrough();
+    return;
   }
   auto *make_contiguous_mixed = dynamic_cast<MakeContiguousBase<MixedBackend> *>(&op);
   if (make_contiguous_mixed) {
     make_contiguous_mixed->MarkPassThrough();
+    return;
   }
   auto *make_contiguous_gpu = dynamic_cast<MakeContiguousBase<GPUBackend> *>(&op);
   if (make_contiguous_gpu) {
     make_contiguous_gpu->MarkPassThrough();
+    return;
   }
   DALI_FAIL("This operation should be called only on MakeContiguous Operators.");
 }
