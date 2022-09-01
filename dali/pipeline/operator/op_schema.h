@@ -656,11 +656,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * own the storage and the associated input should be included in double-buffering
    * whenever the output should.
    *
-   * TODO(klecki): Introduce additional class of Pass Through that enables partial mappings
+   * TODO(klecki): Introduce additional class of Pass Through that enables elementwise mappings
    * (splitting one input into multiple outputs or merging several inputs to one output).
    *
    * @param inout - tells which inputs are passed through to which outputs.
-   *                Only bijective mappings are allowed.
+   *                Only (partial - as in partial function) bijective mappings are allowed.
    */
   DLL_PUBLIC inline OpSchema &PassThrough(const std::map<int, int> &inout) {
     std::set<int> outputs;
