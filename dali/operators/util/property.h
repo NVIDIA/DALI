@@ -23,24 +23,11 @@
 namespace dali {
 namespace tensor_property {
 
-namespace detail {
-
-inline const DALIMeta& GetMeta(const TensorVector<CPUBackend>& batch, int tensor_idx) {
-  return batch.GetMeta(tensor_idx);
-}
-
-inline const DALIMeta& GetMeta(const TensorList<GPUBackend>& batch, int tensor_idx) {
-  return batch.GetMeta(tensor_idx);
-}
-
-}  // namespace detail
-
 /**
  * Base class for a property of the Tensor.
  * @tparam Backend Backend of the operator.
- * @tparam BatchContainer TensorList<GPUBackend> or TensorVector<CPUBackend>.
  */
-template <typename Backend, typename BatchContainer = batch_container_t<Backend>>
+template <typename Backend>
 struct Property {
   Property() = default;
   virtual ~Property() = default;
@@ -48,12 +35,12 @@ struct Property {
   /**
    * @return The shape of the tensor containing the property, based on the input to the operator.
    */
-  virtual TensorListShape<> GetShape(const BatchContainer& input) = 0;
+  virtual TensorListShape<> GetShape(const TensorVector<Backend>& input) = 0;
 
   /**
    * @return The type of the tensor containing the property, based on the input to the operator.
    */
-  virtual DALIDataType GetType(const BatchContainer& input) = 0;
+  virtual DALIDataType GetType(const TensorVector<Backend>& input) = 0;
 
   /**
    * This function implements filling the output of the operator. Its implementation should
@@ -63,9 +50,9 @@ struct Property {
 };
 
 
-template <typename Backend, typename BatchContainer = batch_container_t<Backend>>
+template <typename Backend>
 struct SourceInfo : public Property<Backend> {
-  TensorListShape<> GetShape(const BatchContainer& input) override {
+  TensorListShape<> GetShape(const TensorVector<Backend>& input) override {
     TensorListShape<> ret{static_cast<int>(input.num_samples()), 1};
     for (int i = 0; i < ret.size(); i++) {
       ret.set_tensor_shape(i, {static_cast<int64_t>(GetSourceInfo(input, i).length())});
@@ -73,35 +60,35 @@ struct SourceInfo : public Property<Backend> {
     return ret;
   }
 
-  DALIDataType GetType(const BatchContainer&) override {
+  DALIDataType GetType(const TensorVector<Backend>&) override {
     return DALI_UINT8;
   }
 
   void FillOutput(workspace_t<Backend>& ws) override;
 
  private:
-  const std::string& GetSourceInfo(const BatchContainer& input, size_t idx) {
-    return detail::GetMeta(input, idx).GetSourceInfo();
+  const std::string& GetSourceInfo(const TensorVector<Backend>& input, size_t idx) {
+    return input.GetMeta(idx).GetSourceInfo();
   }
 };
 
 
-template <typename Backend, typename BatchContainer = batch_container_t<Backend>>
+template <typename Backend>
 struct Layout : public Property<Backend> {
-  TensorListShape<> GetShape(const BatchContainer& input) override {
+  TensorListShape<> GetShape(const TensorVector<Backend>& input) override {
     // Every tensor in the output has the same number of dimensions
     return uniform_list_shape(input.num_samples(), {GetLayout(input, 0).size()});
   }
 
-  DALIDataType GetType(const BatchContainer&) override {
+  DALIDataType GetType(const TensorVector<Backend>&) override {
     return DALI_UINT8;
   }
 
   void FillOutput(workspace_t<Backend>& ws) override;
 
  private:
-  const TensorLayout& GetLayout(const BatchContainer& input, int idx) {
-    return detail::GetMeta(input, idx).GetLayout();
+  const TensorLayout& GetLayout(const TensorVector<Backend>& input, int idx) {
+    return input.GetMeta(idx).GetLayout();
   }
 };
 

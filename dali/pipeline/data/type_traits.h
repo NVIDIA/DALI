@@ -22,9 +22,6 @@ namespace dali {
 template <typename Backend>
 class TensorVector;
 
-template <typename Backend>
-class TensorList;
-
 class CPUBackend;
 class MixedBackend;
 class GPUBackend;
@@ -42,11 +39,6 @@ struct is_tensor_vector {
       std::is_same<MaybeTensorVector<Backend>, TensorVector<Backend>>::value;
 };
 
-template <template <typename> class MaybeTensorList, typename Backend>
-struct is_tensor_list {
-  static constexpr bool value = std::is_same<MaybeTensorList<Backend>, TensorList<Backend>>::value;
-};
-
 /**
  * Verifies, that T is proper batch container for DALI
  *
@@ -56,32 +48,8 @@ template <template <typename Backend_> class T, typename Backend>
 struct is_batch_container {
   static constexpr bool value =
       is_backend<Backend>::value &&
-      (is_tensor_vector<T, Backend>::value || is_tensor_list<T, Backend>::value);
+      is_tensor_vector<T, Backend>::value;
 };
-
-template <typename Backend = CPUBackend>
-struct BatchContainer {
-  using type = TensorVector<CPUBackend>;
-};
-
-template <>
-struct BatchContainer<GPUBackend> {
-  using type = TensorList<GPUBackend>;
-};
-
-/**
- * Returns the typical batch container used for given Backend
- */
-template <typename Backend>
-using batch_container_t = typename BatchContainer<Backend>::type;
-
-namespace test {
-static_assert(is_batch_container<TensorVector, CPUBackend>::value, "Test failed");
-static_assert(is_batch_container<TensorVector, GPUBackend>::value, "Test failed");
-static_assert(is_batch_container<TensorList, CPUBackend>::value, "Test failed");
-static_assert(is_batch_container<TensorList, GPUBackend>::value, "Test failed");
-}  // namespace test
-
 
 template <typename BatchType, typename T = void>
 struct BatchBackend;

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/core/nvtx.h"
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
 
 namespace dali {
@@ -19,17 +20,58 @@ namespace dali {
 void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
   auto &input = ws.template Input<CPUBackend>(0);
   auto &output = ws.template Output<CPUBackend>(0);
-  int batch_size = input.num_samples();
-  output.SetLayout(input.GetLayout());
-  auto shapes = input.shape();
 
-  auto &thread_pool = ws.GetThreadPool();
-  for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-    thread_pool.AddWork([sample_id, &input, &output] (int tid) {
-      output.UnsafeCopySample(sample_id, input, sample_id, AccessOrder::host());
-    }, shapes.tensor_size(sample_id));
+  DomainTimeRange tr("[DALI][MakeContiguousCPU] H2H", DomainTimeRange::kBlue);
+  if (IsPassThrough()) {
+    output.ShareData(input);
+  } else {
+    int batch_size = input.num_samples();
+    output.SetLayout(input.GetLayout());
+    auto shapes = input.shape();
+
+    auto &thread_pool = ws.GetThreadPool();
+    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+      thread_pool.AddWork([sample_id, &input, &output] (int tid) {
+        output.UnsafeCopySample(sample_id, input, sample_id, AccessOrder::host());
+      }, shapes.tensor_size(sample_id));
+    }
+    thread_pool.RunAll();
   }
-  thread_pool.RunAll();
+}
+
+void MarkPassThrough(OperatorBase &op) {
+  auto *make_contiguous_cpu = dynamic_cast<MakeContiguousBase<CPUBackend> *>(&op);
+  if (make_contiguous_cpu) {
+    make_contiguous_cpu->MarkPassThrough();
+    return;
+  }
+  auto *make_contiguous_mixed = dynamic_cast<MakeContiguousBase<MixedBackend> *>(&op);
+  if (make_contiguous_mixed) {
+    make_contiguous_mixed->MarkPassThrough();
+    return;
+  }
+  auto *make_contiguous_gpu = dynamic_cast<MakeContiguousBase<GPUBackend> *>(&op);
+  if (make_contiguous_gpu) {
+    make_contiguous_gpu->MarkPassThrough();
+    return;
+  }
+  DALI_FAIL("This operation should be called only on MakeContiguous Operators.");
+}
+
+bool IsPassThrough(const OperatorBase &op) {
+  const auto *make_contiguous_cpu = dynamic_cast<const MakeContiguousBase<CPUBackend> *>(&op);
+  if (make_contiguous_cpu) {
+    return make_contiguous_cpu->IsPassThrough();
+  }
+  const auto *make_contiguous_mixed = dynamic_cast<const MakeContiguousBase<MixedBackend> *>(&op);
+  if (make_contiguous_mixed) {
+    return make_contiguous_mixed->IsPassThrough();
+  }
+  const auto *make_contiguous_gpu = dynamic_cast<const MakeContiguousBase<GPUBackend> *>(&op);
+  if (make_contiguous_gpu) {
+    return make_contiguous_gpu->IsPassThrough();
+  }
+  DALI_FAIL("This operation should be called only on MakeContiguous Operators.");
 }
 
 
@@ -38,5 +80,7 @@ DALI_SCHEMA(MakeContiguous)
   .NumInput(1)
   .NumOutput(1)
   .MakeInternal();
+
+DALI_REGISTER_OPERATOR(MakeContiguous, MakeContiguousCPU, CPU);
 
 }  // namespace dali

@@ -60,24 +60,6 @@ void enforce_dim_in_view(const ShapeType &shape) {
 
 }  // namespace detail
 
-/**
- * @brief Returns an equivalent tensor shape for a dense, uniform tensor list.
- * @return Tensor shape with outermost dimension corresponding to samples.
- * @remarks If the argument is not a dense tensor, an error is raised.
- */
-template <int ndim, typename Backend>
-TensorShape<ndim> get_tensor_shape(const TensorList<Backend> &tl) {
-  DALI_ENFORCE(tl.IsDenseTensor(), "Uniform, dense tensor expected");
-  if (ndim != DynamicDimensions) {
-    DALI_ENFORCE(tl.shape().sample_dim() + 1 == ndim,
-    "Input has a wrong number of dimensions!\n"
-    "Hint: Converting tensor list to a tensor adds extra dimension");
-  }
-  int dim = (ndim != DynamicDimensions) ? ndim : tl.shape().sample_dim() + 1;
-  auto out = shape_cat(tl.num_samples(), tl.tensor_shape(0));
-  return convert_dim<ndim>(out);
-}
-
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
 TensorView<detail::storage_tag_map_t<Backend>, T, ndim>
@@ -120,43 +102,6 @@ TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(ConstSampleView<Bac
   return {data.template data<U>(), data.shape()};
 }
 // @}
-
-
-template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
-view(TensorList<Backend> &data) {
-  if (data.num_samples() == 0)
-    return {};
-  using U = std::remove_const_t<T>;
-  const auto &shape = data.shape();
-  detail::enforce_dim_in_view<ndim>(shape);
-
-  std::vector<T *> ptrs(shape.num_samples());
-  for (int i = 0; i < shape.num_samples(); i++) {
-    ptrs[i] = data.template mutable_tensor<U>(i);
-  }
-  return { std::move(ptrs), convert_dim<ndim>(shape) };
-}
-
-
-template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
-view(const TensorList<Backend> &data) {
-  static_assert(std::is_const<T>::value,
-                "Cannot create a non-const view of a `const TensorList<>`. "
-                "Missing `const` in T?");
-  if (data.num_samples() == 0)
-    return {};
-  using U = std::remove_const_t<T>;
-  const auto &shape = data.shape();
-  detail::enforce_dim_in_view<ndim>(shape);
-
-  std::vector<T *> ptrs(shape.num_samples());
-  for (int i = 0; i < shape.num_samples(); i++) {
-    ptrs[i] = data.template tensor<U>(i);
-  }
-  return { std::move(ptrs), convert_dim<ndim>(shape) };
-}
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>

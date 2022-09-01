@@ -106,8 +106,9 @@ void SetExternalInput(daliPipelineHandle *pipe_handle, const char *name, const v
   // We do not support feeding memory cross-device, it is assumed it's on the current device
   // that is tied to the pipeline.
   int device_id = pipeline->device_id();
-  data.ShareData(const_cast<void *>(data_ptr), tl_shape.num_elements() * elem_sizeof,
-                 flags & DALI_ext_pinned, tl_shape, type_id, device_id, order);
+  data.ShareData(std::shared_ptr<void>(const_cast<void *>(data_ptr), [](void *) {}),
+                 tl_shape.num_elements() * elem_sizeof, flags & DALI_ext_pinned, tl_shape, type_id,
+                 device_id, order);
   data.SetLayout(layout);
   pipeline->SetExternalInput(name, data, order,
                              flags & DALI_ext_force_sync,
