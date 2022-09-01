@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
+#include "dali/imgcodec/image_orientation.h"
 
 #define IMGCODEC_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
 
@@ -191,6 +192,39 @@ struct ConvertPixel<Out, In, DALI_GRAY, DALI_YCbCr> : ColorConversionBase<Out, 1
   }
 };
 
+template <typename T>
+void ApplyOrientation(Orientation orientation, T *&data,
+                      int64_t &x_stride, int64_t &x_size, int64_t &y_stride, int64_t &y_size) {
+  bool swap_xy = false, flip_x = false, flip_y = false;
+
+  if (orientation.rotate == 90) {
+    swap_xy = true;
+    flip_x = true;
+  } else if (orientation.rotate == 180) {
+    flip_x = true;
+    flip_y = true;
+  } else if (orientation.rotate == 270) {
+    swap_xy = true;
+    flip_y = true;
+  }
+  flip_x ^= orientation.flip_x;
+  flip_y ^= orientation.flip_y;
+
+  if (swap_xy) {
+    std::swap(x_stride, y_stride);
+    std::swap(x_size, y_size);
+  }
+
+  if (flip_x) {
+    data += x_stride * (x_size - 1);
+    x_stride = -x_stride;
+  }
+
+  if (flip_y) {
+    data += y_stride * (y_size - 1);
+    y_stride = -y_stride;
+  }
+}
 
 /**
  * @brief Converts an image stored in `in` and stores it in `out`.
@@ -256,7 +290,7 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
 void DLL_PUBLIC Convert(
     SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
     ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-    TensorShape<> roi_start, TensorShape<> roi_end);
+    TensorShape<> roi_start, TensorShape<> roi_end, Orientation orientation = {});
 
 
 }  // namespace imgcodec
