@@ -289,10 +289,11 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
     const bool allow_random_row_access = (info.compression == COMPRESSION_NONE
                                           || info.rows_per_strip == 1);
 
-  // If random access is not allowed, need to read sequentially all previous rows
-  if (!allow_random_row_access) {
-    for (int64_t y = 0; y < roi.begin[0]; y++) {
-      LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), y, 0));
+    // If random access is not allowed, need to read sequentially all previous rows
+    if (!allow_random_row_access) {
+      for (int64_t y = 0; y < roi.begin[0]; y++) {
+        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), buf.get(), y, 0));
+      }
     }
   }
 
@@ -311,6 +312,14 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   TensorShape<> tile_shape = {info.tile_height, info.tile_width, info.channels};
   TensorShape<> tile_strides = kernels::GetStrides(tile_shape);
 
+  // We choose smallest possible type
+  size_t in_type_bits = 0;
+  if (info.bit_depth <= 8) in_type_bits = 8;
+  else if (info.bit_depth <= 16) in_type_bits = 16;
+  else if (info.bit_depth <= 32) in_type_bits = 32;
+  else
+    assert(false);
+
   TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
     VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
       using InputType = detail::depth2type<InTypeBits>::type;
@@ -318,10 +327,10 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
       kernels::DynamicScratchpad scratchpad;
       InputType *in;
       if (info.bit_depth == InTypeBits) {
-        in = static_cast<InputType *>(row_buf.get());
+        in = static_cast<InputType *>(buf.get());
       } else {
         in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
-                   volume(in_line_shape) * sizeof(InputType), sizeof(InputType)));
+                  volume(tile_shape) * sizeof(InputType), sizeof(InputType)));
       }
 
       OutType *const img_out = out.mutable_data<OutType>();
