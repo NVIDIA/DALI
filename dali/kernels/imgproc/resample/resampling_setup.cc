@@ -58,12 +58,19 @@ void SeparableResamplingSetup<spatial_ndim>::SetFilters(
 
     auto fdesc = desc.out_shape()[axis] < in_size ? params[dim].min_filter
                                                   : params[dim].mag_filter;
+
+    if (fdesc.antialias && fdesc.type == ResamplingFilterType::Linear)
+      fdesc.type = ResamplingFilterType::Triangular;
+    else if (!fdesc.antialias && fdesc.type == ResamplingFilterType::Triangular)
+      fdesc.type = ResamplingFilterType::Linear;
+
     if (fdesc.radius == 0)
       fdesc.radius = DefaultFilterRadius(fdesc.type, fdesc.antialias, in_size,
                                          desc.out_shape()[axis]);
 
     desc.filter_type[axis] = fdesc.type;
     auto &filter = desc.filter[axis];
+
     filter = GetResamplingFilter(filters.get(), fdesc);
   }
 }
