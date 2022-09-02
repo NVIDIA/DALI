@@ -242,9 +242,9 @@ TensorList<Backend> &TensorList<Backend>::operator=(TensorList<Backend> &&other)
 
 template <typename Backend>
 void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int sample_dim,
-                                                           TensorLayout layout, bool pinned,
-                                                           AccessOrder order, int device_id,
-                                                           const std::string &error_suffix) {
+                                                         TensorLayout layout, bool pinned,
+                                                         AccessOrder order, int device_id,
+                                                         const std::string &error_suffix) {
   // Checks in the order of class members
   DALI_ENFORCE(this->type() == type,
                make_string("Sample must have the same type as the target batch, current: ",
@@ -274,7 +274,7 @@ void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int 
 
 template <typename Backend>
 void TensorList<Backend>::UnsafeSetSample(int sample_idx, const TensorList<Backend> &src,
-                                            int src_sample_idx) {
+                                          int src_sample_idx) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
@@ -322,10 +322,10 @@ void TensorList<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend> 
 
 
 template <typename Backend>
-void TensorList<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr,
-                                            size_t bytes, bool pinned, const TensorShape<> &shape,
-                                            DALIDataType type, int device_id, AccessOrder order,
-                                            const TensorLayout &layout) {
+void TensorList<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
+                                          bool pinned, const TensorShape<> &shape,
+                                          DALIDataType type, int device_id, AccessOrder order,
+                                          const TensorLayout &layout) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
@@ -348,10 +348,10 @@ void TensorList<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<void>
 
 template <typename Backend>
 void TensorList<Backend>::VerifySampleCopyCompatibility(DALIDataType type, int sample_dim,
-                                                          TensorLayout layout,
-                                                          const TensorShape<> &current_shape,
-                                                          const TensorShape<> &new_shape,
-                                                          const std::string &error_suffix) {
+                                                        TensorLayout layout,
+                                                        const TensorShape<> &current_shape,
+                                                        const TensorShape<> &new_shape,
+                                                        const std::string &error_suffix) {
   // Checks in the order of class members
   DALI_ENFORCE(this->type() == type,
                make_string("Sample must have the same type as the target batch, current: ",
@@ -378,7 +378,7 @@ void TensorList<Backend>::VerifySampleCopyCompatibility(DALIDataType type, int s
 
 template <typename Backend>
 void TensorList<Backend>::UnsafeCopySample(int sample_idx, const TensorList<Backend> &src,
-                                             int src_sample_idx, AccessOrder order) {
+                                           int src_sample_idx, AccessOrder order) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
@@ -397,7 +397,7 @@ void TensorList<Backend>::UnsafeCopySample(int sample_idx, const TensorList<Back
 
 template <typename Backend>
 void TensorList<Backend>::UnsafeCopySample(int sample_idx, const Tensor<Backend> &src,
-                                             AccessOrder order) {
+                                           AccessOrder order) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   VerifySampleCopyCompatibility(src.type(), src.shape().sample_dim(), src.GetLayout(),
@@ -523,7 +523,7 @@ ConstSampleView<Backend> TensorList<Backend>::operator[](size_t pos) const {
 
 template <typename Backend>
 void TensorList<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataType new_type,
-                                   BatchContiguity state) {
+                                 BatchContiguity state) {
   DALI_ENFORCE(IsValidType(new_type),
                "TensorList cannot be resized with invalid type. To zero out the TensorList "
                "Reset() can be used.");
@@ -840,7 +840,7 @@ void TensorList<Backend>::Reset() {
 template <typename Backend>
 template <typename SrcBackend>
 void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder order,
-                                 bool use_copy_kernel) {
+                               bool use_copy_kernel) {
   auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
 
   Resize(src.shape(), src.type());
@@ -978,9 +978,8 @@ Tensor<Backend> TensorList<Backend>::AsTensor() {
 
 template <typename Backend>
 void TensorList<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-                                      const TensorListShape<> &shape, DALIDataType type,
-                                      int device_id, AccessOrder order,
-                                      const TensorLayout &layout) {
+                                    const TensorListShape<> &shape, DALIDataType type,
+                                    int device_id, AccessOrder order, const TensorLayout &layout) {
   contiguous_buffer_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements(),
                                             device_id, order);
   buffer_bkp_.reset();
@@ -1122,13 +1121,13 @@ bool TensorList<Backend>::shares_data() const {
 
 template class DLL_PUBLIC TensorList<CPUBackend>;
 template class DLL_PUBLIC TensorList<GPUBackend>;
-template void TensorList<CPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend> &,
-                                                         AccessOrder, bool);
-template void TensorList<CPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend> &,
-                                                         AccessOrder, bool);
-template void TensorList<GPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend> &,
-                                                         AccessOrder, bool);
-template void TensorList<GPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend> &,
-                                                         AccessOrder, bool);
+template void TensorList<CPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend> &, AccessOrder,
+                                                       bool);
+template void TensorList<CPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend> &, AccessOrder,
+                                                       bool);
+template void TensorList<GPUBackend>::Copy<CPUBackend>(const TensorList<CPUBackend> &, AccessOrder,
+                                                       bool);
+template void TensorList<GPUBackend>::Copy<GPUBackend>(const TensorList<GPUBackend> &, AccessOrder,
+                                                       bool);
 
 }  // namespace dali
