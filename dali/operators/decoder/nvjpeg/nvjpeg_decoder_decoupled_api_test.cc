@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -227,7 +227,7 @@ class HwDecoderUtilizationTest : public ::testing::Test {
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
-                    .AddArg("hw_decoder_load", .7f)
+                    .AddArg("hw_decoder_load", 1.f)
                     .AddInput("compressed_images", "cpu")
                     .AddOutput("images", "gpu");
     pipeline_.AddOperator(decoder_spec, decoder_name_);
@@ -260,8 +260,8 @@ TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
   auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
   auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
   auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
-  EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
-  EXPECT_EQ(nsamples_cuda, 12);
+  EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
+  EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
                 << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
 }
@@ -281,7 +281,7 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
-                    .AddArg("hw_decoder_load", .7f)
+                    .AddArg("hw_decoder_load", 1.f)
                     .AddArg("preallocate_width_hint", 400)
                     .AddArg("preallocate_height_hint", 600)
                     .AddInput("compressed_images", "cpu")
@@ -335,7 +335,7 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
             OpSpec("ImageDecoderSlice")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
-                    .AddArg("hw_decoder_load", .7f)
+                    .AddArg("hw_decoder_load", 1.f)
                     .AddInput("compressed_images", "cpu")
                     .AddInput("begin_data", "cpu")
                     .AddInput("crop_data", "cpu")
@@ -372,8 +372,8 @@ TEST_F(HwDecoderSliceUtilizationTest, UtilizationTest) {
   auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
   auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
   auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
-  EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
-  EXPECT_EQ(nsamples_cuda, 12);
+  EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
+  EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
                 << "Image decoding malfunction: all images should've been decoded by CUDA or HW";
 }
@@ -393,7 +393,7 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
             OpSpec("ImageDecoderCrop")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
-                    .AddArg("hw_decoder_load", .7f)
+                    .AddArg("hw_decoder_load", 1.f)
                     .AddArg("crop", std::vector<float>{224.0f, 224.0f})
                     .AddInput("compressed_images", "cpu")
                     .AddOutput("images", "gpu");
@@ -425,8 +425,8 @@ TEST_F(HwDecoderCropUtilizationTest, UtilizationTest) {
   auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
   auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
   auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
-  EXPECT_EQ(nsamples_hw, 35) << "HW Decoder malfunction: incorrect number of images decoded in HW";
-  EXPECT_EQ(nsamples_cuda, 12);
+  EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
+  EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
                 << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
 }
@@ -447,7 +447,7 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
             OpSpec("ImageDecoderRandomCrop")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
-                    .AddArg("hw_decoder_load", .7f)
+                    .AddArg("hw_decoder_load", 1.f)
                     .AddInput("compressed_images", "cpu")
                     .AddOutput("images", "gpu");
     pipeline_.AddOperator(decoder_spec, decoder_name_);
