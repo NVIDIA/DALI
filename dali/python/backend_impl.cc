@@ -714,15 +714,16 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     throw std::runtime_error("Cannot create TensorList from an empty list.");
   }
 
-  auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
-  TensorVector<Backend> tv(list_of_tensors.size());
+  auto contiguous_out = std::make_shared<TensorList<Backend>>();
+  contiguous_out->SetContiguity(BatchContiguity::Contiguous);
+  TensorVector<Backend> non_contiguous_tmp(list_of_tensors.size());
   int expected_type = -2;
 
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
       if (i == 0) {
-        tv.SetupLike(t);
+        non_contiguous_tmp.SetupLike(t);
       }
       DALIDataType cur_type = t.type();
 
@@ -733,7 +734,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             "Tensors cannot have different data types. Tensor at position ", i, " has type '",
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
-      tv.UnsafeSetSample(i, t);
+      non_contiguous_tmp.UnsafeSetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -748,11 +749,11 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     stream = UserStream::Get()->GetStream(t);
   }
 
-  tl->Copy(tv, stream);
-  tl->SetLayout(layout);
+  contiguous_out->Copy(non_contiguous_tmp, stream);
+  contiguous_out->SetLayout(layout);
   CUDA_CALL(cudaStreamSynchronize(stream));
 
-  return tl;
+  return contiguous_out;
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -979,7 +980,7 @@ void ExposeTensorList(py::module &m) {
           std::string format;
           size_t type_size;
 
-          if (tl._num_elements() > 0) {
+          if (tl.shape().num_elements() > 0) {
             DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),
@@ -1047,7 +1048,7 @@ void ExposeTensorList(py::module &m) {
 
       )code")
     .def("as_reshaped_tensor",
-        [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<CPUBackend>* {
+        [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) {
           return tl.AsReshapedTensor(new_shape);
         },
       R"code(
@@ -1055,15 +1056,13 @@ void ExposeTensorList(py::module &m) {
 
       This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("as_tensor", &TensorList<CPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
 
       This function can only be called if `is_dense_tensor` returns `True`.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("data_ptr",
         [](TensorList<CPUBackend> &tl) {
           return py::reinterpret_borrow<py::object>(
@@ -1162,6 +1161,7 @@ void ExposeTensorList(py::module &m) {
     .def("as_cpu", [](TensorList<GPUBackend> &t) {
           auto ret = std::make_shared<TensorList<CPUBackend>>();
           ret->set_pinned(false);
+          ret->SetContiguity(BatchContiguity::Contiguous);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           DeviceGuard g(t.device_id());
@@ -1247,7 +1247,7 @@ void ExposeTensorList(py::module &m) {
       return t.GetLayout().str();
     })
     .def("as_reshaped_tensor",
-        [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<GPUBackend>* {
+        [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) {
           return tl.AsReshapedTensor(new_shape);
         },
       R"code(
@@ -1255,15 +1255,13 @@ void ExposeTensorList(py::module &m) {
 
       This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
 
       This function can only be called if `is_dense_tensor` returns `True`.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("data_ptr",
         [](TensorList<GPUBackend> &tl) {
           return py::reinterpret_borrow<py::object>(

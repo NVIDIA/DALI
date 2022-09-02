@@ -604,9 +604,6 @@ class DLL_PUBLIC Buffer {
   }
 
   template <typename>
-  friend class TensorList;
-
-  template <typename>
   friend class TensorVector;
 
   static double growth_factor_;

@@ -63,8 +63,7 @@ TEST(LibJpegTurboDecoderTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "libjpeg-turbo factory test");
-  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID);
   EXPECT_NE(decoder, nullptr);
 }
 
@@ -73,8 +72,8 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
  protected:
   static const auto dtype = type2id<OutputType>::value;
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return LibJpegTurboDecoderFactory().Create(CPU_ONLY_DEVICE_ID, tp);
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
+    return LibJpegTurboDecoderFactory().Create(CPU_ONLY_DEVICE_ID);
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {

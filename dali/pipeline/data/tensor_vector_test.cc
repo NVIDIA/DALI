@@ -88,6 +88,7 @@ TYPED_TEST(TensorVectorSuite, SetupAndSetSizeNoncontiguous) {
 
   Tensor<TypeParam> t;
   t.set_pinned(false);
+  t.set_order(order);
   t.Resize({2, 3}, DALI_INT32);
   t.SetLayout("XY");
 
@@ -135,6 +136,7 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
   for (auto contiguity : {BatchContiguity::Contiguous, BatchContiguity::Noncontiguous}) {
     TensorVector<TypeParam> tv;
     tv.SetContiguity(contiguity);
+    tv.SetLayout("HWC");
     tv.set_pinned(true);
     auto shape0 = TensorListShape<>({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
     tv.Resize(shape0, DALI_UINT8);
@@ -142,14 +144,17 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 3; i++) {
       EXPECT_EQ(tv[i].type(), DALI_UINT8);
       EXPECT_EQ(tv[i].shape(), shape0[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "HWC");
     }
 
     auto shape1 = TensorListShape<>({{1, 2}, {3, 4}});
     tv.Resize(shape1, DALI_FLOAT);
+    tv.SetLayout("WC");
     EXPECT_EQ(tv.shape().num_samples(), 2);
     for (int i = 0; i < 2; i++) {
       EXPECT_EQ(tv[i].type(), DALI_FLOAT);
       EXPECT_EQ(tv[i].shape(), shape1[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "WC");
     }
 
     auto shape2 = TensorListShape<>({{2, 3}, {4, 5}, {5, 6}, {6, 7}, {7, 8}});
@@ -158,6 +163,7 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 5; i++) {
       EXPECT_EQ(tv[i].type(), DALI_FLOAT64);
       EXPECT_EQ(tv[i].shape(), shape2[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "WC");
     }
 
     auto shape3 = TensorListShape<>({{2, 3}, {4, 5}, {5, 6}});
@@ -166,14 +172,17 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 3; i++) {
       EXPECT_EQ(tv[i].type(), DALI_FLOAT64);
       EXPECT_EQ(tv[i].shape(), shape3[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "WC");
     }
 
     auto shape4 = TensorListShape<>({{1, 2, 3}, {2, 3, 4}, {3, 4, 5}});
+    tv.SetLayout("HWC");
     tv.Resize(shape4, DALI_UINT8);
     EXPECT_EQ(tv.shape().num_samples(), 3);
     for (int i = 0; i < 3; i++) {
       EXPECT_EQ(tv[i].type(), DALI_UINT8);
       EXPECT_EQ(tv[i].shape(), shape4[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "HWC");
     }
 
     auto shape5 =
@@ -183,6 +192,7 @@ TYPED_TEST(TensorVectorSuite, ResizeWithRecreate) {
     for (int i = 0; i < 6; i++) {
       EXPECT_EQ(tv[i].type(), DALI_UINT8);
       EXPECT_EQ(tv[i].shape(), shape5[i]);
+      EXPECT_EQ(tv.GetMeta(i).GetLayout(), "HWC");
     }
   }
 }
@@ -227,26 +237,17 @@ std::vector<std::pair<std::string, std::function<void(TensorVector<Backend> &)>>
 SetRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout, bool pinned,
                    int device_id) {
   return {
-    {"sample dim", [sample_dim](TensorVector<Backend> &t) {
-      t.set_sample_dim(sample_dim);
-    }},
-    {"type", [type](TensorVector<Backend> &t) {
-      t.set_type(type);
-    }},
-    {"layout", [layout](TensorVector<Backend> &t) {
-      t.SetLayout(layout);
-    }},
-    {"device id", [device_id](TensorVector<Backend> &t) {
-      t.set_device_id(device_id);
-    }},
-    {"pinned", [pinned](TensorVector<Backend> &t) {
-      t.set_pinned(pinned);
-    }},
-    {"order", [device_id](TensorVector<Backend> &t) {
-      constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
-      const auto order = is_device ? AccessOrder(cuda_stream, device_id) : AccessOrder::host();
-      t.set_order(order);
-    }},
+      {"sample dim", [sample_dim](TensorVector<Backend> &t) { t.set_sample_dim(sample_dim); }},
+      {"type", [type](TensorVector<Backend> &t) { t.set_type(type); }},
+      {"layout", [layout](TensorVector<Backend> &t) { t.SetLayout(layout); }},
+      {"device id", [device_id](TensorVector<Backend> &t) { t.set_device_id(device_id); }},
+      {"pinned", [pinned](TensorVector<Backend> &t) { t.set_pinned(pinned); }},
+      {"order",
+       [device_id](TensorVector<Backend> &t) {
+         constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
+         const auto order = is_device ? AccessOrder(cuda_stream, device_id) : AccessOrder::host();
+         t.set_order(order);
+       }},
   };
 }
 
@@ -284,14 +285,12 @@ TYPED_TEST(TensorVectorSuite, PartialSetupSetMultiGPU) {
       try {
         tv.UnsafeSetSample(0, t);
         FAIL() << "Exception was expected with excluded: " << setups[excluded].first;
-      } catch(std::runtime_error &e) {
+      } catch (std::runtime_error &e) {
         auto expected = "Sample must have the same " + setups[excluded].first;
         EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
             << expected << "\n====\nvs\n====\n"
             << e.what();
-      } catch (...) {
-        FAIL() << "Unexpected exception";
-      }
+      } catch (...) { FAIL() << "Unexpected exception"; }
     } while (std::next_permutation(idxs.begin(), idxs.end()));
   }
 }
@@ -300,17 +299,9 @@ TYPED_TEST(TensorVectorSuite, PartialSetupSetMultiGPU) {
 template <typename Backend>
 std::vector<std::pair<std::string, std::function<void(TensorVector<Backend> &)>>>
 CopyRequiredSetters(int sample_dim, DALIDataType type, TensorLayout layout) {
-  return {
-    {"sample dim", [sample_dim](TensorVector<Backend> &t) {
-      t.set_sample_dim(sample_dim);
-    }},
-    {"type", [type](TensorVector<Backend> &t) {
-      t.set_type(type);
-    }},
-    {"layout", [layout](TensorVector<Backend> &t) {
-      t.SetLayout(layout);
-    }}
-  };
+  return {{"sample dim", [sample_dim](TensorVector<Backend> &t) { t.set_sample_dim(sample_dim); }},
+          {"type", [type](TensorVector<Backend> &t) { t.set_type(type); }},
+          {"layout", [layout](TensorVector<Backend> &t) { t.SetLayout(layout); }}};
 }
 
 
@@ -347,14 +338,12 @@ TYPED_TEST(TensorVectorSuite, PartialSetupCopyMultiGPU) {
       try {
         tv.UnsafeCopySample(0, t);
         FAIL() << "Exception was expected with excluded: " << setups[excluded].first;
-      } catch(std::runtime_error &e) {
+      } catch (std::runtime_error &e) {
         auto expected = "Sample must have the same " + setups[excluded].first;
         EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
             << expected << "\n====\nvs\n====\n"
             << e.what();
-      } catch (...) {
-        FAIL() << "Unexpected exception";
-      }
+      } catch (...) { FAIL() << "Unexpected exception"; }
     } while (std::next_permutation(idxs.begin(), idxs.end()));
   }
 }
@@ -496,7 +485,7 @@ TYPED_TEST(TensorVectorSuite, ResizeSetSize) {
   tv.Resize(new_shape);
   tv.SetLayout("HWC");
 
-  const auto *base = static_cast<const uint8_t*>(unsafe_sample_owner(tv, 0).get());
+  const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
 
   for (int i = 0; i < 3; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);
@@ -519,7 +508,7 @@ TYPED_TEST(TensorVectorSuite, ResizeSetSize) {
   tv.SetSize(3);
   EXPECT_TRUE(tv.IsContiguous());
 
-  base = static_cast<const uint8_t*>(unsafe_sample_owner(tv, 0).get());
+  base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
 
   for (int i = 0; i < 2; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);
@@ -576,7 +565,7 @@ TYPED_TEST(TensorVectorSuite, ContiguousResize) {
     tv.UnsafeCopySample(i, tv, i);
   }
 
-  const auto *base = static_cast<const uint8_t*>(unsafe_sample_owner(tv, 0).get());
+  const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
 
   EXPECT_TRUE(tv.IsContiguous());
   for (int i = 0; i < 3; i++) {

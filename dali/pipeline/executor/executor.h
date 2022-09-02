@@ -172,12 +172,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   }
 
   template<typename backend>
-  inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
-                          size_t &max_reserved_size) {
-    GetMaxSizesCont(in, max_out_size, max_reserved_size);
-  }
-
-  template<typename backend>
   inline void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,
                           size_t &max_reserved_size) {
     if (in.IsContiguous()) {
@@ -258,7 +252,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   virtual std::vector<int> GetTensorQueueSizes(const OpGraph &graph);
 
-  virtual void SetupOutputInfo(const OpGraph &graph);
+  virtual void SetupOutputInfo(OpGraph &graph);
 
   std::vector<int> GetMemoryHints(const OpNode &node);
 
@@ -509,7 +503,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
     auto storage_dev = out_tensor.producer.storage_device;
     VALUE_SWITCH(storage_dev, storage_dev_static, (StorageDevice::GPU, StorageDevice::CPU),
     (
-      VALUE_SWITCH(op_type, op_type_static, (OpType::MIXED, OpType::GPU),
+      VALUE_SWITCH(op_type, op_type_static, (OpType::CPU, OpType::MIXED, OpType::GPU),
       (
         auto &queue = get_queue<op_type_static, storage_dev_static>(
             tensor_to_store_queue_[out_tensor_id]);
@@ -518,10 +512,22 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     ), DALI_FAIL("Invalid storage device"));  // NOLINT(whitespace/parens)
   }
+
+  // Mostly a sanity check - we don't want to return a non-contiguous batch to Python.
+  for (int i = 0; i < ws->NumOutput(); i++) {
+    const char *error_msg =
+        "DALI internal error: all outputs from the Pipeline must be contiguous after being "
+        "processed by MakeContiguous operator.";
+    if (ws->OutputIsType<CPUBackend>(i)) {
+      DALI_ENFORCE(ws->Output<CPUBackend>(i).IsContiguous(), error_msg);
+    } else {
+      DALI_ENFORCE(ws->Output<GPUBackend>(i).IsContiguous(), error_msg);
+    }
+  }
+
   // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.
   // If the output event list is not empty, it means that there are outputs on GPU that we
   // have to wait for.
-
   AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
 
   if (!mixed_output_events_.empty()) {
@@ -594,9 +600,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::PruneUnusedGraphNodes() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
+void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGraph &graph) {
   DeviceGuard g(device_id_);
   pipeline_outputs_ = graph.GetOutputs(output_names_);
+
+
+  graph.SetupMakeContiguousPassThrough(output_names_);
 
   // If there are GPU outputs from given stages, we have to wait for them
   auto has_gpu_output = [] (OpType stage_type, const auto &pipeline_outputs,
@@ -708,9 +717,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
     return hint;
   };
 
-  auto reserve_batch = [](auto &storage, const OperatorBase &op, Index hint, int batch_size) {
-    // If the Op Can Infer Outputs we want to do one contiguous pre-allocation
-    if (op.CanInferOutputs()) {
+  auto reserve_batch = [](auto &storage, Index hint, int batch_size) {
+    // If the batch was marked as contiguous (for example due to op.CanInferOutputs being true)
+    // reserve a contiguous batch.
+    if (storage->IsContiguous()) {
       storage->reserve(hint * batch_size);
     } else {
       storage->reserve(hint, batch_size);
@@ -734,11 +744,17 @@ void Executor<WorkspacePolicy, QueuePolicy>::PresizeData(
         (
           auto& queue = get_queue<op_type_static, dev_static>(tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
-            if (should_reserve(storage, hint, dev_static)) {
-              reserve_batch(storage, *node.op, hint, max_batch_size_);
+            // Historically, the Mixed stage (as well as GPU stage) always returned contiguous
+            // outputs. Because, Mixed uses its own overloads of Run rather than RunImpl,
+            // we ensure that the outputs are still contiguous, at least for now.
+            if (op_type_static == OpType::MIXED) {
+              storage->SetContiguity(BatchContiguity::Contiguous);
             }
             if (node.op->CanInferOutputs()) {
               storage->SetContiguity(BatchContiguity::Contiguous);
+            }
+            if (should_reserve(storage, hint, dev_static)) {
+              reserve_batch(storage, hint, max_batch_size_);
             }
           }
         ), DALI_FAIL("Invalid StorageDevice"));  // NOLINT(whitespace/parens)

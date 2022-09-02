@@ -17,6 +17,7 @@
 
 #include <nvjpeg.h>
 #include <memory>
+#include <utility>
 #include <vector>
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k_helper.h"
@@ -32,11 +33,11 @@ namespace imgcodec {
  */
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  NvJpeg2000DecoderInstance(int device_id, ThreadPool *tp);
+  explicit NvJpeg2000DecoderInstance(int device_id);
   ~NvJpeg2000DecoderInstance();
 
   using BatchParallelDecoderImpl::CanDecode;
-  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) override {
+  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
     // TODO(staniewzki): add support for roi and other data types
     return !roi && (opts.dtype == DALI_UINT8);
   }
@@ -49,11 +50,24 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
                               DecodeParams opts,
                               const ROI &roi) override;
 
-  void SetParam(const char *name, const any &value) override {
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                     span<SampleView<CPUBackend>> out,
+                                     cspan<ImageSource *> in,
+                                     DecodeParams opts,
+                                     cspan<ROI> rois = {}) override {
+    ctx.tp = tp_.get();
+    return BatchParallelDecoderImpl::ScheduleDecode(std::move(ctx), out, in, std::move(opts), rois);
+  }
+
+  bool SetParam(const char *name, const any &value) override {
     if (strcmp(name, "nvjpeg2k_device_memory_padding") == 0) {
       nvjpeg2k_device_memory_padding_ = any_cast<size_t>(value);
+      return true;
     } else if (strcmp(name, "nvjpeg2k_host_memory_padding") == 0) {
       nvjpeg2k_host_memory_padding_ = any_cast<size_t>(value);
+      return true;
+    } else {
+      return false;
     }
   }
 
@@ -68,26 +82,21 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   }
 
  private:
-  /**
-   * @brief Context for image decoding, one per picture.
-   */
-  struct Context {
-    /** @brief Bits per pixel */
-    uint8_t bpp;
-    /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
-    DALIDataType pixel_type;
-    TensorShape<> shape;
+  struct TileDecodingResources {
+    NvJpeg2kDecodeState state;
+    CUDAEvent decode_event;
 
-    NvJpeg2kDecodeState *nvjpeg2k_decode_state;
-    NvJpeg2kStream *nvjpeg2k_stream;
-    CUDAEvent *decode_event;
-    CUDAStreamLease *cuda_stream;
+    explicit TileDecodingResources(const NvJpeg2kHandle &nvjpeg2k_handle, int device_id,
+                                   cudaStream_t cuda_stream)
+        : state(nvjpeg2k_handle), decode_event(CUDAEvent::Create(device_id)) {
+      CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
+    }
   };
 
   struct PerThreadResources {
     PerThreadResources() = default;
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
-                    size_t device_memory_padding, int device_id)
+                       size_t device_memory_padding, int device_id)
     : nvjpeg2k_decode_state(nvjpeg2k_handle)
     , intermediate_buffer()
     , nvjpeg2k_stream(NvJpeg2kStream::Create())
@@ -95,6 +104,12 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     , cuda_stream(CUDAStreamPool::instance().Get(device_id)) {
       intermediate_buffer.resize(device_memory_padding / 8);
       CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
+
+      constexpr int kNumParallelTiles = 10;
+      tile_dec_res.reserve(kNumParallelTiles);
+      for (int i = 0; i < kNumParallelTiles; i++) {
+        tile_dec_res.emplace_back(nvjpeg2k_handle, device_id, cuda_stream);
+      }
     }
 
     NvJpeg2kDecodeState nvjpeg2k_decode_state;
@@ -102,16 +117,67 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     NvJpeg2kStream nvjpeg2k_stream;
     CUDAEvent decode_event;
     CUDAStreamLease cuda_stream;
+
+    std::vector<TileDecodingResources> tile_dec_res;
   };
+
+  /**
+   * @brief Context for image decoding, one per picture.
+   */
+  struct Context {
+    Context(DecodeParams opts, const ROI &roi, const PerThreadResources &res)
+    : opts(opts)
+    , roi(roi)
+    , nvjpeg2k_decode_state(res.nvjpeg2k_decode_state)
+    , nvjpeg2k_stream(res.nvjpeg2k_stream)
+    , decode_event(res.decode_event)
+    , cuda_stream(res.cuda_stream)
+    , tile_dec_res(make_cspan(res.tile_dec_res)) {}
+
+    nvjpeg2kImageInfo_t image_info;
+    /** @brief Bits per pixel */
+    uint8_t bpp;
+    /** @brief Data type nvJPEG2000 decodes into, either uint8 or uint16 */
+    DALIDataType pixel_type;
+    TensorShape<> shape;
+
+    DecodeParams opts;
+    const ROI &roi;
+
+    const NvJpeg2kDecodeState &nvjpeg2k_decode_state;
+    const NvJpeg2kStream &nvjpeg2k_stream;
+    const CUDAEvent &decode_event;
+    const CUDAStreamLease &cuda_stream;
+    span<const TileDecodingResources> tile_dec_res;
+  };
+
+  bool ParseJpeg2000Info(ImageSource *in, Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx);
+  bool ConvertData(void *in, uint8_t *out, const Context &ctx);
+
+  /**
+   * @brief Sets up nvjpeg2kImage_t, so it points to specific output area
+   *
+   * @param out memory image is decoded into
+   * @param pixel_data memory allocated for nvjpeg2kImage_t::pixel_data
+   * @param pitch_in_bytes memory allocated for nvjpeg2kImage_t::pitch_in_bytes
+   * @param output_offset_x offset in output memory to decode into
+   * @param output_offset_y offset in output memory to decode into
+   * @param ctx decoding context
+   * @return nvjpeg2kImage_t
+   */
+  nvjpeg2kImage_t PrepareOutputArea(uint8_t *out,
+                                    void **pixel_data,
+                                    size_t *pitch_in_bytes,
+                                    int64_t output_offset_x,
+                                    int64_t output_offset_y,
+                                    const Context &ctx);
 
   // TODO(staniewzki): remove default values
   size_t nvjpeg2k_device_memory_padding_ = 256;
   size_t nvjpeg2k_host_memory_padding_ = 256;
 
-  bool ParseJpeg2000Info(ImageSource *in, DecodeParams opts, Context &ctx);
-  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, DecodeParams opts, const Context &ctx);
-  bool ConvertData(void *in, uint8_t *out, DecodeParams opts, const Context &ctx);
-
+  std::unique_ptr<ThreadPool> tp_;
   NvJpeg2kHandle nvjpeg2k_handle_{};
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
   nvjpeg2kPinnedAllocator_t nvjpeg2k_pin_alloc_;
@@ -135,8 +201,8 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
     return device_id >= 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<NvJpeg2000DecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
+    return std::make_shared<NvJpeg2000DecoderInstance>(device_id);
   }
 };
 

@@ -17,7 +17,7 @@
 
 #include <memory>
 #include <string>
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 
 namespace dali {
@@ -28,20 +28,22 @@ namespace imgcodec {
  */
 class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  LibJpegTurboDecoderInstance(int device_id, ThreadPool *tp)
-  : BatchParallelDecoderImpl(device_id, tp) {}
+  explicit LibJpegTurboDecoderInstance(int device_id)
+  : BatchParallelDecoderImpl(device_id) {}
 
   using BatchParallelDecoderImpl::Decode;
-  DecodeResult Decode(SampleView<CPUBackend> out,
+  DecodeResult Decode(DecodeContext ctx,
+                      SampleView<CPUBackend> out,
                       ImageSource *in,
                       DecodeParams opts,
                       const ROI &roi) override;
 
-  void SetParam(const char *name, const any &value) override {
+  bool SetParam(const char *name, const any &value) override {
     if (strcmp(name, "fast_idct") == 0) {
       use_fast_idct_ = any_cast<bool>(value);
+      return true;
     } else {
-      DALI_FAIL("Unexpected param name: " + std::string(name));
+      return false;
     }
   }
 
@@ -49,7 +51,7 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
     if (strcmp(name, "fast_idct") == 0) {
       return use_fast_idct_;
     } else {
-      DALI_FAIL("Unexpected param name: " + std::string(name));
+      return {};
     }
   }
 
@@ -74,8 +76,8 @@ class LibJpegTurboDecoderFactory : public ImageDecoderFactory {
     return device_id < 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<LibJpegTurboDecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
+    return std::make_shared<LibJpegTurboDecoderInstance>(device_id);
   }
 };
 

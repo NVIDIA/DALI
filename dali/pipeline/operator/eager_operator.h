@@ -38,44 +38,19 @@
 namespace dali {
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Backend>> in) {
-  return in;
+std::shared_ptr<TensorList<Backend>> AsContiguousOutput(std::shared_ptr<TensorList<Backend>> in) {
+  if (in->IsContiguous()) {
+    return in;
+  } else {
+    auto result = std::make_shared<TensorList<Backend>>();
+    result->set_order(in->order());
+    result->set_device_id(in->device_id());
+    result->set_pinned(in->is_pinned());
+    result->Resize(in->shape(), in->type(), BatchContiguity::Contiguous);
+    result->Copy(*in);
+    return result;
+  }
 }
-
-template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<Backend>> in) {
-  // TODO(klecki): [BatchObject] Add missing optimization
-  // if (in->IsContiguous()) {
-  //   // Filled contiguous TensorVector, we can return TensorList directly.
-  //   auto tl = in->AsTensorList(false);
-  //   // Explicitly set layout (it could be empty in case of per-sample operators).
-  //   tl->SetLayout(in->GetLayout());
-  //   return tl;
-  // }
-
-  auto tl = std::make_shared<TensorList<Backend>>();
-  tl->Copy(*in);
-  return tl;
-}
-
-/** @defgroup WarResizeContiguous
- * This is a WAR so we do not pin everything as contiguous, but we resize as contiguous
- * when necessary (we got inferred outputs).
- * The need to differentiate between TensorList and TensorVector will be dropped with
- * the removal of TensorList.
- * @{
- */
-template <typename Backend>
-void ResizeImpl(TensorList<Backend> &batch, const TensorListShape<> &shape, DALIDataType type) {
-  batch.Resize(shape, type);
-}
-
-template <typename Backend>
-void ResizeImpl(TensorVector<Backend> &batch, const TensorListShape<> &shape, DALIDataType type) {
-  batch.Resize(shape, type, BatchContiguity::Contiguous);
-}
-/** @} */  // end of WarResizeContiguous
-
 
 template <typename Backend>
 struct Backend2Types {};
@@ -313,19 +288,14 @@ EagerOperator<Backend>::RunImpl(
   }
 
   for (auto &arg : kwargs) {
-    // TODO(klecki): [BatchObject] Remove the wrapping of TensorList -> TensorVector.
-    // We wrap it once before call, so that the run won't do it again. Remove when we do not
-    // have distinct batch types.
-    auto tmp = std::make_shared<TensorVector<CPUBackend>>();
-    tmp->ShareData(*arg.second);
-    ws_.AddArgumentInput(arg.first, tmp);
+    ws_.AddArgumentInput(arg.first, arg.second);
   }
 
   std::vector<OutputDesc> output_desc{};
   std::vector<std::shared_ptr<TensorList<OutBackend>>> outputs(num_outputs_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    auto tensor_out = std::make_shared<WSOutputType>(batch_size);
+    auto tensor_out = std::make_shared<WSOutputType>();
     if (ws_.has_stream()) {
       tensor_out->set_order(ws_.stream());
     }
@@ -337,14 +307,15 @@ EagerOperator<Backend>::RunImpl(
   // Setup outputs.
   if (op_->Setup(output_desc, ws_) && op_->CanInferOutputs()) {
     for (size_t i = 0; i < num_outputs_; ++i) {
-      ResizeImpl(ws_.template Output<OutBackend>(i), output_desc[i].shape, output_desc[i].type);
+      ws_.template Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type,
+                                                BatchContiguity::Contiguous);
     }
   }
 
   op_->Run(ws_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    outputs[i] = AsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
+    outputs[i] = AsContiguousOutput<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
   }
 
   for (size_t i = 0; i < outputs.size(); ++i) {
