@@ -181,7 +181,7 @@ class DecoderTestBase : public ::testing::Test {
                    const Tensor<CPUBackend> &ref,
                    float eps) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
-      Check(img, view<const RefType>(ref), EqualConvertNorm(eps));
+      AssertClose(img, view<const RefType>(ref), eps);
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
   }
 
@@ -189,7 +189,7 @@ class DecoderTestBase : public ::testing::Test {
                    const Tensor<CPUBackend> &ref,
                    float eps) {
     TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
-      Check(view<const OutputType>(img), view<const RefType>(ref), EqualConvertNorm(eps));
+      AssertClose(view<const OutputType>(img), view<const RefType>(ref), eps);
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
   }
 
@@ -283,6 +283,8 @@ class DecoderTestBase : public ::testing::Test {
   * @brief Reads the reference image from specified stream.
   */
   virtual Tensor<CPUBackend> ReadReference(InputStream *src) = 0;
+
+  using Type = OutputType;
 
  protected:
   /**

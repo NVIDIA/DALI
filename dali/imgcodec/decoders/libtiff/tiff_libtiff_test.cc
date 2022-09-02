@@ -218,7 +218,7 @@ TYPED_TEST(LibTiffDecoderTest, TiledRgbToGray) {
   auto ref = this->ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(tiled_path);
   auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
-  this->AssertClose(img, ref, 1);
+  this->AssertClose(img, ref, 0.01 * max_value<typename TestFixture::Type>());
 }
 
 }  // namespace test
