@@ -511,11 +511,11 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
 
   ~AOT_WS_Policy() {
     for (auto &wss : wss_) {
-      for (auto ws : std::get<static_cast<int>(OpType::CPU)>(wss.op_data))
+      for (auto &ws : std::get<static_cast<int>(OpType::CPU)>(wss.op_data))
         SetOrder(ws, AccessOrder::host());
-      for (auto ws : std::get<static_cast<int>(OpType::MIXED)>(wss.op_data))
+      for (auto &ws : std::get<static_cast<int>(OpType::MIXED)>(wss.op_data))
         SetOrder(ws, AccessOrder::host());
-      for (auto ws : std::get<static_cast<int>(OpType::GPU)>(wss.op_data))
+      for (auto &ws : std::get<static_cast<int>(OpType::GPU)>(wss.op_data))
         SetOrder(ws, AccessOrder::host());
     }
   }
