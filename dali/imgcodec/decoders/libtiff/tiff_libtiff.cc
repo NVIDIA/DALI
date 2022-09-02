@@ -253,6 +253,11 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
                       make_string("TIFF tile dimensions must be a multiple of 16")))};
   }
 
+  if (info.is_tiled && (info.bit_depth != 8 && info.bit_depth != 16 && info.bit_depth != 32)) {
+    return {false, make_exception_ptr(std::logic_error(
+                      make_string("Unsupported bit depth in tiled TIFF: ", info.bit_depth)))};
+  }
+
   // Other fill orders are rare and discouraged by TIFF specification, but can happen
   if (info.fill_order != FILLORDER_MSB2LSB)
     return {false, make_exception_ptr(std::logic_error("Only FILL_ORDER=1 is supported"))};

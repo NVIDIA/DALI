@@ -49,7 +49,6 @@ auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel
 auto tiled_dir = dali_extra + "/db/imgcodec/tiff/tiled/";
 auto tiled_path = tiled_dir + "/cat-111793_640_tiled_16x48.tiff";
 auto tiled_one_big_tile_path = tiled_dir + "/cat-111793_640_tiled_1024x1024.tiff";
-auto tiled_depth7_path = tiled_dir + "/cat-111793_640_tiled_32x32_7bpp.tiff";
 
 std::string depth_path(int depth) {
   return make_string(dali_extra, "/db/imgcodec/tiff/bitdepths/rgb_", depth, "bit.tiff");
@@ -220,13 +219,6 @@ TYPED_TEST(LibTiffDecoderTest, TiledRgbToGray) {
   auto src = ImageSource::FromFilename(tiled_path);
   auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
   this->AssertClose(img, ref, 1);
-}
-
-TYPED_TEST(LibTiffDecoderTest, TiledDepth7) {
-  auto ref = this->ReadReferenceFrom(rgb_ref_path);
-  auto src = ImageSource::FromFilename(tiled_depth7_path);
-  auto img = this->Decode(&src, {this->dtype, DALI_RGB});
-  this->AssertClose(img, ref, 4);
 }
 
 }  // namespace test
