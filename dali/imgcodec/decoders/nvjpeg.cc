@@ -102,7 +102,7 @@ NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
   }
 }
 
-void NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
+bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
   if (strcmp(name, "device_memory_padding") == 0) {
     device_memory_padding_ = any_cast<size_t>(value);
 
@@ -111,6 +111,8 @@ void NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
         nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding_);
       }
     }
+
+    return true;
   } else if (strcmp(name, "host_memory_padding") == 0) {
     host_memory_padding_ = any_cast<size_t>(value);
 
@@ -120,7 +122,11 @@ void NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
         nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding_);
       }
     }
+
+    return true;
   }
+
+  return false;
 }
 
 any NvJpegDecoderInstance::GetParam(const char *name) const {

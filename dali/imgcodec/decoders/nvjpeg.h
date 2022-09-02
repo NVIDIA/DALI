@@ -39,7 +39,7 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
                               const ROI &roi) override;
   ~NvJpegDecoderInstance();
 
-  void SetParam(const char *name, const any &value) override;
+  bool SetParam(const char *name, const any &value) override;
   any GetParam(const char *name) const override;
 
  private:
