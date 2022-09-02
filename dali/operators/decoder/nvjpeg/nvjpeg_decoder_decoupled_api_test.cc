@@ -211,6 +211,49 @@ bool ShouldUseHwDecoder() {
   return device_supports_hw_decoder && driver_version >= 455;
 }
 
+class CudaDecoderUtilizationTest : public ::testing::Test {
+ public:
+  void SetUp() final {
+    dali::string list_root(testing::dali_extra_path() + "/db/single/jpeg");
+
+    pipeline_.AddOperator(
+            OpSpec("FileReader")
+                    .AddArg("device", "cpu")
+                    .AddArg("file_root", list_root)
+                    .AddOutput("compressed_images", "cpu")
+                    .AddOutput("labels", "cpu"));
+    auto decoder_spec =
+            OpSpec("ImageDecoder")
+                    .AddArg("device", "mixed")
+                    .AddArg("output_type", DALI_RGB)
+                    .AddArg("hw_decoder_load", 0.f)
+                    .AddInput("compressed_images", "cpu")
+                    .AddOutput("images", "gpu");
+    pipeline_.AddOperator(decoder_spec, decoder_name_);
+
+    pipeline_.Build(outputs_);
+  }
+
+  int batch_size_ = 47;
+  Pipeline pipeline_{batch_size_, 1, 0, -1, false, 2, false};
+  vector<std::pair<string, string>> outputs_ = {{"images", "gpu"}};
+  std::string decoder_name_ = "Lorem Ipsum";
+};
+
+TEST_F(CudaDecoderUtilizationTest, UtilizationTest) {
+  this->pipeline_.RunCPU();
+  this->pipeline_.RunGPU();
+
+  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
+  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  EXPECT_EQ(nsamples_hw, 0);
+  EXPECT_EQ(nsamples_cuda, 47) << "HW Decoder malfunction: incorrect number "
+                                  "of images decoded by CUDA";
+  EXPECT_EQ(nsamples_host, 0)
+                << "Image decoding malfuntion: all images should've been decoded by CUDA or HW";
+}
 
 class HwDecoderUtilizationTest : public ::testing::Test {
  public:
