@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <tiffio.h>
 #include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
+#include <tiffio.h>
 #include "dali/imgcodec/util/convert.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/core/static_switch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 #define LIBTIFF_CALL_SUCCESS 1
 #define LIBTIFF_CALL(call)                                \
@@ -113,6 +114,7 @@ struct TiffInfo {
   uint16_t bit_depth;
   uint16_t orientation;
   uint16_t compression;
+  uint16_t fill_order;
 
   bool is_tiled;
   bool is_palette;
@@ -128,6 +130,7 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_ORIENTATION, &info.orientation));
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_COMPRESSION, &info.compression));
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_ROWSPERSTRIP, &info.rows_per_strip));
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_FILLORDER, &info.fill_order));
 
   info.is_tiled = TIFFIsTiled(tiffptr);
 
@@ -157,6 +160,66 @@ struct depth2type<32> {
   using type = uint32_t;
 };
 
+
+/**
+ * @brief Unpacks packed bits.
+ *
+ * @tparam OutputType Required output type
+ * @tparam normalize If true, values will be upscaled to OutputType's dynamic range
+ * @param nbits Number of bits per value
+ * @param out Output array
+ * @param in Pointer to the bits to unpack
+ * @param n Number of values to unpack
+ */
+template<typename OutputType, bool normalize = true>
+void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t n) {
+  // We don't care about endianness here, because we read byte-by-byte and:
+  // 1) "The library attempts to hide bit- and byte-ordering differences between the image and the
+  //    native machine by converting data to the native machine order."
+  //    http://www.libtiff.org/man/TIFFReadScanline.3t.html
+  // 2) We only support FILL_ORDER=1 (i.e. big endian), which is TIFF's default and the only fill
+  //    order required in Baseline TIFF readers.
+  //    https://www.awaresystems.be/imaging/tiff/tifftags/fillorder.html
+
+  size_t out_type_bits = 8 * sizeof(OutputType);
+  if (out_type_bits < nbits)
+    throw std::logic_error("Unpacking bits failed: OutputType too small");
+  if (n == 0)
+    return;
+
+  auto in_ptr = static_cast<const uint8_t *>(in);
+  uint8_t buffer = *(in_ptr++);
+  constexpr size_t buffer_capacity = 8 * sizeof(buffer);
+  size_t bits_in_buffer = buffer_capacity;
+
+  for (size_t i = 0; i < n; i++) {
+    OutputType result = 0;
+    size_t bits_to_read = nbits;
+    while (bits_to_read > 0) {
+      if (bits_in_buffer > bits_to_read) {
+        // If we have enough bits in the buffer, we store them and finish
+        result <<= bits_to_read;
+        result |= buffer >> (buffer_capacity - bits_to_read);
+        bits_in_buffer -= bits_to_read;
+        buffer <<= bits_to_read;
+        bits_to_read = 0;
+      } else {
+        // If we don't have enough bits, we store what we have and refill the buffer
+        result <<= bits_in_buffer;
+        result |= buffer >> (buffer_capacity - bits_in_buffer);
+        bits_to_read -= bits_in_buffer;
+        buffer = *(in_ptr++);
+        bits_in_buffer = buffer_capacity;
+      }
+    }
+    if (normalize) {
+      double coeff = static_cast<double>((1ull << out_type_bits) - 1) / ((1ull << nbits) - 1);
+      result *= coeff;
+    }
+    out[i] = result;
+  }
+}
+
 }  // namespace detail
 
 DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
@@ -165,7 +228,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
 
-  if (info.bit_depth != 8 && info.bit_depth != 16 && info.bit_depth != 32)
+  if (info.bit_depth > 32)
     return {false, make_exception_ptr(std::logic_error(
                       make_string("Unsupported bit depth: ", info.bit_depth)))};
 
@@ -176,6 +239,10 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   // TODO(skarpinski) Support tiled images
   if (info.is_tiled)
     return {false, make_exception_ptr(std::logic_error("Tiled images are not yet supported"))};
+
+  // Other fill orders are rare and discouraged by TIFF specification, but can happen
+  if (info.fill_order != FILLORDER_MSB2LSB)
+    return {false, make_exception_ptr(std::logic_error("Only FILL_ORDER=1 is supported"))};
 
   unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 
@@ -224,20 +291,39 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
   TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
 
+  // We choose smallest possible type
+  size_t in_type_bits = 0;
+  if (info.bit_depth <= 8) in_type_bits = 8;
+  else if (info.bit_depth <= 16) in_type_bits = 16;
+  else if (info.bit_depth <= 32) in_type_bits = 32;
+  else
+    assert(false);
+
   TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
-    VALUE_SWITCH(info.bit_depth, Depth, (8, 16, 32), (
-      using InputType = detail::depth2type<Depth>::type;
-      auto *row_in  = static_cast<InputType *>(row_buf.get());
+    VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
+      using InputType = detail::depth2type<InTypeBits>::type;
+
+      kernels::DynamicScratchpad scratchpad;
+      InputType *row_in;
+      if (info.bit_depth == InTypeBits) {
+        row_in = static_cast<InputType *>(row_buf.get());
+      } else {
+        row_in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
+                   volume(in_line_shape) * sizeof(InputType), sizeof(InputType)));
+      }
+
       OutType *const img_out = out.mutable_data<OutType>();
-      for (int64_t y = 0; y < roi.shape()[0]; y++) {
-        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_in, roi.begin[0] + y, 0));
-        Convert(img_out + (y * out_row_stride), out_line_strides.data(), 1, opts.format,
+      for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
+        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), roi.begin[0] + roi_y, 0));
+        if (info.bit_depth != InTypeBits) {
+          detail::UnpackBits(info.bit_depth, row_in, row_buf.get(), volume(in_line_shape));
+        }
+        Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
                 row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
                 out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
       }
     ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
-
 
   return {true, nullptr};
 }
