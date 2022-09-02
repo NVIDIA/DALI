@@ -15,6 +15,8 @@
 #ifndef DALI_IMGCODEC_DECODERS_DECODER_IMPL_H_
 #define DALI_IMGCODEC_DECODERS_DECODER_IMPL_H_
 
+#include <map>
+#include <string>
 #include <vector>
 #include "dali/core/format.h"
 #include "dali/imgcodec/image_decoder_interfaces.h"
@@ -25,8 +27,8 @@ namespace imgcodec {
 
 class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
  public:
-  explicit ImageDecoderImpl(int device_id) : device_id_(device_id) {
-  }
+  explicit ImageDecoderImpl(int device_id, const std::map<std::string, any> &)
+  : device_id_(device_id) {}
 
   bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
     return true;
@@ -92,6 +94,13 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
 
   any GetParam(const char *key) const override {
     return {};
+  }
+
+  int SetParams(const std::map<std::string, any> &params) override {
+    int ret = 0;
+    for (auto &[key, value] : params)
+      ret += SetParam(key.c_str(), value);
+    return ret;
   }
 
  protected:
