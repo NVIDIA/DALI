@@ -743,15 +743,17 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     }
   }
 
-  cudaStream_t stream = 0;
+  AccessOrder wait_order = AccessOrder::host();
+  AccessOrder copy_order = AccessOrder::host();
   if (!list_of_tensors.empty() && std::is_same<Backend, GPUBackend>::value) {
     auto &t = list_of_tensors[0].cast<Tensor<GPUBackend>&>();
-    stream = UserStream::Get()->GetStream(t);
+    copy_order = AccessOrder(UserStream::Get()->GetStream(t));
   }
 
-  contiguous_out->Copy(non_contiguous_tmp, stream);
+  contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
+  contiguous_out->Copy(non_contiguous_tmp, copy_order);
   contiguous_out->SetLayout(layout);
-  CUDA_CALL(cudaStreamSynchronize(stream));
+  copy_order.wait(wait_order);
 
   return contiguous_out;
 }
