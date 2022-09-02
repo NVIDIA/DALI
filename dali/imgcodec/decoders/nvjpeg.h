@@ -29,7 +29,7 @@ namespace imgcodec {
 
 class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  NvJpegDecoderInstance(int device_id, ThreadPool *tp);
+  explicit NvJpegDecoderInstance(int device_id);
 
   DecodeResult DecodeImplTask(int thread_idx,
                               cudaStream_t stream,
@@ -72,6 +72,7 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
   };
 
   std::vector<PerThreadResources> resources_;
+  std::unique_ptr<ThreadPool> tp_;
 
   struct DecodingContext {
     PerThreadResources& resources;
@@ -101,8 +102,8 @@ class NvJpegDecoderFactory : public ImageDecoderFactory {
     return device_id >= 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<NvJpegDecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
+    return std::make_shared<NvJpegDecoderInstance>(device_id);
   }
 };
 

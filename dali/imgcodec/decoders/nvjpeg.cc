@@ -22,15 +22,19 @@
 namespace dali {
 namespace imgcodec {
 
-NvJpegDecoderInstance::NvJpegDecoderInstance(int device_id, ThreadPool *tp)
-: BatchParallelDecoderImpl(device_id, tp)
+NvJpegDecoderInstance::NvJpegDecoderInstance(int device_id)
+: BatchParallelDecoderImpl(device_id)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   DeviceGuard dg(device_id_);
   CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
-  resources_.reserve(tp->NumThreads());
 
-  for (int i = 0; i < tp->NumThreads(); i++) {
+  any num_threads_any = GetParam("nvjpeg_num_threads");
+  int num_threads = num_threads_any.has_value() ? any_cast<int>(num_threads_any) : 4;
+  tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpeg2000DecoderInstance");
+  resources_.reserve(tp_->NumThreads());
+
+  for (int i = 0; i < tp_->NumThreads(); i++) {
     resources_.emplace_back(nvjpeg_handle_, &device_allocator_, &pinned_allocator_, device_id_);
   }
 }
