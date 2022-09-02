@@ -698,7 +698,9 @@ TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
       {"underscore_ext_src_gpu_v1.0.0.dali", "gpu"},
       {"python_cpu_v1.0.0.dali", "cpu"},
       {"python_gpu_v1.0.0.dali", "gpu"}};
-  for (const auto &[path_to_deserialize, dev] : es_pipes) {
+  for (const auto &file_dev : es_pipes) {
+    std::string path_to_deserialize = path + std::get<0>(file_dev);
+    std::string dev = std::get<1>(file_dev);
     std::fstream file(path_to_deserialize, std::ios::in | std::ios::binary);
 
     // Shortest (and not the slowest) way to read whole file with C++ API
