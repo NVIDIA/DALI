@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ class IndexCreator:
         )  # <type>... <size> <date> <name>
 
         # Extracting
-        for blocks_line, next_blocks_line, types_sizes_line in zip(tar_blocks, tar_blocks[1:],
+        for blocks_line, next_blocks_line, types_sizes_line in zip(tar_blocks, tar_blocks,
                                                                    tar_types_sizes):
             if not blocks_line or not types_sizes_line:
                 continue
@@ -111,14 +111,13 @@ class IndexCreator:
             if entry_type != b"-":
                 continue
 
-            offset = int(
-                next_blocks_line[next_blocks_line.find(b"block") + 6 : next_blocks_line.find(b":")]) * 512  # noqa: E203, E501
+            offset = int(next_blocks_line[next_blocks_line.find(b"block") + 6:
+                                          next_blocks_line.find(b":")])
+            offset = (offset + 1) * 512
 
             size = types_sizes_line[: -len(name)]
             size = size[: size.rfind(b"-") - 8]  # "... <size> 20yy-mm-...."
             size = int(size[size.rfind(b" "):])
-            offset -= size
-            offset -= offset % 512
 
             yield offset, name, size
 
