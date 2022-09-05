@@ -227,7 +227,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   CUDA_CALL(cudaEventSynchronize(ctx.decode_event));
 
   DALIImageType format = ctx.shape[2] == 1 ? DALI_GRAY : DALI_RGB;
-  bool is_processing_needed = 
+  bool is_processing_needed =
     ctx.shape[2] > 1 ||  // nvJPEG2000 decodes into planar layout
     ctx.pixel_type != opts.dtype ||
     format != opts.format ||

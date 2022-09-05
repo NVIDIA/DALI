@@ -43,5 +43,4 @@ void DLL_PUBLIC Convert(
 }  // namespace imgcodec
 }  // namespace dali
 
-
 #endif  // DALI_IMGCODEC_UTIL_CONVERT_GPU_H_

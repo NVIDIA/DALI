@@ -44,14 +44,6 @@ std::vector<uint8_t> read_file(const std::string &filename) {
     return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
 }
 
-template<class T>
-void save_to_file(const std::string &filename, TensorView<StorageCPU, T> tensor) {
-  assert(sizeof(T) == 1);
-  std::ofstream stream(filename);
-  for (int i = 0; i < tensor.num_elements(); i++)
-    stream << tensor.data[i];
-}
-
 struct ImageBuffer {
   std::vector<uint8_t> buffer;
   ImageSource src;
@@ -126,6 +118,7 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
 
  protected:
   static const auto dtype = type2id<OutputType>::value;
+  OutputType output_type_obj;  // used to access OutputType in tests
 
   std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     return NvJpeg2000DecoderFactory().Create(this->GetDeviceId());
@@ -153,8 +146,6 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     ImageBuffer image(data.img_path);
     auto decoded = this->Decode(&image.src, this->GetParams(), data.roi);
     auto ref = this->ReadReferenceFrom(data.ref_path);
-    static int counter = 0;
-    save_to_file(make_string(counter++, ".out"), decoded);
     this->AssertEqual(decoded, ref, eps);
   }
 
@@ -179,7 +170,7 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
   }
 };
 
-using DecodeOutputTypes = ::testing::Types<uint8_t>; // , int16_t, float>;
+using DecodeOutputTypes = ::testing::Types<uint8_t , int16_t, float>;
 TYPED_TEST_SUITE(NvJpeg2000DecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingle) {
@@ -200,11 +191,33 @@ TYPED_TEST(NvJpeg2000DecoderTest, DecodeBatchSingleThread) {
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, 5BitImage) {
-  this->RunTest(from_custom_bitdepth_file(bitdepth_converted_imgname, 5), 16.05);
+  using OutputType = decltype(this->output_type_obj);
+  float eps;
+  if (std::is_floating_point<OutputType>::value)
+    eps = 0.07;
+  else if (std::is_same<OutputType, uint8_t>::value)
+    eps = 16.05;
+  else if (std::is_same<OutputType, int16_t>::value)
+    eps = 256 * 16.05;
+  else
+    assert(false);
+
+  this->RunTest(from_custom_bitdepth_file(bitdepth_converted_imgname, 5), eps);
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, 12BitImage) {
-  this->RunTest(from_custom_bitdepth_file(bitdepth_converted_imgname, 12), 1.05);
+  using OutputType = decltype(this->output_type_obj);
+  float eps;
+  if (std::is_floating_point<OutputType>::value)
+    eps = 0.01;
+  else if (std::is_same<OutputType, uint8_t>::value)
+    eps = 1.05;
+  else if (std::is_same<OutputType, int16_t>::value)
+    eps = 128.05;
+  else
+    assert(false);
+
+  this->RunTest(from_custom_bitdepth_file(bitdepth_converted_imgname, 12), eps);
 }
 
 template<class OutputType>

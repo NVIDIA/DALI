@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
 #include "dali/imgcodec/util/convert_gpu.h"
 #include "dali/imgcodec/util/convert.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_gpu.h"
@@ -36,7 +37,7 @@ void LaunchSliceFlipNormalizePermutePad(
     const Input *in, TensorLayout in_layout, TensorShape<dims> in_shape,
     kernels::KernelContext ctx, const ROI &roi, float multiplier) {
   // this normalization only works if Output range is [-1, 1]
-  static_assert(std::is_floating_point<Output>::value);  
+  static_assert(std::is_floating_point<Output>::value);
   if (std::is_integral<Input>::value)
     multiplier /= max_value<Input>();
 
@@ -45,14 +46,16 @@ void LaunchSliceFlipNormalizePermutePad(
   auto &args = args_container[0];
 
   if (roi) {
-    args.anchor[0] = roi.begin[0];
-    args.anchor[1] = roi.begin[1];
+    for (int i = 0; i < dims; i++)
+      args.anchor[i] = roi.begin[i];
   }
+
   args.channel_dim = in_layout.find('C');
   for (int i = 0; i < dims; i++) {
     args.permuted_dims[i] = in_layout.find(out_layout[i]);
     args.shape[args.permuted_dims[i]] = out_shape[i];
   }
+
   args.mean.push_back(0.0f);
   args.inv_stddev.push_back(multiplier);
 
@@ -89,13 +92,13 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   auto size = volume(out.shape());
   auto buffer = scratchpad.Allocate<mm::memory_kind::device, float>(size);
   LaunchSliceFlipNormalizePermutePad(
-    buffer, out_layout, out.shape(), in.data<Input>(), in_layout, in.shape(), 
+    buffer, out_layout, out.shape(), in.data<Input>(), in_layout, in.shape(),
     ctx, roi, multiplier);
 
-  DALI_ENFORCE(out_layout.find('C') == dims - 1, 
-                "Only channel last layout is supported when running color space conversion");
-
   if (out_format != in_format) {
+    DALI_ENFORCE(out_layout.find('C') == dims - 1,
+                 "Only channel last layout is supported when running color space conversion");
+
     auto npixels = out.shape()[0] * out.shape()[1];
     kernels::color::RunColorSpaceConversionKernel(
       out.mutable_data<Output>(), buffer, out_format, in_format, npixels, stream);
@@ -114,8 +117,8 @@ void Convert(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType 
       ConvertImpl<Output, Input>(out, out_layout, out_format,
                                  in, in_layout, in_format,
                                  stream, roi, multiplier);
-    ), DALI_FAIL(make_string("Unsupported input type: ", in.type())));
-  ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));
+    ), DALI_FAIL(make_string("Unsupported input type: ", in.type())));  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
 }
 
 }  // namespace imgcodec
