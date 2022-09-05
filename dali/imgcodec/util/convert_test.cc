@@ -62,6 +62,7 @@ class ConversionTestBase : public NumpyDecoderTestBase<CPUBackend, ImageType> {
     int output_channels = NumberOfChannels(output_format, NumberOfChannels(input_format));
     auto output_shape = input.shape();
     int channel_index = ImageLayoutInfo::ChannelDimIndex(layout);
+    assert(channel_index >= 0);
     output_shape[channel_index] = output_channels;
     if (roi) {
       for (int d = 0; d < channel_index; d++)
