@@ -22,7 +22,7 @@
 namespace dali {
 
 template<> float16 max_value<float16>() {
-  assert(false);
+  assert(false && "This overload shouldn't be called");
 }
 
 namespace imgcodec {
@@ -96,6 +96,12 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   kernels::KernelContext ctx;
   ctx.gpu.stream = stream;
   ctx.scratchpad = &scratchpad;
+
+  DALI_ENFORCE(out.shape().sample_dim() == dims && in.shape().sample_dim() == dims,
+               make_string("Conversion is only supported for ", dims, "-dimensional tensors"));
+
+  DALI_ENFORCE(out_layout.is_permutation_of("HWC") && in_layout.is_permutation_of("HWC"),
+               "Layouts must be a permutation of HWC layout");
 
   // Starting with converting the layout, colorspace will be converted later
   auto intermediate_shape = out.shape();

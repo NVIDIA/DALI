@@ -193,11 +193,11 @@ TYPED_TEST(NvJpeg2000DecoderTest, DecodeBatchSingleThread) {
 TYPED_TEST(NvJpeg2000DecoderTest, 5BitImage) {
   using OutputType = decltype(this->output_type_obj);
   float eps;
-  if (std::is_floating_point<OutputType>::value)
+  if (std::is_floating_point_v<OutputType>)
     eps = 0.07;
-  else if (std::is_same<OutputType, uint8_t>::value)
+  else if (std::is_same_v<OutputType, uint8_t>)
     eps = 16.05;
-  else if (std::is_same<OutputType, int16_t>::value)
+  else if (std::is_same_v<OutputType, int16_t>)
     eps = 256 * 16.05;
   else
     assert(false);
@@ -208,11 +208,11 @@ TYPED_TEST(NvJpeg2000DecoderTest, 5BitImage) {
 TYPED_TEST(NvJpeg2000DecoderTest, 12BitImage) {
   using OutputType = decltype(this->output_type_obj);
   float eps;
-  if (std::is_floating_point<OutputType>::value)
+  if (std::is_floating_point_v<OutputType>)
     eps = 0.01;
-  else if (std::is_same<OutputType, uint8_t>::value)
+  else if (std::is_same_v<OutputType, uint8_t>)
     eps = 1.05;
-  else if (std::is_same<OutputType, int16_t>::value)
+  else if (std::is_same_v<OutputType, int16_t>)
     eps = 128.05;
   else
     assert(false);
