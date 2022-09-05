@@ -38,13 +38,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, any> &params);
   ~NvJpeg2000DecoderInstance();
 
-  /*
-  using BatchParallelDecoderImpl::CanDecode;
-  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
-    // TODO(staniewzki): add support for roi and other data types
-    return !roi && (opts.dtype == DALI_UINT8);
-  } */
-
   using BatchParallelDecoderImpl::DecodeImplTask;
   DecodeResult DecodeImplTask(int thread_idx,
                               cudaStream_t stream,

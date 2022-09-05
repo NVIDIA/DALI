@@ -17,28 +17,22 @@
 
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
 
 namespace dali {
 namespace imgcodec {
 
 /**
- * @brief Colorspace and layout conversion for GPU
- * 
- * @param out 
- * @param out_layout 
- * @param out_format 
- * @param in 
- * @param in_layout 
- * @param in_format 
- * @param stream 
- * @param roi 
- * @param multiplier 
+ * @brief Converts an image stored in `in` and stores it in `out`.
+ *
+ * The function converts data type (normalizing), color space and the tensor layout.
+ * ROI is specified in the output coordinates (after transposing), and can contain
+ * any number of dimensions, as the output layout might not be channel last.
  */
 void DLL_PUBLIC Convert(
     SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
     ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-    cudaStream_t stream, const ROI &roi, float multiplier = 1.0f);
+    cudaStream_t stream, const ROI &roi = {}, float multiplier = 1.0f);
 
 }  // namespace imgcodec
 }  // namespace dali

@@ -125,8 +125,8 @@ struct YCbCr_to_BGR_Converter {
   static constexpr int out_pixel_sz = 3;
   static constexpr int in_pixel_sz = 3;
   static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> ycbcr) {
-    return RGB_to_BGR_Converter<Out, In>::convert(
-      YCbCr_to_RGB_Converter<In, In>::convert(ycbcr));
+    return RGB_to_BGR_Converter<Out, Out>::convert(
+      YCbCr_to_RGB_Converter<Out, In>::convert(ycbcr));
   }
 };
 

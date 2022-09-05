@@ -110,14 +110,15 @@ void Convert_RGB_to_YCbCr(Output *out_data, const Input *in_data, int64_t npixel
                                                 stream);
 }
 
+
 template void PlanarToInterleaved<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t, int64_t,
-                                                    DALIImageType, DALIDataType, cudaStream_t);
+                                                     DALIImageType, DALIDataType, cudaStream_t);
 template void PlanarToInterleaved<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, int64_t,
                                                     DALIImageType, DALIDataType, cudaStream_t);
-template void PlanarRGBToGray<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t,
-                                                    DALIDataType, cudaStream_t);
-template void PlanarRGBToGray<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t,
-                                                    DALIDataType, cudaStream_t);
+template void PlanarRGBToGray<uint8_t, uint16_t>(uint8_t *, const uint16_t *, int64_t, DALIDataType,
+                                                 cudaStream_t);
+template void PlanarRGBToGray<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t, DALIDataType,
+                                                cudaStream_t);
 template void Convert_RGB_to_YCbCr<uint8_t, uint8_t>(uint8_t *, const uint8_t *, int64_t,
                                                      cudaStream_t);
 

@@ -237,7 +237,7 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
     auto decode_out = out;
     if (is_processing_needed) {
       int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-      int h = ctx.shape[0], w = ctx.shape[1], c = ctx.shape[2];
+      int64_t h = ctx.shape[0], w = ctx.shape[1], c = ctx.shape[2];
       TensorShape<> decoded_shape = {c, h, w};
       res.intermediate_buffer.resize(volume(ctx.shape) * pixel_size);
       decode_out = {res.intermediate_buffer.data(), decoded_shape, ctx.pixel_type};
