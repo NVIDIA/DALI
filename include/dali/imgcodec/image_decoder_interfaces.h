@@ -15,9 +15,11 @@
 #ifndef DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 #define DALI_IMGCODEC_IMAGE_DECODER_INTERFACES_H_
 
+#include <map>
 #include <memory>
 #include <utility>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include "dali/core/any.h"
 #include "dali/core/span.h"
@@ -193,8 +195,24 @@ class DLL_PUBLIC ImageDecoderInstance {
                                              cspan<ROI> rois = {}) = 0;
   /**
    * @brief Sets a codec-specific parameter
+   *
+   * @return  true, if the parameter is relevant for this decoder, false otherwise
+   *
+   * @remarks The function may throw if the parameter name is valid for this decoder, but
+   *          the value is incorrect.
    */
   virtual bool SetParam(const char *key, const any &value) = 0;
+
+  /**
+   * @brief Sets codec-specific parameters.
+   *
+   * @return  The number of parameters that were relevant for this decoder.
+   *
+   * @remarks The function may throw if the parameter name is valid for this decoder, but
+   *          the value is incorrect.
+   */
+  virtual int SetParams(const std::map<std::string, any> &params) = 0;
+
   /**
    * @brief Gets a codec-specific parameter
    */
@@ -231,10 +249,9 @@ class DLL_PUBLIC ImageDecoderFactory {
 
   /**
    * @brief Creates an instance of a codec
-   *
-   * Note: For decoders that carry no state, this may just increase reference count on a singleton.
    */
-  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id) const = 0;
+  virtual std::shared_ptr<ImageDecoderInstance>
+  Create(int device_id, const std::map<std::string, any> &params = {}) const = 0;
 };
 
 }  // namespace imgcodec

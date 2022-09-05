@@ -15,9 +15,11 @@
 #ifndef DALI_IMGCODEC_DECODERS_DECODER_PARALLEL_IMPL_H_
 #define DALI_IMGCODEC_DECODERS_DECODER_PARALLEL_IMPL_H_
 
+#include <map>
 #include <memory>
 #include <utility>
 #include <vector>
+#include <string>
 #include <thread>
 #include "dali/core/format.h"
 #include "dali/imgcodec/decoders/decoder_impl.h"
@@ -33,8 +35,8 @@ namespace imgcodec {
  */
 class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
  public:
-  explicit BatchParallelDecoderImpl(int device_id)
-  : ImageDecoderImpl(device_id) {}
+  explicit BatchParallelDecoderImpl(int device_id, const std::map<std::string, any> &params)
+  : ImageDecoderImpl(device_id, params) {}
 
   using ImageDecoderImpl::CanDecode;
   std::vector<bool> CanDecode(DecodeContext ctx,
