@@ -24,6 +24,7 @@
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
 namespace dali {
 namespace imgcodec {
@@ -69,8 +70,8 @@ class ConvertGPUTest : public ::testing::Test {
   using Output = typename ConversionType::Out;
 
   void SetReference(const TensorTestData &data) {
-    init_test_tensor_list(output_list_, data);
     init_test_tensor_list(reference_list_, data);
+    output_list_.reshape({{reference_list_.cpu()[0].shape}});
   }
 
   void SetInput(const TensorTestData &data) {
@@ -241,12 +242,12 @@ TYPED_TEST(ConvertGPUTest, TransposeWithRoi3D) {
 
   this->SetReference({
     {
-      {0.12f},
-      {0.13f},
+      {0.12f, 0.32f, 0.52f},
+      {0.13f, 0.33f, 0.53f},
     },
   });
 
-  this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {{1, 2, 0}, {2, 4, 1}});
+  this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {{1, 2, 0}, {2, 4, 3}});
 }
 
 TYPED_TEST(ConvertGPUTest, RGBToYCbCr) {
@@ -294,7 +295,7 @@ TYPED_TEST(ConvertGPUTest, RGBToGray) {
     },
   });
 
-  this->CheckConvert("HWC", DALI_BGR, "HWC", DALI_RGB);
+  this->CheckConvert("HWC", DALI_GRAY, "HWC", DALI_RGB);
 }
 
 }  // namespace test

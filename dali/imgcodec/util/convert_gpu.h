@@ -27,7 +27,8 @@ namespace imgcodec {
  *
  * The function converts data type (normalizing), color space and the tensor layout.
  * ROI is specified in the output coordinates (after transposing), and can contain
- * any number of dimensions, as the output layout might not be channel last.
+ * any number of dimensions, as the output layout might not be channel last, but
+ * the channel dimension cannot be cropped.
  */
 void DLL_PUBLIC Convert(
     SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,

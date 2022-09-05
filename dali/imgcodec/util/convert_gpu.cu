@@ -45,15 +45,16 @@ void LaunchSliceFlipNormalizePermutePad(
   args_container.emplace_back(out_shape, in_shape);
   auto &args = args_container[0];
 
-  if (roi) {
-    for (int i = 0; i < dims; i++)
-      args.anchor[i] = roi.begin[i];
-  }
-
   args.channel_dim = in_layout.find('C');
   for (int i = 0; i < dims; i++) {
     args.permuted_dims[i] = in_layout.find(out_layout[i]);
     args.shape[args.permuted_dims[i]] = out_shape[i];
+  }
+
+  if (roi) {
+    for (int i = 0; i < roi.begin.sample_dim(); i++) {
+      args.anchor[args.permuted_dims[i]] = roi.begin[i];
+    }
   }
 
   args.mean.push_back(0.0f);
@@ -80,6 +81,13 @@ void LaunchConvertSatNorm(Output *out, const Input *in, size_t size, cudaStream_
   convert_sat_norm_kernel<<<num_blocks, block_size, 0, stream>>>(out, in, size);
 }
 
+template<class T>
+T read_from_gpu(T *ptr) {
+  T obj;
+  CUDA_CALL(cudaMemcpy(&obj, ptr, sizeof(T), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+  return obj;
+}
+
 template<class Output, class Input>
 void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
                  ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
@@ -89,10 +97,15 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   ctx.gpu.stream = stream;
   ctx.scratchpad = &scratchpad;
 
-  auto size = volume(out.shape());
+  // Starting with converting the layout, colorspace will be converted later
+  auto intermediate_shape = out.shape();
+  int channel_dim = out_layout.find('C');
+  intermediate_shape[channel_dim] = NumberOfChannels(in_format, intermediate_shape[channel_dim]);
+
+  auto size = volume(intermediate_shape);
   auto buffer = scratchpad.Allocate<mm::memory_kind::device, float>(size);
   LaunchSliceFlipNormalizePermutePad(
-    buffer, out_layout, out.shape(), in.data<Input>(), in_layout, in.shape(),
+    buffer, out_layout, intermediate_shape, in.data<Input>(), in_layout, in.shape(),
     ctx, roi, multiplier);
 
   if (out_format != in_format) {
