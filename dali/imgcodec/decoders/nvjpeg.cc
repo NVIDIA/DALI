@@ -39,6 +39,19 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
   tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpeg2000DecoderInstance");
   resources_.reserve(tp_->NumThreads());
 
+  if (host_memory_padding_ > 0) {
+    for (auto thread_id : tp_->GetThreadIds()) {
+      nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding_);
+      nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding_);
+    }
+  }
+
+  if (device_memory_padding_ > 0) {
+    for (auto thread_id : tp_->GetThreadIds()) {
+      nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding_);
+    }
+  }
+
   for (int i = 0; i < tp_->NumThreads(); i++) {
     resources_.emplace_back(nvjpeg_handle_, &device_allocator_, &pinned_allocator_, device_id_);
   }
@@ -114,24 +127,9 @@ NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
 bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
   if (strcmp(name, "device_memory_padding") == 0) {
     device_memory_padding_ = any_cast<size_t>(value);
-
-    if (device_memory_padding_ > 0) {
-      for (auto thread_id : tp_->GetThreadIds()) {
-        nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding_);
-      }
-    }
-
     return true;
   } else if (strcmp(name, "host_memory_padding") == 0) {
     host_memory_padding_ = any_cast<size_t>(value);
-
-    if (host_memory_padding_ > 0) {
-      for (auto thread_id : tp_->GetThreadIds()) {
-        nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding_);
-        nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding_);
-      }
-    }
-
     return true;
   }
 
