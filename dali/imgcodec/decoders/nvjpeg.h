@@ -16,7 +16,9 @@
 #define DALI_IMGCODEC_DECODERS_NVJPEG_H_
 
 #include <nvjpeg.h>
+#include <map>
 #include <memory>
+#include <string>
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
@@ -29,7 +31,7 @@ namespace imgcodec {
 
 class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit NvJpegDecoderInstance(int device_id);
+  explicit NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params);
 
   DecodeResult DecodeImplTask(int thread_idx,
                               cudaStream_t stream,
@@ -102,8 +104,9 @@ class NvJpegDecoderFactory : public ImageDecoderFactory {
     return device_id >= 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
-    return std::make_shared<NvJpegDecoderInstance>(device_id);
+  std::shared_ptr<ImageDecoderInstance>
+  Create(int device_id, const std::map<std::string, any> &params = {}) const override {
+    return std::make_shared<NvJpegDecoderInstance>(device_id, params);
   }
 };
 

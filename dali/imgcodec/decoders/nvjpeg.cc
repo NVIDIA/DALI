@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <map>
+#include <string>
 #include <utility>
 #include "dali/core/device_guard.h"
 #include "dali/imgcodec/decoders/nvjpeg.h"
@@ -22,12 +24,15 @@
 namespace dali {
 namespace imgcodec {
 
-NvJpegDecoderInstance::NvJpegDecoderInstance(int device_id)
-: BatchParallelDecoderImpl(device_id)
+NvJpegDecoderInstance::
+NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
+: BatchParallelDecoderImpl(device_id, params)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
   DeviceGuard dg(device_id_);
   CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
+
+  SetParams(params);
 
   any num_threads_any = GetParam("nvjpeg_num_threads");
   int num_threads = num_threads_any.has_value() ? any_cast<int>(num_threads_any) : 4;
