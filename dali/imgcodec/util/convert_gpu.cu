@@ -81,13 +81,6 @@ void LaunchConvertSatNorm(Output *out, const Input *in, size_t size, cudaStream_
   convert_sat_norm_kernel<<<num_blocks, block_size, 0, stream>>>(out, in, size);
 }
 
-template<class T>
-T read_from_gpu(T *ptr) {
-  T obj;
-  CUDA_CALL(cudaMemcpy(&obj, ptr, sizeof(T), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-  return obj;
-}
-
 template<class Output, class Input>
 void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
                  ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
