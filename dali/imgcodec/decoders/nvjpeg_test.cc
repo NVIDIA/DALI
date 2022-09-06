@@ -31,9 +31,9 @@ TEST(NvJpegDecoderTest, Factory) {
   NvJpegDecoderFactory decoder;
   EXPECT_TRUE(decoder.IsSupported(device_id));
   auto props = decoder.GetProperties();
-  EXPECT_TRUE(static_cast<bool>(props.supported_input_kinds & InputKind::HostMemory));;
-  EXPECT_FALSE(static_cast<bool>(props.supported_input_kinds & InputKind::Filename));;
-  EXPECT_FALSE(static_cast<bool>(props.supported_input_kinds & InputKind::DeviceMemory));;
+  EXPECT_TRUE(static_cast<bool>(props.supported_input_kinds & InputKind::HostMemory));
+  EXPECT_FALSE(static_cast<bool>(props.supported_input_kinds & InputKind::Filename));
+  EXPECT_FALSE(static_cast<bool>(props.supported_input_kinds & InputKind::DeviceMemory));
   EXPECT_FALSE(static_cast<bool>(props.supported_input_kinds & InputKind::Stream));
 
   auto instance = decoder.Create(device_id);
