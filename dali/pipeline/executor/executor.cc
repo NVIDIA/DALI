@@ -327,9 +327,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   for (int i = 0; i < ws.NumOutput(); i++) {
     if (ws.template OutputIsType<CPUBackend>(i)) {
-      set_order(ws.template Output<CPUBackend>(i));
+      auto &out = ws.template Output<CPUBackend>(i);
+      out.Reset();
+      set_order(out);
     } else {
-      set_order(ws.template Output<GPUBackend>(i));
+      auto &out = ws.template Output<GPUBackend>(i);
+      out.Reset();
+      set_order(out);
     }
   }
 
