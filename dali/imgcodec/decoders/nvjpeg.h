@@ -24,7 +24,7 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
-#include "dali/operators/decoder/nvjpeg/nvjpeg_memory.h"
+#include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 
 namespace dali {
 namespace imgcodec {
