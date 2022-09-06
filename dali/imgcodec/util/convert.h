@@ -195,6 +195,16 @@ struct ConvertPixel<Out, In, DALI_GRAY, DALI_YCbCr> : ColorConversionBase<Out, 1
 template <typename T>
 void ApplyOrientation(Orientation orientation, T *&data,
                       int64_t &x_stride, int64_t &x_size, int64_t &y_stride, int64_t &y_size) {
+  /* To adjust orientation, one has to rotate the image and do some flips.
+   *
+   * The rotation can be implemented as some combination of flips and axis swap. For example,
+   * to rotate an image by 180 degrees, we can flip it vertically and then flip it horizontally.
+   *
+   * The axis swap is simple: we just swap the x and y strides and swap x and y sizes. To flip an
+   * axis, we negate the appropriate stride (effectively causing the image to be read in opposite
+   * direction) and move the data pointer to the end of the axis.
+   */
+
   bool swap_xy = false, flip_x = false, flip_y = false;
 
   if (orientation.rotate == 90) {
