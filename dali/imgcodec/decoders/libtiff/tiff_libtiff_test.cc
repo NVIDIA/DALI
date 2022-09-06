@@ -86,6 +86,15 @@ class LibTiffDecoderBitdepthTest : public LibTiffDecoderTest<float> {
     auto img = this->Decode(&src, {DALI_FLOAT});
     this->AssertClose(img, ref, 0.01);
   }
+
+  void TestDepthRoi(int depth) {
+    auto ref = this->ReadReferenceFrom(depth_ref_float_path(depth));
+    auto src = ImageSource::FromFilename(depth_path(depth));
+    auto info = this->Parser()->GetInfo(&src);
+    ROI roi = {{12, 34}, {info.shape[0] - 56, info.shape[1] - 78}};
+    auto img = this->Decode(&src, {DALI_FLOAT}, roi);
+    this->AssertClose(img, this->Crop(ref, roi), 0.01);
+  }
 };
 
 using LibTiffDecoderTypes = ::testing::Types<uint8_t, uint16_t, uint32_t>;
@@ -181,6 +190,13 @@ TEST_F(LibTiffDecoderBitdepthTest, AnyDepth) {
   for (int depth = 1; depth < 32; depth++) {
     SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
     this->TestDepth(depth);
+  }
+}
+
+TEST_F(LibTiffDecoderBitdepthTest, AnyDepthRoi) {
+  for (int depth = 1; depth < 32; depth++) {
+    SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
+    this->TestDepthRoi(depth);
   }
 }
 

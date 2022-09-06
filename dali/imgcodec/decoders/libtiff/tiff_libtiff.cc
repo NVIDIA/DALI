@@ -364,7 +364,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
           }
 
           if (info.bit_depth != InTypeBits) {
-            detail::UnpackBits(info.bit_depth, in, buf.get(), volume(out_shape));
+            detail::UnpackBits(info.bit_depth, in, buf.get(), volume(tile_shape));
           }
 
           OutType *out_ptr = img_out + (tile_begin[0] - roi.begin[0]) * img_strides[0]

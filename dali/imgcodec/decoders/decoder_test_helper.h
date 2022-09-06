@@ -234,7 +234,7 @@ class DecoderTestBase : public ::testing::Test {
   Tensor<CPUBackend> Crop(const Tensor<CPUBackend> &input, const ROI &roi) {
     int ndim = input.shape().sample_dim();
     VALUE_SWITCH(ndim, Dims, (2, 3, 4), (
-      TYPE_SWITCH(input.type(), type2id, InputType, (IMGCODEC_TYPES), (
+      TYPE_SWITCH(input.type(), type2id, InputType, (IMGCODEC_TYPES, double), (
         return Crop(view<const InputType, Dims>(input), roi, input.GetLayout());
       ), DALI_FAIL(make_string("Unsupported type ", input.type())););  // NOLINT
     ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
