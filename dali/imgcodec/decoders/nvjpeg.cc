@@ -29,14 +29,12 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
 : BatchParallelDecoderImpl(device_id, params)
 , device_allocator_(nvjpeg_memory::GetDeviceAllocator())
 , pinned_allocator_(nvjpeg_memory::GetPinnedAllocator()) {
+  SetParams(params);
+
   DeviceGuard dg(device_id_);
   CUDA_CALL(nvjpegCreateSimple(&nvjpeg_handle_));
 
-  SetParams(params);
-
-  any num_threads_any = GetParam("nvjpeg_num_threads");
-  int num_threads = num_threads_any.has_value() ? any_cast<int>(num_threads_any) : 1;
-  tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpegDecoderInstance");
+  tp_ = std::make_unique<ThreadPool>(num_threads_, device_id, true, "NvJpegDecoderInstance");
   resources_.reserve(tp_->NumThreads());
 
   if (host_memory_padding_ > 0) {
@@ -131,6 +129,9 @@ bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
   } else if (strcmp(name, "host_memory_padding") == 0) {
     host_memory_padding_ = any_cast<size_t>(value);
     return true;
+  } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
+    num_threads_ = any_cast<size_t>(value);
+    return true;
   }
 
   return false;
@@ -141,6 +142,8 @@ any NvJpegDecoderInstance::GetParam(const char *name) const {
     return device_memory_padding_;
   } else if (strcmp(name, "host_memory_padding") == 0) {
     return host_memory_padding_;
+  } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
+    return num_threads_;
   } else {
     return {};
   }

@@ -47,6 +47,7 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
  private:
   nvjpegHandle_t nvjpeg_handle_;
 
+  size_t num_threads_ = 1;
   size_t device_memory_padding_ = 0;
   size_t host_memory_padding_ = 0;
   nvjpegDevAllocator_t device_allocator_;
