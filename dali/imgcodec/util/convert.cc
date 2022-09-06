@@ -25,7 +25,7 @@ namespace imgcodec {
 
 void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
              ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-             TensorShape<> roi_start, TensorShape<> roi_end, Orientation orientation) {
+             ROI roi, Orientation orientation) {
   auto out_shape = out.shape();
   const auto &in_shape = in.shape();
   assert(in_shape.sample_dim() == out_shape.sample_dim());
@@ -37,25 +37,25 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   DALI_ENFORCE(in_layout == out_layout,
     "Not implemented: currently layout transposition is not supported");
 
-  if (!roi_start.empty() && roi_start.sample_dim() != spatial_ndim)
+  if (!roi.begin.empty() && roi.begin.sample_dim() != spatial_ndim)
     throw std::invalid_argument(
       "ROI start must be empty or have the dimensionality equal to the number of "
       "spatial dimensions of the data");
 
-  if (!roi_end.empty() && roi_end.sample_dim() != spatial_ndim)
+  if (!roi.end.empty() && roi.end.sample_dim() != spatial_ndim)
     throw std::invalid_argument(
       "ROI end must be empty or have the dimensionality equal to the number of "
       "spatial dimensions of the data");
 
-  if (roi_start.empty())
-    roi_start.resize(spatial_ndim);
+  if (roi.begin.empty())
+    roi.begin.resize(spatial_ndim);
 
-  if (roi_end.empty()) {
-    roi_end = detail::RemoveDim(out_shape, out_channel_dim);
+  if (roi.end.empty()) {
+    roi.end = detail::RemoveDim(out_shape, out_channel_dim);
   }
   auto out_shape_no_channel = detail::RemoveDim(out_shape, out_channel_dim);
   for (int d = 0; d < spatial_ndim; d++) {
-    if (roi_end[d] - roi_start[d] != out_shape_no_channel[d])
+    if (roi.end[d] - roi.begin[d] != out_shape_no_channel[d])
       throw std::logic_error("The requested ROI size does not match the output size");
   }
 
@@ -70,8 +70,8 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
 
   auto in_strides_no_channel = detail::RemoveDim(in_strides, in_channel_dim);
 
-  for (int d = 0; d < roi_start.size(); d++) {
-    in_offset += in_strides_no_channel[d] * roi_start[d];
+  for (int d = 0; d < roi.begin.size(); d++) {
+    in_offset += in_strides_no_channel[d] * roi.begin[d];
   }
 
   TYPE_SWITCH(out.type(), type2id, Out, (IMGCODEC_TYPES),

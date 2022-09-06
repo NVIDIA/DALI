@@ -77,7 +77,7 @@ class ConversionTestBase : public NumpyDecoderTestBase<CPUBackend, ImageType> {
 
     Convert(output_view, layout, output_format,
             input_view, layout, input_format,
-            roi.begin, roi.end);
+            roi);
 
     return output;
   }
@@ -315,7 +315,7 @@ class ConvertOrientationTest : public NumpyDecoderTestBase<CPUBackend, uint8_t> 
 
     Convert(output_view, TensorLayout("HWC"), DALI_RGB,
             input_view, TensorLayout("HWC"), DALI_RGB,
-            {}, {}, orientation);
+            {}, orientation);
 
     return output;
   }
