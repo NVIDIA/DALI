@@ -852,7 +852,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_params_.resize(samples_hw_batched_.size());
 
       int j = 0;
-      TensorVector<CPUBackend> tv(samples_hw_batched_.size());
+      TensorList<CPUBackend> tv(samples_hw_batched_.size());
 
       const auto &input = ws.Input<CPUBackend>(0);
       tv.SetupLike(input);

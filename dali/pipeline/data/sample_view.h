@@ -29,7 +29,7 @@ namespace dali {
  * of specific sample.
  *
  * This is a type corresponding to Tensor<Backend> and it's main goal is to become the return type
- * for the TensorVector/TensorList::operator[]. It allows to access the data via the
+ * for the TensorList/TensorList::operator[]. It allows to access the data via the
  * convenient `view<T, ndim>(SampleView)` conversion to TensorView, but doesn't break the batch
  * object encapsulation and doesn't allow to adjust the allocation.
  */

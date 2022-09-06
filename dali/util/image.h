@@ -25,7 +25,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 
 // This file contains useful image utilities for reading and writing images.

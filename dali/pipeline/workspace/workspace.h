@@ -24,7 +24,7 @@
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
@@ -51,23 +51,23 @@ class ArgumentWorkspace {
     argument_inputs_.clear();
   }
 
-  void AddArgumentInput(const std::string &arg_name, shared_ptr<TensorVector<CPUBackend>> input) {
+  void AddArgumentInput(const std::string& arg_name, shared_ptr<TensorList<CPUBackend>> input) {
     argument_inputs_[arg_name] = { std::move(input) };
   }
 
-  const TensorVector<CPUBackend>& ArgumentInput(const std::string &arg_name) const {
+  const TensorList<CPUBackend>& ArgumentInput(const std::string& arg_name) const {
     auto it = argument_inputs_.find(arg_name);
     DALI_ENFORCE(it != argument_inputs_.end(), "Argument \"" + arg_name + "\" not found.");
     return *it->second.tvec;
   }
 
-  TensorVector<CPUBackend>& UnsafeMutableArgumentInput(const std::string &arg_name) {
-    return const_cast<TensorVector<CPUBackend>&>(ArgumentInput(arg_name));
+  TensorList<CPUBackend>& UnsafeMutableArgumentInput(const std::string& arg_name) {
+    return const_cast<TensorList<CPUBackend>&>(ArgumentInput(arg_name));
   }
 
  protected:
   struct ArgumentInputDesc {
-    std::shared_ptr<TensorVector<CPUBackend>> tvec;
+    std::shared_ptr<TensorList<CPUBackend>> tvec;
   };
 
   // Argument inputs

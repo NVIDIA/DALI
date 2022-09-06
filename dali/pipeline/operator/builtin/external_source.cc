@@ -19,39 +19,39 @@ namespace dali {
 
 template <>
 void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  std::list<uptr_tv_type> tensor_vector_elm;
+  std::list<uptr_tv_type> tensor_list_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    tensor_vector_elm = tv_data_.PopFront();
+    tensor_list_elm = tv_data_.PopFront();
     state_.pop_front();
   }
   auto &output = ws.template Output<CPUBackend>(0);
   // if the output is pinned and input not it needs to be copied
-  if (output.is_pinned() && !tensor_vector_elm.front()->is_pinned()) {
+  if (output.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
     auto &thread_pool = ws.GetThreadPool();
-    const auto &shapes = tensor_vector_elm.front()->shape();
+    const auto &shapes = tensor_list_elm.front()->shape();
     auto curr_batch_size = shapes.num_samples();
-    output.Resize(shapes, tensor_vector_elm.front()->type());
+    output.Resize(shapes, tensor_list_elm.front()->type());
 
     // as we copy element by element and the output is contiguous we need to set layout
     // for the whole output not each element(view)
     auto &output = ws.template Output<CPUBackend>(0);
-    output.SetLayout(tensor_vector_elm.front()->GetLayout());
+    output.SetLayout(tensor_list_elm.front()->GetLayout());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork(
-          [&output, sample_id, &tensor_vector_elm](int tid) {
-            output.UnsafeCopySample(sample_id, *tensor_vector_elm.front(), sample_id,
+          [&output, sample_id, &tensor_list_elm](int tid) {
+            output.UnsafeCopySample(sample_id, *tensor_list_elm.front(), sample_id,
                                     AccessOrder::host());
           },
           shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
   } else {
-    // swap output with tensor_vector_elm content
-    std::swap(output, *tensor_vector_elm.front());
+    // swap output with tensor_list_elm content
+    std::swap(output, *tensor_list_elm.front());
   }
-  RecycleBuffer(tensor_vector_elm);
+  RecycleBuffer(tensor_list_elm);
 }
 
 

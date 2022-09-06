@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,10 +33,10 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
   HostWorkspace ws;
-  std::shared_ptr<TensorVector<CPUBackend>> in[3];
+  std::shared_ptr<TensorList<CPUBackend>> in[3];
   DALIDataType types[3] = {DALI_UINT8, DALI_INT16, DALI_INT32};
   for (int i = 0; i < 3; i++) {
-    in[i] = std::make_shared<TensorVector<CPUBackend>>();
+    in[i] = std::make_shared<TensorList<CPUBackend>>();
     in[i]->Resize({{1}, {2}}, types[i]);
   }
   in[0]->SetLayout(TensorLayout());
@@ -68,9 +68,9 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
   HostWorkspace ws;
-  std::shared_ptr<TensorVector<CPUBackend>> in[1];
+  std::shared_ptr<TensorList<CPUBackend>> in[1];
   for (auto &ptr : in) {
-    ptr = std::make_shared<TensorVector<CPUBackend>>();
+    ptr = std::make_shared<TensorList<CPUBackend>>();
     ptr->Resize({{}, {}}, DALI_INT32);
   }
   ws.AddInput(in[0]);
@@ -85,9 +85,9 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
   HostWorkspace ws;
-  std::shared_ptr<TensorVector<CPUBackend>> in[1];
+  std::shared_ptr<TensorList<CPUBackend>> in[1];
   for (auto &ptr : in) {
-    ptr = std::make_shared<TensorVector<CPUBackend>>();
+    ptr = std::make_shared<TensorList<CPUBackend>>();
     ptr->Resize({{1}, {1}}, DALI_INT32);
   }
   ws.AddInput(in[0]);
@@ -102,9 +102,9 @@ TEST(ArithmeticOpsTest, TreePropagationError) {
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
   HostWorkspace ws;
-  std::shared_ptr<TensorVector<CPUBackend>> in[3];
+  std::shared_ptr<TensorList<CPUBackend>> in[3];
   for (auto &ptr : in) {
-    ptr = std::make_shared<TensorVector<CPUBackend>>();
+    ptr = std::make_shared<TensorList<CPUBackend>>();
     ptr->Resize({{1}, {2}}, DALI_INT32);
   }
   in[0]->SetLayout(TensorLayout());

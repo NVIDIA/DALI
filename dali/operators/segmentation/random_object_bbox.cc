@@ -528,7 +528,7 @@ bool RandomObjectBBox::PickForegroundBox(SampleContext<BlobLabel> &context) {
   return ret;
 }
 
-void RandomObjectBBox::AllocateTempStorage(const TensorVector<CPUBackend> &input) {
+void RandomObjectBBox::AllocateTempStorage(const TensorList<CPUBackend> &input) {
   int64_t max_blob_bytes = 0;
   int64_t max_filtered_bytes = 0;
   int N = input.num_samples();

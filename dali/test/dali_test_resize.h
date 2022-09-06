@@ -27,7 +27,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
     // single input - encoded images
     // single output - decoded images
-    TensorVector<CPUBackend> out(inputs[0]->num_samples());
+    TensorList<CPUBackend> out(inputs[0]->num_samples());
     std::vector<Tensor<CPUBackend>> tmp_out(inputs[0]->num_samples());
     const TensorList<CPUBackend>& image_data = *inputs[0];
 

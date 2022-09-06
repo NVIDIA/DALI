@@ -340,7 +340,7 @@ auto FromPythonTrampoline(const char *python_module, const char *attr_name) {
  * associated access order with the provided stream; otherwise, the function will wait until the
  * copy completes.
  *
- * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorVector)
+ * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorList)
  * @param src             Source batch
  * @param dst_ptr         Destination pointer, wrapped in a C void_ptr Python type
  * @param cuda_stream     CUDA stream, wrapped in a C void_ptr type
@@ -716,7 +716,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
 
   auto contiguous_out = std::make_shared<TensorList<Backend>>();
   contiguous_out->SetContiguity(BatchContiguity::Contiguous);
-  TensorVector<Backend> non_contiguous_tmp(list_of_tensors.size());
+  TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
   int expected_type = -2;
 
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
@@ -1467,7 +1467,7 @@ void ExposePipelineDebug(py::module &m) {
 template <typename Backend>
 void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder order,
                   bool sync = false, bool use_copy_kernel = false) {
-  TensorVector<Backend> tv(list.size());
+  TensorList<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
     // TODO(klecki): evaluate if we want to keep such code - we need to be able to set

@@ -136,7 +136,7 @@ NemoAsrReader::NemoAsrReader(const OpSpec& spec)
 
   prefetched_decoded_audio_.resize(prefetch_queue_depth_);
   for (auto& batch : prefetched_decoded_audio_) {
-    batch = std::make_unique<TensorVector<CPUBackend>>();
+    batch = std::make_unique<TensorList<CPUBackend>>();
     batch->set_pinned(false);
   }
 }

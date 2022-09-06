@@ -183,7 +183,7 @@ class SequenceShapeUnfoldTest : public ::testing::Test {
   }
 
   template <typename Backend>
-  void UnfoldExtents(TensorVector<Backend> &unfolded_batch, const TensorVector<Backend> &batch,
+  void UnfoldExtents(TensorList<Backend> &unfolded_batch, const TensorList<Backend> &batch,
                      TensorListShape<> unfolded_extents) {
     unfold_outer_dims(unfolded_batch, batch, unfolded_extents.sample_dim(),
                       unfolded_extents.num_elements());
@@ -191,13 +191,13 @@ class SequenceShapeUnfoldTest : public ::testing::Test {
 };
 
 using Containers = ::testing::Types<
-    std::pair<TensorVector<CPUBackend>,
+    std::pair<TensorList<CPUBackend>,
               std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>,
-    std::pair<TensorVector<CPUBackend>,
+    std::pair<TensorList<CPUBackend>,
               std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>,
-    std::pair<TensorVector<GPUBackend>,
+    std::pair<TensorList<GPUBackend>,
               std::integral_constant<BatchContiguity, BatchContiguity::Contiguous>>,
-    std::pair<TensorVector<GPUBackend>,
+    std::pair<TensorList<GPUBackend>,
               std::integral_constant<BatchContiguity, BatchContiguity::Noncontiguous>>>;
 
 TYPED_TEST_SUITE(SequenceShapeUnfoldTest, Containers);
@@ -281,15 +281,15 @@ template <typename Backend>
 class SequenceShapeBroadcastTest;
 
 template <typename Backend, typename BoolType>
-class SequenceShapeBroadcastTest<std::pair<TensorVector<Backend>, BoolType>>
+class SequenceShapeBroadcastTest<std::pair<TensorList<Backend>, BoolType>>
     : public ::testing::Test {
  protected:
   static constexpr auto kContiguous = BoolType::value;
   template <typename Dummy>
-  std::tuple<TensorVector<Backend>, std::shared_ptr<TensorVector<Backend>>> CreateTestBatch(
+  std::tuple<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>> CreateTestBatch(
       DALIDataType dtype, bool is_pinned = false, TensorLayout layout = "ABC",
       TensorListShape<> shape = {{3, 5, 7}, {11, 5, 4}, {7, 2, 11}}) {
-    TensorVector<Backend> batch;
+    TensorList<Backend> batch;
     constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
     batch.set_order(is_device ? AccessOrder(cuda_stream) : AccessOrder::host());
     batch.set_pinned(is_pinned);
@@ -303,7 +303,7 @@ class SequenceShapeBroadcastTest<std::pair<TensorVector<Backend>, BoolType>>
   }
 
   template <typename Dummy>
-  void TestBroadcasting(TensorVector<Backend> &expanded_batch, const TensorVector<Backend> &batch,
+  void TestBroadcasting(TensorList<Backend> &expanded_batch, const TensorList<Backend> &batch,
                         const TensorListShape<> &expand_extents) {
     const auto &shape = batch.shape();
     auto expanded_batch_size = expand_extents.num_elements();
@@ -322,8 +322,8 @@ class SequenceShapeBroadcastTest<std::pair<TensorVector<Backend>, BoolType>>
   }
 
   template <typename Dummy>
-  void FillBatch(TensorVector<Backend> &, Dummy = 42) {
-    // TensorVector shares data so we only compare pointers, no need to write any actual data
+  void FillBatch(TensorList<Backend> &, Dummy = 42) {
+    // TensorList shares data so we only compare pointers, no need to write any actual data
   }
 };
 
