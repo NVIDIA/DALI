@@ -127,7 +127,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
   params.format = DALI_YCbCr;
   auto decoded = this->Decode(&image.src, params);
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
-  this->AssertClose(decoded, ref, this->GetEps());
+  this->AssertClose(decoded, ref, this->GetDelta());
 }
 
 }  // namespace test

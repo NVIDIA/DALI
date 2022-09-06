@@ -118,7 +118,7 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
 
  protected:
   static const auto dtype = type2id<OutputType>::value;
-  OutputType output_type_obj;  // used to access OutputType in tests
+  using Type = OutputType;
 
   std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     return NvJpeg2000DecoderFactory().Create(this->GetDeviceId());
@@ -191,7 +191,7 @@ TYPED_TEST(NvJpeg2000DecoderTest, DecodeBatchSingleThread) {
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, 5BitImage) {
-  using OutputType = decltype(this->output_type_obj);
+  using OutputType = typename TestFixture::Type;
   float eps;
   if (std::is_floating_point_v<OutputType>)
     eps = 0.07;
@@ -206,7 +206,7 @@ TYPED_TEST(NvJpeg2000DecoderTest, 5BitImage) {
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, 12BitImage) {
-  using OutputType = decltype(this->output_type_obj);
+  using OutputType = typename TestFixture::Type;
   float eps;
   if (std::is_floating_point_v<OutputType>)
     eps = 0.01;
