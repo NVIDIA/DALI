@@ -36,7 +36,7 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
 
   any num_threads_any = GetParam("nvjpeg_num_threads");
   int num_threads = num_threads_any.has_value() ? any_cast<int>(num_threads_any) : 1;
-  tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpeg2000DecoderInstance");
+  tp_ = std::make_unique<ThreadPool>(num_threads, device_id, true, "NvJpegDecoderInstance");
   resources_.reserve(tp_->NumThreads());
 
   if (host_memory_padding_ > 0) {
