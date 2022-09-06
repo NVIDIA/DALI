@@ -36,7 +36,7 @@ TEST(NvJpegDecoderTest, Factory) {
   EXPECT_FALSE(static_cast<bool>(props.supported_input_kinds & InputKind::DeviceMemory));
   EXPECT_FALSE(static_cast<bool>(props.supported_input_kinds & InputKind::Stream));
 
-  auto instance = decoder.Create(device_id);
+  auto instance = decoder.Create(device_id, {{"num_threads", 4}});
   EXPECT_NE(instance, nullptr);
 }
 
@@ -65,7 +65,7 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
   static const auto dtype = type2id<OutputType>::value;
 
   std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
-    return NvJpegDecoderFactory().Create(this->GetDeviceId());
+    return NvJpegDecoderFactory().Create(this->GetDeviceId(), {{"num_threads", 4}});
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {
