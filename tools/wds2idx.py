@@ -100,8 +100,7 @@ class IndexCreator:
         )  # <type>... <size> <date> <name>
 
         # Extracting
-        for blocks_line, next_blocks_line, types_sizes_line in zip(tar_blocks, tar_blocks,
-                                                                   tar_types_sizes):
+        for blocks_line, types_sizes_line in zip(tar_blocks, tar_types_sizes):
             if not blocks_line or not types_sizes_line:
                 continue
 
@@ -111,8 +110,12 @@ class IndexCreator:
             if entry_type != b"-":
                 continue
 
-            offset = int(next_blocks_line[next_blocks_line.find(b"block") + 6:
-                                          next_blocks_line.find(b":")])
+            offset = int(blocks_line[blocks_line.find(b"block") + 6:
+                                     blocks_line.find(b":")])
+            # according to https://www.loc.gov/preservation/digital/formats/fdd/fdd000531.shtml#:~:text=A%20tar%20(tape%20archive)%20file,are%20not%20compressed%20archive%20files. # noqa: E501, W505
+            # each data record is preceded by 512-byte header. `tar --list --block-num --file`
+            # return the position (counted in 512-byte blocks) of the header for a given entry.
+            # So the size of the header needs to be added to get the data offset
             offset = (offset + 1) * 512
 
             size = types_sizes_line[: -len(name)]
