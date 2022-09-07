@@ -340,6 +340,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
 
       OutType *const img_out = out.mutable_data<OutType>();
 
+      // For non-tiled TIFFs first_tile_x is always 0, because the scanline spans the whole image.
       int64_t first_tile_y = roi.begin[0] - roi.begin[0] % info.tile_height;
       int64_t first_tile_x = roi.begin[1] - roi.begin[1] % info.tile_width;
 
