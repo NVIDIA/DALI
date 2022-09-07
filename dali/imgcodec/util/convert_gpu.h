@@ -23,7 +23,7 @@ namespace dali {
 namespace imgcodec {
 
 /**
- * @brief Convert an image stored in `in` and stores it in `out`.
+ * @brief Converts an image stored in `in` and stores it in `out`.
  *
  * The function converts data type (normalizing), color space and the tensor layout.
  * @param out View of the allocated memory, the shape must be correct.
