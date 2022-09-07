@@ -23,12 +23,20 @@ namespace dali {
 namespace imgcodec {
 
 /**
- * @brief Converts an image stored in `in` and stores it in `out`.
+ * @brief Convert an image stored in `in` and stores it in `out`.
  *
  * The function converts data type (normalizing), color space and the tensor layout.
- * ROI is specified in the output coordinates (after transposing), and can contain
- * any number of dimensions, as the output layout might not be channel last, but
- * the channel dimension cannot be cropped.
+ * @param out View of the allocated memory, the shape must be correct.
+ * @param out_layout Layout of the output tensor.
+ * @param out_format Type of the output image.
+ * @param in View of the input image.
+ * @param in_layout Layout of the input tensor.
+ * @param in_format Type of the input image.
+ * @param stream Cuda stream used for synchronization.
+ * @param roi Specified in output layout, `roi.shape` must match `out.shape`.
+ * Might be 3-dimensional, to support cropping if the output shape is not channel last.
+ * Channels cannot be cropped, because of the color space conversion.
+ * @param multiplier Multiplying happens independently from normalization.
  */
 void DLL_PUBLIC Convert(
     SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,

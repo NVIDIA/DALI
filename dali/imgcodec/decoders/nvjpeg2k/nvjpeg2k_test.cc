@@ -142,14 +142,15 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
       this->AssertEqualSatNorm(img, ref);
   }
 
-  void RunTest(const ImageTestingData &data, std::optional<float> eps = {}) {
+  void RunTest(const ImageTestingData &data, std::optional<float> eps = std::nullopt) {
     ImageBuffer image(data.img_path);
     auto decoded = this->Decode(&image.src, this->GetParams(), data.roi);
     auto ref = this->ReadReferenceFrom(data.ref_path);
     this->AssertEqual(decoded, ref, eps);
   }
 
-  void RunTest(const std::vector<ImageTestingData> &data, std::optional<float> eps = {}) {
+  void RunTest(const std::vector<ImageTestingData> &data,
+               std::optional<float> eps = std::nullopt) {
     size_t batch_size = images.size();
     std::vector<ImageBuffer> imgbufs;
     for (size_t i = 0; i < batch_size; i++)
