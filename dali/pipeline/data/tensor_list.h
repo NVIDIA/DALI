@@ -56,14 +56,12 @@ using BatchVector = SmallVector<T, kMaxStaticCopyBatchSize>;
 
 
 /**
- * @brief Merges TensorList<Backend> and std::vector<std::shared_ptr<Tensor<Backend>>> APIs
- * providing an uniform way of handling a collection/batch of tensors_.
+ * @brief Data structure representing a batch of non-uniformly shaped Tensor.
+ * Type, dimensionality, order, pinned status and layout are uniform for all samples.
  *
- * Propagates Buffer calls to every tensor uniformly
- *
- * TODO(klecki): Expected improvements to TensorList
- * 1. Detect and convert between contiguous and non-contiguous when possible:
- *    a. CopySample of bigger size
+ * TODO(klecki): Additional followups for TensorList:
+ *   * Based on intended usage patterns extend CopySample to switch the batch into noncontiguous
+ *     mode and/or introduce ResizeSample functionality.
  * @tparam Backend
  */
 template <typename Backend>
@@ -221,12 +219,14 @@ class DLL_PUBLIC TensorList {
    * function would still report that they are sharing data. It is advised that all samples are
    * replaced this way otherwise the contiguous allocation would be kept alive.
    *
+   * The metadata (pinned, type, device_id, order, layout) must match what is already set
+   * for the whole batch to maintain consistency.
+   *
    * @param sample_idx index of sample to be set
    * @param src owner of source sample
    * @param src_sample_idx index of source sample in owner.
    */
-  DLL_PUBLIC void UnsafeSetSample(int sample_idx, const TensorList<Backend> &src,
-                                  int src_sample_idx);
+  DLL_PUBLIC void SetSample(int sample_idx, const TensorList<Backend> &src, int src_sample_idx);
 
   /**
    * @brief Analogue of TensorList[sample_idx].ShareData(owner);
@@ -238,10 +238,13 @@ class DLL_PUBLIC TensorList {
    * function would still report that they are sharing data. It is advised that all samples are
    * replaced this way otherwise the contiguous allocation would be kept alive.
    *
+   * The metadata (pinned, type, device_id, order, layout) must match what is already set
+   * for the whole batch to maintain consistency.
+   *
    * @param sample_idx index of sample to be set
    * @param src sample owner
    */
-  DLL_PUBLIC void UnsafeSetSample(int sample_idx, const Tensor<Backend> &src);
+  DLL_PUBLIC void SetSample(int sample_idx, const Tensor<Backend> &src);
 
   /**
    * @brief Analogue of TensorList[sample_idx].ShareData for externally provided memory.
@@ -250,16 +253,15 @@ class DLL_PUBLIC TensorList {
    * After this operation the TensorList is converted into non-contiguous.
    *
    * Warning: If the TensorList was contiguous, the samples that weren't overwritten by this
-   * function would still report that they are sharing data. It is assumed that all samples are
-   * replaced this way - TODO(klecki): this might be adjusted in follow-up.
+   * function would still report that they are sharing data. It is advised that all samples are
+   * replaced this way otherwise the contiguous allocation would be kept alive.
    *
    * The metadata (pinned, type, device_id, order, layout) must match what is already set
    * for the whole batch to maintain consistency.
    */
-  DLL_PUBLIC void UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
-                                  bool pinned, const TensorShape<> &shape, DALIDataType type,
-                                  int device_id, AccessOrder order = {},
-                                  const TensorLayout &layout = "");
+  DLL_PUBLIC void SetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                            const TensorShape<> &shape, DALIDataType type, int device_id,
+                            AccessOrder order = {}, const TensorLayout &layout = "");
   /** @} */
 
   /**
@@ -280,11 +282,10 @@ class DLL_PUBLIC TensorList {
    * @param src sample owner
    * @param src_sample_idx index of source sample in owner.
    */
-  DLL_PUBLIC void UnsafeCopySample(int sample_idx, const TensorList<Backend> &src,
-                                   int src_sample_idx, AccessOrder order = {});
+  DLL_PUBLIC void CopySample(int sample_idx, const TensorList<Backend> &src, int src_sample_idx,
+                             AccessOrder order = {});
 
-  DLL_PUBLIC void UnsafeCopySample(int sample_idx, const Tensor<Backend> &src,
-                                   AccessOrder order = {});
+  DLL_PUBLIC void CopySample(int sample_idx, const Tensor<Backend> &src, AccessOrder order = {});
   /** @} */
 
 

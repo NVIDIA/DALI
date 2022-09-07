@@ -184,7 +184,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
     out.SetupLike(tmp_out[0]);
     for (int i = 0; i < image_data.num_samples(); ++i) {
-      out.UnsafeSetSample(i, tmp_out[i]);
+      out.SetSample(i, tmp_out[i]);
     }
 
     vector<std::shared_ptr<TensorList<CPUBackend>>> outputs;

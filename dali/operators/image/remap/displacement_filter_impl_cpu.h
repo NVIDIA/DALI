@@ -139,7 +139,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
               " only NN and LINEAR are supported for this operation");
       }
     } else {
-      output.UnsafeCopySample(sample_idx, input, sample_idx);
+      output.CopySample(sample_idx, input, sample_idx);
     }
   }
 
