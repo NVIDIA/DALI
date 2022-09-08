@@ -94,7 +94,6 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
     return opts;
   }
 
-<<<<<<< HEAD
   float GetEps() {
     if (std::is_floating_point_v<OutputType>) {
       return 0.01f;
@@ -102,20 +101,6 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
       // Adjusting the epsilon to OutputType
       return 0.01 * max_value<OutputType>();
     }
-=======
-  /**
-   * @brief Calculate the testing precision according to the OutputType
-   */
-  constexpr float GetDelta() {
-    if constexpr (std::is_floating_point_v<OutputType>)
-      return 0.01;
-    else if constexpr (std::is_same_v<OutputType, uint8_t>)
-      return 1.01;
-    else if constexpr (std::is_same_v<OutputType, int16_t>)
-      return 200.0;
-    else
-      assert(false);
->>>>>>> 4a1f59ead (Fixed typo)
   }
 };
 
@@ -142,7 +127,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
   params.format = DALI_YCbCr;
   auto decoded = this->Decode(&image.src, params);
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
-  this->AssertClose(decoded, ref, this->GetDelta());
+  this->AssertClose(decoded, ref, this->GetEps());
 }
 
 }  // namespace test

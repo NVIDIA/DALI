@@ -127,13 +127,13 @@ nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(void *out,
                                                              int64_t output_offset_y,
                                                              const Context &ctx) {
   uint8_t *out_as_bytes = static_cast<uint8_t*>(out);
-  const int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+  const int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
   const int64_t channels = ctx.shape[0], height = ctx.shape[1], width = ctx.shape[2];
-  const int64_t component_byte_size = height * width * pixel_size;
-  const int64_t offset_byte_size = (width * output_offset_y + output_offset_x) * pixel_size;
+  const int64_t component_byte_size = height * width * type_size;
+  const int64_t offset_byte_size = (width * output_offset_y + output_offset_x) * type_size;
   for (uint32_t c = 0; c < channels; c++) {
     pixel_data[c] = out_as_bytes + c * component_byte_size + offset_byte_size;
-    pitch_in_bytes[c] = width * pixel_size;
+    pitch_in_bytes[c] = width * type_size;
   }
 
   nvjpeg2kImage_t image;
@@ -240,8 +240,8 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   try {
     auto decode_out = out;
     if (is_processing_needed) {
-      int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-      res.intermediate_buffer.resize(volume(ctx.shape) * pixel_size);
+      int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+      res.intermediate_buffer.resize(volume(ctx.shape) * type_size);
       decode_out = {res.intermediate_buffer.data(), ctx.shape, ctx.pixel_type};
     }
 
