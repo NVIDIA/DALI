@@ -37,8 +37,8 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
   // one passed by the DecodeContext. Overriding thread pool pointer caried in
   // the context argument of this variant of
   // BatchParallelDecoderImpl::ScheduleDecode is enough to cover all the Decode
-  // and ScheduleDecode function. This is because all that functions eventually
-  // call this variant of ScheduleDecode.
+  // and ScheduleDecode functions. This is because all that functions
+  // eventually call this variant of ScheduleDecode.
   FutureDecodeResults ScheduleDecode(DecodeContext ctx,
                                      span<SampleView<GPUBackend>> out,
                                      cspan<ImageSource *> in,
