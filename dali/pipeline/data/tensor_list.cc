@@ -273,8 +273,8 @@ void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int 
 
 
 template <typename Backend>
-void TensorList<Backend>::UnsafeSetSample(int sample_idx, const TensorList<Backend> &src,
-                                          int src_sample_idx) {
+void TensorList<Backend>::SetSample(int sample_idx, const TensorList<Backend> &src,
+                                    int src_sample_idx) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
@@ -300,7 +300,7 @@ void TensorList<Backend>::UnsafeSetSample(int sample_idx, const TensorList<Backe
 
 
 template <typename Backend>
-void TensorList<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend> &owner) {
+void TensorList<Backend>::SetSample(int sample_idx, const Tensor<Backend> &owner) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
@@ -322,10 +322,9 @@ void TensorList<Backend>::UnsafeSetSample(int sample_idx, const Tensor<Backend> 
 
 
 template <typename Backend>
-void TensorList<Backend>::UnsafeSetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
-                                          bool pinned, const TensorShape<> &shape,
-                                          DALIDataType type, int device_id, AccessOrder order,
-                                          const TensorLayout &layout) {
+void TensorList<Backend>::SetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes,
+                                    bool pinned, const TensorShape<> &shape, DALIDataType type,
+                                    int device_id, AccessOrder order, const TensorLayout &layout) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
@@ -377,8 +376,8 @@ void TensorList<Backend>::VerifySampleCopyCompatibility(DALIDataType type, int s
 
 
 template <typename Backend>
-void TensorList<Backend>::UnsafeCopySample(int sample_idx, const TensorList<Backend> &src,
-                                           int src_sample_idx, AccessOrder order) {
+void TensorList<Backend>::CopySample(int sample_idx, const TensorList<Backend> &src,
+                                     int src_sample_idx, AccessOrder order) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   assert(src_sample_idx >= 0 && src_sample_idx < src.curr_num_tensors_);
@@ -396,8 +395,8 @@ void TensorList<Backend>::UnsafeCopySample(int sample_idx, const TensorList<Back
 
 
 template <typename Backend>
-void TensorList<Backend>::UnsafeCopySample(int sample_idx, const Tensor<Backend> &src,
-                                           AccessOrder order) {
+void TensorList<Backend>::CopySample(int sample_idx, const Tensor<Backend> &src,
+                                     AccessOrder order) {
   // Bounds check
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   VerifySampleCopyCompatibility(src.type(), src.shape().sample_dim(), src.GetLayout(),

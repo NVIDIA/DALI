@@ -46,7 +46,7 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
     tp.AddWork([&, i, src](int tid) {
       output.SetMeta(i, input.GetMeta(i));
       // TODO(klecki): SetSample
-      output.UnsafeCopySample(i, input, src);
+      output.CopySample(i, input, src);
     }, size);
   }
   tp.RunAll();

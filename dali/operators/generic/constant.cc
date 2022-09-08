@@ -90,7 +90,7 @@ void FillTensorList(TensorList<CPUBackend> &dst, const TensorListShape<> &shape,
     }
   }
   for (int i = 1; i < shape.num_samples(); i++) {
-    dst.UnsafeSetSample(i, dst, 0);
+    dst.SetSample(i, dst, 0);
   }
 }
 }  // namespace

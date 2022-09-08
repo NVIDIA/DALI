@@ -734,7 +734,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             "Tensors cannot have different data types. Tensor at position ", i, " has type '",
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
-      non_contiguous_tmp.UnsafeSetSample(i, t);
+      non_contiguous_tmp.SetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -1476,7 +1476,7 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
     if (i == 0) {
       tv.SetupLike(t);
     }
-    tv.UnsafeSetSample(i, t);
+    tv.SetSample(i, t);
     // TODO(klecki): tv[i] = std::move(t);
   }
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);

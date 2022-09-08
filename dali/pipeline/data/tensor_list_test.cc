@@ -727,7 +727,7 @@ TYPED_TEST(TensorListSuite, SetupAndSetSizeNoncontiguous) {
   tv.set_order(t.order());
 
   for (int i = 0; i < 3; i++) {
-    tv.UnsafeSetSample(i, t);
+    tv.SetSample(i, t);
     EXPECT_EQ(tv[i].raw_data(), t.raw_data());
     EXPECT_EQ(tv[i].shape(), t.shape());
     EXPECT_EQ(tv[i].type(), t.type());
@@ -912,7 +912,7 @@ TYPED_TEST(TensorListSuite, PartialSetupSetMultiGPU) {
         setups[idx].second(tv);
       }
       try {
-        tv.UnsafeSetSample(0, t);
+        tv.SetSample(0, t);
         FAIL() << "Exception was expected with excluded: " << setups[excluded].first;
       } catch (std::runtime_error &e) {
         auto expected = "Sample must have the same " + setups[excluded].first;
@@ -965,7 +965,7 @@ TYPED_TEST(TensorListSuite, PartialSetupCopyMultiGPU) {
         setups[idx].second(tv);
       }
       try {
-        tv.UnsafeCopySample(0, t);
+        tv.CopySample(0, t);
         FAIL() << "Exception was expected with excluded: " << setups[excluded].first;
       } catch (std::runtime_error &e) {
         auto expected = "Sample must have the same " + setups[excluded].first;
@@ -1004,7 +1004,7 @@ TYPED_TEST(TensorListSuite, FullSetupSetMultiGPU) {
     for (auto idx : idxs) {
       setups[idx].second(tv);
     }
-    tv.UnsafeSetSample(0, t);
+    tv.SetSample(0, t);
     EXPECT_EQ(tv[0].raw_data(), t.raw_data());
   } while (std::next_permutation(idxs.begin(), idxs.end()));
 }
@@ -1191,7 +1191,7 @@ TYPED_TEST(TensorListSuite, ContiguousResize) {
   }
 
   for (int i = 0; i < 3; i++) {
-    tv.UnsafeCopySample(i, tv, i);
+    tv.CopySample(i, tv, i);
   }
 
   const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
@@ -1206,8 +1206,8 @@ TYPED_TEST(TensorListSuite, ContiguousResize) {
   }
 
   // Cannot copy without exact shape match when contiguous
-  EXPECT_THROW(tv.UnsafeCopySample(0, tv, 1), std::runtime_error);
-  EXPECT_THROW(tv.UnsafeCopySample(2, tv, 1), std::runtime_error);
+  EXPECT_THROW(tv.CopySample(0, tv, 1), std::runtime_error);
+  EXPECT_THROW(tv.CopySample(2, tv, 1), std::runtime_error);
 }
 
 
@@ -1233,8 +1233,8 @@ TYPED_TEST(TensorListSuite, NoncontiguousResize) {
   }
 
   // Cannot copy without exact shape match when contiguous
-  tv.UnsafeCopySample(0, tv, 1);
-  tv.UnsafeCopySample(2, tv, 1);
+  tv.CopySample(0, tv, 1);
+  tv.CopySample(2, tv, 1);
 
   EXPECT_FALSE(tv.IsContiguous());
   for (int i = 0; i < 3; i++) {
@@ -1271,7 +1271,7 @@ TYPED_TEST(TensorListSuite, BreakContiguity) {
   SampleView<TypeParam> v{t.template mutable_data<float>(), t.shape(), DALI_FLOAT};
   FillWithNumber(v, 42.f);
 
-  tv.UnsafeSetSample(1, t);
+  tv.SetSample(1, t);
   EXPECT_FALSE(tv.IsContiguous());
 
   EXPECT_EQ(tv[1].raw_data(), t.raw_data());
@@ -1695,8 +1695,8 @@ TYPED_TEST(TensorListSuite, DeviceIdPropagationMultiGPU) {
       CUDA_CALL(cudaMallocHost(&data_ptr, shape.num_elements() * sizeof(uint8_t)));
       ptr = std::shared_ptr<void>(data_ptr, [](void *ptr) { cudaFreeHost(ptr); });
     }
-    batch.UnsafeSetSample(0, ptr, shape.num_elements() * sizeof(uint8_t), is_pinned, shape,
-                          DALI_UINT8, device_id, order);
+    batch.SetSample(0, ptr, shape.num_elements() * sizeof(uint8_t), is_pinned, shape, DALI_UINT8,
+                    device_id, order);
     ASSERT_EQ(batch.device_id(), device_id);
     ASSERT_EQ(batch.order().device_id(), AccessOrder::host().device_id());
     ASSERT_NE(batch.order().device_id(), batch.device_id());

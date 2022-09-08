@@ -41,8 +41,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
       thread_pool.AddWork(
           [&output, sample_id, &tensor_list_elm](int tid) {
-            output.UnsafeCopySample(sample_id, *tensor_list_elm.front(), sample_id,
-                                    AccessOrder::host());
+            output.CopySample(sample_id, *tensor_list_elm.front(), sample_id, AccessOrder::host());
           },
           shapes.tensor_size(sample_id));
     }

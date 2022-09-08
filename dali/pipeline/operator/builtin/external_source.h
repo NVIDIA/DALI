@@ -270,7 +270,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     TensorList<SrcBackend> tv(vect_of_tensors.size());
     tv.SetupLike(vect_of_tensors[0]);
     for (int i = 0; i < tv.num_samples(); ++i) {
-      tv.UnsafeSetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
+      tv.SetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }
     SetDataSourceHelper(tv, order, ext_src_setting_mode);
   }
