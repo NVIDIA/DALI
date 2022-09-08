@@ -223,9 +223,12 @@ class SliceFlipNormalizePermutePadGpu {
       // We fuse the last dimension with the previous IF:
       // 1. There are at least 2 dimensions
       // 2. Last dimension is not sliced/padded/permuted
+      //    - if out_stride[last_dim] == abs(in_stride[last_dim]), then it is not permuted
+      //    - if anchor[last_dim] == 0 && out_shape[last_dim] == in_shape[last_dim],
+      //      then it is not sliced/padded
       // 3. Last dimension is not the channel dimension
-      // 4. The last two dimensions are either both flipped or not flipped
-      // 5. (???) The strides of last and the former channel align
+      // 4. The in_strides of the last dimension and the former one align
+      //    - in_strides[last_dim] * in_shape[last_dim] == in_strides[last_dim - 1]
       int last_dim = Dims - 1;
       while (last_dim > 0 &&
              sample_desc.out_strides[last_dim] ==
@@ -233,7 +236,6 @@ class SliceFlipNormalizePermutePadGpu {
              sample_desc.anchor[last_dim] == 0 &&
              sample_desc.out_shape[last_dim] == sample_desc.in_shape[last_dim] &&
              sample_desc.channel_dim != last_dim &&
-             (sample_desc.in_strides[last_dim] < 0) == (sample_desc.in_strides[last_dim - 1] < 0) &&
              sample_desc.in_strides[last_dim] * sample_desc.in_shape[last_dim] ==
                  sample_desc.in_strides[last_dim - 1]) {
         last_dim--;

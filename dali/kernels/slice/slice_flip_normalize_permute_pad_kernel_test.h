@@ -435,11 +435,24 @@ struct ArgsGen_SliceNormalizeFlip_PadChannels {
 };
 
 template <typename OutputType, int Dims = 3>
-struct ArgsGen_SwapXY {
+struct SliceFlipNormPermArgsGen_SwapXY {
   SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    static_assert(Dims >= 2);
     for (int i = 0; i < Dims; i++)
       args.permuted_dims[i] = (i < 2 ? 1 - i : i);
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct SliceFlipNormPermArgsGen_FlipYZ_ChannelFirst {
+  SliceFlipNormalizePermutePadArgs<Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceFlipNormalizePermutePadArgs<Dims> args(input_shape, input_shape);
+    static_assert(Dims >= 3);
+    args.flip[1] = args.flip[2] = true;
+    args.channel_dim = 0;
+    args.fill_values.resize(args.shape[0]);
     return args;
   }
 };
@@ -520,7 +533,9 @@ using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<int, float, 3, 1, 10,
       ArgsGen_SliceNormalizeFlip_PadChannels<float, 3>, 10, 10>,
     SliceTestArgs<uint8_t, uint8_t, 3, 1, 3,
-      ArgsGen_SwapXY<uint8_t, 3>, 3, 3, 3>
+      SliceFlipNormPermArgsGen_SwapXY<uint8_t, 3>, 3, 3, 3>,
+    SliceTestArgs<uint8_t, uint8_t, 3, 1, 3,
+      SliceFlipNormPermArgsGen_FlipYZ_ChannelFirst<uint8_t, 3>, 3, 3, 3>
 >;
 
 using SLICE_FLIP_NORMALIZE_PERMUTE_TEST_TYPES_CPU_ONLY = ::testing::Types<
