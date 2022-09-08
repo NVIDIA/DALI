@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include <string>
 #include "dali/imgcodec/decoders/decoder_test_helper.h"
-#include "dali/imgcodec/decoders/nvjpeg.h"
+#include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
