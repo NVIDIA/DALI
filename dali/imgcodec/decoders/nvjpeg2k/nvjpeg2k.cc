@@ -38,7 +38,7 @@ bool check_status(nvjpeg2kStatus_t status, ImageSource *in) {
 }
 
 float calc_bpp_adjustment_multiplier(int input_bpp, DALIDataType pixel_type) {
-  int type_bits = 8 * dali::TypeTable::GetTypeInfo(pixel_type).size();
+  int type_bits = CHAR_BIT * dali::TypeTable::GetTypeInfo(pixel_type).size();
   float input_max_value = (1 << input_bpp) - 1;
   float expected_max_value = (1 << type_bits) - 1;
   return expected_max_value / input_max_value;
@@ -113,7 +113,9 @@ bool NvJpeg2000DecoderInstance::ParseJpeg2000Info(ImageSource *in, Context &ctx)
     height = shape[0];
     width = shape[1];
   }
-  ctx.shape = {height, width, ctx.image_info.num_components};
+
+  // nvJPEG2000 decodes into the planar layout
+  ctx.shape = {ctx.image_info.num_components, height, width};
 
   return true;
 }
@@ -126,17 +128,18 @@ nvjpeg2kImage_t NvJpeg2000DecoderInstance::PrepareOutputArea(void *out,
                                                              const Context &ctx) {
   uint8_t *out_as_bytes = static_cast<uint8_t*>(out);
   const int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-  const int64_t component_byte_size = ctx.shape[0] * ctx.shape[1] * pixel_size;
-  const int64_t offset_byte_size = (ctx.shape[1] * output_offset_y + output_offset_x) * pixel_size;
-  for (uint32_t c = 0; c < ctx.shape[2]; c++) {
+  const int64_t channels = ctx.shape[0], height = ctx.shape[1], width = ctx.shape[2];
+  const int64_t component_byte_size = height * width * pixel_size;
+  const int64_t offset_byte_size = (width * output_offset_y + output_offset_x) * pixel_size;
+  for (uint32_t c = 0; c < channels; c++) {
     pixel_data[c] = out_as_bytes + c * component_byte_size + offset_byte_size;
-    pitch_in_bytes[c] = ctx.shape[1] * pixel_size;
+    pitch_in_bytes[c] = width * pixel_size;
   }
 
   nvjpeg2kImage_t image;
   image.pixel_data = pixel_data;
   image.pitch_in_bytes = pitch_in_bytes;
-  image.num_components = ctx.shape[2];
+  image.num_components = channels;
   image.pixel_type = ctx.pixel_type == DALI_UINT8 ? NVJPEG2K_UINT8 : NVJPEG2K_UINT16;
 
   return image;
@@ -226,9 +229,10 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
 
   CUDA_CALL(cudaEventSynchronize(ctx.decode_event));
 
-  DALIImageType format = ctx.shape[2] == 1 ? DALI_GRAY : DALI_RGB;
+  const int64_t channels = ctx.shape[0];
+  DALIImageType format = channels == 1 ? DALI_GRAY : DALI_RGB;
   bool is_processing_needed =
-    ctx.shape[2] > 1 ||  // nvJPEG2000 decodes into planar layout
+    channels > 1 ||  // nvJPEG2000 decodes into planar layout
     ctx.pixel_type != opts.dtype ||
     format != opts.format ||
     (ctx.bpp != 8 && ctx.bpp != 16);
@@ -237,10 +241,8 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
     auto decode_out = out;
     if (is_processing_needed) {
       int64_t pixel_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-      int64_t h = ctx.shape[0], w = ctx.shape[1], c = ctx.shape[2];
-      TensorShape<> decoded_shape = {c, h, w};
       res.intermediate_buffer.resize(volume(ctx.shape) * pixel_size);
-      decode_out = {res.intermediate_buffer.data(), decoded_shape, ctx.pixel_type};
+      decode_out = {res.intermediate_buffer.data(), ctx.shape, ctx.pixel_type};
     }
 
     result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), ctx);

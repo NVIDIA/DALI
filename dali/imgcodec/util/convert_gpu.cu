@@ -29,24 +29,24 @@ namespace imgcodec {
 
 namespace {
 
-constexpr int dims = 3;
+constexpr int kDims = 3;
 
 template<class Output, class Input>
 void LaunchSliceFlipNormalizePermutePad(
-    Output *out, TensorLayout out_layout, TensorShape<dims> out_shape,
-    const Input *in, TensorLayout in_layout, TensorShape<dims> in_shape,
+    Output *out, TensorLayout out_layout, TensorShape<kDims> out_shape,
+    const Input *in, TensorLayout in_layout, TensorShape<kDims> in_shape,
     kernels::KernelContext ctx, const ROI &roi, float multiplier) {
   // this normalization only works if Output range is [-1, 1]
   static_assert(std::is_floating_point<Output>::value);
   if (std::is_integral<Input>::value)
     multiplier /= max_value<Input>();
 
-  std::vector<kernels::SliceFlipNormalizePermutePadArgs<dims>> args_container;
+  std::vector<kernels::SliceFlipNormalizePermutePadArgs<kDims>> args_container;
   args_container.emplace_back(out_shape, in_shape);
   auto &args = args_container[0];
 
   args.channel_dim = in_layout.find('C');
-  for (int i = 0; i < dims; i++) {
+  for (int i = 0; i < kDims; i++) {
     args.permuted_dims[i] = in_layout.find(out_layout[i]);
     args.shape[args.permuted_dims[i]] = out_shape[i];
   }
@@ -61,8 +61,8 @@ void LaunchSliceFlipNormalizePermutePad(
   args.inv_stddev.push_back(multiplier);
 
   kernels::SliceFlipNormalizePermutePadGpu<Output, Input, 3> kernel;
-  TensorListView<StorageGPU, Output, dims> tlv_out(out, {out_shape});
-  TensorListView<StorageGPU, const Input, dims> tlv_in(in, {in_shape});
+  TensorListView<StorageGPU, Output, kDims> tlv_out(out, {out_shape});
+  TensorListView<StorageGPU, const Input, kDims> tlv_in(in, {in_shape});
   kernel.Setup(ctx, tlv_in, args_container);
   kernel.Run(ctx, tlv_out, tlv_in, args_container);
 }
@@ -90,8 +90,8 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   ctx.gpu.stream = stream;
   ctx.scratchpad = &scratchpad;
 
-  DALI_ENFORCE(out.shape().sample_dim() == dims && in.shape().sample_dim() == dims,
-               make_string("Conversion is only supported for ", dims, "-dimensional tensors"));
+  DALI_ENFORCE(out.shape().sample_dim() == kDims && in.shape().sample_dim() == kDims,
+               make_string("Conversion is only supported for ", kDims, "-dimensional tensors"));
 
   DALI_ENFORCE(out_layout.is_permutation_of("HWC") && in_layout.is_permutation_of("HWC"),
                "Layouts must be a permutation of HWC layout");
@@ -108,7 +108,7 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
     ctx, roi, multiplier);
 
   if (out_format != in_format) {
-    DALI_ENFORCE(out_layout.find('C') == dims - 1,
+    DALI_ENFORCE(out_layout.find('C') == kDims - 1,
                  "Only channel last layout is supported when running color space conversion");
 
     auto npixels = out.shape()[0] * out.shape()[1];
