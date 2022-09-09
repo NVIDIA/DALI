@@ -21,6 +21,7 @@
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
 #include "dali/imgcodec/registry.h"
+#include "dali/imgcodec/util/convert_gpu.h"
 
 namespace dali {
 namespace imgcodec {
@@ -172,17 +173,46 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   } else {
     CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, 0, 0, -1, -1));
   }
+
+  // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
+  // which is different between general color conversion libraries (OpenCV) and
+  // what JPEG uses.
+  // JPEG files are always using bitdepth 8.
+  bool needs_processing = opts.format == DALI_YCbCr || opts.dtype != DALI_UINT8;
+  auto& intermediate_buffer = ctx.resources.intermediate_buffer;
+
   try {
     ParseJpegSample(*in, opts, ctx);
+
     if (roi.use_roi()) {
       ctx.shape[0] = roi.shape()[0];
       ctx.shape[1] = roi.shape()[1];
     }
-    DecodeJpegSample(*in, out.mutable_data<uint8_t>(), opts, ctx);
+
+    // Synchronizing on the acces to immediate_buffer
+    CUDA_CALL(cudaEventSynchronize(ctx.resources.decode_event));
+
+    uint8_t* decode_out;
+    if (needs_processing) {
+      intermediate_buffer.clear();
+      intermediate_buffer.resize(volume(ctx.shape));
+      decode_out = intermediate_buffer.data();
+    } else {
+      decode_out = out.mutable_data<uint8_t>();
+    }
+
+    DecodeJpegSample(*in, decode_out, opts, ctx);
+
+    if (needs_processing) {
+      SampleView<GPUBackend> decoded_view(decode_out, ctx.shape, DALI_UINT8);
+      DALIImageType decoded_format = ctx.shape[2] == 1 ? DALI_GRAY : DALI_RGB;
+      Convert(out, "HWC", opts.format, decoded_view, "HWC", decoded_format, ctx.resources.stream);
+    }
   } catch (...) {
     return {false, std::current_exception()};
   }
 
+  CUDA_CALL(cudaEventRecord(ctx.resources.decode_event, ctx.resources.stream));
   CUDA_CALL(cudaStreamWaitEvent(stream, ctx.resources.decode_event, 0));
   return {true, nullptr};
 }
@@ -217,21 +247,10 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   nvjpeg_image.channel[0] = out;
   nvjpeg_image.pitch[0] = ctx.shape[1] * ctx.shape[2];
 
-  CUDA_CALL(cudaEventSynchronize(decode_event));
   CUDA_CALL(nvjpegStateAttachDeviceBuffer(state, device_buffer));
   CUDA_CALL(nvjpegDecodeJpegTransferToDevice(nvjpeg_handle_, decoder, state, jpeg_stream,
                                              stream));
   CUDA_CALL(nvjpegDecodeJpegDevice(nvjpeg_handle_, decoder, state, &nvjpeg_image, stream));
-
-  if (opts.format == DALI_YCbCr) {
-    // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
-    // which is different between general color conversion libraries (OpenCV) and
-    // what JPEG uses.
-    int64_t npixels = ctx.shape[0] * ctx.shape[1];
-    Convert_RGB_to_YCbCr(out, out, npixels, stream);
-  }
-
-  CUDA_CALL(cudaEventRecord(decode_event, stream));
 }
 
 REGISTER_DECODER("JPEG", NvJpegDecoderFactory, CUDADecoderPriority);

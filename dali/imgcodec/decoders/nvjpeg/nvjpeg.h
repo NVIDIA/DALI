@@ -82,8 +82,9 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
     nvjpegJpegStream_t jpeg_stream;
     CUDAStreamLease stream;
     CUDAEvent decode_event;
-
     nvjpegDecodeParams_t params;
+
+    DeviceBuffer<uint8_t> intermediate_buffer;
 
     PerThreadResources(nvjpegHandle_t, nvjpegDevAllocator_t*, nvjpegPinnedAllocator_t*,
                        int device_id);

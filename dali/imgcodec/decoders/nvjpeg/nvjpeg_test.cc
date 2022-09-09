@@ -24,6 +24,17 @@ namespace dali {
 namespace imgcodec {
 namespace test {
 
+template<class T>
+void save_to_file(const std::string &path, TensorView<StorageCPU, T> view) {
+  std::ofstream stream(path);
+  for (int i = 0; i < view.num_elements(); i++) {
+    using Bytes = std::array<uint8_t, sizeof(T)>;
+    auto bytes = *reinterpret_cast<const Bytes*>(view.data + i);
+    for (size_t j = 0; j < sizeof(T); j++)
+      stream << bytes[j];
+  }
+}
+
 TEST(NvJpegDecoderTest, Factory) {
   int device_id;
   CUDA_CALL(cudaGetDevice(&device_id));
@@ -105,7 +116,7 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
   }
 };
 
-using DecodeOutputTypes = ::testing::Types<uint8_t>;
+using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
 TYPED_TEST_SUITE(NvJpegDecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpegDecoderTest, DecodeSingle) {
