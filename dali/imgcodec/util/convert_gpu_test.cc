@@ -78,10 +78,6 @@ const std::vector<float> pixelC = {0.20f, 0.21f, 0.22f};
 const std::vector<float> pixelD = {0.30f, 0.31f, 0.32f};
 const std::vector<float> pixelE = {0.40f, 0.41f, 0.42f};
 const std::vector<float> pixelF = {0.50f, 0.51f, 0.52f};
-const std::vector<float> pixelG = {0.60f, 0.61f, 0.62f};
-const std::vector<float> pixelH = {0.70f, 0.71f, 0.72f};
-const std::vector<float> pixelI = {0.80f, 0.81f, 0.82f};
-const std::vector<float> pixelJ = {0.90f, 0.91f, 0.92f};
 
 }  // namespace
 
@@ -123,10 +119,9 @@ class ConvertGPUTest : public ::testing::Test {
   const float eps_ = 0.01f;
 };
 
-using ConversionTypes = ::testing::Types<ConversionTestType<float, float>>;
-                                      /* ConversionTestType<uint8_t, int16_t>,
+using ConversionTypes = ::testing::Types<ConversionTestType<uint8_t, int16_t>,
                                          ConversionTestType<float, uint8_t>,
-                                         ConversionTestType<uint16_t, float>>; */
+                                         ConversionTestType<uint16_t, float>>;
 
 TYPED_TEST_SUITE(ConvertGPUTest, ConversionTypes);
 
@@ -397,32 +392,6 @@ TYPED_TEST(ConvertGPUTest, TransposeAndRotate) {
   });
 
   this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {}, {90, false, false});
-}
-
-TYPED_TEST(ConvertGPUTest, TransposeAndRotate270) {
-  this->SetInput({
-    {
-      {0.00f, 0.01f, 0.02f, 0.03f},
-      {0.10f, 0.11f, 0.12f, 0.13f},
-    },
-    {
-      {0.20f, 0.21f, 0.22f, 0.23f},
-      {0.30f, 0.31f, 0.32f, 0.33f},
-    },
-    {
-      {0.40f, 0.41f, 0.42f, 0.43f},
-      {0.50f, 0.51f, 0.52f, 0.53f},
-    },
-  });
-
-  this->SetReference({
-    {{0.03f, 0.23f, 0.43f}, {0.13f, 0.33f, 0.53f}},
-    {{0.02f, 0.22f, 0.42f}, {0.12f, 0.32f, 0.52f}},
-    {{0.01f, 0.21f, 0.41f}, {0.11f, 0.31f, 0.51f}},
-    {{0.00f, 0.20f, 0.40f}, {0.10f, 0.30f, 0.50f}},
-  });
-
-  this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {}, {270, false, false});
 }
 
 }  // namespace test
