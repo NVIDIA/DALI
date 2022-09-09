@@ -40,13 +40,19 @@ struct ConversionTestType {
 
 using TensorTestData = std::vector<std::vector<std::vector<float>>>;
 
-template<class T>
-void init_test_tensor_list(kernels::TestTensorList<T> &list, const TensorTestData &data) {
-  TensorShape<> shape = {
+TensorShape<> get_data_shape(const TensorTestData &data) {
+  return {
     static_cast<int>(data.size()),
     static_cast<int>(data[0].size()),
     static_cast<int>(data[0][0].size()),
   };
+}
+
+template<class T>
+void init_test_tensor_list(kernels::TestTensorList<T> &list, const TensorTestData &data) {
+  auto shape = get_data_shape(data);
+  list.invalidate_cpu();
+  list.invalidate_gpu();
   list.reshape({{shape}});
   auto tv = list.cpu()[0];
   for (int i = 0; i < shape[0]; i++)
@@ -55,11 +61,27 @@ void init_test_tensor_list(kernels::TestTensorList<T> &list, const TensorTestDat
         *tv(TensorShape<>{i, j, k}) = ConvertSatNorm<T>(data[i][j][k]);
 }
 
+TensorTestData empty_data(TensorShape<> shape) {
+  return std::vector(shape[0], std::vector(shape[1], std::vector(shape[2], 0.0f)));
+}
+
 template<class T>
 SampleView<GPUBackend> get_gpu_sample_view(kernels::TestTensorList<T> &list) {
   auto tv = list.gpu()[0];
   return SampleView<GPUBackend>(tv.data, tv.shape, type2id<T>::value);
 }
+
+// Helper values, to make testing data is more readable
+const std::vector<float> pixelA = {0.00f, 0.01f, 0.02f};
+const std::vector<float> pixelB = {0.10f, 0.11f, 0.12f};
+const std::vector<float> pixelC = {0.20f, 0.21f, 0.22f};
+const std::vector<float> pixelD = {0.30f, 0.31f, 0.32f};
+const std::vector<float> pixelE = {0.40f, 0.41f, 0.42f};
+const std::vector<float> pixelF = {0.50f, 0.51f, 0.52f};
+const std::vector<float> pixelG = {0.60f, 0.61f, 0.62f};
+const std::vector<float> pixelH = {0.70f, 0.71f, 0.72f};
+const std::vector<float> pixelI = {0.80f, 0.81f, 0.82f};
+const std::vector<float> pixelJ = {0.90f, 0.91f, 0.92f};
 
 }  // namespace
 
@@ -71,7 +93,7 @@ class ConvertGPUTest : public ::testing::Test {
 
   void SetReference(const TensorTestData &data) {
     init_test_tensor_list(reference_list_, data);
-    output_list_.reshape({{reference_list_.cpu()[0].shape}});
+    init_test_tensor_list(output_list_, empty_data(get_data_shape(data)));
   }
 
   void SetInput(const TensorTestData &data) {
@@ -80,13 +102,16 @@ class ConvertGPUTest : public ::testing::Test {
 
   void CheckConvert(TensorLayout out_layout, DALIImageType out_format,
                     TensorLayout in_layout, DALIImageType in_format,
-                    const ROI &roi = {}, float multiplier = 1.0f) {
+                    const ROI &roi = {}, Orientation orientation = {}, float multiplier = 1.0f) {
     int device_id;
     CUDA_CALL(cudaGetDevice(&device_id));
     auto out = get_gpu_sample_view(output_list_);
     auto in = get_gpu_sample_view(input_list_);
     auto stream = CUDAStreamPool::instance().Get(device_id);
-    Convert(out, out_layout, out_format, in, in_layout, in_format, stream, roi, multiplier);
+    Convert(out, out_layout, out_format, in, in_layout, in_format,
+            stream, roi, orientation, multiplier);
+    output_list_.invalidate_cpu();
+    auto tv = output_list_.cpu(stream)[0];  // here d2h copy happens
     CUDA_CALL(cudaStreamSynchronize(stream));
     Check(output_list_.cpu()[0], reference_list_.cpu()[0], EqualConvertNorm(eps_));
   }
@@ -98,39 +123,28 @@ class ConvertGPUTest : public ::testing::Test {
   const float eps_ = 0.01f;
 };
 
-using ConversionTypes = ::testing::Types<ConversionTestType<uint8_t, int16_t>,
+using ConversionTypes = ::testing::Types<ConversionTestType<float, float>>;
+                                      /* ConversionTestType<uint8_t, int16_t>,
                                          ConversionTestType<float, uint8_t>,
-                                         ConversionTestType<uint16_t, float>>;
+                                         ConversionTestType<uint16_t, float>>; */
 
 TYPED_TEST_SUITE(ConvertGPUTest, ConversionTypes);
 
 TYPED_TEST(ConvertGPUTest, Multiply) {
   this->SetInput({
-    {
-      {0.01f, 0.02f, 0.03f},
-      {0.02f, 0.03f, 0.04f},
-    },
-    {
-      {0.1f, 0.2f, 0.3f},
-      {0.2f, 0.3f, 0.4f},
-    },
+    {{0.00f, 0.01f, 0.02f}, {0.03f, 0.04f, 0.05f}},
+    {{0.10f, 0.11f, 0.12f}, {0.13f, 0.14f, 0.15f}},
   });
 
   this->SetReference({
-    {
-      {0.02f, 0.04f, 0.06f},
-      {0.04f, 0.06f, 0.08f},
-    },
-    {
-      {0.2f, 0.4f, 0.6f},
-      {0.4f, 0.6f, 0.8f},
-    },
+    {{0.00f, 0.02f, 0.04f}, {0.06f, 0.08f, 0.10f}},
+    {{0.20f, 0.22f, 0.24f}, {0.26f, 0.28f, 0.30f}},
   });
 
-  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, 2.0f);
+  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {}, 2.0f);
 }
 
-TYPED_TEST(ConvertGPUTest, TransposeFromPlanar) {
+TYPED_TEST(ConvertGPUTest, PlanarToInterleaved) {
   this->SetInput({
     {
       {0.00f, 0.01f, 0.02f, 0.03f},
@@ -147,37 +161,17 @@ TYPED_TEST(ConvertGPUTest, TransposeFromPlanar) {
   });
 
   this->SetReference({
-    {
-      {0.00f, 0.20f, 0.40f},
-      {0.01f, 0.21f, 0.41f},
-      {0.02f, 0.22f, 0.42f},
-      {0.03f, 0.23f, 0.43f},
-    },
-    {
-      {0.10f, 0.30f, 0.50f},
-      {0.11f, 0.31f, 0.51f},
-      {0.12f, 0.32f, 0.52f},
-      {0.13f, 0.33f, 0.53f},
-    },
+    {{0.00f, 0.20f, 0.40f}, {0.01f, 0.21f, 0.41f}, {0.02f, 0.22f, 0.42f}, {0.03f, 0.23f, 0.43f}},
+    {{0.10f, 0.30f, 0.50f}, {0.11f, 0.31f, 0.51f}, {0.12f, 0.32f, 0.52f}, {0.13f, 0.33f, 0.53f}},
   });
 
   this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB);
 }
 
-TYPED_TEST(ConvertGPUTest, TransposeToPlanar) {
+TYPED_TEST(ConvertGPUTest, InterleavedToPlanar) {
   this->SetInput({
-    {
-      {0.00f, 0.20f, 0.40f},
-      {0.01f, 0.21f, 0.41f},
-      {0.02f, 0.22f, 0.42f},
-      {0.03f, 0.23f, 0.43f},
-    },
-    {
-      {0.10f, 0.30f, 0.50f},
-      {0.11f, 0.31f, 0.51f},
-      {0.12f, 0.32f, 0.52f},
-      {0.13f, 0.33f, 0.53f},
-    },
+    {{0.00f, 0.20f, 0.40f}, {0.01f, 0.21f, 0.41f}, {0.02f, 0.22f, 0.42f}, {0.03f, 0.23f, 0.43f}},
+    {{0.10f, 0.30f, 0.50f}, {0.11f, 0.31f, 0.51f}, {0.12f, 0.32f, 0.52f}, {0.13f, 0.33f, 0.53f}},
   });
 
   this->SetReference({
@@ -215,10 +209,7 @@ TYPED_TEST(ConvertGPUTest, TransposeWithRoi2D) {
   });
 
   this->SetReference({
-    {
-      {0.12f, 0.32f, 0.52f},
-      {0.13f, 0.33f, 0.53f},
-    },
+    {{0.12f, 0.32f, 0.52f}, {0.13f, 0.33f, 0.53f}},
   });
 
   this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {{1, 2}, {2, 4}});
@@ -241,10 +232,7 @@ TYPED_TEST(ConvertGPUTest, TransposeWithRoi3D) {
   });
 
   this->SetReference({
-    {
-      {0.12f, 0.32f, 0.52f},
-      {0.13f, 0.33f, 0.53f},
-    },
+    {{0.12f, 0.32f, 0.52f}, {0.13f, 0.33f, 0.53f}},
   });
 
   this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {{1, 2, 0}, {2, 4, 3}});
@@ -296,6 +284,145 @@ TYPED_TEST(ConvertGPUTest, RGBToGray) {
   });
 
   this->CheckConvert("HWC", DALI_GRAY, "HWC", DALI_RGB);
+}
+
+TYPED_TEST(ConvertGPUTest, Rotation90) {
+  this->SetInput({
+    {pixelA, pixelB, pixelC},
+    {pixelD, pixelE, pixelF},
+  });
+
+  this->SetReference({
+    {pixelD, pixelA},
+    {pixelE, pixelB},
+    {pixelF, pixelC},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {90, false, false});
+}
+
+TYPED_TEST(ConvertGPUTest, Rotation90FlipX) {
+  this->SetInput({
+    {pixelA, pixelB, pixelC},
+    {pixelD, pixelE, pixelF},
+  });
+
+  this->SetReference({
+    {pixelA, pixelD},
+    {pixelB, pixelE},
+    {pixelC, pixelF},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {90, true, false});
+}
+
+TYPED_TEST(ConvertGPUTest, Rotation180) {
+  this->SetInput({
+    {pixelA, pixelB, pixelC},
+    {pixelD, pixelE, pixelF},
+  });
+
+  this->SetReference({
+    {pixelF, pixelE, pixelD},
+    {pixelC, pixelB, pixelA},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {180, false, false});
+}
+
+TYPED_TEST(ConvertGPUTest, Rotation270) {
+  this->SetInput({
+    {pixelA, pixelB, pixelC},
+    {pixelD, pixelE, pixelF},
+  });
+
+  this->SetReference({
+    {pixelC, pixelF},
+    {pixelB, pixelE},
+    {pixelA, pixelD},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {270, false, false});
+}
+
+TYPED_TEST(ConvertGPUTest, FlipX) {
+  this->SetInput({
+    {pixelA, pixelB, pixelC},
+    {pixelD, pixelE, pixelF},
+  });
+
+  this->SetReference({
+    {pixelC, pixelB, pixelA},
+    {pixelF, pixelE, pixelD},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {0, true, false});
+}
+
+TYPED_TEST(ConvertGPUTest, FlipY) {
+  this->SetInput({
+    {pixelA, pixelB, pixelC},
+    {pixelD, pixelE, pixelF},
+  });
+
+  this->SetReference({
+    {pixelD, pixelE, pixelF},
+    {pixelA, pixelB, pixelC},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {0, false, true});
+}
+
+TYPED_TEST(ConvertGPUTest, TransposeAndRotate) {
+  this->SetInput({
+    {
+      {0.00f, 0.01f, 0.02f, 0.03f},
+      {0.10f, 0.11f, 0.12f, 0.13f},
+    },
+    {
+      {0.20f, 0.21f, 0.22f, 0.23f},
+      {0.30f, 0.31f, 0.32f, 0.33f},
+    },
+    {
+      {0.40f, 0.41f, 0.42f, 0.43f},
+      {0.50f, 0.51f, 0.52f, 0.53f},
+    },
+  });
+
+  this->SetReference({
+    {{0.10f, 0.30f, 0.50f}, {0.00f, 0.20f, 0.40f}},
+    {{0.11f, 0.31f, 0.51f}, {0.01f, 0.21f, 0.41f}},
+    {{0.12f, 0.32f, 0.52f}, {0.02f, 0.22f, 0.42f}},
+    {{0.13f, 0.33f, 0.53f}, {0.03f, 0.23f, 0.43f}},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {}, {90, false, false});
+}
+
+TYPED_TEST(ConvertGPUTest, TransposeAndRotate270) {
+  this->SetInput({
+    {
+      {0.00f, 0.01f, 0.02f, 0.03f},
+      {0.10f, 0.11f, 0.12f, 0.13f},
+    },
+    {
+      {0.20f, 0.21f, 0.22f, 0.23f},
+      {0.30f, 0.31f, 0.32f, 0.33f},
+    },
+    {
+      {0.40f, 0.41f, 0.42f, 0.43f},
+      {0.50f, 0.51f, 0.52f, 0.53f},
+    },
+  });
+
+  this->SetReference({
+    {{0.03f, 0.23f, 0.43f}, {0.13f, 0.33f, 0.53f}},
+    {{0.02f, 0.22f, 0.42f}, {0.12f, 0.32f, 0.52f}},
+    {{0.01f, 0.21f, 0.41f}, {0.11f, 0.31f, 0.51f}},
+    {{0.00f, 0.20f, 0.40f}, {0.10f, 0.30f, 0.50f}},
+  });
+
+  this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {}, {270, false, false});
 }
 
 }  // namespace test

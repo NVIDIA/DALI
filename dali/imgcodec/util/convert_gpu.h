@@ -41,7 +41,8 @@ namespace imgcodec {
 void DLL_PUBLIC Convert(
     SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
     ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-    cudaStream_t stream, const ROI &roi = {}, float multiplier = 1.0f);
+    cudaStream_t stream, const ROI &roi = {}, Orientation orientation = {},
+    float multiplier = 1.0f);
 
 }  // namespace imgcodec
 }  // namespace dali
