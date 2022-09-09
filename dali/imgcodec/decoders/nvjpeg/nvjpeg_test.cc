@@ -75,7 +75,7 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
   /**
    * @brief Checks if the image is similar to the reference.
    *
-   * Checks if 1) max error is lower than 30% 2) mean squared error is lower than 1%.
+   * Checks if 1) max error is lower than 30% 2) mean squared error is lower than 2%.
    */
   void AssertSimilar(const TensorView<StorageCPU, const OutputType> &img,
                      const Tensor<CPUBackend> &ref_tensor) {
@@ -85,16 +85,16 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
       float eps = ConvertSatNorm<OutputType>(0.3);
       Check(img, ref, EqualConvertNorm(eps));
 
-      double mean_error = 0;
+      double mean_square_error = 0;
       uint64_t size = volume(img.shape);
       for (size_t i = 0; i < size; i++) {
         double img_value = ConvertSatNorm<double>(img.data[i]);
         double ref_value = ConvertSatNorm<double>(ref.data[i]);
-        double error = abs(img_value - ref_value);
-        mean_error += error;
+        double error = img_value - ref_value;
+        mean_square_error += error * error;
       }
-      mean_error /= size;
-      EXPECT_LT(mean_error, 0.01);
+      mean_square_error = sqrt(mean_square_error / size);
+      EXPECT_LT(mean_square_error, 0.02);
     ), DALI_FAIL(make_string("Unsupported reference type: ", ref_tensor.type())));  // NOLINT
   }
 
