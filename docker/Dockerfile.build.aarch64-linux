@@ -1,10 +1,12 @@
-ARG AARCH64_BASE_IMAGE=nvidia/cuda:10.2-devel-ubuntu18.04
+ARG AARCH64_BASE_IMAGE=nvidia/cuda:11.4.2-devel-ubuntu20.04
 FROM ${AARCH64_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV CUDA_CROSS_VERSION=10.2
+ENV CUDA_CROSS_VERSION=11-4
 
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-get update && apt-get install software-properties-common -y --no-install-recommends && \
+    add-apt-repository ppa:deadsnakes/ppa -y && \
     apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -22,26 +24,22 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     python3-distutils \
     autogen \
     zip \
-    python3.6 python3.6-dev \
-    python3.7 python3.7-dev \
+    python3.6 python3.6-dev python3.6-distutils\
+    python3.7 python3.7-dev python3.7-distutils \
     python3.8 python3.8-dev \
-    && \
-    if [ $(apt-cache search python3.9 | wc -l) -eq 0 ]; then \
-        apt-get install software-properties-common -y --no-install-recommends && \
-        add-apt-repository ppa:deadsnakes/ppa -y && \
-        apt-get update; \
-    fi && \
+    python3.9 python3.9-dev python3.9-distutils \
+    python3.10 python3.10-dev python3.10-distutils && \
     apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
-    add-apt-repository 'deb http://repo.download.nvidia.com/jetson/x86_64 bionic r32.4' && \
+    add-apt-repository 'deb http://repo.download.nvidia.com/jetson/x86_64/focal r35.1 main' && \
     apt-get update && \
     apt-get install -y cuda-cudart-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       cuda-cufft-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       cuda-curand-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libcufft-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libcurand-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-driver-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       cuda-misc-headers-cross-aarch64-${CUDA_CROSS_VERSION} \
-                       cuda-npp-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
     && \
-    apt-get install -y python3.9 python3.9-dev python3.9-distutils python3.10 python3.10-dev python3.10-distutils && \
     rm -rf /var/lib/apt/lists/* && \
     PYTHON_VER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
     if [ "${PYTHON_VER}" = "36" ]; then \
@@ -54,7 +52,10 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     rm -rf /root/.cache/pip/ && \
     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
     ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
-    ln -s /usr/bin/python3 /usr/bin/python
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    ln -s /usr/bin/python3-config /usr/bin/python-config && \
+    PYTHON_V=$(python3 -c "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')") && \
+    ln -s /usr/bin/python${PYTHON_V}-config /usr/bin/python3-config
 
 ENV PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
 
@@ -130,9 +131,9 @@ CMD WERROR=ON           \
     BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \
     EXTRA_CMAKE_OPTIONS="-DCMAKE_TOOLCHAIN_FILE:STRING=$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake \
                         -DCMAKE_COLOR_MAKEFILE=ON                                 \
-                        -DCMAKE_CUDA_COMPILER=/usr/local/cuda-10.2/bin/nvcc       \
-                        -DCUDA_HOST=/usr/local/cuda-10.2                          \
-                        -DCUDA_TARGET=/usr/local/cuda-10.2/targets/aarch64-linux" \
+                        -DCMAKE_CUDA_COMPILER=/usr/local/cuda-11.4/bin/nvcc       \
+                        -DCUDA_HOST=/usr/local/cuda-11.4                          \
+                        -DCUDA_TARGET=/usr/local/cuda-11.4/targets/aarch64-linux" \
     /dali/docker/build_helper.sh                    && \
     rm -rf /dali/${DALI_BUILD_DIR}/nvidia*          && \
     cd /dali/dali_tf_plugin                         && \
