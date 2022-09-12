@@ -37,7 +37,8 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   if (ws.OutputIsType<CPUBackend>(0)) {
     auto &output = ws.Output<CPUBackend>(0);
     DomainTimeRange tr("[DALI][MakeContiguousMixed] H2H non coalesced", DomainTimeRange::kGreen);
-    output.Copy(input);
+    // use ws.stream() to prevent waiting on host for the mixed stage stream
+    output.Copy(input, ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder());
   } else {
     auto &output = ws.Output<GPUBackend>(0);
     if (coalesced) {
