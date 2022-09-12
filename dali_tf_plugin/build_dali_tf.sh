@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,10 @@ DALI_LFLAGS="-L${DALI_STUB_DIR} -ldali"
 TF_CFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
 TF_LFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
 
+CPP_VER=( $($PYTHON -c "import tensorflow as tf; from distutils.version import LooseVersion; print('--std=c++14' if tf.__version__ < LooseVersion('2.10') else '--std=c++17')") )
+
 # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
 # https://github.com/tensorflow/tensorflow/issues/17316
 # Do not remove it.
-$COMPILER -Wl,-rpath,\$ORIGIN -std=c++14 -DNDEBUG -O2 -shared -fPIC ${SRCS} \
+$COMPILER -Wl,-rpath,\$ORIGIN ${CPP_VER} -DNDEBUG -O2 -shared -fPIC ${SRCS} \
     -o ${LIB_NAME} ${INCL_DIRS} ${DALI_CFLAGS} ${DALI_LFLAGS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]}
