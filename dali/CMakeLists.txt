@@ -47,6 +47,10 @@ if (BUILD_DALI_PIPELINE)
   add_subdirectory(c_api)
 endif()
 
+if (BUILD_DALI_OPERATORS OR BUILD_DALI_IMGCODEC)
+  add_subdirectory(nvjpeg)
+endif()
+
 if (BUILD_DALI_OPERATORS)
   add_subdirectory(operators)
 endif()

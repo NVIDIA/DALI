@@ -38,6 +38,11 @@ set(lib_exports "libdali_imgcodec.map")
 configure_file("${DALI_ROOT}/cmake/${lib_exports}.in" "${CMAKE_BINARY_DIR}/${lib_exports}")
 target_link_libraries(dali_imgcodec PRIVATE  -Wl,--version-script=${CMAKE_BINARY_DIR}/${lib_exports})
 
+if (BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_TOOLKIT)
+  target_link_libraries(dali_imgcodec PRIVATE dynlink_nvjpeg)
+  target_link_libraries(dali_imgcodec PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_nvjpeg>")
+endif(BUILD_NVJPEG AND WITH_DYNAMIC_CUDA_TOOLKIT)
+
 if (BUILD_TEST)
   # TODO(janton): create a test_utils_lib with dali_test_config.cc and other common utilities
   adjust_source_file_language_property("${DALI_IMGCODEC_TEST_SRCS}")
