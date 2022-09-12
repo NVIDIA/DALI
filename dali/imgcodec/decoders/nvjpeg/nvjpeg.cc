@@ -72,6 +72,8 @@ PerThreadResources::PerThreadResources(nvjpegHandle_t nvjpeg_handle,
   auto backend = NVJPEG_BACKEND_HYBRID;  // TODO(msala) allow other backens
   CUDA_CALL(nvjpegDecoderCreate(nvjpeg_handle, backend, &decoder_data.decoder));
   CUDA_CALL(nvjpegDecoderStateCreate(nvjpeg_handle, decoder_data.decoder, &decoder_data.state));
+
+  CUDA_CALL(nvjpegDecodeParamsCreate(nvjpeg_handle, &params));
 }
 
 NvJpegDecoderInstance::PerThreadResources::PerThreadResources(PerThreadResources&& other)
@@ -106,6 +108,9 @@ NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
     CUDA_CALL(cudaStreamSynchronize(stream));
   }
 
+  if (params) {
+    CUDA_CALL(nvjpegDecodeParamsDestroy(params));
+  }
   if (jpeg_stream) {
     CUDA_CALL(nvjpegJpegStreamDestroy(jpeg_stream));
   }
@@ -156,9 +161,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
                                                    DecodeParams opts,
                                                    const ROI &roi) {
   DecodingContext ctx = DecodingContext{ resources_[thread_idx] };
-  CUDA_CALL(nvjpegDecodeParamsCreate(nvjpeg_handle_, &ctx.params));
-  CUDA_CALL(nvjpegDecodeParamsSetOutputFormat(ctx.params, GetFormat(opts.format)));
-  CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.params, true));
+  CUDA_CALL(nvjpegDecodeParamsSetOutputFormat(ctx.resources.params, GetFormat(opts.format)));
+  CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.resources.params, true));
 
   try {
     if (roi) {
@@ -197,8 +201,9 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
 
   CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer));
   CUDA_CALL(nvjpegJpegStreamParse(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(),
-                                        false, false, ctx.resources.jpeg_stream));
-  CUDA_CALL(nvjpegDecodeJpegHost(nvjpeg_handle_, decoder, state, ctx.params, jpeg_stream));
+                                  false, false, ctx.resources.jpeg_stream));
+  CUDA_CALL(nvjpegDecodeJpegHost(nvjpeg_handle_, decoder, state, ctx.resources.params,
+                                 jpeg_stream));
 
   nvjpegImage_t nvjpeg_image;
   // For interleaved, nvjpeg expects a single channel but 3x bigger
