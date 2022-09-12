@@ -68,6 +68,8 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
     CUDAStreamLease stream;
     CUDAEvent decode_event;
 
+    nvjpegDecodeParams_t params;
+
     PerThreadResources(nvjpegHandle_t, nvjpegDevAllocator_t*, nvjpegPinnedAllocator_t*,
                        int device_id);
     PerThreadResources(PerThreadResources&&);
@@ -80,9 +82,7 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
   struct DecodingContext {
     PerThreadResources& resources;
 
-    nvjpegDecodeParams_t params;
     nvjpegChromaSubsampling_t subsampling;
-
     TensorShape<> shape;
   };
 
