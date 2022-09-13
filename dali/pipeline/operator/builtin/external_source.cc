@@ -19,10 +19,10 @@ namespace dali {
 
 template <>
 void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
-  std::list<uptr_tv_type> tensor_list_elm;
+  std::list<uptr_tl_type> tensor_list_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    tensor_list_elm = tv_data_.PopFront();
+    tensor_list_elm = tl_data_.PopFront();
     state_.pop_front();
   }
   auto &output = ws.template Output<CPUBackend>(0);

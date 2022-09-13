@@ -211,7 +211,6 @@ struct ExtSrcSettingMode {
 template <typename Backend>
 class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvider {
   using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
-  using uptr_tv_type = std::unique_ptr<TensorList<Backend>>;
   using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
 
   using Operator<Backend>::spec_;
@@ -327,13 +326,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
     TensorListShape<> shape;
     output_desc.resize(1);
-    if (std::is_same<Backend, GPUBackend>::value) {
-      output_desc[0].shape = tl_data_.PeekFront()->shape();
-      output_desc[0].type = tl_data_.PeekFront()->type();
-    } else {
-      output_desc[0].shape = tv_data_.PeekFront()->shape();
-      output_desc[0].type = tv_data_.PeekFront()->type();
-    }
+    output_desc[0].shape = tl_data_.PeekFront()->shape();
+    output_desc[0].type = tl_data_.PeekFront()->type();
     // unconditionally dissabled, still we can provide share but we don't want to allocate anything
     return false;
   }
@@ -353,8 +347,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   void RunImpl(workspace_t<Backend> &ws) override;
 
-  void RecycleBufferHelper(std::list<uptr_tv_type> &data) {
-    tv_data_.Recycle(data);
+  void RecycleBufferHelper(std::list<uptr_tl_type> &data) {
+    tl_data_.Recycle(data);
   }
 
   // pass cuda_event by pointer to allow default, nullptr value, with the
@@ -390,14 +384,14 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                 bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
-    auto tv_elm = tv_data_.GetEmpty();
+    auto tv_elm = tl_data_.GetEmpty();
     // set pinned if needed
     if (batch.is_pinned() != tv_elm.front()->is_pinned()) {
       tv_elm.front()->Reset();
       tv_elm.front()->set_pinned(batch.is_pinned());
     }
     tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend> &>(batch));
-    tv_data_.PushBack(tv_elm);
+    tl_data_.PushBack(tv_elm);
   }
 
   /**
@@ -450,10 +444,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
   CopyUserData(const SourceDataType<SrcBackend> &batch,
                AccessOrder order, bool /* sync */, bool /* use_copy_kernel */) {
-    std::list<uptr_tv_type> tv_elm;
+    std::list<uptr_tl_type> tv_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tv_elm = tv_data_.GetEmpty();
+      tv_elm = tl_data_.GetEmpty();
     }
     // set pinned if needed
     tv_elm.front()->set_order(AccessOrder::host());
@@ -464,7 +458,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     tv_elm.front()->Copy(batch, order);
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tv_data_.PushBack(tv_elm);
+      tl_data_.PushBack(tv_elm);
       state_.push_back({false, false});
     }
   }
@@ -579,7 +573,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   string output_name_;
   detail::CachingList<uptr_tl_type> tl_data_;
-  detail::CachingList<uptr_tv_type> tv_data_;
   detail::CachingList<uptr_cuda_event_type> copy_to_storage_events_;
 
   std::mutex busy_m_;
@@ -621,18 +614,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   WorkerThread sync_worker_;
 
  private:
-  using storage_t =
-      std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                         detail::CachingList<uptr_tl_type>, detail::CachingList<uptr_tv_type>>;
-
-  template <typename Be = Backend>
-  std::enable_if_t<std::is_same<Be, GPUBackend>::value, storage_t &> GetStorage() {
+  detail::CachingList<uptr_tl_type>& GetStorage() {
     return tl_data_;
-  }
-
-  template <typename Be = Backend>
-  std::enable_if_t<!std::is_same<Be, GPUBackend>::value, storage_t &> GetStorage() {
-    return tv_data_;
   }
 };
 
