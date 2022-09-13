@@ -139,6 +139,7 @@ TYPED_TEST(LibTiffDecoderTest, ROI) {
   ROI roi = {{13, 17}, {info.shape[0] - 55, info.shape[1] - 10}};
   auto img = this->Decode(&src, {this->dtype}, roi);
   AssertEqualSatNorm(img, Crop(ref, roi));
+<<<<<<< HEAD
 }
 
 TYPED_TEST(LibTiffDecoderTest, BatchedAPI) {
@@ -153,6 +154,8 @@ TYPED_TEST(LibTiffDecoderTest, BatchedAPI) {
   AssertEqualSatNorm(img[0], ref0);
   AssertEqualSatNorm(img[1], ref1);
   AssertEqualSatNorm(img[2], ref2);
+=======
+>>>>>>> Aggregating decoder + fixes + registry.
 }
 
 TYPED_TEST(LibTiffDecoderTest, Gray) {

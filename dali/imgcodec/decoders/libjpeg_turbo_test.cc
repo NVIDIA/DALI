@@ -119,6 +119,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, Decode) {
   auto decoded = this->Decode(&image.src, this->GetParams());
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
   AssertEqualSatNorm(decoded, ref);
+<<<<<<< HEAD
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
@@ -133,6 +134,8 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
   AssertEqualSatNorm(img[0], ref0);
   AssertEqualSatNorm(img[1], ref1);
   AssertEqualSatNorm(img[2], ref2);
+=======
+>>>>>>> Aggregating decoder + fixes + registry.
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {

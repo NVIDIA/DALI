@@ -113,8 +113,14 @@ class ColorConversionTest : public ConversionTestBase<ImageType> {
             const std::string& reference_name, int channels_hint = 0) {
     auto input_path = this->InputImagePath(input_name);
     auto reference_path = this->ReferencePath(reference_name);
+<<<<<<< HEAD
     AssertClose(this->RunConvert(input_path, input_format, output_format, "HWC", {}, channels_hint),
                 this->ReadReferenceFrom(reference_path), this->Eps());
+=======
+    AssertClose(
+        this->RunConvert(input_path, input_format, output_format, "HWC", {}, channels_hint),
+        this->ReadReferenceFrom(reference_path), this->Eps());
+>>>>>>> Aggregating decoder + fixes + registry.
   }
 
  protected:
@@ -263,7 +269,7 @@ class ConvertLayoutTest : public ConversionTestBase<float> {
     if (roi) {
       ref = Crop(ref, roi);
     }
-    AssertClose(RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout, roi), ref, 0.01);
+    AssertClose(RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout, roi), ref, 0.01f);
   }
 
  protected:
