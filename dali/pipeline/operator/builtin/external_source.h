@@ -287,12 +287,12 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   int NextBatchSize() override {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    return GetStorage().PeekProphet()->num_samples();
+    return tl_data_.PeekProphet()->num_samples();
   }
 
   void Advance() override {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    GetStorage().AdvanceProphet();
+    tl_data_.AdvanceProphet();
   }
 
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
@@ -347,10 +347,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   void RunImpl(workspace_t<Backend> &ws) override;
 
-  void RecycleBufferHelper(std::list<uptr_tl_type> &data) {
-    tl_data_.Recycle(data);
-  }
-
   // pass cuda_event by pointer to allow default, nullptr value, with the
   // reference it is not that easy
   template<typename DataType>
@@ -359,7 +355,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                      std::list<uptr_cuda_event_type> *copy_to_gpu = nullptr) {
     // No need to synchronize on copy_to_gpu - it was already synchronized before
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    RecycleBufferHelper(data);
+    tl_data_.Recycle(data);
     if (copy_to_gpu) {
       copy_to_storage_events_.Recycle(*copy_to_gpu);
     }
@@ -384,14 +380,14 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                 bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
-    auto tv_elm = tl_data_.GetEmpty();
+    auto tl_elm = tl_data_.GetEmpty();
     // set pinned if needed
-    if (batch.is_pinned() != tv_elm.front()->is_pinned()) {
-      tv_elm.front()->Reset();
-      tv_elm.front()->set_pinned(batch.is_pinned());
+    if (batch.is_pinned() != tl_elm.front()->is_pinned()) {
+      tl_elm.front()->Reset();
+      tl_elm.front()->set_pinned(batch.is_pinned());
     }
-    tv_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend> &>(batch));
-    tl_data_.PushBack(tv_elm);
+    tl_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend> &>(batch));
+    tl_data_.PushBack(tl_elm);
   }
 
   /**
@@ -444,21 +440,21 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
   CopyUserData(const SourceDataType<SrcBackend> &batch,
                AccessOrder order, bool /* sync */, bool /* use_copy_kernel */) {
-    std::list<uptr_tl_type> tv_elm;
+    std::list<uptr_tl_type> tl_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tv_elm = tl_data_.GetEmpty();
+      tl_elm = tl_data_.GetEmpty();
     }
     // set pinned if needed
-    tv_elm.front()->set_order(AccessOrder::host());
-    if (batch.is_pinned() !=  tv_elm.front()->is_pinned()) {
-      tv_elm.front()->Reset();
-      tv_elm.front()->set_pinned(batch.is_pinned());
+    tl_elm.front()->set_order(AccessOrder::host());
+    if (batch.is_pinned() !=  tl_elm.front()->is_pinned()) {
+      tl_elm.front()->Reset();
+      tl_elm.front()->set_pinned(batch.is_pinned());
     }
-    tv_elm.front()->Copy(batch, order);
+    tl_elm.front()->Copy(batch, order);
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_data_.PushBack(tv_elm);
+      tl_data_.PushBack(tl_elm);
       state_.push_back({false, false});
     }
   }
@@ -612,11 +608,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   bool zero_copy_noncontiguous_gpu_input_ = false;
 
   WorkerThread sync_worker_;
-
- private:
-  detail::CachingList<uptr_tl_type>& GetStorage() {
-    return tl_data_;
-  }
 };
 
 }  // namespace dali
