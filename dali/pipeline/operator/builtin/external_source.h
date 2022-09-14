@@ -320,7 +320,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     output_desc.resize(1);
     output_desc[0].shape = tl_data_.PeekFront()->shape();
     output_desc[0].type = tl_data_.PeekFront()->type();
-    // unconditionally disabled, still we can provide share but we don't want to allocate anything
+    // unconditionally disabled, still we can provide shape but we don't want to allocate anything
     return false;
   }
 
