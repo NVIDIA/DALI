@@ -154,14 +154,6 @@ class CachingList {
   typename std::list<T>::iterator prophet_, apprentice_;
 };
 
-template<typename Backend, template<typename>class BatchContainer>
-auto get_batch_size(const BatchContainer<Backend>& container) {
-  static_assert(
-      is_batch_container<BatchContainer, Backend>::value,
-      "Invalid container. Use TensorList/TensorList and CPUBackend/GPUBackend/MixedBackend.");
-  return container.num_samples();
-}
-
 }  // namespace detail
 
 
@@ -266,23 +258,23 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
     DALI_ENFORCE(vect_of_tensors.size() > 0, "Provided batch cannot be empty.");
-    TensorList<SrcBackend> tv(vect_of_tensors.size());
-    tv.SetupLike(vect_of_tensors[0]);
-    for (int i = 0; i < tv.num_samples(); ++i) {
-      tv.SetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
+    TensorList<SrcBackend> tl(vect_of_tensors.size());
+    tl.SetupLike(vect_of_tensors[0]);
+    for (int i = 0; i < tl.num_samples(); ++i) {
+      tl.SetSample(i, const_cast<Tensor<SrcBackend> &>(vect_of_tensors[i]));
     }
-    SetDataSourceHelper(tv, order, ext_src_setting_mode);
+    SetDataSourceHelper(tl, order, ext_src_setting_mode);
   }
 
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
   template <typename SrcBackend>
-  inline void SetDataSource(const TensorList<SrcBackend> &tv, AccessOrder order = {},
+  inline void SetDataSource(const TensorList<SrcBackend> &tl, AccessOrder order = {},
                             ExtSrcSettingMode ext_src_setting_mode = {}) {
     DeviceGuard g(device_id_);
     DomainTimeRange tr("[DALI][ExternalSource] SetDataSource", DomainTimeRange::kViolet);
-    SetDataSourceHelper(tv, order, ext_src_setting_mode);
+    SetDataSourceHelper(tl, order, ext_src_setting_mode);
   }
 
   int NextBatchSize() override {
@@ -328,7 +320,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     output_desc.resize(1);
     output_desc[0].shape = tl_data_.PeekFront()->shape();
     output_desc[0].type = tl_data_.PeekFront()->type();
-    // unconditionally dissabled, still we can provide share but we don't want to allocate anything
+    // unconditionally disabled, still we can provide share but we don't want to allocate anything
     return false;
   }
 
@@ -361,9 +353,9 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType>
+  template<typename SrcBackend>
   inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &t, AccessOrder /* order = {}*/,
+  ShareUserData(const TensorList<SrcBackend> &t, AccessOrder /* order = {}*/,
                 bool /* use_copy_kernel */) {
     DALI_FAIL(make_string("no_copy is supported only for the same data source device type "
                           "as operator. Received: ",
@@ -373,10 +365,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                           " operator."));
   }
 
-  template <typename SrcBackend, template <typename> class SourceDataType>
+  template <typename SrcBackend>
   inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
                           std::is_same<SrcBackend, CPUBackend>::value>
-  ShareUserData(const SourceDataType<SrcBackend> &batch, AccessOrder /* order = {}*/,
+  ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder /* order = {}*/,
                 bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
@@ -386,7 +378,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tl_elm.front()->Reset();
       tl_elm.front()->set_pinned(batch.is_pinned());
     }
-    tl_elm.front()->ShareData(const_cast<SourceDataType<CPUBackend> &>(batch));
+    tl_elm.front()->ShareData(const_cast<TensorList<CPUBackend> &>(batch));
     tl_data_.PushBack(tl_elm);
   }
 
@@ -436,9 +428,9 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     tl_data_.PushBack(tl_elm);
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
+  template<typename SrcBackend, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch,
+  CopyUserData(const TensorList<SrcBackend> &batch,
                AccessOrder order, bool /* sync */, bool /* use_copy_kernel */) {
     std::list<uptr_tl_type> tl_elm;
     {
@@ -459,9 +451,9 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType, typename B = Backend>
+  template<typename SrcBackend, typename B = Backend>
   inline std::enable_if_t<std::is_same<B, GPUBackend>::value>
-  CopyUserData(const SourceDataType<SrcBackend> &batch,
+  CopyUserData(const TensorList<SrcBackend> &batch,
                AccessOrder order, bool sync, bool use_copy_kernel) {
     std::list<uptr_cuda_event_type> copy_to_storage_event;
     std::list<uptr_tl_type> tl_elm;
@@ -484,8 +476,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
   }
 
-  template <typename SrcBackend, template<typename> class SourceDataType>
-  inline void ValidateInputData(const SourceDataType<SrcBackend> &batch) {
+  template <typename SrcBackend>
+  inline void ValidateInputData(const TensorList<SrcBackend> &batch) {
     bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
     bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
@@ -537,8 +529,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     layout_ = batch.GetLayout();
   }
 
-  template<typename SrcBackend, template<typename> class SourceDataType>
-  inline void SetDataSourceHelper(const SourceDataType<SrcBackend> &batch, AccessOrder order = {},
+  template<typename SrcBackend>
+  inline void SetDataSourceHelper(const TensorList<SrcBackend> &batch, AccessOrder order = {},
                                   ExtSrcSettingMode ext_src_setting_mode = {}) {
     ValidateInputData(batch);
 
