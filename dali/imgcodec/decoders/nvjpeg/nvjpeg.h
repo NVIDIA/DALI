@@ -33,6 +33,21 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
  public:
   explicit NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params);
 
+  // NvjpegDecoderInstance has to operate on its own thread pool instead of the
+  // one passed by the DecodeContext. Overriding thread pool pointer caried in
+  // the context argument of this variant of
+  // BatchParallelDecoderImpl::ScheduleDecode is enough to cover all the Decode
+  // and ScheduleDecode functions. This is because all that functions
+  // eventually call this variant of ScheduleDecode.
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                     span<SampleView<GPUBackend>> out,
+                                     cspan<ImageSource *> in,
+                                     DecodeParams opts,
+                                     cspan<ROI> rois = {}) override {
+    ctx.tp = tp_.get();
+    return BatchParallelDecoderImpl::ScheduleDecode(ctx, out, in, opts, rois);
+  }
+
   DecodeResult DecodeImplTask(int thread_idx,
                               cudaStream_t stream,
                               SampleView<GPUBackend> out,
