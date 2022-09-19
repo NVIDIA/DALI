@@ -133,6 +133,7 @@ TEST_P(DecoderParallelImplTest, ScheduleDecode) {
   auto res = f.get_all_ref();
   EXPECT_EQ(dd.counter, kBatchSize);
   for (int i = 0; i < kBatchSize; i++) {
+    EXPECT_TRUE(dd.seen[i]);
     bool expect_error = error_indices.count(i);
     EXPECT_EQ(res[i].success, !expect_error);
     if (expect_error) {
