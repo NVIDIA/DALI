@@ -285,6 +285,12 @@ class DecoderTestBase : public ::testing::Test {
   virtual Tensor<CPUBackend> ReadReference(InputStream *src) = 0;
 
  protected:
+  DecodeContext Context() {
+    DecodeContext ctx;
+    ctx.tp = &tp_;
+    return ctx;
+  }
+
   /**
   * @brief Creates a decoder instance, working on a specified thread pool.
   */

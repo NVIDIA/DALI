@@ -188,7 +188,7 @@ TYPED_TEST(LibTiffDecoderTest, TrimmedFile) {
   auto src = ImageSource::FromHostMem(data.data(), data.size()/4);
 
   SampleView<CPUBackend> view(nullptr, 0, type2id<uint8_t>::value);
-  DecodeResult decode_result = this->Decoder()->Decode(view, &src, {}, {});
+  DecodeResult decode_result = this->Decoder()->Decode(this->Context(), view, &src, {}, {});
   EXPECT_FALSE(decode_result.success);
 }
 
