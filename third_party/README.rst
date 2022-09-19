@@ -35,7 +35,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |preprocessor| replace:: Boost Preprocessor
 .. _preprocessor: https://github.com/boostorg/preprocessor
-.. |preprocessorver| replace:: 1.78.0
+.. |preprocessorver| replace:: 1.80.0
 .. _preprocessorver: https://github.com/boostorg/preprocessor/releases/tag/boost-1.78.0
 .. |preprocessorlic| replace:: Boost Software License 1.0
 .. _preprocessorlic: https://github.com/boostorg/boost/blob/master/LICENSE_1_0.txt
@@ -91,7 +91,7 @@ This part of the repository contains extra dependencies required to build DALI, 
 
 .. |rapidjson| replace:: RapidJSON
 .. _rapidjson: https://github.com/Tencent/rapidjson
-.. |rapidjsonver| replace:: Top-of-tree (July 20, 2022)
-.. _rapidjsonver: https://github.com/Tencent/rapidjson/tree/27c3a8dc0e2c9218fe94986d249a12b5ed838f1d
+.. |rapidjsonver| replace:: Top-of-tree (Aug 23, 2022)
+.. _rapidjsonver: https://github.com/Tencent/rapidjson/commit/06d58b9e848c650114556a23294d0b6440078c61
 .. |rapidjsonlic| replace:: MIT License, BSD 3-Clause License, JSON License
 .. _rapidjsonlic: https://github.com/Tencent/rapidjson/blob/master/license.txt

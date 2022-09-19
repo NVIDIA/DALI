@@ -53,7 +53,7 @@ class OperatorBench : public DALIBenchmark {
 
     auto op_ptr = InstantiateOperator(op_spec);
 
-    auto data_in = std::make_shared<TensorVector<CPUBackend>>(batch_size);
+    auto data_in = std::make_shared<TensorList<CPUBackend>>(batch_size);
     data_in->set_type<T>();
     data_in->Resize(uniform_list_shape(batch_size, TensorShape<>{H, W, C}));
     data_in->SetLayout("HWC");
@@ -72,7 +72,7 @@ class OperatorBench : public DALIBenchmark {
     ThreadPool tp(num_threads, 0, false, "OperatorBench");
     ws.SetThreadPool(&tp);
 
-    Setup<TensorVector<CPUBackend>>(op_ptr, op_spec, ws, batch_size);
+    Setup<TensorList<CPUBackend>>(op_ptr, op_spec, ws, batch_size);
     op_ptr->Run(ws);
     for (auto _ : st) {
       op_ptr->Run(ws);

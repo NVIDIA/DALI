@@ -231,14 +231,14 @@ std::shared_ptr<BatchType> expanded_like(const BatchType &batch) {
  * another tensor vector.
  */
 template <typename Backend>
-struct TensorVectorBuilder {
-  TensorVectorBuilder(TensorVector<Backend> &tv) : tv_{tv} {}  // NOLINT
+struct TensorListBuilder {
+  TensorListBuilder(TensorList<Backend> &tv) : tv_{tv} {}  // NOLINT
 
   void SetNext(const SliceView &view) {
     assert(NextSampleIdx() < tv_.num_samples());
     std::shared_ptr<void> ptr(view.ptr, [](void *) {});  // no deleter
-    tv_.UnsafeSetSample(next_++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(),
-                        view.shape, tv_.type(), tv_.device_id(), tv_.order(), tv_.GetLayout());
+    tv_.SetSample(next_++, ptr, view.type_size * volume(view.shape), tv_.is_pinned(), view.shape,
+                  tv_.type(), tv_.device_id(), tv_.order(), tv_.GetLayout());
   }
 
   int NextSampleIdx() const {
@@ -246,14 +246,14 @@ struct TensorVectorBuilder {
   }
 
  private:
-  TensorVector<Backend> &tv_;
+  TensorList<Backend> &tv_;
   int next_ = 0;
 };
 
 template <typename Backend>
-TensorVectorBuilder<Backend> tv_builder_like(TensorVector<Backend> &expanded_batch,
-                                             const TensorVector<Backend> &batch,
-                                             int num_expanded_samples, int ndims_to_unfold = 0) {
+TensorListBuilder<Backend> tv_builder_like(TensorList<Backend> &expanded_batch,
+                                           const TensorList<Backend> &batch,
+                                           int num_expanded_samples, int ndims_to_unfold = 0) {
   assert(batch.sample_dim() >= ndims_to_unfold);
   expanded_batch.Reset();
   expanded_batch.SetSize(num_expanded_samples);
@@ -264,7 +264,7 @@ TensorVectorBuilder<Backend> tv_builder_like(TensorVector<Backend> &expanded_bat
 }
 
 template <typename Backend>
-UnfoldedSliceRange unfolded_slice_range(const TensorVector<Backend> &data, int sample_idx,
+UnfoldedSliceRange unfolded_slice_range(const TensorList<Backend> &data, int sample_idx,
                                         int ndims_to_unfold) {
   const auto &type_info = data.type_info();
   auto type_size = type_info.size();
@@ -275,13 +275,13 @@ UnfoldedSliceRange unfolded_slice_range(const TensorVector<Backend> &data, int s
 }
 
 /** @defgroup broadcast_samples Utilities to broadcast `batch/shape` according to `expand_extents`.
- * The functions assume that the number of samples in the source `batch` is equal to number of samples
- * in the `expand_extents`. Then, the i-th sample of the source batch is repeated
+ * The functions assume that the number of samples in the source `batch` is equal to number of
+ * samples in the `expand_extents`. Then, the i-th sample of the source batch is repeated
  * `volume(expand_extents[i])` times in the destination batch. As a result, the destination batch
  * ends up with `expand_extents.num_elements()` samples.
  *
- * The TensorVector specialization is implemented in terms of pointers - the underlying data is not copied.
- * The TensorList specializations do copy data - due to the contiguity requirements.
+ * The TensorList specialization is implemented in terms of pointers - the underlying data is not
+ * copied. The TensorList specializations do copy data - due to the contiguity requirements.
  * @{
  */
 
@@ -301,7 +301,7 @@ inline TensorListShape<> broadcast_sample_shapes(const TensorListShape<> &shape,
 }
 
 template <typename Backend>
-void broadcast_samples(TensorVector<Backend> &expanded_batch, const TensorVector<Backend> &batch,
+void broadcast_samples(TensorList<Backend> &expanded_batch, const TensorList<Backend> &batch,
                        int num_expanded_samples, const TensorListShape<> &expand_extents) {
   assert(num_expanded_samples == expand_extents.num_elements());
   assert(expand_extents.num_samples() == batch.num_samples());
@@ -318,45 +318,6 @@ void broadcast_samples(TensorVector<Backend> &expanded_batch, const TensorVector
     }
   }
   assert(expanded_builder.NextSampleIdx() == expanded_batch.num_samples());
-}
-
-inline void broadcast_samples(TensorList<GPUBackend> &expanded_batch,
-                              const TensorList<GPUBackend> &batch, int num_expanded_samples,
-                              const TensorListShape<> &expand_extents,
-                              kernels::ScatterGatherGPU &sg, cudaStream_t stream) {
-  assert(expand_extents.num_samples() == batch.num_samples());
-  const auto &shape = batch.shape();
-  auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
-  expanded_batch.SetLayout(batch.GetLayout());
-  expanded_batch.set_order(stream);
-  expanded_batch.Resize(broadcast_shape, batch.type());
-  auto type_size = batch.type_info().size();
-  for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
-    auto sample_size = type_size * volume(shape[sample_idx]);
-    for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
-      sg.AddCopy(expanded_batch.raw_mutable_tensor(elem_idx++), batch.raw_tensor(sample_idx),
-                 sample_size);
-    }
-  }
-  sg.Run(stream, true);
-}
-
-inline void broadcast_samples(TensorList<CPUBackend> &expanded_batch,
-                              const TensorList<CPUBackend> &batch, int num_expanded_samples,
-                              const TensorListShape<> &expand_extents) {
-  assert(expand_extents.num_samples() == batch.num_samples());
-  const auto &shape = batch.shape();
-  auto broadcast_shape = broadcast_sample_shapes(shape, num_expanded_samples, expand_extents);
-  expanded_batch.SetLayout(batch.GetLayout());
-  expanded_batch.Resize(broadcast_shape, batch.type());
-  auto type_size = batch.type_info().size();
-  for (int sample_idx = 0, elem_idx = 0; sample_idx < batch.num_samples(); sample_idx++) {
-    auto sample_size = type_size * volume(shape[sample_idx]);
-    for (int i = 0; i < volume(expand_extents[sample_idx]); i++) {
-      std::memcpy(expanded_batch.raw_mutable_tensor(elem_idx++), batch.raw_tensor(sample_idx),
-                  sample_size);
-    }
-  }
 }
 
 /** @} */  // end of broadcast_samples
@@ -384,7 +345,7 @@ inline TensorListShape<> unfold_outer_dims(const TensorListShape<> &shape, int n
 }
 
 template <typename Backend>
-void unfold_outer_dims(TensorVector<Backend> &expanded_batch, const TensorVector<Backend> &batch,
+void unfold_outer_dims(TensorList<Backend> &expanded_batch, const TensorList<Backend> &batch,
                        int ndims_to_unfold, int num_expanded_samples) {
   auto expanded_builder =
       tv_builder_like(expanded_batch, batch, num_expanded_samples, ndims_to_unfold);

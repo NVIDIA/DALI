@@ -101,7 +101,7 @@ class Constant : public Operator<Backend> {
   TensorLayout layout_;
   DALIDataType output_type_;
   using storage_t = std::conditional_t<std::is_same<Backend, CPUBackend>::value,
-    TensorVector<CPUBackend>, TensorList<GPUBackend>>;
+                                       TensorList<CPUBackend>, TensorList<GPUBackend>>;
   storage_t output_;
 };
 

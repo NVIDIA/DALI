@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
   DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutorImpl);
 
  protected:
-  void SetupOutputInfo(const OpGraph &graph) override;
+  void SetupOutputInfo(OpGraph &graph) override;
 
   std::vector<int> GetTensorQueueSizes(const OpGraph &graph) override;
 
@@ -84,7 +84,7 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph,
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
+void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGraph &graph) {
   DeviceGuard g(device_id_);
   Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(graph);
   constexpr auto stages_count = static_cast<int>(OpType::COUNT);

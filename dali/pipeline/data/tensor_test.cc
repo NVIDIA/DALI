@@ -24,7 +24,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test.h"
 
@@ -444,7 +444,7 @@ TYPED_TEST(TensorTest, DeviceIdPropagationMultiGPU) {
 }
 
 TYPED_TEST(TensorTest, TestCopyToTensorList) {
-  TensorVector<TypeParam> tensors(16);
+  TensorList<TypeParam> tensors(16);
   TensorListShape<4> shape(16);
   for (int i = 0; i < 16; i++) {
     shape.set_tensor_shape(i, this->GetRandShape(4, 4));
@@ -466,7 +466,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
 }
 
 TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
-  TensorVector<TypeParam> tensors(16);
+  TensorList<TypeParam> tensors(16);
   // Empty tensors
   TensorList<TypeParam> tl;
   tensors.template set_type<float>();

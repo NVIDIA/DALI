@@ -122,29 +122,12 @@ class WarpAffineParamProvider
     auto *params = this->template AllocParams<mm::memory_kind::host>();
     for (int i = 0; i < num_samples_; i++) {
       if (invert) {
-      params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
-      } else {
-        params[i] = *static_cast<const MappingParams *>(input.raw_tensor(i));
-      }
-    }
-  }
-
-  void UseInputAsParams(const TensorVector<GPUBackend> &, bool) {
-    DALI_FAIL("This function is here only to avoid excessive complexity of mitigating the call.");
-  }
-
-  void UseInputAsParams(const TensorVector<CPUBackend> &input, bool invert) {
-    CheckParamInput(input);
-
-    auto *params = this->template AllocParams<mm::memory_kind::host>();
-    for (int i = 0; i < num_samples_; i++) {
-      if (invert) {
         params[i] = static_cast<const MappingParams *>(input.raw_tensor(i))->inv();
       } else {
         params[i] = *static_cast<const MappingParams *>(input.raw_tensor(i));
       }
     }
-}
+  }
 
   void UseInputAsParams(const TensorList<GPUBackend> &input, bool invert) {
     CheckParamInput(input);

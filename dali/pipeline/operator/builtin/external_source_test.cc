@@ -84,6 +84,11 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
           .AddArg("device_id", 0)
+          .AddOutput("data", "gpu")), "");
+    graph_.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "gpu")
+          .AddInput("data", "gpu")
           .AddOutput("final_images", "gpu")), "");
   }
 
@@ -563,12 +568,8 @@ void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::
   ASSERT_EQ(pipe.num_outputs(), 1);
   ASSERT_EQ(pipe.output_device(0), dev);
   ASSERT_EQ(pipe.output_name(0), name);
-  if (dev == "cpu") {
-    // take Make Contiguous into account
-    ASSERT_EQ(op->children.size(), 1);
-  } else {
-    ASSERT_EQ(op->children.size(), 0);
-  }
+  // Make Contiguous is always added at the end
+  ASSERT_EQ(op->children.size(), 1);
 }
 
 
@@ -697,7 +698,7 @@ TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
       {"underscore_ext_src_gpu_v1.0.0.dali", "gpu"},
       {"python_cpu_v1.0.0.dali", "cpu"},
       {"python_gpu_v1.0.0.dali", "gpu"}};
-  for (auto file_dev : es_pipes) {
+  for (const auto &file_dev : es_pipes) {
     std::string path_to_deserialize = path + std::get<0>(file_dev);
     std::string dev = std::get<1>(file_dev);
     std::fstream file(path_to_deserialize, std::ios::in | std::ios::binary);

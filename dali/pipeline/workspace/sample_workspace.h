@@ -135,7 +135,7 @@ DLL_PUBLIC void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, in
                                  int thread_idx);
 
 /**
- * @brief Update the TensorVector properties based on the ones that were set in the individual
+ * @brief Update the TensorList properties based on the ones that were set in the individual
  * samples during execution of the sample-wise operator.
  *
  * After running sample-wise operator we need to fix the Tensor Vector guarantees that were

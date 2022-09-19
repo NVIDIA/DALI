@@ -33,8 +33,7 @@ DALI_SCHEMA(ArgHelperTestOp)
 static constexpr int kNumSamples = 5;
 
 template <int ndim>
-void SetupData(TensorVector<CPUBackend> &tv,
-               TensorListShape<ndim> sh) {
+void SetupData(TensorList<CPUBackend> &tv, TensorListShape<ndim> sh) {
   tv.set_pinned(false);
   tv.Resize(sh, DALI_FLOAT);
   for (int i = 0; i < tv.num_samples(); i++) {
@@ -49,7 +48,7 @@ template <int ndim, typename... AcquireArgs>
 void ArgValueTestTensorInput(TensorListShape<ndim> ts, AcquireArgs... args) {
   OpSpec spec("ArgHelperTestOp");
   ArgumentWorkspace ws;
-  auto arg_data = std::make_shared<TensorVector<CPUBackend>>();
+  auto arg_data = std::make_shared<TensorList<CPUBackend>>();
   SetupData(*arg_data, ts);
   ws.AddArgumentInput("arg", arg_data);
   spec.AddArgumentInput("arg", "arg");
@@ -88,7 +87,7 @@ void ArgValueTestAllowEmpty(TensorListShape<ndim> expected_sh, AcquireArgs... ar
 
   OpSpec spec("ArgHelperTestOp");
   ArgumentWorkspace ws;
-  auto arg_data = std::make_shared<TensorVector<CPUBackend>>();
+  auto arg_data = std::make_shared<TensorList<CPUBackend>>();
   SetupData(*arg_data, sh);
   ws.AddArgumentInput("arg", arg_data);
   spec.AddArgumentInput("arg", "arg");

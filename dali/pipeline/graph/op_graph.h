@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -329,9 +329,23 @@ class DLL_PUBLIC OpGraph {
     ofs << "}\n";
   }
 
+  /**
+   * @brief Get the ids of the outputs, optionally include all the nodes that should be buffered
+   * due to the usage of PassThrough memory.
+   */
   DLL_PUBLIC std::vector<TensorNodeId> GetOutputs(const std::vector<string>& output_names,
                                                   bool follow_pass_through = false) const;
   DLL_PUBLIC std::vector<TensorNodeId> GetStageOutputs(OpType stage) const;
+
+  /**
+   * @brief Indicate to MakeContiguous nodes that the data should be passed through or copied
+   * depending on whether the input will be provided as contiguous or not (this is currently
+   * the constant behaviour of every op).
+   *
+   * We need to calculate it ahead of time to allow for correct allocation of prefetch queues
+   * (the PassThrough information is static).
+   */
+  DLL_PUBLIC void SetupMakeContiguousPassThrough(const std::vector<string>& output_names);
 
  private:
   // Should be called only once for each tensor
@@ -340,6 +354,17 @@ class DLL_PUBLIC OpGraph {
 
   bool HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const;
 
+  /**
+   * @brief Check if the tensor is always produced as contiguous.
+   */
+  bool IsAlwaysContiguous(TensorNodeId tensor_id) const;
+
+  /**
+   * @brief Find the parent tensor id that was used to produce the `passed_through` tensor by
+   * the op.
+   * @return -1 is returned if no node can be found.
+   */
+  TensorNodeId FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through) const;
 
   /**
    * @brief Recalculate OpNodes partitioning

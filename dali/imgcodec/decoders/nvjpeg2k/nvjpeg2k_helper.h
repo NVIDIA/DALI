@@ -129,6 +129,20 @@ struct NvJpeg2kDecodeState : public UniqueHandle<nvjpeg2kDecodeState_t, NvJpeg2k
   }
 };
 
+struct NvJpeg2kDecodeParams : public UniqueHandle<nvjpeg2kDecodeParams_t, NvJpeg2kDecodeParams> {
+  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kDecodeParams_t, NvJpeg2kDecodeParams);
+
+  NvJpeg2kDecodeParams() {
+    CUDA_CALL(nvjpeg2kDecodeParamsCreate(&handle_));
+  }
+
+  static constexpr nvjpeg2kDecodeParams_t null_handle() { return nullptr; }
+
+  static void DestroyHandle(nvjpeg2kDecodeParams_t handle) {
+    nvjpeg2kDecodeParamsDestroy(handle);
+  }
+};
+
 }  // namespace imgcodec
 
 template <>

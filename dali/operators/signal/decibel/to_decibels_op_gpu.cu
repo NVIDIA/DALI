@@ -33,6 +33,7 @@ class ToDecibelsImpl : public OpImplBase<GPUBackend> {
 
   explicit ToDecibelsImpl(ToDecibelsArgs args)
       : args_(std::move(args)) {
+    max_out_.SetContiguity(BatchContiguity::Contiguous);
     if (args_.ref_max) {
       kmgr_max_.Resize<MaxKernel>(1);
     }

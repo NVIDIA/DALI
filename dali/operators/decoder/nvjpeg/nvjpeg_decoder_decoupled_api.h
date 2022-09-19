@@ -852,7 +852,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       nvjpeg_params_.resize(samples_hw_batched_.size());
 
       int j = 0;
-      TensorVector<CPUBackend> tv(samples_hw_batched_.size());
+      TensorList<CPUBackend> tv(samples_hw_batched_.size());
 
       const auto &input = ws.Input<CPUBackend>(0);
       tv.SetupLike(input);
@@ -860,7 +860,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         int i = sample->sample_idx;
         const auto &out_shape = output_shape_.tensor_shape(i);
 
-        tv.UnsafeSetSample(j, input, i);
+        tv.SetSample(j, input, i);
         in_lengths_[j] = input.tensor_shape(i).num_elements();
         nvjpeg_destinations_[j].channel[0] = output.mutable_tensor<uint8_t>(i);
         nvjpeg_destinations_[j].pitch[0] = out_shape[1] * out_shape[2];
