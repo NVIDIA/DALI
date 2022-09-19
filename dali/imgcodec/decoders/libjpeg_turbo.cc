@@ -22,11 +22,11 @@
 namespace dali {
 namespace imgcodec {
 
-DecodeResult LibJpegTurboDecoderInstance::Decode(DecodeContext ctx,
-                                                 SampleView<CPUBackend> out,
-                                                 ImageSource *in,
-                                                 DecodeParams opts,
-                                                 const ROI &roi) {
+DecodeResult LibJpegTurboDecoderInstance::DecodeImplTask(int thread_idx,
+                                                         SampleView<CPUBackend> out,
+                                                         ImageSource *in,
+                                                         DecodeParams opts,
+                                                         const ROI &roi) {
   jpeg::UncompressFlags flags;
 
   auto &out_type = opts.format;

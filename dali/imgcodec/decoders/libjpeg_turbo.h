@@ -34,12 +34,11 @@ class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
     SetParams(params);
   }
 
-  using BatchParallelDecoderImpl::Decode;
-  DecodeResult Decode(DecodeContext ctx,
-                      SampleView<CPUBackend> out,
-                      ImageSource *in,
-                      DecodeParams opts,
-                      const ROI &roi) override;
+  DecodeResult DecodeImplTask(int thread_idx,
+                              SampleView<CPUBackend> out,
+                              ImageSource *in,
+                              DecodeParams opts,
+                              const ROI &roi) override;
 
   bool SetParam(const char *name, const any &value) override {
     if (strcmp(name, "fast_idct") == 0) {

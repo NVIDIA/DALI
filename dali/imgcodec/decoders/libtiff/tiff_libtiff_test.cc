@@ -135,6 +135,16 @@ TYPED_TEST(LibTiffDecoderTest, ROI) {
   this->AssertEqualSatNorm(img, this->Crop(ref, roi));
 }
 
+TYPED_TEST(LibTiffDecoderTest, BatchedAPI) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto src0 = ImageSource::FromFilename(rgb_path);
+  auto src1 = ImageSource::FromFilename(rgb_path);
+  std::vector<ImageSource*> srcs = {&src0, &src1};
+  auto img = this->Decode(make_span(srcs), {this->dtype});
+  this->AssertEqualSatNorm(img[0], ref);
+  this->AssertEqualSatNorm(img[1], ref);
+}
+
 TYPED_TEST(LibTiffDecoderTest, Gray) {
   auto ref = this->ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);

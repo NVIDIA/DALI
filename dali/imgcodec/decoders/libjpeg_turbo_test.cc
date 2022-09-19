@@ -114,6 +114,16 @@ TYPED_TEST(LibJpegTurboDecoderTest, Decode) {
   this->AssertEqualSatNorm(decoded, ref);
 }
 
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
+  auto ref = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
+  ImageBuffer image0(jpeg_image);
+  ImageBuffer image1(jpeg_image);
+  std::vector<ImageSource*> srcs = {&image0.src, &image1.src};
+  auto img = this->Decode(make_span(srcs), this->GetParams());
+  this->AssertEqualSatNorm(img[0], ref);
+  this->AssertEqualSatNorm(img[1], ref);
+}
+
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
   ImageBuffer image(jpeg_image);
   auto decoded = this->Decode(&image.src, this->GetParams(), {{5, 20}, {800, 1000}});
