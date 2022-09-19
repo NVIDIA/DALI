@@ -35,6 +35,11 @@ class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl {
   DecodeResult DecodeImplTask(int thread_idx,
                               SampleView<CPUBackend> out, ImageSource *in,
                               DecodeParams opts, const ROI &roi) override;
+
+ private:
+   DecodeResult DecodeImpl(int thread_idx,
+                           SampleView<CPUBackend> out, ImageSource *in,
+                           DecodeParams opts, const ROI &roi);
 };
 
 class LibTiffDecoderFactory : public ImageDecoderFactory {

@@ -285,6 +285,12 @@ class DecoderTestBase : public ::testing::Test {
   virtual Tensor<CPUBackend> ReadReference(InputStream *src) = 0;
 
  protected:
+  DecodeContext Context() {
+    DecodeContext ctx;
+    ctx.tp = &tp_;
+    return ctx;
+  }
+
   /**
   * @brief Creates a decoder instance, working on a specified thread pool.
   */
@@ -294,8 +300,6 @@ class DecoderTestBase : public ::testing::Test {
   * @brief Creates a parser to be used.
   */
   virtual std::shared_ptr<ImageParser> CreateParser() = 0;
-
-  ThreadPool tp_;  // we want the thread pool to outlive the decoder instance
 
  private:
   TensorShape<> AdjustToRoi(const TensorShape<> &shape, const ROI &roi) {
@@ -332,6 +336,7 @@ class DecoderTestBase : public ::testing::Test {
     return roi;
   }
 
+  ThreadPool tp_;  // we want the thread pool to outlive the decoder instance
   std::shared_ptr<ImageDecoderInstance> decoder_ = nullptr;
   std::shared_ptr<ImageParser> parser_ = nullptr;
   kernels::TestTensorList<OutputType> output_;

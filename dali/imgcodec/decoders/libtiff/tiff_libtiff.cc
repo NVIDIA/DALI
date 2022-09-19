@@ -228,122 +228,128 @@ void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t
 
 }  // namespace detail
 
+DecodeResult LibTiffDecoderInstance::DecodeImpl(int thread_idx,
+                                                SampleView<CPUBackend> out, ImageSource *in,
+                                                DecodeParams opts, const ROI &requested_roi) {
+  auto tiff = detail::OpenTiff(in);
+  auto info = detail::GetTiffInfo(tiff.get());
+
+  if (info.photometric != PHOTOMETRIC_RGB && info.photometric != PHOTOMETRIC_MINISBLACK
+      && info.photometric != PHOTOMETRIC_PALETTE) {
+    return {false, make_exception_ptr(std::runtime_error(
+                      make_string("Unsupported photometric interpretation: ", info.photometric)))};
+  }
+
+  if (info.is_planar)
+    return {false, make_exception_ptr(std::runtime_error("Planar TIFFs are not supported"))};
+
+  if (info.bit_depth > 32)
+    return {false, make_exception_ptr(std::logic_error(
+                      make_string("Unsupported bit depth: ", info.bit_depth)))};
+
+  // TODO(skarpinski) Support palette images
+  if (info.is_palette)
+    return {false, make_exception_ptr(std::logic_error("Palette images are not yet supported"))};
+
+  // TODO(skarpinski) Support tiled images
+  if (info.is_tiled)
+    return {false, make_exception_ptr(std::logic_error("Tiled images are not yet supported"))};
+
+  // Other fill orders are rare and discouraged by TIFF specification, but can happen
+  if (info.fill_order != FILLORDER_MSB2LSB)
+    return {false, make_exception_ptr(std::logic_error("Only FILL_ORDER=1 is supported"))};
+
+  unsigned out_channels = NumberOfChannels(opts.format, info.channels);
+
+  auto row_nbytes = TIFFScanlineSize(tiff.get());
+  std::unique_ptr<void, void(*)(void*)> row_buf{_TIFFmalloc(row_nbytes), _TIFFfree};
+  DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
+
+  ROI roi;
+  if (!requested_roi.use_roi()) {
+    roi.begin = {0, 0};
+    roi.end = out.shape().first(2);
+  } else {
+    roi = requested_roi;
+  }
+
+  // Need to read sequentially since not all the images support random access
+  // From: http://www.libtiff.org/man/TIFFReadScanline.3t.html
+  // Compression algorithm does not support random access. Data was requested in a non-sequential
+  // order from a file that uses a compression algorithm and that has RowsPerStrip greater than one.
+  // That is, data in the image is stored in a compressed form, and with multiple rows packed into a
+  // strip. In this case, the library does not support random access to the data. The data should
+  // either be accessed sequentially, or the file should be converted so that each strip is made up
+  // of one row of data.
+  const bool allow_random_row_access = (info.compression == COMPRESSION_NONE
+                                        || info.rows_per_strip == 1);
+
+  // If random access is not allowed, need to read sequentially all previous rows
+  if (!allow_random_row_access) {
+    for (int64_t y = 0; y < roi.begin[0]; y++) {
+      LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), y, 0));
+    }
+  }
+
+  uint64_t out_row_stride = roi.shape()[1] * out_channels;
+
+  DALIImageType in_format;
+  if (info.channels == 1)
+    in_format = DALI_GRAY;
+  else if (opts.format != DALI_ANY_DATA && info.channels >= 3)
+    in_format = DALI_RGB;
+  else
+    in_format = DALI_ANY_DATA;
+
+  TensorShape<> in_line_shape = {roi.shape()[1], info.channels};
+  TensorShape<> in_line_strides = kernels::GetStrides(in_line_shape);
+  TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
+  TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
+
+  // We choose smallest possible type
+  size_t in_type_bits = 0;
+  if (info.bit_depth <= 8) in_type_bits = 8;
+  else if (info.bit_depth <= 16) in_type_bits = 16;
+  else if (info.bit_depth <= 32) in_type_bits = 32;
+  else
+    assert(false);
+
+  TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
+    VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
+      using InputType = detail::depth2type<InTypeBits>::type;
+
+      kernels::DynamicScratchpad scratchpad;
+      InputType *row_in;
+      if (info.bit_depth == InTypeBits) {
+        row_in = static_cast<InputType *>(row_buf.get());
+      } else {
+        row_in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
+                  volume(in_line_shape) * sizeof(InputType), sizeof(InputType)));
+      }
+
+      OutType *const img_out = out.mutable_data<OutType>();
+      for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
+        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), roi.begin[0] + roi_y, 0));
+        if (info.bit_depth != InTypeBits) {
+          detail::UnpackBits(info.bit_depth, row_in, row_buf.get(), volume(in_line_shape));
+        }
+        Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
+                row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
+                out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
+      }
+    ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
+  ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
+  return {true, nullptr};
+}
+
 DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
                                                     SampleView<CPUBackend> out, ImageSource *in,
                                                     DecodeParams opts, const ROI &requested_roi) {
   try {
-    auto tiff = detail::OpenTiff(in);
-    auto info = detail::GetTiffInfo(tiff.get());
-
-    if (info.photometric != PHOTOMETRIC_RGB && info.photometric != PHOTOMETRIC_MINISBLACK
-        && info.photometric != PHOTOMETRIC_PALETTE) {
-      return {false, make_exception_ptr(std::runtime_error(
-                        make_string("Unsupported photometric interpretation: ", info.photometric)))};
-    }
-
-    if (info.is_planar)
-      return {false, make_exception_ptr(std::runtime_error("Planar TIFFs are not supported"))};
-
-    if (info.bit_depth != 8 && info.bit_depth != 16 && info.bit_depth != 32)
-      return {false, make_exception_ptr(std::logic_error(
-                        make_string("Unsupported bit depth: ", info.bit_depth)))};
-
-    // TODO(skarpinski) Support palette images
-    if (info.is_palette)
-      return {false, make_exception_ptr(std::logic_error("Palette images are not yet supported"))};
-
-    // TODO(skarpinski) Support tiled images
-    if (info.is_tiled)
-      return {false, make_exception_ptr(std::logic_error("Tiled images are not yet supported"))};
-
-    // Other fill orders are rare and discouraged by TIFF specification, but can happen
-    if (info.fill_order != FILLORDER_MSB2LSB)
-      return {false, make_exception_ptr(std::logic_error("Only FILL_ORDER=1 is supported"))};
-
-    unsigned out_channels = NumberOfChannels(opts.format, info.channels);
-
-    auto row_nbytes = TIFFScanlineSize(tiff.get());
-    std::unique_ptr<void, void(*)(void*)> row_buf{_TIFFmalloc(row_nbytes), _TIFFfree};
-    DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
-
-    ROI roi;
-    if (!requested_roi.use_roi()) {
-      roi.begin = {0, 0};
-      roi.end = out.shape().first(2);
-    } else {
-      roi = requested_roi;
-    }
-
-    // Need to read sequentially since not all the images support random access
-    // From: http://www.libtiff.org/man/TIFFReadScanline.3t.html
-    // Compression algorithm does not support random access. Data was requested in a non-sequential
-    // order from a file that uses a compression algorithm and that has RowsPerStrip greater than one.
-    // That is, data in the image is stored in a compressed form, and with multiple rows packed into a
-    // strip. In this case, the library does not support random access to the data. The data should
-    // either be accessed sequentially, or the file should be converted so that each strip is made up
-    // of one row of data.
-    const bool allow_random_row_access = (info.compression == COMPRESSION_NONE
-                                          || info.rows_per_strip == 1);
-
-    // If random access is not allowed, need to read sequentially all previous rows
-    if (!allow_random_row_access) {
-      for (int64_t y = 0; y < roi.begin[0]; y++) {
-        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), y, 0));
-      }
-    }
-
-    uint64_t out_row_stride = roi.shape()[1] * out_channels;
-
-    DALIImageType in_format;
-    if (info.channels == 1)
-      in_format = DALI_GRAY;
-    else if (opts.format != DALI_ANY_DATA && info.channels >= 3)
-      in_format = DALI_RGB;
-    else
-      in_format = DALI_ANY_DATA;
-
-    TensorShape<> in_line_shape = {roi.shape()[1], info.channels};
-    TensorShape<> in_line_strides = kernels::GetStrides(in_line_shape);
-    TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
-    TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
-
-    // We choose smallest possible type
-    size_t in_type_bits = 0;
-    if (info.bit_depth <= 8) in_type_bits = 8;
-    else if (info.bit_depth <= 16) in_type_bits = 16;
-    else if (info.bit_depth <= 32) in_type_bits = 32;
-    else
-      assert(false);
-
-    TYPE_SWITCH(out.type(), type2id, OutType, (IMGCODEC_TYPES), (
-      VALUE_SWITCH(in_type_bits, InTypeBits, (8, 16, 32), (
-        using InputType = detail::depth2type<InTypeBits>::type;
-
-        kernels::DynamicScratchpad scratchpad;
-        InputType *row_in;
-        if (info.bit_depth == InTypeBits) {
-          row_in = static_cast<InputType *>(row_buf.get());
-        } else {
-          row_in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
-                    volume(in_line_shape) * sizeof(InputType), sizeof(InputType)));
-        }
-
-        OutType *const img_out = out.mutable_data<OutType>();
-        for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
-          LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), roi.begin[0] + roi_y, 0));
-          if (info.bit_depth != InTypeBits) {
-            detail::UnpackBits(info.bit_depth, row_in, row_buf.get(), volume(in_line_shape));
-          }
-          Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
-                  row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
-                  out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
-        }
-      ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
-    ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
+    return DecodeImpl(thread_idx, out, in, opts, requested_roi);
   } catch (...) {
     return {false, std::current_exception()};
   }
-  return {true, nullptr};
 }
 
 }  // namespace imgcodec

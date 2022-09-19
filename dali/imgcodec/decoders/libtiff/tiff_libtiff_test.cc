@@ -173,6 +173,14 @@ TYPED_TEST(LibTiffDecoderTest, Depth32) {
   this->AssertEqualSatNorm(img, ref);
 }
 
+
+TEST_F(LibTiffDecoderBitdepthTest, AnyDepth) {
+  for (int depth = 1; depth < 32; depth++) {
+    SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
+    this->TestDepth(depth);
+  }
+}
+
 TYPED_TEST(LibTiffDecoderTest, TrimmedFile) {
   // We cut off 3/4 of the file, which should trigger stream read failure
   auto stream = FileStream::Open(rgb_path, false, false);
@@ -181,17 +189,8 @@ TYPED_TEST(LibTiffDecoderTest, TrimmedFile) {
   auto src = ImageSource::FromHostMem(data.data(), data.size()/4);
 
   SampleView<CPUBackend> view(nullptr, 0, type2id<uint8_t>::value);
-  DecodeContext ctx;
-  ctx.tp = &this->tp_;
-  DecodeResult decode_result = this->Decoder()->Decode(ctx, view, &src, {}, {});
+  DecodeResult decode_result = this->Decoder()->Decode(this->Context(), view, &src, {}, {});
   EXPECT_FALSE(decode_result.success);
-}
-
-TEST_F(LibTiffDecoderBitdepthTest, AnyDepth) {
-  for (int depth = 1; depth < 32; depth++) {
-    SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
-    this->TestDepth(depth);
-  }
 }
 
 }  // namespace test
