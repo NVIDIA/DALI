@@ -19,6 +19,7 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
+#include "dali/imgcodec/registry.h"
 
 #define LIBTIFF_CALL_SUCCESS 1
 #define LIBTIFF_CALL(call)                                \
@@ -327,6 +328,8 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
 
   return {true, nullptr};
 }
+
+REGISTER_DECODER("TIFF", LibTiffDecoderFactory, HostDecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali

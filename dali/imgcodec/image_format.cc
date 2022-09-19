@@ -33,11 +33,11 @@ const std::string &ImageFormat::Name() const {
   return name_;
 }
 
-span<ImageDecoder *const> ImageFormat::Decoders() const {
+span<ImageDecoderFactory *const> ImageFormat::Decoders() const {
   return make_cspan(decoder_ptrs_);
 }
 
-void ImageFormat::RegisterDecoder(std::shared_ptr<ImageDecoder> decoder, float priority) {
+void ImageFormat::RegisterDecoder(std::shared_ptr<ImageDecoderFactory> decoder, float priority) {
   auto it = decoders_.emplace(priority, std::move(decoder));
   if (std::next(it) == decoders_.end()) {
     decoder_ptrs_.push_back(it->second.get());
@@ -50,6 +50,11 @@ void ImageFormat::RegisterDecoder(std::shared_ptr<ImageDecoder> decoder, float p
 }
 
 void ImageFormatRegistry::RegisterFormat(std::shared_ptr<ImageFormat> format) {
+  auto &dict_entry = by_name_[format->Name()];
+  if (dict_entry && dict_entry != format)
+    throw std::invalid_argument("A different format with the same name already registered.");
+  dict_entry = format;
+
   formats_.push_back(std::move(format));
   format_ptrs_.push_back(formats_.back().get());
 }
@@ -63,7 +68,26 @@ const ImageFormat *ImageFormatRegistry::GetImageFormat(ImageSource *image) const
   return nullptr;
 }
 
-span<ImageFormat* const> ImageFormatRegistry::Formats() const {
+ImageFormat *ImageFormatRegistry::GetImageFormat(const char *name) {
+  auto it = by_name_.find(name);
+  if (it != by_name_.end())
+    return it->second.get();
+  else
+    return nullptr;
+}
+
+void InitFormats(ImageFormatRegistry &reg);
+
+ImageFormatRegistry &ImageFormatRegistry::instance() {
+  static std::unique_ptr<ImageFormatRegistry> instance = []() {
+    auto reg = std::make_unique<ImageFormatRegistry>();
+    InitFormats(*reg);
+    return reg;
+  }();
+  return *instance;
+}
+
+span<ImageFormat *const> ImageFormatRegistry::Formats() const {
   return make_cspan(format_ptrs_);
 }
 

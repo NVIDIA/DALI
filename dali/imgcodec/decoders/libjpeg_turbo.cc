@@ -16,6 +16,7 @@
 #include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/imgcodec/registry.h"
 #include "dali/core/common.h"
 
 namespace dali {
@@ -81,6 +82,8 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(DecodeContext ctx,
 
   return res;
 }
+
+REGISTER_DECODER("JPEG", LibJpegTurboDecoderFactory, HostDecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali

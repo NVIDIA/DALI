@@ -21,6 +21,7 @@
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
 #include "dali/imgcodec/util/convert_gpu.h"
 #include "dali/core/static_switch.h"
+#include "dali/imgcodec/registry.h"
 
 namespace dali {
 namespace imgcodec {
@@ -263,6 +264,8 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
 
   return result;
 }
+
+REGISTER_DECODER("JPEG2000", NvJpeg2000DecoderFactory, CUDADecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali

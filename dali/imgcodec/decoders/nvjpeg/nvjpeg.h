@@ -111,6 +111,7 @@ class NvJpegDecoderFactory : public ImageDecoderFactory {
     ImageDecoderProperties props;
     props.supports_partial_decoding = false;
     props.supported_input_kinds = InputKind::HostMemory;
+    props.gpu_output = true;
     props.fallback = true;
 
     return props;
