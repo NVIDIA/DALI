@@ -24,7 +24,7 @@
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 #include "dali/imgcodec/image_orientation.h"
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
 
 #define IMGCODEC_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float, float16
 

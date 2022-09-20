@@ -328,7 +328,7 @@ class ConvertOrientationTest : public NumpyDecoderTestBase<CPUBackend, uint8_t> 
     return output;
   }
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     return nullptr;  // We'll only read numpy files
   }
   std::shared_ptr<ImageParser> CreateParser() override {
