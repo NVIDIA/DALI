@@ -114,7 +114,7 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
 
       Convert(out, layout, opts.format,
               in, layout, in_format,
-              roi.begin, roi.end);
+              roi);
     }
   } catch (...) {
     res.exception = std::current_exception();
