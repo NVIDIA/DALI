@@ -228,9 +228,9 @@ void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t
 
 }  // namespace detail
 
-DecodeResult LibTiffDecoderInstance::DecodeImpl(int thread_idx,
-                                                SampleView<CPUBackend> out, ImageSource *in,
-                                                DecodeParams opts, const ROI &requested_roi) {
+DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
+                                                    SampleView<CPUBackend> out, ImageSource *in,
+                                                    DecodeParams opts, const ROI &requested_roi) {
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
 
@@ -340,16 +340,6 @@ DecodeResult LibTiffDecoderInstance::DecodeImpl(int thread_idx,
     ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
   return {true, nullptr};
-}
-
-DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
-                                                    SampleView<CPUBackend> out, ImageSource *in,
-                                                    DecodeParams opts, const ROI &requested_roi) {
-  try {
-    return DecodeImpl(thread_idx, out, in, opts, requested_roi);
-  } catch (...) {
-    return {false, std::current_exception()};
-  }
 }
 
 }  // namespace imgcodec
