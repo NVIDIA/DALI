@@ -223,7 +223,7 @@ class SliceFlipNormalizePermutePadGpu {
       // We fuse the last dimension with the previous IF:
       // 1. There are at least 2 dimensions
       // 2. Last dimension is not sliced/padded/permuted
-      //    - if out_stride[last_dim] == abs(in_stride[last_dim]), then it is not permuted
+      //    - if out_stride[last_dim] == in_stride[last_dim], then it is not permuted
       //    - if anchor[last_dim] == 0 && out_shape[last_dim] == in_shape[last_dim],
       //      then it is not sliced/padded
       // 3. Last dimension is not the channel dimension
