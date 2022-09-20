@@ -114,7 +114,7 @@ struct TiffInfo {
   uint16_t bit_depth;
   uint16_t orientation;
   uint16_t compression;
-  uint16_t photometric;
+  uint16_t photometric_interpretation;
   uint16_t fill_order;
 
   bool is_tiled;
@@ -145,10 +145,10 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
     info.tile_height = 1;
   }
 
-  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &info.photometric)) {
-    info.is_palette = (info.photometric == PHOTOMETRIC_PALETTE);
+  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &info.photometric_interpretation)) {
+    info.is_palette = (info.photometric_interpretation == PHOTOMETRIC_PALETTE);
   } else {
-    info.photometric = PHOTOMETRIC_MINISBLACK;
+    info.photometric_interpretation = PHOTOMETRIC_MINISBLACK;
   }
 
   uint16_t planar_config;
@@ -243,10 +243,12 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
 
-  if (info.photometric != PHOTOMETRIC_RGB && info.photometric != PHOTOMETRIC_MINISBLACK
-      && info.photometric != PHOTOMETRIC_PALETTE) {
-    return {false, make_exception_ptr(std::runtime_error(
-                      make_string("Unsupported photometric interpretation: ", info.photometric)))};
+  if (info.photometric_interpretation != PHOTOMETRIC_RGB &&
+      info.photometric_interpretation != PHOTOMETRIC_MINISBLACK &&
+      info.photometric_interpretation != PHOTOMETRIC_PALETTE) {
+    return {false,
+            make_exception_ptr(std::runtime_error(make_string(
+                "Unsupported photometric interpretation: ", info.photometric_interpretation)))};
   }
 
   if (info.is_planar)
