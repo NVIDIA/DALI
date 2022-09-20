@@ -186,6 +186,7 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
       ImageDecoderProperties props;
       props.supported_input_kinds = InputKind::HostMemory;
       props.supports_partial_decoding = false;  // roi support requires decoding the whole file
+      props.gpu_output = true;
       props.fallback = true;
       return props;
     }();

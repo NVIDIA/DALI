@@ -79,7 +79,7 @@ struct ROI {
 
 struct ImageDecoderProperties {
   /**
-   * @brief Whether the codec can decode a region of interest without decoding the entire image
+   * @brief Whether the decoder can decode a region of interest without decoding the entire image
    */
   bool supports_partial_decoding = false;
 
@@ -87,6 +87,11 @@ struct ImageDecoderProperties {
    * @brief A mask of supported input kinds
    */
   InputKind supported_input_kinds;
+
+  /**
+   * @brief Whether the output of the decoder is in GPU memory
+   */
+  bool gpu_output = false;
 
   /**
    * @brief if true and the codec fails to decode an image,
