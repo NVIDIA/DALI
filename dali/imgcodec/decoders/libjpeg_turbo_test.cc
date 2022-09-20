@@ -52,6 +52,13 @@ const auto img_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg");
 const auto ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg");
 const auto jpeg_image = join(img_dir, "134/site-1534685_1280.jpg");
 const auto ref_prefix = join(ref_dir, "site-1534685_1280");
+
+const auto jpeg_image1 = join(img_dir, "113/snail-4291306_1280.jpg");
+const auto ref_prefix1 = join(ref_dir, "snail-4291306_1280");
+
+const auto jpeg_image2 = join(img_dir, "100/swan-3584559_640.jpg");
+const auto ref_prefix2 = join(ref_dir, "swan-3584559_640");
+
 }  // namespace
 
 TEST(LibJpegTurboDecoderTest, Factory) {
@@ -115,13 +122,17 @@ TYPED_TEST(LibJpegTurboDecoderTest, Decode) {
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
-  auto ref = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
+  auto ref0 = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
+  auto ref1 = this->ReadReferenceFrom(make_string(ref_prefix1, ".npy"));
+  auto ref2 = this->ReadReferenceFrom(make_string(ref_prefix2, ".npy"));
   ImageBuffer image0(jpeg_image);
-  ImageBuffer image1(jpeg_image);
-  std::vector<ImageSource*> srcs = {&image0.src, &image1.src};
+  ImageBuffer image1(jpeg_image1);
+  ImageBuffer image2(jpeg_image2);
+  std::vector<ImageSource*> srcs = {&image0.src, &image1.src, &image2.src};
   auto img = this->Decode(make_span(srcs), this->GetParams());
-  this->AssertEqualSatNorm(img[0], ref);
-  this->AssertEqualSatNorm(img[1], ref);
+  this->AssertEqualSatNorm(img[0], ref0);
+  this->AssertEqualSatNorm(img[1], ref1);
+  this->AssertEqualSatNorm(img[2], ref2);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {

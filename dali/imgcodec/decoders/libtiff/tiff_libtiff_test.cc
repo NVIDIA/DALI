@@ -50,6 +50,12 @@ auto tiled_dir = dali_extra + "/db/imgcodec/tiff/tiled/";
 auto tiled_path = tiled_dir + "/cat-111793_640_tiled_16x48.tiff";
 auto tiled_one_big_tile_path = tiled_dir + "/cat-111793_640_tiled_1024x1024.tiff";
 
+auto rgb_path1 = img_dir + "/cat-3449999_640.tiff";
+auto rgb_ref_path1 = ref_dir + "/cat-3449999_640.tiff.npy";
+
+auto rgb_path2 = img_dir + "/cat-3504008_640.tiff";
+auto rgb_ref_path2 = ref_dir + "/cat-3504008_640.tiff.npy";
+
 std::string depth_path(int depth) {
   return make_string(dali_extra, "/db/imgcodec/tiff/bitdepths/rgb_", depth, "bit.tiff");
 }
@@ -136,13 +142,17 @@ TYPED_TEST(LibTiffDecoderTest, ROI) {
 }
 
 TYPED_TEST(LibTiffDecoderTest, BatchedAPI) {
-  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto ref0 = this->ReadReferenceFrom(rgb_ref_path);
+  auto ref1 = this->ReadReferenceFrom(rgb_ref_path1);
+  auto ref2 = this->ReadReferenceFrom(rgb_ref_path2);
   auto src0 = ImageSource::FromFilename(rgb_path);
-  auto src1 = ImageSource::FromFilename(rgb_path);
-  std::vector<ImageSource*> srcs = {&src0, &src1};
+  auto src1 = ImageSource::FromFilename(rgb_path1);
+  auto src2 = ImageSource::FromFilename(rgb_path2);
+  std::vector<ImageSource*> srcs = {&src0, &src1, &src2};
   auto img = this->Decode(make_span(srcs), {this->dtype});
-  this->AssertEqualSatNorm(img[0], ref);
-  this->AssertEqualSatNorm(img[1], ref);
+  this->AssertEqualSatNorm(img[0], ref0);
+  this->AssertEqualSatNorm(img[1], ref1);
+  this->AssertEqualSatNorm(img[2], ref2);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Gray) {
