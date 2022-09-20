@@ -115,11 +115,12 @@ struct TiffInfo {
   uint16_t bit_depth;
   uint16_t orientation;
   uint16_t compression;
+  uint16_t photometric_interpretation;
   uint16_t fill_order;
 
   bool is_tiled;
   bool is_palette;
-
+  bool is_planar;
   uint32_t tile_width, tile_height;
 };
 
@@ -145,11 +146,15 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
     info.tile_height = 1;
   }
 
-  uint16_t photometric_interpretation;
-  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &photometric_interpretation) &&
-      photometric_interpretation == PHOTOMETRIC_PALETTE) {
-    info.is_palette = true;
+  if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &info.photometric_interpretation)) {
+    info.is_palette = (info.photometric_interpretation == PHOTOMETRIC_PALETTE);
+  } else {
+    info.photometric_interpretation = PHOTOMETRIC_MINISBLACK;
   }
+
+  uint16_t planar_config;
+  LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_PLANARCONFIG, &planar_config));
+  info.is_planar = (planar_config == PLANARCONFIG_SEPARATE);
 
   return info;
 }
@@ -233,11 +238,22 @@ void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t
 
 }  // namespace detail
 
-DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
-                                            SampleView<CPUBackend> out, ImageSource *in,
-                                            DecodeParams opts, const ROI &requested_roi) {
+DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
+                                                    SampleView<CPUBackend> out, ImageSource *in,
+                                                    DecodeParams opts, const ROI &requested_roi) {
   auto tiff = detail::OpenTiff(in);
   auto info = detail::GetTiffInfo(tiff.get());
+
+  if (info.photometric_interpretation != PHOTOMETRIC_RGB &&
+      info.photometric_interpretation != PHOTOMETRIC_MINISBLACK &&
+      info.photometric_interpretation != PHOTOMETRIC_PALETTE) {
+    return {false,
+            make_exception_ptr(std::runtime_error(make_string(
+                "Unsupported photometric interpretation: ", info.photometric_interpretation)))};
+  }
+
+  if (info.is_planar)
+    return {false, make_exception_ptr(std::runtime_error("Planar TIFFs are not supported"))};
 
   if (info.bit_depth > 32)
     return {false, make_exception_ptr(std::logic_error(
@@ -381,7 +397,6 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
       }
     ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
-
   return {true, nullptr};
 }
 

@@ -287,6 +287,12 @@ class DecoderTestBase : public ::testing::Test {
   using Type = OutputType;
 
  protected:
+  DecodeContext Context() {
+    DecodeContext ctx;
+    ctx.tp = &tp_;
+    return ctx;
+  }
+
   /**
   * @brief Creates a decoder instance, working on a specified thread pool.
   */
