@@ -21,7 +21,7 @@
 
 namespace dali {
 
-TEST(TensorList, View) {
+TEST(TensorList, ContiguousView) {
   TensorList<CPUBackend> tl;
   TensorListShape<> shapes = { { {640, 480, 3}, {320, 240, 1} } };
   tl.Resize(shapes, DALI_FLOAT);
@@ -62,8 +62,8 @@ TEST(Tensor, ViewAsTensor) {
   EXPECT_EQ(tv.shape, tv3.shape);
 }
 
-TEST(TensorVector, View) {
-  TensorVector<CPUBackend> tvec(10);
+TEST(TensorList, View) {
+  TensorList<CPUBackend> tvec(10);
   tvec.set_type<int>();
   std::mt19937_64 rng;
   TensorListShape<3> shape(10);
@@ -76,7 +76,7 @@ TEST(TensorVector, View) {
   }
 
   auto tlv = view<int, 3>(tvec);
-  const TensorVector<CPUBackend> &ctvec = tvec;
+  const TensorList<CPUBackend>& ctvec = tvec;
   auto tlv2 = view<const int, 3>(ctvec);
 
   auto tv_shape = tvec.shape();
@@ -89,8 +89,8 @@ TEST(TensorVector, View) {
   }
 }
 
-TEST(TensorVector, ReinterpretView) {
-  TensorVector<CPUBackend> tvec(10);
+TEST(TensorList, ReinterpretView) {
+  TensorList<CPUBackend> tvec(10);
   tvec.set_type<int>();
   std::mt19937_64 rng;
   TensorListShape<3> shape(10);

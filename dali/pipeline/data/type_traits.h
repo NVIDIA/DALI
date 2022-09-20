@@ -20,9 +20,6 @@
 namespace dali {
 
 template <typename Backend>
-class TensorVector;
-
-template <typename Backend>
 class TensorList;
 
 class CPUBackend;
@@ -36,12 +33,6 @@ struct is_backend {
                                 std::is_same<Backend, GPUBackend>::value;
 };
 
-template <template <typename> class MaybeTensorVector, typename Backend>
-struct is_tensor_vector {
-  static constexpr bool value =
-      std::is_same<MaybeTensorVector<Backend>, TensorVector<Backend>>::value;
-};
-
 template <template <typename> class MaybeTensorList, typename Backend>
 struct is_tensor_list {
   static constexpr bool value = std::is_same<MaybeTensorList<Backend>, TensorList<Backend>>::value;
@@ -50,38 +41,12 @@ struct is_tensor_list {
 /**
  * Verifies, that T is proper batch container for DALI
  *
- * Batch container is proper when it has a defined backend and is TensorVector or a TensorList
+ * Batch container is proper when it has a defined backend and is TensorList or a TensorList
  */
 template <template <typename Backend_> class T, typename Backend>
 struct is_batch_container {
-  static constexpr bool value =
-      is_backend<Backend>::value &&
-      (is_tensor_vector<T, Backend>::value || is_tensor_list<T, Backend>::value);
+  static constexpr bool value = is_backend<Backend>::value && is_tensor_list<T, Backend>::value;
 };
-
-template <typename Backend = CPUBackend>
-struct BatchContainer {
-  using type = TensorVector<CPUBackend>;
-};
-
-template <>
-struct BatchContainer<GPUBackend> {
-  using type = TensorList<GPUBackend>;
-};
-
-/**
- * Returns the typical batch container used for given Backend
- */
-template <typename Backend>
-using batch_container_t = typename BatchContainer<Backend>::type;
-
-namespace test {
-static_assert(is_batch_container<TensorVector, CPUBackend>::value, "Test failed");
-static_assert(is_batch_container<TensorVector, GPUBackend>::value, "Test failed");
-static_assert(is_batch_container<TensorList, CPUBackend>::value, "Test failed");
-static_assert(is_batch_container<TensorList, GPUBackend>::value, "Test failed");
-}  // namespace test
-
 
 template <typename BatchType, typename T = void>
 struct BatchBackend;

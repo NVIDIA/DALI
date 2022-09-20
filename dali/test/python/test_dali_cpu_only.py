@@ -14,6 +14,7 @@
 
 import glob
 import numpy as np
+import nvidia.dali.tensors as tensors
 import nvidia.dali.fn as fn
 import nvidia.dali.math as dmath
 import nvidia.dali.tfrecord as tfrec
@@ -1070,6 +1071,13 @@ def test_get_property():
     for out in output:
         for source_info, ref in zip(out, files):
             assert np.array(source_info).tobytes().decode() == ref
+
+
+def test_tensor_list_cpu():
+    n_ar = np.empty([2, 3])
+    d_ten = tensors.TensorCPU(n_ar)
+    d_tl = tensors.TensorListCPU([d_ten])
+    del d_tl
 
 
 tested_methods = [

@@ -63,9 +63,16 @@ TEST(LibJpegTurboDecoderTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "libjpeg-turbo factory test");
-  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  std::map<string, any> params = { { "fast_idct", false } };
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
   EXPECT_NE(decoder, nullptr);
+  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), false);
+
+  decoder.reset();
+  params = { { "fast_idct", true } };
+  decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
+  EXPECT_NE(decoder, nullptr);
+  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), true);
 }
 
 template<typename OutputType>
@@ -73,8 +80,8 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
  protected:
   static const auto dtype = type2id<OutputType>::value;
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return LibJpegTurboDecoderFactory().Create(CPU_ONLY_DEVICE_ID, tp);
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
+    return LibJpegTurboDecoderFactory().Create(CPU_ONLY_DEVICE_ID);
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {
@@ -85,6 +92,15 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
     DecodeParams opts{};
     opts.dtype = dtype;
     return opts;
+  }
+
+  float GetEps() {
+    if (std::is_floating_point_v<OutputType>) {
+      return 0.01f;
+    } else {
+      // Adjusting the epsilon to OutputType
+      return 0.01 * max_value<OutputType>();
+    }
   }
 };
 
@@ -111,7 +127,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
   params.format = DALI_YCbCr;
   auto decoded = this->Decode(&image.src, params);
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
-  this->AssertClose(decoded, ref, 0.01);
+  this->AssertClose(decoded, ref, this->GetEps());
 }
 
 }  // namespace test

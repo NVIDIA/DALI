@@ -103,14 +103,14 @@ TEST_P(FlipTest, BasicTest) {
   if (hwc) {
     auto shape = TensorListShape<>{
         {{kDataHeight, kDataWidth, kDataChannels}, {kDataHeight, kDataWidth, kDataChannels}}};
-    tl.ShareData(nhwc_tensor_list_data.ptr(), 2 * data_size, false, shape, DALI_FLOAT,
-                 CPU_ONLY_DEVICE_ID);
+    tl.ShareData(std::shared_ptr<void>(nhwc_tensor_list_data.ptr(), [](void *) {}), 2 * data_size,
+                 false, shape, DALI_FLOAT, CPU_ONLY_DEVICE_ID);
     tl.SetLayout("HWC");
   } else {
     auto shape = TensorListShape<>{
         {{kDataChannels, kDataHeight, kDataWidth}, {kDataChannels, kDataHeight, kDataWidth}}};
-    tl.ShareData(nchw_tensor_list_data.ptr(), 2 * data_size, false, shape, DALI_FLOAT,
-                 CPU_ONLY_DEVICE_ID);
+    tl.ShareData(std::shared_ptr<void>(nchw_tensor_list_data.ptr(), [](void *) {}), 2 * data_size,
+                 false, shape, DALI_FLOAT, CPU_ONLY_DEVICE_ID);
     tl.SetLayout("CHW");
   }
   TensorListWrapper tlout;

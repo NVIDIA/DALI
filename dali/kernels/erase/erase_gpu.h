@@ -414,6 +414,7 @@ struct EraseGpu {
     }
 
     if (nfill_values > 1) {
+      assert(channel_dim >= 0);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         if (nfill_values != in_sh.tensor_shape_span(sample_idx)[channel_dim]) {
           throw std::invalid_argument(
@@ -546,6 +547,7 @@ struct EraseGpu {
 
     erase_gpu_impl<channel_dim><<<grid_dim, block_dim, 0, stream>>>(
         sample_desc_gpu, region_dim);
+    CUDA_CALL(cudaGetLastError());
   }
 
   void Run(KernelContext &ctx,

@@ -65,13 +65,13 @@ class FalseGPUOperator : public Operator<GPUBackend> {
     if (cpu_ws_.NumInput() == 0 && cpu_ws_.NumOutput() == 0) {
       cpu_inputs_.resize(ws.NumInput());
       for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-        cpu_inputs_[input_idx] = std::make_shared<TensorVector<CPUBackend>>();
+        cpu_inputs_[input_idx] = std::make_shared<TensorList<CPUBackend>>();
         cpu_inputs_[input_idx]->set_pinned(true);
         cpu_inputs_[input_idx]->set_order(AccessOrder::host());
         cpu_ws_.AddInput(cpu_inputs_[input_idx]);
       }
       for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
-        auto cpu_output = std::make_shared<TensorVector<CPUBackend>>();
+        auto cpu_output = std::make_shared<TensorList<CPUBackend>>();
         cpu_output->set_pinned(true);
         cpu_output->set_order(AccessOrder::host());
         cpu_ws_.AddOutput(std::move(cpu_output));
@@ -120,7 +120,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
   HostWorkspace cpu_ws_;
 
   // Keep it here so that we can modify (ws gives only const ref to inputs)
-  std::vector<std::shared_ptr<TensorVector<CPUBackend>>> cpu_inputs_;
+  std::vector<std::shared_ptr<TensorList<CPUBackend>>> cpu_inputs_;
 
   // keep here to avoid reallocations
   std::vector<OutputDesc> output_desc_;

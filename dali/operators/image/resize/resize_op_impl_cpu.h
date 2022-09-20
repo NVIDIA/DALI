@@ -72,9 +72,8 @@ class ResizeOpImplCPU : public ResizeBase<CPUBackend>::Impl {
     }
   }
 
-  void RunResize(HostWorkspace &ws,
-                 TensorVector<CPUBackend> &output,
-                 const TensorVector<CPUBackend> &input) override {
+  void RunResize(HostWorkspace &ws, TensorList<CPUBackend> &output,
+                 const TensorList<CPUBackend> &input) override {
     auto in_view = view<const In>(input);
     auto in_frames_view = reshape(in_view, in_shape_, true);
     auto out_view = view<Out>(output);

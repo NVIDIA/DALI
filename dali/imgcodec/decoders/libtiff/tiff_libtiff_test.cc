@@ -46,27 +46,55 @@ auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
 auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel/" +
                          "cat-111793_640_multichannel.tif";
 
-auto depth8_path  = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_8bit.tiff";
-auto depth16_path = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_16bit.tiff";
-auto depth32_path = dali_extra + "/db/imgcodec/tiff/bitdepths/rgb_32bit.tiff";
+auto tiled_dir = dali_extra + "/db/imgcodec/tiff/tiled/";
+auto tiled_path = tiled_dir + "/cat-111793_640_tiled_16x48.tiff";
+auto tiled_one_big_tile_path = tiled_dir + "/cat-111793_640_tiled_1024x1024.tiff";
 
-auto depth8_ref_path  = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_8bit.tiff.npy";
-auto depth16_ref_path = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_16bit.tiff.npy";
-auto depth32_ref_path = dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_32bit.tiff.npy";
+std::string depth_path(int depth) {
+  return make_string(dali_extra, "/db/imgcodec/tiff/bitdepths/rgb_", depth, "bit.tiff");
+}
+
+std::string depth_ref_path(int depth) {
+  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_",
+                     depth, "bit.tiff.npy");
+}
+
+std::string depth_ref_float_path(int depth) {
+  return make_string(dali_extra + "/db/imgcodec/tiff/bitdepths/reference/rgb_",
+                     depth, "bit_float.tiff.npy");
+}
 }  // namespace
 
 template <typename OutType>
 class LibTiffDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutType> {
  protected:
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     LibTiffDecoderFactory factory;
-    return factory.Create(CPU_ONLY_DEVICE_ID, tp);
+    return factory.Create(CPU_ONLY_DEVICE_ID);
   }
   std::shared_ptr<ImageParser> CreateParser() override {
     return std::make_shared<TiffParser>();
   }
-
   static const auto dtype = type2id<OutType>::value;
+};
+
+class LibTiffDecoderBitdepthTest : public LibTiffDecoderTest<float> {
+ protected:
+  void TestDepth(int depth) {
+    auto ref = this->ReadReferenceFrom(depth_ref_float_path(depth));
+    auto src = ImageSource::FromFilename(depth_path(depth));
+    auto img = this->Decode(&src, {DALI_FLOAT});
+    this->AssertClose(img, ref, 0.01);
+  }
+
+  void TestDepthRoi(int depth) {
+    auto ref = this->ReadReferenceFrom(depth_ref_float_path(depth));
+    auto src = ImageSource::FromFilename(depth_path(depth));
+    auto info = this->Parser()->GetInfo(&src);
+    ROI roi = {{12, 34}, {info.shape[0] - 56, info.shape[1] - 78}};
+    auto img = this->Decode(&src, {DALI_FLOAT}, roi);
+    this->AssertClose(img, this->Crop(ref, roi), 0.01);
+  }
 };
 
 using LibTiffDecoderTypes = ::testing::Types<uint8_t, uint16_t, uint32_t>;
@@ -138,24 +166,75 @@ TYPED_TEST(LibTiffDecoderTest, MultichannelToRgb) {
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth8) {
-  auto ref = this->ReadReferenceFrom(depth8_ref_path);
-  auto src = ImageSource::FromFilename(depth8_path);
+  auto ref = this->ReadReferenceFrom(depth_ref_path(8));
+  auto src = ImageSource::FromFilename(depth_path(8));
   auto img = this->Decode(&src, {this->dtype});
   this->AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth16) {
-  auto ref = this->ReadReferenceFrom(depth16_ref_path);
-  auto src = ImageSource::FromFilename(depth16_path);
+  auto ref = this->ReadReferenceFrom(depth_ref_path(16));
+  auto src = ImageSource::FromFilename(depth_path(16));
   auto img = this->Decode(&src, {this->dtype});
   this->AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth32) {
-  auto ref = this->ReadReferenceFrom(depth32_ref_path);
-  auto src = ImageSource::FromFilename(depth32_path);
+  auto ref = this->ReadReferenceFrom(depth_ref_path(32));
+  auto src = ImageSource::FromFilename(depth_path(32));
   auto img = this->Decode(&src, {this->dtype});
   this->AssertEqualSatNorm(img, ref);
+}
+
+TEST_F(LibTiffDecoderBitdepthTest, AnyDepth) {
+  for (int depth = 1; depth < 32; depth++) {
+    SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
+    this->TestDepth(depth);
+  }
+}
+
+TEST_F(LibTiffDecoderBitdepthTest, AnyDepthRoi) {
+  for (int depth = 1; depth < 32; depth++) {
+    SCOPED_TRACE(make_string("Depth: ", depth, " bits"));
+    this->TestDepthRoi(depth);
+  }
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledWholeImage) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto src = ImageSource::FromFilename(tiled_path);
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB});
+  this->AssertEqualSatNorm(img, ref);
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledRoi) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto src = ImageSource::FromFilename(tiled_path);
+  ROI roi = {{123, 100}, {321, 400}};
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB}, roi);
+  this->AssertEqualSatNorm(img, this->Crop(ref, roi));
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledSmallRoi) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto src = ImageSource::FromFilename(tiled_path);
+  ROI roi = {{3*48+17, 7*16+5}, {3*48+27, 7*16+15}};  // This fits in a single tile
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB}, roi);
+  this->AssertEqualSatNorm(img, this->Crop(ref, roi));
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledOneBigTile) {
+  auto ref = this->ReadReferenceFrom(rgb_ref_path);
+  auto src = ImageSource::FromFilename(tiled_one_big_tile_path);
+  auto img = this->Decode(&src, {this->dtype, DALI_RGB});
+  this->AssertEqualSatNorm(img, ref);
+}
+
+TYPED_TEST(LibTiffDecoderTest, TiledRgbToGray) {
+  auto ref = this->ReadReferenceFrom(gray_ref_path);
+  auto src = ImageSource::FromFilename(tiled_path);
+  auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
+  this->AssertClose(img, ref, 0.01 * max_value<typename TestFixture::Type>());
 }
 
 }  // namespace test

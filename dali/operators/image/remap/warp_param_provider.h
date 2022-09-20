@@ -41,13 +41,13 @@ class InterpTypeProvider {
   void SetInterp(const OpSpec &spec, const ArgumentWorkspace &ws, int num_samples) {
     interp_types_.clear();
     if (spec.HasTensorArgument("interp_type")) {
-      auto &tensor_vector = ws.ArgumentInput("interp_type");
-      int n = tensor_vector.shape().num_samples();
+      auto &tensor_list = ws.ArgumentInput("interp_type");
+      int n = tensor_list.shape().num_samples();
       DALI_ENFORCE(n == 1 || n == num_samples,
         "interp_type must be a single value or contain one value per sample");
       interp_types_.resize(n);
       for (int i = 0; i < n; i++)
-        interp_types_[i] = tensor_vector.tensor<DALIInterpType>(i)[0];
+        interp_types_[i] = tensor_list.tensor<DALIInterpType>(i)[0];
     } else {
       interp_types_.resize(1, spec.template GetArgument<DALIInterpType>("interp_type"));
     }
@@ -264,12 +264,12 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual void GetExplicitPerSampleSize(std::vector<SpatialShape> &out_sizes) const {
     assert(HasExplicitPerSampleSize());
-    const auto &tensor_vector = ws_->ArgumentInput(size_arg_name_);
-    TYPE_SWITCH(tensor_vector.type(), type2id, shape_t,
+    const auto &tensor_list = ws_->ArgumentInput(size_arg_name_);
+    TYPE_SWITCH(tensor_list.type(), type2id, shape_t,
       (int16_t, int32_t, int64_t, uint16_t, uint32_t, uint64_t, float),
-      (GetTypedPerSampleSize(out_sizes, view<const shape_t>(tensor_vector))),
+      (GetTypedPerSampleSize(out_sizes, view<const shape_t>(tensor_list))),
       (DALI_FAIL(make_string("Warp: Unsupported argument type for \"", size_arg_name_, "\": ",
-        tensor_vector.type())))
+        tensor_list.type())))
     );  // NOLINT
   }
 

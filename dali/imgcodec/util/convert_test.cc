@@ -57,14 +57,17 @@ class ConversionTestBase : public NumpyDecoderTestBase<CPUBackend, ImageType> {
    */
   Tensor<CPUBackend> RunConvert(const std::string& input_path,
                                 DALIImageType input_format, DALIImageType output_format,
-                                TensorLayout layout = "HWC", const ROI &roi = {}) {
+                                TensorLayout layout = "HWC", const ROI &roi = {},
+                                int channels_hint = 0) {
     auto input = this->ReadReferenceFrom(input_path);
     ConstSampleView<CPUBackend> input_view(input.raw_mutable_data(), input.shape(), input.type());
 
     Tensor<CPUBackend> output;
-    int output_channels = NumberOfChannels(output_format, NumberOfChannels(input_format));
+    int output_channels = NumberOfChannels(output_format,
+                                           NumberOfChannels(input_format, channels_hint));
     auto output_shape = input.shape();
     int channel_index = ImageLayoutInfo::ChannelDimIndex(layout);
+    assert(channel_index >= 0);
     output_shape[channel_index] = output_channels;
     if (roi) {
       for (int d = 0; d < channel_index; d++)
@@ -82,7 +85,7 @@ class ConversionTestBase : public NumpyDecoderTestBase<CPUBackend, ImageType> {
     return output;
   }
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     return nullptr;  // We'll only read numpy files
   }
 
@@ -107,10 +110,11 @@ class ColorConversionTest : public ConversionTestBase<ImageType> {
    */
   void Test(const std::string& input_name,
             DALIImageType input_format, DALIImageType output_format,
-            const std::string& reference_name) {
+            const std::string& reference_name, int channels_hint = 0) {
     auto input_path = this->InputImagePath(input_name);
     auto reference_path = this->ReferencePath(reference_name);
-    this->AssertClose(this->RunConvert(input_path, input_format, output_format),
+    this->AssertClose(this->RunConvert(input_path, input_format, output_format,
+                                       "HWC", {},  channels_hint),
                       this->ReadReferenceFrom(reference_path), this->Eps());
   }
 
@@ -156,6 +160,10 @@ class ColorConversionTest : public ConversionTestBase<ImageType> {
 using ImageTypes = ::testing::Types<uint8_t, float>;
 TYPED_TEST_SUITE(ColorConversionTest, ImageTypes);
 
+TYPED_TEST(ColorConversionTest, AnyToAny) {
+  // DALI_ANY_DATA -> DALI_ANY_DATA should be a no-op
+  this->Test("rgb", DALI_ANY_DATA, DALI_ANY_DATA, "rgb", 3);
+}
 
 // RGB -> *
 

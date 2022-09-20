@@ -15,8 +15,10 @@
 #ifndef DALI_IMGCODEC_DECODERS_LIBTIFF_TIFF_LIBTIFF_H_
 #define DALI_IMGCODEC_DECODERS_LIBTIFF_TIFF_LIBTIFF_H_
 
+#include <map>
 #include <memory>
-#include "dali/imgcodec/image_decoder.h"
+#include <string>
+#include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 
 namespace dali {
@@ -25,10 +27,14 @@ namespace imgcodec {
 class DLL_PUBLIC LibTiffDecoderInstance : public BatchParallelDecoderImpl {
  public:
   using Base = BatchParallelDecoderImpl;
-  LibTiffDecoderInstance(int device_id, ThreadPool *tp) : Base(device_id, tp) {}
+  explicit LibTiffDecoderInstance(int device_id, const std::map<std::string, any> &params)
+  : Base(device_id, params) {
+    SetParams(params);
+  }
 
   using Base::Decode;
-  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in,
+  DecodeResult Decode(DecodeContext ctx,
+                      SampleView<CPUBackend> out, ImageSource *in,
                       DecodeParams opts, const ROI &roi) override;
 };
 
@@ -50,8 +56,9 @@ class LibTiffDecoderFactory : public ImageDecoderFactory {
     return device_id < 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const override {
-    return std::make_shared<LibTiffDecoderInstance>(device_id, &tp);
+  std::shared_ptr<ImageDecoderInstance> Create(
+        int device_id, const std::map<std::string, any> &params = {}) const override {
+    return std::make_shared<LibTiffDecoderInstance>(device_id, params);
   }
 };
 
