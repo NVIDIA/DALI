@@ -144,7 +144,7 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
   // that is tied to the pipeline.
   int device_id = pipeline->device_id();
 
-  dali::TensorVector<Backend> data(curr_batch_size);
+  dali::TensorList<Backend> data(curr_batch_size);
   data.set_pinned(flags & DALI_ext_pinned);
   data.set_sample_dim(sample_dim);
   data.set_type(type_id);
@@ -157,8 +157,8 @@ void SetExternalInputTensors(daliPipelineHandle *pipe_handle, const char *name,
     // Tensor as we must also set the shape and type metadata.
     // The vector that we pass to pipeline is const.
     std::shared_ptr<void> ptr(const_cast<void *>(data_ptr[i]), [](void *){});  // no deleter
-    data.UnsafeSetSample(i, ptr, tl_shape[i].num_elements() * elem_sizeof, flags & DALI_ext_pinned,
-                         tl_shape[i], type_id, device_id, order, layout);
+    data.SetSample(i, ptr, tl_shape[i].num_elements() * elem_sizeof, flags & DALI_ext_pinned,
+                   tl_shape[i], type_id, device_id, order, layout);
   }
   pipeline->SetExternalInput(name, data, order,
                              flags & DALI_ext_force_sync,

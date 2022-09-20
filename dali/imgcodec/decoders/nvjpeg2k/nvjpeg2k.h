@@ -38,12 +38,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, any> &params);
   ~NvJpeg2000DecoderInstance();
 
-  using BatchParallelDecoderImpl::CanDecode;
-  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
-    // TODO(staniewzki): add support for roi and other data types
-    return !roi && (opts.dtype == DALI_UINT8);
-  }
-
   using BatchParallelDecoderImpl::DecodeImplTask;
   DecodeResult DecodeImplTask(int thread_idx,
                               cudaStream_t stream,
@@ -83,7 +77,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
   }
 
- private:
   struct TileDecodingResources {
     NvJpeg2kDecodeState state;
     CUDAEvent decode_event;
@@ -127,7 +120,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
    * @brief Context for image decoding, one per picture.
    */
   struct Context {
-    Context(DecodeParams opts, const ROI &roi, const PerThreadResources &res)
+    Context(DecodeParams opts, const ROI &roi, PerThreadResources &res)
     : opts(opts)
     , roi(roi)
     , nvjpeg2k_decode_state(res.nvjpeg2k_decode_state)
@@ -153,9 +146,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     span<const TileDecodingResources> tile_dec_res;
   };
 
+ private:
   bool ParseJpeg2000Info(ImageSource *in, Context &ctx);
-  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx);
-  bool ConvertData(void *in, uint8_t *out, const Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, void *out, const Context &ctx);
 
   /**
    * @brief Sets up nvjpeg2kImage_t, so it points to specific output area
@@ -168,7 +161,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
    * @param ctx decoding context
    * @return nvjpeg2kImage_t
    */
-  nvjpeg2kImage_t PrepareOutputArea(uint8_t *out,
+  nvjpeg2kImage_t PrepareOutputArea(void *out,
                                     void **pixel_data,
                                     size_t *pitch_in_bytes,
                                     int64_t output_offset_x,

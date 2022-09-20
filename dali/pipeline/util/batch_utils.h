@@ -17,7 +17,6 @@
 
 #include <memory>
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/data/tensor_vector.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/workspace/workspace.h"
 

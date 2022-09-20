@@ -31,9 +31,11 @@ void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
 
     auto &thread_pool = ws.GetThreadPool();
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      thread_pool.AddWork([sample_id, &input, &output] (int tid) {
-        output.UnsafeCopySample(sample_id, input, sample_id, AccessOrder::host());
-      }, shapes.tensor_size(sample_id));
+      thread_pool.AddWork(
+          [sample_id, &input, &output](int tid) {
+            output.CopySample(sample_id, input, sample_id, AccessOrder::host());
+          },
+          shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
   }

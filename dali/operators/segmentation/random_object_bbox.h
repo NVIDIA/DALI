@@ -171,7 +171,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
   void GetBgFgAndWeights(ClassVec &classes, WeightVec &weights, int &background, int sample_idx);
 
-  void AllocateTempStorage(const TensorVector<CPUBackend> &tls);
+  void AllocateTempStorage(const TensorList<CPUBackend> &tls);
 
   template <typename BlobLabel>
   struct SampleContext {

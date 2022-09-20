@@ -59,8 +59,8 @@ template <>
 struct Backend2Types<CPUBackend> {
   using InBackend = CPUBackend;
   using OutBackend = CPUBackend;
-  using WSInputType = TensorVector<CPUBackend>;
-  using WSOutputType = TensorVector<CPUBackend>;
+  using WSInputType = TensorList<CPUBackend>;
+  using WSOutputType = TensorList<CPUBackend>;
   static const char name[8];
 };
 
@@ -77,7 +77,7 @@ template <>
 struct Backend2Types<MixedBackend> {
   using InBackend = CPUBackend;
   using OutBackend = GPUBackend;
-  using WSInputType = TensorVector<CPUBackend>;
+  using WSInputType = TensorList<CPUBackend>;
   using WSOutputType = TensorList<GPUBackend>;
   static const char name[8];
 };

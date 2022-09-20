@@ -25,7 +25,6 @@
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/data/tensor_vector.h"
 
 namespace dali {
 namespace detail {
@@ -105,8 +104,7 @@ TensorView<detail::storage_tag_map_t<Backend>, T, ndim> view(ConstSampleView<Bac
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
-view(TensorVector<Backend> &data) {
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> view(TensorList<Backend> &data) {
   if (data.num_samples() == 0)
     return {};
   using U = std::remove_const_t<T>;
@@ -122,10 +120,9 @@ view(TensorVector<Backend> &data) {
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
-view(const TensorVector<Backend> &data) {
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> view(const TensorList<Backend> &data) {
   static_assert(std::is_const<T>::value,
-                "Cannot create a non-const view of a `const TensorVector<>`. "
+                "Cannot create a non-const view of a `const TensorList<>`. "
                 "Missing `const` in T?");
   if (data.num_samples() == 0)
     return {};
@@ -142,8 +139,8 @@ view(const TensorVector<Backend> &data) {
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
-reinterpret_view(TensorVector<Backend> &data) {
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> reinterpret_view(
+    TensorList<Backend> &data) {
   if (data.num_samples() == 0)
     return {};
   detail::enforce_dim_in_view<ndim>(data.shape());
@@ -168,10 +165,10 @@ reinterpret_view(TensorVector<Backend> &data) {
 
 
 template <typename T, int ndim = DynamicDimensions, typename Backend>
-TensorListView<detail::storage_tag_map_t<Backend>, T, ndim>
-reinterpret_view(const TensorVector<Backend> &data) {
+TensorListView<detail::storage_tag_map_t<Backend>, T, ndim> reinterpret_view(
+    const TensorList<Backend> &data) {
   static_assert(std::is_const<T>::value,
-                "Cannot create a non-const view of a `const TensorVector<>`. "
+                "Cannot create a non-const view of a `const TensorList<>`. "
                 "Missing `const` in T?");
   if (data.num_samples() == 0)
     return {};

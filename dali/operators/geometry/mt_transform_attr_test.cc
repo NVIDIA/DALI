@@ -145,8 +145,8 @@ TEST(MTTransformAttr, MTVector) {
 TEST(MTTransformAttr, MInputTInput) {
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
-  auto Minp = std::make_shared<TensorVector<CPUBackend>>();
-  auto Tinp = std::make_shared<TensorVector<CPUBackend>>();
+  auto Minp = std::make_shared<TensorList<CPUBackend>>();
+  auto Tinp = std::make_shared<TensorList<CPUBackend>>();
   Minp->set_pinned(false);
   Tinp->set_pinned(false);
   TensorListShape<2> Mtls = {{{ 2, 3 }, { 2, 3 }}};
@@ -186,8 +186,8 @@ TEST(MTTransformAttr, MInputTInput) {
 TEST(MTTransformAttr, MScalarInputTScalarInput) {
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
-  auto Minp = std::make_shared<TensorVector<CPUBackend>>();
-  auto Tinp = std::make_shared<TensorVector<CPUBackend>>();
+  auto Minp = std::make_shared<TensorList<CPUBackend>>();
+  auto Tinp = std::make_shared<TensorList<CPUBackend>>();
   Minp->set_pinned(false);
   Tinp->set_pinned(false);
 
@@ -227,7 +227,7 @@ TEST(MTTransformAttr, MScalarInputTScalarInput) {
 TEST(MTTransformAttr, MTInput) {
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
-  auto MTinp = std::make_shared<TensorVector<CPUBackend>>();
+  auto MTinp = std::make_shared<TensorList<CPUBackend>>();
   MTinp->set_pinned(false);
   TensorListShape<> tls = {{{ 2, 3 }, { 2, 3 }}};
   int N = tls.num_samples();;
@@ -302,8 +302,8 @@ TEST(MTTransformAttr, MVectorTScalar_ErrorNotDivisible) {
 TEST(MTTransformAttr, MInputTInput_Error) {
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
-  auto Minp = std::make_shared<TensorVector<CPUBackend>>();
-  auto Tinp = std::make_shared<TensorVector<CPUBackend>>();
+  auto Minp = std::make_shared<TensorList<CPUBackend>>();
+  auto Tinp = std::make_shared<TensorList<CPUBackend>>();
   Minp->set_pinned(false);
   Tinp->set_pinned(false);
   TensorListShape<2> Mtls = {{{ 2, 3 }, { 2, 3 }}};
@@ -336,7 +336,7 @@ TEST(MTTransformAttr, MInputTInput_Error) {
 TEST(MTTransformAttr, MTInput_ErrorSize) {
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
-  auto MTinp = std::make_shared<TensorVector<CPUBackend>>();
+  auto MTinp = std::make_shared<TensorList<CPUBackend>>();
   MTinp->set_pinned(false);
   TensorListShape<> tls = {{{ 2, 3 }, { 2, 3 }}};
   int N = tls.num_samples();;
@@ -357,7 +357,7 @@ TEST(MTTransformAttr, MTInput_ErrorSize) {
 TEST(MTTransformAttr, MInput_ZeroRows) {
   OpSpec spec("MTTransformAttr");
   ArgumentWorkspace ws;
-  auto MTinp = std::make_shared<TensorVector<CPUBackend>>();
+  auto MTinp = std::make_shared<TensorList<CPUBackend>>();
   MTinp->set_pinned(false);
   TensorListShape<> tls = {{{ 0, 3 }, { 0, 3 }}};
   int N = tls.num_samples();;

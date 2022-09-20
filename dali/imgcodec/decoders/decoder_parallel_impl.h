@@ -116,7 +116,11 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     for (int i = 0; i < in.size(); i++) {
       auto roi = rois.empty() ? no_roi : rois[i];
       ctx.tp->AddWork([=, out = out[i], in = in[i]](int tid) mutable {
-          promise.set(i, DecodeImplTask(tid, out, in, opts, roi));
+          try {
+            promise.set(i, DecodeImplTask(tid, out, in, opts, roi));
+          } catch (...) {
+            promise.set(i, DecodeResult::Failure(std::current_exception()));
+          }
         }, volume(out[i].shape()));
     }
     ctx.tp->RunAll(false);
@@ -136,7 +140,11 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
     for (int i = 0; i < in.size(); i++) {
       auto roi = rois.empty() ? no_roi : rois[i];
       ctx.tp->AddWork([=, out = out[i], in = in[i]](int tid) mutable {
-          promise.set(i, DecodeImplTask(tid, ctx.stream, out, in, opts, roi));
+          try {
+            promise.set(i, DecodeImplTask(tid, ctx.stream, out, in, opts, roi));
+          } catch (...) {
+            promise.set(i, DecodeResult::Failure(std::current_exception()));
+          }
         },
         volume(out[i].shape()));
     }

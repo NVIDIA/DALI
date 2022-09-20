@@ -61,7 +61,7 @@ class Shapes : public Operator<Backend> {
   }
 
   template <typename type>
-  void ConvertShape(TensorVector<CPUBackend> &out, const TensorListShape<> &shape) {
+  void ConvertShape(TensorList<CPUBackend> &out, const TensorListShape<> &shape) {
     int n = out.num_samples();
     assert(n == shape.num_samples());
     for (int i = 0; i < n; i++) {

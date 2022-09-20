@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ struct SubscriptArg {
 
   void Load(const ArgumentWorkspace &ws, int batch_size) {
     if (src == ArgSource::Input) {
-      const TensorVector<CPUBackend> &inp = ws.ArgumentInput(name);
+      const TensorList<CPUBackend> &inp = ws.ArgumentInput(name);
       const auto &shape = inp.shape();
 
       int n = batch_size;
@@ -80,7 +80,7 @@ struct SubscriptArg {
       DALIDataType type_id = inp.type();
       TYPE_SWITCH(type_id, type2id, T, (INTEGER_TYPES), (
         for (int i = 0; i < n; i++) {
-          // TODO(michalz): Add tensor<T> and mutable_tensor<T> to TensorVector?
+          // TODO(michalz): Add tensor<T> and mutable_tensor<T> to TensorList?
           values[i] = ConvertSat<int64_t>(static_cast<const T*>(inp.raw_tensor(i))[0]);
         }
       ), DALI_FAIL(make_string("Array index must be of integral type. Got: ", type_id)));  // NOLINT

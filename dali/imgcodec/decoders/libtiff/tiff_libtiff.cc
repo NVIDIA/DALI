@@ -206,7 +206,7 @@ void DLL_PUBLIC UnpackBits(size_t nbits, OutputType *out, const void *in, size_t
     OutputType result = 0;
     size_t bits_to_read = nbits;
     while (bits_to_read > 0) {
-      if (bits_in_buffer > bits_to_read) {
+      if (bits_in_buffer >= bits_to_read) {
         // If we have enough bits in the buffer, we store them and finish
         result <<= bits_to_read;
         result |= buffer >> (buffer_capacity - bits_to_read);

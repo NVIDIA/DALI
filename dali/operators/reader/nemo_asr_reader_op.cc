@@ -136,7 +136,7 @@ NemoAsrReader::NemoAsrReader(const OpSpec& spec)
 
   prefetched_decoded_audio_.resize(prefetch_queue_depth_);
   for (auto& batch : prefetched_decoded_audio_) {
-    batch = std::make_unique<TensorVector<CPUBackend>>();
+    batch = std::make_unique<TensorList<CPUBackend>>();
     batch->set_pinned(false);
   }
 }
@@ -185,7 +185,7 @@ void NemoAsrReader::Prefetch() {
     for (int i = 0; i < nsamples; i++) {
       auto it = decoded_map_.find(curr_batch[i].get());
       if (it != decoded_map_.end() && it->second != i) {
-        audio_batch.UnsafeCopySample(i, audio_batch, it->second);
+        audio_batch.CopySample(i, audio_batch, it->second);
       }
     }
   }

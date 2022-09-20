@@ -35,12 +35,12 @@ struct Property {
   /**
    * @return The shape of the tensor containing the property, based on the input to the operator.
    */
-  virtual TensorListShape<> GetShape(const TensorVector<Backend>& input) = 0;
+  virtual TensorListShape<> GetShape(const TensorList<Backend>& input) = 0;
 
   /**
    * @return The type of the tensor containing the property, based on the input to the operator.
    */
-  virtual DALIDataType GetType(const TensorVector<Backend>& input) = 0;
+  virtual DALIDataType GetType(const TensorList<Backend>& input) = 0;
 
   /**
    * This function implements filling the output of the operator. Its implementation should
@@ -52,7 +52,7 @@ struct Property {
 
 template <typename Backend>
 struct SourceInfo : public Property<Backend> {
-  TensorListShape<> GetShape(const TensorVector<Backend>& input) override {
+  TensorListShape<> GetShape(const TensorList<Backend>& input) override {
     TensorListShape<> ret{static_cast<int>(input.num_samples()), 1};
     for (int i = 0; i < ret.size(); i++) {
       ret.set_tensor_shape(i, {static_cast<int64_t>(GetSourceInfo(input, i).length())});
@@ -60,14 +60,14 @@ struct SourceInfo : public Property<Backend> {
     return ret;
   }
 
-  DALIDataType GetType(const TensorVector<Backend>&) override {
+  DALIDataType GetType(const TensorList<Backend>&) override {
     return DALI_UINT8;
   }
 
   void FillOutput(workspace_t<Backend>& ws) override;
 
  private:
-  const std::string& GetSourceInfo(const TensorVector<Backend>& input, size_t idx) {
+  const std::string& GetSourceInfo(const TensorList<Backend>& input, size_t idx) {
     return input.GetMeta(idx).GetSourceInfo();
   }
 };
@@ -75,19 +75,19 @@ struct SourceInfo : public Property<Backend> {
 
 template <typename Backend>
 struct Layout : public Property<Backend> {
-  TensorListShape<> GetShape(const TensorVector<Backend>& input) override {
+  TensorListShape<> GetShape(const TensorList<Backend>& input) override {
     // Every tensor in the output has the same number of dimensions
     return uniform_list_shape(input.num_samples(), {GetLayout(input, 0).size()});
   }
 
-  DALIDataType GetType(const TensorVector<Backend>&) override {
+  DALIDataType GetType(const TensorList<Backend>&) override {
     return DALI_UINT8;
   }
 
   void FillOutput(workspace_t<Backend>& ws) override;
 
  private:
-  const TensorLayout& GetLayout(const TensorVector<Backend>& input, int idx) {
+  const TensorLayout& GetLayout(const TensorList<Backend>& input, int idx) {
     return input.GetMeta(idx).GetLayout();
   }
 };

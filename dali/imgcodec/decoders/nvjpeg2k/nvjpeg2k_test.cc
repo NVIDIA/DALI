@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k.h"
@@ -53,9 +54,14 @@ struct ImageBuffer {
 
 const auto img_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg2k");
 const auto ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg2k");
+const auto imgcodec_dir = join(dali::testing::dali_extra_path(), "db/imgcodec/jpeg2k");
 
-const std::vector<std::string> images = {"0/cat-1245673_640", "0/cat-2184682_640",
-                                         "0/cat-300572_640",  "0/cat-3113513_640"};
+const std::vector<std::string> images = {
+  "0/cat-1245673_640",
+  "0/cat-2184682_640",
+  "0/cat-300572_640",
+  "0/cat-3113513_640",
+};
 
 const std::vector<std::pair<std::string, ROI>> roi_images = {
   {"0/cat-1245673_640", {{17, 33}, {276, 489}}},
@@ -64,21 +70,27 @@ const std::vector<std::pair<std::string, ROI>> roi_images = {
   {"2/tiled-cat-3113513_640", {{2, 1}, {200, 600}}},
 };
 
+const char bitdepth_converted_imgname[] = "0/cat-1245673_640";
+
 struct ImageTestingData {
   std::string img_path;
   std::string ref_path;
   ROI roi;
-
-  explicit ImageTestingData(std::string filename)
-  : img_path(join(img_dir, filename) + ".jp2")
-  , ref_path(join(ref_dir, filename) + ".npy")
-  , roi() {}
-
-  explicit ImageTestingData(std::string filename, ROI roi)
-  : img_path(join(img_dir, filename) + ".jp2")
-  , ref_path(join(ref_dir, filename) + "_roi.npy")
-  , roi(roi) {}
 };
+
+ImageTestingData from_regular_file(std::string filename) {
+  return {join(img_dir, filename) + ".jp2", join(ref_dir, filename) + ".npy", {}};
+}
+
+ImageTestingData from_regular_file(std::string filename, ROI roi) {
+  return {join(img_dir, filename) + ".jp2", join(ref_dir, filename) + "_roi.npy", roi};
+}
+
+ImageTestingData from_custom_bitdepth_file(std::string filename, int bpp) {
+  auto imgpath = make_string(join(imgcodec_dir, filename), "-", bpp, "bit.jp2");
+  auto refpath = make_string(join(ref_dir, filename), ".npy");
+  return {imgpath, refpath, {}};
+}
 
 }  // namespace
 
@@ -106,6 +118,7 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
 
  protected:
   static const auto dtype = type2id<OutputType>::value;
+  using Type = OutputType;
 
   std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
     return NvJpeg2000DecoderFactory().Create(this->GetDeviceId());
@@ -121,14 +134,23 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     return opts;
   }
 
-  void RunSingleTest(const ImageTestingData &data) {
+  template<class T, class U>
+  void AssertEqual(const T &img, const U &ref, std::optional<float> eps) {
+    if (eps)
+      this->AssertClose(img, ref, eps.value());
+    else
+      this->AssertEqualSatNorm(img, ref);
+  }
+
+  void RunTest(const ImageTestingData &data, std::optional<float> eps = std::nullopt) {
     ImageBuffer image(data.img_path);
     auto decoded = this->Decode(&image.src, this->GetParams(), data.roi);
     auto ref = this->ReadReferenceFrom(data.ref_path);
-    this->AssertEqualSatNorm(decoded, ref);
+    this->AssertEqual(decoded, ref, eps);
   }
 
-  void RunBatchTest(const std::vector<ImageTestingData> &data) {
+  void RunTest(const std::vector<ImageTestingData> &data,
+               std::optional<float> eps = std::nullopt) {
     size_t batch_size = images.size();
     std::vector<ImageBuffer> imgbufs;
     for (size_t i = 0; i < batch_size; i++)
@@ -144,29 +166,59 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     auto decoded = this->Decode(make_span(in), this->GetParams(), make_span(rois));
     for (size_t i = 0; i < batch_size; i++) {
       auto ref = this->ReadReferenceFrom(data[i].ref_path);
-      this->AssertEqualSatNorm(decoded[i], ref);
+      this->AssertEqual(decoded[i], ref, eps);
     }
   }
 };
 
-using DecodeOutputTypes = ::testing::Types<uint8_t>;
+using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
 TYPED_TEST_SUITE(NvJpeg2000DecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingle) {
   for (const auto &name : images)
-    this->RunSingleTest(ImageTestingData{name});
+    this->RunTest(from_regular_file(name));
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingleRoi) {
   for (const auto &[name, roi] : roi_images)
-    this->RunSingleTest(ImageTestingData{name, roi});
+    this->RunTest(from_regular_file(name, roi));
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeBatchSingleThread) {
   std::vector<ImageTestingData> data;
   for (const auto &name : images)
-    data.emplace_back(name);
-  this->RunBatchTest(data);
+    data.push_back(from_regular_file(name));
+  this->RunTest(data);
+}
+
+TYPED_TEST(NvJpeg2000DecoderTest, 5BitImage) {
+  using OutputType = typename TestFixture::Type;
+  float eps;
+  if (std::is_floating_point_v<OutputType>)
+    eps = 0.07;
+  else if (std::is_same_v<OutputType, uint8_t>)
+    eps = 16.05;
+  else if (std::is_same_v<OutputType, int16_t>)
+    eps = 256 * 16.05;
+  else
+    assert(false);
+
+  this->RunTest(from_custom_bitdepth_file(bitdepth_converted_imgname, 5), eps);
+}
+
+TYPED_TEST(NvJpeg2000DecoderTest, 12BitImage) {
+  using OutputType = typename TestFixture::Type;
+  float eps;
+  if (std::is_floating_point_v<OutputType>)
+    eps = 0.01;
+  else if (std::is_same_v<OutputType, uint8_t>)
+    eps = 1.05;
+  else if (std::is_same_v<OutputType, int16_t>)
+    eps = 128.05;
+  else
+    assert(false);
+
+  this->RunTest(from_custom_bitdepth_file(bitdepth_converted_imgname, 12), eps);
 }
 
 template<class OutputType>
@@ -181,8 +233,8 @@ TYPED_TEST(NvJpeg2000DecoderTestMultithreaded, DecodeBatch) {
   std::vector<ImageTestingData> data;
   for (int i = 0; i < copies_cnt; i++)
     for (const auto &name : images)
-      data.emplace_back(name);
-  this->RunBatchTest(data);
+      data.push_back(from_regular_file(name));
+  this->RunTest(data);
 }
 
 TYPED_TEST(NvJpeg2000DecoderTestMultithreaded, DecodeBatchRoi) {
@@ -190,8 +242,8 @@ TYPED_TEST(NvJpeg2000DecoderTestMultithreaded, DecodeBatchRoi) {
   std::vector<ImageTestingData> data;
   for (int i = 0; i < copies_cnt; i++)
     for (const auto &[name, roi] : roi_images)
-      data.emplace_back(name, roi);
-  this->RunBatchTest(data);
+      data.push_back(from_regular_file(name, roi));
+  this->RunTest(data);
 }
 
 }  // namespace test
