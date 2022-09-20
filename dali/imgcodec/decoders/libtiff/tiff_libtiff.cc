@@ -120,6 +120,7 @@ struct TiffInfo {
   bool is_tiled;
   bool is_palette;
   bool is_planar;
+  uint32_t tile_width, tile_height;
 };
 
 TiffInfo GetTiffInfo(TIFF *tiffptr) {
@@ -135,6 +136,14 @@ TiffInfo GetTiffInfo(TIFF *tiffptr) {
   LIBTIFF_CALL(TIFFGetFieldDefaulted(tiffptr, TIFFTAG_FILLORDER, &info.fill_order));
 
   info.is_tiled = TIFFIsTiled(tiffptr);
+  if (info.is_tiled) {
+    LIBTIFF_CALL(TIFFGetField(tiffptr, TIFFTAG_TILEWIDTH, &info.tile_width));
+    LIBTIFF_CALL(TIFFGetField(tiffptr, TIFFTAG_TILELENGTH, &info.tile_height));
+  } else {
+    // We will be reading data line-by-line and pretend that lines are tiles
+    info.tile_width = info.image_width;
+    info.tile_height = 1;
+  }
 
   if (TIFFGetField(tiffptr, TIFFTAG_PHOTOMETRIC, &info.photometric)) {
     info.is_palette = (info.photometric == PHOTOMETRIC_PALETTE);
@@ -251,9 +260,17 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
   if (info.is_palette)
     return {false, make_exception_ptr(std::logic_error("Palette images are not yet supported"))};
 
-  // TODO(skarpinski) Support tiled images
-  if (info.is_tiled)
-    return {false, make_exception_ptr(std::logic_error("Tiled images are not yet supported"))};
+  if (info.is_tiled && (info.tile_width % 16 != 0 || info.tile_height % 16 != 0)) {
+    // http://www.libtiff.org/libtiff.html
+    // (...) tile width and length must each be a multiple of 16 pixels
+    return {false, make_exception_ptr(std::logic_error(
+                      make_string("TIFF tile dimensions must be a multiple of 16")))};
+  }
+
+  if (info.is_tiled && (info.bit_depth != 8 && info.bit_depth != 16 && info.bit_depth != 32)) {
+    return {false, make_exception_ptr(std::logic_error(
+                      make_string("Unsupported bit depth in tiled TIFF: ", info.bit_depth)))};
+  }
 
   // Other fill orders are rare and discouraged by TIFF specification, but can happen
   if (info.fill_order != FILLORDER_MSB2LSB)
@@ -261,9 +278,15 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
 
   unsigned out_channels = NumberOfChannels(opts.format, info.channels);
 
-  auto row_nbytes = TIFFScanlineSize(tiff.get());
-  std::unique_ptr<void, void(*)(void*)> row_buf{_TIFFmalloc(row_nbytes), _TIFFfree};
-  DALI_ENFORCE(row_buf.get() != nullptr, "Could not allocate memory");
+  size_t buf_nbytes;
+  if (!info.is_tiled) {
+    buf_nbytes = TIFFScanlineSize(tiff.get());
+  } else {
+    buf_nbytes = TIFFTileSize(tiff.get());
+  }
+
+  std::unique_ptr<void, void(*)(void*)> buf{_TIFFmalloc(buf_nbytes), _TIFFfree};
+  DALI_ENFORCE(buf.get() != nullptr, "Could not allocate memory");
 
   ROI roi;
   if (!requested_roi.use_roi()) {
@@ -273,21 +296,23 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
     roi = requested_roi;
   }
 
-  // Need to read sequentially since not all the images support random access
-  // From: http://www.libtiff.org/man/TIFFReadScanline.3t.html
-  // Compression algorithm does not support random access. Data was requested in a non-sequential
-  // order from a file that uses a compression algorithm and that has RowsPerStrip greater than one.
-  // That is, data in the image is stored in a compressed form, and with multiple rows packed into a
-  // strip. In this case, the library does not support random access to the data. The data should
-  // either be accessed sequentially, or the file should be converted so that each strip is made up
-  // of one row of data.
-  const bool allow_random_row_access = (info.compression == COMPRESSION_NONE
-                                        || info.rows_per_strip == 1);
+  if (!info.is_tiled) {
+    // Need to read sequentially since not all the images support random access
+    // From: http://www.libtiff.org/man/TIFFReadScanline.3t.html
+    // Compression algorithm does not support random access. Data was requested in a non-sequential
+    // order from a file that uses a compression algorithm and that has RowsPerStrip greater than
+    // one. That is, data in the image is stored in a compressed form, and with multiple rows packed
+    // into a strip. In this case, the library does not support random access to the data. The data
+    // should either be accessed sequentially, or the file should be converted so that each strip is
+    // made up of one row of data.
+    const bool allow_random_row_access = (info.compression == COMPRESSION_NONE
+                                          || info.rows_per_strip == 1);
 
-  // If random access is not allowed, need to read sequentially all previous rows
-  if (!allow_random_row_access) {
-    for (int64_t y = 0; y < roi.begin[0]; y++) {
-      LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), y, 0));
+    // If random access is not allowed, need to read sequentially all previous rows
+    if (!allow_random_row_access) {
+      for (int64_t y = 0; y < roi.begin[0]; y++) {
+        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), buf.get(), y, 0));
+      }
     }
   }
 
@@ -301,10 +326,10 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
   else
     in_format = DALI_ANY_DATA;
 
-  TensorShape<> in_line_shape = {roi.shape()[1], info.channels};
-  TensorShape<> in_line_strides = kernels::GetStrides(in_line_shape);
-  TensorShape<> out_line_shape = {roi.shape()[1], out_channels};
-  TensorShape<> out_line_strides = kernels::GetStrides(out_line_shape);
+  TensorShape<> img_shape = {roi.shape()[0], roi.shape()[1], out_channels};
+  TensorShape<> img_strides = kernels::GetStrides(img_shape);
+  TensorShape<> tile_shape = {info.tile_height, info.tile_width, info.channels};
+  TensorShape<> tile_strides = kernels::GetStrides(tile_shape);
 
   // We choose smallest possible type
   size_t in_type_bits = 0;
@@ -319,23 +344,53 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
       using InputType = detail::depth2type<InTypeBits>::type;
 
       kernels::DynamicScratchpad scratchpad;
-      InputType *row_in;
+      InputType *in;
       if (info.bit_depth == InTypeBits) {
-        row_in = static_cast<InputType *>(row_buf.get());
+        in = static_cast<InputType *>(buf.get());
       } else {
-        row_in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
-                  volume(in_line_shape) * sizeof(InputType), sizeof(InputType)));
+        in = static_cast<InputType*>(scratchpad.Alloc(mm::memory_kind_id::host,
+                  volume(tile_shape) * sizeof(InputType), sizeof(InputType)));
       }
 
       OutType *const img_out = out.mutable_data<OutType>();
-      for (int64_t roi_y = 0; roi_y < roi.shape()[0]; roi_y++) {
-        LIBTIFF_CALL(TIFFReadScanline(tiff.get(), row_buf.get(), roi.begin[0] + roi_y, 0));
-        if (info.bit_depth != InTypeBits) {
-          detail::UnpackBits(info.bit_depth, row_in, row_buf.get(), volume(in_line_shape));
+
+      // For non-tiled TIFFs first_tile_x is always 0, because the scanline spans the whole image.
+      int64_t first_tile_y = roi.begin[0] - roi.begin[0] % info.tile_height;
+      int64_t first_tile_x = roi.begin[1] - roi.begin[1] % info.tile_width;
+
+      for (int64_t tile_y = first_tile_y; tile_y < roi.end[0]; tile_y += info.tile_height) {
+        for (int64_t tile_x = first_tile_x; tile_x < roi.end[1]; tile_x += info.tile_width) {
+          TensorShape<> tile_begin = {tile_y, tile_x};
+          TensorShape<> tile_end = {tile_y + info.tile_height, tile_x + info.tile_width};
+
+          tile_begin[0] = std::max(tile_begin[0], roi.begin[0]);
+          tile_begin[1] = std::max(tile_begin[1], roi.begin[1]);
+          tile_end[0] = std::min(tile_end[0], roi.end[0]);
+          tile_end[1] = std::min(tile_end[1], roi.end[1]);
+
+          TensorShape<> out_shape = {tile_end[0] - tile_begin[0], tile_end[1] - tile_begin[1],
+                                     out_channels};
+
+          if (info.is_tiled) {
+            DALI_ENFORCE(TIFFReadTile(tiff.get(), buf.get(), tile_x, tile_y, 0, 0) > 0,
+                         "TIFFReadTile failed");
+          } else {
+            LIBTIFF_CALL(TIFFReadScanline(tiff.get(), buf.get(), tile_y, 0));
+          }
+
+          if (info.bit_depth != InTypeBits) {
+            detail::UnpackBits(info.bit_depth, in, buf.get(), volume(tile_shape));
+          }
+
+          OutType *out_ptr = img_out + (tile_begin[0] - roi.begin[0]) * img_strides[0]
+                                     + (tile_begin[1] - roi.begin[1]) * img_strides[1];
+          const InputType *in_ptr = in + (tile_begin[0] - tile_y) * tile_strides[0]
+                                       + (tile_begin[1] - tile_x) * tile_strides[1];
+
+          Convert(out_ptr, img_strides.data(), 2, opts.format,
+                  in_ptr, tile_strides.data(), 2, in_format,
+                  out_shape.data(), 3);
         }
-        Convert(img_out + (roi_y * out_row_stride), out_line_strides.data(), 1, opts.format,
-                row_in + roi.begin[1] * info.channels, in_line_strides.data(), 1, in_format,
-                out_line_shape.data(), 2);  // ndim = 2 because we convert a single row
       }
     ), DALI_FAIL(make_string("Unsupported bit depth: ", info.bit_depth)););  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
