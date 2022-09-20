@@ -246,7 +246,7 @@ DecodeResult LibTiffDecoderInstance::Decode(DecodeContext ctx,
   if (info.is_palette)
     return {false, make_exception_ptr(std::logic_error("Palette images are not yet supported"))};
 
-  if (info.is_tiled && info.tile_width % 16 != 0 && info.tile_height % 16 != 0) {
+  if (info.is_tiled && (info.tile_width % 16 != 0 || info.tile_height % 16 != 0)) {
     // http://www.libtiff.org/libtiff.html
     // (...) tile width and length must each be a multiple of 16 pixels
     return {false, make_exception_ptr(std::logic_error(
