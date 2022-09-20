@@ -50,10 +50,10 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   if (roi.begin.empty())
     roi.begin.resize(spatial_ndim);
 
-  if (roi.end.empty()) {
-    roi.end = detail::RemoveDim(out_shape, out_channel_dim);
-  }
   auto out_shape_no_channel = detail::RemoveDim(out_shape, out_channel_dim);
+  if (roi.end.empty()) {
+    roi.end = out_shape_no_channel;
+  }
   for (int d = 0; d < spatial_ndim; d++) {
     if (roi.end[d] - roi.begin[d] != out_shape_no_channel[d])
       throw std::logic_error("The requested ROI size does not match the output size");
