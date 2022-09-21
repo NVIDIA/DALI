@@ -105,6 +105,13 @@ DALIIterpType
    :undoc-members:
    :exclude-members: name
 
+DALIBorderMode
+^^^^^^^^^^^^^
+.. autoenum:: DALIBorderMode
+   :members:
+   :undoc-members:
+   :exclude-members: name
+
 DALIImageType
 ^^^^^^^^^^^^^
 .. autoenum:: DALIImageType

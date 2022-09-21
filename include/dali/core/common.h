@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -112,6 +112,18 @@ enum DALIImageType {
   DALI_ANY_DATA     = 4
 };
 
+/**
+ * @brief Supported border modes
+ */
+enum DALIBorderMode {
+  DALI_BORDER_REFLECT_101 = 0,
+  DALI_BORDER_REFLECT_1001 = 1,
+  DALI_BORDER_WRAP = 2,
+  DALI_BORDER_REPLICATE = 3,
+  DALI_BORDER_FILL = 4,
+  DALI_BORDER_VALID = 5
+};
+
 inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
@@ -183,6 +195,25 @@ inline std::string to_string(const DALIImageType& im_type) {
       return "GRAY";
     case DALI_YCbCr:
       return "YCbCr";
+    default:
+      return "<unknown>";
+  }
+}
+
+inline std::string to_string(const DALIBorderMode& border_mode) {
+  switch (border_mode) {
+    case DALI_BORDER_REFLECT_101:
+      return "BORDER_REFLECT_101";
+    case DALI_BORDER_REFLECT_1001:
+      return "BORDER_REFLECT_1001";
+    case DALI_BORDER_WRAP:
+      return "BORDER_WRAP";
+    case DALI_BORDER_REPLICATE:
+      return "BORDER_REPLICATE";
+    case DALI_BORDER_FILL:
+      return "BORDER_FILL";
+    case DALI_BORDER_VALID:
+      return "BORDER_VALID";
     default:
       return "<unknown>";
   }
