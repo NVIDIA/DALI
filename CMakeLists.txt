@@ -407,14 +407,14 @@ add_library(DALI::dali_core ALIAS dali_core)
 target_include_directories(dali_core PUBLIC
   $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
   $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
-set_property(TARGET dali_core PROPERTY VERSION ${DALI_VERSION})
+#set_property(TARGET dali_core PROPERTY VERSION ${DALI_VERSION})
 
 if (BUILD_DALI_KERNELS)
   add_library(DALI::dali_kernels ALIAS dali_kernels)
   target_include_directories(dali_kernels PUBLIC
   $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
   $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
-  set_property(TARGET dali_kernels PROPERTY VERSION ${DALI_VERSION})
+  #set_property(TARGET dali_kernels PROPERTY VERSION ${DALI_VERSION})
 endif()
 
 if (BUILD_DALI_PIPELINE)
@@ -422,7 +422,7 @@ if (BUILD_DALI_PIPELINE)
   target_include_directories(dali PUBLIC
   $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
   $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
-  set_property(TARGET dali PROPERTY VERSION ${DALI_VERSION})
+  #set_property(TARGET dali PROPERTY VERSION ${DALI_VERSION})
 endif()
 
 if (BUILD_DALI_OPERATORS)
@@ -430,7 +430,7 @@ if (BUILD_DALI_OPERATORS)
   target_include_directories(dali_operators PUBLIC
     $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
     $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
-  set_property(TARGET dali_operators PROPERTY VERSION ${DALI_VERSION})
+  #set_property(TARGET dali_operators PROPERTY VERSION ${DALI_VERSION})
 endif()
 
 if (BUILD_DALI_IMGCODEC)
@@ -438,7 +438,7 @@ if (BUILD_DALI_IMGCODEC)
   target_include_directories(dali_imgcodec PUBLIC
     $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
     $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
-  set_property(TARGET dali_imgcodec PROPERTY VERSION ${DALI_VERSION})
+  #set_property(TARGET dali_imgcodec PROPERTY VERSION ${DALI_VERSION})
 endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake")
