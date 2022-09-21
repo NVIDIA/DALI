@@ -77,7 +77,8 @@ DALI in action::
   
   
   train_data = DALIGenericIterator(
-      [get_dali_pipeline(batch_size=16)], ['data', 'label'],
+      [get_dali_pipeline(batch_size=16)],
+      ['data', 'label'],
       reader_name='Reader'
   )
   
