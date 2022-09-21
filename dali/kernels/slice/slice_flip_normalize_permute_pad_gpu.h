@@ -149,25 +149,26 @@ class SliceFlipNormalizePermutePadGpu {
 
   bool CanCollapseLastDim(detail::SampleDesc<Dims> &sample_desc, int last_dim) {
     // We fuse the last dimension with the previous IF:
-    // 1. There are at least 2 dimensions
-    // 2. Last dimension is not sliced/padded/permuted
-    //    - if out_stride[last_dim] == abs(in_stride[last_dim]), then it is not permuted
-    //    - if anchor[last_dim] == 0 && out_shape[last_dim] == in_shape[last_dim],
-    //      then it is not sliced/padded
-    // 3. Neither of the two dimensions to be merged are the channel dimension
-    // 4. The in_strides of the last dimension and the former one align
-    //    - in_strides[last_dim] * in_shape[last_dim] == in_strides[last_dim - 1]
-    //      (this check also makes sure that we collapse dims that have the same sign of strides
-    //       meaning we can merge two dimensions if they are either not flipped or both of them
-    //       are)
-    return last_dim > 0 &&
-           sample_desc.out_strides[last_dim] ==
-               static_cast<uint64_t>(abs(sample_desc.in_strides[last_dim])) &&
-           sample_desc.anchor[last_dim] == 0 &&
-           sample_desc.out_shape[last_dim] == sample_desc.in_shape[last_dim] &&
-           sample_desc.channel_dim != last_dim && sample_desc.channel_dim != (last_dim - 1) &&
-           sample_desc.in_strides[last_dim] * sample_desc.in_shape[last_dim] ==
-               sample_desc.in_strides[last_dim - 1];
+    // There are at least 2 dimensions
+    bool at_least_2_dims = last_dim > 0;
+    // Last dimension is not sliced/padded/permuted
+    // if out_stride[last_dim] == abs(in_stride[last_dim]), then it is not permuted
+    // if anchor[last_dim] == 0 && out_shape[last_dim] == in_shape[last_dim],
+    // then it is not sliced/padded
+    bool no_permute = sample_desc.out_strides[last_dim] ==
+                      static_cast<uint64_t>(abs(sample_desc.in_strides[last_dim]));
+    bool no_sliced_or_pad = sample_desc.anchor[last_dim] == 0 &&
+                            sample_desc.out_shape[last_dim] == sample_desc.in_shape[last_dim];
+    // Neither of the two dimensions to be merged are the channel dimension
+    bool no_channel_dim =
+        sample_desc.channel_dim != last_dim && sample_desc.channel_dim != (last_dim - 1);
+    // The in_strides of the last dimension and the former one align
+    // in_strides[last_dim] * in_shape[last_dim] == in_strides[last_dim - 1]
+    // (this check also makes sure that we collapse dims that have the same sign of strides
+    // meaning we can merge two dimensions if they are either not flipped or both of them are)
+    bool can_collapse = sample_desc.in_strides[last_dim] * sample_desc.in_shape[last_dim] ==
+                        sample_desc.in_strides[last_dim - 1];
+    return at_least_2_dims && no_permute && no_sliced_or_pad && no_channel_dim && can_collapse;
   }
 
   void Run(KernelContext &context,
