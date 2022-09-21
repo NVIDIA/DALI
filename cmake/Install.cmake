@@ -50,7 +50,8 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
         COMPONENT Devel
         DESTINATION include
         FILES_MATCHING
-          PATTERN "*.h")
+          PATTERN "*.h"
+          PATTERN "*.hpp")
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/dali
         COMPONENT Devel-Private
