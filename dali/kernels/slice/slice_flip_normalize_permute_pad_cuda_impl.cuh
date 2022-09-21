@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_e
  * @remarks `in` refers to the slice anchor start
  */
 template <bool NeedFlip, bool NeedNormalize, bool NeedPad, int Dims,
-          typename Out, typename In, bool AllDims = true>
+          typename Out, typename In>
 __device__ void SliceFlipNormalizePermutePadFunc(
     Out *__restrict__ out, const In *__restrict__ in,
     const fast_div<uint64_t> *out_strides, const int64_t *in_strides, const int64_t *out_shape,
@@ -81,7 +81,7 @@ __device__ void SliceFlipNormalizePermutePadFunc(
     int effective_ndim, uint64_t offset, uint64_t block_end) {
   if (Dims > effective_ndim) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFlipNormalizePermutePadFunc<NeedFlip, NeedNormalize, NeedPad, NextDims, Out, In, false>(
+    SliceFlipNormalizePermutePadFunc<NeedFlip, NeedNormalize, NeedPad, NextDims, Out, In>(
         out, in, out_strides, in_strides, out_shape, in_shape, anchor, fill_values, norm_add,
         norm_mul, channel_dim, effective_ndim, offset, block_end);
     return;
@@ -113,7 +113,7 @@ __device__ void SliceFlipNormalizePermutePadFunc(
 
     constexpr int d = Dims - 1;
     i_d = idx;  // out_strides[d] is treated as 1
-    if (AllDims && d == channel_dim)
+    if (d == channel_dim)
       i_c = i_d;
 
     if (NeedPad) {
@@ -122,9 +122,7 @@ __device__ void SliceFlipNormalizePermutePadFunc(
       out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
     }
 
-    // in_strides[d] to be used if AllDims = false (potentially permuting dims)
-    // Not used (in purpose) when fusing dimensions
-    in_idx += AllDims ? i_d * in_strides[d] : i_d;
+    in_idx += i_d * in_strides[d];  // abs(in_strides[d]) is 1 but we care about the sign
 
     if (NeedPad && out_of_bounds) {
       out[out_idx] = fill_values[i_c];
