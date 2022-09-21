@@ -19,7 +19,6 @@ import os
 import random
 from functools import partial
 from nvidia.dali.pipeline import Pipeline
-import nose_utils
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
