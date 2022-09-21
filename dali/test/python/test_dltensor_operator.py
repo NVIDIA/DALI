@@ -19,6 +19,7 @@ import os
 import random
 from functools import partial
 from nvidia.dali.pipeline import Pipeline
+import nose_utils
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -92,7 +93,7 @@ class CommonPipeline(Pipeline):
                          exec_async=False, exec_pipelined=False)
         self.input = ops.readers.File(file_root=images_dir)
         self.decode = ops.decoders.Image(device='mixed' if device == 'gpu' else 'cpu',
-                                         output_type=types.RGB)
+                                         output_type=types.RGB, hw_decoder_load=0)
         self.resize = ops.Resize(resize_x=400, resize_y=400, device=device)
         self.flip = ops.Flip(device=device)
 
