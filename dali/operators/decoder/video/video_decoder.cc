@@ -58,8 +58,8 @@ DALI_SCHEMA(experimental__decoders__Video)
         R"code(Decodes a video file from a memory buffer (e.g. provided by external source).
 
 The video streams can be in most of the container file formats. FFmpeg is used to parse video
- containers and returns a batch of sequences of sequence_length frames with shape (N, F, H, W, C),
- where N is the batch size, and F is the number of frames).)code")
+ containers and returns a batch of sequences of frames with shape (F, H, W, C) where F is the
+ number of frames in a sequence and can differ for each sample.)code")
     .NumInput(1)
     .NumOutput(1)
     .InputDox(0, "data", "TensorList", "Data buffer with a loaded video file.");
