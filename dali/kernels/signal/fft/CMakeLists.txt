@@ -39,6 +39,7 @@ if (WITH_DYNAMIC_CUDA_TOOLKIT)
 
     set_source_files_properties(${CUFFT_GENERATED_STUB} PROPERTIES GENERATED TRUE)
     add_library(dynlink_cufft STATIC cufft_wrap.cc ${CUFFT_GENERATED_STUB})
+    target_include_directories(dynlink_cufft PRIVATE ${DALI_BUILD_INC_DIRS})
 endif()
 
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)

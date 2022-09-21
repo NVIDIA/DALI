@@ -47,3 +47,4 @@ set_source_files_properties(${NVCUVID_GENERATED_STUB} PROPERTIES GENERATED TRUE)
 
 # create a obj lib which need to be linked latter with the target
 add_library(NVCUVID_GEN OBJECT ${NVCUVID_GENERATED_STUB})
+target_include_directories(NVCUVID_GEN PRIVATE ${DALI_BUILD_INC_DIRS})

@@ -82,6 +82,7 @@ if(BUILD_NVML)
   else()
     add_library(dynlink_nvml STATIC nvml_wrap.cc nvml.cc)
   endif()
+  target_include_directories(dynlink_nvml PRIVATE ${DALI_BUILD_INC_DIRS})
 endif()
 
 set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)

@@ -19,6 +19,8 @@ include(CheckCXXSymbolExists)
 include(CheckCXXCompilerFlag)
 include(CMakeDependentOption)
 
+include(GNUInstallDirs)
+
 include(cmake/Utils.cmake)
 include(cmake/CUDA_utils.cmake)
 
@@ -30,6 +32,9 @@ project(DALI CUDA CXX C)
 
 set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
+
+set(DALI_INC_DIR ${CMAKE_INSTALL_INCLUDEDIR} CACHE STRING
+    "Installation directory for include files, a relative path that will be joined with ${CMAKE_INSTALL_PREFIX} or an absolute path.")
 
 parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
 
@@ -376,17 +381,19 @@ endif()
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options \"-fvisibility=hidden -Wno-free-nonheap-object\" --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
 
-# Include directories
-include_directories(
-  "${PROJECT_SOURCE_DIR}"
-  "${PROJECT_SOURCE_DIR}/include"
-  "${PROJECT_BINARY_DIR}")
 
 add_custom_target("check")
 add_custom_target("check-gtest")
 add_dependencies("check" "check-gtest")
 
 CUDA_move_toolkit_include_dirs_to_end()
+
+# Include directories
+set(DALI_BUILD_INC_DIRS
+   ""
+   ${PROJECT_SOURCE_DIR}
+   ${PROJECT_SOURCE_DIR}/include
+   ${PROJECT_BINARY_DIR})
 
 # Project build
 add_subdirectory(dali)
@@ -396,22 +403,42 @@ file(WRITE ${CMAKE_BINARY_DIR}/dali/__init__.py "")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/lint.cmake)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake)
-
 add_library(DALI::dali_core ALIAS dali_core)
+target_include_directories(dali_core PUBLIC
+  $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
+  $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
+set_property(TARGET dali_core PROPERTY VERSION ${DALI_VERSION})
 
 if (BUILD_DALI_KERNELS)
   add_library(DALI::dali_kernels ALIAS dali_kernels)
+  target_include_directories(dali_kernels PUBLIC
+  $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
+  $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
+  set_property(TARGET dali_kernels PROPERTY VERSION ${DALI_VERSION})
 endif()
 
 if (BUILD_DALI_PIPELINE)
   add_library(DALI::dali ALIAS dali)
+  target_include_directories(dali PUBLIC
+  $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
+  $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
+  set_property(TARGET dali PROPERTY VERSION ${DALI_VERSION})
 endif()
 
 if (BUILD_DALI_OPERATORS)
   add_library(DALI::dali_operators ALIAS dali_operators)
+  target_include_directories(dali_operators PUBLIC
+    $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
+    $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
+  set_property(TARGET dali_operators PROPERTY VERSION ${DALI_VERSION})
 endif()
 
 if (BUILD_DALI_IMGCODEC)
   add_library(DALI::dali_imgcodec ALIAS dali_imgcodec)
+  target_include_directories(dali_imgcodec PUBLIC
+    $<BUILD_INTERFACE:${DALI_BUILD_INC_DIRS}>
+    $<INSTALL_INTERFACE:${DALI_INC_DIR}>)
+  set_property(TARGET dali_imgcodec PROPERTY VERSION ${DALI_VERSION})
 endif()
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Install.cmake")

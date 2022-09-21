@@ -43,6 +43,7 @@ if (WITH_DYNAMIC_CUDA_TOOLKIT)
 
     set_source_files_properties(${NPP_GENERATED_STUB} PROPERTIES GENERATED TRUE)
     add_library(dynlink_npp STATIC npp_wrap.cc ${NPP_GENERATED_STUB})
+    target_include_directories(dynlink_npp PRIVATE ${DALI_BUILD_INC_DIRS})
 endif()
 
 list(FILTER DALI_OPERATOR_SRCS EXCLUDE REGEX ".*npp_wrap.cc")

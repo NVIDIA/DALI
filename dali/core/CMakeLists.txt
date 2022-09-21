@@ -51,6 +51,7 @@ if (NOT LINK_DRIVER)
 else()
   add_library(dynlink_cuda STATIC dynlink_cuda.cc)
 endif()
+target_include_directories(dynlink_cuda PRIVATE ${DALI_BUILD_INC_DIRS})
 
 list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cuda.cc")
 
@@ -72,6 +73,7 @@ if (BUILD_CUFILE)
 
   set_source_files_properties(${CUFILE_GENERATED_STUB} PROPERTIES GENERATED TRUE)
   add_library(dynlink_cufile STATIC dynlink_cufile.cc ${CUFILE_GENERATED_STUB})
+  target_include_directories(dynlink_cufile PRIVATE ${DALI_BUILD_INC_DIRS})
 endif()
 
 list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cufile.cc")
