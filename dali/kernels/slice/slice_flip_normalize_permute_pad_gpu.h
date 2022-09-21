@@ -226,7 +226,7 @@ class SliceFlipNormalizePermutePadGpu {
       //    - if out_stride[last_dim] == in_stride[last_dim], then it is not permuted
       //    - if anchor[last_dim] == 0 && out_shape[last_dim] == in_shape[last_dim],
       //      then it is not sliced/padded
-      // 3. Last dimension is not the channel dimension
+      // 3. Neither of the two dimensions to be merged are the channel dimension
       // 4. The in_strides of the last dimension and the former one align
       //    - in_strides[last_dim] * in_shape[last_dim] == in_strides[last_dim - 1]
       int last_dim = Dims - 1;
@@ -236,6 +236,7 @@ class SliceFlipNormalizePermutePadGpu {
              sample_desc.anchor[last_dim] == 0 &&
              sample_desc.out_shape[last_dim] == sample_desc.in_shape[last_dim] &&
              sample_desc.channel_dim != last_dim &&
+             sample_desc.channel_dim != (last_dim-1) &&
              sample_desc.in_strides[last_dim] * sample_desc.in_shape[last_dim] ==
                  sample_desc.in_strides[last_dim - 1]) {
         last_dim--;
