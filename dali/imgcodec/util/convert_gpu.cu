@@ -45,11 +45,9 @@ void LaunchSliceFlipNormalizePermutePad(
   args_container.emplace_back(out_shape, in_shape);
   auto &args = args_container[0];
 
-  bool swap_xy = orientation.rotate % 180 == 90;
-  bool flip_x = orientation.rotate == 90 || orientation.rotate == 180;
-  bool flip_y = orientation.rotate == 180 || orientation.rotate == 270;
-  flip_x ^= orientation.flip_x;
-  flip_y ^= orientation.flip_y;
+  bool swap_xy = orientation.ShouldSwapXYConsideringRotation();
+  bool flip_x = orientation.ShouldFlipXConsideringRotation();
+  bool flip_y = orientation.ShouldFlipYConsideringRotation();
 
   auto adjust_layout_letter = [swap_xy](char c) {
     // if swap_xy is true, this function swaps width and height

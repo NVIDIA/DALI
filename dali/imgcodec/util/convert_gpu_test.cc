@@ -71,7 +71,7 @@ SampleView<GPUBackend> get_gpu_sample_view(kernels::TestTensorList<T> &list) {
   return SampleView<GPUBackend>(tv.data, tv.shape, type2id<T>::value);
 }
 
-// Helper values, to make testing data is more readable
+// Helper values, to make testing data more readable
 const std::vector<float> pixelA = {0.00f, 0.01f, 0.02f};
 const std::vector<float> pixelB = {0.10f, 0.11f, 0.12f};
 const std::vector<float> pixelC = {0.20f, 0.21f, 0.22f};
