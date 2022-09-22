@@ -30,19 +30,6 @@ struct Orientation {
   bool flip_x;
   /// @brief Mirror, vertical
   bool flip_y;
-
-  /// @brief Returns true if rotation swaps X and Y axes (90 or 270 degree)
-  bool ShouldSwapXYConsideringRotation() const {
-    return rotate % 180 == 90;
-  }
-  /// @brief Returns true if X axis should be flipped after potential transposition
-  bool ShouldFlipXConsideringRotation() const {
-    return (rotate == 90 || rotate == 180) ^ flip_x;
-  }
-  /// @brief Returns true if Y axis should be flipped after potential transposition
-  bool ShouldFlipYConsideringRotation() const {
-    return (rotate == 180 || rotate == 270) ^ flip_y;
-  }
 };
 
 enum class ExifOrientation : uint16_t {
