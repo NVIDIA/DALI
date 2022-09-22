@@ -78,7 +78,7 @@ test_body() {
         python -u resnet.py \
         --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
         --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
-        --batch=128 --use_xla --dali_mode="GPU" --log_dir=./
+        --batch=64 --use_xla --dali_mode="GPU" --log_dir=./
 }
 
 pushd ../..
