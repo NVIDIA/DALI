@@ -97,7 +97,8 @@ std::unique_ptr<TIFF, void (*)(TIFF *)> OpenTiff(ImageSource *in) {
     else
       mapproc = nullptr;
 
-    tiffptr = TIFFClientOpen("", "r", reinterpret_cast<thandle_t>(new DecoderHelper(in)),
+    DecoderHelper *helper = new DecoderHelper(in);
+    tiffptr = TIFFClientOpen("", "r", reinterpret_cast<thandle_t>(helper),
                              &DecoderHelper::read,
                              &DecoderHelper::write,
                              &DecoderHelper::seek,
@@ -105,6 +106,7 @@ std::unique_ptr<TIFF, void (*)(TIFF *)> OpenTiff(ImageSource *in) {
                              &DecoderHelper::size,
                              mapproc,
                              /* unmap */ 0);
+    if (!tiffptr) delete helper;
   }
 
   DALI_ENFORCE(tiffptr != nullptr, make_string("Unable to open TIFF image: ", in->SourceInfo()));
