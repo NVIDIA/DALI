@@ -368,7 +368,7 @@ TYPED_TEST(ConvertGPUTest, FlipY) {
   this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {0, false, true});
 }
 
-TYPED_TEST(ConvertGPUTest, TransposeAndRotate) {
+TYPED_TEST(ConvertGPUTest, TransposeAndRotate_PlanarToInterleaved) {
   this->SetInput({
     {
       {0.00f, 0.01f, 0.02f, 0.03f},
