@@ -150,10 +150,9 @@ TYPED_TEST(LibTiffDecoderTest, BatchedAPI) {
   auto src2 = ImageSource::FromFilename(rgb_path2);
   std::vector<ImageSource*> srcs = {&src0, &src1, &src2};
   auto img = this->Decode(make_span(srcs), {this->dtype});
-  this->AssertEqualSatNorm(img[0], ref0);
-  this->AssertEqualSatNorm(img[1], ref1);
-  this->AssertEqualSatNorm(img[2], ref2);
-  AssertEqualSatNorm(img, Crop(ref, roi));
+  AssertEqualSatNorm(img[0], ref0);
+  AssertEqualSatNorm(img[1], ref1);
+  AssertEqualSatNorm(img[2], ref2);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Gray) {

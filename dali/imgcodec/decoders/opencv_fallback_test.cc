@@ -68,7 +68,7 @@ TYPED_TEST(OpenCVFallbackDecodeTest, FromFilename) {
   auto ref = this->ReadReferenceFrom(tiff_rgb_ref_path);
   auto src = ImageSource::FromFilename(tiff_rgb_path);
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(OpenCVFallbackDecodeTest, FromHostMem) {
@@ -78,7 +78,7 @@ TYPED_TEST(OpenCVFallbackDecodeTest, FromHostMem) {
   stream->ReadBytes(data.data(), data.size());
   auto src = ImageSource::FromHostMem(data.data(), data.size());
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(OpenCVFallbackDecodeTest, ROI) {
@@ -88,14 +88,14 @@ TYPED_TEST(OpenCVFallbackDecodeTest, ROI) {
 
   ROI roi = {{13, 17}, {info.shape[0] - 55, info.shape[1] - 10}};
   auto img = this->Decode(&src, {this->dtype}, roi);
-  this->AssertEqualSatNorm(img, this->Crop(ref, roi));
+  AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
 TYPED_TEST(OpenCVFallbackDecodeTest, Gray) {
   auto ref = this->ReadReferenceFrom(tiff_gray_ref_path);
   auto src = ImageSource::FromFilename(tiff_gray_path);
   auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(OpenCVFallbackDecodeTest, GrayToRgb) {
@@ -105,13 +105,13 @@ TYPED_TEST(OpenCVFallbackDecodeTest, GrayToRgb) {
 
   EXPECT_EQ(img.shape, TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
 
-  auto r = this->Crop(img.template to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
-  auto g = this->Crop(img.template to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
-  auto b = this->Crop(img.template to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
+  auto r = Crop(img.template to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
+  auto g = Crop(img.template to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
+  auto b = Crop(img.template to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
 
-  this->AssertEqualSatNorm(r, ref);
-  this->AssertEqualSatNorm(g, ref);
-  this->AssertEqualSatNorm(b, ref);
+  AssertEqualSatNorm(r, ref);
+  AssertEqualSatNorm(g, ref);
+  AssertEqualSatNorm(b, ref);
 }
 
 TYPED_TEST(OpenCVFallbackDecodeTest, BatchedAPI) {
@@ -130,8 +130,8 @@ TYPED_TEST(OpenCVFallbackDecodeTest, BatchedAPI) {
   };
 
   auto img = decode_batched({tiff_rgb_path, tiff_rgb_path});
-  this->AssertEqualSatNorm(img[0], ref);
-  this->AssertEqualSatNorm(img[1], ref);
+  AssertEqualSatNorm(img[0], ref);
+  AssertEqualSatNorm(img[1], ref);
 }
 
 TEST(OpenCVFallbackTest, Factory) {

@@ -130,10 +130,9 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
   ImageBuffer image2(jpeg_image2);
   std::vector<ImageSource*> srcs = {&image0.src, &image1.src, &image2.src};
   auto img = this->Decode(make_span(srcs), this->GetParams());
-  this->AssertEqualSatNorm(img[0], ref0);
-  this->AssertEqualSatNorm(img[1], ref1);
-  this->AssertEqualSatNorm(img[2], ref2);
-  AssertEqualSatNorm(decoded, ref);
+  AssertEqualSatNorm(img[0], ref0);
+  AssertEqualSatNorm(img[1], ref1);
+  AssertEqualSatNorm(img[2], ref2);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
