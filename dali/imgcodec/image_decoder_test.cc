@@ -222,7 +222,7 @@ class ImageDecoderTest : public ::testing::Test {
    * @brief Decodes a batch of images, invoking the batch version of ImageDecoder::Decode
    */
   DecodeBatchOutput<OutputType> Decode(cspan<ImageSource *> in, const DecodeParams &opts = {},
-                                       cspan<ROI> rois = {}) {
+                                       cspan<ROI> rois = {}, bool require_success = true) {
     int n = in.size();
     std::vector<TensorShape<>> shape(n);
 
@@ -230,7 +230,12 @@ class ImageDecoderTest : public ::testing::Test {
     ctx.tp = &tp_;
 
     for (int i = 0; i < n; i++) {
-      EXPECT_TRUE(Decoder().CanDecode(ctx, in[i], opts));
+      bool can_decode = Decoder().CanDecode(ctx, in[i], opts);
+      if (require_success) {
+        EXPECT_TRUE(can_decode);
+      } else if (!can_decode) {
+        continue;
+      }
       ImageInfo info = Decoder().GetInfo(in[i]);
       shape[i] = AdjustToRoi(info.shape, rois.empty() ? ROI{} : rois[i]);
     }
@@ -243,8 +248,9 @@ class ImageDecoderTest : public ::testing::Test {
       for (int i = 0; i < n; i++)
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
       auto res = Decoder().Decode(ctx, make_span(view), in, opts, rois);
-      for (auto decode_result : res)
-        EXPECT_TRUE(decode_result.success);
+      if (require_success)
+        for (auto decode_result : res)
+          EXPECT_TRUE(decode_result.success);
       return {res, tlv};
     } else {  // GPU
       auto tlv = output_.gpu();
@@ -254,8 +260,9 @@ class ImageDecoderTest : public ::testing::Test {
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
       ctx.stream = stream;
       auto res = Decoder().Decode(ctx, make_span(view), in, opts, rois);
-      for (auto decode_result : res)
-        EXPECT_TRUE(decode_result.success);
+      if (require_success)
+        for (auto decode_result : res)
+          EXPECT_TRUE(decode_result.success);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return {res, output_.cpu()};
     }
@@ -413,16 +420,24 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_NoFallback) {
     &jpeg2000_samples[2].image.src,
     &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams());
-  AssertSuccess(out.res);
+  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
+  auto &res = out.res;
   int i = 0;
+  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
+  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
+  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
+  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[1].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[0].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[1].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[2].ref);
+
+  // JPEG2000 for CPU is suported only through OpenCV
+  EXPECT_FALSE(res[i++].success);
+  EXPECT_FALSE(res[i++].success);
+  EXPECT_FALSE(res[i++].success);
+
+  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[2].ref);
 }
 
