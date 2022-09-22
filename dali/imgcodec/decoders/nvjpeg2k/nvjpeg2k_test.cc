@@ -137,16 +137,16 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
   template<class T, class U>
   void AssertEqual(const T &img, const U &ref, std::optional<float> eps) {
     if (eps)
-      this->AssertClose(img, ref, eps.value());
+      AssertClose(img, ref, eps.value());
     else
-      this->AssertEqualSatNorm(img, ref);
+      AssertEqualSatNorm(img, ref);
   }
 
   void RunTest(const ImageTestingData &data, std::optional<float> eps = std::nullopt) {
     ImageBuffer image(data.img_path);
     auto decoded = this->Decode(&image.src, this->GetParams(), data.roi);
     auto ref = this->ReadReferenceFrom(data.ref_path);
-    this->AssertEqual(decoded, ref, eps);
+    AssertEqual(decoded, ref, eps);
   }
 
   void RunTest(const std::vector<ImageTestingData> &data,
@@ -166,7 +166,7 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
     auto decoded = this->Decode(make_span(in), this->GetParams(), make_span(rois));
     for (size_t i = 0; i < batch_size; i++) {
       auto ref = this->ReadReferenceFrom(data[i].ref_path);
-      this->AssertEqual(decoded[i], ref, eps);
+      AssertEqual(decoded[i], ref, eps);
     }
   }
 };
