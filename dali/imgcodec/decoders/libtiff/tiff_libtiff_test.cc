@@ -90,7 +90,7 @@ class LibTiffDecoderBitdepthTest : public LibTiffDecoderTest<float> {
     auto ref = this->ReadReferenceFrom(depth_ref_float_path(depth));
     auto src = ImageSource::FromFilename(depth_path(depth));
     auto img = this->Decode(&src, {DALI_FLOAT});
-    this->AssertClose(img, ref, 0.01);
+    AssertClose(img, ref, 0.01);
   }
 
   void TestDepthRoi(int depth) {
@@ -99,7 +99,7 @@ class LibTiffDecoderBitdepthTest : public LibTiffDecoderTest<float> {
     auto info = this->Parser()->GetInfo(&src);
     ROI roi = {{12, 34}, {info.shape[0] - 56, info.shape[1] - 78}};
     auto img = this->Decode(&src, {DALI_FLOAT}, roi);
-    this->AssertClose(img, this->Crop(ref, roi), 0.01);
+    AssertClose(img, Crop(ref, roi), 0.01);
   }
 };
 
@@ -110,7 +110,7 @@ TYPED_TEST(LibTiffDecoderTest, FromFilename) {
   auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(rgb_path);
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, FromStream) {
@@ -118,7 +118,7 @@ TYPED_TEST(LibTiffDecoderTest, FromStream) {
   auto stream = FileStream::Open(rgb_path, false, false);
   auto src = ImageSource::FromStream(stream.get());
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, FromHostMem) {
@@ -128,7 +128,7 @@ TYPED_TEST(LibTiffDecoderTest, FromHostMem) {
   stream->ReadBytes(data.data(), data.size());
   auto src = ImageSource::FromHostMem(data.data(), data.size());
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, ROI) {
@@ -138,7 +138,7 @@ TYPED_TEST(LibTiffDecoderTest, ROI) {
 
   ROI roi = {{13, 17}, {info.shape[0] - 55, info.shape[1] - 10}};
   auto img = this->Decode(&src, {this->dtype}, roi);
-  this->AssertEqualSatNorm(img, this->Crop(ref, roi));
+  AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
 TYPED_TEST(LibTiffDecoderTest, BatchedAPI) {
@@ -153,13 +153,14 @@ TYPED_TEST(LibTiffDecoderTest, BatchedAPI) {
   this->AssertEqualSatNorm(img[0], ref0);
   this->AssertEqualSatNorm(img[1], ref1);
   this->AssertEqualSatNorm(img[2], ref2);
+  AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
 TYPED_TEST(LibTiffDecoderTest, Gray) {
   auto ref = this->ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(gray_path);
   auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, GrayToRgb) {
@@ -169,41 +170,41 @@ TYPED_TEST(LibTiffDecoderTest, GrayToRgb) {
 
   EXPECT_EQ(img.shape, TensorShape<-1>({ref.shape()[0], ref.shape()[1], 3}));
 
-  auto r = this->Crop(img.template to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
-  auto g = this->Crop(img.template to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
-  auto b = this->Crop(img.template to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
+  auto r = Crop(img.template to_static<3>(), {{0, 0, 0}, {img.shape[0], img.shape[1], 1}});
+  auto g = Crop(img.template to_static<3>(), {{0, 0, 1}, {img.shape[0], img.shape[1], 2}});
+  auto b = Crop(img.template to_static<3>(), {{0, 0, 2}, {img.shape[0], img.shape[1], 3}});
 
-  this->AssertEqualSatNorm(r, ref);
-  this->AssertEqualSatNorm(g, ref);
-  this->AssertEqualSatNorm(b, ref);
+  AssertEqualSatNorm(r, ref);
+  AssertEqualSatNorm(g, ref);
+  AssertEqualSatNorm(b, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, MultichannelToRgb) {
   auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(multichannel_path);
   auto img = this->Decode(&src, {this->dtype, DALI_RGB});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth8) {
   auto ref = this->ReadReferenceFrom(depth_ref_path(8));
   auto src = ImageSource::FromFilename(depth_path(8));
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth16) {
   auto ref = this->ReadReferenceFrom(depth_ref_path(16));
   auto src = ImageSource::FromFilename(depth_path(16));
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, Depth32) {
   auto ref = this->ReadReferenceFrom(depth_ref_path(32));
   auto src = ImageSource::FromFilename(depth_path(32));
   auto img = this->Decode(&src, {this->dtype});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 
@@ -237,7 +238,7 @@ TYPED_TEST(LibTiffDecoderTest, TiledWholeImage) {
   auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(tiled_path);
   auto img = this->Decode(&src, {this->dtype, DALI_RGB});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, TiledRoi) {
@@ -245,7 +246,7 @@ TYPED_TEST(LibTiffDecoderTest, TiledRoi) {
   auto src = ImageSource::FromFilename(tiled_path);
   ROI roi = {{123, 100}, {321, 400}};
   auto img = this->Decode(&src, {this->dtype, DALI_RGB}, roi);
-  this->AssertEqualSatNorm(img, this->Crop(ref, roi));
+  AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
 TYPED_TEST(LibTiffDecoderTest, TiledSmallRoi) {
@@ -253,21 +254,21 @@ TYPED_TEST(LibTiffDecoderTest, TiledSmallRoi) {
   auto src = ImageSource::FromFilename(tiled_path);
   ROI roi = {{3*48+17, 7*16+5}, {3*48+27, 7*16+15}};  // This fits in a single tile
   auto img = this->Decode(&src, {this->dtype, DALI_RGB}, roi);
-  this->AssertEqualSatNorm(img, this->Crop(ref, roi));
+  AssertEqualSatNorm(img, Crop(ref, roi));
 }
 
 TYPED_TEST(LibTiffDecoderTest, TiledOneBigTile) {
   auto ref = this->ReadReferenceFrom(rgb_ref_path);
   auto src = ImageSource::FromFilename(tiled_one_big_tile_path);
   auto img = this->Decode(&src, {this->dtype, DALI_RGB});
-  this->AssertEqualSatNorm(img, ref);
+  AssertEqualSatNorm(img, ref);
 }
 
 TYPED_TEST(LibTiffDecoderTest, TiledRgbToGray) {
   auto ref = this->ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(tiled_path);
   auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
-  this->AssertClose(img, ref, 0.01 * max_value<typename TestFixture::Type>());
+  AssertClose(img, ref, 0.01 * max_value<typename TestFixture::Type>());
 }
 
 }  // namespace test

@@ -118,7 +118,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, Decode) {
   ImageBuffer image(jpeg_image);
   auto decoded = this->Decode(&image.src, this->GetParams());
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
-  this->AssertEqualSatNorm(decoded, ref);
+  AssertEqualSatNorm(decoded, ref);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
@@ -133,13 +133,14 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
   this->AssertEqualSatNorm(img[0], ref0);
   this->AssertEqualSatNorm(img[1], ref1);
   this->AssertEqualSatNorm(img[2], ref2);
+  AssertEqualSatNorm(decoded, ref);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
   ImageBuffer image(jpeg_image);
   auto decoded = this->Decode(&image.src, this->GetParams(), {{5, 20}, {800, 1000}});
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_roi.npy"));
-  this->AssertEqualSatNorm(decoded, ref);
+  AssertEqualSatNorm(decoded, ref);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
@@ -148,7 +149,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
   params.format = DALI_YCbCr;
   auto decoded = this->Decode(&image.src, params);
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
-  this->AssertClose(decoded, ref, this->GetEps());
+  AssertClose(decoded, ref, this->GetEps());
 }
 
 }  // namespace test
