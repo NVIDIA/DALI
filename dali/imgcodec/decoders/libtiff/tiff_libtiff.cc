@@ -51,8 +51,12 @@ class DecoderHelper {
 
   static toff_t seek(thandle_t handle, toff_t offset, int whence) {
     DecoderHelper *helper = reinterpret_cast<DecoderHelper *>(handle);
-    helper->stream_->SeekRead(offset, whence);
-    return helper->stream_->TellRead();
+    try {
+      helper->stream_->SeekRead(offset, whence);
+      return helper->stream_->TellRead();
+    } catch (...) {
+      return -1;
+    }
   }
 
   static int map(thandle_t handle, void **base, toff_t *size) {
