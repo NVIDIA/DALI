@@ -27,6 +27,7 @@
 #include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/image_format.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/imgcodec/util/output_shape.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/views.h"
@@ -253,7 +254,8 @@ class DecoderTestBase : public ::testing::Test {
     EXPECT_TRUE(Decoder()->CanDecode(ctx, src, opts));
 
     ImageInfo info = Parser()->GetInfo(src);
-    auto shape = AdjustToRoi(info.shape, roi);
+    TensorShape<> shape;
+    OutputShape(shape, info, opts, roi);
 
     // Number of channels can be different than input's due to color conversion
     // TODO(skarpinski) Don't assume channel-last layout here
@@ -295,7 +297,7 @@ class DecoderTestBase : public ::testing::Test {
       EXPECT_TRUE(Parser()->CanParse(in[i]));
       EXPECT_TRUE(Decoder()->CanDecode(ctx, in[i], opts));
       ImageInfo info = Parser()->GetInfo(in[i]);
-      shape[i] = AdjustToRoi(info.shape, rois.empty() ? ROI{} : rois[i]);
+      OutputShape(shape[i], info, opts, rois.empty() ? ROI{} : rois[i]);
     }
 
     output_.reshape(TensorListShape{shape});

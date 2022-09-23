@@ -21,6 +21,7 @@
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
 #include "dali/imgcodec/registry.h"
+#include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/imgcodec/util/convert_gpu.h"
 
 namespace dali {
@@ -174,12 +175,16 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, 0, 0, -1, -1));
   }
 
+  auto orientation = opts.use_orientation ? JpegParser().GetInfo(in).orientation : Orientation{};
+  bool is_orientation_adjusted = orientation.rotate || orientation.flip_x || orientation.flip_y;
+
   // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
   // which is different between general color conversion libraries (OpenCV) and
   // what JPEG uses.
   // JPEG files are always using bitdepth 8.
-  bool needs_processing = opts.format == DALI_YCbCr || opts.dtype != DALI_UINT8;
-  auto& intermediate_buffer = ctx.resources.intermediate_buffer;
+  bool needs_processing = opts.format == DALI_YCbCr ||
+                          opts.dtype != DALI_UINT8 ||
+                          is_orientation_adjusted;
 
   try {
     ParseJpegSample(*in, opts, ctx);
@@ -190,6 +195,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     }
 
     // Synchronizing on the acces to immediate_buffer
+    auto& intermediate_buffer = ctx.resources.intermediate_buffer;
     CUDA_CALL(cudaEventSynchronize(ctx.resources.decode_event));
 
     uint8_t* decode_out;
@@ -206,7 +212,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     if (needs_processing) {
       SampleView<GPUBackend> decoded_view(decode_out, ctx.shape, DALI_UINT8);
       DALIImageType decoded_format = ctx.shape[2] == 1 ? DALI_GRAY : DALI_RGB;
-      Convert(out, "HWC", opts.format, decoded_view, "HWC", decoded_format, ctx.resources.stream);
+      Convert(out, "HWC", opts.format, decoded_view, "HWC", decoded_format, ctx.resources.stream, {}, orientation);
     }
   } catch (...) {
     return {false, std::current_exception()};
