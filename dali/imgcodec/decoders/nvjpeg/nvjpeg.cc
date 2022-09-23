@@ -212,7 +212,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     if (needs_processing) {
       SampleView<GPUBackend> decoded_view(decode_out, ctx.shape, DALI_UINT8);
       DALIImageType decoded_format = ctx.shape[2] == 1 ? DALI_GRAY : DALI_RGB;
-      Convert(out, "HWC", opts.format, decoded_view, "HWC", decoded_format, ctx.resources.stream, {}, orientation);
+      Convert(out, "HWC", opts.format, decoded_view, "HWC", decoded_format,
+              ctx.resources.stream, {}, orientation);
     }
   } catch (...) {
     return {false, std::current_exception()};
