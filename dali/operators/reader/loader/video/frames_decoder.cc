@@ -202,11 +202,11 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
       av_state_->codec_->name,
       ". Supported codecs: h264, HEVC."));
   InitAvState();
-  
+
   if (!build_index) {
     return;
   }
-  
+
   BuildIndex();
   DetectVfr();
 }
@@ -215,7 +215,7 @@ void FramesDecoder::BuildIndex() {
   // TODO(awolant): Optimize this function for:
   //  - CFR
   //  - index present in the header
-  
+
   index_ = vector<IndexEntry>();
 
   int last_keyframe = -1;
