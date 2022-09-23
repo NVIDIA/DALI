@@ -38,7 +38,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, any> &params);
   ~NvJpeg2000DecoderInstance();
 
-  using BatchParallelDecoderImpl::DecodeImplTask;
   DecodeResult DecodeImplTask(int thread_idx,
                               cudaStream_t stream,
                               SampleView<GPUBackend> out,
