@@ -187,7 +187,7 @@ class ImageDecoderTest : public ::testing::Test {
   * @brief Decodes an image and returns the result as a CPU tensor.
   */
   DecodeSampleOutput<OutputType> Decode(ImageSource *src, const DecodeParams &opts = {},
-                                        const ROI &roi = {}) {
+                                        const ROI &roi = {}, bool require_success = true) {
     DecodeContext ctx;
     ctx.tp = &tp_;
 
@@ -206,6 +206,8 @@ class ImageDecoderTest : public ::testing::Test {
       auto tv = output_.cpu()[0];
       SampleView<CPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
       DecodeResult decode_result = Decoder().Decode(ctx, view, src, opts, roi);
+      if (require_success)
+        AssertSuccess(decode_result);
       return {decode_result, tv};
     } else {  // GPU
       auto tv = output_.gpu()[0];
@@ -213,6 +215,8 @@ class ImageDecoderTest : public ::testing::Test {
       auto stream_lease = CUDAStreamPool::instance().Get(GetDeviceId());
       ctx.stream = stream_lease;
       auto decode_result = Decoder().Decode(ctx, view, src, opts, roi);
+      if (require_success)
+        AssertSuccess(decode_result);
       CUDA_CALL(cudaStreamSynchronize(ctx.stream));
       return {decode_result, output_.cpu()[0]};
     }
@@ -249,8 +253,7 @@ class ImageDecoderTest : public ::testing::Test {
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
       auto res = Decoder().Decode(ctx, make_span(view), in, opts, rois);
       if (require_success)
-        for (auto decode_result : res)
-          EXPECT_TRUE(decode_result.success);
+        AssertSuccess(res);
       return {res, tlv};
     } else {  // GPU
       auto tlv = output_.gpu();
@@ -261,8 +264,7 @@ class ImageDecoderTest : public ::testing::Test {
       ctx.stream = stream;
       auto res = Decoder().Decode(ctx, make_span(view), in, opts, rois);
       if (require_success)
-        for (auto decode_result : res)
-          EXPECT_TRUE(decode_result.success);
+        AssertSuccess(res);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return {res, output_.cpu()};
     }
@@ -299,6 +301,18 @@ class ImageDecoderTest : public ::testing::Test {
     return ctx;
   }
 
+  void DisableFallback() {
+    // making sure that we don't pick the fallback implementation
+    auto filter = [](ImageDecoderFactory *factory) {
+      if (dynamic_cast<OpenCVDecoderFactory *>(factory) != nullptr) {
+        return false;
+      }
+      return true;
+    };
+    this->SetDecoder(std::make_unique<ImageDecoder>(this->GetDeviceId(), false,
+                                                    std::map<std::string, any>{}, filter));
+  }
+
  private:
   ThreadPool tp_;  // we want the thread pool to outlive the decoder instance
   std::unique_ptr<ImageDecoder> decoder_;
@@ -315,7 +329,6 @@ TYPED_TEST_SUITE(ImageDecoderTest_CPU, DecodeOutputTypes);
 TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG) {
   auto samples = this->GetData("JPEG");
   auto out = this->Decode(&samples[0].image.src, this->GetParams());
-  AssertSuccess(out.res);
   AssertEqualSatNorm(out.view, samples[0].ref);
 }
 
@@ -325,7 +338,6 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG) {
     &samples[0].image.src, &samples[1].image.src, &samples[2].image.src
   };
   auto out = this->Decode(make_span(srcs), this->GetParams());
-  AssertSuccess(out.res);
   for (int i = 0; i < out.view.size(); i++) {
     AssertEqualSatNorm(out.view[i], samples[i].ref);
   }
@@ -334,7 +346,6 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG) {
 TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_TIFF) {
   auto samples = this->GetData("TIFF");
   auto out = this->Decode(&samples[0].image.src, this->GetParams());
-  AssertSuccess(out.res);
   AssertEqualSatNorm(out.view, samples[0].ref);
 }
 
@@ -344,7 +355,6 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF) {
     &samples[0].image.src, &samples[1].image.src, &samples[2].image.src
   };
   auto out = this->Decode(make_span(srcs), this->GetParams());
-  AssertSuccess(out.res);
   for (int i = 0; i < out.view.size(); i++) {
     AssertEqualSatNorm(out.view[i], samples[i].ref);
   }
@@ -353,7 +363,6 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF) {
 TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG2000) {
   auto samples = this->GetData("JPEG2000");
   auto out = this->Decode(&samples[0].image.src, this->GetParams());
-  AssertSuccess(out.res);
   AssertEqualSatNorm(out.view, samples[0].ref);
 }
 
@@ -363,7 +372,6 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG2000) {
     &samples[0].image.src, &samples[1].image.src, &samples[2].image.src
   };
   auto out = this->Decode(make_span(srcs), this->GetParams());
-  AssertSuccess(out.res);
   for (int i = 0; i < out.view.size(); i++) {
     AssertEqualSatNorm(out.view[i], samples[i].ref);
   }
@@ -384,7 +392,6 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_MultiFormat) {
     &jpeg_samples[2].image.src,
   };
   auto out = this->Decode(make_span(srcs), this->GetParams());
-  AssertSuccess(out.res);
   int i = 0;
   AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
   AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
@@ -397,49 +404,92 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_MultiFormat) {
 }
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_NoFallback) {
-  // making sure that we don't pick the fallback implementation
-  auto filter = [](ImageDecoderFactory *factory) {
-    if (dynamic_cast<OpenCVDecoderFactory*>(factory) != nullptr) {
-      return false;
-    }
-    return true;
-  };
-  this->SetDecoder(std::make_unique<ImageDecoder>(this->GetDeviceId(), false,
-                                                  std::map<std::string, any>{}, filter));
+  this->DisableFallback();
   auto jpeg_samples = this->GetData("JPEG");
   auto tiff_samples = this->GetData("TIFF");
-  auto jpeg2000_samples = this->GetData("JPEG2000");
 
   std::vector<ImageSource*> srcs = {
     &jpeg_samples[0].image.src,
     &tiff_samples[1].image.src,
     &tiff_samples[0].image.src,
     &jpeg_samples[1].image.src,
-    &jpeg2000_samples[0].image.src,
-    &jpeg2000_samples[1].image.src,
-    &jpeg2000_samples[2].image.src,
     &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
-  auto &res = out.res;
+  auto out = this->Decode(make_span(srcs), this->GetParams());
   int i = 0;
-  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
-  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
-  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
-  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[1].ref);
-
-  // JPEG2000 for CPU is suported only through OpenCV
-  EXPECT_FALSE(res[i++].success);
-  EXPECT_FALSE(res[i++].success);
-  EXPECT_FALSE(res[i++].success);
-
-  EXPECT_TRUE(res[i].success);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[2].ref);
 }
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_CorruptedData_JPEG) {
+  this->DisableFallback();
+  auto samples = this->GetData("JPEG");
+  auto corrupted_sample =
+      ImageSource::FromHostMem(samples[0].image.src.RawData(), samples[0].image.src.Size() / 10);
+  auto out = this->Decode(&corrupted_sample, this->GetParams(), {}, false);
+  ASSERT_FALSE(out.res.success);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_CorruptedData_TIFF) {
+  this->DisableFallback();
+  auto samples = this->GetData("TIFF");
+
+  std::vector<uint8_t> corrupted_tiff_data(samples[0].image.src.Size());
+  auto *ptr = static_cast<const uint8_t*>(samples[0].image.src.RawData());
+  for (size_t i = 0; i < corrupted_tiff_data.size(); i++) {
+    corrupted_tiff_data[i] = ptr[i];
+  }
+  for (size_t i = 1000; i <= 2000; i++)
+    corrupted_tiff_data[i] = 0x00;
+  auto corrupted_sample =
+      ImageSource::FromHostMem(corrupted_tiff_data.data(), corrupted_tiff_data.size());
+
+  auto out = this->Decode(&corrupted_sample, this->GetParams(), {}, false);
+  ASSERT_FALSE(out.res.success);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_CorruptedData) {
+  this->DisableFallback();
+  auto jpeg_samples = this->GetData("JPEG");
+  auto tiff_samples = this->GetData("TIFF");
+
+  std::vector<uint8_t> corrupted_tiff_data(tiff_samples[0].image.src.Size());
+  // corrupting data
+  {
+    auto *ptr = static_cast<const uint8_t*>(tiff_samples[0].image.src.RawData());
+    for (size_t i = 0; i < corrupted_tiff_data.size(); i++) {
+      corrupted_tiff_data[i] = ptr[i];
+    }
+    ASSERT_GT(tiff_samples[0].image.src.Size(), 2000);
+    for (size_t i = 1000; i < 2000; i++)
+      corrupted_tiff_data[i] = 0x00;
+  }
+  auto tiff_sample1_corrupted =
+      ImageSource::FromHostMem(corrupted_tiff_data.data(), corrupted_tiff_data.size());
+
+  // Truncating the file
+  auto jpeg_sample1_corrupted = ImageSource::FromHostMem(jpeg_samples[1].image.src.RawData(),
+                                                         jpeg_samples[1].image.src.Size() / 10);
+
+  std::vector<ImageSource*> srcs = {
+    &jpeg_samples[0].image.src,
+    &tiff_sample1_corrupted,
+    &tiff_samples[0].image.src,
+    &jpeg_sample1_corrupted,
+    &jpeg_samples[2].image.src,
+  };
+
+  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
+  AssertSuccess(out.res[0]);
+  ASSERT_FALSE(out.res[1].success);
+  AssertSuccess(out.res[2]);
+  ASSERT_FALSE(out.res[3].success);
+  AssertSuccess(out.res[4]);
+}
+
 
 }  // namespace test
 }  // namespace imgcodec

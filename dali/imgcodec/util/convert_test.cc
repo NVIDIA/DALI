@@ -263,7 +263,7 @@ class ConvertLayoutTest : public ConversionTestBase<float> {
     if (roi) {
       ref = Crop(ref, roi);
     }
-    AssertClose(RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout, roi), ref, 0.01f);
+    AssertClose(RunConvert(rgb_path, DALI_RGB, DALI_YCbCr, layout, roi), ref, 0.01);
   }
 
  protected:
