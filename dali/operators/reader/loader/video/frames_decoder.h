@@ -117,12 +117,10 @@ class DLL_PUBLIC FramesDecoder {
   FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true);
 
   /**
-   * @brief Number of frames in the video
+   * @brief Number of frames in the video, if availible.
    * 
    */
-  int64_t NumFrames() const {
-    return av_state_->ctx_->streams[av_state_->stream_id_]->nb_frames;
-  }
+  int64_t NumFrames() const;
 
   /**
    * @brief Width of a video frame in pixels

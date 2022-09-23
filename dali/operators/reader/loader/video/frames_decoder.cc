@@ -84,6 +84,18 @@ const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
   AVCodecID::AV_CODEC_ID_HEVC
 };
 
+int64 FramesDecoder::NumFrames() const {
+    if (index_.has_value()) {
+      return index_.value().size();
+    }
+
+    DALI_ENFORCE(
+      av_state_->ctx_->streams[av_state_->stream_id_]->nb_frames != 0,
+      "NumFrames unavailible in the file metadata.");
+
+    return av_state_->ctx_->streams[av_state_->stream_id_]->nb_frames;
+}
+
 void FramesDecoder::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
   DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
@@ -406,6 +418,7 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   ++next_frame_idx_;
 
   // TODO(awolant): Figure out how to handle this during index building
+  // Or when NumFrames in unavailible
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
   }
@@ -423,6 +436,10 @@ bool FramesDecoder::ReadNextFrame(uint8_t *data, bool copy_to_output) {
 }
 
 const IndexEntry &FramesDecoder::Index(int frame_id) const {
+  if (!index_.has_value()) {
+    DALI_FAIL("Functionality is unavailible when index is not built.");
+  }
+
   return index_.value()[frame_id];
 }
 }  // namespace dali
