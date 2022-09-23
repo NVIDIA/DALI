@@ -126,17 +126,17 @@ struct DecodeBatchOutput {
   TensorListView<StorageCPU, const T> view;
 };
 
-void AssertSuccess(const DecodeResult& res) {
-  ASSERT_TRUE(res.success);
+void ExpectSuccess(const DecodeResult& res) {
+  EXPECT_TRUE(res.success);
   ASSERT_NO_THROW(
     if (res.exception)
       std::rethrow_exception(res.exception);
   );  // NOLINT
 }
 
-void AssertSuccess(const std::vector<DecodeResult>& res) {
+void ExpectSuccess(const std::vector<DecodeResult>& res) {
   for (auto &r : res)
-    AssertSuccess(r);
+    ExpectSuccess(r);
 }
 
 
@@ -207,7 +207,7 @@ class ImageDecoderTest : public ::testing::Test {
       SampleView<CPUBackend> view(tv.data, tv.shape, type2id<OutputType>::value);
       DecodeResult decode_result = Decoder().Decode(ctx, view, src, opts, roi);
       if (require_success)
-        AssertSuccess(decode_result);
+        ExpectSuccess(decode_result);
       return {decode_result, tv};
     } else {  // GPU
       auto tv = output_.gpu()[0];
@@ -216,7 +216,7 @@ class ImageDecoderTest : public ::testing::Test {
       ctx.stream = stream_lease;
       auto decode_result = Decoder().Decode(ctx, view, src, opts, roi);
       if (require_success)
-        AssertSuccess(decode_result);
+        ExpectSuccess(decode_result);
       CUDA_CALL(cudaStreamSynchronize(ctx.stream));
       return {decode_result, output_.cpu()[0]};
     }
@@ -253,7 +253,7 @@ class ImageDecoderTest : public ::testing::Test {
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
       auto res = Decoder().Decode(ctx, make_span(view), in, opts, rois);
       if (require_success)
-        AssertSuccess(res);
+        ExpectSuccess(res);
       return {res, tlv};
     } else {  // GPU
       auto tlv = output_.gpu();
@@ -264,7 +264,7 @@ class ImageDecoderTest : public ::testing::Test {
       ctx.stream = stream;
       auto res = Decoder().Decode(ctx, make_span(view), in, opts, rois);
       if (require_success)
-        AssertSuccess(res);
+        ExpectSuccess(res);
       CUDA_CALL(cudaStreamSynchronize(stream));
       return {res, output_.cpu()};
     }
@@ -407,20 +407,34 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_NoFallback) {
   this->DisableFallback();
   auto jpeg_samples = this->GetData("JPEG");
   auto tiff_samples = this->GetData("TIFF");
+  auto jpeg2000_samples = this->GetData("JPEG2000");
 
   std::vector<ImageSource*> srcs = {
     &jpeg_samples[0].image.src,
     &tiff_samples[1].image.src,
     &tiff_samples[0].image.src,
     &jpeg_samples[1].image.src,
+    &jpeg2000_samples[0].image.src,
+    &jpeg2000_samples[1].image.src,
+    &jpeg2000_samples[2].image.src,
     &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams());
+  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
   int i = 0;
+  ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
+  ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
+  ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
+  ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[1].ref);
+
+  EXPECT_FALSE(out.res[i++].success);
+  EXPECT_FALSE(out.res[i++].success);
+  EXPECT_FALSE(out.res[i++].success);
+
+  ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[2].ref);
 }
 
@@ -483,13 +497,12 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_CorruptedData) {
   };
 
   auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
-  AssertSuccess(out.res[0]);
+  ExpectSuccess(out.res[0]);
   ASSERT_FALSE(out.res[1].success);
-  AssertSuccess(out.res[2]);
+  ExpectSuccess(out.res[2]);
   ASSERT_FALSE(out.res[3].success);
-  AssertSuccess(out.res[4]);
+  ExpectSuccess(out.res[4]);
 }
-
 
 }  // namespace test
 }  // namespace imgcodec
