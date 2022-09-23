@@ -319,6 +319,10 @@ class ImageDecoderTest : public ::testing::Test {
   kernels::TestTensorList<OutputType> output_;
 };
 
+///////////////////////////////////////////////////////////////////////////////
+// CPU tests
+///////////////////////////////////////////////////////////////////////////////
+
 template<typename OutputType>
 class ImageDecoderTest_CPU : public ImageDecoderTest<CPUBackend, OutputType> {
 };
@@ -503,6 +507,53 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_CorruptedData) {
   ASSERT_FALSE(out.res[3].success);
   ExpectSuccess(out.res[4]);
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// GPU tests
+///////////////////////////////////////////////////////////////////////////////
+
+template<typename OutputType>
+class ImageDecoderTest_GPU : public ImageDecoderTest<GPUBackend, OutputType> {
+};
+
+TYPED_TEST_SUITE(ImageDecoderTest_GPU, DecodeOutputTypes);
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_NoFallback) {
+  this->DisableFallback();
+  auto jpeg_samples = this->GetData("JPEG");
+  auto tiff_samples = this->GetData("TIFF");
+  auto jpeg2000_samples = this->GetData("JPEG2000");
+
+  std::vector<ImageSource*> srcs = {
+    &jpeg_samples[0].image.src,
+    &tiff_samples[1].image.src,
+    &tiff_samples[0].image.src,
+    &jpeg_samples[1].image.src,
+    &jpeg2000_samples[0].image.src,
+    &jpeg2000_samples[1].image.src,
+    &jpeg2000_samples[2].image.src,
+    &jpeg_samples[2].image.src,
+  };
+  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
+  int i = 0;
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], jpeg_samples[1].ref);
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[0].ref);
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[1].ref);
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[2].ref);
+  ExpectSuccess(out.res[i]);
+  AssertEqualSatNorm(out.view[i++], jpeg_samples[2].ref);
+}
+
 
 }  // namespace test
 }  // namespace imgcodec

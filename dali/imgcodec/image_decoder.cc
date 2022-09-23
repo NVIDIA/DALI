@@ -390,7 +390,7 @@ void ImageDecoder::ScheduledWork::alloc_temp_cpu_outputs(ImageDecoder &owner) {
     SampleView<GPUBackend> &gpu_out = gpu_outputs[i];
 
     // TODO(michalz): Add missing utility functions to SampleView - or just use Tensor again...
-    size_t size = volume(gpu_out.shape()) + TypeTable::GetTypeInfo(gpu_out.type()).size();
+    size_t size = volume(gpu_out.shape()) * TypeTable::GetTypeInfo(gpu_out.type()).size();
     constexpr int kTempBufferAlignment = 256;
 
     auto &buf_ptr = owner.temp_buffers_[idx];
@@ -455,6 +455,9 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
         for (int sub_idx : indices) {
           if (r[sub_idx].success) {
             work->results.set(work->indices[sub_idx], r[sub_idx]);
+            if (!decode_to_gpu && !work->gpu_outputs.empty()) {
+              copy(work->gpu_outputs[sub_idx], work->cpu_outputs[sub_idx], work->ctx.stream);
+            }
           } else {
             if (!fallback_work)
               fallback_work = owner_->new_work(work->ctx, work->results);
