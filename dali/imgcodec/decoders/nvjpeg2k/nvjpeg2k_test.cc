@@ -39,9 +39,9 @@ std::string join(Args... args) {
 }
 
 std::vector<uint8_t> read_file(const std::string &filename) {
-    std::ifstream stream(filename, std::ios::binary);
-    assert(stream.is_open());
-    return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+  std::ifstream stream(filename, std::ios::binary);
+  assert(stream.is_open());
+  return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
 }
 
 struct ImageBuffer {

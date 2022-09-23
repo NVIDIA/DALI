@@ -35,7 +35,7 @@ template<class Output, class Input>
 void LaunchSliceFlipNormalizePermutePad(
     Output *out, TensorLayout out_layout, TensorShape<kDims> out_shape,
     const Input *in, TensorLayout in_layout, TensorShape<kDims> in_shape,
-    kernels::KernelContext ctx, const ROI &roi, float multiplier) {
+    kernels::KernelContext ctx, const ROI &roi, Orientation orientation, float multiplier) {
   // this normalization only works if Output range is [-1, 1]
   static_assert(std::is_floating_point<Output>::value);
   if (std::is_integral<Input>::value)
@@ -45,10 +45,24 @@ void LaunchSliceFlipNormalizePermutePad(
   args_container.emplace_back(out_shape, in_shape);
   auto &args = args_container[0];
 
+  bool swap_xy = orientation.rotate % 180 == 90;
+  bool flip_x = orientation.rotate == 180 || orientation.rotate == 270;
+  bool flip_y = orientation.rotate == 90 || orientation.rotate == 180;
+  flip_x ^= orientation.flip_x;
+  flip_y ^= orientation.flip_y;
+
+  auto adjust_layout_letter = [swap_xy](char c) {
+    // if swap_xy is true, this function swaps width and height
+    return (c == 'H' || c == 'W') && swap_xy ? c ^ 'H' ^ 'W' : c;
+  };
+
   args.channel_dim = in_layout.find('C');
   for (int i = 0; i < kDims; i++) {
-    args.permuted_dims[i] = in_layout.find(out_layout[i]);
-    args.shape[args.permuted_dims[i]] = out_shape[i];
+    char out_dim_letter = adjust_layout_letter(out_layout[i]);
+    char in_dim_letter = adjust_layout_letter(in_layout[i]);
+    args.permuted_dims[i] = in_layout.find(out_dim_letter);
+    args.shape[args.permuted_dims[i]] = out_shape[i];  // the kernel applies permutation to shape
+    args.flip[i] = (in_dim_letter == 'W' && flip_x) || (in_dim_letter == 'H' && flip_y);
   }
 
   if (roi) {
@@ -84,7 +98,7 @@ void LaunchConvertSatNorm(Output *out, const Input *in, size_t size, cudaStream_
 template<class Output, class Input>
 void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
                  ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-                 cudaStream_t stream, const ROI &roi, float multiplier) {
+                 cudaStream_t stream, const ROI &roi, Orientation orientation, float multiplier) {
   kernels::DynamicScratchpad scratchpad({}, AccessOrder(stream));
   kernels::KernelContext ctx;
   ctx.gpu.stream = stream;
@@ -105,7 +119,7 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   auto buffer = scratchpad.Allocate<mm::memory_kind::device, float>(size);
   LaunchSliceFlipNormalizePermutePad(
     buffer, out_layout, intermediate_shape, in.data<Input>(), in_layout, in.shape(),
-    ctx, roi, multiplier);
+    ctx, roi, orientation, multiplier);
 
   if (out_format != in_format) {
     DALI_ENFORCE(out_layout.find('C') == kDims - 1,
@@ -123,12 +137,11 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
 
 void Convert(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
              ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-             cudaStream_t stream, const ROI &roi, float multiplier) {
+             cudaStream_t stream, const ROI &roi, Orientation orientation, float multiplier) {
   TYPE_SWITCH(out.type(), type2id, Output, (IMGCODEC_TYPES), (
     TYPE_SWITCH(in.type(), type2id, Input, (IMGCODEC_TYPES), (
-      ConvertImpl<Output, Input>(out, out_layout, out_format,
-                                 in, in_layout, in_format,
-                                 stream, roi, multiplier);
+      ConvertImpl<Output, Input>(out, out_layout, out_format, in, in_layout, in_format,
+                                 stream, roi, orientation, multiplier);
     ), DALI_FAIL(make_string("Unsupported input type: ", in.type())));  // NOLINT
   ), DALI_FAIL(make_string("Unsupported output type: ", out.type())));  // NOLINT
 }
