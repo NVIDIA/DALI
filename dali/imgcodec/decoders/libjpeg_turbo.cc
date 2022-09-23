@@ -43,7 +43,7 @@ DecodeResult LibJpegTurboDecoderInstance::DecodeImplTask(int thread_idx,
   }
 
   flags.components = info.shape[2];
-  target_shape[2] = NumberOfChannels(out_type);
+  target_shape[2] = NumberOfChannels(out_type, target_shape[2]);
 
   if (use_fast_idct_) {
     flags.dct_method = JDCT_FASTEST;

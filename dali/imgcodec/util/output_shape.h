@@ -46,11 +46,15 @@ void DLL_PUBLIC OutputShape(OutShape &&out_shape,
     }
 
     int extent = info.shape[in_d];
-    if (roi) {
-      if (d < roi.end.size())
-        extent = roi.end[d];
-      if (d < roi.begin.size())
-        extent -= roi.begin[d];
+    if (d < roi.end.size()) {
+      DALI_ENFORCE(0 <= roi.end[d] && roi.end[d] <= info.shape[in_d],
+                   "ROI end must fit into the output image shape");
+      extent = roi.end[d];
+    }
+    if (d < roi.begin.size()) {
+      DALI_ENFORCE(0 <= roi.begin[d] && roi.begin[d] <= info.shape[in_d],
+                   "ROI begin must fit into the output image shape");
+      extent -= roi.begin[d];
     }
 
     out_shape[d + (d >= out_channel_dim)] = extent;
