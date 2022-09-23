@@ -46,6 +46,12 @@ class FutureDecodeResults;
 class DLL_PUBLIC DecodeResultsPromise {
  public:
   explicit DecodeResultsPromise(int num_samples);
+  ~DecodeResultsPromise();
+
+  DecodeResultsPromise(const DecodeResultsPromise &other) { *this = other; }
+  DecodeResultsPromise(DecodeResultsPromise &&) = default;
+  DecodeResultsPromise &operator=(const DecodeResultsPromise &);
+  DecodeResultsPromise &operator=(DecodeResultsPromise &&) = default;
 
   FutureDecodeResults get_future() const;
 
