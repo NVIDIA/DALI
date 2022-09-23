@@ -165,14 +165,15 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   DecodingContext ctx = DecodingContext{ resources_[thread_idx] };
   CUDA_CALL(nvjpegDecodeParamsSetOutputFormat(ctx.resources.params, GetFormat(opts.format)));
   CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.resources.params, true));
-
+  if (roi.use_roi()) {
+    CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, roi.begin[1], roi.begin[0],
+                                       roi.shape()[1], roi.shape()[0]));
+  }
   try {
-    if (roi) {
-      // TODO(msala) add support for ROI decoding
-      throw std::runtime_error("ROI support is not implemented yet");
-    }
-
     ParseJpegSample(*in, opts, ctx);
+    if (roi.use_roi()) {
+      ctx.shape = roi.shape();
+    }
     DecodeJpegSample(*in, out.mutable_data<uint8_t>(), opts, ctx);
   } catch (...) {
     return {false, std::current_exception()};
