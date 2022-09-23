@@ -34,7 +34,7 @@
 namespace dali {
 
 namespace detail {
-inline bool is_per_frame(const TensorVector<CPUBackend> &arg_input) {
+inline bool is_per_frame(const TensorList<CPUBackend> &arg_input) {
   const auto &layout = arg_input.GetLayout();
   return layout.size() > 0 && layout[0] == 'F';
 }
@@ -44,41 +44,16 @@ inline bool is_per_frame(const TensorVector<CPUBackend> &arg_input) {
 // broadcasting on gpu requires some extra state, so separate broadcasting from the
 // sequence operator and derive from appropriate specialization
 template <typename Backend>
-class SampleBroadcasting;
-
-template <>
-class SampleBroadcasting<CPUBackend> {
+class SampleBroadcasting {
  protected:
   template <typename DataBackend>
-  void BroadcastSamples(TensorVector<DataBackend> &expanded_batch,
-                        const TensorVector<DataBackend> &batch, const ExpandDesc &expand_desc,
+  void BroadcastSamples(TensorList<DataBackend> &expanded_batch,
+                        const TensorList<DataBackend> &batch, const ExpandDesc &expand_desc,
                         const ArgumentWorkspace &expanded) {
     (void)expanded;
     sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
                                       expand_desc.DimsToExpand());
   }
-};
-
-template <>
-class SampleBroadcasting<GPUBackend> : public SampleBroadcasting<CPUBackend> {
- protected:
-  using SampleBroadcasting<CPUBackend>::BroadcastSamples;
-
-  void BroadcastSamples(TensorList<GPUBackend> &expanded_batch, const TensorList<GPUBackend> &batch,
-                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
-    sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
-                                      expand_desc.DimsToExpand(), scatter_gather_,
-                                      expanded.stream());
-  }
-
-  void BroadcastSamples(TensorList<CPUBackend> &expanded_batch, const TensorList<CPUBackend> &batch,
-                        const ExpandDesc &expand_desc, const DeviceWorkspace &expanded) {
-    (void)expanded;
-    sequence_utils::broadcast_samples(expanded_batch, batch, expand_desc.NumExpanded(),
-                                      expand_desc.DimsToExpand());
-  }
-
-  kernels::ScatterGatherGPU scatter_gather_;
 };
 
 /**
@@ -223,7 +198,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
 
   virtual void InitializeExpandedArgument(const workspace_t<Backend> &ws,
                                           const std::string &arg_name,
-                                          const TensorVector<CPUBackend> &arg_input) {
+                                          const TensorList<CPUBackend> &arg_input) {
     expanded_.AddArgumentInput(arg_name, sequence_utils::expanded_like(arg_input));
   }
 
@@ -242,7 +217,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    * arguments.
    */
   virtual void ExpandArgument(const ArgumentWorkspace &ws, const std::string &arg_name,
-                              const TensorVector<CPUBackend> &arg_input) {
+                              const TensorList<CPUBackend> &arg_input) {
     assert(IsExpandable());
     const auto &ref_expand_desc = GetReferenceExpandDesc();
     ExpandArgumentLikeRef(ExpandedArg(arg_name), arg_input, arg_name, ref_expand_desc);
@@ -445,7 +420,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return false;
   }
 
-  bool IsPerFrameArg(const std::string &arg_name, const TensorVector<CPUBackend> &arg_input) {
+  bool IsPerFrameArg(const std::string &arg_name, const TensorList<CPUBackend> &arg_input) {
     const auto &schema = Operator<Backend>::GetSpec().GetSchema();
     // Do not error out but simply ignore `F` layout of the argument input
     // if it is not marked as per-frame in schema to be consistent with operators
@@ -488,7 +463,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   void VerifyExpandedBatchSizeNumericLimit(const ExpandDesc &expand_desc) {
-    // int is used in containers such as TensorVector to store the number of samples,
+    // int is used in containers such as TensorList to store the number of samples,
     // so we cannot handle total number of frames in the batch greater than that
     DALI_ENFORCE(
         expand_desc.NumExpanded() <= std::numeric_limits<int>::max(),
@@ -582,7 +557,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return expanded_.template Output<OutputBackend>(output_idx);
   }
 
-  TensorVector<CPUBackend> &ExpandedArg(const std::string &arg_name) {
+  TensorList<CPUBackend> &ExpandedArg(const std::string &arg_name) {
     return expanded_.UnsafeMutableArgumentInput(arg_name);
   }
 
@@ -609,8 +584,8 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   /* Expands the arg to match the referential `expand_desc` */
-  void ExpandArgumentLikeRef(TensorVector<CPUBackend> &expanded_arg_input,
-                             const TensorVector<CPUBackend> &arg_input, const std::string &arg_name,
+  void ExpandArgumentLikeRef(TensorList<CPUBackend> &expanded_arg_input,
+                             const TensorList<CPUBackend> &arg_input, const std::string &arg_name,
                              const ExpandDesc &expand_desc) {
     assert(expand_desc.NumDimsToExpand() > 0);
     DALI_ENFORCE(
@@ -632,9 +607,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     }
   }
 
-  void UnfoldBroadcastArgument(TensorVector<CPUBackend> &expanded_arg,
-                               const TensorVector<CPUBackend> &arg_input,
-                               const std::string &arg_name, const ExpandDesc &expand_desc) {
+  void UnfoldBroadcastArgument(TensorList<CPUBackend> &expanded_arg,
+                               const TensorList<CPUBackend> &arg_input, const std::string &arg_name,
+                               const ExpandDesc &expand_desc) {
     constexpr int ndims_to_unfold = 1;
     assert((arg_input.num_samples() == expand_desc.NumSamples()) && expand_desc.ExpandFrames());
     auto tv_builder = sequence_utils::tv_builder_like(expanded_arg, arg_input,
@@ -682,19 +657,13 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   template <typename DataBackend>
-  void UnfoldOuterDims(TensorVector<DataBackend> &expanded_batch,
-                       const TensorVector<DataBackend> &batch, const ExpandDesc &expand_desc) {
+  void UnfoldOuterDims(TensorList<DataBackend> &expanded_batch,
+                       const TensorList<DataBackend> &batch, const ExpandDesc &expand_desc) {
     auto ndims_to_unfold = expand_desc.NumDimsToExpand();
     assert(expand_desc.NumSamples() == batch.num_samples());
     assert(batch.shape().first(ndims_to_unfold).num_elements() == expand_desc.NumExpanded());
     sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand(),
                                       expand_desc.NumExpanded());
-  }
-
-  template <typename DataBackend>
-  void UnfoldOuterDims(TensorList<DataBackend> &expanded_batch,
-                       const TensorList<DataBackend> &batch, const ExpandDesc &expand_desc) {
-    sequence_utils::unfold_outer_dims(expanded_batch, batch, expand_desc.NumDimsToExpand());
   }
 
   std::vector<ExpandDesc> input_expand_desc_;

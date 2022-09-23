@@ -16,7 +16,9 @@
 #define DALI_IMGCODEC_DECODERS_NVJPEG2K_NVJPEG2K_H_
 
 #include <nvjpeg.h>
+#include <map>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
@@ -33,14 +35,8 @@ namespace imgcodec {
  */
 class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit NvJpeg2000DecoderInstance(int device_id);
+  explicit NvJpeg2000DecoderInstance(int device_id, const std::map<std::string, any> &params);
   ~NvJpeg2000DecoderInstance();
-
-  using BatchParallelDecoderImpl::CanDecode;
-  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
-    // TODO(staniewzki): add support for roi and other data types
-    return !roi && (opts.dtype == DALI_UINT8);
-  }
 
   using BatchParallelDecoderImpl::DecodeImplTask;
   DecodeResult DecodeImplTask(int thread_idx,
@@ -81,7 +77,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
   }
 
- private:
   struct TileDecodingResources {
     NvJpeg2kDecodeState state;
     CUDAEvent decode_event;
@@ -125,7 +120,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
    * @brief Context for image decoding, one per picture.
    */
   struct Context {
-    Context(DecodeParams opts, const ROI &roi, const PerThreadResources &res)
+    Context(DecodeParams opts, const ROI &roi, PerThreadResources &res)
     : opts(opts)
     , roi(roi)
     , nvjpeg2k_decode_state(res.nvjpeg2k_decode_state)
@@ -151,9 +146,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     span<const TileDecodingResources> tile_dec_res;
   };
 
+ private:
   bool ParseJpeg2000Info(ImageSource *in, Context &ctx);
-  bool DecodeJpeg2000(ImageSource *in, uint8_t *out, const Context &ctx);
-  bool ConvertData(void *in, uint8_t *out, const Context &ctx);
+  bool DecodeJpeg2000(ImageSource *in, void *out, const Context &ctx);
 
   /**
    * @brief Sets up nvjpeg2kImage_t, so it points to specific output area
@@ -166,7 +161,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
    * @param ctx decoding context
    * @return nvjpeg2kImage_t
    */
-  nvjpeg2kImage_t PrepareOutputArea(uint8_t *out,
+  nvjpeg2kImage_t PrepareOutputArea(void *out,
                                     void **pixel_data,
                                     size_t *pitch_in_bytes,
                                     int64_t output_offset_x,
@@ -191,6 +186,7 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
       ImageDecoderProperties props;
       props.supported_input_kinds = InputKind::HostMemory;
       props.supports_partial_decoding = false;  // roi support requires decoding the whole file
+      props.gpu_output = true;
       props.fallback = true;
       return props;
     }();
@@ -201,8 +197,9 @@ class NvJpeg2000DecoderFactory : public ImageDecoderFactory {
     return device_id >= 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
-    return std::make_shared<NvJpeg2000DecoderInstance>(device_id);
+  std::shared_ptr<ImageDecoderInstance> Create(
+        int device_id, const std::map<std::string, any> &params = {}) const override {
+    return std::make_shared<NvJpeg2000DecoderInstance>(device_id, params);
   }
 };
 

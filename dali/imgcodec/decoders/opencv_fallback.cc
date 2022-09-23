@@ -16,6 +16,7 @@
 #include <opencv2/imgproc.hpp>
 #include "dali/imgcodec/decoders/opencv_fallback.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/imgcodec/registry.h"
 
 namespace dali {
 namespace imgcodec {
@@ -113,7 +114,7 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
 
       Convert(out, layout, opts.format,
               in, layout, in_format,
-              roi.begin, roi.end);
+              roi);
     }
   } catch (...) {
     res.exception = std::current_exception();
@@ -123,6 +124,7 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
   return res;
 }
 
+REGISTER_DECODER("*", OpenCVDecoderFactory, FallbackDecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali

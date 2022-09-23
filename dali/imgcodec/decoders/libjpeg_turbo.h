@@ -15,6 +15,7 @@
 #ifndef DALI_IMGCODEC_DECODERS_LIBJPEG_TURBO_H_
 #define DALI_IMGCODEC_DECODERS_LIBJPEG_TURBO_H_
 
+#include <map>
 #include <memory>
 #include <string>
 #include "dali/imgcodec/image_decoder_interfaces.h"
@@ -28,15 +29,16 @@ namespace imgcodec {
  */
 class DLL_PUBLIC LibJpegTurboDecoderInstance : public BatchParallelDecoderImpl {
  public:
-  explicit LibJpegTurboDecoderInstance(int device_id)
-  : BatchParallelDecoderImpl(device_id) {}
+  explicit LibJpegTurboDecoderInstance(int device_id, const std::map<std::string, any> &params)
+  : BatchParallelDecoderImpl(device_id, params) {
+    SetParams(params);
+  }
 
-  using BatchParallelDecoderImpl::Decode;
-  DecodeResult Decode(DecodeContext ctx,
-                      SampleView<CPUBackend> out,
-                      ImageSource *in,
-                      DecodeParams opts,
-                      const ROI &roi) override;
+  DecodeResult DecodeImplTask(int thread_idx,
+                              SampleView<CPUBackend> out,
+                              ImageSource *in,
+                              DecodeParams opts,
+                              const ROI &roi) override;
 
   bool SetParam(const char *name, const any &value) override {
     if (strcmp(name, "fast_idct") == 0) {
@@ -76,8 +78,9 @@ class LibJpegTurboDecoderFactory : public ImageDecoderFactory {
     return device_id < 0;
   }
 
-  std::shared_ptr<ImageDecoderInstance> Create(int device_id) const override {
-    return std::make_shared<LibJpegTurboDecoderInstance>(device_id);
+  std::shared_ptr<ImageDecoderInstance> Create(
+          int device_id, const std::map<std::string, any> &params = {}) const override {
+    return std::make_shared<LibJpegTurboDecoderInstance>(device_id, params);
   }
 };
 

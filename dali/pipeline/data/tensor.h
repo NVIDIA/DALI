@@ -31,7 +31,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/meta.h"
-#include "dali/pipeline/data/tensor_list.h"
 
 namespace dali {
 
@@ -124,25 +123,6 @@ class Tensor : public Buffer<Backend> {
   }
 
   /**
-   * @brief Loads the Tensor at index idx from the input TensorList.
-   */
-  template <typename InBackend>
-  inline void Copy(const TensorList<InBackend> &other, int idx, AccessOrder order = {}) {
-    if (!order)
-      order = other.order() ? other.order() : order_;
-    this->Resize(shape_, other.type());
-    shape_ = other.tensor_shape(idx);
-    device_ = other.device_id();
-    this->SetLayout(other.GetLayout());
-    this->SetSourceInfo(other.GetSourceInfo(idx));
-    this->SetSkipSample(other.ShouldSkipSample(idx));
-    order.wait(order_);
-    type_.template Copy<Backend, InBackend>(this->raw_mutable_data(),
-        other.raw_tensor(idx), this->size(), order.stream());
-    order_.wait(order);
-  }
-
-  /**
    * @brief Resizes the buffer to fit `volume(shape)` elements.
    * The underlying storage is only reallocated in the case that
    * the current buffer is not large enough for the requested
@@ -209,6 +189,9 @@ class Tensor : public Buffer<Backend> {
    * shared data or the call will fail.
    */
   inline void ShareData(const Tensor<Backend> &t) {
+    if (this == &t)
+      return;
+
     DALI_ENFORCE(IsValidType(t.type()), "To share data, "
         "the input Tensor must have a valid data type.");
 
@@ -242,7 +225,8 @@ class Tensor : public Buffer<Backend> {
       "Only empty tensors can be shared without specifying a type.");
 
     // Free the underlying storage.
-    free_storage();
+    if (!same_managed_object(data_, ptr))
+      free_storage();
 
     // Set the new order, if provided.
     if (order)
@@ -462,9 +446,9 @@ class Tensor : public Buffer<Backend> {
   DALIMeta meta_;
   USE_BUFFER_MEMBERS();
 
-  // So TensorVector can access data_ of the tensor directly
+  // So TensorList can access data_ of the tensor directly
   template <typename InBackend>
-  friend class TensorVector;
+  friend class TensorList;
 };
 
 }  // namespace dali
