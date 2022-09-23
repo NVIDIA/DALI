@@ -14,6 +14,7 @@
 
 # pylint: disable=no-member
 import ast
+from email.policy import default
 import sys
 import threading
 import warnings
@@ -773,7 +774,7 @@ def _wrap_op(op_class, submodule=[], parent_module=None):
                                 _docstring_generator_fn(op_class))
 
 
-def _load_ops():
+def _get_all_registered_ops():
     global _cpu_ops
     global _gpu_ops
     global _mixed_ops
@@ -781,6 +782,10 @@ def _load_ops():
     _gpu_ops = _gpu_ops.union(set(_b.RegisteredGPUOps()))
     _mixed_ops = _mixed_ops.union(set(_b.RegisteredMixedOps()))
     _cpu_gpu_ops = _cpu_ops.union(_gpu_ops).union(_mixed_ops)
+    return _cpu_gpu_ops
+
+def _load_ops():
+    _cpu_gpu_ops = _get_all_registered_ops()
     ops_module = sys.modules[__name__]
 
     for op_reg_name in _cpu_gpu_ops:
@@ -801,6 +806,74 @@ def _load_ops():
             if make_hidden:
                 parent_module = _internal.get_submodule(ops_module, submodule[:-1])
                 setattr(parent_module, op_name, op_class)
+
+# based on https://peps.python.org/pep-0362/
+def _generate_prototype(registered_op_name):
+    schema = _b.TryGetSchema(registered_op_name)
+    make_hidden = schema.IsDocHidden() if schema else False
+    _, submodule, op_name = _process_op_name(registered_op_name, make_hidden)
+    wrapper_name = _functional._to_snake_case(op_name)
+    from inspect import Signature, Parameter
+    parameters = []
+    if schema.MaxNumInput() > 0:
+        variadic_input_param = Parameter(name="input", kind=Parameter.VAR_POSITIONAL)
+        parameters.append(variadic_input_param)
+    for kwarg in schema.GetArgumentNames():
+        kwarg_name = kwarg
+        default_value = Parameter.empty
+
+        # clunky deprecation handling
+        if schema.IsDeprecatedArg(kwarg):
+            meta = schema.DeprecatedArgMeta(kwarg)
+            renamed_arg = meta['renamed_to']
+            removed = meta['removed']
+            if renamed_arg:
+                kwarg = renamed_arg
+            if removed:
+                continue
+
+        # Try to obtain the default value
+        if schema.HasArgumentDefaultValue(kwarg):
+            default_value_string = schema.GetArgumentDefaultValueString(kwarg)
+            default_value = ast.literal_eval(default_value_string)
+        elif schema.IsArgumentOptional(kwarg):
+            default_value = None
+
+        kwarg_param = Parameter(name=kwarg_name, kind=Parameter.KEYWORD_ONLY, default=default_value)
+        parameters.append(kwarg_param)
+    call_sig = Signature(parameters)
+    stub = f"def {wrapper_name}{str(call_sig)}:\n    ...\n"
+    # print(f"\n\nmodule {submodule}\n")
+    # print(f"def {wrapper_name}{str(call_sig)}:\n    ...\n")
+    return submodule, stub
+
+def _generate_prototypes(target_dir):
+    import os
+    all_registered_ops = _get_all_registered_ops()
+    # Maybe it would be nicer to have this for all ops in a given module
+    files = {}
+    # writing a stub file: https://peps.python.org/pep-0484/#stub-files
+    for registered_op_name in all_registered_ops:
+        schema = _b.TryGetSchema(registered_op_name)
+        if not schema:
+            print(f"{registered_op_name} doesn't have schema")
+            continue
+        make_hidden = schema.IsDocHidden() if schema else False
+        if make_hidden:
+            continue
+        submodule, stub = _generate_prototype(registered_op_name)
+        submodule = ["fn"] + submodule
+        module_path = target_dir + "/" + "/".join(submodule)
+        module_stub_file = module_path + "/__init__.pyi"
+        if module_path not in files:
+            os.makedirs(module_path, exist_ok=True)
+            with open(module_stub_file, "w") as f:
+                f.write("# <License header>")
+                f.write("\n\n")
+            files[module_path] = True
+        with open(module_stub_file, "a") as f:
+            f.write(stub)
+            f.write("\n\n")
 
 
 def Reload():
