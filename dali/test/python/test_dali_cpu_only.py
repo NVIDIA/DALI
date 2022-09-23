@@ -1072,6 +1072,14 @@ def test_get_property():
             assert np.array(source_info).tobytes().decode() == ref
 
 
+def test_video_decoder():
+    def get_data():
+        filename = os.path.join(get_dali_extra_path(), 'db', 'video', 'cfr', 'test_1.mp4')
+        return np.fromfile(filename, dtype=np.uint8)
+
+    check_single_input(fn.experimental.decoders.video, "", get_data, batch=False)
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1232,6 +1240,7 @@ tested_methods = [
     "numba.fn.experimental.numba_function",
     "dl_tensor_python_function",
     "audio_resample",
+    "experimental.decoders.video"
 ]
 
 excluded_methods = [

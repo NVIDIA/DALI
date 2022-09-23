@@ -34,7 +34,7 @@ struct FramesDecoderImpl<CPUBackend> {
 };
 
 template <>
-struct FramesDecoderImpl<GPUBackend> {
+struct FramesDecoderImpl<MixedBackend> {
   using type = FramesDecoderGpu;
 };
 

@@ -30,7 +30,7 @@ bool VideoDecoder<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     size_t size = sample.shape().num_elements();
     thread_pool.AddWork([this, i, data, size](int tid) {
       frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size);
-    }, volume(sample.shape()));
+    });
   }
   thread_pool.RunAll();
   output_desc.resize(1);
@@ -62,7 +62,7 @@ The video streams can be in most of the container file formats. FFmpeg is used t
  number of frames in a sequence and can differ for each sample.)code")
     .NumInput(1)
     .NumOutput(1)
-    .InputDox(0, "data", "TensorList", "Data buffer with a loaded video file.");
+    .InputDox(0, "buffer", "TensorList", "Data buffer with a loaded video file.");
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoder<CPUBackend>, CPU);
 

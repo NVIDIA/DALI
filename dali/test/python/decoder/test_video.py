@@ -17,12 +17,11 @@ from nvidia.dali import pipeline_def
 import numpy as np
 import cv2
 import nvidia.dali.types as types
-from os import environ
 import glob
+from test_utils import get_dali_extra_path
 
-DALI_EXTRA = environ['DALI_EXTRA_PATH']
 
-filenames = glob.glob(f'{DALI_EXTRA}/db/video/[cv]fr/*.mp4')
+filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
 
 
 @pipeline_def(device_id=0)
