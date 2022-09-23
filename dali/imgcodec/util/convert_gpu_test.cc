@@ -288,9 +288,9 @@ TYPED_TEST(ConvertGPUTest, Rotation90) {
   });
 
   this->SetReference({
-    {pixelD, pixelA},
-    {pixelE, pixelB},
-    {pixelF, pixelC},
+    {pixelC, pixelF},
+    {pixelB, pixelE},
+    {pixelA, pixelD},
   });
 
   this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {90, false, false});
@@ -303,9 +303,9 @@ TYPED_TEST(ConvertGPUTest, Rotation90FlipX) {
   });
 
   this->SetReference({
-    {pixelA, pixelD},
-    {pixelB, pixelE},
-    {pixelC, pixelF},
+    {pixelF, pixelC},
+    {pixelE, pixelB},
+    {pixelD, pixelA},
   });
 
   this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {90, true, false});
@@ -332,9 +332,9 @@ TYPED_TEST(ConvertGPUTest, Rotation270) {
   });
 
   this->SetReference({
-    {pixelC, pixelF},
-    {pixelB, pixelE},
-    {pixelA, pixelD},
+    {pixelD, pixelA},
+    {pixelE, pixelB},
+    {pixelF, pixelC},
   });
 
   this->CheckConvert("HWC", DALI_RGB, "HWC", DALI_RGB, {}, {270, false, false});
@@ -385,10 +385,10 @@ TYPED_TEST(ConvertGPUTest, TransposeAndRotate_PlanarToInterleaved) {
   });
 
   this->SetReference({
-    {{0.10f, 0.30f, 0.50f}, {0.00f, 0.20f, 0.40f}},
-    {{0.11f, 0.31f, 0.51f}, {0.01f, 0.21f, 0.41f}},
-    {{0.12f, 0.32f, 0.52f}, {0.02f, 0.22f, 0.42f}},
-    {{0.13f, 0.33f, 0.53f}, {0.03f, 0.23f, 0.43f}},
+    {{0.03f, 0.23f, 0.43f}, {0.13f, 0.33f, 0.53f}},
+    {{0.02f, 0.22f, 0.42f}, {0.12f, 0.32f, 0.52f}},
+    {{0.01f, 0.21f, 0.41f}, {0.11f, 0.31f, 0.51f}},
+    {{0.00f, 0.20f, 0.40f}, {0.10f, 0.30f, 0.50f}},
   });
 
   this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {}, {90, false, false});
