@@ -48,12 +48,12 @@ void DLL_PUBLIC OutputShape(OutShape &&out_shape,
     int extent = info.shape[in_d];
     if (d < roi.end.size()) {
       DALI_ENFORCE(0 <= roi.end[d] && roi.end[d] <= info.shape[in_d],
-                   "ROI end must fit into the output image shape");
+                   "ROI end must fit within the image bounds");
       extent = roi.end[d];
     }
     if (d < roi.begin.size()) {
       DALI_ENFORCE(0 <= roi.begin[d] && roi.begin[d] <= info.shape[in_d],
-                   "ROI begin must fit into the output image shape");
+                   "ROI begin must fit within the image bounds");
       extent -= roi.begin[d];
     }
 
