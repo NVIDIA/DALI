@@ -16,7 +16,7 @@ if (BUILD_BENCHMARK)
   collect_headers(DALI_INST_HDRS PARENT_SCOPE)
   # Get basic benchmark sources that don't depend on any other options
   set(DALI_BENCHMARK_SRCS
-    #"${CMAKE_CURRENT_SOURCE_DIR}/makecontiguous_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/makecontiguous_bench.cc"
     "${PROJECT_SOURCE_DIR}/dali/test/dali_test_config.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/resnet50_nvjpeg_bench.cc"
@@ -42,6 +42,7 @@ if (BUILD_BENCHMARK)
     "${CMAKE_CURRENT_SOURCE_DIR}/cast_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/coin_flip_bench.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/transpose_bench.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_bench.cc"
   )
 
   if (BUILD_LMDB)

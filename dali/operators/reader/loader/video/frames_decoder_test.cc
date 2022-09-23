@@ -31,13 +31,7 @@
 namespace dali {
 class FramesDecoderTestBase : public VideoTestBase {
  public:
-  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth) {
-    ASSERT_EQ(decoder.Height(), ground_truth.Height());
-    ASSERT_EQ(decoder.Width(), ground_truth.Width());
-    ASSERT_EQ(decoder.Channels(), ground_truth.NumChannels());
-    ASSERT_EQ(decoder.NumFrames(), ground_truth.NumFrames());
-    ASSERT_EQ(decoder.IsVfr(), ground_truth.IsVfr());
-
+  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth) {
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
@@ -46,6 +40,16 @@ class FramesDecoderTestBase : public VideoTestBase {
     }
 
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
+  }
+
+  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth) {
+    ASSERT_EQ(decoder.Height(), ground_truth.Height());
+    ASSERT_EQ(decoder.Width(), ground_truth.Width());
+    ASSERT_EQ(decoder.Channels(), ground_truth.NumChannels());
+    ASSERT_EQ(decoder.NumFrames(), ground_truth.NumFrames());
+    ASSERT_EQ(decoder.IsVfr(), ground_truth.IsVfr());
+
+    RunSequentialTest(decoder, ground_truth);
     decoder.Reset();
 
     // Read first frame
@@ -279,6 +283,13 @@ TEST_F(FramesDecoderGpuTest, InMemoryVfrHevcVideo) {
 
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size(), false);
+  RunSequentialTest(decoder, vfr_videos_[0]);
 }
 
 }  // namespace dali

@@ -75,7 +75,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   void Reset() override;
 
-  int NextFramePts() { return index_[NextFrameIdx()].pts; }
+  int NextFramePts() { return index_.value()[NextFrameIdx()].pts; }
 
   int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
 
