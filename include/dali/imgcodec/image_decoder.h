@@ -187,6 +187,13 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
   any GetParam(const char *key) const override;
 
  private:
+  /**
+   * @brief Describes a sub-batch of work to be processed
+   *
+   * This object contains a (shared) promise from the original request containing the full batch
+   * and a mapping of indices from this sub-batch to the full batch.
+   * It also contains a subset of relevant sample views, sources, etc.
+   */
   struct ScheduledWork {
     ScheduledWork(DecodeContext ctx, DecodeResultsPromise results)
     : ctx(std::move(ctx)), results(std::move(results)) {}
@@ -218,8 +225,16 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
         rois.resize(num_samples);
     }
 
+    /**
+     * @brief Moves one work entry from another work to this one
+     */
     void move_entry(ScheduledWork &from, int which);
 
+    /**
+     * @brief Allocates temporary CPU outputs for this sub-batch
+     *
+     * This function is used when falling back from GPU to CPU decoder.
+     */
     void alloc_temp_cpu_outputs(ImageDecoder &owner);
 
     DecodeContext ctx;
@@ -235,6 +250,8 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
 
     std::unique_ptr<ScheduledWork> next;
   };
+
+  // Scheduled work pool
 
   std::mutex work_mutex_;
   std::unique_ptr<ScheduledWork> free_work_items_;
@@ -253,12 +270,28 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
     move_to_fallback(nullptr, work, keep);
   }
 
-  static void copy(SampleView<GPUBackend> &out,
-                   const ConstSampleView<CPUBackend> &in,
-                   cudaStream_t stream);
-
+  /**
+   * @brief A worker that processes sub-batches of work to be processed by a particular decoder.
+   *
+   * A DecoderWorker waits for incoming ScheduledWork objects and processes them by running
+   * `decoder_->ScheduleDecode` and waiting for partial results, scheduling the failed
+   * samples to a fallback decoder, if present.
+   *
+   * When a sample is successfully decoded, it is marked as succeess in the parent
+   * DecodeResultsPromise. If it fails, it goes to fallback and only if all fallbacks fail, it is
+   * marked in the DecodeResultsPromise as a failure.
+   */
   class DecoderWorker {
    public:
+    /**
+     * @brief Constructs a decoder worker for a given decoder.
+     *
+     * @param owner   - the parent decoder object
+     * @param factory - the factory that constructs the decoder for this worker
+     * @param start   - if true, the decoder is immediately instantiated and the worker thread
+     *                  is launched; otherwise a call to `start` is delayed until the first
+     *                  work that's relevant for this decoder.
+     */
     DecoderWorker(ImageDecoder *owner, const ImageDecoderFactory *factory, bool start) {
       owner_ = owner;
       factory_ = factory;
@@ -291,20 +324,30 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
     std::shared_ptr<ImageDecoderInstance> decoder_;
     bool produces_gpu_output_ = false;
 
+    /**
+     * @brief Processes a (sub)batch of work.
+     *
+     * The work is scheduled and the results are waited for. Any failed samples will be added
+     * to a fallback work, if a fallback decoder is present.
+     */
     void process_batch(std::unique_ptr<ScheduledWork> work) noexcept;
 
+    /**
+     * @brief The main loop of the worker thread.
+     */
     void run();
 
+    // Fallback worker or null, if no fallback is available
     DecoderWorker *fallback_ = nullptr;
   };
 
   void InitWorkers(bool lazy);
 
-  DecoderWorker &GetWorker(ImageDecoderFactory *factory);
-
   void DistributeWork(std::unique_ptr<ScheduledWork> work);
 
-  void Decode(ScheduledWork *work);
+  static void copy(SampleView<GPUBackend> &out,
+                   const ConstSampleView<CPUBackend> &in,
+                   cudaStream_t stream);
 
   int device_id_ = CPU_ONLY_DEVICE_ID;
   std::map<std::string, any> params_;

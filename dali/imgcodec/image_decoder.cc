@@ -261,8 +261,14 @@ void ImageDecoder::DistributeWork(std::unique_ptr<ScheduledWork> work) {
   for (int i = 0; i < work->num_samples(); i++) {
     auto *f = FormatRegistry().GetImageFormat(work->sources[i]);
     if (!f || filtered_.find(f) == filtered_.end()) {
+      std::string msg;
+      if (work->sources[i]->SourceInfo())
+        msg = make_string("Image not supported: ", work->sources[i]->SourceInfo());
+      else
+        msg = make_string("Image #", work->indices[i], " not supported");
+
       work->results.set(i, DecodeResult::Failure(
-        std::make_exception_ptr(std::runtime_error("Image not supported."))));
+        std::make_exception_ptr(std::runtime_error(msg))));
       continue;
     }
     auto &w = dist[f];
@@ -296,14 +302,6 @@ void ImageDecoder::InitWorkers(bool lazy_init) {
     prev_format = format;
     prev_worker = worker;
   }
-}
-
-ImageDecoder::DecoderWorker &ImageDecoder::GetWorker(ImageDecoderFactory *factory) {
-  auto it = workers_.find(factory);
-  assert(it != workers_.end());
-  auto *worker = it->second.get();
-  worker->start();
-  return *worker;
 }
 
 ImageDecoderInstance *ImageDecoder::DecoderWorker::decoder(bool create_if_null) {
