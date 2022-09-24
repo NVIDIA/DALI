@@ -291,7 +291,7 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
     std::shared_ptr<ImageDecoderInstance> decoder_;
     bool produces_gpu_output_ = false;
 
-    void process_batch(std::unique_ptr<ScheduledWork> work);
+    void process_batch(std::unique_ptr<ScheduledWork> work) noexcept;
 
     void run();
 

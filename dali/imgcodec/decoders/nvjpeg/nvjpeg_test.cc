@@ -72,32 +72,6 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
     return std::make_shared<JpegParser>();
   }
 
-  /**
-   * @brief Checks if the image is similar to the reference.
-   *
-   * Checks if 1) max error is lower than 30% 2) mean squared error is lower than 2%.
-   */
-  void AssertSimilar(const TensorView<StorageCPU, const OutputType> &img,
-                     const Tensor<CPUBackend> &ref_tensor) {
-    TYPE_SWITCH(ref_tensor.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
-      auto ref = view<const RefType>(ref_tensor);
-
-      float eps = ConvertSatNorm<OutputType>(0.3);
-      Check(img, ref, EqualConvertNorm(eps));
-
-      double mean_square_error = 0;
-      uint64_t size = volume(img.shape);
-      for (size_t i = 0; i < size; i++) {
-        double img_value = ConvertSatNorm<double>(img.data[i]);
-        double ref_value = ConvertSatNorm<double>(ref.data[i]);
-        double error = img_value - ref_value;
-        mean_square_error += error * error;
-      }
-      mean_square_error = sqrt(mean_square_error / size);
-      EXPECT_LT(mean_square_error, 0.02);
-    ), DALI_FAIL(make_string("Unsupported reference type: ", ref_tensor.type())));  // NOLINT
-  }
-
   DecodeParams GetParams() {
     DecodeParams opts{};
     opts.dtype = dtype;
@@ -111,9 +85,9 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
       from_dali_extra("db/single/reference/jpeg/site-1534685_1280.npy"));
 
     if (roi.use_roi()) {
-      this->AssertSimilar(decoded, Crop(ref, roi));
+      AssertSimilar(decoded, Crop(ref, roi));
     } else {
-      this->AssertSimilar(decoded, ref);
+      AssertSimilar(decoded, ref);
     }
   }
 
@@ -127,7 +101,7 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
     auto ref = this->ReadReferenceFrom(
       from_dali_extra("db/single/reference/jpeg/site-1534685_1280_ycbcr.npy"));
 
-    this->AssertSimilar(decoded, ref);
+    AssertSimilar(decoded, ref);
   }
 };
 

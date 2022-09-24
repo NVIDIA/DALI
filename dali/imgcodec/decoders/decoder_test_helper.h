@@ -76,6 +76,43 @@ static void AssertEqualSatNorm(const Tensor<CPUBackend> &img,
 }
 
 
+
+template <typename OutputType, typename RefType>
+void AssertSimilar(const TensorView<StorageCPU, const OutputType> &img,
+                   const TensorView<StorageCPU, const RefType> &ref) {
+  float eps = ConvertSatNorm<OutputType>(0.3);
+  Check(img, ref, EqualConvertNorm(eps));
+
+  double mean_square_error = 0;
+  uint64_t size = volume(img.shape);
+  for (size_t i = 0; i < size; i++) {
+    double img_value = ConvertSatNorm<double>(img.data[i]);
+    double ref_value = ConvertSatNorm<double>(ref.data[i]);
+    double error = img_value - ref_value;
+    mean_square_error += error * error;
+  }
+  mean_square_error = sqrt(mean_square_error / size);
+  EXPECT_LT(mean_square_error, 0.04);
+}
+
+
+template <typename T>
+void AssertSimilar(const TensorView<StorageCPU, const T> &img,
+                   const Tensor<CPUBackend> &ref) {
+  TYPE_SWITCH(ref.type(), type2id, RefType, NUMPY_ALLOWED_TYPES, (
+    AssertSimilar(img, view<const RefType>(ref));
+  ), DALI_FAIL(make_string("Unsupported reference type: ", ref.type())));  // NOLINT
+}
+
+static void AssertSimilar(const Tensor<CPUBackend> &img,
+                          const Tensor<CPUBackend> &ref) {
+  TYPE_SWITCH(img.type(), type2id, T, (IMGCODEC_TYPES), (
+    AssertSimilar<T>(view<const T>(img), ref);
+  ), DALI_FAIL(make_string("Unsupported type: ", img.type())));  // NOLINT
+}
+
+
+
 /**
 * @brief Checks if an image is close to a reference
 *

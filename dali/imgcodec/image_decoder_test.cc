@@ -160,9 +160,7 @@ class ImageDecoderTest : public ::testing::Test {
   static const auto dtype = type2id<OutputType>::value;
 
   explicit ImageDecoderTest(int threads_cnt = 4)
-      : tp_(threads_cnt, GetDeviceId(), false, "Decoder test"),
-        decoder_(
-            std::make_unique<ImageDecoder>(GetDeviceId(), false, std::map<std::string, any>{})) {}
+      : tp_(threads_cnt, GetDeviceId(), false, "Decoder test") {}
 
   static void SetUpTestSuite() {
     // Avoid reallocating static objects if called in subclasses
@@ -176,6 +174,8 @@ class ImageDecoderTest : public ::testing::Test {
   }
 
   ImageDecoder& Decoder() {
+    if (!decoder_)
+      decoder_ = std::make_unique<ImageDecoder>(GetDeviceId(), false);
     return *decoder_;
   }
 
@@ -537,13 +537,13 @@ TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_NoFallback) {
   auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
   int i = 0;
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
+  AssertSimilar(out.view[i++], jpeg_samples[0].ref);
   ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
   ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[1].ref);
+  AssertSimilar(out.view[i++], jpeg_samples[1].ref);
   ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], jpeg2000_samples[0].ref);
   ExpectSuccess(out.res[i]);
@@ -551,7 +551,7 @@ TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_NoFallback) {
   ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], jpeg2000_samples[2].ref);
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[2].ref);
+  AssertSimilar(out.view[i++], jpeg_samples[2].ref);
 }
 
 

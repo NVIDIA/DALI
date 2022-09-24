@@ -280,8 +280,11 @@ void ImageDecoder::InitWorkers(bool lazy_init) {
   const ImageFormat *prev_format = nullptr;
   DecoderWorker *prev_worker = nullptr;
   for (auto [format, factory] : filtered_) {
-    auto [it, inserted] = workers_.emplace(
-        factory, std::make_unique<DecoderWorker>(this, factory, !lazy_init));
+    auto it = workers_.find(factory);
+    if (it == workers_.end()) {
+      it = workers_.emplace(
+        factory, std::make_unique<DecoderWorker>(this, factory, !lazy_init)).first;
+    }
 
     DecoderWorker *worker = it->second.get();
 
@@ -402,7 +405,12 @@ void ImageDecoder::ScheduledWork::alloc_temp_cpu_outputs(ImageDecoder &owner) {
   }
 }
 
-void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> work) {
+void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> work) noexcept {
+  assert(work->num_samples() > 0);
+  assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
+         (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()));
+  assert(work->rois.empty() || work->rois.size() == work->sources.size());
+
   auto mask = decoder_->CanDecode(work->ctx,
                                   make_span(work->sources),
                                   work->params,
@@ -418,12 +426,9 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
     filter(*work, mask);
     for (size_t i = 0; i < mask.size(); i++) {
       if (!mask[i])
-        work->results.set(i, DecodeResult::Failure(nullptr));
+        work->results.set(work->indices[i], DecodeResult::Failure(nullptr));
     }
   }
-
-  if (fallback_work)
-    fallback_->add_work(std::move(fallback_work));
 
   if (!work->sources.empty()) {
     bool decode_to_gpu = produces_gpu_output_;
@@ -465,7 +470,7 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
           }
         }
 
-        if (fallback_work)
+        if (fallback_work && !fallback_work->empty())
           fallback_->add_work(std::move(fallback_work));
       }
     } else {
@@ -563,6 +568,7 @@ void ImageDecoder::ScheduledWork::move_entry(ScheduledWork &from, int which) {
 }
 
 void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) {
+  assert(work->num_samples() > 0);
   {
     std::lock_guard guard(mtx_);
     assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||

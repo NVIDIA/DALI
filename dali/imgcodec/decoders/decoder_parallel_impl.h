@@ -45,19 +45,9 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
                               cspan<ROI> rois) override {
     assert(rois.empty() || rois.size() == in.size());
     std::vector<bool> ret(in.size());
-
-    // writing in parallel to adjacent entries in vector<bool> is not safe
-    std::vector<int> tmp(in.size());
     ROI no_roi;
-    for (int i = 0; i < in.size(); i++) {
-      ctx.tp->AddWork([&, ctx, i](int) {
-        tmp[i] = CanDecode(ctx, in[i], opts, rois.empty() ? no_roi : rois[i]);
-      });
-    }
-    ctx.tp->RunAll();
-
     for (int i = 0; i < in.size(); i++)
-      ret[i] = tmp[i];
+      ret[i] = CanDecode(ctx, in[i], opts, rois.empty() ? no_roi : rois[i]);
     return ret;
   }
 
@@ -107,7 +97,6 @@ class DLL_PUBLIC BatchParallelDecoderImpl : public ImageDecoderImpl {
                                      cspan<ImageSource *> in,
                                      DecodeParams opts,
                                      cspan<ROI> rois = {}) override {
-    DALI_ENFORCE(ctx.tp, "This implementation expects a valid thread pool pointer in the context");
     assert(out.size() == in.size());
     assert(rois.empty() || rois.size() == in.size());
     assert(ctx.tp != nullptr);
