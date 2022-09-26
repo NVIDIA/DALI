@@ -172,7 +172,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   try {
     ParseJpegSample(*in, opts, ctx);
     if (roi.use_roi()) {
-      ctx.shape = roi.shape();
+      ctx.shape[0] = roi.shape()[0];
+      ctx.shape[1] = roi.shape()[1];
     }
     DecodeJpegSample(*in, out.mutable_data<uint8_t>(), opts, ctx);
   } catch (...) {
