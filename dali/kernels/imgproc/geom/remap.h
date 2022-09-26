@@ -18,45 +18,12 @@
 #include <optional>
 #include "dali/core/common.h"
 #include "dali/kernels/kernel.h"
+#include "include/dali/core/boundary.h"
 #include "include/dali/core/geom/box.h"
 
 namespace dali {
 namespace kernels {
 
-/**
- * Specifies, how to handle pixels on a border of an image.
- *
- * --------------------------------------------------------------|
- * | CONSTANT    | iiiiii|abcdefgh|iiiiiii with some specified i |
- * --------------------------------------------------------------|
- * | REPLICATE   | aaaaaa|abcdefgh|hhhhhhh                       |
- * --------------------------------------------------------------|
- * | REFLECT     | fedcba|abcdefgh|hgfedcb                       |
- * --------------------------------------------------------------|
- * | REFLECT_101 | gfedcb|abcdefgh|gfedcba                       |
- * --------------------------------------------------------------|
- * | WRAP        | cdefgh|abcdefgh|abcdefg                       |
- * --------------------------------------------------------------|
- * | TRANSPARENT | uvwxyz|abcdefgh|ijklmno                       |
- * --------------------------------------------------------------|
- * | ISOLATED    | do not look outside of ROI                    |
- * --------------------------------------------------------------|
- */
-enum class BorderType {
-  CONSTANT,
-  REPLICATE,
-  REFLECT,
-  REFLECT_101,
-  WRAP,
-  TRANSPARENT,
-  ISOLATED
-};
-
-template <typename T>
-struct Border {
-  BorderType type;
-  std::optional<T> value;
-};
 
 /**
  * API for Remap operation. Remap applies a generic geometrical transformation to an image.
@@ -65,6 +32,7 @@ struct Border {
  */
 template <typename Backend, typename T>
 struct RemapKernel {
+  using Border = boundary::Boundary<T>;
   /**
    * Perform remap algorithm. This function allows to apply a different transformation to every
    * sample in a batch. For a special case, where the same transformation is applied for every
@@ -75,35 +43,41 @@ struct RemapKernel {
    * Handles only HWC layout.
    *
    * The transformation is described by `mapx` and `mapy` parameters, where:
-   * output(x,y) = input( mapx(x,y) , mapy(x,y) )
+   * output(x,y) = input( mapx(x,y) , mapy(x,y) ).
    *
-   * When a ROI is empty, it is assumed that it covers whole input image.
+   * When BoundaryType::TRANSPARENT is used and (according to mapx and mapy) the pixels in the
+   * destination image correspond to pixels outside of the source image, the destination image is
+   * assigned with unmodified pixels from the source image, i.e.:
+   * mapx(x, y) < 0 || mapx(x, y) > input.width => output(x, y) ::== input(x, y)
    *
    * @param context Context for the operation.
    * @param output Output batch.
    * @param input Input batch.
-   * @param output_rois ROIs of the output images. Shall be the same size as input_rois.
-   * @param input_rois ROIs of the input images.
    * @param mapsx Arrays of floats, that determine the transformation.
    * @param mapsy Arrays of floats, that determine the transformation.
-   * @param interpolations Determines, which interpolation shall be used.
-   * @param borders Determines, how to handle pixels on a border on an image (or ROI).
+   * @param output_rois ROIs of the output images.
+   * @param input_rois ROIs of the input images.
+   * @param interpolations Determines, which interpolation shall be used. If empty, it is assumed
+   *                       that every sample is processed with INTERP_LINEAR.
+   * @param borders Determines, how to handle pixels on a border on an image (or ROI). When empty,
+   *                it is assumed that every sample is processed with REFLECT_101.
    */
   void Run(KernelContext &context, TensorListView<Backend, T> output,
-           TensorListView<Backend, const T> input, span<Box<2, int64_t>> output_rois,
-           span<Box<2, int64_t>> input_rois, span<TensorView<Backend, const float, 2>> mapsx,
-           span<TensorView<Backend, const float, 2>> mapsy, span<DALIInterpType> interpolations,
-           span<Border<T>> borders) = 0;
+           TensorListView<Backend, const T> input, TensorListView<Backend, const float, 2> mapsx,
+           TensorListView<Backend, const float, 2> mapsy, span<Box<2, int64_t>> output_rois = {},
+           span<Box<2, int64_t>> input_rois = {}, span<DALIInterpType> interpolations = {},
+           span<Border> borders = {}) = 0;
 
 
   /**
    * Convenient overload. This function shall be used when the transformation parameters are the
    * same for every sample in an input batch.
    */
-  void Run(KernelContext &context, TensorListView<Backend, T> output, Box<2, int64_t> output_roi,
-           TensorListView<Backend, const T> input, Box<2, int64_t> input_roi,
-           TensorView<Backend, const float, 2> mapx, TensorView<Backend, const float, 2> mapy,
-           DALIInterpType interpolation, Border<T> border) = 0;
+  void Run(KernelContext &context, TensorListView<Backend, T> output,
+           TensorListView<Backend, const T> input, TensorView<Backend, const float, 2> mapx,
+           TensorView<Backend, const float, 2> mapy, Box<2, int64_t> output_roi = {},
+           Box<2, int64_t> input_roi = {}, DALIInterpType interpolation = DALI_INTERP_LINEAR,
+           Border border = {}) = 0;
 };
 
 }  // namespace kernels
