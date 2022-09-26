@@ -292,6 +292,7 @@ void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) 
     assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
            (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()));
     assert(work->rois.empty() || work->rois.size() == work->sources.size());
+    assert(work->temp_buffers.empty() || work->temp_buffers.size() == work->cpu_outputs.size());
     if (work_) {
       owner_->combine_work(*work_, std::move(work));
       // no need to notify - a work item was already there, so it will be picked up regardless
@@ -309,6 +310,7 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
   assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
          (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()));
   assert(work->rois.empty() || work->rois.size() == work->sources.size());
+  assert(work->temp_buffers.empty() || work->temp_buffers.size() == work->cpu_outputs.size());
 
   auto mask = decoder_->CanDecode(work->ctx,
                                   make_span(work->sources),
@@ -763,6 +765,12 @@ void ImageDecoder::combine_work(ScheduledWork &target, std::unique_ptr<Scheduled
   assert(!target.cpu_outputs.empty() || target.gpu_outputs.empty() || source->cpu_outputs.empty());
   // if the target has cpu outputs, then the source cannot have any
   assert(!target.gpu_outputs.empty() || target.cpu_outputs.empty() || source->gpu_outputs.empty());
+
+  // if only one has temporary CPU storage, allocate it in the other
+  if (target.temp_buffers.empty() && !source->temp_buffers.empty())
+    target.alloc_temp_cpu_outputs();
+  else if (!target.temp_buffers.empty() && source->temp_buffers.empty())
+    source->alloc_temp_cpu_outputs();
 
   auto move_append = [](auto &dst, auto &src) {
     dst.reserve(dst.size() + src.size());
