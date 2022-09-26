@@ -70,7 +70,7 @@ class ExprImplCpuTT : public ExprImplBase {
     const auto *left_ptr = static_cast<const Left *>(sample.args[0].data);
     auto &right = sample.args[1];
     const auto *right_ptr = static_cast<const Right *>(sample.args[1].data);
-    
+
     if (sample.output.shape.sample_dim() > 1) {
       assert(tile.offset == 0);
       assert(tile.extent_size == volume(sample.output.shape));

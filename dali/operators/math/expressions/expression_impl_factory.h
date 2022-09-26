@@ -221,7 +221,7 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
     shape_ptrs.push_back(&out_sh);
     span<TensorShape<>*> shape_ptrs_span = make_span(shape_ptrs);
     SimplifyShapesForBroadcasting(shape_ptrs_span);
-    
+
     for (auto &arg : out_samples.back().args) {
       kernels::CalcStrides(arg.strides, arg.shape);
       arg.strides = StridesForBroadcasting(out_sh, arg.shape, arg.strides);
@@ -238,9 +238,9 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
  */
 template <typename Backend>
 void PrepareSamplesPerTask(std::vector<std::vector<SampleDesc>> &samples_per_task,
-                           const std::vector<ExprImplTask> &task_exec_order, 
+                           const std::vector<ExprImplTask> &task_exec_order,
                            workspace_t<Backend> &ws,
-                           const ConstantStorage<Backend> &constant_storage, 
+                           const ConstantStorage<Backend> &constant_storage,
                            const OpSpec &spec) {
   int ntasks = task_exec_order.size();
   samples_per_task.resize(ntasks);

@@ -60,7 +60,6 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
       for (int extent_id = 0; extent_id < TestConfig::tiles_per_sample; extent_id++) {
         int tile_id = sample_id * TestConfig::tiles_per_sample + extent_id;
         tile_descs[tile_id].sample_idx = sample_id;
-        tile_descs[tile_id].extent_idx = extent_id;
         tile_descs[tile_id].offset = TestConfig::tile_size * extent_id;
         tile_descs[tile_id].extent_size = TestConfig::tile_size;
       }
@@ -110,7 +109,7 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
         sample.output.shape[d] = out_tv.shape[d];
         sample.output.strides[d] = out_strides[d];
       }
-      
+
       auto left_tv = left.cpu()[sample_idx];
       TensorShape<> left_strides;
       kernels::CalcStrides(left_strides, left_tv.shape);
@@ -143,7 +142,8 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
 
   void MeasurePerf() {
     ExecuteTiledBinOp1D<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
-                        TestConfig::IsRightTensor><<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
+                        TestConfig::IsRightTensor>
+        <<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
@@ -152,7 +152,8 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     constexpr int kIters = 100;
     for (int i = 0; i < kIters; i++) {
       ExecuteTiledBinOp1D<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
-                          TestConfig::IsRightTensor><<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
+                          TestConfig::IsRightTensor>
+          <<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
     }
     CUDA_CALL(cudaEventRecord(end, stream));
     CUDA_CALL(cudaDeviceSynchronize());

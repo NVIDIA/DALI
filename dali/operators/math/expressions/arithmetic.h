@@ -52,7 +52,8 @@ inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
     for (Index covered = 0; covered < sample_elements; covered += tile_size, extent_idx++) {
       auto actual_tile_size =
           std::min(static_cast<Index>(tile_size), shape[sample_idx].num_elements() - covered);
-      descs.push_back({sample_idx, extent_idx, covered, static_cast<int>(actual_tile_size)});
+      descs.push_back(
+          {sample_idx, covered, static_cast<int>(actual_tile_size)});
     }
   }
   Index num_tasks = (descs.size() + num_tiles_in_task - 1) / num_tiles_in_task;
@@ -70,7 +71,7 @@ inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
   std::vector<TileDesc> descs;
   descs.reserve(shape.num_samples());
   for (int sample_idx = 0; sample_idx < shape.num_samples(); sample_idx++) {
-    descs.push_back({sample_idx, 0, 0, shape.tensor_size(sample_idx)});
+    descs.push_back({sample_idx, 0, shape.tensor_size(sample_idx)});
   }
   std::vector<TileRange> ranges;
   int ntasks = descs.size();
