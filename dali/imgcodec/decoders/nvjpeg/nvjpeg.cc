@@ -168,6 +168,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   if (roi.use_roi()) {
     CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, roi.begin[1], roi.begin[0],
                                        roi.shape()[1], roi.shape()[0]));
+  } else {
+    CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, 0, 0, -1, -1));
   }
   try {
     ParseJpegSample(*in, opts, ctx);
