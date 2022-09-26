@@ -111,7 +111,7 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
       from_dali_extra("db/single/reference/jpeg/site-1534685_1280.npy"));
 
     if (roi.use_roi()) {
-      this->AssertSimilar(decoded, this->Crop(ref, roi));
+      this->AssertSimilar(decoded, Crop(ref, roi));
     } else {
       this->AssertSimilar(decoded, ref);
     }
