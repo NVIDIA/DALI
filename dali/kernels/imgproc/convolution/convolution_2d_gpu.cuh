@@ -21,6 +21,7 @@
 
 #include "dali/core/convert.h"
 #include "dali/core/cuda_utils.h"
+#include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/border_mode.h"

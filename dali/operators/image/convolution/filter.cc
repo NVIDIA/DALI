@@ -61,13 +61,13 @@ when part of the filter lies outside of the image.
 Supported values are: "reflect_101", "reflect_1001", "wrap", "replicate", "fill", "valid".
 
 - ``"reflect_101"`` (default), reflects the input but does not repeat the outermost
-    values (``dcb|abcdefghi|hgf``).
+  values (``dcb|abcdefghi|hgf``).
 - ``"reflect_1001"``: reflects the input including outermost values (``cba|abcdefghi|ihg``)
 - ``"wrap"``: wraps the input (``ghi|abcdefghi|abc``).
 - ``"replicate"``: the input is padded with outermost values (``aaa|abcdefghi|iii``).
 - ``"fill"``: the input is padded with the user-provided scalar (zeros by default).
 - ``"valid"``: the output size is restricted so that the filter always lies fully
-    within the sample.
+  within the sample.
 )code",
                     "reflect_101")
     .AddOptionalTypeArg("dtype", R"code(Output data type.
