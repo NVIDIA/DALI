@@ -109,7 +109,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
         CUDA_CALL(nvjpegDestroy(handle_));
         LOG_LINE << "NVJPEG_BACKEND_HARDWARE is disabled due to performance reason" << std::endl;
         CUDA_CALL(nvjpegCreateSimple(&handle_));
-        DALI_WARN("Due to performance reason HW NVJPEG decoder is disbaled for the driver "
+        DALI_WARN("Due to performance reason HW NVJPEG decoder is disabled for the driver "
                   "older than 455.x");
       } else {
 #endif
