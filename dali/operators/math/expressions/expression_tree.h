@@ -43,7 +43,7 @@ class ExprImplBase {
   /**
    * @brief Executes a range of tiles
    */
-  virtual void Execute(ExprImplContext &ctx, 
+  virtual void Execute(ExprImplContext &ctx,
                        span<const SampleDesc> samples,
                        span<const TileDesc> tiles) = 0;
 

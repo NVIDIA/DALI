@@ -146,7 +146,7 @@ TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
 // namespace {
 
 inline bool operator==(const TileDesc &l, const TileDesc &r) {
-  return l.sample_idx == r.sample_idx && l.extent_idx == r.extent_idx &&
+  return l.sample_idx == r.sample_idx &&
          l.offset == r.offset && l.extent_size == r.extent_size;
 }
 
@@ -159,18 +159,27 @@ inline bool operator==(const TileRange &l, const TileRange &r) {
 TEST(ArithmeticOpsTest, GetTiledCover) {
   TensorListShape<> shape0({{150}, {50}, {150}, {30}});
   auto result0 = GetTiledCover(shape0, 50, 4);
-  std::vector<TileDesc> cover0 = {{0, 0, 50, 50}, {0, 1, 50, 50}, {0, 2, 50, 50},
-                                  {1, 0, 50, 50}, {2, 0, 50, 50}, {2, 1, 50, 50},
-                                  {2, 2, 50, 50}, {3, 0, 30, 50}};
+  std::vector<TileDesc> cover0 = {{0, 0, 50},
+                                  {0, 50, 50},
+                                  {0, 100, 50},
+                                  {1, 0, 50},
+                                  {2, 0, 50},
+                                  {2, 50, 50},
+                                  {2, 100, 50},
+                                  {3, 0, 30}};
   std::vector<TileRange> range0 = {{0, 4}, {4, 8}};
   EXPECT_EQ(std::get<0>(result0), cover0);
   EXPECT_EQ(std::get<1>(result0), range0);
 
   TensorListShape<> shape1({{42}, {75}, {42}, {121}});
   auto result1 = GetTiledCover(shape1, 50, 4);
-  std::vector<TileDesc> cover1 = {{0, 0, 42, 50}, {1, 0, 50, 50}, {1, 1, 25, 50},
-                                  {2, 0, 42, 50}, {3, 0, 50, 50}, {3, 1, 50, 50},
-                                  {3, 2, 21, 50}};
+  std::vector<TileDesc> cover1 = {{0, 0, 42},
+                                  {1, 0, 50},
+                                  {1, 50, 25},
+                                  {2, 0, 42},
+                                  {3, 0, 50},
+                                  {3, 50, 50},
+                                  {3, 100, 21}};
   std::vector<TileRange> range1 = {{0, 4}, {4, 7}};
   EXPECT_EQ(std::get<0>(result1), cover1);
   EXPECT_EQ(std::get<1>(result1), range1);
