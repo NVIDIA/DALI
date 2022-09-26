@@ -89,10 +89,6 @@ int64 FramesDecoder::NumFrames() const {
       return index_->size();
     }
 
-    DALI_ENFORCE(
-      av_state_->ctx_->streams[av_state_->stream_id_]->nb_frames != 0,
-      "NumFrames unavailible in the file metadata.");
-
     return av_state_->ctx_->streams[av_state_->stream_id_]->nb_frames;
 }
 
