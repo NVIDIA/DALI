@@ -84,6 +84,14 @@ const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
   AVCodecID::AV_CODEC_ID_HEVC
 };
 
+int64 FramesDecoder::NumFrames() const {
+    if (index_.has_value()) {
+      return index_->size();
+    }
+
+    return av_state_->ctx_->streams[av_state_->stream_id_]->nb_frames;
+}
+
 void FramesDecoder::InitAvState() {
   av_state_->codec_ctx_ = avcodec_alloc_context3(av_state_->codec_);
   DALI_ENFORCE(av_state_->codec_ctx_, "Could not alloc av codec context");
@@ -157,7 +165,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
 
 
-FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size)
+FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index)
   : av_state_(std::make_unique<AvState>()),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
   av_log_set_level(AV_LOG_ERROR);
@@ -190,6 +198,11 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size)
       av_state_->codec_->name,
       ". Supported codecs: h264, HEVC."));
   InitAvState();
+
+  if (!build_index) {
+    return;
+  }
+
   BuildIndex();
   DetectVfr();
 }
@@ -199,6 +212,8 @@ void FramesDecoder::BuildIndex() {
   //  - CFR
   //  - index present in the header
 
+  index_ = vector<IndexEntry>();
+
   int last_keyframe = -1;
   while (ReadRegularFrame(nullptr, false)) {
     IndexEntry entry;
@@ -207,10 +222,10 @@ void FramesDecoder::BuildIndex() {
     entry.is_flush_frame = false;
 
     if (entry.is_keyframe) {
-      last_keyframe = index_.size();
+      last_keyframe = index_->size();
     }
     entry.last_keyframe_id = last_keyframe;
-    index_.push_back(entry);
+    index_->push_back(entry);
   }
   while (ReadFlushFrame(nullptr, false)) {
     IndexEntry entry;
@@ -218,7 +233,7 @@ void FramesDecoder::BuildIndex() {
     entry.pts = av_state_->frame_->pts;
     entry.is_flush_frame = true;
     entry.last_keyframe_id = last_keyframe;
-    index_.push_back(entry);
+    index_->push_back(entry);
   }
   Reset();
 }
@@ -229,9 +244,9 @@ void FramesDecoder::DetectVfr() {
     return;
   }
 
-  int pts_step = index_[1].pts - index_[0].pts;
+  int pts_step = Index(1).pts - Index(0).pts;
   for (int frame_id = 2; frame_id < NumFrames(); ++frame_id) {
-    if ((index_[frame_id].pts - index_[frame_id - 1].pts) != pts_step) {
+    if ((Index(frame_id).pts - Index(frame_id - 1).pts) != pts_step) {
       is_vfr_ = true;
       return;
     }
@@ -351,9 +366,9 @@ void FramesDecoder::SeekFrame(int frame_id) {
     frame_id >= 0 && frame_id < NumFrames(),
     make_string("Invalid seek frame id. frame_id = ", frame_id, ", num_frames = ", NumFrames()));
 
-  auto &frame_entry = index_[frame_id];
+  auto &frame_entry = Index(frame_id);
   int keyframe_id = frame_entry.last_keyframe_id;
-  auto &keyframe_entry = index_[keyframe_id];
+  auto &keyframe_entry = Index(keyframe_id);
 
   LOG_LINE << "Seeking to frame " << frame_id << " timestamp " << frame_entry.pts << std::endl;
 
@@ -399,6 +414,7 @@ bool FramesDecoder::ReadFlushFrame(uint8_t *data, bool copy_to_output) {
   ++next_frame_idx_;
 
   // TODO(awolant): Figure out how to handle this during index building
+  // Or when NumFrames in unavailible
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
   }
@@ -413,5 +429,13 @@ bool FramesDecoder::ReadNextFrame(uint8_t *data, bool copy_to_output) {
       }
   }
   return ReadFlushFrame(data, copy_to_output);
+}
+
+const IndexEntry &FramesDecoder::Index(int frame_id) const {
+  if (!index_.has_value()) {
+    DALI_FAIL("Functionality is unavailible when index is not built.");
+  }
+
+  return (*index_)[frame_id];
 }
 }  // namespace dali

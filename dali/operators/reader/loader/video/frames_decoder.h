@@ -109,19 +109,18 @@ class DLL_PUBLIC FramesDecoder {
    * 
    * @param memory_file Pointer to memory with video file data.
    * @param memory_file_size Size of memory_file in bytes.
+   * @param build_index If set to false index will not be build and some features are unavailable.
    * 
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
-  FramesDecoder(const char *memory_file, int memory_file_size);
+  FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true);
 
   /**
-   * @brief Number of frames in the video
+   * @brief Number of frames in the video. It returns 0, if this information is unavailable.
    * 
    */
-  int64_t NumFrames() const {
-    return index_.size();
-  }
+  int64_t NumFrames() const;
 
   /**
    * @brief Width of a video frame in pixels
@@ -199,7 +198,9 @@ class DLL_PUBLIC FramesDecoder {
  protected:
   std::unique_ptr<AvState> av_state_;
 
-  std::vector<IndexEntry> index_;
+  std::optional<std::vector<IndexEntry>> index_ = {};
+
+  const IndexEntry &Index(int frame_id) const;
 
   int next_frame_idx_ = 0;
 
