@@ -67,19 +67,13 @@ DecodeResult LibJpegTurboDecoderInstance::DecodeImplTask(int thread_idx,
   }
 
   DecodeResult res;
-  try {
-    auto decoded_image = jpeg::Uncompress(encoded_data, data_size, flags);
-    if ((res.success = decoded_image != nullptr)) {
-      // JPEG images are always 8-bit, in HWC format
-      SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
-      TensorLayout layout = "HWC";
-      Convert(out, layout, out_type, in, layout, flags.color_space, {}, {});
-    }
-  } catch (...) {
-    res.exception = std::current_exception();
-    res.success = false;
+  auto decoded_image = jpeg::Uncompress(encoded_data, data_size, flags);
+  if ((res.success = decoded_image != nullptr)) {
+    // JPEG images are always 8-bit, in HWC format
+    SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
+    TensorLayout layout = "HWC";
+    Convert(out, layout, out_type, in, layout, flags.color_space, {}, {});
   }
-
   return res;
 }
 

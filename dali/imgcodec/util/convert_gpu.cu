@@ -21,10 +21,6 @@
 
 namespace dali {
 
-template<> float16 max_value<float16>() {
-  assert(false && "This overload shouldn't be called");
-}
-
 namespace imgcodec {
 
 namespace {

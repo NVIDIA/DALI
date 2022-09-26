@@ -21,7 +21,7 @@ namespace dali {
 namespace imgcodec {
 
 template <typename OutShape>
-void OutputShape(OutShape &out_shape,
+void OutputShape(OutShape &&out_shape,
                  const ImageInfo &info, const DecodeParams &params, const ROI &roi) {
   int ndim = info.shape.sample_dim();
   resize_if_possible(out_shape, ndim);

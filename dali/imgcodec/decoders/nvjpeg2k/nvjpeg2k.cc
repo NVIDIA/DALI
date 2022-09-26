@@ -238,24 +238,19 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
     format != opts.format ||
     (ctx.bpp != 8 && ctx.bpp != 16);
 
-  try {
-    auto decode_out = out;
-    if (is_processing_needed) {
-      int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
-      res.intermediate_buffer.resize(volume(ctx.shape) * type_size);
-      decode_out = {res.intermediate_buffer.data(), ctx.shape, ctx.pixel_type};
-    }
+  auto decode_out = out;
+  if (is_processing_needed) {
+    int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+    res.intermediate_buffer.resize(volume(ctx.shape) * type_size);
+    decode_out = {res.intermediate_buffer.data(), ctx.shape, ctx.pixel_type};
+  }
 
-    result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), ctx);
+  result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), ctx);
 
-    if (is_processing_needed) {
-      auto multiplier = calc_bpp_adjustment_multiplier(ctx.bpp, ctx.pixel_type);
-      Convert(out, "HWC", opts.format, decode_out, "CHW", format,
-              ctx.cuda_stream, {}, {}, multiplier);
-    }
-  } catch (...) {
-    result.success = false;
-    result.exception = std::current_exception();
+  if (is_processing_needed) {
+    auto multiplier = calc_bpp_adjustment_multiplier(ctx.bpp, ctx.pixel_type);
+    Convert(out, "HWC", opts.format, decode_out, "CHW", format, ctx.cuda_stream,
+            {}, {}, multiplier);
   }
 
   if (result.success) {

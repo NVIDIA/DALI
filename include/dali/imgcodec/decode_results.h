@@ -55,6 +55,14 @@ class DLL_PUBLIC DecodeResultsPromise {
 
   void set_all(span<DecodeResult> res);
 
+  bool operator==(const DecodeResultsPromise &other) const {
+    return impl_ == other.impl_;
+  }
+
+  bool operator!=(const DecodeResultsPromise &other) const {
+    return !(*this == other);
+  }
+
  private:
   std::shared_ptr<DecodeResultsSharedState> impl_ = nullptr;
 };
