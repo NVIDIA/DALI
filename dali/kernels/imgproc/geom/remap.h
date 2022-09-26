@@ -55,11 +55,13 @@ struct RemapKernel {
    * @param input Input batch.
    * @param mapsx Arrays of floats, that determine the transformation.
    * @param mapsy Arrays of floats, that determine the transformation.
-   * @param output_rois ROIs of the output images.
-   * @param input_rois ROIs of the input images.
+   * @param output_rois ROIs of the output images. If empty, it is assumed that the ROI covers the
+   *                    whole image.
+   * @param input_rois ROIs of the input images. If empty, it is assumed that the ROI covers the
+   *                   whole image.
    * @param interpolations Determines, which interpolation shall be used. If empty, it is assumed
    *                       that every sample is processed with INTERP_LINEAR.
-   * @param borders Determines, how to handle pixels on a border on an image (or ROI). When empty,
+   * @param borders Determines, how to handle pixels on a border on an image (or ROI). If empty,
    *                it is assumed that every sample is processed with REFLECT_101.
    */
   void Run(KernelContext &context, TensorListView<Backend, T> output,
