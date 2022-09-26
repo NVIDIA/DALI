@@ -368,7 +368,7 @@ class DLL_PUBLIC Buffer {
   void set_order(AccessOrder order, bool synchronize = true) {
     if (!order.has_value())
       return;
-    if (!synchronize || !order_.has_value()) {
+    if (!synchronize) {
       order_ = order;
       return;
     }
@@ -453,8 +453,6 @@ class DLL_PUBLIC Buffer {
     free_storage();
     if (order) {
       set_order(order);
-    } else if (!order_) {
-      set_order(AccessOrder::host());
     }
 
     if (device_ < 0) {
@@ -677,9 +675,9 @@ class DLL_PUBLIC Buffer {
   Index size_ = 0;                   // The number of elements in the buffer
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
   int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
-  AccessOrder order_;                // The order of memory access (host or device)
-  bool shares_data_ = false;         // Whether we aren't using our own allocation
-  bool pinned_ = !RestrictPinnedMemUsage();  // Whether the allocation uses pinned memory
+  AccessOrder order_ = AccessOrder::host();   // The order of memory access (host or device)
+  bool shares_data_ = false;                  // Whether we aren't using our own allocation
+  bool pinned_ = !RestrictPinnedMemUsage();   // Whether the allocation uses pinned memory
 };
 
 template <typename Backend>

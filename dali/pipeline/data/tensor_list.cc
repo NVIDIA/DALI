@@ -463,6 +463,8 @@ const TensorListShape<> &TensorList<Backend>::shape() const & {
 
 template <typename Backend>
 void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
+  if (!order)
+    return;
   // Optimization: synchronize only once, if needed.
   if (this->order().is_device() && order && synchronize) {
     bool need_sync = contiguous_buffer_.has_data();
@@ -480,7 +482,6 @@ void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
   contiguous_buffer_.set_order(order, false);
   for (auto &t : tensors_)
     t.set_order(order, false);
-  order_ = order;
 }
 
 
@@ -998,7 +999,8 @@ void TensorList<Backend>::ShareData(const shared_ptr<void> &ptr, size_t bytes, b
   layout_ = layout;
   pinned_ = pinned;
   device_ = device_id;
-  order_ = order;
+  if (order)
+    order_ = order;
   recreate_views();
 }
 
