@@ -309,5 +309,12 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, NoIndexSeek) {
     "Functionality is unavailible when index is not built.");
 }
 
+TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
+  auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, vfr_hevc_videos_[1]);
+}
+
 
 }  // namespace dali

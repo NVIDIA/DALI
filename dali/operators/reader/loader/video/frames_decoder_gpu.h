@@ -63,11 +63,16 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
  * 
  * @param memory_file Pointer to memory with video file data.
  * @param memory_file_size Size of memory_file in bytes.
+ * @param build_index If set to false index will not be build and some features are unavailable.
  * 
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.
  */
-  FramesDecoderGpu(const char *memory_file, int memory_file_size, cudaStream_t stream = 0);
+  FramesDecoderGpu(
+    const char *memory_file,
+    int memory_file_size,
+    cudaStream_t stream = 0,
+    bool build_index = true);
 
   bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
 
@@ -75,7 +80,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   void Reset() override;
 
-  int NextFramePts() { return index_.value()[NextFrameIdx()].pts; }
+  int NextFramePts() { return Index(NextFrameIdx()).pts; }
 
   int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
 

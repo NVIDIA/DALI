@@ -134,8 +134,8 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
 }
 
 FramesDecoderGpu::FramesDecoderGpu(
-  const char *memory_file, int memory_file_size, cudaStream_t stream) :
-  FramesDecoder(memory_file, memory_file_size),
+  const char *memory_file, int memory_file_size, cudaStream_t stream, bool build_index) :
+  FramesDecoder(memory_file, memory_file_size, build_index),
   frame_buffer_(num_decode_surfaces_),
   stream_(stream) {
   InitGpuDecoder();
@@ -230,17 +230,19 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
 
   // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ == Index(next_frame_idx_).pts) {
-      if (copy_to_output) {
-        copyD2D(data, frame.frame_.data(), FrameSize());
+    if (frame.pts_ != -1) {
+      if (frame.pts_ == Index(next_frame_idx_).pts) {
+        if (copy_to_output) {
+          copyD2D(data, frame.frame_.data(), FrameSize());
+        }
+        LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+          std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
+
+        frame.pts_ = -1;
+
+        ++next_frame_idx_;
+        return true;
       }
-      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
-        std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
-
-      frame.pts_ = -1;
-
-      ++next_frame_idx_;
-      return true;
     }
   }
 
