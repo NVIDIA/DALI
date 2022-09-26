@@ -740,7 +740,7 @@ class DLL_PUBLIC TensorList {
 
   bool pinned_ = true;
   int device_ = CPU_ONLY_DEVICE_ID;
-  AccessOrder order_ = AccessOrder::host()
+  AccessOrder order_ = AccessOrder::host();
 
   // So we can access the members of other TensorLists
   // with different template types
