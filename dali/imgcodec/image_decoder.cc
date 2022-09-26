@@ -38,8 +38,8 @@ namespace imgcodec {
  * It also contains a subset of relevant sample views, sources, etc.
  */
 struct ImageDecoder::ScheduledWork {
-  ScheduledWork(DecodeContext ctx, DecodeResultsPromise results)
-  : ctx(std::move(ctx)), results(std::move(results)) {}
+  ScheduledWork(DecodeContext ctx, DecodeResultsPromise results, DecodeParams params)
+  : ctx(std::move(ctx)), results(std::move(results)), params(std::move(params)) {}
 
   void clear() {
     indices.clear();
@@ -735,7 +735,7 @@ std::unique_ptr<ImageDecoder::ScheduledWork> ImageDecoder::new_work(
     }
   }
 
-  return std::make_unique<ScheduledWork>(ctx, results);
+  return std::make_unique<ScheduledWork>(ctx, results, params);
 }
 
 void ImageDecoder::recycle_work(std::unique_ptr<ScheduledWork> work) {
