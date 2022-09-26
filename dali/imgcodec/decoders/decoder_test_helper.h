@@ -76,7 +76,13 @@ static void AssertEqualSatNorm(const Tensor<CPUBackend> &img,
 }
 
 
-
+/**
+ * @brief Checks that the image is similar to the reference based on mean square error
+ *
+ * Unlike AssertClose, this check allows for a rather large max. error, but has a much lower
+ * limit on mean square error. It's used for different JPEG decoders which have differences in
+ * chroma upsampling or apply deblocking filters.
+ */
 template <typename OutputType, typename RefType>
 void AssertSimilar(const TensorView<StorageCPU, const OutputType> &img,
                    const TensorView<StorageCPU, const RefType> &ref) {
