@@ -47,7 +47,7 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
                                       : [](ImageDecoderFactory *) { return true; }) {}
 
   /**
-   * @brief Construct a new ImageDecode, allowing the user to filter the decoders
+   * @brief Constructs a new ImageDecoder, allowing the user to filter the decoders
    *
    * @param device_id       CUDA device ordinal or -1 for current device or CPU_ONLY_DEVICE_ID
    * @param lazy_init       if true, the construction of sub-decoders is deferred until they are
