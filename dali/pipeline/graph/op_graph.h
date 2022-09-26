@@ -347,6 +347,20 @@ class DLL_PUBLIC OpGraph {
    */
   DLL_PUBLIC void SetupMakeContiguousPassThrough(const std::vector<string>& output_names);
 
+  /**
+   * @brief Return a TensorNodeId or a set of those, where the memory for the target_node
+   * actually originates or passes through.
+   *
+   * It will be either the same node (if the operator produces/allocates this node), or a set of
+   * nodes that the memory was passed through.
+   *
+   * Valid only after the information about PassThrough is stable, that is if
+   * SetupMakeContiguousPassThrough was called.
+   *
+   * @param target_node Node that we want to find origin for.
+   */
+  DLL_PUBLIC std::vector<TensorNodeId> GetTensorOrigin(TensorNodeId target_node) const;
+
  private:
   // Should be called only once for each tensor
   void GenerateDOTFromGraph(const TensorNode& current_node, std::ofstream& ofs, bool show_tensors,
@@ -360,11 +374,23 @@ class DLL_PUBLIC OpGraph {
   bool IsAlwaysContiguous(TensorNodeId tensor_id) const;
 
   /**
-   * @brief Find the parent tensor id that was used to produce the `passed_through` tensor by
+   * @brief Find the parent tensor id that were used to produce the `passed_through` tensor by
    * the op.
+   * This is just one step up the graph.
+   * @param op Id of op node possibly doing the pass through
+   * @param passed_through Id of the tensor node - we search for its parents in pass-through
+   * relation
    * @return -1 is returned if no node can be found.
    */
   TensorNodeId FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through) const;
+
+  /**
+   * @brief Follow up the graph via the pass through relation of the target nodes
+   *
+   * @param target_nodes group of nodes that we start from the search (upwards).
+   */
+  std::vector<TensorNodeId> GetPassThroughGroupImpl(
+      const std::vector<TensorNodeId>& target_nodes) const;
 
   /**
    * @brief Recalculate OpNodes partitioning
@@ -430,6 +456,8 @@ class DLL_PUBLIC OpGraph {
   void RemoveOpNode(OpNodeId id);
 
   std::map<std::string, TensorNodeId> tensor_name_to_id_;
+
+  bool pass_through_computed_ = false;
 };
 
 }  // namespace dali
