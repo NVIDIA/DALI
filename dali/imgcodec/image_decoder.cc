@@ -775,6 +775,7 @@ void ImageDecoder::combine_work(ScheduledWork &target, std::unique_ptr<Scheduled
   move_append(target.sources, source->sources);
   move_append(target.indices, source->indices);
   move_append(target.rois, source->rois);
+  move_append(target.temp_buffers, source->temp_buffers);
   recycle_work(std::move(source));
 }
 
