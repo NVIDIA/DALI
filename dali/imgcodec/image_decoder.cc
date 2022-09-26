@@ -71,6 +71,35 @@ struct ImageDecoder::ScheduledWork {
       temp_buffers.resize(num_samples);
   }
 
+  template <typename Backend>
+  void init(span<SampleView<Backend>> out,
+            cspan<ImageSource *> in,
+            cspan<ROI> rois) {
+    int N = out.size();
+
+    this->indices.reserve(N);
+    for (int i = 0; i < N; i++)
+      this->indices.push_back(i);
+
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      cpu_outputs.reserve(N);
+      for (auto &o : out)
+        cpu_outputs.push_back(o);
+    } else {
+      gpu_outputs.reserve(N);
+      for (auto &o : out)
+        gpu_outputs.push_back(o);
+    }
+
+    this->sources.reserve(N);
+    for (auto *src : in)
+      this->sources.push_back(src);
+
+    this->rois.reserve(rois.size());
+    for (const auto &roi : rois)
+      this->rois.push_back(roi);
+  }
+
   /**
    * @brief Moves one work entry from another work to this one
    */
@@ -540,26 +569,17 @@ FutureDecodeResults ImageDecoder::ScheduleDecode(DecodeContext ctx,
 }
 
 FutureDecodeResults ImageDecoder::ScheduleDecode(DecodeContext ctx,
-                                                span<SampleView<CPUBackend>> out,
-                                                cspan<ImageSource *> in,
-                                                DecodeParams opts,
-                                                cspan<ROI> rois) {
+                                                 span<SampleView<CPUBackend>> out,
+                                                 cspan<ImageSource *> in,
+                                                 DecodeParams opts,
+                                                 cspan<ROI> rois) {
   int N = out.size();
   assert(in.size() == N);
   assert(rois.size() == N || rois.empty());
   DecodeResultsPromise results(N);
 
   auto work = new_work(ctx, results, opts);
-  work->cpu_outputs.reserve(N);
-  work->indices.reserve(N);
-  work->sources.reserve(N);
-
-  for (auto &o : out)
-    work->cpu_outputs.push_back(o);
-  for (auto *src : in)
-    work->sources.push_back(src);
-  for (int i = 0; i < N; i++)
-    work->indices.push_back(i);
+  work->init(out, in, rois);
 
   DistributeWork(std::move(work));
 
@@ -582,17 +602,7 @@ FutureDecodeResults ImageDecoder::ScheduleDecode(DecodeContext ctx,
   DecodeResultsPromise results(N);
 
   auto work = new_work(ctx, results, opts);
-  work->gpu_outputs.reserve(N);
-  work->indices.reserve(N);
-  work->sources.reserve(N);
-
-  for (auto &o : out)
-    work->gpu_outputs.push_back(o);
-  for (auto *src : in)
-    work->sources.push_back(src);
-  for (int i = 0; i < N; i++)
-    work->indices.push_back(i);
-
+  work->init(out, in, rois);
   DistributeWork(std::move(work));
 
   return results.get_future();
