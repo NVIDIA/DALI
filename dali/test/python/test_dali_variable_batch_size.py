@@ -1113,6 +1113,21 @@ def test_crop_argument_from_external_source():
     pipe.run()
 
 
+def test_video_decoder():
+    def video_decoder_pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        encoded = fn.external_source(source=input_data, cycle=False, device='cpu')
+        decoded = fn.experimental.decoders.video(encoded, device=device)
+        pipe.set_outputs(decoded)
+        return pipe
+
+    file_path = os.path.join(test_utils.get_dali_extra_path(), 'db', 'video', 'cfr', 'test_1.mp4')
+    video_file = np.fromfile(file_path, dtype=np.uint8)
+    n_iters = 4
+    batches = [[video_file] * random.randint(2, 6) for _ in range(n_iters)]
+    check_pipeline(batches, video_decoder_pipe, devices=['cpu'])
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1262,6 +1277,7 @@ tested_methods = [
     "ssd_random_crop",
     "optical_flow",
     "audio_resample",
+    "experimental.decoders.video"
 ]
 
 excluded_methods = [

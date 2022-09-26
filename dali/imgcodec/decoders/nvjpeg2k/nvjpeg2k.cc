@@ -250,7 +250,8 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
 
     if (is_processing_needed) {
       auto multiplier = calc_bpp_adjustment_multiplier(ctx.bpp, ctx.pixel_type);
-      Convert(out, "HWC", opts.format, decode_out, "CHW", format, ctx.cuda_stream, {}, multiplier);
+      Convert(out, "HWC", opts.format, decode_out, "CHW", format,
+              ctx.cuda_stream, {}, {}, multiplier);
     }
   } catch (...) {
     result.success = false;

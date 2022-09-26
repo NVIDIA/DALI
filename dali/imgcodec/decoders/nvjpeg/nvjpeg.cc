@@ -82,11 +82,13 @@ NvJpegDecoderInstance::PerThreadResources::PerThreadResources(PerThreadResources
 , pinned_buffer(other.pinned_buffer)
 , jpeg_stream(other.jpeg_stream)
 , stream(std::move(other.stream))
-, decode_event(std::move(other.decode_event)) {
+, decode_event(std::move(other.decode_event))
+, params(std::move(other.params)) {
   other.decoder_data = {};
   other.device_buffer = nullptr;
   other.pinned_buffer = nullptr;
   other.jpeg_stream = nullptr;
+  other.params = nullptr;
 }
 
 NvJpegDecoderInstance::~NvJpegDecoderInstance() {

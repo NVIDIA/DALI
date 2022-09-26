@@ -52,6 +52,13 @@ const auto img_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg");
 const auto ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg");
 const auto jpeg_image = join(img_dir, "134/site-1534685_1280.jpg");
 const auto ref_prefix = join(ref_dir, "site-1534685_1280");
+
+const auto jpeg_image1 = join(img_dir, "113/snail-4291306_1280.jpg");
+const auto ref_prefix1 = join(ref_dir, "snail-4291306_1280");
+
+const auto jpeg_image2 = join(img_dir, "100/swan-3584559_640.jpg");
+const auto ref_prefix2 = join(ref_dir, "swan-3584559_640");
+
 }  // namespace
 
 TEST(LibJpegTurboDecoderTest, Factory) {
@@ -111,14 +118,28 @@ TYPED_TEST(LibJpegTurboDecoderTest, Decode) {
   ImageBuffer image(jpeg_image);
   auto decoded = this->Decode(&image.src, this->GetParams());
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
-  this->AssertEqualSatNorm(decoded, ref);
+  AssertEqualSatNorm(decoded, ref);
+}
+
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
+  auto ref0 = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
+  auto ref1 = this->ReadReferenceFrom(make_string(ref_prefix1, ".npy"));
+  auto ref2 = this->ReadReferenceFrom(make_string(ref_prefix2, ".npy"));
+  ImageBuffer image0(jpeg_image);
+  ImageBuffer image1(jpeg_image1);
+  ImageBuffer image2(jpeg_image2);
+  std::vector<ImageSource*> srcs = {&image0.src, &image1.src, &image2.src};
+  auto img = this->Decode(make_span(srcs), this->GetParams());
+  AssertEqualSatNorm(img[0], ref0);
+  AssertEqualSatNorm(img[1], ref1);
+  AssertEqualSatNorm(img[2], ref2);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
   ImageBuffer image(jpeg_image);
   auto decoded = this->Decode(&image.src, this->GetParams(), {{5, 20}, {800, 1000}});
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_roi.npy"));
-  this->AssertEqualSatNorm(decoded, ref);
+  AssertEqualSatNorm(decoded, ref);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
@@ -127,7 +148,7 @@ TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
   params.format = DALI_YCbCr;
   auto decoded = this->Decode(&image.src, params);
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
-  this->AssertClose(decoded, ref, this->GetEps());
+  AssertClose(decoded, ref, this->GetEps());
 }
 
 }  // namespace test
