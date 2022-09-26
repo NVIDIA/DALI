@@ -86,7 +86,7 @@ const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
 
 int64 FramesDecoder::NumFrames() const {
     if (index_.has_value()) {
-      return index_.value().size();
+      return index_->size();
     }
 
     DALI_ENFORCE(
@@ -226,10 +226,10 @@ void FramesDecoder::BuildIndex() {
     entry.is_flush_frame = false;
 
     if (entry.is_keyframe) {
-      last_keyframe = index_.value().size();
+      last_keyframe = index_->size();
     }
     entry.last_keyframe_id = last_keyframe;
-    index_.value().push_back(entry);
+    index_->push_back(entry);
   }
   while (ReadFlushFrame(nullptr, false)) {
     IndexEntry entry;
@@ -237,7 +237,7 @@ void FramesDecoder::BuildIndex() {
     entry.pts = av_state_->frame_->pts;
     entry.is_flush_frame = true;
     entry.last_keyframe_id = last_keyframe;
-    index_.value().push_back(entry);
+    index_->push_back(entry);
   }
   Reset();
 }
@@ -440,6 +440,6 @@ const IndexEntry &FramesDecoder::Index(int frame_id) const {
     DALI_FAIL("Functionality is unavailible when index is not built.");
   }
 
-  return index_.value()[frame_id];
+  return (*index_)[frame_id];
 }
 }  // namespace dali
