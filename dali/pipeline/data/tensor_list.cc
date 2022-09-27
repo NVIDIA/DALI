@@ -1030,10 +1030,11 @@ void TensorList<Backend>::resize_tensors(int new_size) {
       setup_tensor_allocation(i);
       if (type() != DALI_NO_TYPE) {
         if (sample_dim_ >= 0) {
-          tensors_[i].Resize(
-              sample_dim() > 0 ? TensorShape<>::empty_shape(sample_dim()) : TensorShape<>({}),
-              type());
-          shape_.set_tensor_shape(i, TensorShape<>::empty_shape(sample_dim()));
+          // We can't have empty scalar.
+          const auto &emptyish_shape = sample_dim() > 0 ? TensorShape<>::empty_shape(sample_dim()) :
+                                                          TensorShape<>();
+          tensors_[i].Resize(emptyish_shape, type());
+          shape_.set_tensor_shape(i, emptyish_shape);
         } else if (type() != tensors_[i].type()) {
           tensors_[i].Reset();
           tensors_[i].set_type(type());

@@ -828,6 +828,52 @@ TYPED_TEST(TensorListSuite, ResizeWithRecreate) {
 }
 
 
+TYPED_TEST(TensorListSuite, ResizeWithRecreate0d) {
+  // Check if the tensors that get back to the scope are correctly typed
+  // Scalar values cannot exist as 0-volume tensors, so they always have some allocation
+  for (auto contiguity : {BatchContiguity::Contiguous, BatchContiguity::Noncontiguous}) {
+    TensorList<TypeParam> tv;
+    tv.SetContiguity(contiguity);
+    tv.set_pinned(true);
+    auto shape0 = uniform_list_shape(3, TensorShape<0>{});
+    tv.Resize(shape0, DALI_UINT8);
+    EXPECT_EQ(tv.shape().num_samples(), 3);
+    EXPECT_EQ(tv.shape().sample_dim(), 0);
+    for (int i = 0; i < 3; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), TensorShape<0>{});
+      EXPECT_NE(tv[i].raw_data(), nullptr);
+    }
+
+    tv.SetSize(4);
+
+    EXPECT_EQ(tv.shape().num_samples(), 4);
+    EXPECT_EQ(tv.shape().sample_dim(), 0);
+
+    for (int i = 0; i < 4; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), TensorShape<0>{});
+      EXPECT_NE(tv[i].raw_data(), nullptr);
+    }
+
+    auto shape1 = uniform_list_shape(5, TensorShape<2>{1, 2});
+    tv.Resize(shape1);
+    EXPECT_EQ(tv.shape().num_samples(), 5);
+    EXPECT_EQ(tv.shape().sample_dim(), 2);
+
+    auto shape2 = uniform_list_shape(6, TensorShape<0>{});
+    tv.Resize(shape2, DALI_UINT8);
+    tv.SetSize(6);
+    EXPECT_EQ(tv.shape().num_samples(), 6);
+    for (int i = 0; i < 6; i++) {
+      EXPECT_EQ(tv[i].type(), DALI_UINT8);
+      EXPECT_EQ(tv[i].shape(), TensorShape<0>{});
+      EXPECT_NE(tv[i].raw_data(), nullptr);
+    }
+  }
+}
+
+
 TYPED_TEST(TensorListSuite, SetupLikeMultiGPU) {
   int ndev = 0;
   CUDA_CALL(cudaGetDeviceCount(&ndev));
