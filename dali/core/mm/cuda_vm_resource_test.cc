@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -209,6 +209,12 @@ class VMResourceTest : public ::testing::Test {
   }
 
   void TestExceptionSafety() {
+    cudaDeviceProp device_prop;
+    cudaGetDeviceProperties(&device_prop, 0);
+    if (device_prop.integrated) {
+       GTEST_SKIP() << "GPU and CPU memory are shared. Overallocating taunts OOM killer";
+    }
+
     size_t block_size = 64_uz << 20;
     size_t free = 0, total = 0;
     CUDA_CALL(cudaFree(nullptr));  // initialize the default context
