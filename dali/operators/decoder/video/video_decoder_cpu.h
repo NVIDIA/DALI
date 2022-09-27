@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/video_decoder_base.h"
+#include <vector>
+#include <memory>
+
+#include "dali/operators/decoder/video/video_decoder_base.h"
+#include "dali/operators/reader/loader/video/frames_decoder.h"
 
 #ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_CPU_H_
 #define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_CPU_H_
 
 namespace dali {
 
-class VideoDecoderCpu: public VideoDecoderBase<CPUBackend> {
+class VideoDecoderCpu: public VideoDecoderBase<CPUBackend, FramesDecoder> {
   using VideoDecoderBase::DecodeSample;
 
  public:

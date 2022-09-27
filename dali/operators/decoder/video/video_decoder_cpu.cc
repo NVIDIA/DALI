@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/video/video_decoder.h"
+#include "dali/operators/decoder/video/video_decoder_cpu.h"
 
 namespace dali {
 
 template <>
-bool VideoDecoderBase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                             const workspace_t<CPUBackend> &ws) {
+bool VideoDecoderBase<CPUBackend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                                            const workspace_t<CPUBackend> &ws) {
   ValidateInput(ws);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();

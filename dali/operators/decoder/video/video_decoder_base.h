@@ -17,31 +17,13 @@
 
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/operators/reader/loader/video/frames_decoder.h"
-#include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
 #ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
 #define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
 
 namespace dali {
 
-template <typename Backend>
-struct FramesDecoderImpl {};
-
-template <>
-struct FramesDecoderImpl<CPUBackend> {
-  using type = FramesDecoder;
-};
-
-template <>
-struct FramesDecoderImpl<MixedBackend> {
-  using type = FramesDecoderGpu;
-};
-
-template <typename Backend>
-using FramesDecoder_t = typename FramesDecoderImpl<Backend>::type;
-
-template <typename Backend>
+template <typename Backend, typename FramesDecoder>
 class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
  public:
   using InBackend = CPUBackend;
@@ -100,7 +82,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   }
 
  private:
-  std::vector<std::unique_ptr<FramesDecoder_t<Backend>>> frames_decoders_;
+  std::vector<std::unique_ptr<FramesDecoder>> frames_decoders_;
 };
 
 }  // namespace dali
