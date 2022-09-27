@@ -26,6 +26,18 @@ TEST(OutputShapeTest, Trivial) {
   EXPECT_EQ(ii.shape, out);
 }
 
+TEST(OutputShapeTest, Grayscale) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  DecodeParams params;
+  params.format = DALI_GRAY;
+  OutputShape(out, ii, params, {});
+  EXPECT_EQ(out[0], 480);
+  EXPECT_EQ(out[1], 640);
+  EXPECT_EQ(out[2], 1);
+}
+
 TEST(OutputShapeTest, Planar) {
   ImageInfo ii;
   ii.shape = { 480, 640, 3 };
@@ -35,6 +47,20 @@ TEST(OutputShapeTest, Planar) {
   OutputShape(out, ii, params, {});
   ASSERT_EQ(out.sample_dim(), 3);
   EXPECT_EQ(out[0], 3);
+  EXPECT_EQ(out[1], 480);
+  EXPECT_EQ(out[2], 640);
+}
+
+TEST(OutputShapeTest, PlanarGrayscale) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  DecodeParams params;
+  params.planar = true;
+  params.format = DALI_GRAY;
+  OutputShape(out, ii, params, {});
+  ASSERT_EQ(out.sample_dim(), 3);
+  EXPECT_EQ(out[0], 1);
   EXPECT_EQ(out[1], 480);
   EXPECT_EQ(out[2], 640);
 }
