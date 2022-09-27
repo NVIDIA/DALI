@@ -104,13 +104,17 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
     return opts;
   }
 
-  void RunSingleTest() {
+  void RunSingleTest(const ROI& roi = {}) {
     ImageBuffer image(from_dali_extra("db/single/jpeg/134/site-1534685_1280.jpg"));
-    auto decoded = this->Decode(&image.src, this->GetParams());
+    auto decoded = this->Decode(&image.src, this->GetParams(), roi);
     auto ref = this->ReadReferenceFrom(
       from_dali_extra("db/single/reference/jpeg/site-1534685_1280.npy"));
 
-    this->AssertSimilar(decoded, ref);
+    if (roi.use_roi()) {
+      this->AssertSimilar(decoded, Crop(ref, roi));
+    } else {
+      this->AssertSimilar(decoded, ref);
+    }
   }
 
   void RunSingleYCbCrTest() {
@@ -136,6 +140,10 @@ TYPED_TEST(NvJpegDecoderTest, DecodeSingle) {
 
 TYPED_TEST(NvJpegDecoderTest, DecodeSingleYCbCr) {
   this->RunSingleYCbCrTest();
+}
+
+TYPED_TEST(NvJpegDecoderTest, DecodeSingleRoi) {
+  this->RunSingleTest({{12, 34}, {340, 450}});
 }
 
 }  // namespace test
