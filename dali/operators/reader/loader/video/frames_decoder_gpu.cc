@@ -36,7 +36,11 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
 
-  return frames_decoder->ProcessPictureDecode(user_data, picture_params);
+  if (frames_decoder->HasIndex()) {
+    return frames_decoder->ProcessPictureDecodeWithIndex(user_data, picture_params);
+  }
+
+  return frames_decoder->ProcessPictureDecodeWithoutIndex(user_data, picture_params);
 }
 }  // namespace detail
 
@@ -141,7 +145,7 @@ FramesDecoderGpu::FramesDecoderGpu(
   InitGpuDecoder();
 }
 
-int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params) {
+int FramesDecoderGpu::ProcessPictureDecodeWithIndex(void *user_data, CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
   if (flush_) {
@@ -216,18 +220,17 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
   return 1;
 }
 
+int FramesDecoderGpu::ProcessPictureDecodeWithoutIndex(void *user_data, CUVIDPICPARAMS *picture_params) {
+  return 0;
+}
+
 void FramesDecoderGpu::SeekFrame(int frame_id) {
   // TODO(awolant): This seek can be optimized - for consecutive frames not needed etc.
   SendLastPacket(true);
   FramesDecoder::SeekFrame(frame_id);
 }
 
-bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
-  // No more frames in the file
-  if (next_frame_idx_ == -1) {
-    return false;
-  }
-
+bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
   // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1) {
@@ -288,6 +291,23 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   SendLastPacket();
   next_frame_idx_ = -1;
   return true;
+}
+
+bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output) {
+  return false;
+}
+
+bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
+  // No more frames in the file
+  if (next_frame_idx_ == -1) {
+    return false;
+  }
+
+  if (HasIndex()) {
+    return ReadNextFrameWithIndex(data, copy_to_output);
+  } 
+
+  return ReadNextFrameWithoutIndex(data, copy_to_output);
 }
 
 void FramesDecoderGpu::SendLastPacket(bool flush) {

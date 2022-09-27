@@ -191,6 +191,13 @@ class DLL_PUBLIC FramesDecoder {
    */
   int NextFrameIdx() { return next_frame_idx_; }
 
+  /**
+ * @brief Returns true if the index was build.
+ * 
+ * @return Boolean indicating wheter the index was created or not.
+ */
+  bool HasIndex() const { return index_.has_value(); }
+
   FramesDecoder(FramesDecoder&&) = default;
 
   virtual ~FramesDecoder() = default;

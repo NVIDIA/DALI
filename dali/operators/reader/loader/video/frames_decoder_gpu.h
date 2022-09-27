@@ -82,7 +82,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   int NextFramePts() { return Index(NextFrameIdx()).pts; }
 
-  int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
+  int ProcessPictureDecodeWithIndex(void *user_data, CUVIDPICPARAMS *picture_params);
+
+  int ProcessPictureDecodeWithoutIndex(void *user_data, CUVIDPICPARAMS *picture_params);
 
   FramesDecoderGpu(FramesDecoderGpu&&) = default;
 
@@ -118,6 +120,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   cudaVideoCodec GetCodecType();
 
   void InitGpuDecoder();
+
+  bool ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output);
+
+  bool ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output);
 };
 
 }  // namespace dali
