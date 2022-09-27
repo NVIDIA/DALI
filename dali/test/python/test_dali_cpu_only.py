@@ -14,6 +14,7 @@
 
 import glob
 import numpy as np
+import nvidia.dali.tensors as tensors
 import nvidia.dali.fn as fn
 import nvidia.dali.math as dmath
 import nvidia.dali.tfrecord as tfrec
@@ -451,7 +452,7 @@ def test_to_decibels_cpu():
 
 
 def test_audio_resample():
-    check_single_input(fn.experimental.audio_resample, get_data=get_audio_data, input_layout=None,
+    check_single_input(fn.audio_resample, get_data=get_audio_data, input_layout=None,
                        scale=1.25)
 
 
@@ -1072,6 +1073,21 @@ def test_get_property():
             assert np.array(source_info).tobytes().decode() == ref
 
 
+def test_video_decoder():
+    def get_data():
+        filename = os.path.join(get_dali_extra_path(), 'db', 'video', 'cfr', 'test_1.mp4')
+        return np.fromfile(filename, dtype=np.uint8)
+
+    check_single_input(fn.experimental.decoders.video, "", get_data, batch=False)
+
+
+def test_tensor_list_cpu():
+    n_ar = np.empty([2, 3])
+    d_ten = tensors.TensorCPU(n_ar)
+    d_tl = tensors.TensorListCPU([d_ten])
+    del d_tl
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1231,7 +1247,8 @@ tested_methods = [
     "math.min",
     "numba.fn.experimental.numba_function",
     "dl_tensor_python_function",
-    "experimental.audio_resample",
+    "audio_resample",
+    "experimental.decoders.video"
 ]
 
 excluded_methods = [
@@ -1243,6 +1260,7 @@ excluded_methods = [
     "readers.video_resize",  # not supported for CPU
     "optical_flow",  # not supported for CPU
     "paste",  # not supported for CPU
+    "experimental.audio_resample"  # Alias of audio_resample (already tested)
 ]
 
 

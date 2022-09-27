@@ -15,40 +15,47 @@
 #ifndef DALI_IMGCODEC_DECODERS_DECODER_IMPL_H_
 #define DALI_IMGCODEC_DECODERS_DECODER_IMPL_H_
 
+#include <map>
+#include <string>
 #include <vector>
 #include "dali/core/format.h"
-#include "dali/imgcodec/image_decoder.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
+#include "dali/imgcodec/util/output_shape.h"
 
 namespace dali {
 namespace imgcodec {
 
 class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
  public:
-  ImageDecoderImpl(int device_id, ThreadPool *tp) : device_id_(device_id), tp_(tp) {
+  explicit ImageDecoderImpl(int device_id, const std::map<std::string, any> &)
+  : device_id_(device_id) {}
+
+  bool CanDecode(DecodeContext ctx, ImageSource *in, DecodeParams opts, const ROI &roi) override {
+    return true;
   }
 
-  bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi) override { return true; }
-
-  std::vector<bool> CanDecode(cspan<ImageSource *> in,
+  std::vector<bool> CanDecode(DecodeContext ctx,
+                              cspan<ImageSource *> in,
                               DecodeParams opts,
                               cspan<ROI> rois) override {
     assert(rois.empty() || rois.size() == in.size());
     std::vector<bool> ret(in.size());
     ROI no_roi;
     for (int i = 0; i < in.size(); i++)
-      ret[i] = CanDecode(in[i], opts, rois.empty() ? no_roi : rois[i]);
+      ret[i] = CanDecode(ctx, in[i], opts, rois.empty() ? no_roi : rois[i]);
     return ret;
   }
 
   /**
    * @brief To be overriden by a CPU codec implementation
    */
-  DecodeResult Decode(SampleView<CPUBackend> out, ImageSource *in,
+  DecodeResult Decode(DecodeContext ctx, SampleView<CPUBackend> out, ImageSource *in,
                       DecodeParams opts, const ROI &roi) override {
     throw std::logic_error("Backend not supported");
   }
 
-  std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
+  std::vector<DecodeResult> Decode(DecodeContext ctx,
+                                   span<SampleView<CPUBackend>> out,
                                    cspan<ImageSource *> in,
                                    DecodeParams opts,
                                    cspan<ROI> rois) override {
@@ -57,19 +64,19 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
     std::vector<DecodeResult> ret(out.size());
     ROI no_roi;
     for (int i = 0 ; i < in.size(); i++)
-      ret[i] = Decode(out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
+      ret[i] = Decode(ctx, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
     return ret;
   }
 
   /**
    * @brief To be overriden by a GPU/mixed codec implementation
    */
-  DecodeResult Decode(cudaStream_t stream, SampleView<GPUBackend> out, ImageSource *in,
+  DecodeResult Decode(DecodeContext ctx, SampleView<GPUBackend> out, ImageSource *in,
                       DecodeParams opts, const ROI &roi) override {
     throw std::logic_error("Backend not supported");
   }
 
-  std::vector<DecodeResult> Decode(cudaStream_t stream, span<SampleView<GPUBackend>> out,
+  std::vector<DecodeResult> Decode(DecodeContext ctx, span<SampleView<GPUBackend>> out,
                                    cspan<ImageSource *> in, DecodeParams opts,
                                    cspan<ROI> rois) override {
     assert(out.size() == in.size());
@@ -77,19 +84,27 @@ class DLL_PUBLIC ImageDecoderImpl : public ImageDecoderInstance {
     std::vector<DecodeResult> ret(out.size());
     ROI no_roi;
     for (int i = 0 ; i < in.size(); i++)
-      ret[i] = Decode(stream, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
+      ret[i] = Decode(ctx, out[i], in[i], opts, rois.empty() ? no_roi : rois[i]);
     return ret;
   }
 
-  void SetParam(const char*, const any &) override {}
+  bool SetParam(const char*, const any &) override {
+    return false;
+  }
 
   any GetParam(const char *key) const override {
     return {};
   }
 
+  int SetParams(const std::map<std::string, any> &params) override {
+    int ret = 0;
+    for (auto &[key, value] : params)
+      ret += SetParam(key.c_str(), value);
+    return ret;
+  }
+
  protected:
   int device_id_;
-  ThreadPool *tp_;
 };
 
 }  // namespace imgcodec

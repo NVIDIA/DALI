@@ -77,56 +77,68 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType() {
   return cudaVideoCodec_H264;
 }
 
+void FramesDecoderGpu::InitGpuDecoder() {
+  nvdecode_state_ = std::make_unique<NvDecodeState>();
+
+  InitBitStreamFilter();
+
+  filtered_packet_ = av_packet_alloc();
+  DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
+
+  auto codec_type = GetCodecType();
+
+  // Create nv decoder
+  CUVIDDECODECREATEINFO decoder_info;
+  memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
+
+  decoder_info.bitDepthMinus8 = 0;
+  decoder_info.ChromaFormat = cudaVideoChromaFormat_420;
+  decoder_info.CodecType = codec_type;
+  decoder_info.ulHeight = Height();
+  decoder_info.ulWidth = Width();
+  decoder_info.ulMaxHeight = Height();
+  decoder_info.ulMaxWidth = Width();
+  decoder_info.ulTargetHeight = Height();
+  decoder_info.ulTargetWidth = Width();
+  decoder_info.ulNumDecodeSurfaces = num_decode_surfaces_;
+  decoder_info.ulNumOutputSurfaces = 2;
+
+  CUDA_CALL(cuvidCreateDecoder(&nvdecode_state_->decoder, &decoder_info));
+
+  // Create nv parser
+  CUVIDPARSERPARAMS parser_info;
+  memset(&parser_info, 0, sizeof(CUVIDPARSERPARAMS));
+  parser_info.CodecType = codec_type;
+  parser_info.ulMaxNumDecodeSurfaces = num_decode_surfaces_;
+  parser_info.ulMaxDisplayDelay = 0;
+  parser_info.pUserData = this;
+  parser_info.pfnSequenceCallback = detail::process_video_sequence;
+  parser_info.pfnDecodePicture = detail::process_picture_decode;
+  parser_info.pfnDisplayPicture = nullptr;
+
+  CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
+
+  // Init internal frame buffer
+  // TODO(awolant): Check, if continuous buffer would be faster
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+    frame_buffer_[i].frame_.resize(FrameSize());
+    frame_buffer_[i].pts_ = -1;
+  }
+}
+
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream) :
     FramesDecoder(filename),
     frame_buffer_(num_decode_surfaces_),
     stream_(stream) {
-    nvdecode_state_ = std::make_unique<NvDecodeState>();
+    InitGpuDecoder();
+}
 
-    InitBitStreamFilter();
-
-    filtered_packet_ = av_packet_alloc();
-    DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
-
-    auto codec_type = GetCodecType();
-
-    // Create nv decoder
-    CUVIDDECODECREATEINFO decoder_info;
-    memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
-
-    decoder_info.bitDepthMinus8 = 0;
-    decoder_info.ChromaFormat = cudaVideoChromaFormat_420;
-    decoder_info.CodecType = codec_type;
-    decoder_info.ulHeight = Height();
-    decoder_info.ulWidth = Width();
-    decoder_info.ulMaxHeight = Height();
-    decoder_info.ulMaxWidth = Width();
-    decoder_info.ulTargetHeight = Height();
-    decoder_info.ulTargetWidth = Width();
-    decoder_info.ulNumDecodeSurfaces = num_decode_surfaces_;
-    decoder_info.ulNumOutputSurfaces = 2;
-
-    CUDA_CALL(cuvidCreateDecoder(&nvdecode_state_->decoder, &decoder_info));
-
-    // Create nv parser
-    CUVIDPARSERPARAMS parser_info;
-    memset(&parser_info, 0, sizeof(CUVIDPARSERPARAMS));
-    parser_info.CodecType = codec_type;
-    parser_info.ulMaxNumDecodeSurfaces = num_decode_surfaces_;
-    parser_info.ulMaxDisplayDelay = 0;
-    parser_info.pUserData = this;
-    parser_info.pfnSequenceCallback = detail::process_video_sequence;
-    parser_info.pfnDecodePicture = detail::process_picture_decode;
-    parser_info.pfnDisplayPicture = nullptr;
-
-    CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
-
-    // Init internal frame buffer
-    // TODO(awolant): Check, if continuous buffer would be faster
-    for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-      frame_buffer_[i].frame_.resize(FrameSize());
-      frame_buffer_[i].pts_ = -1;
-    }
+FramesDecoderGpu::FramesDecoderGpu(
+  const char *memory_file, int memory_file_size, cudaStream_t stream) :
+  FramesDecoder(memory_file, memory_file_size),
+  frame_buffer_(num_decode_surfaces_),
+  stream_(stream) {
+  InitGpuDecoder();
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params) {
@@ -218,7 +230,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
 
   // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ == index_[next_frame_idx_].pts) {
+    if (frame.pts_ == Index(next_frame_idx_).pts) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize());
       }

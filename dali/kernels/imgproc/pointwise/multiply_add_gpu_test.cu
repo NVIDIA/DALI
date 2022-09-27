@@ -100,7 +100,7 @@ class MultiplyAddGpuTest : public ::testing::Test {
 
   size_t dataset_size() {
     int ret = 0;
-    for (auto sh : shapes_) {
+    for (const auto &sh : shapes_) {
       ret += volume(sh);
     }
     return ret;

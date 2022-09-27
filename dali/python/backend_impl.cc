@@ -340,7 +340,7 @@ auto FromPythonTrampoline(const char *python_module, const char *attr_name) {
  * associated access order with the provided stream; otherwise, the function will wait until the
  * copy completes.
  *
- * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorVector)
+ * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorList)
  * @param src             Source batch
  * @param dst_ptr         Destination pointer, wrapped in a C void_ptr Python type
  * @param cuda_stream     CUDA stream, wrapped in a C void_ptr type
@@ -714,15 +714,16 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     throw std::runtime_error("Cannot create TensorList from an empty list.");
   }
 
-  auto tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
-  TensorVector<Backend> tv(list_of_tensors.size());
+  auto contiguous_out = std::make_shared<TensorList<Backend>>();
+  contiguous_out->SetContiguity(BatchContiguity::Contiguous);
+  TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
   int expected_type = -2;
 
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
       if (i == 0) {
-        tv.SetupLike(t);
+        non_contiguous_tmp.SetupLike(t);
       }
       DALIDataType cur_type = t.type();
 
@@ -733,7 +734,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             "Tensors cannot have different data types. Tensor at position ", i, " has type '",
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
-      tv.UnsafeSetSample(i, t);
+      non_contiguous_tmp.SetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -742,17 +743,19 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     }
   }
 
-  cudaStream_t stream = 0;
+  AccessOrder wait_order = AccessOrder::host();
+  AccessOrder copy_order = AccessOrder::host();
   if (!list_of_tensors.empty() && std::is_same<Backend, GPUBackend>::value) {
     auto &t = list_of_tensors[0].cast<Tensor<GPUBackend>&>();
-    stream = UserStream::Get()->GetStream(t);
+    copy_order = AccessOrder(UserStream::Get()->GetStream(t));
   }
 
-  tl->Copy(tv, stream);
-  tl->SetLayout(layout);
-  CUDA_CALL(cudaStreamSynchronize(stream));
+  contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
+  contiguous_out->Copy(non_contiguous_tmp, copy_order);
+  contiguous_out->SetLayout(layout);
+  copy_order.wait(wait_order);
 
-  return tl;
+  return contiguous_out;
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -979,7 +982,7 @@ void ExposeTensorList(py::module &m) {
           std::string format;
           size_t type_size;
 
-          if (tl._num_elements() > 0) {
+          if (tl.shape().num_elements() > 0) {
             DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),
@@ -1047,7 +1050,7 @@ void ExposeTensorList(py::module &m) {
 
       )code")
     .def("as_reshaped_tensor",
-        [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<CPUBackend>* {
+        [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) {
           return tl.AsReshapedTensor(new_shape);
         },
       R"code(
@@ -1055,15 +1058,13 @@ void ExposeTensorList(py::module &m) {
 
       This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("as_tensor", &TensorList<CPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
 
       This function can only be called if `is_dense_tensor` returns `True`.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("data_ptr",
         [](TensorList<CPUBackend> &tl) {
           return py::reinterpret_borrow<py::object>(
@@ -1162,6 +1163,7 @@ void ExposeTensorList(py::module &m) {
     .def("as_cpu", [](TensorList<GPUBackend> &t) {
           auto ret = std::make_shared<TensorList<CPUBackend>>();
           ret->set_pinned(false);
+          ret->SetContiguity(BatchContiguity::Contiguous);
           UserStream * us = UserStream::Get();
           cudaStream_t s = us->GetStream(t);
           DeviceGuard g(t.device_id());
@@ -1247,7 +1249,7 @@ void ExposeTensorList(py::module &m) {
       return t.GetLayout().str();
     })
     .def("as_reshaped_tensor",
-        [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) -> Tensor<GPUBackend>* {
+        [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) {
           return tl.AsReshapedTensor(new_shape);
         },
       R"code(
@@ -1255,15 +1257,13 @@ void ExposeTensorList(py::module &m) {
 
       This function can only be called if `TensorList` is contiguous in memory and
       the volumes of requested `Tensor` and `TensorList` matches.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
       Returns a tensor that is a view of this `TensorList`.
 
       This function can only be called if `is_dense_tensor` returns `True`.
-      )code",
-      py::return_value_policy::reference_internal)
+      )code")
     .def("data_ptr",
         [](TensorList<GPUBackend> &tl) {
           return py::reinterpret_borrow<py::object>(
@@ -1467,7 +1467,7 @@ void ExposePipelineDebug(py::module &m) {
 template <typename Backend>
 void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder order,
                   bool sync = false, bool use_copy_kernel = false) {
-  TensorVector<Backend> tv(list.size());
+  TensorList<Backend> tv(list.size());
   for (size_t i = 0; i < list.size(); ++i) {
     auto &t = list[i].cast<Tensor<Backend>&>();
     // TODO(klecki): evaluate if we want to keep such code - we need to be able to set
@@ -1476,7 +1476,7 @@ void FeedPipeline(Pipeline *p, const string &name, py::list list, AccessOrder or
     if (i == 0) {
       tv.SetupLike(t);
     }
-    tv.UnsafeSetSample(i, t);
+    tv.SetSample(i, t);
     // TODO(klecki): tv[i] = std::move(t);
   }
   p->SetExternalInput(name, tv, order, sync, use_copy_kernel);

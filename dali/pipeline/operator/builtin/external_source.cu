@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
     tensor_list_elm = tl_data_.PopFront();
     state_info = state_.front();
     state_.pop_front();
-    // even with no_copy we may have copied from TensorVector to TensorList and we
+    // even with no_copy we may have copied from TensorList to TensorList and we
     // need to sync with that
     if (!state_info.no_copy || state_info.copied_shared_data) {
       internal_copy_to_storage = copy_to_storage_events_.PopFront();

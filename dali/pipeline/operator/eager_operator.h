@@ -27,6 +27,7 @@
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/backend2workspace_map.h"
@@ -37,32 +38,18 @@
 namespace dali {
 
 template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorList<Backend>> in) {
-  return in;
-}
-
-template <typename Backend>
-std::shared_ptr<TensorList<Backend>> AsTensorList(std::shared_ptr<TensorVector<Backend>> in) {
-  // TODO(klecki): [BatchObject] Add missing optimization
-  // if (in->IsContiguous()) {
-  //   // Filled contiguous TensorVector, we can return TensorList directly.
-  //   auto tl = in->AsTensorList(false);
-  //   // Explicitly set layout (it could be empty in case of per-sample operators).
-  //   tl->SetLayout(in->GetLayout());
-  //   return tl;
-  // }
-
-  auto tl = std::make_shared<TensorList<Backend>>();
-  tl->Copy(*in);
-  return tl;
-}
-
-template <typename StorageType>
-void MakeContiguous(std::shared_ptr<StorageType> storage) {}
-
-template <>
-void MakeContiguous(std::shared_ptr<TensorVector<CPUBackend>> storage) {
-  storage->SetContiguous(true);
+std::shared_ptr<TensorList<Backend>> AsContiguousOutput(std::shared_ptr<TensorList<Backend>> in) {
+  if (in->IsContiguous()) {
+    return in;
+  } else {
+    auto result = std::make_shared<TensorList<Backend>>();
+    result->set_order(in->order());
+    result->set_device_id(in->device_id());
+    result->set_pinned(in->is_pinned());
+    result->Resize(in->shape(), in->type(), BatchContiguity::Contiguous);
+    result->Copy(*in);
+    return result;
+  }
 }
 
 template <typename Backend>
@@ -72,8 +59,8 @@ template <>
 struct Backend2Types<CPUBackend> {
   using InBackend = CPUBackend;
   using OutBackend = CPUBackend;
-  using WSInputType = TensorVector<CPUBackend>;
-  using WSOutputType = TensorVector<CPUBackend>;
+  using WSInputType = TensorList<CPUBackend>;
+  using WSOutputType = TensorList<CPUBackend>;
   static const char name[8];
 };
 
@@ -90,7 +77,7 @@ template <>
 struct Backend2Types<MixedBackend> {
   using InBackend = CPUBackend;
   using OutBackend = GPUBackend;
-  using WSInputType = TensorVector<CPUBackend>;
+  using WSInputType = TensorList<CPUBackend>;
   using WSOutputType = TensorList<GPUBackend>;
   static const char name[8];
 };
@@ -301,20 +288,17 @@ EagerOperator<Backend>::RunImpl(
   }
 
   for (auto &arg : kwargs) {
-    // TODO(klecki): [BatchObject] Remove the wrapping of TensorList -> TensorVector.
-    // We wrap it once before call, so that the run won't do it again. Remove when we do not
-    // have distinct batch types.
-    auto tmp = std::make_shared<TensorVector<CPUBackend>>();
-    tmp->ShareData(*arg.second);
-    ws_.AddArgumentInput(arg.first, tmp);
+    ws_.AddArgumentInput(arg.first, arg.second);
   }
 
   std::vector<OutputDesc> output_desc{};
   std::vector<std::shared_ptr<TensorList<OutBackend>>> outputs(num_outputs_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    auto tensor_out = std::make_shared<WSOutputType>(batch_size);
-    MakeContiguous(tensor_out);
+    auto tensor_out = std::make_shared<WSOutputType>();
+    if (ws_.has_stream()) {
+      tensor_out->set_order(ws_.stream());
+    }
     ws_.AddOutput(tensor_out);
   }
 
@@ -323,14 +307,15 @@ EagerOperator<Backend>::RunImpl(
   // Setup outputs.
   if (op_->Setup(output_desc, ws_) && op_->CanInferOutputs()) {
     for (size_t i = 0; i < num_outputs_; ++i) {
-      ws_.template Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type);
+      ws_.template Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type,
+                                                BatchContiguity::Contiguous);
     }
   }
 
   op_->Run(ws_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
-    outputs[i] = AsTensorList<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
+    outputs[i] = AsContiguousOutput<OutBackend>(ws_.template OutputPtr<OutBackend>(i));
   }
 
   for (size_t i = 0; i < outputs.size(); ++i) {

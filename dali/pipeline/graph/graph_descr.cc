@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,10 +13,14 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <string>
 
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/graph/op_graph.h"
 
 #include "dali/pipeline/operator/op_schema.h"
+
+#include "dali/pipeline/operator/builtin/make_contiguous.h"
 
 namespace dali {
 
@@ -189,10 +193,10 @@ void OpGraph::AddOp(const OpSpec &spec, const std::string &op_name) {
     new_node.children_tensors.push_back(new_tensor.id);
 
     auto it_inserted = tensor_name_to_id_.insert({name, new_tensor.id});
-    DALI_ENFORCE(it_inserted.second, "Operator '" + spec.name() +
-        "' has output with name " + name + ", but output "
-        "with this name already exists as output of op '" +
-        this->Node(TensorSourceID(name)).spec.name() + "'");
+    DALI_ENFORCE(it_inserted.second,
+                 make_string("Operator '", new_node.instance_name, "' has output with name ", name,
+                             ", but output with this name already exists as output of op '",
+                             this->Node(TensorSourceID(name)).instance_name, "'"));
   }
 }
 
@@ -452,48 +456,58 @@ OpNode& OpGraph::Node(const std::string& name) {
 }
 
 namespace {
-  /**
-   * @brief Prints instance_name of OpNode to stream
-   *
-   * @param ofs
-   * @param node
-   * @param show_ids Whether to print name concatenated with `_id`.
-   * @return std::ofstream&
-   */
-  std::ofstream& PrintTo(std::ofstream &ofs, const OpNode& node, bool show_ids) {
-    ofs << node.instance_name;
-    if (show_ids) {
-      ofs << "_" << node.id;
-    }
-    return ofs;
+
+std::string remove_brackets(std::string input) {
+  // We have output indexing via the `[idx]` syntax, replace the brackets with something
+  // allowed in dot
+  std::replace(input.begin(), input.end(), '[', '_');
+  std::replace(input.begin(), input.end(), ']', '_');
+  return input;
+}
+
+/**
+  * @brief Prints instance_name of OpNode to stream
+  *
+  * @param ofs
+  * @param node
+  * @param show_ids Whether to print name concatenated with `_id`.
+  * @return std::ofstream&
+  */
+std::ofstream& PrintTo(std::ofstream &ofs, const OpNode& node, bool show_ids) {
+  ofs << remove_brackets(node.instance_name);
+  if (show_ids) {
+    ofs << "_" << node.id;
   }
-  /**
-   * @brief Prints TensorNode's name to stream
-   *
-   * @param ofs
-   * @param node
-   * @param show_ids Whether to print name concatenated with `_id`.
-   * @return std::ofstream&
-   */
-  std::ofstream&  PrintTo(std::ofstream &ofs, const TensorNode& node, bool show_ids) {
-    ofs << node.name;
-    if (show_ids) {
-      ofs << "_" << node.id;
-    }
-    return ofs;
+  return ofs;
+}
+/**
+  * @brief Prints TensorNode's name to stream
+  *
+  * @param ofs
+  * @param node
+  * @param show_ids Whether to print name concatenated with `_id`.
+  * @return std::ofstream&
+  */
+std::ofstream&  PrintTo(std::ofstream &ofs, const TensorNode& node, bool show_ids) {
+  ofs << remove_brackets(node.name);
+  if (show_ids) {
+    ofs << "_" << node.id;
   }
-  std::string GetOpColor(OpType op_type) {
-    switch (op_type) {
-      case OpType::CPU:
-        return "blue";
-      case OpType::GPU:
-        return "#76b900";
-      case OpType::MIXED:
-        return "cyan";
-      default:
-        return "black";
-    }
+  return ofs;
+}
+std::string GetOpColor(OpType op_type) {
+  switch (op_type) {
+    case OpType::CPU:
+      return "blue";
+    case OpType::GPU:
+      return "#76b900";
+    case OpType::MIXED:
+      return "cyan";
+    default:
+      return "black";
   }
+}
+
 }  // namespace
 
 void OpGraph::GenerateDOTFromGraph(std::ofstream &ofs, bool show_tensors, bool show_ids,
@@ -535,6 +549,35 @@ void OpGraph::GenerateDOTFromGraph(const TensorNode &current_node, std::ofstream
   }
 }
 
+bool OpGraph::IsAlwaysContiguous(TensorNodeId tensor_id) const {
+  auto producer_op_node_id = Tensor(tensor_id).producer.node;
+  auto &producer_op_node = Node(producer_op_node_id);
+
+  // By definition everything returned by MakeContiguous is contiguous.
+  if (producer_op_node.spec.GetSchema().name() == "MakeContiguous") {
+    return true;
+  }
+
+  // If the input is inferred, the allocation is done by executor in contiguous fashion
+  // this means we can just pass through the data instead of copying them.
+  bool is_input_always_contiguous = producer_op_node.op->CanInferOutputs();
+  if (is_input_always_contiguous) {
+    return true;
+  }
+
+  // Check if we were passed through.
+  auto maybe_source = FollowPassThroughUp(producer_op_node_id, tensor_id);
+
+  // We were not passed through, we can stop here and assume that this tensor node is not guaranteed
+  // to be produced contiguous batch.
+  if (maybe_source == -1) {
+    return false;
+  }
+
+  // Otherwise check recursively for the tensor that was passed through.
+  return IsAlwaysContiguous(maybe_source);
+}
+
 std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_names,
                                               bool follow_pass_through) const {
   std::vector<TensorNodeId> result;
@@ -556,21 +599,60 @@ std::vector<TensorNodeId> OpGraph::GetOutputs(const std::vector<string>& output_
       visited[tid] = true;
       result.push_back(tid);
       auto output = Tensor(tid).producer;
-      auto &schema = Node(output.node).spec.GetSchema();
-      if (schema.HasPassThrough()) {
-        for (TensorNodeId parent_tid : Node(output.node).parent_tensors) {
-          for (TensorMeta input : Tensor(parent_tid).consumers) {
-            if (input.node == output.node &&
-                schema.GetPassThroughOutputIdx(input.index) == output.index) {
-                q.push_back(parent_tid);
-            }
-          }
+      auto &output_op_node = Node(output.node);
+      auto &schema = output_op_node.spec.GetSchema();
+      // Special PassThrough handling for built-in operator. We calculate it via earlier pass.
+      if (schema.name() == "MakeContiguous") {
+        if (IsPassThrough(*output_op_node.op)) {
+          assert(output_op_node.parent_tensors.size() == 1);
+          q.push_back(output_op_node.parent_tensors[0]);
         }
+      }
+      auto maybe_source = FollowPassThroughUp(output.node, tid);
+      if (maybe_source >= 0) {
+        q.push_back(maybe_source);
       }
     }
   }
   return result;
 }
+
+
+void OpGraph::SetupMakeContiguousPassThrough(const std::vector<string>& output_names) {
+  // Detect the pass through for all MakeContiguous ops
+  for (int i = 0; i < NumOp(); i++) {
+    auto &node = Node(i);
+    if (node.spec.GetSchema().name() == "MakeContiguous") {
+      // sanity check, we have 1 input and 1 output in make contiguous
+      assert(node.parent_tensors.size() == 1);
+      bool same_device = Tensor(node.parent_tensors[0]).producer.storage_device ==
+                         Tensor(node.children_tensors[0]).producer.storage_device;
+      if (IsAlwaysContiguous(node.parent_tensors[0]) && same_device) {
+        MarkPassThrough(*node.op);
+      }
+    }
+  }
+}
+
+TensorNodeId OpGraph::FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through) const {
+  // TODO(klecki): Use std::optional instead of returning -1. op_graph is transitively included
+  // in some .cu compilation units, so we cannot use it yet.
+  auto &node = Node(op);
+  const auto &schema = node.spec.GetSchema();
+  if (!schema.HasPassThrough()) {
+    return -1;
+  }
+  auto &output = Tensor(passed_through);
+  auto output_index = output.producer.index;
+  // Find if there is a PassThrough between input id and requested output id.
+  for (size_t input_index = 0; input_index < node.parent_tensors.size(); input_index++) {
+    if (schema.IsPassThrough(input_index, output_index)) {
+      return node.parent_tensors[input_index];
+    }
+  }
+  return -1;
+}
+
 
 bool OpGraph::HasConsumersInOtherStage(const TensorNode &tensor, OpType this_stage) const {
   for (const auto& cons_edge : tensor.consumers) {

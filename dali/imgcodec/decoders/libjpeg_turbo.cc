@@ -16,31 +16,36 @@
 #include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/imgcodec/registry.h"
 #include "dali/core/common.h"
 
 namespace dali {
 namespace imgcodec {
 
-DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
-                                                 ImageSource *in,
-                                                 DecodeParams opts,
-                                                 const ROI &roi) {
+DecodeResult LibJpegTurboDecoderInstance::DecodeImplTask(int thread_idx,
+                                                         SampleView<CPUBackend> out,
+                                                         ImageSource *in,
+                                                         DecodeParams opts,
+                                                         const ROI &roi) {
   jpeg::UncompressFlags flags;
 
-  auto &type = opts.format;
+  auto &out_type = opts.format;
   auto info = JpegParser{}.GetInfo(in);
   auto target_shape = info.shape;
 
+  if (out_type == DALI_ANY_DATA) {
+    flags.color_space = out_type = info.shape[2] == 3 ? DALI_RGB : DALI_GRAY;
+  } else if (out_type == DALI_YCbCr) {
+    flags.color_space = DALI_RGB;  // The conversion will be handled by Convert
+  } else {
+    assert(out_type == DALI_RGB || out_type == DALI_BGR || out_type == DALI_GRAY);
+    flags.color_space = out_type;
+  }
+
   flags.components = info.shape[2];
-  if (type == DALI_ANY_DATA)
-    type = info.shape[2] == 3 ? DALI_RGB : DALI_GRAY;
-  target_shape[2] = NumberOfChannels(type);
+  target_shape[2] = NumberOfChannels(out_type);
 
-  DALI_ENFORCE(type == DALI_RGB || type == DALI_BGR || type == DALI_GRAY,
-               "Color space not supported by libjpeg-turbo");
-  flags.color_space = type;
-
-  if (any_cast<bool>(GetParam("fast_idct"))) {
+  if (use_fast_idct_) {
     flags.dct_method = JDCT_FASTEST;
   }
 
@@ -62,21 +67,17 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
   }
 
   DecodeResult res;
-  try {
-    auto decoded_image = jpeg::Uncompress(encoded_data, data_size, flags);
-    if ((res.success = decoded_image != nullptr)) {
-      // JPEG images are always 8-bit, in HWC format
-      SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
-      TensorLayout layout = "HWC";
-      Convert(out, layout, type, in, layout, type, {}, {});
-    }
-  } catch (...) {
-    res.exception = std::current_exception();
-    res.success = false;
+  auto decoded_image = jpeg::Uncompress(encoded_data, data_size, flags);
+  if ((res.success = decoded_image != nullptr)) {
+    // JPEG images are always 8-bit, in HWC format
+    SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
+    TensorLayout layout = "HWC";
+    Convert(out, layout, out_type, in, layout, flags.color_space, {}, {});
   }
-
   return res;
 }
+
+REGISTER_DECODER("JPEG", LibJpegTurboDecoderFactory, HostDecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali

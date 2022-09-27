@@ -70,9 +70,9 @@ If set and not empty, the layout must match the dimensionality of the output.)co
 
 namespace {
 template <typename Dst, typename Src>
-void FillTensorVector(
-  TensorVector<CPUBackend> &dst, const TensorListShape<> &shape, const std::vector<Src> &src) {
-  dst.SetContiguous(false);
+void FillTensorList(TensorList<CPUBackend> &dst, const TensorListShape<> &shape,
+                    const std::vector<Src> &src) {
+  dst.SetContiguity(BatchContiguity::Noncontiguous);
   dst.set_type<Dst>();
   dst.Resize(shape);
   assert(is_uniform(shape));
@@ -90,7 +90,7 @@ void FillTensorVector(
     }
   }
   for (int i = 1; i < shape.num_samples(); i++) {
-    dst.UnsafeSetSample(i, dst, 0);
+    dst.SetSample(i, dst, 0);
   }
 }
 }  // namespace
@@ -103,9 +103,9 @@ void Constant<CPUBackend>::RunImpl(HostWorkspace &ws) {
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,
       (
         if (!fdata_.empty()) {
-          FillTensorVector<type>(output_, max_output_shape_, fdata_);
+          FillTensorList<type>(output_, max_output_shape_, fdata_);
         } else {
-          FillTensorVector<type>(output_, max_output_shape_, idata_);
+          FillTensorList<type>(output_, max_output_shape_, idata_);
         }
       ), (DALI_FAIL(make_string("Unsupported type: ", output_type_))));  // NOLINT
   }

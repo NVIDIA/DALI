@@ -37,6 +37,22 @@ namespace dali {
 class GPUBackend;
 class CPUBackend;
 
+/**
+ * @brief State of a batch object. Can be used to force the state to one of the two contiguous /
+ * noncontiguous modes or to change the mode when resizing, if it was not pinned.
+ * See TensorList::Resize for detailed behaviour.
+ * * Automatic - means we are leaving it to the Batch to decide when to coalesce the allocation,
+ *   or keep the current one unchanged.
+ * Contiguous and Noncontiguous allow to request one backing allocation or separate ones for each
+ * sample.
+ */
+enum class BatchContiguity {
+  Automatic = 0,
+  Contiguous = 1,
+  Noncontiguous = 2,
+};
+
+
 
 DLL_PUBLIC shared_ptr<uint8_t> AllocBuffer(size_t bytes,
                                            bool pinned, int device_id,
@@ -71,6 +87,60 @@ template <typename T>
 inline bool set_deletion_order(const std::shared_ptr<T> &ptr, AccessOrder order) {
   return set_deletion_order(std::static_pointer_cast<void>(ptr), order);
 }
+
+/**
+ * @brief Checks whether the underlying managed object of the shared pointers is the same.
+ *
+ * This function may return true for two pointers that do not compare equal if they were created
+ * as aliasing different shared pointers.
+ */
+template <typename T, typename U>
+bool same_managed_object(const std::shared_ptr<T> &a, const std::shared_ptr<U> &b) {
+  return !a.owner_before(b) && !b.owner_before(a);
+}
+
+template <typename T, typename U>
+bool same_managed_object(const std::shared_ptr<T> &a, const std::weak_ptr<U> &b) {
+  return !a.owner_before(b) && !b.owner_before(a);
+}
+
+template <typename T, typename U>
+bool same_managed_object(const std::weak_ptr<T> &a, const std::shared_ptr<U> &b) {
+  return !a.owner_before(b) && !b.owner_before(a);
+}
+
+template <typename T, typename U>
+bool same_managed_object(const std::weak_ptr<T> &a, const std::weak_ptr<U> &b) {
+  return !a.owner_before(b) && !b.owner_before(a);
+}
+
+
+/**
+ * @brief Checks whether two shared pointers are the same
+ *
+ * Unlike `operator==`, this function doesn't just compare the value returned by `get`, but also
+ * checks for equality of the managed object (see `same_managed_object`).
+ */
+template <typename T, typename U>
+bool same_shared_ptr(const std::shared_ptr<T> &a, const std::shared_ptr<U> &b) {
+  return a == b && same_managed_object(a, b);
+}
+
+template <typename T, typename U>
+bool same_shared_ptr(const std::shared_ptr<T> &a, const std::weak_ptr<U> &b) {
+  return a == b && same_managed_object(a, b);
+}
+
+template <typename T, typename U>
+bool same_shared_ptr(const std::weak_ptr<T> &a, const std::shared_ptr<U> &b) {
+  return a == b && same_managed_object(a, b);
+}
+
+template <typename T, typename U>
+bool same_shared_ptr(const std::weak_ptr<T> &a, const std::weak_ptr<U> &b) {
+  return a == b && same_managed_object(a, b);
+}
+
 
 /**
  * @brief Base class to provide common functionality needed by Pipeline data
@@ -450,7 +520,12 @@ class DLL_PUBLIC Buffer {
   }
 
   inline void ShareData(const Buffer<Backend> &other) {
-    free_storage();
+    if (this == &other)
+      return;
+
+    if (!same_managed_object(data_, other.data_))
+      free_storage();
+
     order_ = other.order_;
     data_ = other.data_;
     size_ = other.size_;
@@ -474,7 +549,8 @@ class DLL_PUBLIC Buffer {
   inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                                      DALIDataType type, size_t size, int device_id,
                                      AccessOrder order = {}) {
-    free_storage();
+    if (!same_managed_object(data_, ptr))
+      free_storage();
 
     // Set the new order before replacing the allocation
     set_order(order);
@@ -576,6 +652,15 @@ class DLL_PUBLIC Buffer {
       data_.reset();
     }
     num_bytes_ = 0;
+  }
+
+  /**
+   * @brief Clear the ShareData flag of the buffer. It will still hold (and co-own) the data due
+   * to the shared_ptr semantics, but it is allowed to call resize() on it.
+   * Intended to be used by the Batch object only.
+   */
+  void detach() {
+    shares_data_ = false;
   }
 
   template <typename>

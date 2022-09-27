@@ -489,7 +489,7 @@ def test_to_decibels():
 
 def test_audio_resample():
     get_data = GetData(audio_data)
-    check_single_input('experimental.audio_resample', fn_source=get_data.fn_source,
+    check_single_input('audio_resample', fn_source=get_data.fn_source,
                        eager_source=get_data.eager_source, layout=None, scale=1.25)
 
 
@@ -1138,7 +1138,7 @@ tested_methods = [
     'spectrogram',
     'mel_filter_bank',
     'to_decibels',
-    'experimental.audio_resample',
+    'audio_resample',
     'mfcc',
     'one_hot',
     'transpose',

@@ -23,8 +23,28 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/sample_view.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
+#include "dali/imgcodec/image_orientation.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
+
+#define IMGCODEC_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float
+
 namespace dali {
 namespace imgcodec {
+
+namespace detail {
+
+template <typename ShapeIterator>
+TensorShape<> RemoveDim(ShapeIterator begin, ShapeIterator end, int index) {
+  TensorShape<> left(begin, begin+index), right(begin+index+1, end);
+  return shape_cat(left, right);
+}
+
+template <typename ShapeContainer>
+TensorShape<> RemoveDim(ShapeContainer container, int index) {
+  return RemoveDim(container.begin(), container.end(), index);
+}
+
+}  // namespace detail
 
 /**
  * @brief Applies a conversion function `func` to the input data
@@ -173,6 +193,49 @@ struct ConvertPixel<Out, In, DALI_GRAY, DALI_YCbCr> : ColorConversionBase<Out, 1
   }
 };
 
+template <typename T>
+void ApplyOrientation(Orientation orientation, T *&data,
+                      int64_t &x_stride, int64_t &x_size, int64_t &y_stride, int64_t &y_size) {
+  /* To adjust orientation, one has to rotate the image and do some flips.
+   *
+   * The rotation can be implemented as some combination of flips and axis swap. For example,
+   * to rotate an image by 180 degrees, we can flip it vertically and then flip it horizontally.
+   *
+   * The axis swap is simple: we just swap the x and y strides and swap x and y sizes. To flip an
+   * axis, we negate the appropriate stride (effectively causing the image to be read in opposite
+   * direction) and move the data pointer to the end of the axis.
+   */
+
+  bool swap_xy = false, flip_x = false, flip_y = false;
+
+  if (orientation.rotate == 90) {
+    swap_xy = true;
+    flip_x = true;
+  } else if (orientation.rotate == 180) {
+    flip_x = true;
+    flip_y = true;
+  } else if (orientation.rotate == 270) {
+    swap_xy = true;
+    flip_y = true;
+  }
+  flip_x ^= orientation.flip_x;
+  flip_y ^= orientation.flip_y;
+
+  if (swap_xy) {
+    std::swap(x_stride, y_stride);
+    std::swap(x_size, y_size);
+  }
+
+  if (flip_x) {
+    data += x_stride * (x_size - 1);
+    x_stride = -x_stride;
+  }
+
+  if (flip_y) {
+    data += y_stride * (y_size - 1);
+    y_stride = -y_stride;
+  }
+}
 
 /**
  * @brief Converts an image stored in `in` and stores it in `out`.
@@ -188,12 +251,14 @@ template <typename Out, typename In>
 void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
              const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
              const int64_t *size, int ndim) {
-  int spatial_ndim = ndim - 1;
+  if (out_format == DALI_ANY_DATA && in_format == DALI_ANY_DATA) {
+    // When converting ANY -> ANY, we simply ignore the color conversion and rewrite the data
+    Convert(out, out_strides, in, in_strides, size, ndim, ConvertPixelDType<Out, In, 1>{1, 1});
+    return;
+  }
 
-  // TODO(skarpinski) Support other layouts
-  DALI_ENFORCE(out_channel_dim == spatial_ndim && in_channel_dim == spatial_ndim,
-    "Not implemented: currently only channels-last layout is supported");
-  ptrdiff_t in_channel_stride = 1, out_channel_stride = 1;
+  ptrdiff_t in_channel_stride = in_strides[in_channel_dim];
+  ptrdiff_t out_channel_stride = out_strides[out_channel_dim];
 
   if (in_format == DALI_BGR) {
     // We will use RGB conversion, but we will load the pixel in reverse order.
@@ -214,12 +279,18 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
     out_format = in_format;
   }
 
+  // Here we remove the channel dimension in order to process whole pixels
+  TensorShape<> in_strides_no_channel = detail::RemoveDim(in_strides, in_strides + ndim,
+                                                          in_channel_dim);
+  TensorShape<> out_strides_no_channel = detail::RemoveDim(out_strides, out_strides + ndim,
+                                                           out_channel_dim);
+  TensorShape<> size_no_channel = detail::RemoveDim(size, size + ndim, in_channel_dim);
+
   VALUE_SWITCH(out_format, OutFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
     VALUE_SWITCH(in_format, InFormat, (DALI_RGB, DALI_YCbCr, DALI_GRAY), (
-      // We assume channel-last layout, so to remove channel dimension we simply pass
-      // `spatial_ndim` instead of `ndim` to Convert.
       auto func = ConvertPixel<Out, In, OutFormat, InFormat>{out_channel_stride, in_channel_stride};
-      Convert(out, out_strides, in, in_strides, size, spatial_ndim, func);
+      Convert(out, out_strides_no_channel.data(), in, in_strides_no_channel.data(),
+              size_no_channel.data(), ndim - 1, func);
     ), throw std::logic_error(  // NOLINT
         make_string("Unsupported input format " , to_string(in_format))););  // NOLINT
   ), throw std::logic_error(  // NOLINT
@@ -230,13 +301,13 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
  * @brief Converts an image stored in `in` and stores it in `out`.
  *
  * The function converts data type (normalizing) and color space.
- * When roi_start or roi_end is empty, it is assumed to be the lower bound and upport bound
+ * When roi.begin or roi.end is empty, it is assumed to be the lower bound and upport bound
  * of the spatial extent. Channel dimension must not be included in ROI specification.
  */
 void DLL_PUBLIC Convert(
     SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
     ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
-    TensorShape<> roi_start, TensorShape<> roi_end);
+    ROI roi, Orientation orientation = {});
 
 
 }  // namespace imgcodec

@@ -84,6 +84,11 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
           .AddArg("device_id", 0)
+          .AddOutput("data", "gpu")), "");
+    graph_.AddOp(this->PrepareSpec(
+          OpSpec("MakeContiguous")
+          .AddArg("device", "gpu")
+          .AddInput("data", "gpu")
           .AddOutput("final_images", "gpu")), "");
   }
 
@@ -133,6 +138,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
 
   template<typename Backend>
   void FeedWithGpuVector(ExternalSource<Backend> *src_op, int dims) {
+    AccessOrder order(cudaStream_t(0));
     for (int j = 0; j < this->batch_size_; ++j) {
       Tensor<CPUBackend> tensor;
       tensor.set_pinned(false);
@@ -143,11 +149,11 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         data[i] = fill_counter_;
         ++fill_counter_;
       }
-      vt_gpu_[j].set_order(cudaStream_t(0));
+      vt_gpu_[j].set_order(order);
       vt_gpu_[j].Copy(tensor);
     }
-    CUDA_CALL(cudaStreamSynchronize(0));
-    src_op->SetDataSource(vt_gpu_, cudaStream_t(0));
+    src_op->SetDataSource(vt_gpu_, order);
+    AccessOrder::host().wait(order);
   }
 
   template<typename Backend>
@@ -171,17 +177,18 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
     auto rand_shape = GetRandShape(dims);
     TensorListShape<> shape = uniform_list_shape(this->batch_size_, rand_shape);
     tensor_list.Resize(shape, DALI_INT32);
-    tl_gpu_.set_order(cudaStream_t(0));
     for (int j = 0; j < this->batch_size_; ++j) {
       auto data = tensor_list.template mutable_tensor<int>(j);
       for (int i = 0; i < volume(tensor_list.tensor_shape(j)); ++i) {
         data[i] = fill_counter_;
         ++fill_counter_;
       }
-      tl_gpu_.Copy(tensor_list);
     }
-    CUDA_CALL(cudaStreamSynchronize(0));
-    src_op->SetDataSource(tl_gpu_, cudaStream_t(0));
+    AccessOrder order(cudaStream_t(0));
+    tl_gpu_.set_order(order);
+    tl_gpu_.Copy(tensor_list);
+    src_op->SetDataSource(tl_gpu_, order);
+    AccessOrder::host().wait(order);
   }
 
   void RunExe() {
@@ -561,12 +568,8 @@ void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::
   ASSERT_EQ(pipe.num_outputs(), 1);
   ASSERT_EQ(pipe.output_device(0), dev);
   ASSERT_EQ(pipe.output_name(0), name);
-  if (dev == "cpu") {
-    // take Make Contiguous into account
-    ASSERT_EQ(op->children.size(), 1);
-  } else {
-    ASSERT_EQ(op->children.size(), 0);
-  }
+  // Make Contiguous is always added at the end
+  ASSERT_EQ(op->children.size(), 1);
 }
 
 
@@ -695,7 +698,7 @@ TEST(ExternalSourceTest, DeserializeLegacyExternalSource) {
       {"underscore_ext_src_gpu_v1.0.0.dali", "gpu"},
       {"python_cpu_v1.0.0.dali", "cpu"},
       {"python_gpu_v1.0.0.dali", "gpu"}};
-  for (auto file_dev : es_pipes) {
+  for (const auto &file_dev : es_pipes) {
     std::string path_to_deserialize = path + std::get<0>(file_dev);
     std::string dev = std::get<1>(file_dev);
     std::fstream file(path_to_deserialize, std::ios::in | std::ios::binary);

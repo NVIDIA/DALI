@@ -20,7 +20,7 @@ namespace imgcodec {
 
 /**
  * @brief The transform that needs to be applied to rectify an image.
- * 
+ *
  * The operations are applied in the order in which they are declared.
  */
 struct Orientation {
@@ -43,7 +43,7 @@ enum class ExifOrientation : uint16_t {
   ROTATE_270_CW = 8
 };
 
-Orientation FromExifOrientation(ExifOrientation exif_orientation);
+DLL_PUBLIC Orientation FromExifOrientation(ExifOrientation exif_orientation);
 
 }  // namespace imgcodec
 }  // namespace dali

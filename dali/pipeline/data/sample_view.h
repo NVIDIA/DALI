@@ -29,7 +29,7 @@ namespace dali {
  * of specific sample.
  *
  * This is a type corresponding to Tensor<Backend> and it's main goal is to become the return type
- * for the TensorVector/TensorList::operator[]. It allows to access the data via the
+ * for the TensorList/TensorList::operator[]. It allows to access the data via the
  * convenient `view<T, ndim>(SampleView)` conversion to TensorView, but doesn't break the batch
  * object encapsulation and doesn't allow to adjust the allocation.
  */
@@ -112,12 +112,9 @@ class SampleViewBase {
 
   SampleViewBase &operator=(SampleViewBase &&other) {
     if (this != &other) {
-      data_ = other.data_;
-      other.data_ = nullptr;
-      shape_ = std::move(other.shape_);
-      other.shape_ = {0};
-      type_id_ = other.type_id_;
-      other.type_id_ = DALI_NO_TYPE;
+      data_ = std::exchange(other.data_, nullptr);
+      shape_ = std::exchange(other.shape_, {0});
+      type_id_ = std::exchange(other.type_id_, DALI_NO_TYPE);
     }
     return *this;
   }
@@ -147,6 +144,8 @@ class SampleViewBase {
   ~SampleViewBase() = default;
 };
 
+template <typename Backend>
+class ConstSampleView;
 
 template <typename Backend>
 class SampleView : public SampleViewBase<Backend, void *> {
@@ -158,6 +157,7 @@ class SampleView : public SampleViewBase<Backend, void *> {
   using Base::data_;
   using Base::shape_;
   using Base::type_id_;
+  friend class ConstSampleView<Backend>;
 };
 
 
@@ -182,14 +182,9 @@ class ConstSampleView : public SampleViewBase<Backend, const void *> {
   }
 
   ConstSampleView &operator=(SampleView<Backend> &&other) {
-    if (this != &other) {
-      data_ = other.data_;
-      other.data_ = nullptr;
-      shape_ = std::move(other.shape_);
-      other.shape_ = {0};
-      type_id_ = other.type_id_;
-      other.type_id_ = DALI_NO_TYPE;
-    }
+    data_ = std::exchange(other.data_, nullptr);
+    shape_ = std::exchange(other.shape_, {0});
+    type_id_ = std::exchange(other.type_id_, DALI_NO_TYPE);
     return *this;
   }
 

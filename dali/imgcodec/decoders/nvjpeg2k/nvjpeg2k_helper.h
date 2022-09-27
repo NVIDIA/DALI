@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
-#define DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
+#ifndef DALI_IMGCODEC_DECODERS_NVJPEG2K_NVJPEG2K_HELPER_H_
+#define DALI_IMGCODEC_DECODERS_NVJPEG2K_NVJPEG2K_HELPER_H_
 
 #include <nvjpeg2k.h>
 #include <string>
@@ -129,6 +129,20 @@ struct NvJpeg2kDecodeState : public UniqueHandle<nvjpeg2kDecodeState_t, NvJpeg2k
   }
 };
 
+struct NvJpeg2kDecodeParams : public UniqueHandle<nvjpeg2kDecodeParams_t, NvJpeg2kDecodeParams> {
+  DALI_INHERIT_UNIQUE_HANDLE(nvjpeg2kDecodeParams_t, NvJpeg2kDecodeParams);
+
+  NvJpeg2kDecodeParams() {
+    CUDA_CALL(nvjpeg2kDecodeParamsCreate(&handle_));
+  }
+
+  static constexpr nvjpeg2kDecodeParams_t null_handle() { return nullptr; }
+
+  static void DestroyHandle(nvjpeg2kDecodeParams_t handle) {
+    nvjpeg2kDecodeParamsDestroy(handle);
+  }
+};
+
 }  // namespace imgcodec
 
 template <>
@@ -153,4 +167,4 @@ inline void cudaResultCheck<nvjpeg2kStatus_t>(nvjpeg2kStatus_t status, const str
 
 }  // namespace dali
 
-#endif  // DALI_IMGCODEC_DECODERS_NVJPEG_NVJPEG2K_HELPER_H_
+#endif  // DALI_IMGCODEC_DECODERS_NVJPEG2K_NVJPEG2K_HELPER_H_

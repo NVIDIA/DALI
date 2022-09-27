@@ -24,7 +24,7 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/tensor_vector.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test.h"
 
@@ -67,6 +67,35 @@ class TensorTest : public DALITest {
 typedef ::testing::Types<CPUBackend,
                          GPUBackend> Backends;
 TYPED_TEST_SUITE(TensorTest, Backends);
+
+TYPED_TEST(TensorTest, Move) {
+  Tensor<TypeParam> t;
+
+  // Give the tensor a type
+  t.template set_type<float>();
+  auto shape = this->GetRandShape();
+  t.Resize(shape);
+  t.SetSourceInfo("test");
+
+  Tensor<TypeParam> target_move_assign;
+  target_move_assign = std::move(t);
+
+  ASSERT_TRUE(target_move_assign.has_data());
+  ASSERT_NE(target_move_assign.raw_data(), nullptr);
+  ASSERT_EQ(target_move_assign.size(), volume(shape));
+  ASSERT_EQ(target_move_assign.shape(), shape);
+  ASSERT_TRUE(IsType<float>(target_move_assign.type()));
+  ASSERT_EQ(target_move_assign.GetSourceInfo(), "test");
+
+
+  Tensor<TypeParam> target_move_construct(std::move(target_move_assign));
+  ASSERT_TRUE(target_move_construct.has_data());
+  ASSERT_NE(target_move_construct.raw_data(), nullptr);
+  ASSERT_EQ(target_move_construct.size(), volume(shape));
+  ASSERT_EQ(target_move_construct.shape(), shape);
+  ASSERT_TRUE(IsType<float>(target_move_construct.type()));
+  ASSERT_EQ(target_move_construct.GetSourceInfo(), "test");
+}
 
 // Sharing data from a raw pointer resets a Tensor to
 // and invalid state (no type). To get to a valid state
@@ -415,7 +444,7 @@ TYPED_TEST(TensorTest, DeviceIdPropagationMultiGPU) {
 }
 
 TYPED_TEST(TensorTest, TestCopyToTensorList) {
-  TensorVector<TypeParam> tensors(16);
+  TensorList<TypeParam> tensors(16);
   TensorListShape<4> shape(16);
   for (int i = 0; i < 16; i++) {
     shape.set_tensor_shape(i, this->GetRandShape(4, 4));
@@ -437,7 +466,7 @@ TYPED_TEST(TensorTest, TestCopyToTensorList) {
 }
 
 TYPED_TEST(TensorTest, TestCopyEmptyToTensorList) {
-  TensorVector<TypeParam> tensors(16);
+  TensorList<TypeParam> tensors(16);
   // Empty tensors
   TensorList<TypeParam> tl;
   tensors.template set_type<float>();

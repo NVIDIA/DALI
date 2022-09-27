@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include "dali/core/nvtx.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
+#include "dali/pipeline/workspace/device_workspace.h"
 
 namespace dali {
 
@@ -37,8 +39,20 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   if (ws.OutputIsType<CPUBackend>(0)) {
     auto &output = ws.Output<CPUBackend>(0);
     DomainTimeRange tr("[DALI][MakeContiguousMixed] H2H non coalesced", DomainTimeRange::kGreen);
-    output.Copy(input);
+    if (IsPassThrough()) {
+      AccessOrder out_order = output.order();
+      // A call to ShareData may synchronize the orders and we don't want that.
+      // TODO(michalz): Find a less hacky solution.
+      output.set_order(input.order(), false);
+      output.ShareData(input);
+      output.set_order(out_order, false);
+    } else {
+      output.Copy(input, ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder());
+    }
   } else {
+    assert(!IsPassThrough() &&
+           "Copy between backends is needed, executor cannot mark this MakeContiguous as "
+           "PassThrough node.");
     auto &output = ws.Output<GPUBackend>(0);
     if (coalesced) {
       DomainTimeRange tr("[DALI][MakeContiguousMixed] H2D coalesced", DomainTimeRange::kBlue);
@@ -52,6 +66,19 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   }
 }
 
+void MakeContiguousGPU::RunImpl(DeviceWorkspace &ws) {
+  const auto& input = ws.template Input<GPUBackend>(0);
+  auto& output = ws.template Output<GPUBackend>(0);
+  DomainTimeRange tr("[DALI][MakeContiguousGPU] D2D", DomainTimeRange::kGreen);
+  if (IsPassThrough()) {
+    output.ShareData(input);
+  } else {
+    output.Copy(input);
+  }
+}
+
+
 DALI_REGISTER_OPERATOR(MakeContiguous, MakeContiguousMixed, Mixed);
+DALI_REGISTER_OPERATOR(MakeContiguous, MakeContiguousGPU, GPU);
 
 }  // namespace dali

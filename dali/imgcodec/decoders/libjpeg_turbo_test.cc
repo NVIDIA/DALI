@@ -52,6 +52,13 @@ const auto img_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg");
 const auto ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg");
 const auto jpeg_image = join(img_dir, "134/site-1534685_1280.jpg");
 const auto ref_prefix = join(ref_dir, "site-1534685_1280");
+
+const auto jpeg_image1 = join(img_dir, "113/snail-4291306_1280.jpg");
+const auto ref_prefix1 = join(ref_dir, "snail-4291306_1280");
+
+const auto jpeg_image2 = join(img_dir, "100/swan-3584559_640.jpg");
+const auto ref_prefix2 = join(ref_dir, "swan-3584559_640");
+
 }  // namespace
 
 TEST(LibJpegTurboDecoderTest, Factory) {
@@ -63,9 +70,16 @@ TEST(LibJpegTurboDecoderTest, Factory) {
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::DeviceMemory));;
   EXPECT_FALSE(!!(props.supported_input_kinds & InputKind::Stream));
 
-  ThreadPool tp(4, CPU_ONLY_DEVICE_ID, false, "libjpeg-turbo factory test");
-  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, tp);
+  std::map<string, any> params = { { "fast_idct", false } };
+  auto decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
   EXPECT_NE(decoder, nullptr);
+  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), false);
+
+  decoder.reset();
+  params = { { "fast_idct", true } };
+  decoder = factory.Create(CPU_ONLY_DEVICE_ID, params);
+  EXPECT_NE(decoder, nullptr);
+  EXPECT_EQ(any_cast<bool>(decoder->GetParam("fast_idct")), true);
 }
 
 template<typename OutputType>
@@ -73,8 +87,8 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
  protected:
   static const auto dtype = type2id<OutputType>::value;
 
-  std::shared_ptr<ImageDecoderInstance> CreateDecoder(ThreadPool &tp) override {
-    return LibJpegTurboDecoderFactory().Create(CPU_ONLY_DEVICE_ID, tp);
+  std::shared_ptr<ImageDecoderInstance> CreateDecoder() override {
+    return LibJpegTurboDecoderFactory().Create(CPU_ONLY_DEVICE_ID);
   }
 
   std::shared_ptr<ImageParser> CreateParser() override {
@@ -86,6 +100,15 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
     opts.dtype = dtype;
     return opts;
   }
+
+  float GetEps() {
+    if (std::is_floating_point_v<OutputType>) {
+      return 0.01f;
+    } else {
+      // Adjusting the epsilon to OutputType
+      return 0.01 * max_value<OutputType>();
+    }
+  }
 };
 
 using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
@@ -95,14 +118,37 @@ TYPED_TEST(LibJpegTurboDecoderTest, Decode) {
   ImageBuffer image(jpeg_image);
   auto decoded = this->Decode(&image.src, this->GetParams());
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
-  this->AssertEqualSatNorm(decoded, ref);
+  AssertEqualSatNorm(decoded, ref);
+}
+
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeBatchedAPI) {
+  auto ref0 = this->ReadReferenceFrom(make_string(ref_prefix, ".npy"));
+  auto ref1 = this->ReadReferenceFrom(make_string(ref_prefix1, ".npy"));
+  auto ref2 = this->ReadReferenceFrom(make_string(ref_prefix2, ".npy"));
+  ImageBuffer image0(jpeg_image);
+  ImageBuffer image1(jpeg_image1);
+  ImageBuffer image2(jpeg_image2);
+  std::vector<ImageSource*> srcs = {&image0.src, &image1.src, &image2.src};
+  auto img = this->Decode(make_span(srcs), this->GetParams());
+  AssertEqualSatNorm(img[0], ref0);
+  AssertEqualSatNorm(img[1], ref1);
+  AssertEqualSatNorm(img[2], ref2);
 }
 
 TYPED_TEST(LibJpegTurboDecoderTest, DecodeRoi) {
   ImageBuffer image(jpeg_image);
   auto decoded = this->Decode(&image.src, this->GetParams(), {{5, 20}, {800, 1000}});
   auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_roi.npy"));
-  this->AssertEqualSatNorm(decoded, ref);
+  AssertEqualSatNorm(decoded, ref);
+}
+
+TYPED_TEST(LibJpegTurboDecoderTest, DecodeYCbCr) {
+  ImageBuffer image(jpeg_image);
+  auto params = this->GetParams();
+  params.format = DALI_YCbCr;
+  auto decoded = this->Decode(&image.src, params);
+  auto ref = this->ReadReferenceFrom(make_string(ref_prefix, "_ycbcr.npy"));
+  AssertClose(decoded, ref, this->GetEps());
 }
 
 }  // namespace test

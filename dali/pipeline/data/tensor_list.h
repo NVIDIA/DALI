@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,21 +15,28 @@
 #ifndef DALI_PIPELINE_DATA_TENSOR_LIST_H_
 #define DALI_PIPELINE_DATA_TENSOR_LIST_H_
 
-#include <assert.h>
-#include <cstring>
-#include <string>
-#include <vector>
-#include <list>
+#include <atomic>
+#include <cassert>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
+
 #include "dali/core/access_order.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/buffer.h"
-#include "dali/pipeline/data/meta.h"
+#include "dali/pipeline/data/sample_view.h"
+#include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/types.h"
 
+
 namespace dali {
+
+template <typename Backend>
+class DLL_PUBLIC TensorList;
 
 /**
  * @brief Size of stack-based array used to prepare the pointers and other parameters for
@@ -47,679 +54,36 @@ constexpr size_t kMaxStaticCopyBatchSize = 256;
 template <typename T>
 using BatchVector = SmallVector<T, kMaxStaticCopyBatchSize>;
 
-template <typename Backend>
-class Tensor;
-
-template <typename Backend>
-class TensorVector;
 
 /**
- * @brief Stores a number of Tensors in a contiguous buffer.
- * Functions similar to a jagged tensor, i.e. a tensor
- * where each element along the outer dimension can be of
- * different size.
+ * @brief Data structure representing a batch of non-uniformly shaped Tensor.
+ * Type, dimensionality, order, pinned status and layout are uniform for all samples.
  *
- * Provides helper functions for accessing individual Tensors
- * in the list.
+ * TODO(klecki): Additional followups for TensorList:
+ *   * Based on intended usage patterns extend CopySample to switch the batch into noncontiguous
+ *     mode and/or introduce ResizeSample functionality.
+ * @tparam Backend
  */
 template <typename Backend>
 class DLL_PUBLIC TensorList {
  public:
-  DLL_PUBLIC TensorList() {}
+  TensorList();
 
   /**
-   * @brief This constructor mostly serves as a placeholder, it should allow to get batch_size
-   * nullptrs as `raw_tensor(idx)` for newly created TensorList until first proper Reshape.
-   *
-   * It is needed as a counterpart of TensorVector(batch_size).
-   *
-   * TODO(klecki): The API for empty tensor batch container of given number of samples
-   * will be adjusted in next releases.
+   * @brief This constructor allows to create a TensorList with `batch_size` samples.
+   * Automatically sets dimension to 1, and the sample shape is {0}.
    */
-  DLL_PUBLIC TensorList(int batch_size) : offsets_(batch_size, 0), meta_(batch_size) {}
+  explicit TensorList(int batch_size);
 
-  DLL_PUBLIC TensorList<Backend>(const TensorList<Backend>&) = delete;
-  DLL_PUBLIC TensorList<Backend>& operator=(const TensorList<Backend>&) = delete;
+  TensorList(const TensorList &) = delete;
+  TensorList &operator=(const TensorList &) = delete;
 
-  DLL_PUBLIC TensorList<Backend>(TensorList<Backend> &&other) noexcept {
-    // Steal all data and set input to default state
-    *this = std::move(other);
-  }
+  TensorList<Backend> &operator=(TensorList<Backend> &&other) noexcept;
+  DLL_PUBLIC TensorList<Backend>(TensorList<Backend> &&other) noexcept;
 
-  DLL_PUBLIC ~TensorList() = default;
 
-  /**
-   * @brief Number of elements in Tensor List.
-   *
-   * Note: The usage of this member function is intended to be reworked in following updates.
-   * For this purpose the name is distinct so we can easily search and replace.
-   */
-  int64_t _num_elements() const {
-    return data_.size();
-  }
-
-  /**
-   * @brief Copies the input TensorList, resizing this TensorList and
-   * changing the underlying data type if needed.
-   *
-   * The copy ordering can be:
-   * - explict, as specified in `order`
-   * - the one from `source`, if set
-   * - the one from `this`
-   * If neither is specified, the copy happens on the defualt stream (applies to GPU only).
-   */
-  template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorList<SrcBackend> &other, AccessOrder order = {},
-                              bool use_copy_kernel = false) {
-    Resize(other.shape(), other.type());
-    if (!order)
-      order = other.order() ? other.order() : this->order();
-    order.wait(this->order());
-    this->meta_ = other.meta_;
-    this->SetLayout(other.GetLayout());
-
-    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
-                       (std::is_same<Backend, GPUBackend>::value || is_pinned());
-    type_info().template Copy<Backend, SrcBackend>(unsafe_raw_mutable_data(*this),
-                                                   unsafe_raw_data(other),
-                                                   this->_num_elements(), order.stream(),
-                                                   use_copy_kernel);
-    this->order().wait(order);
-  }
-
-  template <typename SrcBackend>
-  DLL_PUBLIC inline void Copy(const TensorVector<SrcBackend> &other, AccessOrder order = {},
-                              bool use_copy_kernel = false) {
-    auto type = other.type();
-    auto layout = other.GetLayout();
-
-    int dim = other[0].shape().sample_dim();
-    TensorListShape<> new_shape(other.num_samples(), dim);
-    for (int i = 0; i < other.num_samples(); ++i) {
-      DALI_ENFORCE(other[i].shape().sample_dim() == dim,
-         "TensorList can only have uniform dimensions across all samples, mismatch at index "
-         + std::to_string(i) + " expected Tensor with dim = " + to_string(dim)
-         + " found Tensor with dim = " + to_string(other[i].shape().sample_dim()));
-      assert(type == other[i].type());
-      assert(layout == other.GetMeta(i).GetLayout());
-      new_shape.set_tensor_shape(i, other[i].shape());
-    }
-
-    if (!order)
-      order = other.order() ? other.order() : this->order();
-    order.wait(this->order());
-
-    this->Resize(new_shape, type);
-    order.wait(this->order());
-    this->SetLayout(layout);
-
-    auto nsamples = other.num_samples();
-    BatchVector<const void*> srcs;
-    srcs.reserve(nsamples);
-    BatchVector<void*> dsts;
-    dsts.reserve(nsamples);
-    BatchVector<Index> sizes;
-    sizes.reserve(nsamples);
-    for (int i = 0; i < nsamples; i++) {
-      dsts.emplace_back(this->raw_mutable_tensor(i));
-      srcs.emplace_back(other[i].raw_data());
-      sizes.emplace_back(other[i].shape().num_elements());
-      this->meta_[i] = other.GetMeta(i);
-    }
-
-    use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || other.is_pinned()) &&
-                       (std::is_same<Backend, GPUBackend>::value || is_pinned());
-    type_info().template Copy<SrcBackend, Backend>(dsts.data(), srcs.data(), sizes.data(),
-                                                   nsamples, order.stream(), use_copy_kernel);
-    this->order().wait(order);
-  }
-
-  inline void reserve(size_t bytes_per_tensor, int batch_size) {
-    if (shape_.empty()) {
-      offsets_.resize(batch_size, 0);
-      meta_.resize(batch_size);
-    }
-    data_.reserve(bytes_per_tensor * batch_size);
-  }
-
-  inline void reserve(size_t bytes) {
-    data_.reserve(bytes);
-  }
-  /**
-   * @brief Resize function to allocate a list of tensors. The input vector
-   * contains a set of dimensions for each tensor to be allocated in the
-   * list.
-   */
-  DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape) {
-    DALI_ENFORCE(IsValidType(type()),
-                 "TensorList has no type, 'set_type<T>()' or Resize(shape, type) must be called "
-                 "on the TensorList to set a valid type before it can be resized.");
-    Resize(new_shape, type());
-  }
-
-  /**
-   * @brief Resize function to allocate a list of tensors. The input vector
-   * contains a set of dimensions for each tensor to be allocated in the
-   * list.
-   */
-  DLL_PUBLIC inline void Resize(const TensorListShape<> &new_shape, DALIDataType new_type) {
-    DALI_ENFORCE(IsValidType(new_type),
-                 "TensorList cannot be resized with invalid type. To zero out the TensorList "
-                 "Reset() can be used.");
-    // Calculate the new size
-    Index num_tensor = new_shape.size(), new_size = 0;
-    offsets_.resize(num_tensor);
-    for (Index i = 0; i < num_tensor; ++i) {
-      auto tensor_size = volume(new_shape[i]);
-
-      // Save the offset of the current sample & accumulate the size
-      offsets_[i] = new_size;
-      new_size += tensor_size;
-    }
-    DALI_ENFORCE(new_size >= 0, "Invalid negative buffer size.");
-
-    // Resize the underlying allocation and save the new shape
-    data_.resize(new_size, new_type);
-    shape_ = new_shape;
-
-    // Tensor views of this TensorList is no longer valid
-    tensor_views_.clear();
-
-    meta_.resize(num_tensor, DALIMeta(layout_));
-  }
-
-  /**
-   * @brief Wraps the data owned by the input TensorList. The input
-   * TensorList must have a valid type. If the input TensorList
-   * stores no data, this tensor is reset to a default state.
-   *
-   * When this function is called, the calling object shares the
-   * underlying allocation of the input TensorList. Its size, type
-   * and shape are set to match the calling TensorList. While this
-   * list shares data with another list, 'shares_data()' will
-   * return 'true'.
-   *
-   * After calling this function any following call to `set_type` and `Resize`
-   * must match the total size of underlying allocation (`num_bytes_`) of
-   * shared data or the call will fail.
-   * Size can be set to 0 and type to NoType as intermediate step.
-   */
-  inline void ShareData(const TensorList<Backend> &other) {
-    DALI_ENFORCE(IsValidType(other.type()), "To share data, "
-        "the input TensorList must have a valid data type");
-
-    // Share the underlying buffer
-    data_.ShareData(other.data_);
-
-    // Copy the shape and metadata
-    shape_ = other.shape_;
-    offsets_ = other.offsets_;
-    meta_ = other.meta_;
-    layout_ = other.layout_;
-
-    // Tensor views of this TensorList is no longer valid
-    tensor_views_.clear();
-  }
-
-  /**
-   * @brief Interprets a raw allocation as a tensor list with given shape.
-   *
-   * If the size of the allocation is zero, the TensorList is reset to a default
-   * state and is NOT marked as sharing data.
-   *
-   * After calling this function any following call to `set_type` and `Resize`
-   * must not exceed the total size of underlying allocation (`num_bytes_`) of
-   * shared data or the call will fail.
-   * Size can be set to 0 and type to NoType as intermediate step.
-   *
-   * @remark Note that the device_id inside the order can differ from the device_id that is passed
-   * individually. The device_id describes the location of the memory and the order can describe
-   * the dependency on the work that is happening on another device.
-   */
-  inline void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
-                        const TensorListShape<> &shape, DALIDataType type, int device_id,
-                        AccessOrder order = {}) {
-    // Free the underlying storage.
-    data_.free_storage();
-
-    // Set the new order for explicit sync.
-    this->set_order(order);
-
-    // Save our new pointer and bytes. Reset our type, shape, and size, use the order as provided,
-    // we already set it so it will be a no-op in this call.
-    data_.set_backing_allocation(ptr, bytes, pinned, type, shape.num_elements(), device_id, order);
-    shape_ = {};
-    offsets_.clear();
-
-    // Tensor views of this TensorList is no longer valid
-    tensor_views_.clear();
-
-    // Set the proper shape and type in one step. No-op for empty values.
-    if (!shape.empty() && type != DALIDataType::DALI_NO_TYPE) {
-      Resize(shape, type);
-    }
-  }
-
-  /**
-   * @brief Interprets a raw allocation as a tensor list with given shape.
-   *
-   * If the size of the allocation is zero, the TensorList is reset to a default
-   * state and is NOT marked as sharing data.
-   *
-   * After calling this function any following call to `set_type` and `Resize`
-   * must not exceed the total size of underlying allocation (`num_bytes_`) of
-   * shared data or the call will fail.
-   * Size can be set to 0 and type to NoType as intermediate step.
-   *
-   * The TensorList object assumes no ownership of the input allocation, and will
-   * not de-allocate it when it is done using it. It is up to the user to
-   * manage the lifetime of the allocation such that it persist while it is
-   * in use by the TensorList.
-   */
-  DLL_PUBLIC inline void ShareData(void *ptr, size_t bytes, bool pinned,
-                                   const TensorListShape<> &shape,
-                                   DALIDataType type, int device_id, AccessOrder order = {}) {
-    ShareData(shared_ptr<void>(ptr, [](void *) {}), bytes, pinned, shape, type, device_id, order);
-  }
-
-  DLL_PUBLIC void Reset(AccessOrder order = {}) {
-    data_.reset(order);  // free the underlying buffer
-    shape_ = {};
-    offsets_.clear();
-    meta_.clear();
-    tensor_views_.clear();
-  }
-
-  DLL_PUBLIC inline TensorList<Backend>& operator=(TensorList<Backend> &&other) noexcept {
-    if (&other != this) {
-      shape_ = std::move(other.shape_);
-      offsets_ = std::move(other.offsets_);
-      tensor_views_ = std::move(other.tensor_views_);
-      meta_ = std::move(other.meta_);
-      layout_ = std::move(other.layout_);
-
-      other.shape_ = {};
-      other.tensor_views_.clear();
-      other.offsets_.clear();
-      other.meta_.clear();
-      other.layout_ = {};
-
-      data_ = std::move(other.data_);
-    }
-    return *this;
-  }
-
-  /**
-   * @brief TensorList is always backed by contiguous buffer
-   */
-  bool IsContiguous() const {
-    return true;
-  }
-
-  /**
-   * @brief TensorList is always backed by contiguous buffer
-   *        Cannot be set to noncontiguous
-   */
-  void SetContiguous(bool contiguous) {
-    DALI_ENFORCE(contiguous, "TensorList cannot be made noncontiguous");
-  }
-
-  /**
-   * @brief Returns a typed pointer to the tensor with the given index.
-   */
-  template <typename T>
-  DLL_PUBLIC inline T* mutable_tensor(int idx) {
-    return data_.template mutable_data<T>() + tensor_offset(idx);
-  }
-
-  /**
-   * @brief Returns a const typed pointer to the tensor with the given index.
-   */
-  template <typename T>
-  DLL_PUBLIC inline const T* tensor(int idx) const {
-    return data_.template data<T>() + tensor_offset(idx);
-  }
-
-  /**
-   * @brief Returns a raw pointer to the tensor with the given index.
-   */
-  DLL_PUBLIC inline void* raw_mutable_tensor(int idx) {
-    return static_cast<void*>(
-        static_cast<uint8*>(data_.raw_mutable_data()) +
-        (tensor_offset(idx) * type_info().size()));
-  }
-
-  /**
-   * @brief Returns a const raw pointer to the tensor with the given index.
-   */
-  DLL_PUBLIC inline const void* raw_tensor(int idx) const {
-    return static_cast<const void*>(
-        static_cast<const uint8*>(data_.raw_data()) +
-        (tensor_offset(idx) * type_info().size()));
-  }
-
-  /**
-   * @brief Returns the number of tensors in the list.
-   */
-  DLL_PUBLIC inline int num_samples() const {
-    return shape_.size();
-  }
-
-  /**
-   * @brief Returns the number of dimensions of the samples.
-   */
-  DLL_PUBLIC inline int sample_dim() const {
-    return shape_.sample_dim();
-  }
-
-
-  /**
-   * @brief Returns the offset of the tensor with the given index.
-   */
-  DLL_PUBLIC inline Index tensor_offset(int idx) const {
-#ifndef NDEBUG
-    DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE((size_t)idx < offsets_.size(), "Index out of offset range");
-#endif
-    return offsets_[idx];
-  }
-
-  /**
-   * @brief Return the shape of the tensor with the given index.
-   */
-  inline TensorShape<> tensor_shape(int idx) const {
-#ifndef NDEBUG
-    DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE(idx < shape_.size(), "Index out of offset range");
-#endif
-    return shape_[idx];
-  }
-
-  /**
-   * @brief Return the shape of the tensor with the given index.
-   */
-  inline span<const int64_t> tensor_shape_span(int idx) const {
-#ifndef NDEBUG
-    DALI_ENFORCE(idx >= 0, "Negative index not supported");
-    DALI_ENFORCE(idx < shape_.size(), "Index out of offset range");
-#endif
-    return shape_.tensor_shape_span(idx);
-  }
-
-  /**
-   * @brief Returns the shape of the entire TensorList.
-   */
-  inline const TensorListShape<> &shape() const {
-    return shape_;
-  }
-
-  /**
-   * @brief Checks whether the TensorList is
-   * contiguous. It returns true if and only if
-   * all of the stored Tensors are densely packed in memory.
-   */
-  inline bool IsContiguousTensor() const {
-    if (num_samples() == 0 || _num_elements() == 0) {
-      return true;
-    }
-    if (!IsContiguous()) {
-      return false;
-    }
-    Index offset = 0;
-
-    for (int i = 0; i < shape_.size(); ++i) {
-      if (offset != offsets_[i]) {
-        return false;
-      }
-      offset += volume(shape_[i]);
-    }
-    return true;
-  }
-
-  /**
-   * @brief Checks whether the TensorList is
-   * a dense Tensor. It returns true if and only if
-   * all of the stored Tensors have the same shape
-   * and they are densely packed in memory.
-   */
-  inline bool IsDenseTensor() const {
-    if (num_samples() == 0 || _num_elements() == 0) {
-      return true;
-    }
-    if (!IsContiguous()) {
-      return false;
-    }
-    if (!is_uniform(shape_)) {
-      return false;
-    }
-    // shapes are uniform, check if offsets are packed
-    auto tensor_volume = volume(shape_[0]);
-    Index offset = 0;
-
-    for (int i = 0; i < shape_.size(); ++i) {
-      if (offset != offsets_[i]) {
-        return false;
-      }
-      offset += tensor_volume;
-    }
-    return true;
-  }
-
-  /**
-   * @brief Returns a Tensor view with given shape or nullptr if no
-   * such exists
-   */
-  inline Tensor<Backend> *GetViewWithShape(const TensorShape<> &shape) {
-    for (auto &t : tensor_views_) {
-      if (t.shape() == shape) {
-        return &t;
-      }
-    }
-    return nullptr;
-  }
-
-  /**
-   * @brief Returns a pointer to Tensor which shares the data
-   * with this TensorList and give it the provided shape.
-   * Tensor list owns the memory. The tensor obtained through
-   * this function stays valid for as long as TensorList data is unchanged.
-   */
-  DLL_PUBLIC inline Tensor<Backend> * AsReshapedTensor(const TensorShape<> &new_shape) {
-    auto t = GetViewWithShape(new_shape);
-    if (t) {
-      return t;
-    }
-
-    // need to create a new view
-    DALI_ENFORCE(num_samples() > 0,
-                 "To create a view Tensor, the Tensor List must have at least 1 element.");
-    DALI_ENFORCE(IsValidType(type()),
-                 "To create a view Tensor, the Tensor List must have a valid data type.");
-    DALI_ENFORCE(IsContiguousTensor(),
-                 "To create a view Tensor, all tensors in the input TensorList must be contiguous "
-                 "in memory.");
-    Index product = shape().num_elements();
-    DALI_ENFORCE(product == volume(new_shape),
-                 "To create a view Tensor, Requested shape need to have the same volume as the "
-                 "tensor list.");
-
-    tensor_views_.emplace_back();
-    auto &tensor = tensor_views_.back();
-
-    tensor.ShareData(data_.get_data_ptr(), data_.capacity(), data_.is_pinned(),
-                     new_shape, type(), device_id(), order());
-
-    return &tensor;
-  }
-
-  /**
-   * @brief Returns a pointer to Tensor which shares the data
-   * with this TensorList. Tensor list owns the memory. The tensor
-   * obtained through this function stays valid for as long
-   * as TensorList data is unchanged.
-   */
-  DLL_PUBLIC inline Tensor<Backend> * AsTensor() {
-    // To prevent situation when AsReshapedTensor is called first with some shape, and then
-    // AsTensor which return non-dense tensor after all
-    // i.e. [[2], [3], [1]] is not dense but requesting [3, 2] AsReshapedTensor will work
-    // while AsTensor should not return for that case
-    DALI_ENFORCE(this->IsDenseTensor(),
-      "All tensors in the input TensorList must have the same shape and be densely packed.");
-    auto requested_shape = shape_cat(static_cast<int64_t>(this->num_samples()), shape_[0]);
-
-    return this->AsReshapedTensor(requested_shape);
-  }
-
-
-  // So we can access the members of other TensorListes
-  // with different template types
-  template <typename InBackend>
-  friend class TensorList;
-
-  inline std::string GetSourceInfo(int idx) const {
-    return meta_[idx].GetSourceInfo();
-  }
-
-  inline void SetSourceInfo(int idx, const std::string& source_info) {
-    meta_[idx].SetSourceInfo(source_info);
-  }
-
-  inline TensorLayout GetLayout() const {
-    // Layout is enforced to be the same across all the samples
-    return layout_;
-  }
-
-  /** @brief Set uniform layout for all samples in the list */
-  inline void SetLayout(const TensorLayout &layout) {
-    layout_ = layout;
-    for (auto& meta : meta_)
-      meta.SetLayout(layout);
-  }
-
-  inline void SetSkipSample(int idx, bool skip_sample) {
-    return meta_[idx].SetSkipSample(skip_sample);
-  }
-
-  inline bool ShouldSkipSample(int idx) const {
-    return meta_[idx].ShouldSkipSample();
-  }
-
-  inline const DALIMeta &GetMeta(int idx) const {
-    return meta_[idx];
-  }
-
-  inline void SetMeta(int idx, const DALIMeta &meta) {
-    meta_[idx] = meta;
-  }
-
-  // Reexpose all public Buffer functions apart from contiguous buffer accessors.
-  // TensorList is being reworked to sample-only access and this is intermediate step
-  // that prevents reintroducing that access in any of DALI operators
-
-
-  /**
-   * @brief Returns the TypeInfo object that keeps track of the
-   * datatype of the underlying storage.
-   */
-  const TypeInfo &type_info() const {
-    return data_.type_info();
-  }
-
-  /**
-   * @brief Returns the id of the datatype of the underlying storage.
-   */
-  DALIDataType type() const {
-    return data_.type();
-  }
-
-  /**
-   * @brief Returns the size in bytes of the underlying data
-   */
-  size_t nbytes() const {
-    return data_.nbytes();
-  }
-
-  /**
-   * @brief Returns the real size of the allocation
-   */
-  size_t capacity() const {
-    return data_.capacity();
-  }
-
-  /**
-   * @brief Returns the size in bytes of the underlying data chunks
-   * TODO(klecki): Temporary API to be reworked, do not use.
-   */
-  std::vector<size_t> _chunks_nbytes() const {
-    return {data_.nbytes()};
-  }
-
-  /**
-   * @brief Returns the real size of the underlying allocations
-   * TODO(klecki): Temporary API to be reworked, do not use.
-   */
-  std::vector<size_t> _chunks_capacity() const {
-    return {data_.capacity()};
-  }
-
-  /**
-   * @name Type setting functions.
-   * @{
-   */
-  /**
-   * @brief Set the type of the current batch. It must be set before calling
-   * Resize(const TensorListShape<> &). It cannot be used to change the type after allocation
-   * happened.
-   *
-   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
-   * request a different type after allocation.
-   */
-  inline void set_type(const DALIDataType new_type_id) {
-    data_.set_type(new_type_id);
-  }
-
-  template <typename T>
-  inline void set_type() {
-    data_.set_type(TypeTable::GetTypeId<T>());
-  }
-  /** @} */
-
-  /**
-   * @brief Sets the type of allocation (pinned/non-pinned) for CPU TensorList
-   */
-  inline void set_pinned(bool pinned) {
-    data_.set_pinned(pinned);
-  }
-
-  /**
-   * @brief Returns the type of allocation (pinned/non-pinned) for CPU TensorList
-   */
-  bool is_pinned() const {
-    return data_.is_pinned();
-  }
-
-   /**
-   * @brief Returns a device this TensorList was allocated on
-   * If the backend is CPUBackend, return -1
-   */
-  int device_id() const {
-    return data_.device_id();
-  }
-
-  /**
-   * @brief Sets a device this TensorList was allocated on
-   * If the backend is CPUBackend, should be -1
-   */
-  void set_device_id(int device) {
-    data_.set_device_id(device);
-  }
-
-  /**
-   * @brief Returns the order in which the data is accessed - it can be either host order
-   *        or a stream order (or unspecified).
-   */
   AccessOrder order() const {
-    return data_.order();
+    return order_;
   }
 
   /**
@@ -735,108 +99,706 @@ class DLL_PUBLIC TensorList {
    *                    and the new order. The caller may specify `false` if appropriate
    *                    synchronization is guaranteed by other means.
    */
-  void set_order(AccessOrder order, bool synchronize = true) {
-    data_.set_order(order);
-  }
+  void set_order(AccessOrder order, bool synchronize = true);
 
   /**
-   * @brief Return true if there was data allocation
-   */
-  inline bool has_data() const noexcept {
-    return data_.has_data();
-  }
-
-  /**
-   * @brief Returns a bool indicating if the list shares its underlying storage.
-   */
-  inline bool shares_data() const {
-    return data_.shares_data();
-  }
-
-  /**
-   * @brief Sets a custom allocation function.
-   *
-   * Sets a custom allocation function. The allocation function returns
-   * a shared pointer with a matching deleter.
-   *
-   * @remarks Experimental - subject to change
-   */
-  inline void set_alloc_func(typename Buffer<Backend>::AllocFunc allocate) {
-    data_.set_alloc_func(std::move(allocate));
-  }
-
-  /**
-   * @brief Returns the current custom allocation function.
-   *
-   * @return Allocation function. If not set, an empty function object is returned.
-   *
-   * @remarks Experimental - subject to change
-   */
-  const typename Buffer<Backend>::AllocFunc &alloc_func() const noexcept {
-    return data_.alloc_func();
-  }
-
- protected:
-  Buffer<Backend> data_ = {};
-  // We store a set of dimension for each tensor in the list.
-  // We also pre-compute the offsets of each tensor in the
-  // underlying allocation for random access
-  TensorListShape<> shape_;
-  vector<Index> offsets_;
-  vector<DALIMeta> meta_;
-  TensorLayout layout_;
-
-  // In order to not leak memory (and make it slightly faster)
-  // when sharing data with a Tensor, we will store a pointer to
-  // Tensor that shares the data with this TensorList (valid only
-  // if IsDenseTensor returns true)
-  std::list<Tensor<Backend>> tensor_views_;
-
- private:
-  /** @defgroup ContiguousAccessorFunctions Fallback contiguous accessors
-   * Fallback access to contiguous data to TensorList. It should not be used for processing,
-   * and can be used only for outputs of the pipeline that were made sure to be contiguous.
-   * Currently TensorList is contiguous by design, but it is up to change.
+   * @name Shape access
    * @{
    */
+  /**
+   * @brief Get the number of samples this batch holds.
+   */
+  int num_samples() const noexcept {
+    return curr_num_tensors_;
+  }
 
+  /**
+   * @brief Number of elements in batch (total of all samples).
+   *
+   * Note: The usage of this member function is intended to be reworked in following updates.
+   * For this purpose the name is distinct so we can easily search and replace.
+   * [shape_access]
+   */
+  int64_t _num_elements() const {
+    return shape().num_elements();
+  }
+
+  /**
+   * @brief Set the dimensionality for all samples in the batch
+   */
+  void set_sample_dim(int sample_dim);
+
+  /**
+   * @brief Get the dimensionality of the sample in the batch
+   */
+  int sample_dim() const {
+    return sample_dim_;
+  }
+
+  /**
+   * @brief Get the shape of the batch.
+   */
+  const TensorListShape<> &shape() const &;
+
+  /**
+   * @brief Get the shape of the sample.
+   *
+   * [shape_access]
+   */
+  const TensorShape<> &tensor_shape(int idx) const & {
+    return tensors_[idx].shape();
+  }
+
+  /**
+   * @brief Get the shape of the sample.
+   *
+   * [shape_access]
+   */
+  inline span<const int64_t> tensor_shape_span(int idx) const & {
+    return shape_.tensor_shape_span(idx);
+  }
+  /** @} */
+
+
+  /**
+   * @name Sample access
+   * @{
+   */
+  /**
+   * @brief Get the view for the sample at given position
+   */
+  SampleView<Backend> operator[](size_t pos);
+
+  /**
+   * @brief Get the view for the sample at given position
+   */
+  ConstSampleView<Backend> operator[](size_t pos) const;
+
+  /**
+   * @brief Returns a typed pointer to the tensor with the given index.
+   */
+  template <typename T>
+  DLL_PUBLIC inline T *mutable_tensor(int idx) {
+    return tensors_[idx].template mutable_data<T>();
+  }
+
+  /**
+   * @brief Returns a const typed pointer to the tensor with the given index.
+   */
+  template <typename T>
+  DLL_PUBLIC inline const T *tensor(int idx) const {
+    return tensors_[idx].template data<T>();
+  }
+
+  /**
+   * @brief Returns a raw pointer to the tensor with the given index.
+   */
+  DLL_PUBLIC inline void *raw_mutable_tensor(int idx) {
+    return tensors_[idx].raw_mutable_data();
+  }
+
+  /**
+   * @brief Returns a const raw pointer to the tensor with the given index.
+   */
+  DLL_PUBLIC inline const void *raw_tensor(int idx) const {
+    return tensors_[idx].raw_data();
+  }
+  /** @} */
+
+  /**
+   * @name Sample setting (sharing)
+   * @{
+   */
+  /**
+   * @brief Analogue of TensorList[sample_idx].ShareData(src[src_sample_idx]);
+   *
+   * The target TensorList (this) must have enough samples for this to work (see SetSize()).
+   * After this operation the TensorList is converted into non-contiguous.
+   *
+   * Warning: If the TensorList was contiguous, the samples that weren't overwritten by this
+   * function would still report that they are sharing data. It is advised that all samples are
+   * replaced this way otherwise the contiguous allocation would be kept alive.
+   *
+   * The metadata (pinned, type, device_id, order, layout) must match what is already set
+   * for the whole batch to maintain consistency.
+   *
+   * @param sample_idx index of sample to be set
+   * @param src owner of source sample
+   * @param src_sample_idx index of source sample in owner.
+   */
+  DLL_PUBLIC void SetSample(int sample_idx, const TensorList<Backend> &src, int src_sample_idx);
+
+  /**
+   * @brief Analogue of TensorList[sample_idx].ShareData(owner);
+   *
+   * The target TensorList (this) must have enough samples for this to work (see SetSize()).
+   * After this operation the TensorList is converted into non-contiguous.
+   *
+   * Warning: If the TensorList was contiguous, the samples that weren't overwritten by this
+   * function would still report that they are sharing data. It is advised that all samples are
+   * replaced this way otherwise the contiguous allocation would be kept alive.
+   *
+   * The metadata (pinned, type, device_id, order, layout) must match what is already set
+   * for the whole batch to maintain consistency.
+   *
+   * @param sample_idx index of sample to be set
+   * @param src sample owner
+   */
+  DLL_PUBLIC void SetSample(int sample_idx, const Tensor<Backend> &src);
+
+  /**
+   * @brief Analogue of TensorList[sample_idx].ShareData for externally provided memory.
+   *
+   * The target TensorList (this) must have enough samples for this to work (see SetSize()).
+   * After this operation the TensorList is converted into non-contiguous.
+   *
+   * Warning: If the TensorList was contiguous, the samples that weren't overwritten by this
+   * function would still report that they are sharing data. It is advised that all samples are
+   * replaced this way otherwise the contiguous allocation would be kept alive.
+   *
+   * The metadata (pinned, type, device_id, order, layout) must match what is already set
+   * for the whole batch to maintain consistency.
+   */
+  DLL_PUBLIC void SetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                            const TensorShape<> &shape, DALIDataType type, int device_id,
+                            AccessOrder order = {}, const TensorLayout &layout = "");
+  /** @} */
+
+  /**
+   * @name Sample copying
+   * @{
+   */
+  /**
+   * @brief Analogue of TensorList[sample_idx].Copy(src[src_sample_idx]);
+   *
+   * The target TensorList (this) must have enough samples for this to work (see SetSize()).
+   * It must either be already non-contiguous or the shapes of copied samples must match exactly.
+   *
+   * Warning: It is assumed that the TensorList is either first resized to desired shape,
+   * or all samples are copied over. Automatically converting to non-contiguous container from
+   * contiguous one by invoking copy of non-matching size is not supported yet.
+   *
+   * @param sample_idx index of sample to be set
+   * @param src sample owner
+   * @param src_sample_idx index of source sample in owner.
+   */
+  DLL_PUBLIC void CopySample(int sample_idx, const TensorList<Backend> &src, int src_sample_idx,
+                             AccessOrder order = {});
+
+  DLL_PUBLIC void CopySample(int sample_idx, const Tensor<Backend> &src, AccessOrder order = {});
+  /** @} */
+
+
+  /**
+   * @name Type access
+   * @{
+   */
+  /**
+   * @brief Set the type of the current batch. The type needs to be set before calling
+   * the Resize(const TensorListShape<> &) function. It cannot be used to change the type after
+   * allocation happened.
+   *
+   * Resize(const TensorListShape<> &, DALIDataType) can be used without prior set_type call or to
+   * request a different type after allocation.
+   */
+  void set_type(DALIDataType new_type);
+
+  template <typename T>
+  void set_type() {
+    set_type(TypeTable::GetTypeId<T>());
+  }
+
+  /**
+   * @brief Get the type of samples in the batch.
+   */
+  DALIDataType type() const;
+
+  /**
+   * @brief Get the TypeInfo of samples in the batch.
+   *
+   * @note Using DALIDataType via type() is recommended over accessing type_info().
+   */
+  const TypeInfo &type_info() const;
+  /** @} */
+
+  /**
+   * @name Size and shape, and allocation changing
+   * @{
+   */
+  /**
+   * Change the number of samples in the batch without specifying their shape or type (that is
+   * calling the Resize).
+   * It can be used to adjust the batch to given size and than to set individual samples.
+   * If the new_size is bigger than the current one, new samples have 0-element shape of
+   * correct sample dimensionality.
+   */
+  void SetSize(int new_size);
+
+  /**
+   * @brief Resize the batch to fit the new shape
+   * See Resize(const TensorListShape<> &, DALIDataType, BatchContiguity) for details
+   */
+  DLL_PUBLIC void Resize(const TensorListShape<> &new_shape) {
+    DALI_ENFORCE(IsValidType(type()),
+                 "TensorList has no type, 'set_type<T>()' or Resize(shape, type) must be called "
+                 "on the TensorList to set a valid type before it can be resized.");
+    return Resize(new_shape, type());
+  }
+
+  /**
+   * @brief Resize the batch to fit the new shape. It is possible to change the type and
+   * dimensionality this way, as well as specify if we want the allocation to happen for individual
+   * samples or contiguous one for all samples. If the currently allocated memory is enough for the
+   * requested shape, no allocation would be made. In non-contiguous mode (or when switching to it),
+   * each sample would be resized individually.
+   *
+   * Resizing samples that are using external backing allocation (sharing data via SetSample)
+   * is not allowed to cause new allocation.
+   * @param new_shape requested shape
+   * @param new_type requested type
+   * @param state Optional change of contiguity mode.
+   *    * Automatic keeps the current one or use one allocation if reallocation is needed
+   *    * Contiguous forces the allocation to be contiguous
+   *    * Noncontiguous - detach all samples, and use them separately, the contiguous buffer
+   *      might still be used as backing storage until new allocations are needed for all samples
+   */
+  DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, DALIDataType new_type,
+                         BatchContiguity state = BatchContiguity::Automatic);
+
+  /**
+   * @brief Reserve memory as one contiguous allocation
+   */
+  void reserve(size_t total_bytes);
+
+  /**
+   * @brief Reserve as vector of `batch_size` allocations internally
+   */
+  void reserve(size_t bytes_per_sample, int batch_size);
+  /** @} */
+
+  /**
+   * @name Configuration cloning
+   * @{
+   */
+  /**
+   * @brief Setup all the batch properties of this TensorList the same way as the provided tensor
+   * or batch.
+   *
+   * Precondition: the TensorList should not have data.
+   *
+   * Configures: type, layout, pinned, order and dimensionality.
+   */
+  void SetupLike(const Tensor<Backend> &sample) {
+    SetupLikeImpl(sample);
+  }
+
+  void SetupLike(const TensorList<Backend> &other) {
+    SetupLikeImpl(other);
+  }
+  /** @} */
+
+  /**
+   * @name Configure contiguity of allocations
+   * @{
+   */
+  /**
+   * @brief If the batch is backed by contiguous buffer
+   */
+  bool IsContiguous() const noexcept;
+
+  /**
+   * @brief Pin the current state for further allocating calls like Resize() or set_type
+   *        to use contiguous or noncontiguous backing memory.
+   *        Setting BatchContiguity::Automatic allows to change it with every call to Resize().
+   */
+  void SetContiguity(BatchContiguity state);
+
+  /**
+   * @brief Check the batch contiguity state.
+   */
+  BatchContiguity GetContiguity() const noexcept;
+
+  /**
+   * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.
+   * TODO(klecki): NOT YET IMPLEMENTED.
+   */
+  void MakeContiguous(std::weak_ptr<void> owner = {});
+
+  /**
+   * @brief Transform from contiguous allocation to individual samples without adjusting
+   * the allocation.
+   */
+  void MakeNoncontiguous();
+  /** @} */
+
+  /**
+   * @brief Reset the allocations and most properties.
+   * Device related properties (device id, memory pinning, order) and contiguity status are not
+   * reset.
+   */
+  void Reset();
+
+  /**
+   * @brief Copy whole batch
+   */
+  template <typename SrcBackend>
+  void Copy(const TensorList<SrcBackend> &in_tv, AccessOrder order = {},
+            bool use_copy_kernel = false);
+
+  /**
+   * @brief Set the provided buffer as backing memory for this batch.
+   */
+  DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+                            const TensorListShape<> &shape, DALIDataType type, int device_id,
+                            AccessOrder order = {}, const TensorLayout &layout = "");
+
+  /**
+   * @brief Set other batch as backing memory for this one. Preserves the contiguity status.
+   */
+  void ShareData(const TensorList<Backend> &tv);
+
+  void set_pinned(bool pinned);
+
+  bool is_pinned() const;
+
+  void set_device_id(int device_id);
+
+  int device_id() const;
+
+  bool has_data() const;
+
+  bool shares_data() const;
+
+  /**
+   * @brief Checks whether the batch container is contiguous. It returns true if and only if
+   * all of the stored individual tensors are densely packed in memory.
+   */
+  bool IsContiguousInMemory() const;
+
+  /**
+   * @brief Checks whether the batch container can be converted to a dense Tensor. It returns true
+   * if and only if all of the stored tensors have the same shape and they are densely packed in
+   * memory.
+   */
+  bool IsDenseTensor() const;
+
+  /**
+   * @brief Returns a Tensor which shares the data with this batch object and give it the
+   * provided shape. Batch and the Tensor share the memory allocation. The tensor obtained through
+   * this function stays valid for as long as TensorList data is unchanged.
+   * The batch must be representable as DenseTensor.
+   */
+  DLL_PUBLIC Tensor<Backend> AsReshapedTensor(const TensorShape<> &new_shape);
+
+  /**
+   * @brief Return a Dense Tensor representation of the underlying memory if possible.
+   */
+  DLL_PUBLIC Tensor<Backend> AsTensor();
+
+  /**
+   * @name Metadata access
+   * @{
+   */
+  /**
+   * @brief Set uniform layout for all samples in the batch
+   */
+  void SetLayout(const TensorLayout &layout);
+
+  /**
+   * @brief Get the layout of the sample in the batch.
+   */
+  TensorLayout GetLayout() const;
+
+  /**
+   * @brief Set cache metadata for given sample
+   */
+  void SetSkipSample(int idx, bool skip_sample);
+
+  /**
+   * @brief Set source information for given sample
+   */
+  void SetSourceInfo(int idx, const std::string &source_info);
+
+  /**
+   * @brief Get the metadata for given sample
+   */
+  const DALIMeta &GetMeta(int idx) const;
+
+  /**
+   * @brief Set the metadata for given sample
+   */
+  void SetMeta(int idx, const DALIMeta &meta);
+  /** @} */
+
+  /**
+   * @name Allocation metadata
+   * @{
+   */
+  /**
+   * @brief Returns the total size in bytes of the underlying data chunks.
+   * @note Keep in mind, that the memory can be fragmented.
+   */
+  size_t nbytes() const noexcept;
+
+  /**
+   * @brief Returns the sum of all underlying allocations.
+   * @note Keep in mind, that the memory can be fragmented.
+   */
+  size_t capacity() const noexcept;
+
+  /**
+   * @brief Returns the size in bytes of the underlying data chunks
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_nbytes() const;
+
+  /**
+   * @brief Returns the real size of the underlying allocations
+   * TODO(klecki): Temporary API to be reworked, do not use.
+   */
+  std::vector<size_t> _chunks_capacity() const;
+  /** @} */
+
+ private:
+  /**
+   * @brief Tracking the contiguous/noncontiguous state of the batch.
+   * By default we keep what was previously set when resizing and can change it during Resize
+   * unless it is enforced.
+   */
+  class State {
+   public:
+    // TODO(klecki): Any sensible defaults?
+    State() : contiguous_(false), forced_(false) {}
+    State(BatchContiguity state, bool forced) {
+      Setup(state, forced);
+    }
+    State(const State &) = default;
+    State &operator=(const State &) = default;
+
+    /**
+     * @brief Override current state.
+     */
+    void Setup(BatchContiguity state, bool forced = false) {
+      if (forced) {
+        DALI_ENFORCE(
+            state == BatchContiguity::Contiguous || state == BatchContiguity::Noncontiguous,
+            "Only specific state can be enforced");
+      }
+      if (state != BatchContiguity::Automatic) {
+        contiguous_ = state == BatchContiguity::Contiguous;
+      }
+      forced_ = forced;
+    }
+
+    /**
+     * @brief Update current state obeying the enforced state.
+     * BatchContiguity::Automatic is always allowed and does not change the state
+     *
+     * State can be changed unless it is enforced, in that case it will raise an error.
+     *
+     * @return true if the state changed.
+     */
+    bool Update(BatchContiguity requested_state) {
+      if (requested_state == BatchContiguity::Automatic) {
+        return false;
+      }
+      if (forced_) {
+        DALI_ENFORCE(Get() == requested_state,
+                     make_string("State cannot be changed as it is enforced to ",
+                                 contiguous_ ? "contiguous." : "noncontiguous."));
+      }
+      if (Get() == requested_state) {
+        return false;
+      }
+      // Here it is guaranteed that we are changing state, so swap it.
+      contiguous_ = !contiguous_;
+      return true;
+    }
+
+    bool IsContiguous() const {
+      return contiguous_;
+    }
+
+    bool IsForced() const {
+      return forced_;
+    }
+
+    BatchContiguity Get() const {
+      return contiguous_ ? BatchContiguity::Contiguous : BatchContiguity::Noncontiguous;
+    }
+
+   private:
+    bool contiguous_ = false;
+    bool forced_ = false;
+  };
+
+
+  // Forward declarations in signature, beware
+  friend void MakeSampleView(class SampleWorkspace &sample, class HostWorkspace &batch,
+                             int data_idx, int thread_idx);
+  friend void FixBatchPropertiesConsistency(class HostWorkspace &ws, bool contiguous);
+
+  auto &tensor_handle(size_t pos) {
+    return tensors_[pos];
+  }
+
+  auto &tensor_handle(size_t pos) const {
+    return tensors_[pos];
+  }
+
+  template <typename T>
+  void SetupLikeImpl(const T &other) {
+    DALI_ENFORCE(!has_data(),
+                 "Batch object can be initialized this way only when it isn't allocated.");
+    set_type(other.type());
+    set_sample_dim(other.shape().sample_dim());
+    SetLayout(other.GetLayout());
+    set_pinned(other.is_pinned());
+    set_order(other.order());
+    set_device_id(other.device_id());
+  }
+
+  /**
+   * @brief Internal change of contiguity. Unconditionally make the batch non-contiguous.
+   * Assumes that the state_ will be adjusted separately
+   */
+  void DoMakeNoncontiguous();
+
+  /**
+   * @brief After RunImpl(SampleWorkspace&) operated on individual samples without propagating
+   * the allocation metadata back to the the batch structure, take that metadata from the samples
+   * and update it in TensorList.
+   *
+   * @param contiguous if the Tensor was previously preallocated and should remain contiguous
+   * or be treated as non-contiguous set of individual samples.
+   */
+  void UpdatePropertiesFromSamples(bool contiguous);
+
+  /**
+   * @brief Adjust the tensors_ member size, so they can be used with setters for individual
+   * tensors. Bring them back to scope while preserving the allocation (if possible) in a manner
+   * that is compatible with the current batch state (like type and dimensionality).
+   */
+  void resize_tensors(int size);
+
+  /**
+   * @brief When bringing the tensors_ back to scope, fill it with correct allocation metadata
+   */
+  void setup_tensor_allocation(int index);
+
+  /**
+   * @brief When using one contiguous allocation, rebuild the view Tensors (sharing part of the
+   * contiguous buffer) that represent samples.
+   */
+  void recreate_views();
+
+  /**
+   * @brief Check if the metadata provided for new sample match the ones currently set for the batch
+   *
+   * When setting new sample, the source shape doesn't matter as it is adjusted for individual
+   * sample.
+   *
+   * When setting new sample the `shape_` must be adjusted.
+   *
+   * @param error_suffix Additional description added to the error message
+   */
+  void VerifySampleShareCompatibility(DALIDataType type, int sample_dim, TensorLayout layout,
+                                      bool pinned, AccessOrder order, int device_id,
+                                      const std::string &error_suffix = ".");
+
+  /**
+   * @brief Check if the metadata provided for new sample match the ones currently set for the batch
+   *
+   * When copying new sample, pinned status and order of source and destination buffer can be
+   * different. Necessary synchronization is handled by the copy itself.
+   *
+   * When copying new sample the `shape_` must be adjusted.
+   *
+   * @param error_suffix Additional description added to the error message
+   */
+  void VerifySampleCopyCompatibility(DALIDataType type, int sample_dim, TensorLayout layout,
+                                     const TensorShape<> &current_shape,
+                                     const TensorShape<> &new_shape,
+                                     const std::string &error_suffix = ".");
+
+  // Memory backing
+  Buffer<Backend> contiguous_buffer_;
+  std::weak_ptr<void> buffer_bkp_;
+  // Memory, sample aliases and metadata
+  // TODO(klecki): Remove SampleWorkspace (only place where we actually need those Tensor objects)
+  // and swap to plain Buffer instead of using actual Tensors.
+  std::vector<Tensor<Backend>> tensors_;
+
+  // State and metadata that should be uniform regardless of the contiguity state.
+  // Sample aliases should match the information stored below.
+  State state_;
+  int curr_num_tensors_;
+  TypeInfo type_{};
+  int sample_dim_ = -1;
+  TensorListShape<> shape_;
+  TensorLayout layout_;
+
+  bool pinned_ = true;
+  int device_ = CPU_ONLY_DEVICE_ID;
+  AccessOrder order_;
+
+  // So we can access the members of other TensorLists
+  // with different template types
+  template <typename InBackend>
+  friend class TensorList;
+
+  /** @defgroup AccessorFunctions Fallback for accessing pointers owning the samples
+   * Fallback access to contiguous data or samples of the batch. It should not be used for regular
+   * processing, intended mostly for batches that were made sure to be contiguous (mainly
+   * for pipeline outputs).
+   * @{
+   */
   /**
    * @brief Return an un-typed pointer to the underlying storage.
    * The TensorList must be either empty or have a valid type and be contiguous.
    */
-  friend void *unsafe_raw_mutable_data(TensorList<Backend> &tl) {
-    DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
-    return tl.data_.raw_mutable_data();
+  friend void *unsafe_raw_mutable_data(TensorList<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
+    return batch.contiguous_buffer_.raw_mutable_data();
   }
 
   /**
    * @brief Return an un-typed const pointer to the underlying storage.
    * The TensorList must be either empty or have a valid type and be contiguous.
    */
-  friend const void *unsafe_raw_data(const TensorList<Backend> &tl) {
-    DALI_ENFORCE(tl.IsContiguous(), "Data pointer can be obtain only for contiguous TensorList.");
-    return tl.data_.raw_data();
+  friend const void *unsafe_raw_data(const TensorList<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
+    return batch.contiguous_buffer_.raw_data();
   }
 
   /**
    * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
    * with.
+   * Sample 0 is aliased with the whole buffer, if it is contiguous.
    */
-  friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &tl, int sample_idx) {
+  friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &batch, int sample_idx) {
     // create new aliasing pointer to current data allocation, so we share the use count
     // and the deleter correctly.
-    return {tl.data_.get_data_ptr(), tl.raw_mutable_tensor(sample_idx)};
+    if (batch.IsContiguous()) {
+      return {batch.contiguous_buffer_.get_data_ptr(), batch.raw_mutable_tensor(sample_idx)};
+    } else {
+      return batch.tensors_[sample_idx].get_data_ptr();
+    }
   }
 
   /**
-   * @brief Return the shared pointer, that we can use to correctly share the ownership of the batch
-   * with -- in typical scenarios it is equivalent to unsafe_sample_owner(tl, 0);
+   * @brief Return the shared pointer, that we can use to correctly share the ownership of batch
+   * with.
+   * Only allowed for contiguous batch, in typical scenario it is equivalent to
+   * unsafe_sample_owner(batch, 0)
    */
-  friend shared_ptr<void> unsafe_owner(TensorList<Backend> &tl) {
-    return tl.data_.get_data_ptr();
+  friend shared_ptr<void> unsafe_owner(TensorList<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguous(),
+                 "Data owner pointer can be obtain only for contiguous TensorList.");
+    return batch.contiguous_buffer_.get_data_ptr();
   }
 
-  /** @} */  // end of ContiguousAccessorFunctions
+  /** @} */  // end of AccessorFunctions
 };
 
 }  // namespace dali

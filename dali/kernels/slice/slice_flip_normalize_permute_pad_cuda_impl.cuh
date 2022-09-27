@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,9 +122,12 @@ __device__ void SliceFlipNormalizePermutePadFunc(
       out_of_bounds |= is_out_of_bounds(in_i_d, in_shape[d]);
     }
 
-    // in_strides[d] to be used if AllDims = false (potentially permuting dims)
-    // Not used (in purpose) when fusing dimensions
-    in_idx += AllDims ? i_d * in_strides[d] : i_d;
+    if (AllDims) {
+      in_idx += i_d * in_strides[d];
+    } else {
+      // abs(in_strides[d]) is 1 but we care about the sign
+      in_idx += in_strides[d] < 0 ? -i_d : i_d;
+    }
 
     if (NeedPad && out_of_bounds) {
       out[out_idx] = fill_values[i_c];
