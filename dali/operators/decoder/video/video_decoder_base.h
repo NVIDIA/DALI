@@ -20,8 +20,8 @@
 #include "dali/operators/reader/loader/video/frames_decoder.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
 
-#ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_H_
-#define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_H_
+#ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
+#define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
 
 namespace dali {
 
@@ -42,27 +42,31 @@ template <typename Backend>
 using FramesDecoder_t = typename FramesDecoderImpl<Backend>::type;
 
 template <typename Backend>
-class DLL_PUBLIC VideoDecoder : public Operator<Backend> {
+class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
  public:
-  explicit VideoDecoder(const OpSpec &spec)
+  using InBackend = CPUBackend;
+  using OutBackend = std::conditional_t<std::is_same_v<Backend, CPUBackend>,
+                                        CPUBackend,
+                                        GPUBackend>;
+
+  explicit VideoDecoderBase(const OpSpec &spec)
       : Operator<Backend>(spec) {}
 
-  ~VideoDecoder() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(VideoDecoder);
+  ~VideoDecoderBase() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(VideoDecoderBase);
 
   USE_OPERATOR_MEMBERS();
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
 
-  void RunImpl(workspace_t<Backend> &ws) override;
-
   bool CanInferOutputs() const override {
     return true;
   }
 
- private:
+ protected:
   void ValidateInput(const workspace_t<Backend> &ws) {
-    const auto &input = ws.template Input<Backend>(0);
+    const auto &input = ws.template Input<InBackend>(0);
     DALI_ENFORCE(input.type() == DALI_UINT8,
                  "Type of the input buffer must be uint8.");
     DALI_ENFORCE(input.sample_dim() == 1,
@@ -82,7 +86,11 @@ class DLL_PUBLIC VideoDecoder : public Operator<Backend> {
     return shape;
   }
 
-  void DecodeSample(SampleView<Backend> output, FramesDecoder_t<Backend> &frames_decoder) {
+  /**
+   * @brief Decode sample with idx `s` to `output` tensor.
+   */
+  void DecodeSample(SampleView<OutBackend> output, int64_t s) {
+    auto &frames_decoder = *frames_decoders_[s];
     int64_t num_frames = output.shape()[0];
     int64_t frame_size = frames_decoder.FrameSize();
     uint8_t *output_data = output.template mutable_data<uint8_t>();
@@ -91,9 +99,10 @@ class DLL_PUBLIC VideoDecoder : public Operator<Backend> {
     }
   }
 
+ private:
   std::vector<std::unique_ptr<FramesDecoder_t<Backend>>> frames_decoders_;
 };
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_H_
+#endif  // DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
