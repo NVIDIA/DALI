@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -258,7 +258,7 @@ inline dali::string GetStacktrace() {
         (std::cerr << DALI_MESSAGE(dali::make_string(__VA_ARGS__)) << std::endl, 0); \
   } while (0)
 
-void DALIReportFatalProblem(const char *file, int line, const char *pComment);
+DLL_PUBLIC void DALIReportFatalProblem(const char *file, int line, const char *pComment);
 #define REPORT_FATAL_PROBLEM(comment) DALIReportFatalProblem(__FILE__, __LINE__, comment)
 
 }  // namespace dali
