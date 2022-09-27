@@ -34,7 +34,7 @@ template <typename Out, typename In, typename W, int num_seq_dims, bool has_chan
 class FilterOpGpu : public OpImplBase<GPUBackend> {
  public:
   static constexpr bool is_sequence = num_seq_dims > 0;
-  using Kernel = kernels::Convolution2dGpu<Out, In, W, has_channels_last, is_sequence>;
+  using Kernel = kernels::Filter2dGpu<Out, In, W, has_channels_last, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
   static constexpr int filter_ndim = Kernel::filter_ndim;
 
@@ -45,7 +45,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   explicit FilterOpGpu(const OpSpec* spec)
       : spec_{*spec},
         anchor_arg_{"anchor", spec_},
-        border_mode_{parse(spec_.GetArgument<std::string>("border_mode"))} {
+        border_type_{parse_filter_border_type(spec_.GetArgument<std::string>("border_type"))} {
     kmgr_.Resize<Kernel>(1);
     filter_dev_.set_type(type2id<W>::value);
   }
@@ -58,7 +58,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
     output_desc[0].shape =
-        infer_output_shape(input.shape(), ws.GetInputShape(1), border_mode_, num_seq_dims);
+        infer_output_shape(input.shape(), ws.GetInputShape(1), border_type_, num_seq_dims);
     return true;
   }
 
@@ -80,7 +80,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     auto anchor_views = anchor_arg_.get();
     auto filter_views = GetFilterViews(ws);
     auto fill_value_views = GetFillValueViews(ws, input.num_samples());
-    kmgr_.Run<Kernel>(0, ctx_, out_views, in_views, filter_views, anchor_views, border_mode_,
+    kmgr_.Run<Kernel>(0, ctx_, out_views, in_views, filter_views, anchor_views, border_type_,
                       fill_value_views);
   }
 
@@ -134,7 +134,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
 
   const OpSpec& spec_;
   ArgValue<int, 1> anchor_arg_;
-  FilterBorderMode border_mode_;
+  BoundaryType border_type_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;

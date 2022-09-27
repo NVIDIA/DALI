@@ -35,7 +35,7 @@ A filter must be a 2D array of filter coefficients or a sequence of 2D arrays to
 frame-wise to a video input. The coefficients must be floats.
 
 The optional third argument should be a batch of scalars (or a sequence of scalars for
-video input). If ``border_mode`` is set to ``"fill"``, the input samples will be padded with
+video input). If ``border_type`` is set to ``"fill"``, the input samples will be padded with
 the corresponding scalars when convolved with the filter, so that the convolution preserves
 original shape of the image. Otherwise the argument is ignored.
 The scalars must be of the same type as the input samples.
@@ -54,19 +54,19 @@ The scalars must be of the same type as the input samples.
 filter over an image. The ordering of extents corresponds to the ordering of filter's extents.
 If -1 (the default) is specified for an extent, the middle of the extent is used.)code",
                     std::vector<int>{-1}, true, true)
-    .AddOptionalArg("border_mode",
+    .AddOptionalArg("border_type",
                     R"code(Controls how to compute convolution around the edges of the image, i.e.
 when part of the filter lies outside of the image.
 
-Supported values are: "reflect_101", "reflect_1001", "wrap", "replicate", "fill", "valid".
+Supported values are: "reflect_101", "reflect_1001", "wrap", "clamp", "constant", "isolated".
 
 - ``"reflect_101"`` (default), reflects the input but does not repeat the outermost
   values (``dcb|abcdefghi|hgf``).
 - ``"reflect_1001"``: reflects the input including outermost values (``cba|abcdefghi|ihg``)
 - ``"wrap"``: wraps the input (``ghi|abcdefghi|abc``).
-- ``"replicate"``: the input is padded with outermost values (``aaa|abcdefghi|iii``).
-- ``"fill"``: the input is padded with the user-provided scalar (zeros by default).
-- ``"valid"``: the output size is restricted so that the filter always lies fully
+- ``"clamp"``: the input is padded with outermost values (``aaa|abcdefghi|iii``).
+- ``"constant"``: the input is padded with the user-provided scalar (zeros by default).
+- ``"isolated"``: the output size is cropped so that the filter always lies fully
   within the sample.
 )code",
                     "reflect_101")

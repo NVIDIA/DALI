@@ -19,18 +19,18 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/boundary.h"
 #include "dali/core/convert.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
-#include "dali/kernels/imgproc/convolution/border_mode.h"
 #include "dali/kernels/kernel.h"
 
 namespace dali {
 namespace kernels {
 
-namespace conv {
+namespace filter {
 
 struct ShapeDesc {
   int64_t hwc;
@@ -130,7 +130,7 @@ struct Reflect1001 {
   }
 };
 
-struct Replicate {
+struct Clamp {
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
     assert(len > 0);
     if (idx < 0) {
@@ -378,8 +378,8 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc, co
 }
 
 template <typename SampleDescT, typename InLoaderFactory, typename ROIFactory>
-__global__ void conv2d(const SampleDescT* __restrict__ descs, InLoaderFactory in_loader_factory,
-                       ROIFactory roi_factory) {
+__global__ void filter2d(const SampleDescT* __restrict__ descs, InLoaderFactory in_loader_factory,
+                         ROIFactory roi_factory) {
   using In = typename SampleDescT::In;
   using InLoader = typename InLoaderFactory::T;
   extern __shared__ char shm[];
@@ -395,12 +395,12 @@ __global__ void conv2d(const SampleDescT* __restrict__ descs, InLoaderFactory in
     stride_grid(sample_desc, conv, roi);
   }
 }
-}  // namespace conv
+}  // namespace filter
 
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-struct Convolution2dGpu {
-  /* In fact, it computes a corellation not a convolution.
-  Flip filter in both dimensions for an actual convolution. */
+struct Filter2dGpu {
+  /* It computes a corellation of the input and the filter.
+  Flip filter in both dimensions for a convolution. */
 
   static constexpr int axes = 2;
   static constexpr int num_sequence_dim = static_cast<int>(has_sequence_dim);
@@ -420,12 +420,13 @@ struct Convolution2dGpu {
   static constexpr int max_sample_width =
       std::numeric_limits<int>::max() / max_grid_cols * max_grid_cols;
 
-  using SampleDescT = conv::SampleDesc<Out, In, W, Intermediate, lanes>;
+  using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, lanes>;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
            const TensorListView<StorageGPU, const W, axes>& filters,
-           const TensorListView<StorageCPU, const int, 1>& anchors, FilterBorderMode border_mode,
+           const TensorListView<StorageCPU, const int, 1>& anchors,
+           boundary::BoundaryType border_type,
            const TensorListView<StorageGPU, const In, 0>& fill_values = {}) {
     auto num_samples = in.shape.num_samples();
 
@@ -462,48 +463,50 @@ struct Convolution2dGpu {
     num_blocks_w = std::min(num_blocks_w, max_grid_width);
     dim3 grid(num_blocks_w, num_blocks_h, num_samples);
     dim3 block(block_width, 1, 1);
-    RunKernelWithBorderMode(ctx, border_mode, fill_values, any_has_degenerated_extents,
-                            [&](auto&& loader, auto&& roi_factory) {
-                              conv::conv2d<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(
-                                  descs_dev, loader, roi_factory);
-                              CUDA_CALL(cudaGetLastError());
-                            });
+    RunKernelWithBorderMode(
+        ctx, border_type, fill_values, any_has_degenerated_extents,
+        [&](auto&& loader, auto&& roi_factory) {
+          filter::filter2d<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(descs_dev, loader,
+                                                                                 roi_factory);
+          CUDA_CALL(cudaGetLastError());
+        });
   }
 
  protected:
   template <typename KernelLauncher>
-  void RunKernelWithBorderMode(KernelContext& ctx, FilterBorderMode border_mode,
+  void RunKernelWithBorderMode(KernelContext& ctx, boundary::BoundaryType border_type,
                                const TensorListView<StorageGPU, const In, 0>& fill_values,
                                bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
-    switch (border_mode) {
-      case DALI_BORDER_REFLECT_101:
+    using namespace boundary;  // NOLINT(build/namespaces)
+    switch (border_type) {
+      case BoundaryType::REFLECT_101:
         RunKernelBorder101(ctx, has_degenerated_extents, std::move(launch_kernel));
         break;
-      case DALI_BORDER_REFLECT_1001:
-        RunKernelBorderRemap<conv::ROIFull, conv::Reflect1001>(ctx, std::move(launch_kernel));
+      case BoundaryType::REFLECT_1001:
+        RunKernelBorderRemap<filter::ROIFull, filter::Reflect1001>(ctx, std::move(launch_kernel));
         break;
-      case DALI_BORDER_REPLICATE:
-        RunKernelBorderRemap<conv::ROIFull, conv::Replicate>(ctx, std::move(launch_kernel));
+      case BoundaryType::CLAMP:
+        RunKernelBorderRemap<filter::ROIFull, filter::Clamp>(ctx, std::move(launch_kernel));
         break;
-      case DALI_BORDER_WRAP:
-        RunKernelBorderRemap<conv::ROIFull, conv::Wrap>(ctx, std::move(launch_kernel));
+      case BoundaryType::WRAP:
+        RunKernelBorderRemap<filter::ROIFull, filter::Wrap>(ctx, std::move(launch_kernel));
         break;
-      case DALI_BORDER_FILL:
-        RunKernelBorderFill(ctx, fill_values, std::move(launch_kernel));
+      case BoundaryType::CONSTANT:
+        RunKernelBorderConstant(ctx, fill_values, std::move(launch_kernel));
         break;
-      case DALI_BORDER_VALID:
-        RunKernelBorderRemap<conv::ROIOnlyValid>(ctx, std::move(launch_kernel));
+      case BoundaryType::ISOLATED:
+        RunKernelBorderRemap<filter::ROIOnlyValid>(ctx, std::move(launch_kernel));
         break;
       default:
         DALI_FAIL(
-            make_string("Unsupported border mode was specified: ", to_string(border_mode), "."));
+            make_string("Unsupported border type was specified: ", to_string(border_type), "."));
     }
   }
 
-  template <typename ROIFactory, typename Remap = conv::Reflect1001, typename KernelLauncher>
+  template <typename ROIFactory, typename Remap = filter::Reflect1001, typename KernelLauncher>
   void RunKernelBorderRemap(KernelContext& ctx, KernelLauncher&& launch_kernel) {
-    using Loader = conv::InLoaderBorderRemap<Remap, In>;
-    conv::InLoaderFactory<Loader> loader_factory{Loader{}};
+    using Loader = filter::InLoaderBorderRemap<Remap, In>;
+    filter::InLoaderFactory<Loader> loader_factory{Loader{}};
     launch_kernel(std::move(loader_factory), ROIFactory{});
   }
 
@@ -515,20 +518,20 @@ struct Convolution2dGpu {
     // over an image is costly, so try to avoid it.
     BOOL_SWITCH(
         has_degenerated_extents, HasDegeneratedExtents,
-        (using Loader = conv::InLoaderBorderRemap<conv::Reflect101<HasDegeneratedExtents>, In>;
-         conv::InLoaderFactory<Loader> loader_factory{Loader{}};
-         launch_kernel(std::move(loader_factory), conv::ROIFull{});));  // NOLINT
+        (using Loader = filter::InLoaderBorderRemap<filter::Reflect101<HasDegeneratedExtents>, In>;
+         filter::InLoaderFactory<Loader> loader_factory{Loader{}};
+         launch_kernel(std::move(loader_factory), filter::ROIFull{});));  // NOLINT
   }
 
   template <typename KernelLauncher>
-  void RunKernelBorderFill(KernelContext& ctx,
-                           const TensorListView<StorageGPU, const In, 0>& fill_values,
-                           KernelLauncher&& launch_kernel) {
+  void RunKernelBorderConstant(KernelContext& ctx,
+                               const TensorListView<StorageGPU, const In, 0>& fill_values,
+                               KernelLauncher&& launch_kernel) {
     int num_samples = samples_desc_.size();
     assert(fill_values.num_samples() == num_samples || fill_values.num_samples() == 0);
     if (fill_values.num_samples() != num_samples) {
-      conv::InLoaderFactory<conv::InLoaderPad<In>> loader_factory{nullptr};
-      launch_kernel(std::move(loader_factory), conv::ROIFull{});
+      filter::InLoaderFactory<filter::InLoaderPad<In>> loader_factory{nullptr};
+      launch_kernel(std::move(loader_factory), filter::ROIFull{});
     } else {
       fill_values_.resize(num_samples);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -536,8 +539,8 @@ struct Convolution2dGpu {
       }
       const In** fill_values_dev;
       std::tie(fill_values_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, fill_values_);
-      conv::InLoaderFactory<conv::InLoaderPad<In>> loader_factory{fill_values_dev};
-      launch_kernel(std::move(loader_factory), conv::ROIFull{});
+      filter::InLoaderFactory<filter::InLoaderPad<In>> loader_factory{fill_values_dev};
+      launch_kernel(std::move(loader_factory), filter::ROIFull{});
     }
   }
 
@@ -556,10 +559,10 @@ struct Convolution2dGpu {
   }
 
   template <typename InShape, typename FilterShape, typename AnchorView>
-  conv::ShapeDesc SetupSampleShapeDesc(int& required_worskapce, bool& has_degenerated_extents,
-                                       int sample_idx, const InShape& in_shape,
-                                       const FilterShape& filter_shape, const AnchorView& anchor,
-                                       int shared_mem_limit) {
+  filter::ShapeDesc SetupSampleShapeDesc(int& required_worskapce, bool& has_degenerated_extents,
+                                         int sample_idx, const InShape& in_shape,
+                                         const FilterShape& filter_shape, const AnchorView& anchor,
+                                         int shared_mem_limit) {
     auto filter_vol = volume(filter_shape);
     auto r = filter_shape[0];
     auto s = filter_shape[1];
@@ -645,16 +648,16 @@ struct Convolution2dGpu {
 // WAR c++14 odr usage issue (make_string in error message takes them as l-values)
 // it should be unnecessary in c++17
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Convolution2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_sample_height;
+constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_sample_height;
 
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Convolution2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_sample_width;
+constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_sample_width;
 
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Convolution2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_grid_height;
+constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_grid_height;
 
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Convolution2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_grid_width;
+constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_grid_width;
 
 }  // namespace kernels
 }  // namespace dali

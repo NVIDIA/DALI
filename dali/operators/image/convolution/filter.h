@@ -16,11 +16,12 @@
 #define DALI_OPERATORS_IMAGE_CONVOLUTION_FILTER_H_
 
 #include <memory>
+#include <string>
 #include <vector>
 
+#include "dali/core/boundary.h"
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
-#include "dali/kernels/imgproc/convolution/border_mode.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
@@ -29,7 +30,14 @@
 
 namespace dali {
 
+#define FILTER_INPUT_SUPPORTED_TYPES \
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float16, float)
+
+#define FILTER_KERNEL_SUPPORTED_TYPES (float)
+
 namespace filter {
+using namespace boundary;  // NOLINT(build/namespaces)
+
 struct InputLayoutDesc {
   int num_seq_dims = 0;
   bool has_channels = false;
@@ -45,10 +53,30 @@ inline InputLayoutDesc parse_input_layout(const TensorLayout& layout) {
   return input_desc;
 }
 
+inline BoundaryType parse_filter_border_type(const std::string& border_type_str) {
+  try {
+    auto border_type = parse(border_type_str);
+    switch (border_type) {
+      case BoundaryType::CONSTANT:
+      case BoundaryType::CLAMP:
+      case BoundaryType::REFLECT_1001:
+      case BoundaryType::REFLECT_101:
+      case BoundaryType::WRAP:
+      case BoundaryType::ISOLATED:
+        return border_type;
+      default:
+        DALI_FAIL(
+            make_string("Unsupported ``border_type`` was provided: ``", border_type_str, "``."));
+    }
+  } catch (const std::invalid_argument&) {
+    DALI_FAIL(make_string("Unknown ``border_type`` was provided: ``", border_type_str, "``."));
+  }
+}
+
 template <typename InputShapes, typename FilterShapes>
 InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShapes& filter_shapes,
-                               FilterBorderMode border_mode, int spatial_dim_start) {
-  if (border_mode != DALI_BORDER_VALID) {
+                               boundary::BoundaryType border_type, int spatial_dim_start) {
+  if (border_type != boundary::BoundaryType::ISOLATED) {
     return input_shapes;
   }
   auto num_samples = input_shapes.num_samples();
@@ -68,8 +96,8 @@ InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShap
           shape[spatial_dim_start + dim_idx] >= 0,
           make_string(
               "Filter for sample of idx ", sample_idx,
-              " is bigger than the sample. This is not allowed when ``border_mode`` is set to ",
-              to_string(DALI_BORDER_VALID), "."));
+              " is bigger than the sample. This is not allowed when ``border_type`` is set to ",
+              to_string(BoundaryType::ISOLATED), "."));
     }
     output_shapes.set_tensor_shape(sample_idx, shape);
   }
@@ -77,11 +105,6 @@ InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShap
 }
 
 }  // namespace filter
-
-#define FILTER_INPUT_SUPPORTED_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float16, float)
-
-#define FILTER_KERNEL_SUPPORTED_TYPES (float)
 
 template <typename Backend>
 class Filter : public SequenceOperator<Backend> {
@@ -111,7 +134,8 @@ class Filter : public SequenceOperator<Backend> {
     DALI_ENFORCE(
         filter_layout.size() == 3 && filter_layout[0] == 'F',
         make_string(
-            "Filter must be a 2D array or a sequence of 2D arrays. To pass sequence of filters "
+            "Filter must be a 2D array or a sequence of 2D arrays. To pass sequence of "
+            "filters "
             "mark them per-frame with the per_frame operator. Got filters of dimensionality "
             "3 with layout: `",
             filter_layout, "`."));
@@ -126,9 +150,9 @@ class Filter : public SequenceOperator<Backend> {
       auto input_type = ws.GetInputDataType(0);
       auto filter_type = ws.GetInputDataType(1);
       auto dtype = dtype_ == DALI_NO_TYPE ? input_type : dtype_;
-      DALI_ENFORCE(
-          dtype == input_type || dtype == filter_type,
-          "Output data type must be same as input, FLOAT or skipped (defaults to input type)");
+      DALI_ENFORCE(dtype == input_type || dtype == filter_type,
+                   "Output data type must be same as input, FLOAT or skipped (defaults to "
+                   "input type)");
       auto input_layout = filter::parse_input_layout(GetInputLayout(ws, 0));
       TYPE_SWITCH(input_type, type2id, In, FILTER_INPUT_SUPPORTED_TYPES, (
         TYPE_SWITCH(filter_type, type2id, W, FILTER_KERNEL_SUPPORTED_TYPES, (

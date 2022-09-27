@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,12 @@
 #ifndef DALI_CORE_BOUNDARY_H_
 #define DALI_CORE_BOUNDARY_H_
 
-#include "dali/core/host_dev.h"
+#include <string>
+
 #include "dali/core/force_inline.h"
+#include "dali/core/format.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/host_dev.h"
 
 namespace dali {
 
@@ -59,6 +62,45 @@ struct Boundary {
   T value = {};
 };
 
+inline std::string to_string(const BoundaryType& type) {
+  switch (type) {
+    case BoundaryType::CONSTANT:
+      return "constant";
+    case BoundaryType::CLAMP:
+      return "clamp";
+    case BoundaryType::REFLECT_1001:
+      return "reflect_1001";
+    case BoundaryType::REFLECT_101:
+      return "reflect_101";
+    case BoundaryType::WRAP:
+      return "wrap";
+    case BoundaryType::TRANSPARENT:
+      return "transparent";
+    case BoundaryType::ISOLATED:
+      return "isolated";
+    default:
+      return "<unknown>";
+  }
+}
+
+inline BoundaryType parse(const std::string& type) {
+  if (type == "constant")
+    return BoundaryType::CONSTANT;
+  if (type == "clamp")
+    return BoundaryType::CLAMP;
+  if (type == "reflect_1001")
+    return BoundaryType::REFLECT_1001;
+  if (type == "reflect_101")
+    return BoundaryType::REFLECT_101;
+  if (type == "wrap")
+    return BoundaryType::WRAP;
+  if (type == "transparent")
+    return BoundaryType::TRANSPARENT;
+  if (type == "isolated")
+    return BoundaryType::ISOLATED;
+  throw std::invalid_argument(make_string("Unknown boundary type was specified: ``", type, "``."));
+}
+
 /**
  * @brief Reflects out-of-range indices until fits in range.
  *
@@ -74,8 +116,8 @@ struct Boundary {
  * ```
  */
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T hi) {
+DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(
+    T idx, T lo, T hi) {
   if (hi - lo < 2)
     return hi - 1;  // make it obviously wrong if hi <= lo
   for (;;) {
@@ -91,8 +133,8 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T h
 
 /// @brief Equivalent to `idx_reflect_101(idx, 0, size)`
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
+DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(
+    T idx, T size) {
   return idx_reflect_101(idx, T(0), size);
 }
 
@@ -112,8 +154,8 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
  * ```
  */
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T lo, T hi) {
+DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(
+    T idx, T lo, T hi) {
   if (hi - lo < 1)
     return hi - 1;  // make it obviously wrong if hi <= lo
   for (;;) {
@@ -129,8 +171,8 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T lo, T 
 
 /// @brief Equivalent to `idx_reflect_1001(idx, 0, size)`
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T size) {
+DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(
+    T idx, T size) {
   return idx_reflect_1001(idx, T(0), size);
 }
 
@@ -142,51 +184,49 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T size) 
  * @param hi High (exclusive) bound
  */
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T lo, T hi) {
+DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx,
+                                                                                         T lo,
+                                                                                         T hi) {
   return clamp(idx, lo, hi - 1);
 }
 
 /// @brief Equivalent to `idx_clamp(idx, 0, size)`
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T size) {
+DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx,
+                                                                                         T size) {
   return idx_clamp(idx, 0, size);
 }
 
 /// @brief Wraps out-of-range indices modulo `size`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value && std::is_signed<T>::value, T>
-idx_wrap(T idx, T size) {
+    std::enable_if_t<std::is_integral<T>::value && std::is_signed<T>::value, T>
+    idx_wrap(T idx, T size) {
   idx %= size;
   return idx < 0 ? idx + size : idx;
 }
 
 /// @brief Wraps out-of-range indices modulo `size`
 template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_unsigned<T>::value, T> idx_wrap(T idx, T size) {
+DALI_HOST_DEV DALI_FORCEINLINE std::enable_if_t<std::is_unsigned<T>::value, T> idx_wrap(T idx,
+                                                                                        T size) {
   return idx % size;
 }
 
 // vector variants
 
 template <int n>
-DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_clamp(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
+DALI_HOST_DEV DALI_FORCEINLINE ivec<n> idx_clamp(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
   return clamp(idx, lo, hi - 1);
 }
 
 template <int n>
-DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_clamp(ivec<n> idx, ivec<n> size) {
+DALI_HOST_DEV DALI_FORCEINLINE ivec<n> idx_clamp(ivec<n> idx, ivec<n> size) {
   return clamp(idx, ivec<n>(), size - 1);
 }
 
 template <int n>
-DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
+DALI_HOST_DEV DALI_FORCEINLINE ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_101(idx[i], lo[i], hi[i]);
@@ -194,8 +234,7 @@ ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
 }
 
 template <int n>
-DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> size) {
+DALI_HOST_DEV DALI_FORCEINLINE ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> size) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_101(idx[i], size[i]);
@@ -203,8 +242,7 @@ ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> size) {
 }
 
 template <int n>
-DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
+DALI_HOST_DEV DALI_FORCEINLINE ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_1001(idx[i], lo[i], hi[i]);
@@ -212,8 +250,7 @@ ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
 }
 
 template <int n>
-DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> size) {
+DALI_HOST_DEV DALI_FORCEINLINE ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> size) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_1001(idx[i], size[i]);
@@ -221,8 +258,7 @@ ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> size) {
 }
 
 template <int n>
-DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_wrap(ivec<n> idx, ivec<n> size) {
+DALI_HOST_DEV DALI_FORCEINLINE ivec<n> idx_wrap(ivec<n> idx, ivec<n> size) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_wrap(idx[i], size[i]);
