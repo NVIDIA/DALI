@@ -24,17 +24,6 @@ namespace dali {
 namespace imgcodec {
 namespace test {
 
-template<class T>
-void save_to_file(const std::string &path, TensorView<StorageCPU, T> view) {
-  std::ofstream stream(path);
-  for (int i = 0; i < view.num_elements(); i++) {
-    using Bytes = std::array<uint8_t, sizeof(T)>;
-    auto bytes = *reinterpret_cast<const Bytes*>(view.data + i);
-    for (size_t j = 0; j < sizeof(T); j++)
-      stream << bytes[j];
-  }
-}
-
 TEST(NvJpegDecoderTest, Factory) {
   int device_id;
   CUDA_CALL(cudaGetDevice(&device_id));
