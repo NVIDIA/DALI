@@ -201,6 +201,7 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   auto& decode_event = ctx.resources.decode_event;
   auto& device_buffer = ctx.resources.device_buffer;
 
+  CUDA_CALL(cudaEventSynchronize(decode_event));
   CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer));
   CUDA_CALL(nvjpegJpegStreamParse(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(),
                                   false, false, ctx.resources.jpeg_stream));
@@ -212,7 +213,7 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   nvjpeg_image.channel[0] = out;
   nvjpeg_image.pitch[0] = ctx.shape[1] * ctx.shape[2];
 
-  CUDA_CALL(cudaEventSynchronize(decode_event));
+
   CUDA_CALL(nvjpegStateAttachDeviceBuffer(state, device_buffer));
   CUDA_CALL(nvjpegDecodeJpegTransferToDevice(nvjpeg_handle_, decoder, state, jpeg_stream,
                                              stream));
