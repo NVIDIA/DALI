@@ -44,11 +44,15 @@ void OutputShape(OutShape &&out_shape,
     if (rotate) {
       in_d = 1 - d;
     }
+
     int extent = info.shape[in_d];
-    if (roi && d < roi.end.size())
-      extent = roi.end[d];
-    if (roi && d < roi.begin.size())
-      extent -= roi.begin[d];
+    if (roi) {
+      if (d < roi.end.size())
+        extent = roi.end[d];
+      if (d < roi.begin.size())
+        extent -= roi.begin[d];
+    }
+
     out_shape[d + (d >= out_channel_dim)] = extent;
   }
 }

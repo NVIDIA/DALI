@@ -194,7 +194,7 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
       ctx.shape[1] = roi.shape()[1];
     }
 
-    // Synchronizing on the acces to immediate_buffer
+    // Synchronizing on the access to intermediate buffer
     auto& intermediate_buffer = ctx.resources.intermediate_buffer;
     CUDA_CALL(cudaEventSynchronize(ctx.resources.decode_event));
 
