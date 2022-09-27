@@ -345,7 +345,7 @@ class DLL_PUBLIC OpGraph {
    * We need to calculate it ahead of time to allow for correct allocation of prefetch queues
    * (the PassThrough information is static).
    */
-  DLL_PUBLIC void SetupMakeContiguousPassThrough(const std::vector<string>& output_names);
+  DLL_PUBLIC void SetupMakeContiguousPassThrough();
 
   /**
    * @brief Return a TensorNodeId or a set of those, where the memory for the target_node
@@ -374,7 +374,7 @@ class DLL_PUBLIC OpGraph {
   bool IsAlwaysContiguous(TensorNodeId tensor_id) const;
 
   /**
-   * @brief Find the parent tensor id that were used to produce the `passed_through` tensor by
+   * @brief Find the parent tensor id that was used to produce the `passed_through` tensor by
    * the op.
    * This is just one step up the graph.
    * @param op Id of op node possibly doing the pass through
