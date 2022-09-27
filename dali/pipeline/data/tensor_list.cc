@@ -1032,7 +1032,7 @@ void TensorList<Backend>::resize_tensors(int new_size) {
         if (sample_dim_ >= 0) {
           // We can't have empty scalar.
           const auto &emptyish_shape = sample_dim() > 0 ? TensorShape<>::empty_shape(sample_dim()) :
-                                                          TensorShape<>(TensorShape<0>());
+                                                          TensorShape<>();
           tensors_[i].Resize(emptyish_shape, type());
           shape_.set_tensor_shape(i, emptyish_shape);
         } else if (type() != tensors_[i].type()) {
