@@ -356,11 +356,10 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
         if (indices.empty())
           break;
 
-        auto r = future.get_all_ref();
-
         for (int sub_idx : indices) {
-          if (r[sub_idx].success) {
-            work->results.set(work->indices[sub_idx], r[sub_idx]);
+          DecodeResult r = future.get_one(sub_idx);
+          if (r.success) {
+            work->results.set(work->indices[sub_idx], r);
             if (!decode_to_gpu && !work->gpu_outputs.empty()) {
               copy(work->gpu_outputs[sub_idx], work->cpu_outputs[sub_idx], work->ctx.stream);
             }
@@ -437,6 +436,11 @@ std::vector<bool> ImageDecoder::CanDecode(DecodeContext,
                                           DecodeParams,
                                           cspan<ROI>) {
   return std::vector<bool>(in.size(), true);
+}
+
+bool ImageDecoder::CanParse(ImageSource *encoded) const {
+  auto *f = FormatRegistry().GetImageFormat(encoded);
+  return f && filtered_.find(f) != filtered_.end();
 }
 
 ImageInfo ImageDecoder::GetInfo(ImageSource *encoded) const {

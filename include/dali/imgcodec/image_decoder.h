@@ -65,10 +65,7 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
 
   ~ImageDecoder();
 
-  bool CanParse(ImageSource *encoded) const override {
-    auto *f = FormatRegistry().GetImageFormat(encoded);
-    return f && filtered_.find(f) != filtered_.end();
-  }
+  bool CanParse(ImageSource *encoded) const override;
 
   ImageInfo GetInfo(ImageSource *encoded) const override;
 
@@ -207,8 +204,6 @@ class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser 
   static void filter(ScheduledWork &work, const vector<bool> &keep) {
     move_to_fallback(nullptr, work, keep);
   }
-
-  void alloc_temp_cpu_outputs(ScheduledWork &work);
 
   // Decoder workers
   class DecoderWorker;
