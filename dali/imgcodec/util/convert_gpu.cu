@@ -106,7 +106,7 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   intermediate_shape[channel_dim] = NumberOfChannels(in_format, intermediate_shape[channel_dim]);
 
   // Normalize by changing the multiplier
-  multiplier *= ConvertNorm<float>(static_cast<Input>(1)) / 
+  multiplier *= ConvertNorm<float>(static_cast<Input>(1)) /
                 ConvertNorm<float>(static_cast<Output>(1));
 
   auto size = volume(intermediate_shape);
