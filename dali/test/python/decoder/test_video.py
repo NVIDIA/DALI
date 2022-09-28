@@ -19,15 +19,15 @@ import cv2
 import nvidia.dali.types as types
 import glob
 from test_utils import get_dali_extra_path
-
+from nvidia.dali.backend import TensorListGPU
 
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
 
 
 @pipeline_def(device_id=0)
-def video_decoder_pipeline(source):
+def video_decoder_pipeline(source, device='cpu'):
     data = fn.external_source(source=source, dtype=types.UINT8, ndim=1)
-    return fn.experimental.decoders.video(data)
+    return fn.experimental.decoders.video(data, device=device)
 
 
 def video_length(filename):
@@ -36,9 +36,10 @@ def video_length(filename):
 
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=0)
-def reference_pipeline(filename):
+def reference_pipeline(filename, device='cpu'):
     seq_length = video_length(filename)
-    return fn.experimental.readers.video(filenames=[filename], sequence_length=seq_length)
+    return fn.experimental.readers.video(filenames=[filename], sequence_length=seq_length,
+                                         device=device)
 
 
 def video_loader(batch_size, epochs):
@@ -51,27 +52,42 @@ def video_loader(batch_size, epochs):
         yield batch
 
 
-def video_decoder_iter(batch_size, epochs=1):
+def video_decoder_iter(batch_size, epochs=1, device='cpu'):
     pipe = video_decoder_pipeline(batch_size=batch_size, device_id=0, num_threads=4,
-                                  source=video_loader(batch_size, epochs))
+                                  source=video_loader(batch_size, epochs), device=device)
     pipe.build()
     for _ in range(int((epochs * len(filenames) + batch_size - 1) / batch_size)):
         output, = pipe.run()
+        if isinstance(output, TensorListGPU):
+            output = output.as_cpu()
         for i in range(batch_size):
             yield np.array(output[i])
 
 
-def ref_iter(epochs=1):
+def ref_iter(epochs=1, device='cpu'):
     for _ in range(epochs):
         for filename in filenames:
-            pipe = reference_pipeline(filename)
+            pipe = reference_pipeline(filename, device=device)
             pipe.build()
             output, = pipe.run()
+            if isinstance(output, TensorListGPU):
+                output = output.as_cpu()
             yield np.array(output[0])
 
 
 def test_video_decoder_cpu():
     batch_size = 4
-    for seq, ref_seq in zip(video_decoder_iter(batch_size), ref_iter()):
+    epochs = 1
+    for seq, ref_seq in zip(video_decoder_iter(batch_size, epochs),
+                            ref_iter(epochs)):
+        assert seq.shape == ref_seq.shape
+        assert np.array_equal(seq, ref_seq)
+
+
+def test_video_decoder_mixed():
+    batch_size = 4
+    epochs = 2
+    for seq, ref_seq in zip(video_decoder_iter(batch_size, epochs, 'mixed'),
+                            ref_iter(epochs, 'gpu')):
         assert seq.shape == ref_seq.shape
         assert np.array_equal(seq, ref_seq)

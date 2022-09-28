@@ -1123,9 +1123,8 @@ def test_video_decoder():
 
     file_path = os.path.join(test_utils.get_dali_extra_path(), 'db', 'video', 'cfr', 'test_1.mp4')
     video_file = np.fromfile(file_path, dtype=np.uint8)
-    n_iters = 4
-    batches = [[video_file] * random.randint(2, 6) for _ in range(n_iters)]
-    check_pipeline(batches, video_decoder_pipe, devices=['cpu'])
+    batches = [[video_file] * 2, [video_file] * 5, [video_file] * 3]
+    check_pipeline(batches, video_decoder_pipe, devices=['cpu', 'mixed'])
 
 
 tested_methods = [
