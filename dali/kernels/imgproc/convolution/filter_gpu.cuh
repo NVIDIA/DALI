@@ -100,59 +100,28 @@ template <bool degenerated_extents>
 struct Reflect101 {
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
     assert(len > 0);
-    if (degenerated_extents && len == 1) {
-      return 0;
-    }
-    while (true) {
-      if (idx < 0) {
-        idx = -idx;
-      } else if (idx >= len) {
-        idx = 2 * len - 2 - idx;
-      } else {
-        return idx;
-      }
-    }
+    return boundary::idx_reflect_101(idx, len);
   }
 };
 
 struct Reflect1001 {
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
     assert(len > 0);
-    while (true) {
-      if (idx < 0) {
-        idx = -idx - 1;
-      } else if (idx >= len) {
-        idx = 2 * len - 1 - idx;
-      } else {
-        return idx;
-      }
-    }
+    return boundary::idx_reflect_1001(idx, len);
   }
 };
 
 struct Clamp {
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
     assert(len > 0);
-    if (idx < 0) {
-      return 0;
-    }
-    if (idx >= len) {
-      return len - 1;
-    }
-    return idx;
+    return boundary::idx_clamp(idx, 0, len);
   }
 };
 
 struct Wrap {
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
     assert(len > 0);
-    if (idx < 0) {
-      return len + idx % len;
-    }
-    if (idx >= len) {
-      return idx % len;
-    }
-    return idx;
+    return boundary::idx_wrap(idx, len);
   }
 };
 

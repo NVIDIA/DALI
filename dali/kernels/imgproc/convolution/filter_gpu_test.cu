@@ -32,12 +32,71 @@ namespace kernels {
 
 using namespace boundary;  // NOLINT(build/namespaces)
 
-template <bool is_sequence, bool has_channels, typename InT, typename OutT, typename WT, int ndim,
+struct SimpleLoader {
+  template <typename In>
+  void load(In &value, const In *in, int y_idx, int x_idx, int c, int H, int W, int C,
+            In fill_value) const {
+    (void)fill_value;
+    ASSERT_TRUE(y_idx >= 0 && x_idx >= 0 && c >= 0 && y_idx < H && x_idx < W && c < C);
+    value = in[y_idx * W * C + x_idx * C + c];
+  }
+};
+
+template <BoundaryType border_type>
+struct BorderHelper {};
+
+template <>
+struct BorderHelper<BoundaryType::REFLECT_101> : SimpleLoader {
+  int remap(int idx, int len) const {
+    return idx_reflect_101(idx, len);
+  }
+};
+
+template <>
+struct BorderHelper<BoundaryType::REFLECT_1001> : SimpleLoader {
+  int remap(int idx, int len) const {
+    return idx_reflect_1001(idx, len);
+  }
+};
+
+template <>
+struct BorderHelper<BoundaryType::CLAMP> : SimpleLoader {
+  int remap(int idx, int len) const {
+    return idx_clamp(idx, len);
+  }
+};
+
+template <>
+struct BorderHelper<BoundaryType::WRAP> : SimpleLoader {
+  int remap(int idx, int len) const {
+    return idx_wrap(idx, len);
+  }
+};
+
+template <>
+struct BorderHelper<BoundaryType::CONSTANT> {
+  int remap(int idx, int len) const {
+    return idx;
+  }
+
+  template <typename In>
+  void load(In &value, const In *in, int y_idx, int x_idx, int c, int H, int W, int C,
+            In fill_value) const {
+    if (y_idx < 0 || y_idx >= H || x_idx < 0 || x_idx >= W) {
+      value = fill_value;
+    } else {
+      value = in[y_idx * W * C + x_idx * C + c];
+    }
+  }
+};
+
+template <bool is_sequence, bool has_channels, typename InT, typename OutT, typename WT,
+          typename Border, int ndim,
           typename Intermediate = decltype(std::declval<InT>() * std::declval<WT>())>
 void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
                    const TensorView<StorageCPU, OutT, ndim> &out_view,
                    const TensorView<StorageCPU, WT, 2> &filter_view,
-                   const TensorView<StorageCPU, int, 1> &anchor_view) {
+                   const TensorView<StorageCPU, int, 1> &anchor_view, const Border &border_helper) {
   int F = is_sequence ? in_view.shape[0] : 1;
   int H = in_view.shape[is_sequence];
   int W = in_view.shape[is_sequence + 1];
@@ -58,9 +117,11 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
             for (int s = 0; s < S; s++) {
               int y_idx = y + r + anchor_r;
               int x_idx = x + s + anchor_s;
-              y_idx = idx_reflect_101(y_idx, 0, H);
-              x_idx = idx_reflect_101(x_idx, 0, W);
-              acc += in_data[y_idx * W * C + x_idx * C + c] * filter_data[r * S + s];
+              y_idx = border_helper.remap(y_idx, H);
+              x_idx = border_helper.remap(x_idx, W);
+              InT value;
+              border_helper.load(value, in_data, y_idx, x_idx, c, H, W, C, static_cast<InT>(0));
+              acc += value * filter_data[r * S + s];
             }
           }
           out_data[y * W * C + x * C + c] = ConvertSat<OutT>(acc);
@@ -71,7 +132,7 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
 }
 
 template <bool has_channels_, bool is_sequence_, typename OutType_, typename InType_,
-          int filters_shift_, BoundaryType border_type_ = BoundaryType::REFLECT_101>
+          int filters_shift_, BoundaryType border_type_>
 struct FilterParams {
   static constexpr int axes = 2;
   static constexpr int filter_dim = axes;
@@ -158,21 +219,23 @@ struct FilterGPUTest : public ::testing::Test {
     baseline_out_ = baseline_output_.cpu();
     out_view_ = output_.gpu();
     kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, anchors_view_, T::border_type);
-    FillBaseline();
+    FillBaseline(BorderHelper<T::border_type>{});
     auto out_cpu = output_.cpu();
 
     double eps = std::is_integral<OutType>::value ? 1 : 0.01;
     Check(out_cpu, baseline_out_, EqualEps(eps));
   }
 
-  void FillBaseline() {
+  template <typename Border>
+  void FillBaseline(Border &&border_helper) {
     int num_samples = filter_shapes_.num_samples();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       auto in_view = in_view_cpu_[sample_idx];
       auto out_view = baseline_out_[sample_idx];
       auto filter_view = filters_view_cpu_[sample_idx];
       auto anchor_view = anchors_view_[sample_idx];
-      baseline_conv<T::is_sequence, T::has_channels>(in_view, out_view, filter_view, anchor_view);
+      baseline_conv<T::is_sequence, T::has_channels>(in_view, out_view, filter_view, anchor_view,
+                                                     border_helper);
     }
   }
 
@@ -205,11 +268,19 @@ struct FilterGPUTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(FilterGPUTest);
 
-using TestValues = ::testing::Types<
-    FilterParams<true, true, float, float, 0>, FilterParams<false, true, float, float, 1>,
-    FilterParams<true, false, float, float, 2>, FilterParams<false, false, float, float, 3>,
-    FilterParams<true, false, uint8_t, uint8_t, 4>, FilterParams<false, false, uint8_t, uint8_t, 5>,
-    FilterParams<true, false, float, uint8_t, 6>, FilterParams<false, false, float, uint8_t, 7>>;
+using TestValues =
+    ::testing::Types<FilterParams<true, true, float, float, 0, BoundaryType::REFLECT_101>,
+                     FilterParams<false, true, float, float, 1, BoundaryType::REFLECT_1001>,
+                     FilterParams<true, false, float, float, 2, BoundaryType::CLAMP>,
+                     FilterParams<false, false, float, float, 3, BoundaryType::WRAP>,
+                     FilterParams<true, false, uint8_t, uint8_t, 4, BoundaryType::CONSTANT>,
+                     FilterParams<false, false, uint8_t, uint8_t, 5, BoundaryType::REFLECT_101>,
+                     FilterParams<true, false, float, uint8_t, 6, BoundaryType::REFLECT_101>,
+                     FilterParams<false, false, float, uint8_t, 7, BoundaryType::REFLECT_1001>,
+                     FilterParams<true, true, int32_t, int32_t, 8, BoundaryType::CLAMP>,
+                     FilterParams<false, true, int32_t, int32_t, 9, BoundaryType::WRAP>,
+                     FilterParams<true, true, float, int32_t, 10, BoundaryType::CONSTANT>,
+                     FilterParams<false, true, float, int32_t, 11, BoundaryType::REFLECT_101>>;
 
 TYPED_TEST_P(FilterGPUTest, DoConvolution) {
   this->RunTest();
