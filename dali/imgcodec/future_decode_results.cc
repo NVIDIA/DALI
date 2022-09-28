@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <atomic>
 #include <deque>
 #include <mutex>
 #include <numeric>
@@ -129,6 +130,7 @@ class DecodeResultsSharedState {
   std::vector<int> ready_indices_;
   std::vector<uint8_t> ready_mask_;  // avoid vector<bool>
   size_t last_checked_ = 0;
+  std::atomic_int num_promises_;
 
   static thread_local std::deque<std::unique_ptr<DecodeResultsSharedState>> free_;
 };
@@ -208,7 +210,31 @@ int DecodeResultsPromise::num_samples() const {
 
 DecodeResultsPromise::DecodeResultsPromise(int num_samples) {
   impl_ = DecodeResultsSharedState::get();
+  impl_->num_promises_ = 1;
   impl_->init(num_samples);
+}
+
+DecodeResultsPromise &DecodeResultsPromise::operator=(const DecodeResultsPromise &other) {
+  impl_ = other.impl_;
+  if (impl_)
+    impl_->num_promises_++;
+  return *this;
+}
+
+DecodeResultsPromise::~DecodeResultsPromise() {
+  auto impl = std::move(impl_);
+  if (impl) {
+    if (--impl->num_promises_ == 0 && impl->ready_indices_.size() != impl->results_.size()) {
+    #pragma GCC diagnostic push
+  #ifdef __clang__
+    #pragma GCC diagnostic ignored "-Wexceptions"
+  #else
+    #pragma GCC diagnostic ignored "-Wterminate"
+  #endif
+      std::logic_error("Last promise is dead and the result is incomplete.");
+    #pragma GCC diagnostic pop
+    }
+  }
 }
 
 }  // namespace imgcodec

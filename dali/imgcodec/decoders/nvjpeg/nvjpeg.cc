@@ -20,6 +20,7 @@
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
+#include "dali/imgcodec/registry.h"
 
 namespace dali {
 namespace imgcodec {
@@ -232,6 +233,8 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
 
   CUDA_CALL(cudaEventRecord(decode_event, stream));
 }
+
+REGISTER_DECODER("JPEG", NvJpegDecoderFactory, CUDADecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali
