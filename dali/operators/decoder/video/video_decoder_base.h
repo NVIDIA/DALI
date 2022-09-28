@@ -69,10 +69,10 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   }
 
   /**
-   * @brief Decode sample with idx `s` to `output` tensor.
+   * @brief Decode sample with index `idx` to `output` tensor.
    */
-  void DecodeSample(SampleView<OutBackend> output, int64_t s) {
-    auto &frames_decoder = *frames_decoders_[s];
+  void DecodeSample(SampleView<OutBackend> output, int64_t idx) {
+    auto &frames_decoder = *frames_decoders_[idx];
     int64_t num_frames = output.shape()[0];
     int64_t frame_size = frames_decoder.FrameSize();
     uint8_t *output_data = output.template mutable_data<uint8_t>();
