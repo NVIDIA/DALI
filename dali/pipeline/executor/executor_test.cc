@@ -612,70 +612,68 @@ TYPED_TEST(ExecutorTest, TestPinning) {
 
   // Build a basic cpu->gpu graph
   OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("ExternalSource")
-          .AddArg("device", "cpu")
-          .AddArg("device_id", 0)
-          .AddOutput("data_0", "cpu")), "ExternalSource_0");
+  graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("device_id", 0)
+                                    .AddOutput("data_0", "cpu")),
+              "ExternalSource_0");
 
   // First set of Copy + Copy and Pass Through
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data_0", "cpu")
-          .AddOutput("copy_0", "cpu")), "Copy_0");
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_0", "cpu")),
+              "Copy_0");
 
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data_0", "cpu")
-          .AddOutput("copy_1", "cpu")), "Copy_1");
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_1", "cpu")),
+              "Copy_1");
 
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("Reshape")
-          .AddArg("device", "cpu")
-          .AddArg("layout", "")
-          .AddInput("copy_0", "cpu")
-          .AddOutput("pass_through_0", "cpu")), "PassThrough_0");
+  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("layout", "")
+                                    .AddInput("copy_0", "cpu")
+                                    .AddOutput("pass_through_0", "cpu")),
+              "PassThrough_0");
 
   // Trigger pinning of first set when it moves CPU -> GPU
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput("pass_through_0", "cpu")
-          .AddOutput("out_0", "gpu")), "MakeContiguous_0");
+  graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
+                                    .AddArg("device", "mixed")
+                                    .AddInput("pass_through_0", "cpu")
+                                    .AddOutput("out_0", "gpu")),
+              "MakeContiguous_0");
 
   // but not the Copy_1 to compare against
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput("copy_1", "cpu")
-          .AddOutput("out_1", "cpu")), "MakeContiguous_1");
+  graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
+                                    .AddArg("device", "mixed")
+                                    .AddInput("copy_1", "cpu")
+                                    .AddOutput("out_1", "cpu")),
+              "MakeContiguous_1");
 
 
   // Second set of Copy and Pass Through
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("Copy")
-          .AddArg("device", "cpu")
-          .AddInput("data_0", "cpu")
-          .AddOutput("copy_2", "cpu")), "Copy_2");
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_2", "cpu")),
+              "Copy_2");
 
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("Reshape")
-          .AddArg("device", "cpu")
-          .AddArg("layout", "")
-          .AddInput("copy_2", "cpu")
-          .AddOutput("pass_through_1", "cpu")), "PassThrough_1");
+  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("layout", "")
+                                    .AddInput("copy_2", "cpu")
+                                    .AddOutput("pass_through_1", "cpu")),
+              "PassThrough_1");
 
   // Check pinning argument inputs to operators in GPU stage
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("random__CoinFlip")
-          .AddArg("device", "gpu")
-          .AddArgumentInput("probability", "pass_through_1")
-          .AddOutput("out_2", "gpu")), "CoinFlip");
+  graph.AddOp(this->PrepareSpec(OpSpec("random__CoinFlip")
+                                    .AddArg("device", "gpu")
+                                    .AddArgumentInput("probability", "pass_through_1")
+                                    .AddOutput("out_2", "gpu")),
+              "CoinFlip");
 
-
-  graph.SaveToDotFile("cheating.dot", true, true, true);
   vector<string> outputs = {"copy_0_cpu",         "copy_1_cpu", "pass_through_0_cpu", "copy_2_cpu",
                             "pass_through_1_cpu", "out_0_gpu",  "out_1_cpu",          "out_2_gpu"};
 
