@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_CONVOLUTION_2D_GPU_H_
-#define DALI_KERNELS_IMGPROC_CONVOLUTION_CONVOLUTION_2D_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_H_
+#define DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_H_
 
 #include <limits>
 #include <utility>
@@ -662,4 +662,4 @@ constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_gr
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_CONVOLUTION_2D_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_H_

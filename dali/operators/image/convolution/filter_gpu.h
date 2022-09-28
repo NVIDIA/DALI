@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "dali/core/static_switch.h"
-#include "dali/kernels/imgproc/convolution/convolution_2d_gpu.cuh"
+#include "dali/kernels/imgproc/convolution/filter_gpu.cuh"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/filter.h"
 #include "dali/pipeline/operator/arg_helper.h"
