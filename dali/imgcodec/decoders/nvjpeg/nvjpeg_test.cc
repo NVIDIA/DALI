@@ -145,7 +145,7 @@ TYPED_TEST(NvJpegDecoderTest, DecodeOrientationBatched) {
   assert(decoded.size() == static_cast<int>(sources.size()));
   for (int i = 0; i < decoded.size(); i++) {
     auto ref = this->ReadReferenceFrom(from_dali_extra(orientation_files[i] + ".npy"));
-    this->AssertSimilar(decoded[i], ref);
+    AssertSimilar(decoded[i], ref);
   }
 }
 
