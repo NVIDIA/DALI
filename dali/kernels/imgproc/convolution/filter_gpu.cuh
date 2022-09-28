@@ -542,7 +542,7 @@ struct Filter2dGpu {
             filter_left_anchor < s,
         make_string("Anchor must lie within the filter. Got anchor ",
                     TensorShape<2>{filter_top_anchor, filter_left_anchor}, " with filter of shape ",
-                    filter_shape, "for sample of idx ", sample_idx, "."));
+                    filter_shape, " for sample of idx ", sample_idx, "."));
     filter_top_anchor = -filter_top_anchor;
     filter_left_anchor = -filter_left_anchor;
     auto f = has_sequence_dim ? in_shape[0] : 1;
