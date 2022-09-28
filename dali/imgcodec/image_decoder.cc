@@ -563,7 +563,8 @@ FutureDecodeResults ImageDecoder::ScheduleDecode(DecodeContext ctx,
                                                  ImageSource *in,
                                                  DecodeParams opts,
                                                  const ROI &roi) {
-  return ScheduleDecode(ctx, make_span(&out, 1), make_span(&in, 1), opts, make_span(&roi, 1));
+  auto rois = make_span(&roi, roi.use_roi() ? 1 : 0);
+  return ScheduleDecode(ctx, make_span(&out, 1), make_span(&in, 1), opts, rois);
 }
 
 FutureDecodeResults ImageDecoder::ScheduleDecode(DecodeContext ctx,
@@ -571,7 +572,8 @@ FutureDecodeResults ImageDecoder::ScheduleDecode(DecodeContext ctx,
                                                  ImageSource *in,
                                                  DecodeParams opts,
                                                  const ROI &roi) {
-  return ScheduleDecode(ctx, make_span(&out, 1), make_span(&in, 1), opts, make_span(&roi, 1));
+  auto rois = make_span(&roi, roi.use_roi() ? 1 : 0);
+  return ScheduleDecode(ctx, make_span(&out, 1), make_span(&in, 1), opts, rois);
 }
 
 FutureDecodeResults ImageDecoder::ScheduleDecode(DecodeContext ctx,
