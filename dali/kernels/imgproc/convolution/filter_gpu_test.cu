@@ -32,9 +32,47 @@ namespace kernels {
 
 using namespace boundary;  // NOLINT(build/namespaces)
 
-template <bool has_channels_, bool is_sequence_, typename InType_, typename OutType_,
+template <bool is_sequence, bool has_channels, typename InT, typename OutT, typename WT, int ndim,
+          typename Intermediate = decltype(std::declval<InT>() * std::declval<WT>())>
+void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
+                   const TensorView<StorageCPU, OutT, ndim> &out_view,
+                   const TensorView<StorageCPU, WT, 2> &filter_view,
+                   const TensorView<StorageCPU, int, 1> &anchor_view) {
+  int F = is_sequence ? in_view.shape[0] : 1;
+  int H = in_view.shape[is_sequence];
+  int W = in_view.shape[is_sequence + 1];
+  int C = has_channels ? in_view.shape[is_sequence + 2] : 1;
+  int R = filter_view.shape[0];
+  int S = filter_view.shape[1];
+  int anchor_r = -anchor_view.data[0];
+  int anchor_s = -anchor_view.data[1];
+  auto *filter_data = filter_view.data;
+  for (int f = 0; f < F; f++) {
+    const auto *in_data = in_view.data + f * H * W * C;
+    auto *out_data = out_view.data + f * H * W * C;
+    for (int y = 0; y < H; y++) {
+      for (int x = 0; x < W; x++) {
+        for (int c = 0; c < C; c++) {
+          Intermediate acc = 0;
+          for (int r = 0; r < R; r++) {
+            for (int s = 0; s < S; s++) {
+              int y_idx = y + r + anchor_r;
+              int x_idx = x + s + anchor_s;
+              y_idx = idx_reflect_101(y_idx, 0, H);
+              x_idx = idx_reflect_101(x_idx, 0, W);
+              acc += in_data[y_idx * W * C + x_idx * C + c] * filter_data[r * S + s];
+            }
+          }
+          out_data[y * W * C + x * C + c] = ConvertSat<OutT>(acc);
+        }
+      }
+    }
+  }
+}
+
+template <bool has_channels_, bool is_sequence_, typename OutType_, typename InType_,
           int filters_shift_, BoundaryType border_type_ = BoundaryType::REFLECT_101>
-struct ConvParams {
+struct FilterParams {
   static constexpr int axes = 2;
   static constexpr int filter_dim = axes;
   static constexpr bool has_channels = has_channels_;
@@ -42,8 +80,8 @@ struct ConvParams {
   static constexpr int ndim = static_cast<int>(is_sequence) + axes + static_cast<int>(has_channels);
   static constexpr int filters_shift = filters_shift_;
   static constexpr BoundaryType border_type = border_type_;
-  using InType = InType_;
   using OutType = OutType_;
+  using InType = InType_;
   using WinType = float;
 };
 
@@ -53,7 +91,6 @@ struct FilterGPUTest : public ::testing::Test {
   using WinType = typename T::WinType;
   using OutType = typename T::OutType;
   using Kernel = Filter2dGpu<OutType, InType, WinType, T::has_channels, T::is_sequence>;
-  using Intermediate = decltype(std::declval<WinType>() * std::declval<InType>());
 
   TensorListShape<T::ndim> GetInputShape() {
     if (T::has_channels) {
@@ -119,9 +156,9 @@ struct FilterGPUTest : public ::testing::Test {
     int num_samples = data_shape.size();
 
     baseline_out_ = baseline_output_.cpu();
-    FillBaseline();
     out_view_ = output_.gpu();
     kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, anchors_view_, T::border_type);
+    FillBaseline();
     auto out_cpu = output_.cpu();
 
     double eps = std::is_integral<OutType>::value ? 1 : 0.01;
@@ -135,36 +172,7 @@ struct FilterGPUTest : public ::testing::Test {
       auto out_view = baseline_out_[sample_idx];
       auto filter_view = filters_view_cpu_[sample_idx];
       auto anchor_view = anchors_view_[sample_idx];
-      int F = T::is_sequence ? in_view.shape[0] : 1;
-      int H = in_view.shape[T::is_sequence];
-      int W = in_view.shape[T::is_sequence + 1];
-      int C = T::has_channels ? in_view.shape[T::is_sequence + 2] : 1;
-      int R = filter_view.shape[0];
-      int S = filter_view.shape[1];
-      int anchor_r = -anchor_view.data[0];
-      int anchor_s = -anchor_view.data[1];
-      auto *filter_data = filter_view.data;
-      for (int f = 0; f < F; f++) {
-        const auto *in_data = in_view.data + f * H * W * C;
-        auto *out_data = out_view.data + f * H * W * C;
-        for (int y = 0; y < H; y++) {
-          for (int x = 0; x < W; x++) {
-            for (int c = 0; c < C; c++) {
-              Intermediate acc = 0;
-              for (int r = 0; r < R; r++) {
-                for (int s = 0; s < S; s++) {
-                  int y_idx = y + r + anchor_r;
-                  int x_idx = x + s + anchor_s;
-                  y_idx = idx_reflect_101(y_idx, 0, H);
-                  x_idx = idx_reflect_101(x_idx, 0, W);
-                  acc += in_data[y_idx * W * C + x_idx * C + c] * filter_data[r * S + s];
-                }
-              }
-              out_data[y * W * C + x * C + c] = ConvertSat<OutType>(acc);
-            }
-          }
-        }
-      }
+      baseline_conv<T::is_sequence, T::has_channels>(in_view, out_view, filter_view, anchor_view);
     }
   }
 
@@ -191,16 +199,17 @@ struct FilterGPUTest : public ::testing::Test {
                                          {200, 4, 180},  {75, 75, 75}, {4, 512, 512}, {8, 1, 32},
                                          {8, 32, 1},     {1, 8, 32}};
 
-  const TensorListShape<> filter_shape_base_ = {{3, 3}, {7, 7}, {51, 1}, {1, 51}, {15, 17}, {4, 2}};
-  const TensorListShape<> anchors_base = {{1, 1}, {3, 3}, {25, 0}, {0, 25}, {1, 16}, {2, 0}};
+  const TensorListShape<> filter_shape_base_ = {{3, 3}, {7, 7}, {51, 1}, {1, 51}, {7, 9}, {4, 2}};
+  const TensorListShape<> anchors_base = {{1, 1}, {3, 3}, {25, 0}, {0, 25}, {1, 7}, {2, 0}};
 };
 
 TYPED_TEST_SUITE_P(FilterGPUTest);
 
-// ndim, has_channels, convolution axis, input type, [output type = float]
 using TestValues = ::testing::Types<
-    ConvParams<true, true, float, float, 0>, ConvParams<false, true, float, float, 1>,
-    ConvParams<true, false, float, float, 2>, ConvParams<false, false, float, float, 3>>;
+    FilterParams<true, true, float, float, 0>, FilterParams<false, true, float, float, 1>,
+    FilterParams<true, false, float, float, 2>, FilterParams<false, false, float, float, 3>,
+    FilterParams<true, false, uint8_t, uint8_t, 4>, FilterParams<false, false, uint8_t, uint8_t, 5>,
+    FilterParams<true, false, float, uint8_t, 6>, FilterParams<false, false, float, uint8_t, 7>>;
 
 TYPED_TEST_P(FilterGPUTest, DoConvolution) {
   this->RunTest();
