@@ -42,6 +42,7 @@ auto gray_path = img_dir + "/cat-111793_640_gray.tiff";
 auto gray_ref_path = ref_dir + "/cat-111793_640_gray.tiff.npy";
 
 auto palette_path = img_dir + "/cat-300572_640_palette.tiff";
+auto palette_ref_path = ref_dir + "/cat-300572_640_palette.tiff.npy";
 
 auto multichannel_path = dali_extra + "/db/single/multichannel/tiff_multichannel/" +
                          "cat-111793_640_multichannel.tif";
@@ -267,6 +268,14 @@ TYPED_TEST(LibTiffDecoderTest, TiledRgbToGray) {
   auto ref = this->ReadReferenceFrom(gray_ref_path);
   auto src = ImageSource::FromFilename(tiled_path);
   auto img = this->Decode(&src, {this->dtype, DALI_GRAY});
+  AssertClose(img, ref, 0.01 * max_value<typename TestFixture::Type>());
+}
+
+
+TYPED_TEST(LibTiffDecoderTest, Palette) {
+  auto ref = this->ReadReferenceFrom(palette_ref_path);
+  auto src = ImageSource::FromFilename(palette_path);
+  auto img = this->Decode(&src, {this->dtype});
   AssertClose(img, ref, 0.01 * max_value<typename TestFixture::Type>());
 }
 
