@@ -12,22 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_UTIL_THREAD_POOL_H_
-#define DALI_PIPELINE_UTIL_THREAD_POOL_H_
+#ifndef DALI_PIPELINE_UTIL_NEW_THREAD_POOL_H_
+#define DALI_PIPELINE_UTIL_NEW_THREAD_POOL_H_
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <queue>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/mm/detail/aux_alloc.h"
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 namespace experimental {
 
 class MultipleErrors : public std::runtime_error {
  public:
-  MultipleErrors(std::vector<std::exception_ptr> errors)
+  explicit MultipleErrors(std::vector<std::exception_ptr> errors)
   : runtime_error(""), errors_(std::move(errors)) {
     compose_message();
   }
@@ -155,12 +160,12 @@ class Job {
                 mm::detail::object_pool_allocator<std::pair<priority_t, Task>>> tasks_;
 };
 
-class ThreadPool {
+class ThreadPoolBase {
  public:
   using TaskFunc = std::function<void(int)>;
 
-  ThreadPool() = default;
-  explicit ThreadPool(int num_threads) {
+  ThreadPoolBase() = default;
+  explicit ThreadPoolBase(int num_threads) {
     Init(num_threads);
   }
 
@@ -171,23 +176,28 @@ class ThreadPool {
     stop_requested_ = false;
     threads_.reserve(num_threads);
     for (int i = 0; i < num_threads; i++)
-      threads_.push_back(std::thread(&ThreadPool::Run, this, i));
+      threads_.push_back(std::thread(&ThreadPoolBase::Run, this, i));
   }
 
-  ~ThreadPool() {
+  ~ThreadPoolBase() {
     Stop();
   }
 
   void AddTask(TaskFunc f) {
-    std::lock_guard g(mtx_);
-    if (stop_requested_)
-      throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
-    tasks_.push(std::move(f));
+    {
+      std::lock_guard g(mtx_);
+      if (stop_requested_)
+        throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
+      tasks_.push(std::move(f));
+    }
     cv_.notify_one();
   }
 
- private:
-   void Stop() {
+ protected:
+  virtual void OnThreadStart(int thread_idx) {}
+  virtual void OnThreadStop(int thread_idx) {}
+
+  void Stop() {
     {
       std::lock_guard g(mtx_);
       stop_requested_ = true;
@@ -204,6 +214,8 @@ class ThreadPool {
   }
 
   void Run(int index) noexcept {
+    OnThreadStart(index);
+    detail::CallAtExit([&]() { OnThreadStop(index); });
     std::unique_lock lock(mtx_);
     while (!stop_requested_) {
       cv_.wait(lock, [&]() { return stop_requested_ || !tasks_.empty(); });
@@ -227,4 +239,4 @@ class ThreadPool {
 }  // namespace experimental
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_UTIL_THREAD_POOL_H_
+#endif  // DALI_PIPELINE_UTIL_NEW_THREAD_POOL_H_
