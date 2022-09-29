@@ -104,6 +104,30 @@ InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShap
   return output_shapes;
 }
 
+template <typename In, typename Backend>
+TensorListView<detail::storage_tag_map_t<Backend>, const In, 0> get_fill_values_view(
+    const TensorList<Backend>& fill_values) {
+  DALI_ENFORCE(
+      fill_values.type() == type2id<In>::value,
+      make_string("The padding scalars (third positional argument) must be of the "
+                  "same time as the input samples. Got ",
+                  fill_values.type(), " for pad values while the input samples are of type ",
+                  type2id<In>::value, "."));
+  if (fill_values.sample_dim() == 0) {
+    return view<const In, 0>(fill_values);
+  }
+  const auto& shape = fill_values.shape();
+  int num_samples = shape.num_samples();
+  for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+    DALI_ENFORCE(
+        shape[sample_idx].num_elements() == 1,
+        make_string("Padding values must be scalars, got ", shape[sample_idx].num_elements(),
+                    " elements for a sample of idx ", sample_idx, "."));
+  }
+  auto view_dyn = view<const In>(fill_values);
+  return reshape<0>(view_dyn, uniform_list_shape<0>(num_samples, std::vector<int64_t>{}));
+}
+
 }  // namespace filter
 
 template <typename Backend>

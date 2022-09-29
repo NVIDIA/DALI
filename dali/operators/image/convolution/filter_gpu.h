@@ -102,33 +102,13 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     if (ws.NumInput() < 3) {
       return {};
     }
-    DALI_ENFORCE(
-        ws.GetInputDataType(2) == ws.GetInputDataType(0),
-        make_string("The padding scalars (third positional argument) must be of the "
-                    "same time as the input samples. Got ",
-                    ws.GetInputDataType(2), " for pad values while the input samples are of type ",
-                    ws.GetInputDataType(0), "."));
-    const auto scalar_view = [&](auto& input) -> TensorListView<StorageGPU, const In, 0> {
-      if (input.sample_dim() == 0) {
-        return view<const In, 0>(input);
-      }
-      const auto& shape = input.shape();
-      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        DALI_ENFORCE(
-            shape[sample_idx].num_elements() == 1,
-            make_string("Padding values must be scalars, got ", shape[sample_idx].num_elements(),
-                        " elements for a sample of idx ", sample_idx, "."));
-      }
-      auto view_dyn = view<const In>(input);
-      return reshape<0>(view_dyn, uniform_list_shape<0>(num_samples, std::vector<int64_t>{}));
-    };
     if (ws.template InputIsType<GPUBackend>(2)) {
-      return scalar_view(ws.template Input<GPUBackend>(2));
+      return get_fill_values_view<In>(ws.template Input<GPUBackend>(2));
     } else {
       const auto& fill_values = ws.template Input<CPUBackend>(2);
       fill_values_dev_.set_order(ws.stream());
       fill_values_dev_.Copy(fill_values);
-      return scalar_view(fill_values_dev_);
+      return get_fill_values_view<In>(fill_values_dev_);
     }
   }
 
