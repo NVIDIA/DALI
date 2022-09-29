@@ -42,7 +42,7 @@ DecodeResult LibJpegTurboDecoderInstance::DecodeImplTask(int thread_idx,
     flags.color_space = out_type;
   }
 
-  target_shape[2] = NumberOfChannels(out_type);
+  target_shape[2] = NumberOfChannels(out_type, info.shape[2]);
   flags.components = target_shape[2];
 
   if (use_fast_idct_) {

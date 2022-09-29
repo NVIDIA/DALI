@@ -109,12 +109,15 @@ DecodeResult OpenCVDecoderInstance::DecodeImplTask(int thread_idx,
       SampleView<CPUBackend> in(cvimg.ptr(0), shape, type);
 
       int in_channels = cvimg.channels();
-
+      auto out_format = opts.format;
+      // OpenCV uses BGR by default. Here we avoid outputting BGR when requesting ANY_DATA
+      if (out_format == DALI_ANY_DATA && in_format == DALI_ANY_DATA && in_channels == 3) {
+        in_format = DALI_BGR;
+        out_format = DALI_RGB;
+      }
       TensorLayout layout = cvimg.dims == 3 ? "DHWC" : "HWC";
 
-      Convert(out, layout, opts.format,
-              in, layout, in_format,
-              roi);
+      Convert(out, layout, out_format, in, layout, in_format, roi);
     }
   } catch (...) {
     res.exception = std::current_exception();

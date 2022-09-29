@@ -29,6 +29,9 @@
 #include "dali/util/numpy.h"
 #include "dali/imgcodec/decoders/opencv_fallback.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
+#include "dali/imgcodec/decoders/libjpeg_turbo.h"
+#include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
+#include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k.h"
 
 namespace dali {
 namespace imgcodec {
@@ -67,7 +70,7 @@ struct test_sample {
     } else if (format == DALI_GRAY) {
       return ref_gray;
     } else {
-      assert(format == DALI_RGB);
+      assert(format == DALI_RGB || format == DALI_ANY_DATA);
       return ref;
     }
   }
@@ -107,6 +110,13 @@ cv::Mat GetRefCvMat(test_sample& sample, DALIImageType color_fmt) {
   }
   cv::Mat vref_mat(ref_sh[0], ref_sh[1], color_fmt == DALI_GRAY ? CV_8UC1 : CV_8UC3, refdata);
   return rgb2bgr(vref_mat);
+}
+
+template <typename T>
+void DumpImages(TensorView<StorageCPU, const T> v,
+                test_sample& sample,
+                DALIImageType color_fmt) {
+  // not implemented
 }
 
 void DumpImages(TensorView<StorageCPU, const uint8_t> v,
@@ -301,8 +311,19 @@ TEST(ImageDecoderTest, GetInfo) {
   EXPECT_EQ(info.orientation.rotate, 0);
 }
 
-template<typename Backend, typename OutputType>
-class ImageDecoderTest : public ::testing::Test {
+template <typename B, typename O, DALIImageType t>
+struct ImageDecoderTestParams {
+  using Backend = B;
+  using OutputType = O;
+  static constexpr DALIImageType image_type() { return t; }
+};
+
+template <typename TestParams>
+class ImageDecoderTest;
+
+template <typename Backend, typename OutputType, DALIImageType color_fmt>
+class ImageDecoderTest<ImageDecoderTestParams<Backend, OutputType, color_fmt>>
+    : public ::testing::Test {
  public:
   static const auto dtype = type2id<OutputType>::value;
 
@@ -451,17 +472,19 @@ class ImageDecoderTest : public ::testing::Test {
     return ctx;
   }
 
+  void FilterDecoder(std::function<bool(ImageDecoderFactory *)> decoder_filter) {
+    this->SetDecoder(std::make_unique<ImageDecoder>(this->GetDeviceId(), false,
+                                                    std::map<std::string, any>{}, decoder_filter));
+  }
+
   void DisableFallback() {
     // making sure that we don't pick the fallback implementation
     auto filter = [](ImageDecoderFactory *factory) {
-      if (dynamic_cast<OpenCVDecoderFactory *>(factory) != nullptr) {
-        return false;
-      }
-      return true;
+      return !(dynamic_cast<OpenCVDecoderFactory *>(factory) != nullptr);
     };
-    this->SetDecoder(std::make_unique<ImageDecoder>(this->GetDeviceId(), false,
-                                                    std::map<std::string, any>{}, filter));
+    FilterDecoder(filter);
   }
+
 
   float GetEps() {
     float eps = 0.01f;
@@ -472,15 +495,14 @@ class ImageDecoderTest : public ::testing::Test {
     return eps;
   }
 
-  void CompareData(const TensorView<StorageCPU, const OutputType> &data, const test_sample &sample,
-                   DALIImageType color_fmt) {
+  void CompareData(const TensorView<StorageCPU, const OutputType> &data,
+                   const test_sample &sample) {
     if constexpr (std::is_same<Backend, GPUBackend>::value) {
       if (color_fmt == DALI_YCbCr) {
         AssertSimilar(data, sample.ref_ycbcr);
       } else if (color_fmt == DALI_GRAY) {
         AssertSimilar(data, sample.ref_gray);
       } else {
-        assert(color_fmt == DALI_RGB);
         AssertSimilar(data, sample.ref);
       }
     } else {
@@ -489,28 +511,36 @@ class ImageDecoderTest : public ::testing::Test {
       } else if (color_fmt == DALI_GRAY) {
         AssertClose(data, sample.ref_gray, this->GetEps());
       } else {
-        assert(color_fmt == DALI_RGB);
         AssertEqualSatNorm(data, sample.ref);
       }
     }
   }
 
-  void TestSingleFormatDecodeSample(const std::string& file_fmt, DALIImageType color_fmt) {
+  void TestSingleFormatDecodeSample(const std::string& file_fmt) {
     auto samples = this->GetData(file_fmt);
     auto &sample = samples[0];
     auto out = this->Decode(&sample.image.src, this->GetParams(color_fmt));
-    CompareData(out.view, sample, color_fmt);
+    DumpImages(out.view, sample, color_fmt);
+    CompareData(out.view, sample);
   }
 
-  void TestSingleFormatDecodeBatch(const std::string& file_fmt, DALIImageType color_fmt) {
+  void TestSingleFormatDecodeBatch(const std::string& file_fmt) {
     auto samples = this->GetData(file_fmt);
     std::vector<ImageSource *> srcs = {&samples[0].image.src, &samples[1].image.src,
                                        &samples[2].image.src};
     auto out = this->Decode(make_span(srcs), this->GetParams(color_fmt));
 
     for (int i = 0; i < out.view.size(); i++) {
-      CompareData(out.view[i], samples[i], color_fmt);
+      CompareData(out.view[i], samples[i]);
     }
+  }
+
+  DALIImageType color_format() const {
+    return color_fmt;
+  }
+
+  bool IsGPUBackend() const {
+    return std::is_same<GPUBackend, Backend>::value;
   }
 
  private:
@@ -523,229 +553,273 @@ class ImageDecoderTest : public ::testing::Test {
 // CPU tests
 ///////////////////////////////////////////////////////////////////////////////
 
-template<typename OutputType>
-class ImageDecoderTest_CPU : public ImageDecoderTest<CPUBackend, OutputType> {
-};
+template <typename TestParams>
+class ImageDecoderTest_Basic : public ImageDecoderTest<TestParams> {};
 
-using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
-TYPED_TEST_SUITE(ImageDecoderTest_CPU, DecodeOutputTypes);
+using Params_Basic = ::testing::Types<
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_RGB>,
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_GRAY>,
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_YCbCr>,
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_RGB>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_GRAY>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_YCbCr>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_RGB>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_GRAY>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_YCbCr>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_ANY_DATA>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_RGB>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_GRAY>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_YCbCr>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_RGB>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_GRAY>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_YCbCr>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_RGB>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_GRAY>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_YCbCr>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_ANY_DATA>
+>;
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG) {
-  this->TestSingleFormatDecodeSample("JPEG", DALI_RGB);
+template <typename TestParams>
+class ImageDecoderTest_OnlyCPU : public ImageDecoderTest<TestParams> {};
+
+using Params_CPU = ::testing::Types<
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_RGB>,
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_GRAY>,
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_YCbCr>,
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_RGB>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_GRAY>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_YCbCr>,
+  ImageDecoderTestParams<CPUBackend, int16_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_RGB>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_GRAY>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_YCbCr>,
+  ImageDecoderTestParams<CPUBackend, float, DALI_ANY_DATA>
+>;
+
+template <typename TestParams>
+class ImageDecoderTest_OnlyGPU : public ImageDecoderTest<TestParams> {};
+
+using Params_GPU = ::testing::Types<
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_RGB>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_GRAY>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_YCbCr>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_RGB>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_GRAY>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_YCbCr>,
+  ImageDecoderTestParams<GPUBackend, int16_t, DALI_ANY_DATA>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_RGB>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_GRAY>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_YCbCr>,
+  ImageDecoderTestParams<GPUBackend, float, DALI_ANY_DATA>
+>;
+
+template <typename TestParams>
+class ImageDecoderTest_CorruptedData : public ImageDecoderTest<TestParams> {};
+
+using Params_CorruptedData = ::testing::Types<
+  ImageDecoderTestParams<CPUBackend, uint8_t, DALI_RGB>,
+  ImageDecoderTestParams<GPUBackend, uint8_t, DALI_RGB>
+>;
+
+
+TYPED_TEST_SUITE(ImageDecoderTest_Basic, Params_Basic);
+TYPED_TEST_SUITE(ImageDecoderTest_OnlyCPU, Params_CPU);
+TYPED_TEST_SUITE(ImageDecoderTest_OnlyGPU, Params_GPU);
+TYPED_TEST_SUITE(ImageDecoderTest_CorruptedData, Params_GPU);
+
+TYPED_TEST(ImageDecoderTest_Basic, DecodeSample_JPEG) {
+  this->TestSingleFormatDecodeSample("JPEG");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG_YCbCr) {
-  this->TestSingleFormatDecodeSample("JPEG", DALI_YCbCr);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_JPEG) {
+  this->TestSingleFormatDecodeBatch("JPEG");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG_GRAY) {
-  this->TestSingleFormatDecodeSample("JPEG", DALI_GRAY);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeSample_TIFF) {
+  this->TestSingleFormatDecodeSample("TIFF");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG) {
-  this->TestSingleFormatDecodeBatch("JPEG", DALI_RGB);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_TIFF) {
+  this->TestSingleFormatDecodeBatch("TIFF");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG_YCbCr) {
-  this->TestSingleFormatDecodeBatch("JPEG", DALI_YCbCr);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeSample_JPEG2000) {
+  this->TestSingleFormatDecodeSample("JPEG2000");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG_GRAY) {
-  this->TestSingleFormatDecodeBatch("JPEG", DALI_GRAY);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_JPEG2000) {
+  this->TestSingleFormatDecodeBatch("JPEG2000");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_TIFF) {
-  this->TestSingleFormatDecodeSample("TIFF", DALI_RGB);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeSample_BMP) {
+  this->TestSingleFormatDecodeSample("BMP");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_TIFF_YCbCr) {
-  this->TestSingleFormatDecodeSample("TIFF", DALI_YCbCr);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_BMP) {
+  this->TestSingleFormatDecodeBatch("BMP");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_TIFF_GRAY) {
-  this->TestSingleFormatDecodeSample("TIFF", DALI_GRAY);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeSample_PNM) {
+  this->TestSingleFormatDecodeSample("PNM");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF) {
-  this->TestSingleFormatDecodeBatch("TIFF", DALI_RGB);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_PNM) {
+  this->TestSingleFormatDecodeBatch("PNM");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF_YCbCr) {
-  this->TestSingleFormatDecodeBatch("TIFF", DALI_YCbCr);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeSample_PNG) {
+  this->TestSingleFormatDecodeSample("PNG");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF_GRAY) {
-  this->TestSingleFormatDecodeBatch("TIFF", DALI_GRAY);
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_PNG) {
+  this->TestSingleFormatDecodeBatch("PNG");
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG2000) {
-  this->TestSingleFormatDecodeSample("JPEG2000", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG2000_YCbCr) {
-  this->TestSingleFormatDecodeSample("JPEG2000", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG2000_GRAY) {
-  this->TestSingleFormatDecodeSample("JPEG2000", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG2000) {
-  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG2000_YCbCr) {
-  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG2000_GRAY) {
-  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_BMP) {
-  this->TestSingleFormatDecodeSample("BMP", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_BMP_YCbCr) {
-  this->TestSingleFormatDecodeSample("BMP", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_BMP_GRAY) {
-  this->TestSingleFormatDecodeSample("BMP", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_BMP) {
-  this->TestSingleFormatDecodeBatch("BMP", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_BMP_YCbCr) {
-  this->TestSingleFormatDecodeBatch("BMP", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_BMP_GRAY) {
-  this->TestSingleFormatDecodeBatch("BMP", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNM) {
-  this->TestSingleFormatDecodeSample("PNM", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNM_YCbCr) {
-  this->TestSingleFormatDecodeSample("PNM", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNM_GRAY) {
-  this->TestSingleFormatDecodeSample("PNM", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNM) {
-  this->TestSingleFormatDecodeBatch("PNM", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNM_YCbCr) {
-  this->TestSingleFormatDecodeBatch("PNM", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNM_GRAY) {
-  this->TestSingleFormatDecodeBatch("PNM", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNG) {
-  this->TestSingleFormatDecodeSample("PNG", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNG_YCbCr) {
-  this->TestSingleFormatDecodeSample("PNG", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNG_GRAY) {
-  this->TestSingleFormatDecodeSample("PNG", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNG) {
-  this->TestSingleFormatDecodeBatch("PNG", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNG_YCbCr) {
-  this->TestSingleFormatDecodeBatch("PNG", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNG_GRAY) {
-  this->TestSingleFormatDecodeBatch("PNG", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_MultiFormat) {
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_Multiformat) {
   auto jpeg_samples = this->GetData("JPEG");
   auto tiff_samples = this->GetData("TIFF");
   auto jpeg2000_samples = this->GetData("JPEG2000");
-  std::vector<ImageSource*> srcs = {
-    &jpeg_samples[0].image.src,
-    &tiff_samples[1].image.src,
-    &tiff_samples[0].image.src,
-    &jpeg_samples[1].image.src,
-    &jpeg2000_samples[0].image.src,
-    &jpeg2000_samples[1].image.src,
-    &jpeg2000_samples[2].image.src,
-    &jpeg_samples[2].image.src,
+  std::vector<ImageSource *> srcs = {
+      &jpeg_samples[0].image.src,     &tiff_samples[1].image.src,
+      &tiff_samples[0].image.src,     &jpeg_samples[1].image.src,
+      &jpeg2000_samples[0].image.src, &jpeg2000_samples[1].image.src,
+      &jpeg2000_samples[2].image.src, &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB));
+  auto out = this->Decode(make_span(srcs), this->GetParams(this->color_format()));
   int i = 0;
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
-  AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
-  AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[1].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[0].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[1].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[2].ref);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[2].ref);
+  this->CompareData(out.view[i++], jpeg_samples[0]);
+  this->CompareData(out.view[i++], tiff_samples[1]);
+  this->CompareData(out.view[i++], tiff_samples[0]);
+  this->CompareData(out.view[i++], jpeg_samples[1]);
+  this->CompareData(out.view[i++], jpeg2000_samples[0]);
+  this->CompareData(out.view[i++], jpeg2000_samples[1]);
+  this->CompareData(out.view[i++], jpeg2000_samples[2]);
+  this->CompareData(out.view[i++], jpeg_samples[2]);
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_NoFallback) {
-  this->DisableFallback();
+TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_Multiformat_NoFallback) {
+  this->FilterDecoder([this](ImageDecoderFactory *factory) {
+    if (this->IsGPUBackend()) {
+      return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr ||
+             dynamic_cast<NvJpeg2000DecoderFactory *>(factory) != nullptr ||
+             dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
+    } else {
+      return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr ||
+             dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
+    }
+  });
   auto jpeg_samples = this->GetData("JPEG");
   auto tiff_samples = this->GetData("TIFF");
-  auto jpeg2000_samples = this->GetData("JPEG2000");
+  auto jpeg2000_samples = this->GetData("JPEG2000");  // Won't be supported because of the filter
 
-  std::vector<ImageSource*> srcs = {
-    &jpeg_samples[0].image.src,
-    &tiff_samples[1].image.src,
-    &tiff_samples[0].image.src,
-    &jpeg_samples[1].image.src,
-    &jpeg2000_samples[0].image.src,
-    &jpeg2000_samples[1].image.src,
-    &jpeg2000_samples[2].image.src,
-    &jpeg_samples[2].image.src,
+  std::vector<ImageSource *> srcs = {
+      &jpeg_samples[0].image.src,     &tiff_samples[1].image.src,
+      &tiff_samples[0].image.src,     &jpeg_samples[1].image.src,
+      &jpeg2000_samples[0].image.src, &jpeg2000_samples[1].image.src,
+      &jpeg2000_samples[2].image.src, &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB), {}, false);
+  auto out = this->Decode(make_span(srcs), this->GetParams(this->color_format()), {}, false);
   int i = 0;
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
+  this->CompareData(out.view[i++], jpeg_samples[0]);
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
+  this->CompareData(out.view[i++], tiff_samples[1]);
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
+  this->CompareData(out.view[i++], tiff_samples[0]);
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[1].ref);
+  this->CompareData(out.view[i++], jpeg_samples[1]);
 
-  EXPECT_FALSE(out.res[i++].success);
-  EXPECT_FALSE(out.res[i++].success);
-  EXPECT_FALSE(out.res[i++].success);
+  if (this->IsGPUBackend()) {
+    ExpectSuccess(out.res[i]);
+    this->CompareData(out.view[i++], jpeg2000_samples[0]);
+    ExpectSuccess(out.res[i]);
+    this->CompareData(out.view[i++], jpeg2000_samples[1]);
+    ExpectSuccess(out.res[i]);
+    this->CompareData(out.view[i++], jpeg2000_samples[2]);
+  } else {
+    // we didn't enable jpeg2000 for CPUBackend in this test
+    EXPECT_FALSE(out.res[i++].success);
+    EXPECT_FALSE(out.res[i++].success);
+    EXPECT_FALSE(out.res[i++].success);
+  }
 
   ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg_samples[2].ref);
+  this->CompareData(out.view[i++], jpeg_samples[2]);
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_CorruptedData_JPEG) {
-  this->DisableFallback();
+TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_JPEG_SingleDecoder_LibjpegTurbo) {
+  this->FilterDecoder(
+    [](ImageDecoderFactory *factory) {
+      return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr;
+    });
+  this->TestSingleFormatDecodeSample("JPEG");
+}
+
+TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_JPEG_SingleDecoder_OpenCV) {
+  this->FilterDecoder(
+    [](ImageDecoderFactory *factory) {
+      return dynamic_cast<OpenCVDecoderFactory *>(factory) != nullptr;
+    });
+  this->TestSingleFormatDecodeSample("JPEG");
+}
+
+TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_TIFF_SingleDecoder_Libtiff) {
+  this->FilterDecoder(
+    [](ImageDecoderFactory *factory) {
+      return dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
+    });
+  this->TestSingleFormatDecodeSample("TIFF");
+}
+
+TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_TIFF_SingleDecoder_OpenCV) {
+  this->FilterDecoder(
+    [](ImageDecoderFactory *factory) {
+      return dynamic_cast<OpenCVDecoderFactory *>(factory) != nullptr;
+    });
+  this->TestSingleFormatDecodeSample("TIFF");
+}
+
+TYPED_TEST(ImageDecoderTest_OnlyGPU, DecodeSample_JPEG_SingleDecoder_NvJpeg) {
+  this->FilterDecoder(
+    [](ImageDecoderFactory *factory) {
+      return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr;
+    });
+  this->TestSingleFormatDecodeSample("JPEG");
+}
+
+TYPED_TEST(ImageDecoderTest_OnlyGPU, DecodeSample_JPEG_SingleDecoder_NvJpeg2000) {
+  this->FilterDecoder(
+    [](ImageDecoderFactory *factory) {
+      return dynamic_cast<NvJpeg2000DecoderFactory *>(factory) != nullptr;
+    });
+  this->TestSingleFormatDecodeSample("JPEG2000");
+}
+
+TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeSample_JPEG) {
+  this->FilterDecoder([this](ImageDecoderFactory *factory) {
+    if (this->IsGPUBackend()) {
+      return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr;
+    } else {
+      return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr;
+    }
+  });
   auto samples = this->GetData("JPEG");
   auto corrupted_sample =
       ImageSource::FromHostMem(samples[0].image.src.RawData(), samples[0].image.src.Size() / 10);
-  auto out = this->Decode(&corrupted_sample, this->GetParams(DALI_RGB), {}, false);
+  auto out = this->Decode(&corrupted_sample, this->GetParams(this->color_format()), {}, false);
   ASSERT_FALSE(out.res.success);
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_CorruptedData_TIFF) {
-  this->DisableFallback();
+TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeSample_TIFF) {
+  this->FilterDecoder([this](ImageDecoderFactory *factory) {
+    return dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
+  });
   auto samples = this->GetData("TIFF");
 
   std::vector<uint8_t> corrupted_tiff_data(samples[0].image.src.Size());
@@ -758,12 +832,20 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_CorruptedData_TIFF) {
   auto corrupted_sample =
       ImageSource::FromHostMem(corrupted_tiff_data.data(), corrupted_tiff_data.size());
 
-  auto out = this->Decode(&corrupted_sample, this->GetParams(DALI_RGB), {}, false);
+  auto out = this->Decode(&corrupted_sample, this->GetParams(this->color_format()), {}, false);
   ASSERT_FALSE(out.res.success);
 }
 
-TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_CorruptedData) {
-  this->DisableFallback();
+TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeBatch) {
+  this->FilterDecoder([this](ImageDecoderFactory *factory) {
+    if (this->IsGPUBackend()) {
+      return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr ||
+             dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
+    } else {
+      return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr ||
+             dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
+    }
+  });
   auto jpeg_samples = this->GetData("JPEG");
   auto tiff_samples = this->GetData("TIFF");
 
@@ -793,202 +875,12 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_CorruptedData) {
     &jpeg_samples[2].image.src,
   };
 
-  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB), {}, false);
+  auto out = this->Decode(make_span(srcs), this->GetParams(this->color_format()), {}, false);
   ExpectSuccess(out.res[0]);
   ASSERT_FALSE(out.res[1].success);
   ExpectSuccess(out.res[2]);
   ASSERT_FALSE(out.res[3].success);
   ExpectSuccess(out.res[4]);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// GPU tests
-///////////////////////////////////////////////////////////////////////////////
-
-template<typename OutputType>
-class ImageDecoderTest_GPU : public ImageDecoderTest<GPUBackend, OutputType> {
-};
-
-TYPED_TEST_SUITE(ImageDecoderTest_GPU, DecodeOutputTypes);
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG) {
-  this->TestSingleFormatDecodeSample("JPEG", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG_YCbCr) {
-  this->TestSingleFormatDecodeSample("JPEG", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG_GRAY) {
-  this->TestSingleFormatDecodeSample("JPEG", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG) {
-  this->TestSingleFormatDecodeBatch("JPEG", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG_YCbCr) {
-  this->TestSingleFormatDecodeBatch("JPEG", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG_GRAY) {
-  this->TestSingleFormatDecodeBatch("JPEG", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_TIFF) {
-  this->TestSingleFormatDecodeSample("TIFF", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_TIFF_YCbCr) {
-  this->TestSingleFormatDecodeSample("TIFF", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_TIFF_GRAY) {
-  this->TestSingleFormatDecodeSample("TIFF", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_TIFF) {
-  this->TestSingleFormatDecodeBatch("TIFF", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_TIFF_YCbCr) {
-  this->TestSingleFormatDecodeBatch("TIFF", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_TIFF_GRAY) {
-  this->TestSingleFormatDecodeBatch("TIFF", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG2000) {
-  this->TestSingleFormatDecodeSample("JPEG2000", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG2000_YCbCr) {
-  this->TestSingleFormatDecodeSample("JPEG2000", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG2000_GRAY) {
-  this->TestSingleFormatDecodeSample("JPEG2000", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG2000) {
-  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG2000_YCbCr) {
-  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG2000_GRAY) {
-  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_BMP) {
-  this->TestSingleFormatDecodeSample("BMP", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_BMP_YCbCr) {
-  this->TestSingleFormatDecodeSample("BMP", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_BMP_GRAY) {
-  this->TestSingleFormatDecodeSample("BMP", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_BMP) {
-  this->TestSingleFormatDecodeBatch("BMP", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_BMP_YCbCr) {
-  this->TestSingleFormatDecodeBatch("BMP", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_BMP_GRAY) {
-  this->TestSingleFormatDecodeBatch("BMP", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNM) {
-  this->TestSingleFormatDecodeSample("PNM", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNM_YCbCr) {
-  this->TestSingleFormatDecodeSample("PNM", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNM_GRAY) {
-  this->TestSingleFormatDecodeSample("PNM", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNM) {
-  this->TestSingleFormatDecodeBatch("PNM", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNM_YCbCr) {
-  this->TestSingleFormatDecodeBatch("PNM", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNM_GRAY) {
-  this->TestSingleFormatDecodeBatch("PNM", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNG) {
-  this->TestSingleFormatDecodeSample("PNG", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNG_YCbCr) {
-  this->TestSingleFormatDecodeSample("PNG", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNG_GRAY) {
-  this->TestSingleFormatDecodeSample("PNG", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNG) {
-  this->TestSingleFormatDecodeBatch("PNG", DALI_RGB);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNG_YCbCr) {
-  this->TestSingleFormatDecodeBatch("PNG", DALI_YCbCr);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNG_GRAY) {
-  this->TestSingleFormatDecodeBatch("PNG", DALI_GRAY);
-}
-
-TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_NoFallback) {
-  this->DisableFallback();
-  auto jpeg_samples = this->GetData("JPEG");
-  auto tiff_samples = this->GetData("TIFF");
-  auto jpeg2000_samples = this->GetData("JPEG2000");
-
-  std::vector<ImageSource*> srcs = {
-    &jpeg_samples[0].image.src,
-    &tiff_samples[1].image.src,
-    &tiff_samples[0].image.src,
-    &jpeg_samples[1].image.src,
-    &jpeg2000_samples[0].image.src,
-    &jpeg2000_samples[1].image.src,
-    &jpeg2000_samples[2].image.src,
-    &jpeg_samples[2].image.src,
-  };
-  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB), {}, false);
-  int i = 0;
-  ExpectSuccess(out.res[i]);
-  AssertSimilar(out.view[i++], jpeg_samples[0].ref);
-  ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
-  ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], tiff_samples[0].ref);
-  ExpectSuccess(out.res[i]);
-  AssertSimilar(out.view[i++], jpeg_samples[1].ref);
-  ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[0].ref);
-  ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[1].ref);
-  ExpectSuccess(out.res[i]);
-  AssertEqualSatNorm(out.view[i++], jpeg2000_samples[2].ref);
-  ExpectSuccess(out.res[i]);
-  AssertSimilar(out.view[i++], jpeg_samples[2].ref);
 }
 
 
