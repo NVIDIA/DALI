@@ -115,6 +115,29 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
 
     AssertSimilar(decoded, ref);
   }
+
+  void RunOrientationTest(ROI roi = {}) {
+    std::vector<ImageBuffer> buffers;
+    for (const auto &name : orientation_files)
+      buffers.emplace_back(from_dali_extra(name + ".jpg"));
+
+    std::vector<ImageSource*> sources;
+    for (auto &buff : buffers)
+      sources.push_back(&buff.src);
+
+    const size_t batch_size = orientation_files.size();
+    std::vector<ROI> rois(batch_size, roi);
+
+    auto decoded = this->Decode(make_cspan(sources), this->GetParams(), make_span(rois));
+    assert(decoded.size() == static_cast<int>(sources.size()));
+    for (int i = 0; i < decoded.size(); i++) {
+      auto ref = this->ReadReferenceFrom(from_dali_extra(orientation_files[i] + ".npy"));
+      if (roi)
+        AssertSimilar(decoded[i], Crop(ref, roi));
+      else
+        AssertSimilar(decoded[i], ref);
+    }
+  }
 };
 
 using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
@@ -133,20 +156,11 @@ TYPED_TEST(NvJpegDecoderTest, DecodeSingleRoi) {
 }
 
 TYPED_TEST(NvJpegDecoderTest, DecodeOrientationBatched) {
-  std::vector<ImageBuffer> buffers;
-  for (const auto &name : orientation_files)
-    buffers.emplace_back(from_dali_extra(name + ".jpg"));
+  this->RunOrientationTest();
+}
 
-  std::vector<ImageSource*> sources;
-  for (auto &buff : buffers)
-    sources.push_back(&buff.src);
-
-  auto decoded = this->Decode(make_cspan(sources), this->GetParams());
-  assert(decoded.size() == static_cast<int>(sources.size()));
-  for (int i = 0; i < decoded.size(); i++) {
-    auto ref = this->ReadReferenceFrom(from_dali_extra(orientation_files[i] + ".npy"));
-    AssertSimilar(decoded[i], ref);
-  }
+TYPED_TEST(NvJpegDecoderTest, DecodeOrientationWithRoiBatched) {
+  this->RunOrientationTest({{1, 2}, {21, 37}});
 }
 
 }  // namespace test

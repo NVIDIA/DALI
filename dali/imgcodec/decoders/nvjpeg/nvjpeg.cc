@@ -168,15 +168,24 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   DecodingContext ctx = DecodingContext{ resources_[thread_idx] };
   CUDA_CALL(nvjpegDecodeParamsSetOutputFormat(ctx.resources.params, GetFormat(opts.format)));
   CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.resources.params, true));
+
+  Orientation orientation = {};
+  auto adjusted_roi = roi;
+  if (opts.use_orientation) {
+    auto info = JpegParser().GetInfo(in);
+    adjusted_roi = PreOrientationRoi(info, roi);
+    orientation = info.orientation;
+  }
+  bool is_orientation_adjusted = orientation.rotate || orientation.flip_x || orientation.flip_y;
+
+  auto roi_shape = adjusted_roi.shape();
   if (roi.use_roi()) {
-    CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, roi.begin[1], roi.begin[0],
-                                       roi.shape()[1], roi.shape()[0]));
+    CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params,
+                                       adjusted_roi.begin[1], adjusted_roi.begin[0],
+                                       roi_shape[1], roi_shape[0]));
   } else {
     CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, 0, 0, -1, -1));
   }
-
-  auto orientation = opts.use_orientation ? JpegParser().GetInfo(in).orientation : Orientation{};
-  bool is_orientation_adjusted = orientation.rotate || orientation.flip_x || orientation.flip_y;
 
   // We don't decode directly to YCbCr, since we want to control the YCbCr definition,
   // which is different between general color conversion libraries (OpenCV) and
@@ -190,8 +199,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     ParseJpegSample(*in, opts, ctx);
 
     if (roi.use_roi()) {
-      ctx.shape[0] = roi.shape()[0];
-      ctx.shape[1] = roi.shape()[1];
+      ctx.shape[0] = roi_shape[0];
+      ctx.shape[1] = roi_shape[1];
     }
 
     // Synchronizing on the access to intermediate buffer

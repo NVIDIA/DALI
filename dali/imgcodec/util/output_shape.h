@@ -21,7 +21,7 @@ namespace dali {
 namespace imgcodec {
 
 template <typename OutShape>
-void OutputShape(OutShape &&out_shape,
+void DLL_PUBLIC OutputShape(OutShape &&out_shape,
                  const ImageInfo &info, const DecodeParams &params, const ROI &roi) {
   int ndim = info.shape.sample_dim();
   resize_if_possible(out_shape, ndim);
@@ -56,6 +56,11 @@ void OutputShape(OutShape &&out_shape,
     out_shape[d + (d >= out_channel_dim)] = extent;
   }
 }
+
+/**
+ * @brief Calculates the ROI in the pre-orientation coordinates
+ */
+ROI DLL_PUBLIC PreOrientationRoi(const ImageInfo &info, ROI roi);
 
 }  // namespace imgcodec
 }  // namespace dali
