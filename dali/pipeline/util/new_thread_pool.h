@@ -37,7 +37,7 @@ class MultipleErrors : public std::runtime_error {
     compose_message();
   }
 
-  virtual const char *what() {
+  const char *what() const override {
     return message_.c_str();
   }
 
