@@ -135,7 +135,7 @@ struct InLoaderBorderRemap : protected Remap {
     return border_remap_strided(idx, sample_shape.w, sample_shape.c, sample_shape.wc);
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE In load(const In __restrict__* in, int y, int x,
+  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, int y, int x,
                                          const ShapeDesc& sample_shape) const {
     return in[y * static_cast<int64_t>(sample_shape.wc) + x];
   }
@@ -167,7 +167,7 @@ struct InLoaderPad {
     return idx;
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE In load(const In __restrict__* in, int y, int x,
+  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, int y, int x,
                                          const ShapeDesc& sample_shape) const {
     if (y < 0 || x < 0 || x >= sample_shape.wc || y >= sample_shape.h) {
       return fill_value;
