@@ -28,6 +28,7 @@
 #include "dali/util/file.h"
 #include "dali/util/numpy.h"
 #include "dali/imgcodec/decoders/opencv_fallback.h"
+#include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
 
 namespace dali {
 namespace imgcodec {
@@ -53,45 +54,191 @@ struct ImageBuffer {
 };
 
 struct test_sample {
-  test_sample(std::string img_path, std::string npy_ref_path)
+  test_sample(std::string img_path, std::string npy_path, std::string npy_ycbcr_path,
+              std::string npy_gray_path)
       : image(img_path),
-        ref(numpy::ReadTensor(FileStream::Open(npy_ref_path, false, false).get())) {}
+        ref(numpy::ReadTensor(FileStream::Open(npy_path, false, false).get())),
+        ref_ycbcr(numpy::ReadTensor(FileStream::Open(npy_ycbcr_path, false, false).get())),
+        ref_gray(numpy::ReadTensor(FileStream::Open(npy_gray_path, false, false).get())) {}
+
+  const Tensor<CPUBackend> &GetRef(DALIImageType format) {
+    if (format == DALI_YCbCr) {
+      return ref_ycbcr;
+    } else if (format == DALI_GRAY) {
+      return ref_gray;
+    } else {
+      assert(format == DALI_RGB);
+      return ref;
+    }
+  }
 
   ImageBuffer image;
   Tensor<CPUBackend> ref;
+  Tensor<CPUBackend> ref_ycbcr;
+  Tensor<CPUBackend> ref_gray;
 };
+
+cv::Mat rgb2bgr(const cv::Mat &img) {
+  cv::Mat bgr;
+  cv::cvtColor(img, bgr, cv::COLOR_RGB2BGR);
+  return bgr;
+}
+
+template <typename T>
+cv::Mat GetCvMat(TensorView<StorageCPU, const T> v, DALIImageType color_fmt) {
+  static_assert(std::is_same<T, uint8_t>::value, "Only uint8 images supported for now");
+  cv::Mat v_mat(v.shape[0], v.shape[1], color_fmt == DALI_GRAY ? CV_8UC1 : CV_8UC3,
+                (void *)v.data);  // NOLINT
+  return rgb2bgr(v_mat);
+}
+
+cv::Mat GetRefCvMat(test_sample& sample, DALIImageType color_fmt) {
+  void *refdata = nullptr;
+  TensorShape<> ref_sh;
+  if (color_fmt == DALI_YCbCr) {
+    refdata = sample.ref_ycbcr.raw_mutable_data();
+    ref_sh = sample.ref_ycbcr.shape();
+  } else if (color_fmt == DALI_GRAY) {
+    refdata = sample.ref_gray.raw_mutable_data();
+    ref_sh = sample.ref_gray.shape();
+  } else {
+    refdata = sample.ref.raw_mutable_data();
+    ref_sh = sample.ref.shape();
+  }
+  cv::Mat vref_mat(ref_sh[0], ref_sh[1], color_fmt == DALI_GRAY ? CV_8UC1 : CV_8UC3, refdata);
+  return rgb2bgr(vref_mat);
+}
+
+void DumpImages(TensorView<StorageCPU, const uint8_t> v,
+                test_sample& sample,
+                DALIImageType color_fmt) {
+  auto out = GetCvMat<uint8_t>(v, color_fmt);
+  auto ref = GetRefCvMat(sample, color_fmt);
+  cv::Mat diff;
+  cv::absdiff(out, ref, diff);
+  cv::imwrite("/tmp/img_out.bmp", out);
+  cv::imwrite("/tmp/img_ref.bmp", ref);
+  cv::imwrite("/tmp/img_diff.bmp", diff);
+}
 
 struct TestData {
   void Init() {
     const auto jpeg_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg");
     const auto jpeg_ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg");
-    test_samples["JPEG"].emplace_back(join(jpeg_dir, "134/site-1534685_1280.jpg"),
-                                      join(jpeg_ref_dir, "site-1534685_1280.npy"));
-    test_samples["JPEG"].emplace_back(join(jpeg_dir, "113/snail-4291306_1280.jpg"),
-                                      join(jpeg_ref_dir, "snail-4291306_1280.npy"));
-    test_samples["JPEG"].emplace_back(join(jpeg_dir, "100/swan-3584559_640.jpg"),
-                                      join(jpeg_ref_dir, "swan-3584559_640.npy"));
+    auto &samples_jpeg = test_samples["JPEG"];
+    samples_jpeg.emplace_back(join(jpeg_dir, "134/site-1534685_1280.jpg"),
+                              join(jpeg_ref_dir, "site-1534685_1280.npy"),
+                              join(jpeg_ref_dir, "site-1534685_1280_ycbcr.npy"),
+                              join(jpeg_ref_dir, "site-1534685_1280_gray.npy"));
+    samples_jpeg.emplace_back(join(jpeg_dir, "113/snail-4291306_1280.jpg"),
+                              join(jpeg_ref_dir, "snail-4291306_1280.npy"),
+                              join(jpeg_ref_dir, "snail-4291306_1280_ycbcr.npy"),
+                              join(jpeg_ref_dir, "snail-4291306_1280_gray.npy"));
+    samples_jpeg.emplace_back(join(jpeg_dir, "100/swan-3584559_640.jpg"),
+                              join(jpeg_ref_dir, "swan-3584559_640.npy"),
+                              join(jpeg_ref_dir, "swan-3584559_640_ycbcr.npy"),
+                              join(jpeg_ref_dir, "swan-3584559_640_gray.npy"));
 
     const auto tiff_dir = join(dali::testing::dali_extra_path(), "db/single/tiff");
     const auto tiff_ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/tiff");
-    test_samples["TIFF"].emplace_back(join(tiff_dir, "0/cat-3504008_640.tiff"),
-                                      join(tiff_ref_dir, "0/cat-3504008_640.tiff.npy"));
-    test_samples["TIFF"].emplace_back(join(tiff_dir, "0/cat-3449999_640.tiff"),
-                                      join(tiff_ref_dir, "0/cat-3449999_640.tiff.npy"));
-    test_samples["TIFF"].emplace_back(join(tiff_dir, "0/cat-111793_640.tiff"),
-                                      join(tiff_ref_dir, "0/cat-111793_640.tiff.npy"));
+    auto &samples_tiff = test_samples["TIFF"];
+    samples_tiff.emplace_back(join(tiff_dir, "0/cat-3504008_640.tiff"),
+                              join(tiff_ref_dir, "0/cat-3504008_640.tiff.npy"),
+                              join(tiff_ref_dir, "0/cat-3504008_640_ycbcr.tiff.npy"),
+                              join(tiff_ref_dir, "0/cat-3504008_640_gray.tiff.npy"));
+    samples_tiff.emplace_back(join(tiff_dir, "0/cat-3449999_640.tiff"),
+                              join(tiff_ref_dir, "0/cat-3449999_640.tiff.npy"),
+                              join(tiff_ref_dir, "0/cat-3449999_640_ycbcr.tiff.npy"),
+                              join(tiff_ref_dir, "0/cat-3449999_640_gray.tiff.npy"));
+    samples_tiff.emplace_back(join(tiff_dir, "0/cat-111793_640.tiff"),
+                              join(tiff_ref_dir, "0/cat-111793_640.tiff.npy"),
+                              join(tiff_ref_dir, "0/cat-111793_640_ycbcr.tiff.npy"),
+                              join(tiff_ref_dir, "0/cat-111793_640_gray.tiff.npy"));
 
     const auto jpeg2000_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg2k");
     const auto jpeg2000_ref_dir =
         join(dali::testing::dali_extra_path(), "db/single/reference/jpeg2k");
-    test_samples["JPEG2000"].emplace_back(join(jpeg2000_dir, "0/cat-1245673_640.jp2"),
-                                          join(jpeg2000_ref_dir, "0/cat-1245673_640.npy"));
-    test_samples["JPEG2000"].emplace_back(join(jpeg2000_dir, "0/cat-2184682_640.jp2"),
-                                          join(jpeg2000_ref_dir, "0/cat-2184682_640.npy"));
-    test_samples["JPEG2000"].emplace_back(join(jpeg2000_dir, "0/cat-300572_640.jp2"),
-                                          join(jpeg2000_ref_dir, "0/cat-300572_640.npy"));
+    auto &samples_jpeg2000 = test_samples["JPEG2000"];
+    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0/cat-1245673_640.jp2"),
+                                  join(jpeg2000_ref_dir, "0/cat-1245673_640.npy"),
+                                  join(jpeg2000_ref_dir, "0/cat-1245673_640_ycbcr.npy"),
+                                  join(jpeg2000_ref_dir, "0/cat-1245673_640_gray.npy"));
+    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0/cat-2184682_640.jp2"),
+                                  join(jpeg2000_ref_dir, "0/cat-2184682_640.npy"),
+                                  join(jpeg2000_ref_dir, "0/cat-2184682_640_ycbcr.npy"),
+                                  join(jpeg2000_ref_dir, "0/cat-2184682_640_gray.npy"));
+    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0/cat-300572_640.jp2"),
+                                  join(jpeg2000_ref_dir, "0/cat-300572_640.npy"),
+                                  join(jpeg2000_ref_dir, "0/cat-300572_640_ycbcr.npy"),
+                                  join(jpeg2000_ref_dir, "0/cat-300572_640_gray.npy"));
 
-    // TODO(janton): Cover more formats (?)
+    const auto bmp_dir = join(dali::testing::dali_extra_path(), "db/single/bmp");
+    const auto bmp_ref_dir =
+        join(dali::testing::dali_extra_path(), "db/single/reference/bmp");
+    auto &samples_bmp = test_samples["BMP"];
+    samples_bmp.emplace_back(join(bmp_dir, "0/cat-1046544_640.bmp"),
+                             join(bmp_ref_dir, "cat-1046544_640.npy"),
+                             join(bmp_ref_dir, "cat-1046544_640_ycbcr.npy"),
+                             join(bmp_ref_dir, "cat-1046544_640_gray.npy"));
+    samples_bmp.emplace_back(join(bmp_dir, "0/cat-1046544_640.bmp"),
+                             join(bmp_ref_dir, "cat-1046544_640.npy"),
+                             join(bmp_ref_dir, "cat-1046544_640_ycbcr.npy"),
+                             join(bmp_ref_dir, "cat-1046544_640_gray.npy"));
+    samples_bmp.emplace_back(join(bmp_dir, "0/cat-1245673_640.bmp"),
+                             join(bmp_ref_dir, "cat-1245673_640.npy"),
+                             join(bmp_ref_dir, "cat-1245673_640_ycbcr.npy"),
+                             join(bmp_ref_dir, "cat-1245673_640_gray.npy"));
+
+    const auto png_dir = join(dali::testing::dali_extra_path(), "db/single/png");
+    const auto png_ref_dir =
+        join(dali::testing::dali_extra_path(), "db/single/reference/png");
+    auto &samples_png = test_samples["PNG"];
+    samples_png.emplace_back(join(png_dir, "0/cat-3449999_640.png"),
+                             join(png_ref_dir, "cat-3449999_640.npy"),
+                             join(png_ref_dir, "cat-3449999_640_ycbcr.npy"),
+                             join(png_ref_dir, "cat-3449999_640_gray.npy"));
+    samples_png.emplace_back(join(png_dir, "0/cat-1046544_640.png"),
+                             join(png_ref_dir, "cat-1046544_640.npy"),
+                             join(png_ref_dir, "cat-1046544_640_ycbcr.npy"),
+                             join(png_ref_dir, "cat-1046544_640_gray.npy"));
+    samples_png.emplace_back(join(png_dir, "0/cat-1245673_640.png"),
+                             join(png_ref_dir, "cat-1245673_640.npy"),
+                             join(png_ref_dir, "cat-1245673_640_ycbcr.npy"),
+                             join(png_ref_dir, "cat-1245673_640_gray.npy"));
+
+    const auto pnm_dir = join(dali::testing::dali_extra_path(), "db/single/pnm");
+    const auto pnm_ref_dir =
+        join(dali::testing::dali_extra_path(), "db/single/reference/pnm");
+    auto &samples_pnm = test_samples["PNM"];
+    samples_pnm.emplace_back(join(pnm_dir, "0/cat-1046544_640.pnm"),
+                             join(pnm_ref_dir, "cat-1046544_640.npy"),
+                             join(pnm_ref_dir, "cat-1046544_640_ycbcr.npy"),
+                             join(pnm_ref_dir, "cat-1046544_640_gray.npy"));
+    samples_pnm.emplace_back(join(pnm_dir, "0/cat-111793_640.ppm"),
+                             join(pnm_ref_dir, "cat-111793_640.npy"),
+                             join(pnm_ref_dir, "cat-111793_640_ycbcr.npy"),
+                             join(pnm_ref_dir, "cat-111793_640_gray.npy"));
+    samples_pnm.emplace_back(join(pnm_dir, "0/domestic-cat-726989_640.pnm"),
+                             join(pnm_ref_dir, "domestic-cat-726989_640.npy"),
+                             join(pnm_ref_dir, "domestic-cat-726989_640_ycbcr.npy"),
+                             join(pnm_ref_dir, "domestic-cat-726989_640_gray.npy"));
+
+    const auto webp_dir = join(dali::testing::dali_extra_path(), "db/single/webp");
+    const auto webp_ref_dir =
+        join(dali::testing::dali_extra_path(), "db/single/reference/webp");
+    auto &samples_webp = test_samples["WEBP"];
+    samples_webp.emplace_back(join(webp_dir, "lossless/cat-3449999_640.webp"),
+                             join(webp_ref_dir, "cat-3449999_640.npy"),
+                             join(webp_ref_dir, "cat-3449999_640_ycbcr.npy"),
+                             join(webp_ref_dir, "cat-3449999_640_gray.npy"));
+    samples_webp.emplace_back(join(webp_dir, "lossy/cat-1046544_640.webp"),
+                             join(webp_ref_dir, "cat-1046544_640.npy"),
+                             join(webp_ref_dir, "cat-1046544_640_ycbcr.npy"),
+                             join(webp_ref_dir, "cat-1046544_640_gray.npy"));
+    samples_webp.emplace_back(join(webp_dir, "lossless/cat-1245673_640.webp"),
+                             join(webp_ref_dir, "cat-1245673_640.npy"),
+                             join(webp_ref_dir, "cat-1245673_640_ycbcr.npy"),
+                             join(webp_ref_dir, "cat-1245673_640_gray.npy"));
   }
 
   void Destroy() {
@@ -194,11 +341,8 @@ class ImageDecoderTest : public ::testing::Test {
     EXPECT_TRUE(Decoder().CanDecode(ctx, src, opts));
 
     ImageInfo info = Decoder().GetInfo(src);
-    auto shape = AdjustToRoi(info.shape, roi);
-
-    // Number of channels can be different than input's due to color conversion
-    // TODO(skarpinski) Don't assume channel-last layout here
-    *(shape.end() - 1) = NumberOfChannels(opts.format, *(info.shape.end() - 1));
+    TensorShape<> shape;
+    OutputShape(shape, info, opts, roi);
 
     output_.reshape({{shape}});
 
@@ -217,8 +361,9 @@ class ImageDecoderTest : public ::testing::Test {
       auto decode_result = Decoder().Decode(ctx, view, src, opts, roi);
       if (require_success)
         ExpectSuccess(decode_result);
+      DecodeSampleOutput<OutputType> res{decode_result, output_.cpu(ctx.stream)[0]};
       CUDA_CALL(cudaStreamSynchronize(ctx.stream));
-      return {decode_result, output_.cpu()[0]};
+      return res;
     }
   }
 
@@ -240,8 +385,9 @@ class ImageDecoderTest : public ::testing::Test {
       } else if (!can_decode) {
         continue;
       }
+
       ImageInfo info = Decoder().GetInfo(in[i]);
-      shape[i] = AdjustToRoi(info.shape, rois.empty() ? ROI{} : rois[i]);
+      OutputShape(shape[i], info, opts, rois.empty() ? ROI() : rois[i]);
     }
 
     output_.reshape(TensorListShape{shape});
@@ -262,11 +408,12 @@ class ImageDecoderTest : public ::testing::Test {
         view[i] = {tlv[i].data, tlv[i].shape, type2id<OutputType>::value};
       auto stream = CUDAStreamPool::instance().Get(GetDeviceId());
       ctx.stream = stream;
-      auto res = Decoder().Decode(ctx, make_span(view), in, opts, rois);
+      auto decode_result = Decoder().Decode(ctx, make_span(view), in, opts, rois);
       if (require_success)
-        ExpectSuccess(res);
+        ExpectSuccess(decode_result);
+      DecodeBatchOutput<OutputType> res{decode_result, output_.cpu(stream)};
       CUDA_CALL(cudaStreamSynchronize(stream));
-      return {res, output_.cpu()};
+      return res;
     }
   }
 
@@ -284,11 +431,14 @@ class ImageDecoderTest : public ::testing::Test {
     }
   }
 
-  DecodeParams GetParams() {
+  DecodeParams GetParams(DALIImageType format) {
     DecodeParams opts{};
     opts.dtype = dtype;
+    opts.format = format;
     return opts;
   }
+
+
 
   span<test_sample> GetData(const std::string& fmt) {
     return data.get(fmt);
@@ -313,6 +463,56 @@ class ImageDecoderTest : public ::testing::Test {
                                                     std::map<std::string, any>{}, filter));
   }
 
+  float GetEps() {
+    float eps = 0.01f;
+    if (!std::is_floating_point_v<OutputType>) {
+      // Adjusting the epsilon to OutputType
+      eps *= max_value<OutputType>();
+    }
+    return eps;
+  }
+
+  void CompareData(const TensorView<StorageCPU, const OutputType> &data, const test_sample &sample,
+                   DALIImageType color_fmt) {
+    if constexpr (std::is_same<Backend, GPUBackend>::value) {
+      if (color_fmt == DALI_YCbCr) {
+        AssertSimilar(data, sample.ref_ycbcr);
+      } else if (color_fmt == DALI_GRAY) {
+        AssertSimilar(data, sample.ref_gray);
+      } else {
+        assert(color_fmt == DALI_RGB);
+        AssertSimilar(data, sample.ref);
+      }
+    } else {
+      if (color_fmt == DALI_YCbCr) {
+        AssertClose(data, sample.ref_ycbcr, this->GetEps());
+      } else if (color_fmt == DALI_GRAY) {
+        AssertClose(data, sample.ref_gray, this->GetEps());
+      } else {
+        assert(color_fmt == DALI_RGB);
+        AssertEqualSatNorm(data, sample.ref);
+      }
+    }
+  }
+
+  void TestSingleFormatDecodeSample(const std::string& file_fmt, DALIImageType color_fmt) {
+    auto samples = this->GetData(file_fmt);
+    auto &sample = samples[0];
+    auto out = this->Decode(&sample.image.src, this->GetParams(color_fmt));
+    CompareData(out.view, sample, color_fmt);
+  }
+
+  void TestSingleFormatDecodeBatch(const std::string& file_fmt, DALIImageType color_fmt) {
+    auto samples = this->GetData(file_fmt);
+    std::vector<ImageSource *> srcs = {&samples[0].image.src, &samples[1].image.src,
+                                       &samples[2].image.src};
+    auto out = this->Decode(make_span(srcs), this->GetParams(color_fmt));
+
+    for (int i = 0; i < out.view.size(); i++) {
+      CompareData(out.view[i], samples[i], color_fmt);
+    }
+  }
+
  private:
   ThreadPool tp_;  // we want the thread pool to outlive the decoder instance
   std::unique_ptr<ImageDecoder> decoder_;
@@ -331,54 +531,147 @@ using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
 TYPED_TEST_SUITE(ImageDecoderTest_CPU, DecodeOutputTypes);
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG) {
-  auto samples = this->GetData("JPEG");
-  auto out = this->Decode(&samples[0].image.src, this->GetParams());
-  AssertEqualSatNorm(out.view, samples[0].ref);
+  this->TestSingleFormatDecodeSample("JPEG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG_YCbCr) {
+  this->TestSingleFormatDecodeSample("JPEG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG_GRAY) {
+  this->TestSingleFormatDecodeSample("JPEG", DALI_GRAY);
 }
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG) {
-  auto samples = this->GetData("JPEG");
-  std::vector<ImageSource*> srcs = {
-    &samples[0].image.src, &samples[1].image.src, &samples[2].image.src
-  };
-  auto out = this->Decode(make_span(srcs), this->GetParams());
-  for (int i = 0; i < out.view.size(); i++) {
-    AssertEqualSatNorm(out.view[i], samples[i].ref);
-  }
+  this->TestSingleFormatDecodeBatch("JPEG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG_YCbCr) {
+  this->TestSingleFormatDecodeBatch("JPEG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG_GRAY) {
+  this->TestSingleFormatDecodeBatch("JPEG", DALI_GRAY);
 }
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_TIFF) {
-  auto samples = this->GetData("TIFF");
-  auto out = this->Decode(&samples[0].image.src, this->GetParams());
-  AssertEqualSatNorm(out.view, samples[0].ref);
+  this->TestSingleFormatDecodeSample("TIFF", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_TIFF_YCbCr) {
+  this->TestSingleFormatDecodeSample("TIFF", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_TIFF_GRAY) {
+  this->TestSingleFormatDecodeSample("TIFF", DALI_GRAY);
 }
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF) {
-  auto samples = this->GetData("TIFF");
-  std::vector<ImageSource*> srcs = {
-    &samples[0].image.src, &samples[1].image.src, &samples[2].image.src
-  };
-  auto out = this->Decode(make_span(srcs), this->GetParams());
-  for (int i = 0; i < out.view.size(); i++) {
-    AssertEqualSatNorm(out.view[i], samples[i].ref);
-  }
+  this->TestSingleFormatDecodeBatch("TIFF", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF_YCbCr) {
+  this->TestSingleFormatDecodeBatch("TIFF", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_TIFF_GRAY) {
+  this->TestSingleFormatDecodeBatch("TIFF", DALI_GRAY);
 }
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG2000) {
-  auto samples = this->GetData("JPEG2000");
-  auto out = this->Decode(&samples[0].image.src, this->GetParams());
-  AssertEqualSatNorm(out.view, samples[0].ref);
+  this->TestSingleFormatDecodeSample("JPEG2000", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG2000_YCbCr) {
+  this->TestSingleFormatDecodeSample("JPEG2000", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_JPEG2000_GRAY) {
+  this->TestSingleFormatDecodeSample("JPEG2000", DALI_GRAY);
 }
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG2000) {
-  auto samples = this->GetData("JPEG2000");
-  std::vector<ImageSource*> srcs = {
-    &samples[0].image.src, &samples[1].image.src, &samples[2].image.src
-  };
-  auto out = this->Decode(make_span(srcs), this->GetParams());
-  for (int i = 0; i < out.view.size(); i++) {
-    AssertEqualSatNorm(out.view[i], samples[i].ref);
-  }
+  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG2000_YCbCr) {
+  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_JPEG2000_GRAY) {
+  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_BMP) {
+  this->TestSingleFormatDecodeSample("BMP", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_BMP_YCbCr) {
+  this->TestSingleFormatDecodeSample("BMP", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_BMP_GRAY) {
+  this->TestSingleFormatDecodeSample("BMP", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_BMP) {
+  this->TestSingleFormatDecodeBatch("BMP", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_BMP_YCbCr) {
+  this->TestSingleFormatDecodeBatch("BMP", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_BMP_GRAY) {
+  this->TestSingleFormatDecodeBatch("BMP", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNM) {
+  this->TestSingleFormatDecodeSample("PNM", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNM_YCbCr) {
+  this->TestSingleFormatDecodeSample("PNM", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNM_GRAY) {
+  this->TestSingleFormatDecodeSample("PNM", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNM) {
+  this->TestSingleFormatDecodeBatch("PNM", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNM_YCbCr) {
+  this->TestSingleFormatDecodeBatch("PNM", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNM_GRAY) {
+  this->TestSingleFormatDecodeBatch("PNM", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNG) {
+  this->TestSingleFormatDecodeSample("PNG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNG_YCbCr) {
+  this->TestSingleFormatDecodeSample("PNG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_PNG_GRAY) {
+  this->TestSingleFormatDecodeSample("PNG", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNG) {
+  this->TestSingleFormatDecodeBatch("PNG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNG_YCbCr) {
+  this->TestSingleFormatDecodeBatch("PNG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_PNG_GRAY) {
+  this->TestSingleFormatDecodeBatch("PNG", DALI_GRAY);
 }
 
 TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_MultiFormat) {
@@ -395,7 +688,7 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_MultiFormat) {
     &jpeg2000_samples[2].image.src,
     &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams());
+  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB));
   int i = 0;
   AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
   AssertEqualSatNorm(out.view[i++], tiff_samples[1].ref);
@@ -423,7 +716,7 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_NoFallback) {
     &jpeg2000_samples[2].image.src,
     &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
+  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB), {}, false);
   int i = 0;
   ExpectSuccess(out.res[i]);
   AssertEqualSatNorm(out.view[i++], jpeg_samples[0].ref);
@@ -447,7 +740,7 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_CorruptedData_JPEG) {
   auto samples = this->GetData("JPEG");
   auto corrupted_sample =
       ImageSource::FromHostMem(samples[0].image.src.RawData(), samples[0].image.src.Size() / 10);
-  auto out = this->Decode(&corrupted_sample, this->GetParams(), {}, false);
+  auto out = this->Decode(&corrupted_sample, this->GetParams(DALI_RGB), {}, false);
   ASSERT_FALSE(out.res.success);
 }
 
@@ -465,7 +758,7 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeSample_CorruptedData_TIFF) {
   auto corrupted_sample =
       ImageSource::FromHostMem(corrupted_tiff_data.data(), corrupted_tiff_data.size());
 
-  auto out = this->Decode(&corrupted_sample, this->GetParams(), {}, false);
+  auto out = this->Decode(&corrupted_sample, this->GetParams(DALI_RGB), {}, false);
   ASSERT_FALSE(out.res.success);
 }
 
@@ -500,7 +793,7 @@ TYPED_TEST(ImageDecoderTest_CPU, DecodeBatch_CorruptedData) {
     &jpeg_samples[2].image.src,
   };
 
-  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
+  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB), {}, false);
   ExpectSuccess(out.res[0]);
   ASSERT_FALSE(out.res[1].success);
   ExpectSuccess(out.res[2]);
@@ -518,6 +811,150 @@ class ImageDecoderTest_GPU : public ImageDecoderTest<GPUBackend, OutputType> {
 
 TYPED_TEST_SUITE(ImageDecoderTest_GPU, DecodeOutputTypes);
 
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG) {
+  this->TestSingleFormatDecodeSample("JPEG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG_YCbCr) {
+  this->TestSingleFormatDecodeSample("JPEG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG_GRAY) {
+  this->TestSingleFormatDecodeSample("JPEG", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG) {
+  this->TestSingleFormatDecodeBatch("JPEG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG_YCbCr) {
+  this->TestSingleFormatDecodeBatch("JPEG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG_GRAY) {
+  this->TestSingleFormatDecodeBatch("JPEG", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_TIFF) {
+  this->TestSingleFormatDecodeSample("TIFF", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_TIFF_YCbCr) {
+  this->TestSingleFormatDecodeSample("TIFF", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_TIFF_GRAY) {
+  this->TestSingleFormatDecodeSample("TIFF", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_TIFF) {
+  this->TestSingleFormatDecodeBatch("TIFF", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_TIFF_YCbCr) {
+  this->TestSingleFormatDecodeBatch("TIFF", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_TIFF_GRAY) {
+  this->TestSingleFormatDecodeBatch("TIFF", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG2000) {
+  this->TestSingleFormatDecodeSample("JPEG2000", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG2000_YCbCr) {
+  this->TestSingleFormatDecodeSample("JPEG2000", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_JPEG2000_GRAY) {
+  this->TestSingleFormatDecodeSample("JPEG2000", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG2000) {
+  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG2000_YCbCr) {
+  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_JPEG2000_GRAY) {
+  this->TestSingleFormatDecodeBatch("JPEG2000", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_BMP) {
+  this->TestSingleFormatDecodeSample("BMP", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_BMP_YCbCr) {
+  this->TestSingleFormatDecodeSample("BMP", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_BMP_GRAY) {
+  this->TestSingleFormatDecodeSample("BMP", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_BMP) {
+  this->TestSingleFormatDecodeBatch("BMP", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_BMP_YCbCr) {
+  this->TestSingleFormatDecodeBatch("BMP", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_BMP_GRAY) {
+  this->TestSingleFormatDecodeBatch("BMP", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNM) {
+  this->TestSingleFormatDecodeSample("PNM", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNM_YCbCr) {
+  this->TestSingleFormatDecodeSample("PNM", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNM_GRAY) {
+  this->TestSingleFormatDecodeSample("PNM", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNM) {
+  this->TestSingleFormatDecodeBatch("PNM", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNM_YCbCr) {
+  this->TestSingleFormatDecodeBatch("PNM", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNM_GRAY) {
+  this->TestSingleFormatDecodeBatch("PNM", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNG) {
+  this->TestSingleFormatDecodeSample("PNG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNG_YCbCr) {
+  this->TestSingleFormatDecodeSample("PNG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeSample_PNG_GRAY) {
+  this->TestSingleFormatDecodeSample("PNG", DALI_GRAY);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNG) {
+  this->TestSingleFormatDecodeBatch("PNG", DALI_RGB);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNG_YCbCr) {
+  this->TestSingleFormatDecodeBatch("PNG", DALI_YCbCr);
+}
+
+TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_PNG_GRAY) {
+  this->TestSingleFormatDecodeBatch("PNG", DALI_GRAY);
+}
+
 TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_NoFallback) {
   this->DisableFallback();
   auto jpeg_samples = this->GetData("JPEG");
@@ -534,7 +971,7 @@ TYPED_TEST(ImageDecoderTest_GPU, DecodeBatch_NoFallback) {
     &jpeg2000_samples[2].image.src,
     &jpeg_samples[2].image.src,
   };
-  auto out = this->Decode(make_span(srcs), this->GetParams(), {}, false);
+  auto out = this->Decode(make_span(srcs), this->GetParams(DALI_RGB), {}, false);
   int i = 0;
   ExpectSuccess(out.res[i]);
   AssertSimilar(out.view[i++], jpeg_samples[0].ref);

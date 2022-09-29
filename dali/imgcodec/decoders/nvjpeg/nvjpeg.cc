@@ -239,8 +239,7 @@ void NvJpegDecoderInstance::ParseJpegSample(ImageSource& in, DecodeParams opts,
   nvjpegChromaSubsampling_t subsampling;
   CUDA_CALL(nvjpegGetImageInfo(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(), &c,
                                &subsampling, widths, heights));
-
-  ctx.shape = {heights[0], widths[0], c};
+  ctx.shape = {heights[0], widths[0], NumberOfChannels(opts.format)};
 }
 
 void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, DecodeParams opts,
@@ -252,6 +251,7 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   auto& decode_event = ctx.resources.decode_event;
   auto& device_buffer = ctx.resources.device_buffer;
 
+  CUDA_CALL(cudaEventSynchronize(decode_event));
   CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer));
   CUDA_CALL(nvjpegJpegStreamParse(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(),
                                   false, false, ctx.resources.jpeg_stream));
