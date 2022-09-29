@@ -29,11 +29,11 @@ Orientation FromExifOrientation(ExifOrientation exif_orientation) {
     case ExifOrientation::MIRROR_VERTICAL:
       return {0, false, true};
     case ExifOrientation::MIRROR_HORIZONTAL_ROTATE_270_CW:
-      return {90, true, false};  // 270 CW = 90 CCW
+      return {90, false, true};  // 270 CW = 90 CCW
     case ExifOrientation::ROTATE_90_CW:
       return {270, false, false};  // 90 CW = 270 CCW
     case ExifOrientation::MIRROR_HORIZONTAL_ROTATE_90_CW:
-      return {270, true, false};  // 90 CW = 270 CCW
+      return {270, false, true};  // 90 CW = 270 CCW
     case ExifOrientation::ROTATE_270_CW:
       return {90, false, false};  // 270 CW = 90 CCW
     default:
