@@ -176,6 +176,28 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   }
 }
 
+TYPED_TEST(TensorListTest, InconsistentDevice) {
+  using Backend = std::tuple_element_t<0, TypeParam>;
+  auto shape = uniform_list_shape(10, {1, 2, 3});
+  TensorList<Backend> non_pinned, pinned, empty;
+  non_pinned.SetContiguity(this->kContiguity);
+  pinned.SetContiguity(this->kContiguity);
+  empty.SetContiguity(this->kContiguity);
+
+  non_pinned.set_pinned(false);
+  pinned.set_pinned(true);
+
+  non_pinned.Resize(shape, DALI_INT32);
+  pinned.Resize(shape, DALI_INT32);
+
+  std::cout << "[non_pinned]: order (device, stream): (" << non_pinned.order().device_id() << ", "
+            << non_pinned.order().get() << "), device_id: " << non_pinned.device_id() << std::endl;
+  std::cout << "[pinned]: order (device, stream): (" << pinned.order().device_id() << ", "
+            << pinned.order().get() << "), device_id: " << pinned.device_id() << std::endl;
+  std::cout << "[empty]: order (device, stream): (" << empty.order().device_id() << ", "
+            << empty.order().get() << "), device_id: " << empty.device_id() << std::endl;
+}
+
 TYPED_TEST(TensorListTest, TestReserveResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorList<Backend> tl;
