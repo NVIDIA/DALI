@@ -134,7 +134,7 @@ class DLL_PUBLIC ImageSource {
   const char *Filename() const {
     if (kind_ != InputKind::Filename)
       throw std::logic_error("This image source doesn't have a filename.");
-    return name_.c_str();
+    return name_.empty() ? nullptr : name_.c_str();
   }
 
   /**
@@ -144,7 +144,7 @@ class DLL_PUBLIC ImageSource {
    * or some compound identifier, like a name of a container file accompanied by
    * a record id or an offset,
    */
-  const char *SourceInfo() const { return name_.c_str(); }
+  const char *SourceInfo() const { return name_.empty() ? nullptr : name_.c_str(); }
 
   /**
    * @brief Opens the image source, returning an input stream
