@@ -410,6 +410,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
     current_frame_output_,
     frame_buffer_[frame_to_return_index].frame_.data(),
     FrameSize());
+  LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+          std::setw(5) << frame_buffer_[frame_to_return_index].pts_ << ", current copy " << copy_to_output << std::endl;
   ++next_frame_idx_;
 
   frame_buffer_[frame_to_return_index].pts_ = -1;
