@@ -49,7 +49,7 @@ struct ImageBuffer {
   ImageSource src;
   explicit ImageBuffer(const std::string &filename)
   : buffer(read_file(filename))
-  , src(ImageSource::FromHostMem(buffer.data(), buffer.size())) {}
+  , src(ImageSource::FromHostMem(buffer.data(), buffer.size(), filename)) {}
 };
 
 struct test_sample {
