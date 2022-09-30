@@ -71,20 +71,6 @@ void LaunchSliceFlipNormalizePermutePad(
   kernel.Run(ctx, tlv_out, tlv_in, args_container);
 }
 
-template <typename Output, typename Input>
-__global__ void copy_with_type_conversion(Output *out, const Input *in, int64_t size) {
-  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid >= size) return;
-  out[tid] = in[tid];
-}
-
-template <typename Output, typename Input>
-void LaunchCopyWithTypeConversion(Output *out, const Input *in, size_t size, cudaStream_t stream) {
-  size_t block_size = size < 1024 ? size : 1024;
-  size_t num_blocks = (size + block_size - 1) / block_size;
-  copy_with_type_conversion<<<num_blocks, block_size, 0, stream>>>(out, in, size);
-}
-
 template<class Output, class Input>
 void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
                  ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
@@ -109,24 +95,27 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   multiplier *= ConvertNorm<float>(static_cast<Input>(1)) /
                 ConvertNorm<float>(static_cast<Output>(1));
 
-  auto size = volume(intermediate_shape);
-  auto buffer = scratchpad.Allocate<mm::memory_kind::device, Output>(size);
+  if (out_format == DALI_ANY_DATA)
+    out_format = in_format;
+  // The Slice kernel doesn't support converting color space
+  bool needs_processing = out_format != in_format;
+  Output *slice_out = out.mutable_data<Output>();
+  if (needs_processing) {
+    auto size = volume(intermediate_shape);
+    slice_out = scratchpad.Allocate<mm::memory_kind::device, Output>(size);
+  }
+
   LaunchSliceFlipNormalizePermutePad(
-    buffer, out_layout, intermediate_shape, in.data<Input>(), in_layout, in.shape(),
+    slice_out, out_layout, intermediate_shape, in.data<Input>(), in_layout, in.shape(),
     ctx, roi, orientation, multiplier);
 
-  if (out_format == DALI_ANY_DATA) {
-    out_format = in_format;
-  }
-  if (out_format != in_format) {
+  if (needs_processing) {
     DALI_ENFORCE(out_layout.find('C') == kDims - 1,
                  "Only channel last layout is supported when running color space conversion");
 
     auto npixels = out.shape()[0] * out.shape()[1];
     kernels::color::RunColorSpaceConversionKernel(
-      out.mutable_data<Output>(), buffer, out_format, in_format, npixels, stream);
-  } else {
-    LaunchCopyWithTypeConversion(out.mutable_data<Output>(), buffer, size, stream);
+      out.mutable_data<Output>(), slice_out, out_format, in_format, npixels, stream);
   }
 }
 
