@@ -145,7 +145,8 @@ FramesDecoderGpu::FramesDecoderGpu(
   InitGpuDecoder();
 }
 
-int FramesDecoderGpu::ProcessPictureDecodeWithIndex(void *user_data, CUVIDPICPARAMS *picture_params) {
+int FramesDecoderGpu::ProcessPictureDecodeWithIndex(
+  void *user_data, CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
   if (flush_) {
@@ -220,7 +221,8 @@ int FramesDecoderGpu::ProcessPictureDecodeWithIndex(void *user_data, CUVIDPICPAR
   return 1;
 }
 
-int FramesDecoderGpu::ProcessPictureDecodeWithoutIndex(void *user_data, CUVIDPICPARAMS *picture_params) {
+int FramesDecoderGpu::ProcessPictureDecodeWithoutIndex(
+  void *user_data, CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
   if (flush_) {
@@ -411,7 +413,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
     frame_buffer_[frame_to_return_index].frame_.data(),
     FrameSize());
   LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
-          std::setw(5) << frame_buffer_[frame_to_return_index].pts_ << ", current copy " << copy_to_output << std::endl;
+          std::setw(5) << frame_buffer_[frame_to_return_index].pts_ <<
+          ", current copy " << copy_to_output << std::endl;
   ++next_frame_idx_;
 
   frame_buffer_[frame_to_return_index].pts_ = -1;
@@ -465,7 +468,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
 
   if (HasIndex()) {
     return ReadNextFrameWithIndex(data, copy_to_output);
-  } 
+  }
 
   return ReadNextFrameWithoutIndex(data, copy_to_output);
 }
@@ -509,7 +512,7 @@ bool FramesDecoderGpu::HasEmptySlot() const {
     }
   }
   return false;
-};
+}
 
 bool FramesDecoderGpu::EmptyBuffer() const {
   for (auto &frame_ : frame_buffer_) {
