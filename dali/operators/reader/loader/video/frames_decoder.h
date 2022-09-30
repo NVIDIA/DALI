@@ -194,7 +194,7 @@ class DLL_PUBLIC FramesDecoder {
   /**
  * @brief Returns true if the index was build.
  * 
- * @return Boolean indicating whether or not the index was created or not.
+ * @return Boolean indicating whether or not the index was created.
  */
   bool HasIndex() const { return index_.has_value(); }
 
