@@ -23,10 +23,25 @@ ROI PreOrientationRoi(const ImageInfo &info, ROI roi) {
   bool flip_y = info.orientation.rotate == 90 || info.orientation.rotate == 180;
   flip_x ^= info.orientation.flip_x, flip_y ^= info.orientation.flip_y;
 
+  auto shape = info.shape;
+
+  // If the input is 2D, it's assumed to be HW without channel.
+  // If the input is 3D, it's assumed to be HWC.
+  // If the input is >3D it's assumed to be xxxHWC
+  int ndim = info.shape.sample_dim();
+  int outermost_spatial_dim = ndim > 3 ? ndim - 3 : 0;
+
+
+  if (swap_xy) {
+    int x_dim = outermost_spatial_dim + 1;
+    int y_dim = outermost_spatial_dim + 0;
+    std::swap(shape[x_dim], shape[y_dim]);
+  }
+
   auto flip_axis = [&](int idx) {
     std::swap(roi.begin[idx], roi.end[idx]);
-    roi.begin[idx] = info.shape[idx ^ swap_xy] - roi.begin[idx];
-    roi.end[idx] = info.shape[idx ^ swap_xy] - roi.end[idx];
+    roi.begin[idx] = shape[idx + outermost_spatial_dim] - roi.begin[idx];
+    roi.end[idx] = shape[idx + outermost_spatial_dim] - roi.end[idx];
   };
 
   // Performing operations in reverse order, to cancel them out
