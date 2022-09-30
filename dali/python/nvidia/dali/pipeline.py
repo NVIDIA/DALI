@@ -439,10 +439,13 @@ Parameters
         by the parallel external source. To tune the initial size of the chunks, please refer
         to external source's ``bytes_per_sample_hint`` parameter."""
         if self._py_pool is None:
-            return []
-        return [
-            shm.capacity for context in self._py_pool.contexts
-            for shm in context.shm_manager.shm_pool]
+            capacities = []
+        else:
+            capacities = [
+                shm.capacity for context in self._py_pool.contexts
+                for shm in context.shm_manager.shm_pool
+            ]
+        return {"capacities": capacities}
 
     def reader_meta(self, name=None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides
