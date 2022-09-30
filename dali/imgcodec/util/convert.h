@@ -251,7 +251,7 @@ template <typename Out, typename In>
 void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImageType out_format,
              const In *in, const int64_t *in_strides, int in_channel_dim, DALIImageType in_format,
              const int64_t *size, int ndim) {
-  if (out_format == DALI_ANY_DATA && in_format == DALI_ANY_DATA) {
+  if (out_format == DALI_ANY_DATA) {
     // When converting ANY -> ANY, we simply ignore the color conversion and rewrite the data
     Convert(out, out_strides, in, in_strides, size, ndim, ConvertPixelDType<Out, In, 1>{1, 1});
     return;
