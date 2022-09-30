@@ -210,13 +210,13 @@ void ApplyOrientation(Orientation orientation, T *&data,
 
   if (orientation.rotate == 90) {
     swap_xy = true;
-    flip_x = true;
+    flip_y = true;
   } else if (orientation.rotate == 180) {
     flip_x = true;
     flip_y = true;
   } else if (orientation.rotate == 270) {
     swap_xy = true;
-    flip_y = true;
+    flip_x = true;
   }
   flip_x ^= orientation.flip_x;
   flip_y ^= orientation.flip_y;

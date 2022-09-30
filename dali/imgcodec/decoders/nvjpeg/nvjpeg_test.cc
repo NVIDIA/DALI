@@ -44,6 +44,18 @@ std::string from_dali_extra(const std::string& path_relative_to_dali_extra) {
   return make_string_delim('/', testing::dali_extra_path(), path_relative_to_dali_extra);
 }
 
+std::vector<std::string> orientation_files = {
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_horizontal",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_horizontal",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_horizontal_rotate_270",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_horizontal_rotate_90",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_mirror_vertical",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_no_exif",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_no_orientation",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_rotate_270",
+  "db/imgcodec/jpeg/orientation/padlock-406986_640_rotate_90",
+};
+
 struct ImageBuffer {
   std::vector<uint8_t> buffer;
   ImageSource src;
@@ -103,9 +115,32 @@ class NvJpegDecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType> {
 
     AssertSimilar(decoded, ref);
   }
+
+  void RunOrientationTest(ROI roi = {}) {
+    std::vector<ImageBuffer> buffers;
+    for (const auto &name : orientation_files)
+      buffers.emplace_back(from_dali_extra(name + ".jpg"));
+
+    std::vector<ImageSource*> sources;
+    for (auto &buff : buffers)
+      sources.push_back(&buff.src);
+
+    const size_t batch_size = orientation_files.size();
+    std::vector<ROI> rois(batch_size, roi);
+
+    auto decoded = this->Decode(make_cspan(sources), this->GetParams(), make_span(rois));
+    assert(decoded.size() == static_cast<int>(sources.size()));
+    for (int i = 0; i < decoded.size(); i++) {
+      auto ref = this->ReadReferenceFrom(from_dali_extra(orientation_files[i] + ".npy"));
+      if (roi)
+        AssertSimilar(decoded[i], Crop(ref, roi));
+      else
+        AssertSimilar(decoded[i], ref);
+    }
+  }
 };
 
-using DecodeOutputTypes = ::testing::Types<uint8_t>;
+using DecodeOutputTypes = ::testing::Types<uint8_t, int16_t, float>;
 TYPED_TEST_SUITE(NvJpegDecoderTest, DecodeOutputTypes);
 
 TYPED_TEST(NvJpegDecoderTest, DecodeSingle) {
@@ -118,6 +153,14 @@ TYPED_TEST(NvJpegDecoderTest, DecodeSingleYCbCr) {
 
 TYPED_TEST(NvJpegDecoderTest, DecodeSingleRoi) {
   this->RunSingleTest({{12, 34}, {340, 450}});
+}
+
+TYPED_TEST(NvJpegDecoderTest, DecodeOrientationBatched) {
+  this->RunOrientationTest();
+}
+
+TYPED_TEST(NvJpegDecoderTest, DecodeOrientationWithRoiBatched) {
+  this->RunOrientationTest({{1, 2}, {21, 37}});
 }
 
 }  // namespace test
