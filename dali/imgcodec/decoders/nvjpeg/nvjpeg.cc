@@ -20,6 +20,7 @@
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_helper.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
 #include "dali/imgcodec/decoders/nvjpeg/permute_layout.h"
+#include "dali/imgcodec/registry.h"
 
 namespace dali {
 namespace imgcodec {
@@ -165,14 +166,18 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
   DecodingContext ctx = DecodingContext{ resources_[thread_idx] };
   CUDA_CALL(nvjpegDecodeParamsSetOutputFormat(ctx.resources.params, GetFormat(opts.format)));
   CUDA_CALL(nvjpegDecodeParamsSetAllowCMYK(ctx.resources.params, true));
-
+  if (roi.use_roi()) {
+    CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, roi.begin[1], roi.begin[0],
+                                       roi.shape()[1], roi.shape()[0]));
+  } else {
+    CUDA_CALL(nvjpegDecodeParamsSetROI(ctx.resources.params, 0, 0, -1, -1));
+  }
   try {
-    if (roi) {
-      // TODO(msala) add support for ROI decoding
-      throw std::runtime_error("ROI support is not implemented yet");
-    }
-
     ParseJpegSample(*in, opts, ctx);
+    if (roi.use_roi()) {
+      ctx.shape[0] = roi.shape()[0];
+      ctx.shape[1] = roi.shape()[1];
+    }
     DecodeJpegSample(*in, out.mutable_data<uint8_t>(), opts, ctx);
   } catch (...) {
     return {false, std::current_exception()};
@@ -228,6 +233,8 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
 
   CUDA_CALL(cudaEventRecord(decode_event, stream));
 }
+
+REGISTER_DECODER("JPEG", NvJpegDecoderFactory, CUDADecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali

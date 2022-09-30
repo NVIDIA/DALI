@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/decoder/video/video_decoder.h"
+#include "dali/operators/decoder/video/video_decoder_cpu.h"
 
 namespace dali {
 
 template <>
-bool VideoDecoder<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                         const workspace_t<CPUBackend> &ws) {
+bool VideoDecoderBase<CPUBackend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                                            const workspace_t<CPUBackend> &ws) {
   ValidateInput(ws);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();
@@ -39,15 +39,14 @@ bool VideoDecoder<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   return true;
 }
 
-template <>
-void VideoDecoder<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void VideoDecoderCpu::RunImpl(workspace_t<CPUBackend> &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();
   auto &thread_pool = ws.GetThreadPool();
   for (int s = 0; s < batch_size; ++s) {
     thread_pool.AddWork([this, s, &output](int tid) {
-      DecodeSample(output[s], *frames_decoders_[s]);
+      DecodeSample(output[s], s);
     }, volume(input[s].shape()));
   }
   thread_pool.RunAll();
@@ -64,6 +63,6 @@ The video streams can be in most of the container file formats. FFmpeg is used t
     .NumOutput(1)
     .InputDox(0, "buffer", "TensorList", "Data buffer with a loaded video file.");
 
-DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoder<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);
 
 }  // namespace dali

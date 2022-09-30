@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <atomic>
 #include <deque>
 #include <mutex>
 #include <numeric>
@@ -24,16 +25,17 @@ namespace imgcodec {
 class DecodeResultsSharedState {
  public:
   static std::shared_ptr<DecodeResultsSharedState> get() {
-    if (free_.empty())
-      return std::make_shared<DecodeResultsSharedState>();
+    if (free_.empty()) {
+      return std::shared_ptr<DecodeResultsSharedState>(new DecodeResultsSharedState(), deleter);
+    }
 
-    auto ret = std::move(free_.back());
+    auto ret = std::shared_ptr<DecodeResultsSharedState>(free_.back().release(), deleter);
     free_.pop_back();
     return ret;
   }
 
-  static void put(std::shared_ptr<DecodeResultsSharedState> impl) {
-    free_.emplace_back(std::move(impl));
+  static void deleter(DecodeResultsSharedState *ptr) {
+    free_.emplace_back(ptr);
   }
 
   void init(int n) {
@@ -128,11 +130,12 @@ class DecodeResultsSharedState {
   std::vector<int> ready_indices_;
   std::vector<uint8_t> ready_mask_;  // avoid vector<bool>
   size_t last_checked_ = 0;
+  std::atomic_int num_promises_;
 
-  static thread_local std::deque<std::shared_ptr<DecodeResultsSharedState>> free_;
+  static thread_local std::deque<std::unique_ptr<DecodeResultsSharedState>> free_;
 };
 
-thread_local std::deque<std::shared_ptr<DecodeResultsSharedState>>
+thread_local std::deque<std::unique_ptr<DecodeResultsSharedState>>
     DecodeResultsSharedState::free_;
 
 FutureDecodeResults DecodeResultsPromise::get_future() const {
@@ -157,8 +160,7 @@ FutureDecodeResults::~FutureDecodeResults() {
     if (impl_->ready_indices_.size() != impl_->results_.size())
       throw std::logic_error("Deferred results incomplete");
     #pragma GCC diagnostic pop
-    impl_->reset();
-    DecodeResultsSharedState::put(std::move(impl_));
+    impl_.reset();
   }
 }
 
@@ -208,7 +210,31 @@ int DecodeResultsPromise::num_samples() const {
 
 DecodeResultsPromise::DecodeResultsPromise(int num_samples) {
   impl_ = DecodeResultsSharedState::get();
+  impl_->num_promises_ = 1;
   impl_->init(num_samples);
+}
+
+DecodeResultsPromise &DecodeResultsPromise::operator=(const DecodeResultsPromise &other) {
+  impl_ = other.impl_;
+  if (impl_)
+    impl_->num_promises_++;
+  return *this;
+}
+
+DecodeResultsPromise::~DecodeResultsPromise() {
+  auto impl = std::move(impl_);
+  if (impl) {
+    if (--impl->num_promises_ == 0 && impl->ready_indices_.size() != impl->results_.size()) {
+    #pragma GCC diagnostic push
+  #ifdef __clang__
+    #pragma GCC diagnostic ignored "-Wexceptions"
+  #else
+    #pragma GCC diagnostic ignored "-Wterminate"
+  #endif
+      std::logic_error("Last promise is dead and the result is incomplete.");
+    #pragma GCC diagnostic pop
+    }
+  }
 }
 
 }  // namespace imgcodec

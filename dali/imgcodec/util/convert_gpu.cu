@@ -21,10 +21,6 @@
 
 namespace dali {
 
-template<> float16 max_value<float16>() {
-  assert(false && "This overload shouldn't be called");
-}
-
 namespace imgcodec {
 
 namespace {
@@ -121,6 +117,9 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
     buffer, out_layout, intermediate_shape, in.data<Input>(), in_layout, in.shape(),
     ctx, roi, orientation, multiplier);
 
+  if (out_format == DALI_ANY_DATA) {
+    out_format = in_format;
+  }
   if (out_format != in_format) {
     DALI_ENFORCE(out_layout.find('C') == kDims - 1,
                  "Only channel last layout is supported when running color space conversion");

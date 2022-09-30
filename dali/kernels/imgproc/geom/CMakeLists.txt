@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(BUILD_LIBSND)
-  add_subdirectory(audio)
-endif()
-add_subdirectory(cache)
-add_subdirectory(host)
-if (BUILD_NVJPEG)
-  add_subdirectory(nvjpeg)
-endif()
-
-if (BUILD_FFMPEG)
-  add_subdirectory(video)
-endif()
-
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
+collect_sources(DALI_KERNEL_SRCS PARENT_SCOPE)
+collect_test_sources(DALI_KERNEL_TEST_SRCS PARENT_SCOPE)

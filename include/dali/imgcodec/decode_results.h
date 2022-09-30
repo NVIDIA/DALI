@@ -46,6 +46,12 @@ class FutureDecodeResults;
 class DLL_PUBLIC DecodeResultsPromise {
  public:
   explicit DecodeResultsPromise(int num_samples);
+  ~DecodeResultsPromise();
+
+  DecodeResultsPromise(const DecodeResultsPromise &other) { *this = other; }
+  DecodeResultsPromise(DecodeResultsPromise &&) = default;
+  DecodeResultsPromise &operator=(const DecodeResultsPromise &);
+  DecodeResultsPromise &operator=(DecodeResultsPromise &&) = default;
 
   FutureDecodeResults get_future() const;
 
@@ -54,6 +60,14 @@ class DLL_PUBLIC DecodeResultsPromise {
   void set(int index, DecodeResult res);
 
   void set_all(span<DecodeResult> res);
+
+  bool operator==(const DecodeResultsPromise &other) const {
+    return impl_ == other.impl_;
+  }
+
+  bool operator!=(const DecodeResultsPromise &other) const {
+    return !(*this == other);
+  }
 
  private:
   std::shared_ptr<DecodeResultsSharedState> impl_ = nullptr;
