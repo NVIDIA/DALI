@@ -28,10 +28,22 @@
 #include "dali/util/file.h"
 #include "dali/util/numpy.h"
 #include "dali/imgcodec/decoders/opencv_fallback.h"
+
+#if NVJPEG_ENABLED
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg.h"
-#include "dali/imgcodec/decoders/libjpeg_turbo.h"
-#include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
+#endif
+
+#if NVJPEG2K_ENABLED
 #include "dali/imgcodec/decoders/nvjpeg2k/nvjpeg2k.h"
+#endif
+
+#if defined(DALI_USE_JPEG_TURBO)
+#include "dali/imgcodec/decoders/libjpeg_turbo.h"
+#endif
+
+#if LIBTIFF_ENABLED
+#include "dali/imgcodec/decoders/libtiff/tiff_libtiff.h"
+#endif
 
 namespace dali {
 namespace imgcodec {
@@ -704,16 +716,26 @@ TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_Multiformat) {
 }
 
 TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_Multiformat_NoFallback) {
-  this->FilterDecoder([this](ImageDecoderFactory *factory) {
-    if (this->IsGPUBackend()) {
+  if (this->IsGPUBackend()) {
+#if NVJPEG_ENABLED && NVJPEG2K_ENABLED && LIBTIFF_ENABLED
+    this->FilterDecoder([](ImageDecoderFactory *factory) {
       return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr ||
              dynamic_cast<NvJpeg2000DecoderFactory *>(factory) != nullptr ||
              dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
-    } else {
+    });
+#else
+    GTEST_SKIP();
+#endif
+  } else {
+#if defined(DALI_USE_JPEG_TURBO) && LIBTIFF_ENABLED
+    this->FilterDecoder([](ImageDecoderFactory *factory) {
       return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr ||
              dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
-    }
-  });
+    });
+#else
+    GTEST_SKIP();
+#endif
+  }
   auto jpeg_samples = this->GetData("JPEG");
   auto tiff_samples = this->GetData("TIFF");
   auto jpeg2000_samples = this->GetData("JPEG2000");  // Won't be supported because of the filter
@@ -754,10 +776,14 @@ TYPED_TEST(ImageDecoderTest_Basic, DecodeBatch_Multiformat_NoFallback) {
 }
 
 TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_JPEG_SingleDecoder_LibjpegTurbo) {
+#if defined(DALI_USE_JPEG_TURBO)
   this->FilterDecoder(
     [](ImageDecoderFactory *factory) {
       return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr;
     });
+#else
+  GTEST_SKIP();
+#endif
   this->TestSingleFormatDecodeSample("JPEG");
 }
 
@@ -770,10 +796,14 @@ TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_JPEG_SingleDecoder_OpenCV) {
 }
 
 TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_TIFF_SingleDecoder_Libtiff) {
+#if LIBTIFF_ENABLED
   this->FilterDecoder(
     [](ImageDecoderFactory *factory) {
       return dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
     });
+#else
+  GTEST_SKIP();
+#endif
   this->TestSingleFormatDecodeSample("TIFF");
 }
 
@@ -786,29 +816,47 @@ TYPED_TEST(ImageDecoderTest_OnlyCPU, DecodeSample_TIFF_SingleDecoder_OpenCV) {
 }
 
 TYPED_TEST(ImageDecoderTest_OnlyGPU, DecodeSample_JPEG_SingleDecoder_NvJpeg) {
+#if NVJPEG_ENABLED
   this->FilterDecoder(
     [](ImageDecoderFactory *factory) {
       return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr;
     });
+#else
+  GTEST_SKIP();
+#endif
   this->TestSingleFormatDecodeSample("JPEG");
 }
 
 TYPED_TEST(ImageDecoderTest_OnlyGPU, DecodeSample_JPEG_SingleDecoder_NvJpeg2000) {
+#if NVJPEG2K_ENABLED
   this->FilterDecoder(
     [](ImageDecoderFactory *factory) {
       return dynamic_cast<NvJpeg2000DecoderFactory *>(factory) != nullptr;
     });
+#else
+  GTEST_SKIP();
+#endif
   this->TestSingleFormatDecodeSample("JPEG2000");
 }
 
 TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeSample_JPEG) {
-  this->FilterDecoder([this](ImageDecoderFactory *factory) {
-    if (this->IsGPUBackend()) {
+  if (this->IsGPUBackend()) {
+#if NVJPEG_ENABLED
+    this->FilterDecoder([](ImageDecoderFactory *factory) {
       return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr;
-    } else {
+    });
+#else
+    GTEST_SKIP();
+#endif
+  } else {
+#if defined(DALI_USE_JPEG_TURBO)
+    this->FilterDecoder([](ImageDecoderFactory *factory) {
       return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr;
-    }
-  });
+    });
+#else
+    GTEST_SKIP();
+#endif
+  }
   auto samples = this->GetData("JPEG");
   auto corrupted_sample =
       ImageSource::FromHostMem(samples[0].image.src.RawData(), samples[0].image.src.Size() / 10);
@@ -817,9 +865,13 @@ TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeSample_JPEG) {
 }
 
 TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeSample_TIFF) {
-  this->FilterDecoder([this](ImageDecoderFactory *factory) {
+#if LIBTIFF_ENABLED
+  this->FilterDecoder([](ImageDecoderFactory *factory) {
     return dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
   });
+#else
+  GTEST_SKIP();
+#endif
   auto samples = this->GetData("TIFF");
 
   std::vector<uint8_t> corrupted_tiff_data(samples[0].image.src.Size());
@@ -837,15 +889,25 @@ TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeSample_TIFF) {
 }
 
 TYPED_TEST(ImageDecoderTest_CorruptedData, DecodeBatch) {
-  this->FilterDecoder([this](ImageDecoderFactory *factory) {
-    if (this->IsGPUBackend()) {
+  if (this->IsGPUBackend()) {
+#if NVJPEG_ENABLED && LIBTIFF_ENABLED
+    this->FilterDecoder([](ImageDecoderFactory *factory) {
       return dynamic_cast<NvJpegDecoderFactory *>(factory) != nullptr ||
              dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
-    } else {
+    });
+#else
+    GTEST_SKIP();
+#endif
+  } else {
+#if defined(DALI_USE_JPEG_TURBO) && LIBTIFF_ENABLED
+    this->FilterDecoder([](ImageDecoderFactory *factory) {
       return dynamic_cast<LibJpegTurboDecoderFactory *>(factory) != nullptr ||
-             dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
-    }
-  });
+              dynamic_cast<LibTiffDecoderFactory *>(factory) != nullptr;
+    });
+#else
+    GTEST_SKIP();
+#endif
+  }
   auto jpeg_samples = this->GetData("JPEG");
   auto tiff_samples = this->GetData("TIFF");
 

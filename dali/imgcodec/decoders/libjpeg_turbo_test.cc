@@ -123,15 +123,15 @@ class LibJpegTurboDecoderTest : public NumpyDecoderTestBase<CPUBackend, OutputTy
   }
 
   void TestDecodeSingleAPI(DALIImageType color_fmt) {
-  ImageBuffer image(jpeg_image);
-  auto decoded = this->Decode(&image.src, this->GetParams(color_fmt));
-  auto ref = this->ReadReferenceFrom(GetPath(ref_prefix, color_fmt));
-  if (color_fmt != DALI_RGB) {
-    AssertClose(decoded, ref, this->GetEps());
-  } else {
-    AssertEqualSatNorm(decoded, ref);
+    ImageBuffer image(jpeg_image);
+    auto decoded = this->Decode(&image.src, this->GetParams(color_fmt));
+    auto ref = this->ReadReferenceFrom(GetPath(ref_prefix, color_fmt));
+    if (color_fmt != DALI_RGB) {
+      AssertClose(decoded, ref, this->GetEps());
+    } else {
+      AssertEqualSatNorm(decoded, ref);
+    }
   }
-}
 
   void TestDecodeBatchAPI(DALIImageType color_fmt) {
     auto ref0 = this->ReadReferenceFrom(GetPath(ref_prefix, color_fmt));
