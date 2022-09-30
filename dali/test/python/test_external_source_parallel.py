@@ -764,7 +764,7 @@ def test_no_parallel_no_shm():
     pipe = per_iter_shape_pipeline(shapes, parallel=False)
     for _ in range(5):
         pipe.run()
-    assert pipe.external_source_shm_statistics() == []
+    assert pipe.external_source_shm_statistics()["capacities"] == []
 
 
 def test_default_shm_size():
@@ -772,7 +772,7 @@ def test_default_shm_size():
     shapes = [(16, 1024, 1024)]
 
     pipe_default = per_iter_shape_pipeline(shapes)
-    default_sizes = pipe_default.external_source_shm_statistics()
+    default_sizes = pipe_default.external_source_shm_statistics()["capacities"]
     assert len(default_sizes) > 0
     for size in default_sizes:
         assert size == default_shm_size, (
@@ -780,7 +780,7 @@ def test_default_shm_size():
 
     pipe_too_small_hint = per_iter_shape_pipeline(
         shapes, bytes_per_sample_hint=1024)
-    sizes = pipe_too_small_hint.external_source_shm_statistics()
+    sizes = pipe_too_small_hint.external_source_shm_statistics()["capacities"]
     assert len(sizes) > 0
     for size in sizes:
         assert size == default_shm_size, (
@@ -802,7 +802,7 @@ def test_initial_hint():
     pipe = per_iter_shape_pipeline(
         shapes, bytes_per_sample_hint=bytes_per_sample_hint,
         batch_size=batch_size, py_num_workers=num_workers)
-    sizes = pipe.external_source_shm_statistics()
+    sizes = pipe.external_source_shm_statistics()["capacities"]
     assert len(sizes) > 0
     for size in sizes:
         assert size == initial_shm_size, (
@@ -811,7 +811,7 @@ def test_initial_hint():
     for _ in range(5):
         pipe.run()
 
-    sizes = pipe.external_source_shm_statistics()
+    sizes = pipe.external_source_shm_statistics()["capacities"]
     assert len(sizes) > 0
     for size in sizes:
         assert size >= expected_min_chunk_size, (
@@ -838,7 +838,7 @@ def test_variable_sample_size():
         batch_size=batch_size, py_num_workers=num_workers)
     no_hint_pipe = per_iter_shape_pipeline(
         shapes, batch_size=batch_size, py_num_workers=num_workers)
-    sizes = pipe.external_source_shm_statistics()
+    sizes = pipe.external_source_shm_statistics()["capacities"]
     assert len(sizes) > 0
     for size in sizes:
         assert size == initial_shm_size, (
@@ -848,7 +848,7 @@ def test_variable_sample_size():
         pipe.run()
         no_hint_pipe.run()
 
-    sizes = pipe.external_source_shm_statistics()
+    sizes = pipe.external_source_shm_statistics()["capacities"]
     assert len(sizes) > 0
     for size in sizes:
         assert size >= initial_shm_size, (
@@ -856,8 +856,8 @@ def test_variable_sample_size():
 
     # This demonstrates that providing a hint can improve memory usage, but if one day
     # DALI changes strategy of dynamic shm reallocation it can be simply removed
-    no_hint_pipe_shm_size = min(no_hint_pipe.external_source_shm_statistics())
-    sizes = pipe.external_source_shm_statistics()
+    no_hint_pipe_shm_size = min(no_hint_pipe.external_source_shm_statistics()["capacities"])
+    sizes = pipe.external_source_shm_statistics()["capacities"]
     for size in sizes:
         assert size < no_hint_pipe_shm_size, (
             f"Expected the size to be less than {no_hint_pipe_shm_size}, got {size}.")
