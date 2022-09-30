@@ -248,10 +248,8 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   result.success = DecodeJpeg2000(in, decode_out.raw_mutable_data(), ctx);
 
   if (is_processing_needed) {
-    DALIImageType out_format = opts.format;
-    if (out_format == DALI_ANY_DATA) out_format = format;
     auto multiplier = calc_bpp_adjustment_multiplier(ctx.bpp, ctx.pixel_type);
-    Convert(out, "HWC", out_format, decode_out, "CHW", format, ctx.cuda_stream,
+    Convert(out, "HWC", opts.format, decode_out, "CHW", format, ctx.cuda_stream,
             {}, {}, multiplier);
   }
 
