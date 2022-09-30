@@ -98,6 +98,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
   bool flush_ = false;
+  bool more_frames_to_decode_ = true;
 
   AVBSFContext *bsfc_ = nullptr;
   AVPacket *filtered_packet_ = nullptr;
@@ -114,6 +115,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   void SendLastPacket(bool flush = false);
 
   BufferedFrame& FindEmptySlot();
+
+  bool HasEmptySlot() const;
+
+  bool EmptyBuffer() const;
 
   void InitBitStreamFilter();
 

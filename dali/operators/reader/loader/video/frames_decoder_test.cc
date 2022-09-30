@@ -40,6 +40,16 @@ class FramesDecoderTestBase : public VideoTestBase {
     }
 
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
+
+    decoder.Reset();
+
+    for (int i = 0; i < decoder.NumFrames(); ++i) {
+      ASSERT_EQ(decoder.NextFrameIdx(), i);
+      decoder.ReadNextFrame(FrameData());
+      AssertFrame(FrameData(), i, ground_truth);
+    }
+
+    ASSERT_EQ(decoder.NextFrameIdx(), -1);
   }
 
   void RunTest(FramesDecoder &decoder, TestVideo &ground_truth) {

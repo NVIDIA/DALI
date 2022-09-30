@@ -356,52 +356,103 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   current_frame_output_ = data;
 
   // Initial fill of the buffer
-  for (auto &frame : frame_buffer_) {
-    if (frame.pts_ == -1) {
-        if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-          if (av_state_->packet_->stream_index != av_state_->stream_id_) {
-            continue;
-          }
+  while (HasEmptySlot() && more_frames_to_decode_) {
+    if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+      if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+        continue;
+      }
 
-          // Store pts from current packet to indicate,
-          // that this frame is in the decoder
-          piped_pts_.push(av_state_->packet_->pts);
+      // Store pts from current packet to indicate,
+      // that this frame is in the decoder
+      piped_pts_.push(av_state_->packet_->pts);
 
-          // Add header needed for NVDECODE to the packet
-          if (filtered_packet_->data) {
-            av_packet_unref(filtered_packet_);
-          }
-          DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
-          DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
+      // Add header needed for NVDECODE to the packet
+      if (filtered_packet_->data) {
+        av_packet_unref(filtered_packet_);
+      }
+      DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
+      DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
 
-          // Prepare nv packet
-          CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-          memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-          packet->payload = filtered_packet_->data;
-          packet->payload_size = filtered_packet_->size;
-          packet->flags = CUVID_PKT_TIMESTAMP;
-          packet->timestamp = filtered_packet_->pts;
+      // Prepare nv packet
+      CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+      memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+      packet->payload = filtered_packet_->data;
+      packet->payload_size = filtered_packet_->size;
+      packet->flags = CUVID_PKT_TIMESTAMP;
+      packet->timestamp = filtered_packet_->pts;
 
-          // Send packet to the nv decoder
-          frame_returned_ = false;
-          CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
-
-          if (frame_returned_) {
-            ++next_frame_idx_;
-            return true;
-          }
-        }
+      // Send packet to the nv decoder
+      frame_returned_ = false;
+      CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+    } else {
+      SendLastPacket();
+      more_frames_to_decode_ = false;
     }
   }
 
-  // int frame_to_return_index = 0;
-  // for (int i = 1; i < num_decode_surfaces_; ++i) {
-  //   if (frame_buffer_[frame_to_return_index].pts_ > frame_buffer_[i].pts_) {
-  //     frame_to_return_index = i;
-  //   }
-  // }
+  int frame_to_return_index = -1;
+  for (int i = 0; i < num_decode_surfaces_; ++i) {
+    if (frame_buffer_[i].pts_ != -1) {
+      frame_to_return_index = i;
+      break;
+    }
+  }
 
-  return false;
+  for (int i = 1; i < num_decode_surfaces_; ++i) {
+    if (frame_buffer_[i].pts_ != -1) {
+      if (frame_buffer_[frame_to_return_index].pts_ > frame_buffer_[i].pts_) {
+        frame_to_return_index = i;
+      }
+    }
+  }
+
+  copyD2D(
+    current_frame_output_,
+    frame_buffer_[frame_to_return_index].frame_.data(),
+    FrameSize());
+  ++next_frame_idx_;
+
+  frame_buffer_[frame_to_return_index].pts_ = -1;
+
+  if (EmptyBuffer()) {
+    next_frame_idx_ = -1;
+  }
+
+  while (HasEmptySlot() && more_frames_to_decode_) {
+    if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+      if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+        continue;
+      }
+
+      // Store pts from current packet to indicate,
+      // that this frame is in the decoder
+      piped_pts_.push(av_state_->packet_->pts);
+
+      // Add header needed for NVDECODE to the packet
+      if (filtered_packet_->data) {
+        av_packet_unref(filtered_packet_);
+      }
+      DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
+      DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
+
+      // Prepare nv packet
+      CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+      memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+      packet->payload = filtered_packet_->data;
+      packet->payload_size = filtered_packet_->size;
+      packet->flags = CUVID_PKT_TIMESTAMP;
+      packet->timestamp = filtered_packet_->pts;
+
+      // Send packet to the nv decoder
+      frame_returned_ = false;
+      CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+    } else {
+      SendLastPacket();
+      more_frames_to_decode_ = false;
+    }
+  }
+
+  return true;
 }
 
 bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
@@ -449,8 +500,28 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   DALI_FAIL("Could not find empty slot in the frame buffer");
 }
 
+bool FramesDecoderGpu::HasEmptySlot() const {
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ == -1) {
+      return true;
+    }
+  }
+  return false;
+};
+
+bool FramesDecoderGpu::EmptyBuffer() const {
+  for (auto &frame_ : frame_buffer_) {
+    if (frame_.pts_ != -1) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void FramesDecoderGpu::Reset() {
   SendLastPacket(true);
+  more_frames_to_decode_ = true;
   FramesDecoder::Reset();
 }
 
