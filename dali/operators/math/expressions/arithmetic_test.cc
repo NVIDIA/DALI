@@ -280,7 +280,7 @@ class BinaryArithmeticOpsTest
                              {32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323}};
 
     TensorListShape<> shape1{{1024, 768}, {4096, 1440}, {2435, 33}, {17, 696}, {42, 42}, {1, 1}};
-    TestFunction(shape0);
+    // TestFunction(shape0);
     TestFunction(shape1);
   }
 };

@@ -231,7 +231,6 @@ __global__ void ExecuteTiledUnOp(const SampleDescGPU<1, 1> *samples, const TileD
 template <ArithmeticOp op, typename Result, typename Left, typename Right,
           bool IsLeftTensor, bool IsRightTensor, int ndim>
 __global__ void ExecuteTiledBinOpND(const SampleDescGPU<2, ndim> *samples, const TileDesc *tiles) {
-  assert(IsLeftTensor && IsRightTensor);  // otherwise ndim > 1 would never occur
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
   auto output = static_cast<Result *>(sample.output.data);
@@ -296,6 +295,7 @@ struct InvokerBinOp {
   template <int ndim>
   static void Invoke(const SampleDescGPU<2, ndim> *samples, const TileDesc *tiles, dim3 grid,
                      dim3 block, cudaStream_t stream) {
+    assert(ndim > 1 && IsLeftTensor && IsRightTensor);  // Otherwise we wouldn't land here
     ExecuteTiledBinOpND<op, Result, Left, Right, IsLeftTensor, IsRightTensor, ndim>
         <<<grid, block, 0, stream>>>(samples, tiles);
   }
@@ -333,7 +333,7 @@ class ExprImplGPUInvokeUnary : public ExprImplBase {
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
 
-    assert(ndim == 1);  // should have been collapsed by now
+    assert(ndim <= 1);  // should have been collapsed by now
     auto sample_descs =
         make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, 1>>(samples.size()),
                   samples.size());
@@ -447,7 +447,7 @@ class ExprImplGPUInvokeTernary : public ExprImplBase {
       assert(kNumArgs == samples[i].args.size());
     }
 
-    if (ndim > 1)
+    if (ndim > 1)  // TODO(janton): implement
       DALI_FAIL("Broadcasting not supported yet for ternary ops");
 
     auto sample_descs =
