@@ -274,40 +274,55 @@ void ExpandToNDims(TensorShape<> &sh, int ndim) {
   sh = shape_cat(TensorShape<>(std::vector<int64_t>(ndim - sh.sample_dim(), 1)), sh);
 }
 
-void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes) {
-  if (shapes.size() < 2)
-    return;
-  // First, if needed expand dimensions
+
+SmallVector<std::pair<int, int>, 5> SimplifiedShapeCollapseGroups(span<TensorShape<>*> shapes) {
+  SmallVector<std::pair<int, int>, 5> group_dims;
   int full_ndim = shapes[0]->sample_dim();
   for (int i = 1; i < shapes.size(); i++) {
     full_ndim = std::max(full_ndim, shapes[i]->sample_dim());
   }
+  if (shapes.size() < 2) {  // Unary operator, can simply collapse to 1D
+    if (full_ndim > 1)
+      group_dims.emplace_back(0, full_ndim);
+    return group_dims;
+  }
+  // First, if needed expand dimensions
   for (auto *sh : shapes) {
     ExpandToNDims(*sh, full_ndim);
   }
 
-  int i = 0;
-  SmallVector<std::pair<int, int>, 5> group_dims;
+  SmallVector<bool, kMaxArity> scalar_like;
+  scalar_like.resize(shapes.size(), false);
+  for (int k = 0; k < shapes.size(); k++) {
+    scalar_like[k] = (volume(*shapes[k]) == 1);
+  }
 
-  auto all_same = [&shapes](int dim) {
-    auto extent = (*shapes[0])[dim];
-    for (int k = 1; k < shapes.size(); k++) {
-      if (extent != (*shapes[k])[dim]) {
+  // Aim to collapse dimensions shared by all shapes
+  auto all_same_or_scalar = [=](int dim) {
+    int64_t extent = -1;
+    for (int k = 0; k < shapes.size(); k++) {
+      if (scalar_like[k])
+        continue;
+      if (extent == -1) {
+        extent = (*shapes[k])[dim];
+      } else if (extent != (*shapes[k])[dim]) {
         return false;
       }
     }
     return true;
   };
 
+  // Collapsing dims with equal extents on all shapes
+  int i = 0;
   while (i < full_ndim) {
-    if (!all_same(i)) {
+    if (!all_same_or_scalar(i)) {
       i++;
       continue;
     }
 
     int j = i;
     for (; j < full_ndim; j++) {
-      if (!all_same(j)) {
+      if (!all_same_or_scalar(j)) {
         break;
       }
     }
@@ -316,7 +331,11 @@ void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes) {
     }
     i = j;
   }
+  return group_dims;
+}
 
+void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes) {
+  auto group_dims = SimplifiedShapeCollapseGroups(shapes);
   for (auto *sh : shapes) {
     *sh = collapse_dims(*sh, group_dims);
   }
@@ -324,13 +343,20 @@ void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes) {
 
 void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b) {
   std::array<TensorShape<>*, 2> arr = {&a, &b};
-  return SimplifyShapesForBroadcasting(make_span(arr));
+  SimplifyShapesForBroadcasting(make_span(arr));
 }
 
 void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c) {
   std::array<TensorShape<>*, 3> arr = {&a, &b, &c};
-  return SimplifyShapesForBroadcasting(make_span(arr));
+  SimplifyShapesForBroadcasting(make_span(arr));
 }
 
+bool IsBroadcastingEnabled() {
+  static bool value = []() {
+    const char *env = std::getenv("DALI_BROADCASTING_ENABLED");
+    return !env || atoi(env);
+  }();
+  return value;
+}
 
 }  // namespace dali

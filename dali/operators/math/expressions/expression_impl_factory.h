@@ -211,16 +211,19 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
   for (int s = 0; s < nsamples; s++) {
     out_samples.emplace_back(GetOutput<Backend>(func, ws, s), GetArgPack(func, ws, st, spec, s));
 
-    SmallVector<TensorShape<>*, kMaxArity + 1> shape_ptrs;
+    SmallVector<TensorShape<>*, kMaxArity> shape_ptrs;
     for (auto &arg : out_samples.back().args) {
       shape_ptrs.push_back(&arg.shape);
     }
-
-    auto &out_sh = out_samples.back().output.shape;
-    auto &out_strides = out_samples.back().output.strides;
-    shape_ptrs.push_back(&out_sh);
     span<TensorShape<>*> shape_ptrs_span = make_span(shape_ptrs);
-    SimplifyShapesForBroadcasting(shape_ptrs_span);
+
+    auto group_dims = SimplifiedShapeCollapseGroups(make_span(shape_ptrs));
+    for (auto *sh : shape_ptrs) {
+      *sh = collapse_dims(*sh, group_dims);
+    }
+    auto &out_sh = out_samples.back().output.shape;
+    out_sh = collapse_dims(out_sh, group_dims);
+    auto &out_strides = out_samples.back().output.strides;
 
     for (auto &arg : out_samples.back().args) {
       kernels::CalcStrides(arg.strides, arg.shape);
