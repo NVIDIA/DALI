@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -210,7 +210,7 @@ DLL_PUBLIC void Dct1DGpu<OutputType, InputType>::Run(KernelContext &ctx,
   int s = 0;
   int max_ndct = 0;
   int max_input_length = 0;
-  for (auto arg : args_) {
+  for (const auto &arg : args_) {
     auto in_shape = reduce_shape(in.tensor_shape_span(s), axis_);
     auto out_shape = reduce_shape(out.tensor_shape_span(s), axis_);
     DALI_ENFORCE(lifter_coeffs.num_elements() == 0 || out_shape[1] <= lifter_coeffs.num_elements(),

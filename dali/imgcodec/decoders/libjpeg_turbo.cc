@@ -16,15 +16,17 @@
 #include "dali/imgcodec/decoders/jpeg/jpeg_mem.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/imgcodec/util/convert.h"
+#include "dali/imgcodec/registry.h"
 #include "dali/core/common.h"
 
 namespace dali {
 namespace imgcodec {
 
-DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
-                                                 ImageSource *in,
-                                                 DecodeParams opts,
-                                                 const ROI &roi) {
+DecodeResult LibJpegTurboDecoderInstance::DecodeImplTask(int thread_idx,
+                                                         SampleView<CPUBackend> out,
+                                                         ImageSource *in,
+                                                         DecodeParams opts,
+                                                         const ROI &roi) {
   jpeg::UncompressFlags flags;
 
   auto &out_type = opts.format;
@@ -43,7 +45,7 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
   flags.components = info.shape[2];
   target_shape[2] = NumberOfChannels(out_type);
 
-  if (any_cast<bool>(GetParam("fast_idct"))) {
+  if (use_fast_idct_) {
     flags.dct_method = JDCT_FASTEST;
   }
 
@@ -65,21 +67,17 @@ DecodeResult LibJpegTurboDecoderInstance::Decode(SampleView<CPUBackend> out,
   }
 
   DecodeResult res;
-  try {
-    auto decoded_image = jpeg::Uncompress(encoded_data, data_size, flags);
-    if ((res.success = decoded_image != nullptr)) {
-      // JPEG images are always 8-bit, in HWC format
-      SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
-      TensorLayout layout = "HWC";
-      Convert(out, layout, out_type, in, layout, flags.color_space, {}, {});
-    }
-  } catch (...) {
-    res.exception = std::current_exception();
-    res.success = false;
+  auto decoded_image = jpeg::Uncompress(encoded_data, data_size, flags);
+  if ((res.success = decoded_image != nullptr)) {
+    // JPEG images are always 8-bit, in HWC format
+    SampleView<CPUBackend> in(decoded_image.get(), target_shape, DALI_UINT8);
+    TensorLayout layout = "HWC";
+    Convert(out, layout, out_type, in, layout, flags.color_space, {}, {});
   }
-
   return res;
 }
+
+REGISTER_DECODER("JPEG", LibJpegTurboDecoderFactory, HostDecoderPriority);
 
 }  // namespace imgcodec
 }  // namespace dali

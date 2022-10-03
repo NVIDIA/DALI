@@ -25,6 +25,41 @@ namespace dali {
 namespace boundary {
 
 /**
+ * Specifies, how to handle pixels on a border of an image.
+ *
+ * ---------------------------------------------------------------|
+ * | CONSTANT     | iiiiii|abcdefgh|iiiiiii with some specified i |
+ * ---------------------------------------------------------------|
+ * | CLAMP        | aaaaaa|abcdefgh|hhhhhhh                       |
+ * ---------------------------------------------------------------|
+ * | REFLECT_1001 | fedcba|abcdefgh|hgfedcb                       |
+ * ---------------------------------------------------------------|
+ * | REFLECT_101  | gfedcb|abcdefgh|gfedcba                       |
+ * ---------------------------------------------------------------|
+ * | WRAP         | cdefgh|abcdefgh|abcdefg                       |
+ * ---------------------------------------------------------------|
+ * | TRANSPARENT  | uvwxyz|abcdefgh|ijklmno                       |
+ * ---------------------------------------------------------------|
+ * | ISOLATED     | do not look outside of ROI                    |
+ * ---------------------------------------------------------------|
+ */
+enum class BoundaryType {
+  CONSTANT,
+  CLAMP,
+  REFLECT_1001,
+  REFLECT_101,
+  WRAP,
+  TRANSPARENT,
+  ISOLATED
+};
+
+template <typename T>
+struct Boundary {
+  BoundaryType type = BoundaryType::REFLECT_101;
+  T value = {};
+};
+
+/**
  * @brief Reflects out-of-range indices until fits in range.
  *
  * @param idx The index to clamp

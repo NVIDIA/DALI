@@ -92,6 +92,8 @@ if _tfrecord_support:
 def _type_name_convert_to_string(dtype, allow_tensors):
     if dtype in _known_types:
         type_name = _known_types[dtype][0]
+        if dtype in _enum_types:
+            type_name = f":class:`{type_name}`"
         ret = type_name
         if dtype in _vector_types:
             ret += " or list of " + type_name

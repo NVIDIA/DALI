@@ -1421,10 +1421,8 @@ def check_duplicated_outs_cpu_to_gpu(device):
 
 
 def test_duplicated_outs_cpu_op_to_gpu():
-    """
-    check if it is possible to return outputs from CPU op that goes directly to the GPU op without
-    MakeContiguous as a CPU output from the pipeline
-    """
+    # check if it is possible to return outputs from CPU op that goes directly to the GPU op without
+    # MakeContiguous as a CPU output from the pipeline
     for device in ["cpu", "gpu"]:
         yield check_duplicated_outs_cpu_to_gpu, device
 
@@ -1476,8 +1474,8 @@ def test_executor_meta():
     test_pipe.run()
     meta = test_pipe.executor_statistics()
     # all operators (readers.Caffe, decoders.ImageRandomCrop, Resize, CropMirrorNormalize,
-    # CoinFlip) + make_contiguous
-    assert len(meta) == 6
+    # CoinFlip) + make_contiguous * 3 (all outputs)
+    assert len(meta) == 8
     for k in meta.keys():
         if "CropMirrorNormalize" in k:
             crop_meta = meta[k]
@@ -1498,7 +1496,7 @@ def test_executor_meta():
 
         # for CPU the biggest tensor is usually bigger than the average,
         # for the GPU max is the average
-        if "CPU" in k:
+        if "CPU" in k or "MIXED" in k:
             assert calc_avg_max(v["real_memory_size"]) <= v["max_real_memory_size"]
             assert calc_avg_max(v["reserved_memory_size"]) <= v["max_reserved_memory_size"]
         else:

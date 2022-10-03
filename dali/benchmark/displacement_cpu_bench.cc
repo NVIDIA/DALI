@@ -78,8 +78,8 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
 
   // The inputs and outputs to CPUBackend are: shared_ptr<Tensor<CPUBackend>>;
   // create input and output, initialize input
-  auto tensor_in = std::make_shared<TensorVector<CPUBackend>>(1);
-  auto tensor_out = std::make_shared<TensorVector<CPUBackend>>(1);
+  auto tensor_in = std::make_shared<TensorList<CPUBackend>>(1);
+  auto tensor_out = std::make_shared<TensorList<CPUBackend>>(1);
   // If we want to specify input, we can share data
   // tensor_in->ShareData(img, N * sizeof(T));
   // Here we let underlying buffer allocate it by itself. We have to specify size and type

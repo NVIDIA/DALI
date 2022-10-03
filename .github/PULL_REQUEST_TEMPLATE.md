@@ -49,7 +49,7 @@ Examples:
 If you select `Existing tests apply` option, please list which test cases cover the introduced
 functionality. For example:
 - test_operator_gaussian_blur.py: test_gaussian*
-- tensor_vector_test.cc: TensorVectorVariableBatchSizeTest*
+- tensor_list_test.cc: TensorListVariableBatchSizeTest*
 --->
 - [ ] Existing tests apply
 - [ ] New tests added

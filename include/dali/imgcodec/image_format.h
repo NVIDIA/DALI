@@ -57,7 +57,7 @@ class DLL_PUBLIC ImageParser {
   size_t ReadHeader(uint8_t *buffer, ImageSource *encoded, size_t n) const;
 };
 
-class ImageDecoder;
+class ImageDecoderFactory;
 
 class DLL_PUBLIC ImageFormat {
  public:
@@ -71,7 +71,7 @@ class DLL_PUBLIC ImageFormat {
   /**
    * @brief Gets a pointer to the image parser
    */
-  const ImageParser* Parser() const;
+  const ImageParser *Parser() const;
 
   /**
    * @brief Returns a string representing the name of the format
@@ -79,24 +79,26 @@ class DLL_PUBLIC ImageFormat {
   const std::string& Name() const;
 
   /**
-   * @brief Returns a set of decoders associated with this format
+   * @brief Returns a set of decoder factories associated with this format
    */
-  span<ImageDecoder* const> Decoders() const;
+  span<ImageDecoderFactory *const> Decoders() const;
 
   /**
    * @brief Registers a new decoder associated with this format, with a set priority
    *
-   * @param decoder   A decoder
+   * A decoder is registered via a factory.
+   *
+   * @param factory   A decoder factory
    * @param priority  A float representing the priority of this codec.
    *                  The lower the number, the higher priority the codec has.
    */
-  void RegisterDecoder(std::shared_ptr<ImageDecoder> decoder, float priority);
+  void RegisterDecoder(std::shared_ptr<ImageDecoderFactory> factory, float priority);
 
  private:
   std::string name_;
   std::shared_ptr<ImageParser> parser_;
-  std::multimap<float, std::shared_ptr<ImageDecoder>> decoders_;
-  std::vector<ImageDecoder*> decoder_ptrs_;
+  std::multimap<float, std::shared_ptr<ImageDecoderFactory>> decoders_;
+  std::vector<ImageDecoderFactory*> decoder_ptrs_;
 };
 
 class DLL_PUBLIC ImageFormatRegistry {
@@ -116,16 +118,24 @@ class DLL_PUBLIC ImageFormatRegistry {
    * @param image
    * @return const ImageFormat*
    */
-  const ImageFormat* GetImageFormat(ImageSource *image) const;
+  const ImageFormat *GetImageFormat(ImageSource *image) const;
+
+  /**
+   * @brief Gets a format by name by which it was registered.
+   */
+  ImageFormat *GetImageFormat(const char *name);
 
   /**
    * @brief Returns all registered image formats
    */
-  span<ImageFormat* const> Formats() const;
+  span<ImageFormat *const> Formats() const;
+
+  static ImageFormatRegistry &instance();
 
  private:
   std::vector<std::shared_ptr<ImageFormat>> formats_;
   std::vector<ImageFormat*> format_ptrs_;
+  std::map<std::string, std::shared_ptr<ImageFormat>> by_name_;
 };
 
 }  // namespace imgcodec

@@ -15,183 +15,217 @@
 #ifndef DALI_IMGCODEC_IMAGE_DECODER_H_
 #define DALI_IMGCODEC_IMAGE_DECODER_H_
 
+#include <map>
 #include <memory>
-#include <stdexcept>
+#include <mutex>
+#include <string>
+#include <typeinfo>
+#include <utility>
 #include <vector>
-#include "dali/core/any.h"
-#include "dali/core/span.h"
-#include "dali/core/tensor_shape.h"
+#include "dali/imgcodec/image_decoder_interfaces.h"
 #include "dali/imgcodec/image_format.h"
-#include "dali/pipeline/data/sample_view.h"
-#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/tensor_vector.h"
 
 namespace dali {
-class ThreadPool;
-
 namespace imgcodec {
-template <typename T, span_extent_t E = dynamic_extent>
-using cspan = span<const T, E>;
 
-struct DecodeParams {
-  DALIDataType  dtype   = DALI_UINT8;
-  DALIImageType format  = DALI_RGB;
-  bool          planar  = false;
-  bool          use_orientation = true;
-};
+inline bool is_cpu_decoder(ImageDecoderFactory *factory) {
+  const auto &properties = factory->GetProperties();
+  return !properties.gpu_output && !(properties.supported_input_kinds & InputKind::DeviceMemory);
+}
 
-/**
- * @brief Region of interest
- *
- * Spatial coordinates of the ROI to decode. Channels shall not be included.
- *
- * If there are no coordinates for `begin` or `end` then no cropping is requried and the
- * ROI is considered to include the entire image.
- *
- * NOTE: If the orientation of the image is adjusted, these values are in the output space
- *       (after including the orientation).
- */
-struct ROI {
-  /**
-   * @brief The beginning and end of the region-of-interest.
-   *
-   * If both begin and end are empty, the ROI denotes full image.
-   */
-  TensorShape<> begin, end;
-
-  bool use_roi() const {
-    return begin.sample_dim() || end.sample_dim();
-  }
-
-  explicit operator bool() const { return use_roi(); }
-
-  /**
-   * @brief Returns the extent of the region of interest as (end - begin)
-   */
-  TensorShape<> shape() const {
-    TensorShape<> out = end;
-    for (int d = 0; d < begin.sample_dim(); d++)
-      out[d] -= begin[d];
-    return out;
-  }
-};
-
-struct DecodeResult {
-  bool success;
-  std::exception_ptr exception;
-};
-
-struct ImageDecoderProperties {
-  /**
-   * @brief Whether the codec can decode a region of interest without decoding the entire image
-   */
-  bool supports_partial_decoding = false;
-
-  /**
-   * @brief A mask of supported input kinds
-   */
-  InputKind supported_input_kinds;
-
-  /**
-   * @brief if true and the codec fails to decode an image,
-   *        an attempt will be made to use other compatible codecs
-   */
-  bool fallback = true;
-};
-
-class DLL_PUBLIC ImageDecoderInstance {
+class DLL_PUBLIC ImageDecoder : public ImageDecoderInstance, public ImageParser {
  public:
-  virtual ~ImageDecoderInstance() = default;
-  /**
-   * @brief Checks whether this codec can decode this encoded image with given parameters
-   */
-  virtual bool CanDecode(ImageSource *in, DecodeParams opts, const ROI &roi = {}) = 0;
+  ImageDecoder(int device_id,
+               bool lazy_init,
+               const std::map<std::string, any> &params = {})
+  : ImageDecoder(
+      device_id,
+      lazy_init,
+      params,
+      device_id == CPU_ONLY_DEVICE_ID ? is_cpu_decoder
+                                      : [](ImageDecoderFactory *) { return true; }) {}
 
   /**
-   * @brief Batch version of CanDecode
+   * @brief Constructs a new ImageDecoder, allowing the user to filter the decoders
+   *
+   * @param device_id       CUDA device ordinal or -1 for current device or CPU_ONLY_DEVICE_ID
+   * @param lazy_init       if true, the construction of sub-decoders is deferred until they are
+   *                        needed - this may be usefule when decoding datasets with
+   *                        few image formats
+   * @param params          parameters passed to the construction of the decoders;
+   *                        when using lazy initialization, the parameters can be set later
+   * @param decoder_filter  a predicate applied to decoder factories, which allows the caller
+   *                        to select a subset with desired properties
    */
-  virtual std::vector<bool> CanDecode(cspan<ImageSource *> in,
-                                      DecodeParams opts,
-                                      cspan<ROI> rois = {}) = 0;
+  ImageDecoder(int device_id,
+               bool lazy_init,
+               const std::map<std::string, any> &params,
+               std::function<bool(ImageDecoderFactory *)> decoder_filter);
 
-  /**
-   * @brief Decodes a single image to a host buffer
-   */
-  virtual DecodeResult Decode(SampleView<CPUBackend> out,
-                              ImageSource *in,
-                              DecodeParams opts,
-                              const ROI &roi = {}) = 0;
+  ~ImageDecoder();
 
-  /**
-   * @brief Decodes a batch of images to host buffers
-   */
-  virtual std::vector<DecodeResult> Decode(span<SampleView<CPUBackend>> out,
-                                           cspan<ImageSource *> in,
-                                           DecodeParams opts,
-                                           cspan<ROI> rois = {}) = 0;
+  bool CanParse(ImageSource *encoded) const override;
 
+  ImageInfo GetInfo(ImageSource *encoded) const override;
 
+  std::vector<bool> GetInfo(span<ImageInfo> info, span<ImageSource*> sources) const;
 
-  /**
-   * @brief Decodes a single image to a device buffer
-   */
-  virtual DecodeResult Decode(cudaStream_t stream,
-                              SampleView<GPUBackend> out,
-                              ImageSource *in,
-                              DecodeParams opts,
-                              const ROI &roi = {}) = 0;
-
-  /**
-   * @brief Decodes a single image to device buffers
-   */
-  virtual std::vector<DecodeResult> Decode(cudaStream_t stream,
-                                           span<SampleView<GPUBackend>> out,
-                                           cspan<ImageSource *> in,
-                                           DecodeParams opts,
-                                           cspan<ROI> rois = {}) = 0;
-  /**
-   * @brief Sets a codec-specific parameter
-   */
-  virtual void SetParam(const char *key, const any &value) = 0;
-  /**
-   * @brief Gets a codec-specific parameter
-   */
-  virtual any GetParam(const char *key) const = 0;
-
-  template <typename T>
-  inline enable_if_t<!std::is_same<std::remove_reference_t<T>, any>::value>
-  SetParam(const char *key, T value) {
-    SetParam(key, any(value));
+  ImageFormatRegistry &FormatRegistry() const {
+    // Use a global format registry.
+    return ImageFormatRegistry::instance();
   }
 
-  template <typename T>
-  inline T GetParam(const char *key) const {
-    return any_cast<T>(GetParam(key));
+  /**
+   * @brief Stubbed; returns true.
+   */
+  bool CanDecode(DecodeContext ctx,
+                 ImageSource *in,
+                 DecodeParams opts,
+                 const ROI &roi = {}) override;
+
+  void CalculateOutputShape(TensorListShape<> &shape,
+                            span<SampleView<CPUBackend>> out,
+                            cspan<ImageSource *> in,
+                            DecodeParams opts,
+                            cspan<ROI> rois = {}) const;
+
+  /**
+   * @brief Stubbed; returns true for all images in the batch.
+   */
+  std::vector<bool> CanDecode(DecodeContext ctx,
+                              cspan<ImageSource *> in,
+                              DecodeParams opts,
+                              cspan<ROI> rois = {}) override;
+
+  // Single image API
+
+  DecodeResult Decode(DecodeContext ctx,
+                      SampleView<CPUBackend> out,
+                      ImageSource *in,
+                      DecodeParams opts,
+                      const ROI &roi = {}) override;
+
+  DecodeResult Decode(DecodeContext ctx,
+                      SampleView<GPUBackend> out,
+                      ImageSource *in,
+                      DecodeParams opts,
+                      const ROI &roi = {}) override;
+
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                     SampleView<CPUBackend> out,
+                                     ImageSource *in,
+                                     DecodeParams opts,
+                                     const ROI &roi = {}) override;
+
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                     SampleView<GPUBackend> out,
+                                     ImageSource *in,
+                                     DecodeParams opts,
+                                     const ROI &roi = {}) override;
+
+
+  // Batch API
+
+  std::vector<DecodeResult> Decode(DecodeContext ctx,
+                                   span<SampleView<CPUBackend>> out,
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois = {}) override;
+
+  std::vector<DecodeResult> Decode(DecodeContext ctx,
+                                   span<SampleView<GPUBackend>> out,
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois = {}) override;
+
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                     span<SampleView<CPUBackend>> out,
+                                     cspan<ImageSource *> in,
+                                     DecodeParams opts,
+                                     cspan<ROI> rois) override;
+
+  FutureDecodeResults ScheduleDecode(DecodeContext ctx,
+                                     span<SampleView<GPUBackend>> out,
+                                     cspan<ImageSource *> in,
+                                     DecodeParams opts,
+                                     cspan<ROI> rois) override;
+
+
+  std::vector<DecodeResult> Decode(DecodeContext ctx,
+                                   TensorList<CPUBackend> &out,
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois = {});
+
+  std::vector<DecodeResult> Decode(DecodeContext ctx,
+                                   TensorList<GPUBackend> &out,
+                                   cspan<ImageSource *> in,
+                                   DecodeParams opts,
+                                   cspan<ROI> rois = {});
+  /**
+   * @brief Sets a value of a parameter.
+   *
+   * It sets a value of a parameter for all existing sub-decoders as well ones that will be
+   * created in the future.
+   *
+   * This function succeeds even if no sub-decoder recognizes the key.
+   * If the value is incorrect for one of the decoders, but that decoder has not yet
+   * been constructed, an error may be thrown at a later time, when the decoder is instantiated.
+   */
+  bool SetParam(const char *key, const any &value) override;
+
+  int SetParams(const std::map<std::string, any> &params) override;
+
+  /**
+   * @brief Gets a value previously passed to `SetParam` with the given key.
+   */
+  any GetParam(const char *key) const override;
+
+ private:
+  struct ScheduledWork;
+  // Scheduled work pool
+
+  std::mutex work_mutex_;
+  std::unique_ptr<ScheduledWork> free_work_items_;
+
+  std::unique_ptr<ScheduledWork> new_work(DecodeContext ctx,
+                                          DecodeResultsPromise results,
+                                          DecodeParams params);
+
+  void recycle_work(std::unique_ptr<ScheduledWork> work);
+
+  void combine_work(ScheduledWork &target, std::unique_ptr<ScheduledWork> source);
+
+  static void move_to_fallback(ScheduledWork *fallback,
+                               ScheduledWork &work,
+                               const vector<bool> &keep);
+
+  static void filter(ScheduledWork &work, const vector<bool> &keep) {
+    move_to_fallback(nullptr, work, keep);
   }
-};
 
-class DLL_PUBLIC ImageDecoderFactory {
- public:
-  virtual ~ImageDecoderFactory() = default;
+  // Decoder workers
+  class DecoderWorker;
 
-  /**
-   * @brief Gets the properties and capabilities of the codec
-   */
-  virtual ImageDecoderProperties GetProperties() const = 0;
+  void InitWorkers(bool lazy);
 
-  /**
-   * @brief Checks whether the codec is supported on the specified device
-   *
-   * The result may differ depending on extra hardware modules (e.g. hardware JPEG decoder).
-   * A negative device id means "cpu-only". Decoders requiring a GPU must return false in that case.
-   */
-  virtual bool IsSupported(int device_id) const = 0;
+  void DistributeWork(std::unique_ptr<ScheduledWork> work);
 
-  /**
-   * @brief Creates an instance of a codec
-   *
-   * Note: For decoders that carry no state, this may just increase reference count on a singleton.
-   */
-  virtual std::shared_ptr<ImageDecoderInstance> Create(int device_id, ThreadPool &tp) const = 0;
+  // Miscellanous
+
+  static void copy(SampleView<GPUBackend> &out,
+                   const ConstSampleView<CPUBackend> &in,
+                   cudaStream_t stream);
+
+  int device_id_ = CPU_ONLY_DEVICE_ID;
+  std::map<std::string, any> params_;
+  std::map<const ImageDecoderFactory*, std::unique_ptr<DecoderWorker>> workers_;
+  std::multimap<const ImageFormat*, ImageDecoderFactory*> filtered_;
+  struct TempImageSource {
+    // TODO(michalz): store auxiliary image sources here
+  };
+  std::map<InputKind, std::vector<TempImageSource>> tmp_sources_;
 };
 
 }  // namespace imgcodec

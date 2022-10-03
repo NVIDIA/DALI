@@ -21,6 +21,10 @@ if (BUILD_NVJPEG)
   add_subdirectory(nvjpeg)
 endif()
 
+if (BUILD_FFMPEG)
+  add_subdirectory(video)
+endif()
+
 collect_headers(DALI_INST_HDRS PARENT_SCOPE)
 collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
 collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)

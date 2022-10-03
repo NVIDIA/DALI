@@ -230,7 +230,7 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
 
   // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ == index_[next_frame_idx_].pts) {
+    if (frame.pts_ == Index(next_frame_idx_).pts) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize());
       }
