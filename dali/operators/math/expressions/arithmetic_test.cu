@@ -100,7 +100,7 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     for (int sample_idx = 0; sample_idx < TestConfig::batch_size; sample_idx++) {
       auto &sample = samples_cpu.data[sample_idx];
 
-      auto out_tv = left.cpu()[sample_idx];
+      auto out_tv = left.gpu()[sample_idx];
       TensorShape<> out_strides;
       kernels::CalcStrides(out_strides, out_tv.shape);
       sample.output.data = out_tv.data;
@@ -110,7 +110,7 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
         sample.output.strides[d] = out_strides[d];
       }
 
-      auto left_tv = left.cpu()[sample_idx];
+      auto left_tv = left.gpu()[sample_idx];
       TensorShape<> left_strides;
       kernels::CalcStrides(left_strides, left_tv.shape);
       sample.args[0].data = left_tv.data;
@@ -120,7 +120,7 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
         sample.args[0].strides[d] = left_strides[d];
       }
 
-      auto right_tv = right.cpu()[sample_idx];
+      auto right_tv = right.gpu()[sample_idx];
       TensorShape<> right_strides;
       kernels::CalcStrides(right_strides, right_tv.shape);
       sample.args[1].data = right_tv.data;
