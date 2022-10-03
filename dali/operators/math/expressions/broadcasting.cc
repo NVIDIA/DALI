@@ -290,9 +290,9 @@ void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes) {
   SmallVector<std::pair<int, int>, 5> group_dims;
 
   auto all_same = [&shapes](int dim) {
-    auto extent = shapes[0][dim];
+    auto extent = (*shapes[0])[dim];
     for (int k = 1; k < shapes.size(); k++) {
-      if (extent != shapes[k][dim]) {
+      if (extent != (*shapes[k])[dim]) {
         return false;
       }
     }

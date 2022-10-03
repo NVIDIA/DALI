@@ -105,9 +105,9 @@ TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
   HostWorkspace ws;
-  std::shared_ptr<TensorVector<CPUBackend>> in[3];
+  std::shared_ptr<TensorList<CPUBackend>> in[3];
   for (auto &ptr : in) {
-    ptr = std::make_shared<TensorVector<CPUBackend>>();
+    ptr = std::make_shared<TensorList<CPUBackend>>();
     ptr->Resize({{1}, {2}}, DALI_INT32);
   }
   in[2]->Resize({{10}, {2}});
