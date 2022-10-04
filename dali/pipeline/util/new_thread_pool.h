@@ -37,7 +37,7 @@ class MultipleErrors : public std::runtime_error {
     compose_message();
   }
 
-  const char *what() const override {
+  const char *what() const noexcept override {
     return message_.c_str();
   }
 
@@ -72,9 +72,12 @@ class MultipleErrors : public std::runtime_error {
  */
 class Job {
  public:
-  ~Job() {
-    if (started_) {
-      WaitEx<false>();
+  ~Job() noexcept(false) {
+    if (!tasks_.empty() && !waited_for_)  {
+      std::lock_guard<std::mutex> g(mtx_);
+      if (!tasks_.empty() && !waited_for_) {
+        throw std::logic_error("The job is not empty, but hasn't been scrapped or waited for.");
+      }
     }
   }
 
@@ -119,31 +122,29 @@ class Job {
   void Wait() {
     if (!started_)
       throw std::logic_error("This job hasn't been run - cannot wait for it.");
-    WaitEx<true>();
-  }
-
- private:
-  template <bool rethrow>
-  void WaitEx() noexcept(!rethrow) {
     {
       std::unique_lock lock(mtx_);
       cv_.wait(lock, [&]() { return num_pending_tasks_ == 0; });
       waited_for_ = true;
     }
-    if constexpr (rethrow) {
-      std::vector<std::exception_ptr> errors;
-      for (auto &x : tasks_) {
-        if (x.second.error)
-          errors.push_back(std::move(x.second.error));
-      }
-      if (errors.size() == 1)
-        std::rethrow_exception(errors[0]);
-      else if (errors.size() > 1)
-        throw MultipleErrors(std::move(errors));
+    std::vector<std::exception_ptr> errors;
+    for (auto &x : tasks_) {
+      if (x.second.error)
+        errors.push_back(std::move(x.second.error));
     }
+    if (errors.size() == 1)
+      std::rethrow_exception(errors[0]);
+    else if (errors.size() > 1)
+      throw MultipleErrors(std::move(errors));
   }
 
+  void Scrap() {
+    if (started_)
+      throw std::logic_error("Cannot scrap a job that has already been started");
+    tasks_.clear();
+  }
 
+ private:
   std::mutex mtx_;  // this is a dummy mutex - we could just use atomic_wait on num_pending_tasks_
   std::condition_variable cv_;
   std::atomic_int num_pending_tasks_{0};
@@ -170,7 +171,7 @@ class ThreadPoolBase {
   }
 
   void Init(int num_threads) {
-    std::lock_guard g(mtx_);
+    std::lock_guard<std::mutex> g(mtx_);
     if (!threads_.empty())
       throw std::logic_error("The thread pool is already started!");
     stop_requested_ = false;
@@ -185,7 +186,7 @@ class ThreadPoolBase {
 
   void AddTask(TaskFunc f) {
     {
-      std::lock_guard g(mtx_);
+      std::lock_guard<std::mutex> g(mtx_);
       if (stop_requested_)
         throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
       tasks_.push(std::move(f));
@@ -199,7 +200,7 @@ class ThreadPoolBase {
 
   void Stop() {
     {
-      std::lock_guard g(mtx_);
+      std::lock_guard<std::mutex> g(mtx_);
       stop_requested_ = true;
       cv_.notify_all();
     }
@@ -208,7 +209,7 @@ class ThreadPoolBase {
       t.join();
 
     {
-      std::lock_guard g(mtx_);
+      std::lock_guard<std::mutex> g(mtx_);
       threads_.clear();
     }
   }
