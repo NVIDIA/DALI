@@ -351,45 +351,33 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
                                  work->params,
                                  make_span(work->rois));
 
-    if (fallback_) {
-      for (;;) {
-        auto indices = future.wait_new();
-        if (indices.empty())
-          break;
+    for (;;) {
+      auto indices = future.wait_new();
+      if (indices.empty())
+        break;  // if wait_new returns with an empty result, it means that everything is ready
 
-        for (int sub_idx : indices) {
-          DecodeResult r = future.get_one(sub_idx);
-          if (r.success) {
-            if (!decode_to_gpu && !work->gpu_outputs.empty()) {
-              copy(work->gpu_outputs[sub_idx], work->cpu_outputs[sub_idx], work->ctx.stream);
-            }
-            work->results.set(work->indices[sub_idx], r);
-          } else {
+      for (int sub_idx : indices) {
+        DecodeResult r = future.get_one(sub_idx);
+        if (r.success) {
+          if (!decode_to_gpu && !work->gpu_outputs.empty()) {
+            copy(work->gpu_outputs[sub_idx], work->cpu_outputs[sub_idx], work->ctx.stream);
+          }
+          work->results.set(work->indices[sub_idx], r);
+        } else {  // failed to decode
+          if (fallback_) {
+            // if there's fallback, we don't set the result, but try to use the fallback first
             if (!fallback_work)
               fallback_work = owner_->new_work(work->ctx, work->results, work->params);
             fallback_work->move_entry(*work, sub_idx);
+          } else {
+            // no fallback - just propagate the result to the original promise
+            work->results.set(work->indices[sub_idx], r);
           }
         }
+      }
 
-        if (fallback_work && !fallback_work->empty())
-          fallback_->add_work(std::move(fallback_work));
-      }
-    } else {
-      // no fallback - the results are final
-      future.wait_all();
-      auto r = future.get_all();
-      // we may need to copy to the gpu
-      if (!decode_to_gpu && !work->gpu_outputs.empty()) {
-        for (int i = 0; i < r.size(); i++) {
-          if (r[i].success) {  // TODO(michalz): bulk copy
-            copy(work->gpu_outputs[i], work->cpu_outputs[i], work->ctx.stream);
-          }
-        }
-      }
-      // just copy the result to the final promise
-      for (int i = 0; i < work->num_samples(); i++) {
-        work->results.set(work->indices[i], r[i]);
-      }
+      if (fallback_work && !fallback_work->empty())
+        fallback_->add_work(std::move(fallback_work));
     }
   }
   owner_->recycle_work(std::move(work));
@@ -405,6 +393,7 @@ ImageDecoder::ImageDecoder(int device_id,
                            bool lazy_init,
                            const std::map<std::string, any> &params,
                            std::function<bool(ImageDecoderFactory *)> decoder_filter) {
+  SetParams(params);
   if (device_id == -1)
     CUDA_CALL(cudaGetDevice(&device_id));
   device_id_ = device_id;

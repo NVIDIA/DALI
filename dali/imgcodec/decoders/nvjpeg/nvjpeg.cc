@@ -140,7 +140,7 @@ bool NvJpegDecoderInstance::SetParam(const char *name, const any &value) {
     host_memory_padding_ = any_cast<size_t>(value);
     return true;
   } else if (strcmp(name, "nvjpeg_num_threads") == 0) {
-    num_threads_ = any_cast<size_t>(value);
+    num_threads_ = any_cast<int>(value);
     return true;
   }
 
