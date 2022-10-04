@@ -26,6 +26,26 @@ struct SerialExecutor {
   }
 };
 
+TEST(NewThreadPool, Scrap) {
+  EXPECT_NO_THROW({
+    Job job;
+    job.AddTask([](int) {});
+    job.Scrap();
+  });
+}
+
+TEST(NewThreadPool, ErrorNotStarted) {
+  try {
+    Job job;
+    job.AddTask([](int) {});
+  } catch (std::logic_error &e) {
+    EXPECT_NE(nullptr, strstr(e.what(), "The job is not empty"));
+    return;
+  }
+  GTEST_FAIL() << "Expected a logic error.";
+}
+
+
 TEST(NewThreadPool, RunJobInSeries) {
   Job job;
   SerialExecutor tp;
