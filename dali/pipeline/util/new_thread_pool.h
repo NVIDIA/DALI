@@ -23,47 +23,13 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "dali/core/error_handling.h"
-#include "dali/core/mm/detail/aux_alloc.h"
 #include "dali/core/call_at_exit.h"
+#include "dali/core/error_handling.h"
+#include "dali/core/multi_error.h"
+#include "dali/core/mm/detail/aux_alloc.h"
 
 namespace dali {
 namespace experimental {
-
-class MultipleErrors : public std::runtime_error {
- public:
-  explicit MultipleErrors(std::vector<std::exception_ptr> errors)
-  : runtime_error(""), errors_(std::move(errors)) {
-    compose_message();
-  }
-
-  const char *what() const noexcept override {
-    return message_.c_str();
-  }
-
-  const std::vector<std::exception_ptr> &errors() const {
-    return errors_;
-  }
-
- private:
-  void compose_message() {
-    std::stringstream ss;
-    ss << "Multiple exceptions:\n";
-    for (const auto &e : errors_) {
-      try {
-        std::rethrow_exception(e);
-      } catch (const std::exception &e) {
-        ss << typeid(e).name() << ": " << e.what() << "\n";
-      } catch (...) {
-        ss << "Unknown exception\n";
-      }
-    }
-    message_ = ss.str();
-  }
-
-  std::vector<std::exception_ptr> errors_;
-  std::string message_;
-};
 
 /**
  * @brief A collection of tasks, ordered by priority
