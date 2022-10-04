@@ -76,7 +76,7 @@ struct test_sample {
         ref_ycbcr(numpy::ReadTensor(FileStream::Open(npy_ycbcr_path, false, false).get())),
         ref_gray(numpy::ReadTensor(FileStream::Open(npy_gray_path, false, false).get())) {}
 
-  const Tensor<CPUBackend> &GetRef(DALIImageType format) {
+  const Tensor<CPUBackend> &GetRef(DALIImageType format) const {
     if (format == DALI_YCbCr) {
       return ref_ycbcr;
     } else if (format == DALI_GRAY) {
@@ -93,70 +93,20 @@ struct test_sample {
   Tensor<CPUBackend> ref_gray;
 };
 
-cv::Mat rgb2bgr(const cv::Mat &img) {
-  cv::Mat bgr;
-  cv::cvtColor(img, bgr, cv::COLOR_RGB2BGR);
-  return bgr;
-}
-
-template <typename T>
-cv::Mat GetCvMat(TensorView<StorageCPU, const T> v, DALIImageType color_fmt) {
-  static_assert(std::is_same<T, uint8_t>::value, "Only uint8 images supported for now");
-  cv::Mat v_mat(v.shape[0], v.shape[1], color_fmt == DALI_GRAY ? CV_8UC1 : CV_8UC3,
-                (void *)v.data);  // NOLINT
-  return rgb2bgr(v_mat);
-}
-
-cv::Mat GetRefCvMat(test_sample& sample, DALIImageType color_fmt) {
-  void *refdata = nullptr;
-  TensorShape<> ref_sh;
-  if (color_fmt == DALI_YCbCr) {
-    refdata = sample.ref_ycbcr.raw_mutable_data();
-    ref_sh = sample.ref_ycbcr.shape();
-  } else if (color_fmt == DALI_GRAY) {
-    refdata = sample.ref_gray.raw_mutable_data();
-    ref_sh = sample.ref_gray.shape();
-  } else {
-    refdata = sample.ref.raw_mutable_data();
-    ref_sh = sample.ref.shape();
-  }
-  cv::Mat vref_mat(ref_sh[0], ref_sh[1], color_fmt == DALI_GRAY ? CV_8UC1 : CV_8UC3, refdata);
-  return rgb2bgr(vref_mat);
-}
-
-template <typename T>
-void DumpImages(TensorView<StorageCPU, const T> v,
-                test_sample& sample,
-                DALIImageType color_fmt) {
-  // not implemented
-}
-
-void DumpImages(TensorView<StorageCPU, const uint8_t> v,
-                test_sample& sample,
-                DALIImageType color_fmt) {
-  auto out = GetCvMat<uint8_t>(v, color_fmt);
-  auto ref = GetRefCvMat(sample, color_fmt);
-  cv::Mat diff;
-  cv::absdiff(out, ref, diff);
-  cv::imwrite("/tmp/img_out.bmp", out);
-  cv::imwrite("/tmp/img_ref.bmp", ref);
-  cv::imwrite("/tmp/img_diff.bmp", diff);
-}
-
 struct TestData {
   void Init() {
     const auto jpeg_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg");
     const auto jpeg_ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/jpeg");
     auto &samples_jpeg = test_samples["JPEG"];
-    samples_jpeg.emplace_back(join(jpeg_dir, "134/site-1534685_1280.jpg"),
+    samples_jpeg.emplace_back(join(jpeg_dir, "134", "site-1534685_1280.jpg"),
                               join(jpeg_ref_dir, "site-1534685_1280.npy"),
                               join(jpeg_ref_dir, "site-1534685_1280_ycbcr.npy"),
                               join(jpeg_ref_dir, "site-1534685_1280_gray.npy"));
-    samples_jpeg.emplace_back(join(jpeg_dir, "113/snail-4291306_1280.jpg"),
+    samples_jpeg.emplace_back(join(jpeg_dir, "113", "snail-4291306_1280.jpg"),
                               join(jpeg_ref_dir, "snail-4291306_1280.npy"),
                               join(jpeg_ref_dir, "snail-4291306_1280_ycbcr.npy"),
                               join(jpeg_ref_dir, "snail-4291306_1280_gray.npy"));
-    samples_jpeg.emplace_back(join(jpeg_dir, "100/swan-3584559_640.jpg"),
+    samples_jpeg.emplace_back(join(jpeg_dir, "100", "swan-3584559_640.jpg"),
                               join(jpeg_ref_dir, "swan-3584559_640.npy"),
                               join(jpeg_ref_dir, "swan-3584559_640_ycbcr.npy"),
                               join(jpeg_ref_dir, "swan-3584559_640_gray.npy"));
@@ -165,99 +115,99 @@ struct TestData {
     const auto tiff_ref_dir = join(dali::testing::dali_extra_path(), "db/single/reference/tiff");
     auto &samples_tiff = test_samples["TIFF"];
     samples_tiff.emplace_back(join(tiff_dir, "0/cat-3504008_640.tiff"),
-                              join(tiff_ref_dir, "0/cat-3504008_640.tiff.npy"),
-                              join(tiff_ref_dir, "0/cat-3504008_640_ycbcr.tiff.npy"),
-                              join(tiff_ref_dir, "0/cat-3504008_640_gray.tiff.npy"));
-    samples_tiff.emplace_back(join(tiff_dir, "0/cat-3449999_640.tiff"),
-                              join(tiff_ref_dir, "0/cat-3449999_640.tiff.npy"),
-                              join(tiff_ref_dir, "0/cat-3449999_640_ycbcr.tiff.npy"),
-                              join(tiff_ref_dir, "0/cat-3449999_640_gray.tiff.npy"));
-    samples_tiff.emplace_back(join(tiff_dir, "0/cat-111793_640.tiff"),
-                              join(tiff_ref_dir, "0/cat-111793_640.tiff.npy"),
-                              join(tiff_ref_dir, "0/cat-111793_640_ycbcr.tiff.npy"),
-                              join(tiff_ref_dir, "0/cat-111793_640_gray.tiff.npy"));
+                              join(tiff_ref_dir, "0", "cat-3504008_640.tiff.npy"),
+                              join(tiff_ref_dir, "0", "cat-3504008_640_ycbcr.tiff.npy"),
+                              join(tiff_ref_dir, "0", "cat-3504008_640_gray.tiff.npy"));
+    samples_tiff.emplace_back(join(tiff_dir, "0", "cat-3449999_640.tiff"),
+                              join(tiff_ref_dir, "0", "cat-3449999_640.tiff.npy"),
+                              join(tiff_ref_dir, "0", "cat-3449999_640_ycbcr.tiff.npy"),
+                              join(tiff_ref_dir, "0", "cat-3449999_640_gray.tiff.npy"));
+    samples_tiff.emplace_back(join(tiff_dir, "0", "cat-111793_640.tiff"),
+                              join(tiff_ref_dir, "0", "cat-111793_640.tiff.npy"),
+                              join(tiff_ref_dir, "0", "cat-111793_640_ycbcr.tiff.npy"),
+                              join(tiff_ref_dir, "0", "cat-111793_640_gray.tiff.npy"));
 
-    const auto jpeg2000_dir = join(dali::testing::dali_extra_path(), "db/single/jpeg2k");
+    const auto jpeg2000_dir = join(dali::testing::dali_extra_path(), "db", "single", "jpeg2k");
     const auto jpeg2000_ref_dir =
-        join(dali::testing::dali_extra_path(), "db/single/reference/jpeg2k");
+        join(dali::testing::dali_extra_path(), "db", "single", "reference", "jpeg2k");
     auto &samples_jpeg2000 = test_samples["JPEG2000"];
-    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0/cat-1245673_640.jp2"),
-                                  join(jpeg2000_ref_dir, "0/cat-1245673_640.npy"),
-                                  join(jpeg2000_ref_dir, "0/cat-1245673_640_ycbcr.npy"),
-                                  join(jpeg2000_ref_dir, "0/cat-1245673_640_gray.npy"));
-    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0/cat-2184682_640.jp2"),
-                                  join(jpeg2000_ref_dir, "0/cat-2184682_640.npy"),
-                                  join(jpeg2000_ref_dir, "0/cat-2184682_640_ycbcr.npy"),
-                                  join(jpeg2000_ref_dir, "0/cat-2184682_640_gray.npy"));
-    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0/cat-300572_640.jp2"),
-                                  join(jpeg2000_ref_dir, "0/cat-300572_640.npy"),
-                                  join(jpeg2000_ref_dir, "0/cat-300572_640_ycbcr.npy"),
-                                  join(jpeg2000_ref_dir, "0/cat-300572_640_gray.npy"));
+    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0", "cat-1245673_640.jp2"),
+                                  join(jpeg2000_ref_dir, "0", "cat-1245673_640.npy"),
+                                  join(jpeg2000_ref_dir, "0", "cat-1245673_640_ycbcr.npy"),
+                                  join(jpeg2000_ref_dir, "0", "cat-1245673_640_gray.npy"));
+    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0", "cat-2184682_640.jp2"),
+                                  join(jpeg2000_ref_dir, "0", "cat-2184682_640.npy"),
+                                  join(jpeg2000_ref_dir, "0", "cat-2184682_640_ycbcr.npy"),
+                                  join(jpeg2000_ref_dir, "0", "cat-2184682_640_gray.npy"));
+    samples_jpeg2000.emplace_back(join(jpeg2000_dir, "0", "cat-300572_640.jp2"),
+                                  join(jpeg2000_ref_dir, "0", "cat-300572_640.npy"),
+                                  join(jpeg2000_ref_dir, "0", "cat-300572_640_ycbcr.npy"),
+                                  join(jpeg2000_ref_dir, "0", "cat-300572_640_gray.npy"));
 
-    const auto bmp_dir = join(dali::testing::dali_extra_path(), "db/single/bmp");
+    const auto bmp_dir = join(dali::testing::dali_extra_path(), "db", "single", "bmp");
     const auto bmp_ref_dir =
-        join(dali::testing::dali_extra_path(), "db/single/reference/bmp");
+        join(dali::testing::dali_extra_path(), "db", "single", "reference", "bmp");
     auto &samples_bmp = test_samples["BMP"];
-    samples_bmp.emplace_back(join(bmp_dir, "0/cat-1046544_640.bmp"),
+    samples_bmp.emplace_back(join(bmp_dir, "0", "cat-1046544_640.bmp"),
                              join(bmp_ref_dir, "cat-1046544_640.npy"),
                              join(bmp_ref_dir, "cat-1046544_640_ycbcr.npy"),
                              join(bmp_ref_dir, "cat-1046544_640_gray.npy"));
-    samples_bmp.emplace_back(join(bmp_dir, "0/cat-1046544_640.bmp"),
+    samples_bmp.emplace_back(join(bmp_dir, "0", "cat-1046544_640.bmp"),
                              join(bmp_ref_dir, "cat-1046544_640.npy"),
                              join(bmp_ref_dir, "cat-1046544_640_ycbcr.npy"),
                              join(bmp_ref_dir, "cat-1046544_640_gray.npy"));
-    samples_bmp.emplace_back(join(bmp_dir, "0/cat-1245673_640.bmp"),
+    samples_bmp.emplace_back(join(bmp_dir, "0", "cat-1245673_640.bmp"),
                              join(bmp_ref_dir, "cat-1245673_640.npy"),
                              join(bmp_ref_dir, "cat-1245673_640_ycbcr.npy"),
                              join(bmp_ref_dir, "cat-1245673_640_gray.npy"));
 
-    const auto png_dir = join(dali::testing::dali_extra_path(), "db/single/png");
+    const auto png_dir = join(dali::testing::dali_extra_path(), "db", "single", "png");
     const auto png_ref_dir =
-        join(dali::testing::dali_extra_path(), "db/single/reference/png");
+        join(dali::testing::dali_extra_path(), "db", "single", "reference", "png");
     auto &samples_png = test_samples["PNG"];
-    samples_png.emplace_back(join(png_dir, "0/cat-3449999_640.png"),
+    samples_png.emplace_back(join(png_dir, "0", "cat-3449999_640.png"),
                              join(png_ref_dir, "cat-3449999_640.npy"),
                              join(png_ref_dir, "cat-3449999_640_ycbcr.npy"),
                              join(png_ref_dir, "cat-3449999_640_gray.npy"));
-    samples_png.emplace_back(join(png_dir, "0/cat-1046544_640.png"),
+    samples_png.emplace_back(join(png_dir, "0", "cat-1046544_640.png"),
                              join(png_ref_dir, "cat-1046544_640.npy"),
                              join(png_ref_dir, "cat-1046544_640_ycbcr.npy"),
                              join(png_ref_dir, "cat-1046544_640_gray.npy"));
-    samples_png.emplace_back(join(png_dir, "0/cat-1245673_640.png"),
+    samples_png.emplace_back(join(png_dir, "0", "cat-1245673_640.png"),
                              join(png_ref_dir, "cat-1245673_640.npy"),
                              join(png_ref_dir, "cat-1245673_640_ycbcr.npy"),
                              join(png_ref_dir, "cat-1245673_640_gray.npy"));
 
-    const auto pnm_dir = join(dali::testing::dali_extra_path(), "db/single/pnm");
+    const auto pnm_dir = join(dali::testing::dali_extra_path(), "db", "single", "pnm");
     const auto pnm_ref_dir =
-        join(dali::testing::dali_extra_path(), "db/single/reference/pnm");
+        join(dali::testing::dali_extra_path(), "db", "single", "reference", "pnm");
     auto &samples_pnm = test_samples["PNM"];
-    samples_pnm.emplace_back(join(pnm_dir, "0/cat-1046544_640.pnm"),
+    samples_pnm.emplace_back(join(pnm_dir, "0", "cat-1046544_640.pnm"),
                              join(pnm_ref_dir, "cat-1046544_640.npy"),
                              join(pnm_ref_dir, "cat-1046544_640_ycbcr.npy"),
                              join(pnm_ref_dir, "cat-1046544_640_gray.npy"));
-    samples_pnm.emplace_back(join(pnm_dir, "0/cat-111793_640.ppm"),
+    samples_pnm.emplace_back(join(pnm_dir, "0", "cat-111793_640.ppm"),
                              join(pnm_ref_dir, "cat-111793_640.npy"),
                              join(pnm_ref_dir, "cat-111793_640_ycbcr.npy"),
                              join(pnm_ref_dir, "cat-111793_640_gray.npy"));
-    samples_pnm.emplace_back(join(pnm_dir, "0/domestic-cat-726989_640.pnm"),
+    samples_pnm.emplace_back(join(pnm_dir, "0", "domestic-cat-726989_640.pnm"),
                              join(pnm_ref_dir, "domestic-cat-726989_640.npy"),
                              join(pnm_ref_dir, "domestic-cat-726989_640_ycbcr.npy"),
                              join(pnm_ref_dir, "domestic-cat-726989_640_gray.npy"));
 
-    const auto webp_dir = join(dali::testing::dali_extra_path(), "db/single/webp");
+    const auto webp_dir = join(dali::testing::dali_extra_path(), "db", "single", "webp");
     const auto webp_ref_dir =
-        join(dali::testing::dali_extra_path(), "db/single/reference/webp");
+        join(dali::testing::dali_extra_path(), "db", "single", "reference", "webp");
     auto &samples_webp = test_samples["WEBP"];
-    samples_webp.emplace_back(join(webp_dir, "lossless/cat-3449999_640.webp"),
+    samples_webp.emplace_back(join(webp_dir, "lossless", "cat-3449999_640.webp"),
                              join(webp_ref_dir, "cat-3449999_640.npy"),
                              join(webp_ref_dir, "cat-3449999_640_ycbcr.npy"),
                              join(webp_ref_dir, "cat-3449999_640_gray.npy"));
-    samples_webp.emplace_back(join(webp_dir, "lossy/cat-1046544_640.webp"),
+    samples_webp.emplace_back(join(webp_dir, "lossy", "cat-1046544_640.webp"),
                              join(webp_ref_dir, "cat-1046544_640.npy"),
                              join(webp_ref_dir, "cat-1046544_640_ycbcr.npy"),
                              join(webp_ref_dir, "cat-1046544_640_gray.npy"));
-    samples_webp.emplace_back(join(webp_dir, "lossless/cat-1245673_640.webp"),
+    samples_webp.emplace_back(join(webp_dir, "lossless", "cat-1245673_640.webp"),
                              join(webp_ref_dir, "cat-1245673_640.npy"),
                              join(webp_ref_dir, "cat-1245673_640_ycbcr.npy"),
                              join(webp_ref_dir, "cat-1245673_640_gray.npy"));
@@ -492,7 +442,7 @@ class ImageDecoderTest<ImageDecoderTestParams<Backend, OutputType, color_fmt>>
   void DisableFallback() {
     // making sure that we don't pick the fallback implementation
     auto filter = [](ImageDecoderFactory *factory) {
-      return !(dynamic_cast<OpenCVDecoderFactory *>(factory) != nullptr);
+      return dynamic_cast<OpenCVDecoderFactory *>(factory) == nullptr;
     };
     FilterDecoder(filter);
   }
@@ -510,21 +460,12 @@ class ImageDecoderTest<ImageDecoderTestParams<Backend, OutputType, color_fmt>>
   void CompareData(const TensorView<StorageCPU, const OutputType> &data,
                    const test_sample &sample) {
     if constexpr (std::is_same<Backend, GPUBackend>::value) {
-      if (color_fmt == DALI_YCbCr) {
-        AssertSimilar(data, sample.ref_ycbcr);
-      } else if (color_fmt == DALI_GRAY) {
-        AssertSimilar(data, sample.ref_gray);
-      } else {
-        AssertSimilar(data, sample.ref);
-      }
+      AssertSimilar(data, sample.GetRef(color_fmt));
     } else {
-      if (color_fmt == DALI_YCbCr) {
-        AssertClose(data, sample.ref_ycbcr, this->GetEps());
-      } else if (color_fmt == DALI_GRAY) {
-        AssertClose(data, sample.ref_gray, this->GetEps());
-      } else {
-        AssertEqualSatNorm(data, sample.ref);
-      }
+      if (color_fmt == DALI_YCbCr || color_fmt == DALI_GRAY)
+        AssertClose(data, sample.GetRef(color_fmt), this->GetEps());
+      else
+        AssertEqualSatNorm(data, sample.GetRef(color_fmt));
     }
   }
 
@@ -532,7 +473,6 @@ class ImageDecoderTest<ImageDecoderTestParams<Backend, OutputType, color_fmt>>
     auto samples = this->GetData(file_fmt);
     auto &sample = samples[0];
     auto out = this->Decode(&sample.image.src, this->GetParams(color_fmt));
-    DumpImages(out.view, sample, color_fmt);
     CompareData(out.view, sample);
   }
 
