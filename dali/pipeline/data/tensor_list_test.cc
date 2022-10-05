@@ -176,26 +176,38 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   }
 }
 
-TYPED_TEST(TensorListTest, InconsistentDevice) {
+TYPED_TEST(TensorListTest, ConsistentDeviceAndOrder) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   auto shape = uniform_list_shape(10, {1, 2, 3});
-  TensorList<Backend> non_pinned, pinned, empty;
+  TensorList<Backend> non_pinned, cpu_pinned, empty;
   non_pinned.SetContiguity(this->kContiguity);
-  pinned.SetContiguity(this->kContiguity);
+  cpu_pinned.SetContiguity(this->kContiguity);
   empty.SetContiguity(this->kContiguity);
 
   non_pinned.set_pinned(false);
-  pinned.set_pinned(true);
+  // pin only for CPU, it doesn't make sense for GPU.
+  cpu_pinned.set_pinned(std::is_same_v<CPUBackend, Backend>);
 
   non_pinned.Resize(shape, DALI_INT32);
-  pinned.Resize(shape, DALI_INT32);
+  cpu_pinned.Resize(shape, DALI_INT32);
 
-  std::cout << "[non_pinned]: order (device, stream): (" << non_pinned.order().device_id() << ", "
-            << non_pinned.order().get() << "), device_id: " << non_pinned.device_id() << std::endl;
-  std::cout << "[pinned]: order (device, stream): (" << pinned.order().device_id() << ", "
-            << pinned.order().get() << "), device_id: " << pinned.device_id() << std::endl;
-  std::cout << "[empty]: order (device, stream): (" << empty.order().device_id() << ", "
-            << empty.order().get() << "), device_id: " << empty.device_id() << std::endl;
+  // By default we use host order
+  EXPECT_EQ(non_pinned.order(), AccessOrder::host());
+  EXPECT_EQ(cpu_pinned.order(), AccessOrder::host());
+  EXPECT_EQ(empty.order(), AccessOrder::host());
+
+  if (std::is_same_v<CPUBackend, Backend>) {
+    // On CPU pinned memory is associated with device after allocation, regular memory is not
+    EXPECT_EQ(non_pinned.device_id(), CPU_ONLY_DEVICE_ID);
+    EXPECT_EQ(cpu_pinned.device_id(), 0);
+  } else {
+    // On GPU we associate all allocations with current device, by default 0.
+    EXPECT_EQ(non_pinned.device_id(), 0);
+    EXPECT_EQ(cpu_pinned.device_id(), 0);
+  }
+
+  // uninitialized is not associated with any device id
+  EXPECT_EQ(empty.device_id(), CPU_ONLY_DEVICE_ID);
 }
 
 TYPED_TEST(TensorListTest, TestReserveResize) {
