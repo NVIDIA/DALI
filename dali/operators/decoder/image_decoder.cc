@@ -95,7 +95,7 @@ the largest allocation value that is printed in the statistics.)code",
   .AddOptionalArg("hw_decoder_load",
       R"code(The percentage of the image data to be processed by the HW JPEG decoder.
 
-Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU and newer architecture.
 
 Determines the percentage of the workload that will be offloaded to the hardware decoder,
 if available. The optimal workload depends on the number of threads that are provided to
@@ -105,14 +105,14 @@ https://developer.nvidia.com/blog/loading-data-fast-with-dali-and-new-jpeg-decod
   .AddOptionalArg("preallocate_width_hint",
       R"code(Image width hint.
 
-Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU and newer architecture.
 
 The hint is used to preallocate memory for the HW JPEG decoder.)code",
       0)
   .AddOptionalArg("preallocate_height_hint",
       R"code(Image width hint.
 
-Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU architecture.
+Applies **only** to the ``mixed`` backend type in NVIDIA Ampere GPU and newer architecture.
 
 The hint is used to preallocate memory for the HW JPEG decoder.)code",
       0)
