@@ -482,6 +482,7 @@ void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
   contiguous_buffer_.set_order(order, false);
   for (auto &t : tensors_)
     t.set_order(order, false);
+  order_ = order;
 }
 
 

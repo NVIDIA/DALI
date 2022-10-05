@@ -941,9 +941,7 @@ std::vector<std::pair<std::string, std::function<void(TensorList<Backend> &)>>> 
       {"pinned", [pinned](TensorList<Backend> &t) { t.set_pinned(pinned); }},
       {"order",
        [device_id](TensorList<Backend> &t) {
-         constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
-         const auto order = is_device ? AccessOrder(cuda_stream, device_id) : AccessOrder::host();
-         t.set_order(order);
+         t.set_order(AccessOrder(cuda_stream, device_id));
        }},
   };
 }
@@ -955,7 +953,7 @@ TYPED_TEST(TensorListSuite, PartialSetupSetMultiGPU) {
     GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
-  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
+  const auto order = AccessOrder(cuda_stream, device);
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
@@ -1053,7 +1051,7 @@ TYPED_TEST(TensorListSuite, FullSetupSetMultiGPU) {
     GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
-  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
+  const auto order = AccessOrder(cuda_stream, device);
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
