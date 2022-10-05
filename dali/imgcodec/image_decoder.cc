@@ -291,7 +291,9 @@ void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) 
   {
     std::lock_guard guard(mtx_);
     assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
-           (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()));
+           (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()) ||
+           (work->cpu_outputs.size() == work->sources.size() &&
+            work->gpu_outputs.size() == work->sources.size()));
     assert(work->rois.empty() || work->rois.size() == work->sources.size());
     assert(work->temp_buffers.empty() || work->temp_buffers.size() == work->cpu_outputs.size());
     if (work_) {
@@ -309,7 +311,9 @@ void ImageDecoder::DecoderWorker::add_work(std::unique_ptr<ScheduledWork> work) 
 void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> work) noexcept {
   assert(work->num_samples() > 0);
   assert((work->cpu_outputs.empty() && work->gpu_outputs.size() == work->sources.size()) ||
-         (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()));
+         (work->gpu_outputs.empty() && work->cpu_outputs.size() == work->sources.size()) ||
+         (work->cpu_outputs.size() == work->sources.size() &&
+          work->gpu_outputs.size() == work->sources.size()));
   assert(work->rois.empty() || work->rois.size() == work->sources.size());
   assert(work->temp_buffers.empty() || work->temp_buffers.size() == work->cpu_outputs.size());
 
