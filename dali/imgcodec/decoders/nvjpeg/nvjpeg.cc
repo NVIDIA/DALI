@@ -239,8 +239,7 @@ void NvJpegDecoderInstance::ParseJpegSample(ImageSource& in, DecodeParams opts,
   nvjpegChromaSubsampling_t subsampling;
   CUDA_CALL(nvjpegGetImageInfo(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(), &c,
                                &subsampling, widths, heights));
-
-  ctx.shape = {heights[0], widths[0], c};
+  ctx.shape = {heights[0], widths[0], NumberOfChannels(opts.format, c)};
 }
 
 void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, DecodeParams opts,

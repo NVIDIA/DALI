@@ -257,10 +257,6 @@ class DecoderTestBase : public ::testing::Test {
     TensorShape<> shape;
     OutputShape(shape, info, opts, roi);
 
-    // Number of channels can be different than input's due to color conversion
-    // TODO(skarpinski) Don't assume channel-last layout here
-    *(shape.end() - 1) = NumberOfChannels(opts.format, *(info.shape.end() - 1));
-
     output_.reshape({{shape}});
 
     if (GetDeviceId() == CPU_ONLY_DEVICE_ID) {
@@ -276,8 +272,9 @@ class DecoderTestBase : public ::testing::Test {
       ctx.stream = stream_lease;
       auto decode_result = Decoder()->Decode(ctx, view, src, opts, roi);
       EXPECT_TRUE(decode_result.success);
+      auto out_tv = output_.cpu(ctx.stream)[0];
       CUDA_CALL(cudaStreamSynchronize(ctx.stream));
-      return output_.cpu()[0];
+      return out_tv;
     }
   }
 
@@ -321,8 +318,9 @@ class DecoderTestBase : public ::testing::Test {
       auto res = Decoder()->Decode(ctx, make_span(view), in, opts, rois);
       for (auto decode_result : res)
         EXPECT_TRUE(decode_result.success);
-      CUDA_CALL(cudaStreamSynchronize(stream));
-      return output_.cpu();
+      auto out_tlv = output_.cpu(ctx.stream);
+      CUDA_CALL(cudaStreamSynchronize(ctx.stream));
+      return out_tlv;
     }
   }
 
