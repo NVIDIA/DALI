@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cuda.h>
 #include <stdio.h>
 #include <dlfcn.h>
 #include <mutex>
@@ -23,7 +24,9 @@ namespace {
 typedef void* NVJPEGDRIVER;
 
 static const char __NvjpegLibName[] = "libnvjpeg.so";
-#if CUDA_VERSION >= 11000
+#if CUDA_VERSION >= 12000
+static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.12";
+#elif CUDA_VERSION >= 11000 && CUDA_VERSION < 12000
 static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.11";
 #else
 static const char __NvjpegLibNameCuVer[] = "libnvjpeg.so.10";
