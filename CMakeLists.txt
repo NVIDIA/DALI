@@ -105,6 +105,9 @@ cmake_dependent_option(BUILD_NVJPEG "Build with nvJPEG support" ON
 cmake_dependent_option(BUILD_NVJPEG2K "Build with nvJPEG2K support" ON
                         "NOT BUILD_DALI_NODEPS" OFF)
 
+cmake_dependent_option(BUILD_NVCOMP "Build with nvCOMP support" ON
+                        "NOT BUILD_DALI_NODEPS" OFF)
+
 cmake_dependent_option(BUILD_NVOF "Build with NVIDIA OPTICAL FLOW SDK support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) support" ON
@@ -214,6 +217,7 @@ propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)
 propagate_option(BUILD_NVDEC)
+propagate_option(BUILD_NVCOMP)
 propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
 propagate_option(LINK_DRIVER)
