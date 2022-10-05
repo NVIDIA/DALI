@@ -202,7 +202,7 @@ void FillTensorFromDlPack(py::capsule capsule, SourceDataType<SrcBackend> *batch
   // empty lambda that just captures dlm_tensor_ptr unique ptr that would be destructed when
   // shared ptr is destroyed
   batch->ShareData(shared_ptr<void>(dl_tensor.data,
-                                    [dlm_tensor_ptr = move(dlm_tensor_ptr)](void*) {}),
+                                    [dlm_tensor_ptr = std::move(dlm_tensor_ptr)](void*) {}),
                                     bytes, is_pinned, typed_shape, dali_type.id(), device_id);
 
 
