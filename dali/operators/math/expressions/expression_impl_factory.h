@@ -173,18 +173,12 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
   for (int i = 0; i < func.GetSubexpressionCount(); i++) {
     DALI_ENFORCE(func[i].GetNodeType() != NodeType::Function,
                  "Function nodes are not supported as subexpressions");
-    result[i].shape = {};
-    result[i].strides = {};
-    if (IsScalarLike(func[i])) {
-      if (func[i].GetNodeType() == NodeType::Constant) {
-        const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
-        result[i].data = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
-      } else if (func[i].GetNodeType() == NodeType::Tensor) {
-        const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
-        auto input_idx = tensor.GetInputIndex();
-        result[i].data = GetInputSamplePointer(ws, input_idx, sample_idx);
-        result[i].dtype = tensor.GetTypeId();
-      }
+    if (func[i].GetNodeType() == NodeType::Constant) {
+      const auto &constant = dynamic_cast<const ExprConstant &>(func[i]);
+      result[i].data = st.GetPointer(constant.GetConstIndex(), constant.GetTypeId());
+      result[i].dtype = constant.GetTypeId();
+      result[i].shape = {};
+      result[i].strides = {};
     } else if (func[i].GetNodeType() == NodeType::Tensor) {
       const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
       auto input_idx = tensor.GetInputIndex();
@@ -208,6 +202,9 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
   int nsamples =  ws.GetInputBatchSize(0);
   out_samples.clear();
   out_samples.reserve(nsamples);
+  if (nsamples == 0)
+    return;
+
   for (int s = 0; s < nsamples; s++) {
     out_samples.emplace_back(GetOutput<Backend>(func, ws, s), GetArgPack(func, ws, st, spec, s));
 
@@ -216,20 +213,35 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
       shape_ptrs.push_back(&arg.shape);
     }
     span<TensorShape<>*> shape_ptrs_span = make_span(shape_ptrs);
+    auto &out_sh = out_samples.back().output.shape;
 
     auto group_dims = SimplifiedShapeCollapseGroups(make_span(shape_ptrs));
     for (auto *sh : shape_ptrs) {
       *sh = collapse_dims(*sh, group_dims);
     }
-    auto &out_sh = out_samples.back().output.shape;
     out_sh = collapse_dims(out_sh, group_dims);
-    auto &out_strides = out_samples.back().output.strides;
+  }
 
-    for (auto &arg : out_samples.back().args) {
+  // Making sure all samples have same dimensionality
+  int out_max_ndim = out_samples[0].output.shape.sample_dim();
+  SmallVector<int, kMaxArity> args_max_ndim;
+  args_max_ndim.resize(out_samples[0].args.size());
+  for (size_t a = 0; a < out_samples[0].args.size(); a++)
+    args_max_ndim[a] = out_samples[0].args[a].shape.sample_dim();
+  for (int s = 1; s < nsamples; s++) {
+    out_max_ndim = std::max(out_max_ndim, out_samples[s].output.shape.sample_dim());
+    for (size_t a = 0; a < out_samples[s].args.size(); a++)
+      args_max_ndim[a] = std::max(args_max_ndim[a], out_samples[s].args[a].shape.sample_dim());
+  }
+  for (auto &out_sample : out_samples) {
+    ExpandToNDims(out_sample.output.shape, out_max_ndim);
+    kernels::CalcStrides(out_sample.output.strides, out_sample.output.shape);
+    for (size_t a = 0; a < out_sample.args.size(); a++) {
+      auto &arg = out_sample.args[a];
+      ExpandToNDims(arg.shape, args_max_ndim[a]);
       kernels::CalcStrides(arg.strides, arg.shape);
-      arg.strides = StridesForBroadcasting(out_sh, arg.shape, arg.strides);
+      arg.strides = StridesForBroadcasting(out_sample.output.shape, arg.shape, arg.strides);
     }
-    kernels::CalcStrides(out_strides, out_sh);
   }
 }
 

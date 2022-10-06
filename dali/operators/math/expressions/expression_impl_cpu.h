@@ -71,21 +71,20 @@ class ExprImplCpuTT : public ExprImplBase {
     auto &right = sample.args[1];
     const auto *right_ptr = static_cast<const Right *>(sample.args[1].data);
 
-    if (sample.output.shape.sample_dim() > 1) {
+    if (sample.args[0].shape == sample.args[1].shape) {
+      Execute(output_ptr, left_ptr, right_ptr, tile.offset, tile.extent_size);
+    } else {
       assert(tile.offset == 0);
       assert(tile.extent_size == volume(sample.output.shape));
       Execute(output_ptr, output.shape.data(), output.strides.data(),
               left_ptr, left.strides.data(), right_ptr, right.strides.data(),
               sample.output.shape.sample_dim());
-    } else {
-      Execute(output_ptr, left_ptr, right_ptr, tile.offset, tile.extent_size);
     }
   }
 
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
 
-  // TODO(janton): Remove
   static void Execute(Result *result, const Left *l, const Right *r,
                       int64_t offset, int64_t extent) {
     int64_t end = offset + extent;
@@ -209,7 +208,7 @@ class ExprImplCpuTernary : public ExprImplBase {
     auto &third = sample.args[2];
 
     if (sample.output.shape.sample_dim() > 1) {
-      DALI_FAIL("Broadcasting not implemented for ternary ops");
+      DALI_FAIL("Broadcasting not yet implemented for ternary ops");
     }
     Execute(output,
             expression_detail::Pass<IsFirstTensor, Result>(first.data, first.dtype),

@@ -24,6 +24,7 @@ import itertools
 
 from test_utils import np_type_to_dali
 from nose_utils import raises, assert_raises
+import os
 
 
 def list_product(*args):
@@ -36,10 +37,16 @@ def list_product(*args):
 
 batch_size = 4
 
+
 # Shape of the samples, currently forces the sample to have be covered by more than 1 tile
-shape_big = [(1024, 1024)] * batch_size
+def shape_big(arg_idx):
+    return [(1024, 1024)] * batch_size
+
+
 # For the coverage of all type combinations we use smaller batch
-shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
+def shape_small(arg_idx):
+    return [(42, 3), (4, 16), (8, 2), (1, 64)]
+
 
 # A number used to test constant inputs
 magic_number = 7
@@ -293,7 +300,8 @@ class ExternalInputIterator(object):
     the "shape" of `kinds` arguments should match the `types` argument - single elements or tuples
     of the same arity.
     """
-    def __init__(self, batch_size, shape, types, kinds, disallow_zeros=None, limited_range=None):
+    def __init__(self, batch_size, shape_gen, types, kinds,
+                 disallow_zeros=None, limited_range=None):
         try:
             self.length = len(types)
         except TypeError:
@@ -311,7 +319,7 @@ class ExternalInputIterator(object):
         for i in range(self.length):
             self.gens += [self.get_generator(self.types[i], disallow_zeros[i], limited_range[i])]
             if "scalar" not in kinds[i]:
-                self.shapes += [shape]
+                self.shapes += [shape_gen(i)]
             elif "scalar_legacy" in kinds[i]:
                 self.shapes += [[(1, )] * batch_size]
             else:
@@ -561,9 +569,6 @@ def test_ternary_ops_selected():
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
 
-# Only selected types, otherwise it takes too long
-
-
 @attr('slow')
 def slow_test_ternary_ops_kinds():
     for kinds in ternary_input_kinds:
@@ -793,3 +798,22 @@ def test_prohibit_min_max():
                          " be used for truth evaluation in regular Python context."))
 def test_bool_raises():
     bool(DataNode("dummy"))
+
+
+def test_arithmetic_ops_broadcasting():
+    os.environ['DALI_BROADCASTING_ENABLED'] = '1'
+
+    def get_sh(arg_idx):
+        shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
+        shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
+        if arg_idx == 0:
+            return shapes0
+        elif arg_idx == 1:
+            return shapes1
+        else:
+            assert False
+
+    for kinds in list_product(["cpu", "gpu"], ["cpu", "gpu"]):
+        for (op, op_desc, get_range) in sane_operations:
+            for types_in in [(np.int8, np.int8)]:
+                yield check_arithm_op, kinds, types_in, op, get_sh, get_range, op_desc

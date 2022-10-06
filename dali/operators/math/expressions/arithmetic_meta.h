@@ -1053,11 +1053,11 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
  * scalars).
  */
 inline bool IsScalarLike(const TensorListShape<> &shape) {
-  return is_uniform(shape) && shape.sample_dim() <= 1 && volume(shape.tensor_shape_span(0)) == 1;
+  return is_uniform(shape) && volume(shape.tensor_shape_span(0)) == 1;
 }
 
 inline bool IsScalarLike(const TensorShape<> &shape) {
-  return shape.sample_dim() <= 1 && volume(shape) == 1;
+  return volume(shape) == 1;
 }
 
 }  // namespace dali
