@@ -20,7 +20,6 @@
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_kernel.cuh"
 
 namespace dali {
-
 namespace imgcodec {
 
 namespace {
@@ -32,11 +31,6 @@ void LaunchSliceFlipNormalizePermutePad(
     Output *out, TensorLayout out_layout, TensorShape<kDims> out_shape,
     const Input *in, TensorLayout in_layout, TensorShape<kDims> in_shape,
     kernels::KernelContext ctx, const ROI &roi, Orientation orientation, float multiplier) {
-  // this normalization only works if Output range is [-1, 1]
-  static_assert(std::is_floating_point<Output>::value);
-  if (std::is_integral<Input>::value)
-    multiplier /= max_value<Input>();
-
   std::vector<kernels::SliceFlipNormalizePermutePadArgs<kDims>> args_container;
   args_container.emplace_back(out_shape, in_shape);
   auto &args = args_container[0];
@@ -77,20 +71,6 @@ void LaunchSliceFlipNormalizePermutePad(
   kernel.Run(ctx, tlv_out, tlv_in, args_container);
 }
 
-template <typename Output, typename Input>
-__global__ void convert_sat_norm_kernel(Output *out, const Input *in, int64_t size) {
-  auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid >= size) return;
-  out[tid] = ConvertSatNorm<Output>(in[tid]);
-}
-
-template <typename Output, typename Input>
-void LaunchConvertSatNorm(Output *out, const Input *in, size_t size, cudaStream_t stream) {
-  size_t block_size = size < 1024 ? size : 1024;
-  size_t num_blocks = (size + block_size - 1) / block_size;
-  convert_sat_norm_kernel<<<num_blocks, block_size, 0, stream>>>(out, in, size);
-}
-
 template<class Output, class Input>
 void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
                  ConstSampleView<GPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
@@ -111,24 +91,31 @@ void ConvertImpl(SampleView<GPUBackend> out, TensorLayout out_layout, DALIImageT
   int channel_dim = out_layout.find('C');
   intermediate_shape[channel_dim] = NumberOfChannels(in_format, intermediate_shape[channel_dim]);
 
-  auto size = volume(intermediate_shape);
-  auto buffer = scratchpad.Allocate<mm::memory_kind::device, float>(size);
+  // Normalize by changing the multiplier
+  multiplier *= ConvertNorm<float>(static_cast<Input>(1)) /
+                ConvertNorm<float>(static_cast<Output>(1));
+
+  if (out_format == DALI_ANY_DATA)
+    out_format = in_format;
+  // The Slice kernel doesn't support converting color space
+  bool needs_processing = out_format != in_format;
+  Output *slice_out = out.mutable_data<Output>();
+  if (needs_processing) {
+    auto size = volume(intermediate_shape);
+    slice_out = scratchpad.Allocate<mm::memory_kind::device, Output>(size);
+  }
+
   LaunchSliceFlipNormalizePermutePad(
-    buffer, out_layout, intermediate_shape, in.data<Input>(), in_layout, in.shape(),
+    slice_out, out_layout, intermediate_shape, in.data<Input>(), in_layout, in.shape(),
     ctx, roi, orientation, multiplier);
 
-  if (out_format == DALI_ANY_DATA) {
-    out_format = in_format;
-  }
-  if (out_format != in_format) {
+  if (needs_processing) {
     DALI_ENFORCE(out_layout.find('C') == kDims - 1,
                  "Only channel last layout is supported when running color space conversion");
 
     auto npixels = out.shape()[0] * out.shape()[1];
     kernels::color::RunColorSpaceConversionKernel(
-      out.mutable_data<Output>(), buffer, out_format, in_format, npixels, stream);
-  } else {
-    LaunchConvertSatNorm(out.mutable_data<Output>(), buffer, size, stream);
+      out.mutable_data<Output>(), slice_out, out_format, in_format, npixels, stream);
   }
 }
 

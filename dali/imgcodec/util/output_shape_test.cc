@@ -270,5 +270,24 @@ TEST(PreOrientationRoiTest, Rotate270) {
   EXPECT_EQ(roi.end[1], 5);
 }
 
+TEST(PreOrientationRoiTest, MirrorHorizontalRotate90WithoutChannel) {
+  ImageInfo info = {{4, 5},
+                    FromExifOrientation(ExifOrientation::MIRROR_HORIZONTAL_ROTATE_90_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 2);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 3);
+  EXPECT_EQ(roi.end[1], 5);
+}
+
+TEST(PreOrientationRoiTest, Rotate270WithExtraDim) {
+  ImageInfo info = {{10, 4, 5, 3}, FromExifOrientation(ExifOrientation::ROTATE_270_CW)};
+  auto roi = PreOrientationRoi(info, {{0, 1}, {2, 2}});
+  EXPECT_EQ(roi.begin[0], 1);
+  EXPECT_EQ(roi.begin[1], 3);
+  EXPECT_EQ(roi.end[0], 2);
+  EXPECT_EQ(roi.end[1], 5);
+}
+
 }  // namespace imgcodec
 }  // namespace dali
