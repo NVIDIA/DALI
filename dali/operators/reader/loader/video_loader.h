@@ -175,9 +175,9 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper> {
     DALI_ENFORCE(stride_ > 0, "Stride should be > 0");
     if (step_ < 0)
       step_ = count_ * stride_;
-    if (!file_list_include_preceding_frame_) {
-      DALI_WARN("``file_list_include_preceding_frame`` is set to False (or not set at all). In "
-                "future releases, the default behavior would be changed to True.");
+    if (!spec.HasArgument("file_list_include_preceding_frame")) {
+      DALI_WARN("``file_list_include_preceding_frame`` uses the default value False. In "
+                "future releases, the default value will be changed to True.");
     }
 
     bool use_labels = spec.TryGetRepeatedArgument(labels_, "labels");

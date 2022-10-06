@@ -229,8 +229,8 @@ parser.add_argument(
     '-g', '--gpus', default=1, type=int, metavar='N',
     help='number of GPUs run in parallel by this test (default: 1)')
 parser.add_argument(
-    '-b', '--batch', default=1024, type=int, metavar='N',
-    help='batch size (default: 1024)')
+    '-b', '--batch', default=512, type=int, metavar='N',
+    help='batch size (default: 512)')
 parser.add_argument(
     '-p', '--print-freq', default=10, type=int,
     metavar='N', help='print frequency (default: 10)')

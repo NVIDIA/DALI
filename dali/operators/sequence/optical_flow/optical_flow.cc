@@ -26,7 +26,7 @@ The main input for this operator is a sequence of frames. Optionally, the operat
 can be provided with external hints for the optical flow calculation. The output format of this operator
 matches the output format of the optical flow driver API.
 Refer to https://developer.nvidia.com/opticalflow-sdk for more information about the
-Turing and Ampere optical flow hardware that is used by DALI.
+Turing, Ampere and Hopper optical flow hardware that is used by DALI.
 )code")
                 .NumInput(1, 2)
                 .NumOutput(1)

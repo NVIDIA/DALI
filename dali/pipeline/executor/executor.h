@@ -605,7 +605,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGraph &graph) {
   pipeline_outputs_ = graph.GetOutputs(output_names_);
 
 
-  graph.SetupMakeContiguousPassThrough(output_names_);
+  graph.SetupMakeContiguousPassThrough();
 
   // If there are GPU outputs from given stages, we have to wait for them
   auto has_gpu_output = [] (OpType stage_type, const auto &pipeline_outputs,
@@ -670,6 +670,22 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     }
     return;
   }
+
+  auto pin_cpu_passthrough = [](std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
+                                const OpGraph &graph, int tid) {
+    auto origin_group = graph.GetTensorOrigin(tid);
+    // For all tensors that are forming a pass through group ...
+    for (auto &origin_tensor_id : origin_group) {
+      // (we do this only for CPU data produced in CPU nodes)
+      auto &parent_tensor_queue =
+          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[origin_tensor_id]);
+      for (auto &batch : parent_tensor_queue) {
+        // ... mark all executor buffer queues as `pinned`
+        batch->set_pinned(true);
+      }
+    }
+  };
+
   // We only pin what we need:
   // The inputs of mixed ops are potentially used for H2D copies...
   for (int i = 0; i < graph.NumOp(OpType::MIXED); i++) {
@@ -679,10 +695,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       // Use pinned memory only when it is useful
-      auto &parent_tensor_queue =
-          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
-      for (auto &tensor : parent_tensor_queue) {
-        tensor->set_pinned(node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage());
+      if (node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage()) {
+        pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
       }
     }
   }
@@ -693,10 +707,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int j = 0; j < node.spec.NumInput(); ++j) {
       auto tid = node.parent_tensors[j];
       if (graph.Tensor(tid).producer.storage_device == StorageDevice::CPU) {
-        auto &parent_tensor_queue =
-            get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
-        for (auto &tensor : parent_tensor_queue) {
-          tensor->set_pinned(node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage());
+        if (node.spec.OutputDevice(0) == "gpu" && !RestrictPinnedMemUsage()) {
+          pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
         }
       }
     }
