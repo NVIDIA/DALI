@@ -120,11 +120,27 @@ DLL_PUBLIC TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh,
 DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
 
 /**
+ * @brief Simplifies shapes by collapsing dimensions that are the same in all shapes
+ *
+ * @param shapes span of shapes to broadcast
+ * @return SmallVector<std::pair<int, int>, 5> groups of dimensions to collapse [i, j)
+ */
+DLL_PUBLIC SmallVector<std::pair<int, int>, 5> SimplifiedShapeCollapseGroups(
+    span<TensorShape<> *> shapes);
+
+/**
  * @brief It simplifies a shape for arithmetic op execution with broadcasting.
  *        It detects and collapses adjacent dimensions that are not broadcasted
  * @remarks For shapes that don't need broadcasting, it results in a 1D shape.
  */
-DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c);
+
+/**
+ * @brief Check whether broadcasting should be enabled (via env variable)
+ */
+DLL_PUBLIC bool IsBroadcastingEnabled();
 
 }  // namespace dali
 
