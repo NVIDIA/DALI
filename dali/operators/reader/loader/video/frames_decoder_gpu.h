@@ -52,7 +52,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
  public:
   /**
    * @brief Construct a new FramesDecoder object.
-   * 
+   *
    * @param filename Path to a video file.
    * @param stream Stream used for decode processing.
    */
@@ -60,11 +60,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   /**
  * @brief Construct a new FramesDecoder object.
- * 
+ *
  * @param memory_file Pointer to memory with video file data.
  * @param memory_file_size Size of memory_file in bytes.
  * @param build_index If set to false index will not be build and some features are unavailable.
- * 
+ *
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.
  */
@@ -82,9 +82,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   int NextFramePts() { return Index(NextFrameIdx()).pts; }
 
-  int ProcessPictureDecodeWithIndex(void *user_data, CUVIDPICPARAMS *picture_params);
-
-  int ProcessPictureDecodeWithoutIndex(void *user_data, CUVIDPICPARAMS *picture_params);
+  int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
 
   FramesDecoderGpu(FramesDecoderGpu&&) = default;
 
@@ -129,6 +127,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output);
 
   bool ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output);
+
+  bool SendFrameToParser();
 };
 
 }  // namespace dali

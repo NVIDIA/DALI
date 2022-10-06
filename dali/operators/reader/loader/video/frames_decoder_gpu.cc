@@ -36,11 +36,7 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
 
-  if (frames_decoder->HasIndex()) {
-    return frames_decoder->ProcessPictureDecodeWithIndex(user_data, picture_params);
-  }
-
-  return frames_decoder->ProcessPictureDecodeWithoutIndex(user_data, picture_params);
+  return frames_decoder->ProcessPictureDecode(user_data, picture_params);
 }
 }  // namespace detail
 
@@ -145,7 +141,7 @@ FramesDecoderGpu::FramesDecoderGpu(
   InitGpuDecoder();
 }
 
-int FramesDecoderGpu::ProcessPictureDecodeWithIndex(
+int FramesDecoderGpu::ProcessPictureDecode(
   void *user_data, CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
@@ -175,7 +171,7 @@ int FramesDecoderGpu::ProcessPictureDecodeWithIndex(
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
-  if (current_pts == NextFramePts()) {
+  if (HasIndex() && current_pts == NextFramePts()) {
     // Currently decoded frame is actually the one we wanted
     frame_returned_ = true;
 
@@ -187,74 +183,14 @@ int FramesDecoderGpu::ProcessPictureDecodeWithIndex(
     }
     frame_output = current_frame_output_;
   } else {
+    LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+        std::setw(5) << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
+
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
     slot.pts_ = current_pts;
     frame_output = slot.frame_.data();
   }
-
-  CUdeviceptr frame = {};
-  unsigned int pitch = 0;
-
-  CUDA_CALL(cuvidMapVideoFrame(
-    nvdecode_state_->decoder,
-    picture_params->CurrPicIdx,
-    &frame,
-    &pitch,
-    &videoProcessingParameters));
-
-  // TODO(awolant): Benchmark, if copy would be faster
-  yuv_to_rgb(
-    reinterpret_cast<uint8_t *>(frame),
-    pitch,
-    frame_output,
-    Width()* 3,
-    Width(),
-    Height(),
-    stream_);
-  // TODO(awolant): Alterantive is to copy the data to a buffer
-  // and then process it on the stream. Check, if this is faster, when
-  // the benchmark is ready.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
-  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
-
-  return 1;
-}
-
-int FramesDecoderGpu::ProcessPictureDecodeWithoutIndex(
-  void *user_data, CUVIDPICPARAMS *picture_params) {
-  // Sending empty packet will call this callback.
-  // If we want to flush the decoder, we do not need to do anything here
-  if (flush_) {
-    return 0;
-  }
-
-  CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
-
-  // Process decoded frame for output
-  CUVIDPROCPARAMS videoProcessingParameters = {};
-  videoProcessingParameters.progressive_frame = !picture_params->field_pic_flag;
-  videoProcessingParameters.second_field = 1;
-  videoProcessingParameters.top_field_first = picture_params->bottom_field_flag ^ 1;
-  videoProcessingParameters.unpaired_field = 0;
-  videoProcessingParameters.output_stream = stream_;
-
-  uint8_t *frame_output = nullptr;
-
-  // Take pts of the currently decoded frame
-  int current_pts = piped_pts_.front();
-  piped_pts_.pop();
-
-  // current_pts is pts of frame that came from the decoder
-  // NextFramePts() is pts of the frame that we want to return
-  // in this call to ReadNextFrame
-  // If they are the same, we just return this frame
-  // If not, we store it in the buffer for later
-
-  // Put currently decoded frame to the buffer for later
-  auto &slot = FindEmptySlot();
-  slot.pts_ = current_pts;
-  frame_output = slot.frame_.data();
 
   CUdeviceptr frame = {};
   unsigned int pitch = 0;
@@ -313,32 +249,9 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
   current_frame_output_ = data;
 
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-    if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+    if (!SendFrameToParser()) {
       continue;
     }
-
-    // Store pts from current packet to indicate,
-    // that this frame is in the decoder
-    piped_pts_.push(av_state_->packet_->pts);
-
-    // Add header needed for NVDECODE to the packet
-    if (filtered_packet_->data) {
-      av_packet_unref(filtered_packet_);
-    }
-    DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
-    DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
-
-    // Prepare nv packet
-    CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-    memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-    packet->payload = filtered_packet_->data;
-    packet->payload_size = filtered_packet_->size;
-    packet->flags = CUVID_PKT_TIMESTAMP;
-    packet->timestamp = filtered_packet_->pts;
-
-    // Send packet to the nv decoder
-    frame_returned_ = false;
-    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
     if (frame_returned_) {
       ++next_frame_idx_;
@@ -353,6 +266,36 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output
   return true;
 }
 
+bool FramesDecoderGpu::SendFrameToParser() {
+  if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+    return false;
+  }
+
+  // Store pts from current packet to indicate,
+  // that this frame is in the decoder
+  piped_pts_.push(av_state_->packet_->pts);
+
+  // Add header needed for NVDECODE to the packet
+  if (filtered_packet_->data) {
+    av_packet_unref(filtered_packet_);
+  }
+  DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
+  DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
+
+  // Prepare nv packet
+  CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+  memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+  packet->payload = filtered_packet_->data;
+  packet->payload_size = filtered_packet_->size;
+  packet->flags = CUVID_PKT_TIMESTAMP;
+  packet->timestamp = filtered_packet_->pts;
+
+  // Send packet to the nv decoder
+  frame_returned_ = false;
+  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+  return true;
+}
+
 bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output) {
   current_copy_to_output_ = copy_to_output;
   current_frame_output_ = data;
@@ -360,32 +303,9 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   // Initial fill of the buffer
   while (HasEmptySlot() && more_frames_to_decode_) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-      if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+      if (!SendFrameToParser()) {
         continue;
       }
-
-      // Store pts from current packet to indicate,
-      // that this frame is in the decoder
-      piped_pts_.push(av_state_->packet_->pts);
-
-      // Add header needed for NVDECODE to the packet
-      if (filtered_packet_->data) {
-        av_packet_unref(filtered_packet_);
-      }
-      DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
-      DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
-
-      // Prepare nv packet
-      CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-      memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-      packet->payload = filtered_packet_->data;
-      packet->payload_size = filtered_packet_->size;
-      packet->flags = CUVID_PKT_TIMESTAMP;
-      packet->timestamp = filtered_packet_->pts;
-
-      // Send packet to the nv decoder
-      frame_returned_ = false;
-      CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
     } else {
       SendLastPacket();
       more_frames_to_decode_ = false;
@@ -393,14 +313,14 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   }
 
   int frame_to_return_index = -1;
-  for (int i = 0; i < num_decode_surfaces_; ++i) {
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
     if (frame_buffer_[i].pts_ != -1) {
       frame_to_return_index = i;
       break;
     }
   }
 
-  for (int i = 1; i < num_decode_surfaces_; ++i) {
+  for (size_t i = 1; i < frame_buffer_.size(); ++i) {
     if (frame_buffer_[i].pts_ != -1) {
       if (frame_buffer_[frame_to_return_index].pts_ > frame_buffer_[i].pts_) {
         frame_to_return_index = i;
@@ -425,32 +345,9 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
 
   while (HasEmptySlot() && more_frames_to_decode_) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-      if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+      if (SendFrameToParser()) {
         continue;
       }
-
-      // Store pts from current packet to indicate,
-      // that this frame is in the decoder
-      piped_pts_.push(av_state_->packet_->pts);
-
-      // Add header needed for NVDECODE to the packet
-      if (filtered_packet_->data) {
-        av_packet_unref(filtered_packet_);
-      }
-      DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
-      DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
-
-      // Prepare nv packet
-      CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-      memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-      packet->payload = filtered_packet_->data;
-      packet->payload_size = filtered_packet_->size;
-      packet->flags = CUVID_PKT_TIMESTAMP;
-      packet->timestamp = filtered_packet_->pts;
-
-      // Send packet to the nv decoder
-      frame_returned_ = false;
-      CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
     } else {
       SendLastPacket();
       more_frames_to_decode_ = false;
