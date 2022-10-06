@@ -159,16 +159,13 @@ __device__ void ExecuteTernaryOp(Result *result,
                                  DALIDataType first_type, DALIDataType second_type,
                                  DALIDataType third_type, int64_t offset, int64_t extent) {
   using meta_t = arithm_meta<op, GPUBackend>;
-  int64_t start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t pos = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
-  auto *tile_end = result + offset + extent;
-  result += start;
-  while (result < tile_end) {
-    *result = meta_t::impl(expression_detail::Access<Result>(first, start, first_type),
-                           expression_detail::Access<Result>(second, start, second_type),
-                           expression_detail::Access<Result>(third, start, third_type));
-    result += stride;
-    start += stride;
+  int64_t end_pos = offset + extent;
+  for (; pos < end_pos; pos += stride) {
+    result[pos] = meta_t::impl(expression_detail::Access<Result>(first, pos, first_type),
+                               expression_detail::Access<Result>(second, pos, second_type),
+                               expression_detail::Access<Result>(third, pos, third_type));
   }
 }
 
@@ -263,15 +260,15 @@ __global__ void ExecuteTiledTernaryOp(const SampleDescGPU<3, 1> *samples, const 
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
   auto output = static_cast<Result *>(sample.output.data);
-  const void* first = sample.args[0].data;
-  const void* second = sample.args[1].data;
-  const void* third = sample.args[2].data;
+  auto &arg0 = sample.args[0];
+  auto &arg1 = sample.args[1];
+  auto &arg2 = sample.args[2];
   ExecuteTernaryOp<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>(
       output,
-      expression_detail::Pass<IsFirstTensor, Result>(first, sample.args[0].dtype),
-      expression_detail::Pass<IsSecondTensor, Result>(second, sample.args[1].dtype),
-      expression_detail::Pass<IsThirdTensor, Result>(third, sample.args[2].dtype),
-      sample.args[0].dtype, sample.args[0].dtype, sample.args[0].dtype,
+      expression_detail::Pass<IsFirstTensor, Result>(arg0.data, arg0.dtype),
+      expression_detail::Pass<IsSecondTensor, Result>(arg1.data, arg1.dtype),
+      expression_detail::Pass<IsThirdTensor, Result>(arg2.data, arg2.dtype),
+      arg0.dtype, arg1.dtype, arg2.dtype,
       tile.offset, tile.extent_size);
 }
 
@@ -403,19 +400,16 @@ class ExprImplGPUInvokeBinary : public ExprImplBase {
         sample_cpu.output.strides[d] = sample.output.strides[d];
       }
 
-      sample_cpu.args[0].data = sample.args[0].data;
-      sample_cpu.args[0].dtype = sample.args[0].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_cpu.args[0].shape[d] = sample.args[0].shape[d];
-        sample_cpu.args[0].strides[d] = sample.args[0].strides[d];
-      }
-
-      sample_cpu.args[1].data = sample.args[1].data;
-      sample_cpu.args[1].dtype = sample.args[1].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_cpu.args[1].shape[d] = sample.args[1].shape[d];
-        sample_cpu.args[1].strides[d] = sample.args[1].strides[d];
-      }
+      auto prepare_args = [&](int i) {
+        sample_cpu.args[i].data = sample.args[i].data;
+        sample_cpu.args[i].dtype = sample.args[i].dtype;
+        for (int d = 0; d < ndim; d++) {
+          sample_cpu.args[i].shape[d] = sample.args[i].shape[d];
+          sample_cpu.args[i].strides[d] = sample.args[i].strides[d];
+        }
+      };
+      prepare_args(0);
+      prepare_args(1);
     }
 
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);

@@ -291,18 +291,10 @@ SmallVector<std::pair<int, int>, 5> SimplifiedShapeCollapseGroups(span<TensorSha
     ExpandToNDims(*sh, full_ndim);
   }
 
-  SmallVector<bool, kMaxArity> scalar_like;
-  scalar_like.resize(shapes.size(), false);
-  for (int k = 0; k < shapes.size(); k++) {
-    scalar_like[k] = (volume(*shapes[k]) == 1);
-  }
-
-  // Aim to collapse dimensions shared by all shapes
-  auto all_same_or_scalar = [=](int dim) {
+  // True if all dim-th extents are equal
+  auto all_same = [=](int dim) {
     int64_t extent = -1;
     for (int k = 0; k < shapes.size(); k++) {
-      if (scalar_like[k])
-        continue;
       if (extent == -1) {
         extent = (*shapes[k])[dim];
       } else if (extent != (*shapes[k])[dim]) {
@@ -312,24 +304,106 @@ SmallVector<std::pair<int, int>, 5> SimplifiedShapeCollapseGroups(span<TensorSha
     return true;
   };
 
-  // Collapsing dims with equal extents on all shapes
-  int i = 0;
-  while (i < full_ndim) {
-    if (!all_same_or_scalar(i)) {
-      i++;
-      continue;
-    }
-
-    int j = i;
-    for (; j < full_ndim; j++) {
-      if (!all_same_or_scalar(j)) {
-        break;
+  // True if all dim-th extents are one
+  auto all_ones = [=](int dim) {
+    for (int k = 0; k < shapes.size(); k++) {
+      if (1 != (*shapes[k])[dim]) {
+        return false;
       }
     }
-    if (i < j) {
-      group_dims.emplace_back(i, j - i);
+    return true;
+  };
+
+  // True if all dim-th extents are the same, or equal to one
+  auto all_same_or_one = [=](int dim) {
+    int64_t extent = -1;
+    for (int k = 0; k < shapes.size(); k++) {
+      int64_t value = (*shapes[k])[dim];
+      if (value == 1)
+        continue;
+      if (extent == -1) {
+        extent = value;
+      } else if (extent != value) {
+        return false;
+      }
     }
-    i = j;
+    return true;
+  };
+
+  // Can collapse dimensions with 'odd ones' (not all extents are 1)
+  // when there is no transition from or to odd one in the two dimensions
+  // Examples:
+  // 1. Can collapse even if we have transition from 2 to 1,
+  //    because there are only ones on the second dimension
+  // {2 1} -> {2}
+  // {1 1} -> {1}
+  // 2. Can NOT collapse because there is a transition to 1
+  // {2 1} -> {2 1}
+  // {2 2} -> {2 2}
+  auto can_merge_ones = [=](int dim) {
+    for (int k = 0; k < shapes.size(); k++) {
+      auto &sh = *shapes[k];
+      if ((sh[dim] != 1 && sh[dim + 1] == 1 && !all_ones(dim + 1)) ||
+          (sh[dim] == 1 && !all_ones(dim) && sh[dim + 1] != 1)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // We can merge a dimension with the next if any of the following conditions apply:
+  // 1. All extents on that dimension and the next are the same (that also includes all ones)
+  // 2. All extents on that dimension and the next are the same or one,
+  //    and the ones are either present or not present in both dimensions
+  auto can_merge_next = [=](int dim) {
+    if (all_same(dim) && all_same(dim + 1))
+      return true;
+    else if (all_same_or_one(dim) && all_same_or_one(dim + 1) && can_merge_ones(dim))
+      return true;
+    else
+      return false;
+  };
+
+  // Updates the volumes with the new dimension and returns true if the resulting volumes are
+  // compatible (all the same except for 1s)
+  auto compatible_vol = [=](SmallVector<int64_t, kMaxArity>& volumes, int dim) {
+    int64_t curr_vol = -1;
+    for (int k = 0; k < shapes.size(); k++) {
+      volumes[k] *= (*shapes[k])[dim];
+      if (volumes[k] == 1)
+        continue;  // always compatible
+      else if (curr_vol == -1)
+        curr_vol = volumes[k];
+      else if (curr_vol != volumes[k])
+        return false;  // not compatible
+    }
+    return true;
+  };
+
+  int i = 0;
+  SmallVector<int64_t, kMaxArity> volumes;
+  volumes.resize(shapes.size(), 1);
+  for (; i < full_ndim - 1;) {
+    if (compatible_vol(volumes, i)) {
+      int j = i + 1;
+      for (; j < full_ndim;) {
+        if (compatible_vol(volumes, j) && can_merge_next(j - 1)) {
+          j++;
+        } else {
+          break;
+        }
+      }
+      int group_sz = j - i;
+      if (group_sz > 1) {
+        group_dims.emplace_back(i, group_sz);
+      }
+      i = j;
+    } else {
+      i++;
+    }
+    // clean accumulated volumes
+    volumes.clear();
+    volumes.resize(shapes.size(), 1);
   }
   return group_dims;
 }
@@ -354,7 +428,7 @@ void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorSha
 bool IsBroadcastingEnabled() {
   static bool value = []() {
     const char *env = std::getenv("DALI_BROADCASTING_ENABLED");
-    return !env || atoi(env);
+    return env && atoi(env);
   }();
   return value;
 }
