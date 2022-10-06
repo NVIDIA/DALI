@@ -17,6 +17,8 @@
 #include <chrono>
 #include <future>
 
+#include "dali/core/tensor_shape.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/test/dali_test_decoder.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
@@ -601,6 +603,106 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   ASSERT_EQ(cb_counter, 2);
 
   test::CheckResults(ws, batch_size, 1, tl);
+}
+
+
+TYPED_TEST(ExecutorTest, TestPinning) {
+  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+  exe->Init();
+
+  // Build a basic cpu->gpu graph
+  OpGraph graph;
+  graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("device_id", 0)
+                                    .AddOutput("data_0", "cpu")),
+              "ExternalSource_0");
+
+  // First set of Copy + Copy and Pass Through
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_0", "cpu")),
+              "Copy_0");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_1", "cpu")),
+              "Copy_1");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("layout", "")
+                                    .AddInput("copy_0", "cpu")
+                                    .AddOutput("pass_through_0", "cpu")),
+              "PassThrough_0");
+
+  // Trigger pinning of first set when it moves CPU -> GPU
+  graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
+                                    .AddArg("device", "mixed")
+                                    .AddInput("pass_through_0", "cpu")
+                                    .AddOutput("out_0", "gpu")),
+              "MakeContiguous_0");
+
+  // but not the Copy_1 to compare against
+  graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
+                                    .AddArg("device", "mixed")
+                                    .AddInput("copy_1", "cpu")
+                                    .AddOutput("out_1", "cpu")),
+              "MakeContiguous_1");
+
+
+  // Second set of Copy and Pass Through
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddArg("device", "cpu")
+                                    .AddInput("data_0", "cpu")
+                                    .AddOutput("copy_2", "cpu")),
+              "Copy_2");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("layout", "")
+                                    .AddInput("copy_2", "cpu")
+                                    .AddOutput("pass_through_1", "cpu")),
+              "PassThrough_1");
+
+  // Check pinning argument inputs to operators in GPU stage
+  graph.AddOp(this->PrepareSpec(OpSpec("random__CoinFlip")
+                                    .AddArg("device", "gpu")
+                                    .AddArgumentInput("probability", "pass_through_1")
+                                    .AddOutput("out_2", "gpu")),
+              "CoinFlip");
+
+  vector<string> outputs = {"copy_0_cpu",         "copy_1_cpu", "pass_through_0_cpu", "copy_2_cpu",
+                            "pass_through_1_cpu", "out_0_gpu",  "out_1_cpu",          "out_2_gpu"};
+
+  exe->Build(&graph, outputs);
+
+  // Set the data for the external source
+  auto *src_op = dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
+  TensorList<CPUBackend> tl;
+  tl.Resize(uniform_list_shape(this->batch_size_, TensorShape<>{}), DALI_FLOAT);
+  src_op->SetDataSource(tl);
+
+  exe->RunCPU();
+  exe->RunMixed();
+  exe->RunGPU();
+
+  DeviceWorkspace ws;
+  exe->Outputs(&ws);
+
+  // Utilize the fact that the outputs are shared from the executor, so we can check if they are
+  // pinned in a way we expect
+  // Currently we expect to pin anything that is CPU argument input into GPU operator, and
+  // is a CPU -> GPU copy (not via a decoder), so CPU input to Mixed operator that returns GPU data.
+  // The whole pass-through group should be pinned as well.
+
+  EXPECT_TRUE(ws.Output<CPUBackend>(0).is_pinned());   // copy_0_cpu
+  EXPECT_FALSE(ws.Output<CPUBackend>(1).is_pinned());  // copy_1_cpu
+  EXPECT_TRUE(ws.Output<CPUBackend>(2).is_pinned());   // pass_through_0_cpu
+  EXPECT_TRUE(ws.Output<CPUBackend>(3).is_pinned());   // copy_2_cpu
+  EXPECT_TRUE(ws.Output<CPUBackend>(4).is_pinned());   // pass_through_1_cpu
 }
 
 }  // namespace dali

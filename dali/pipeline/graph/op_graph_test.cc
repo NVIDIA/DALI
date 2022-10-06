@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/pipeline/graph/op_graph.h"
 
 #include <gtest/gtest.h>
+#include <stdexcept>
 
 #include "dali/test/dali_test.h"
 
@@ -587,5 +588,62 @@ TEST_F(OpGraphTest, TestFailureCircularOp) {
               .AddOutput("data", "cpu")), ""),
       std::runtime_error);
 }
+
+TEST_F(OpGraphTest, TestGetTensorOrigin) {
+  OpGraph graph;
+
+  // The nodes are numbered in the order of addition, top to bottom in graph.
+  graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
+                                    .AddArg("device", "cpu")
+                                    .AddArg("device_id", 0)
+                                    .AddOutput("data", "cpu")),  // tensor node 0
+              "ExternalSource");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddInput("data", "cpu")
+                                    .AddOutput("copy_0_data", "cpu")),  // tensor node 1
+              "Copy0");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
+                                    .AddInput("copy_0_data", "cpu")
+                                    .AddOutput("contiguous_data", "cpu")),  // tensor node 2
+              "MakeContiguous");
+
+  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+                                    .AddInput("contiguous_data", "cpu")
+                                    .AddArg("layout", "INeedToSpecifyAnArgumentToNotMakeItNoOp")
+                                    .AddOutput("reshape_data", "cpu")),  // tensor node 3
+              "Reshape");
+
+
+  graph.AddOp(this->PrepareSpec(OpSpec("Copy")
+                                    .AddInput("reshape_data", "cpu")
+                                    .AddOutput("copy_1_data", "cpu")),  // tensor node 4
+              "Copy1");
+
+  graph.InstantiateOperators();
+
+  // we didn't compute pass through for MakeContiguous
+  EXPECT_THROW(graph.GetTensorOrigin(0), std::runtime_error);
+
+  graph.SetupMakeContiguousPassThrough();
+
+  // Entry point to the graph
+  auto origin_0 = std::vector<TensorNodeId>{0};
+  EXPECT_EQ(graph.GetTensorOrigin(0), origin_0);
+  // Copy doesn't pass through
+  auto origin_1 = std::vector<TensorNodeId>{1};
+  EXPECT_EQ(graph.GetTensorOrigin(1), origin_1);
+  // Make Contiguous passes through a contiguous output from copy
+  auto origin_2 = std::vector<TensorNodeId>{2, 1};
+  EXPECT_EQ(graph.GetTensorOrigin(2), origin_2);
+  // Same as above, and Reshape is always Pass Through
+  auto origin_3 = std::vector<TensorNodeId>{3, 2, 1};
+  EXPECT_EQ(graph.GetTensorOrigin(3), origin_3);
+  // Copy doesn't pass through
+  auto origin_4 = std::vector<TensorNodeId>{4};
+  EXPECT_EQ(graph.GetTensorOrigin(4), origin_4);
+}
+
 
 }  // namespace dali

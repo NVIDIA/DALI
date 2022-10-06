@@ -463,8 +463,8 @@ TEST_F(PipelineTestOnce, TestPresize) {
   // we should not presize CPU buffers if they are not pinned
   ASSERT_EQ(*(ws.Output<CPUBackend>(0).tensor<size_t>(0)), 0);
 
-  // this one is also going through make contiguous first
-  ASSERT_EQ(*(ws.Output<CPUBackend>(1).tensor<size_t>(0)), 0);
+  // this one is also going through mixed CPU -> GPU operator, so it is pinned and presized
+  ASSERT_EQ(*(ws.Output<CPUBackend>(1).tensor<size_t>(0)), presize_val_CPU);
 
   size_t tmp[2];
   CUDA_CALL(cudaDeviceSynchronize());
