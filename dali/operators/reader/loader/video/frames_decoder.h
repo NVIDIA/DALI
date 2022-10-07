@@ -118,13 +118,11 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
-   *
    */
   int64_t NumFrames() const;
 
   /**
    * @brief Width of a video frame in pixels
-   *
    */
   int Width() const {
     return av_state_->codec_params_->width;
@@ -140,7 +138,6 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Number of channels in a video
-   *
    */
   int Channels() const {
       return channels_;
@@ -148,15 +145,13 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Total number of values in a frame (width * height * channels)
-   *
    */
   int FrameSize() const {
     return Channels() * Width() * Height();
   }
 
-    /**
+  /**
    * @brief Is video variable frame rate
-   *
    */
   bool IsVfr() const {
     return is_vfr_;
@@ -180,7 +175,6 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Seeks to the first frame
-   *
    */
   virtual void Reset();
 
