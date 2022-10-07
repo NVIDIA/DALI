@@ -173,7 +173,7 @@ class DLL_PUBLIC OperatorBase {
     using namespace std;  // NOLINT
     static_assert(is_arithmetic_or_half<remove_reference_t<T>>::value || is_enum<T>::value,
                   "The eligible diagnostic entry types are arithmetic types or enum");
-    if (!diagnostics_.emplace(move(name), val).second) {
+    if (!diagnostics_.emplace(std::move(name), val).second) {
       DALI_FAIL("Diagnostic with given name already exists");
     }
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -264,7 +264,6 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
   // This helps us reduce the number of cuFFT calls for batch sizes difficult to decompose
   // to powers of 2.
 
-  int calls = 0;
   int max_stream = -1;
   int stream_idx = 0;
   bool first_round = true;
@@ -284,7 +283,6 @@ void StftImplGPU::RunTransform(ExecutionContext &ctx) {
     CUDA_CALL(cufftSetStream(pi.handle, streams_[stream_idx].stream));
     CUDA_CALL(cufftSetWorkArea(pi.handle, work[stream_idx]));
     CUDA_CALL(cufftExecR2C(pi.handle, fft_in + in_ofs, fft_out + out_ofs));
-    calls++;
     windows_left -= batch;
     max_plan -= batch;
     in_ofs += batch * transform_in_size();
