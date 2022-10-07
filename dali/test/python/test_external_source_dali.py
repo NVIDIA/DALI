@@ -76,7 +76,7 @@ def _test_callback(device, as_tensors, change_layout_to=None):
     dst_pipe.set_outputs(outs)
     dst_pipe.build()
 
-    for iter in range(3):
+    for iter in range(50):
         ref = ref_pipe.run()
         out = dst_pipe.run()
         check_batch(out[0], ref[0], batch_size, 0, 0)
