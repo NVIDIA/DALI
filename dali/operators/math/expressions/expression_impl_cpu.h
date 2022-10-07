@@ -207,25 +207,37 @@ class ExprImplCpuTernary : public ExprImplBase {
     auto &second = sample.args[1];
     auto &third = sample.args[2];
 
-    if (sample.output.shape.sample_dim() > 1) {
-      DALI_FAIL("Broadcasting not yet implemented for ternary ops");
+    Arg0 first_data = expression_detail::Pass<IsFirstTensor, Result>(first.data, first.dtype);
+    Arg1 second_data = expression_detail::Pass<IsSecondTensor, Result>(second.data, second.dtype);
+    Arg2 third_data = expression_detail::Pass<IsThirdTensor, Result>(third.data, third.dtype);
+
+    if (sample.args[0].shape == sample.args[1].shape &&
+        sample.args[0].shape == sample.args[2].shape) {
+      Execute(output, first_data, first.dtype, second_data, second.dtype, third_data, third.dtype,
+              tile.offset, tile.extent_size);
+    } else {
+      assert(tile.offset == 0);
+      assert(tile.extent_size == volume(sample.output.shape));
+      std::cout << "Output " << " shape " << sample.output.shape << " strides " << sample.output.strides << "\n"
+                << "First " << " shape " << first.shape << " strides " << first.strides << "\n"
+                << "Second " << " shape " << second.shape << " strides " <<  second.strides << "\n"
+                << "Third strides " << " shape " << third.shape << " strides " << third.strides << "\n";
+      Execute(output, sample.output.shape.data(), sample.output.strides.data(),
+              first_data, first.dtype, first.strides.data(),
+              second_data, second.dtype, second.strides.data(),
+              third_data, third.dtype, third.strides.data(),
+              sample.output.shape.sample_dim());
     }
-    Execute(output,
-            expression_detail::Pass<IsFirstTensor, Result>(first.data, first.dtype),
-            expression_detail::Pass<IsSecondTensor, Result>(second.data, second.dtype),
-            expression_detail::Pass<IsThirdTensor, Result>(third.data, third.dtype),
-            first.dtype, second.dtype, third.dtype,
-            tile.offset, tile.extent_size);
   }
 
  private:
   using meta_t = arithm_meta<op, CPUBackend>;
+  using Arg0 = expression_detail::param_t<IsFirstTensor, Result>;
+  using Arg1 = expression_detail::param_t<IsSecondTensor, Result>;
+  using Arg2 = expression_detail::param_t<IsThirdTensor, Result>;
 
-  static void Execute(Result *result,
-                      expression_detail::param_t<IsFirstTensor, Result> first,
-                      expression_detail::param_t<IsSecondTensor, Result> second,
-                      expression_detail::param_t<IsThirdTensor, Result> third,
-                      DALIDataType first_type, DALIDataType second_type, DALIDataType third_type,
+  static void Execute(Result *result, Arg0 first, DALIDataType first_type, Arg1 second,
+                      DALIDataType second_type, Arg2 third, DALIDataType third_type,
                       int64_t offset, int64_t extent) {
     int64_t end = offset + extent;
     for (int64_t i = offset; i < end; i++) {
@@ -233,6 +245,57 @@ class ExprImplCpuTernary : public ExprImplBase {
                                expression_detail::Access<Result>(second, i, second_type),
                                expression_detail::Access<Result>(third, i, third_type));
     }
+  }
+
+  template <int ndim>
+  static void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
+                      Arg0 first, DALIDataType first_type, const int64_t *first_strides,
+                      Arg1 second, DALIDataType second_type, const int64_t *second_strides,
+                      Arg2 third, DALIDataType third_type, const int64_t *third_strides,
+                      std::integral_constant<int, ndim>) {
+    static_assert(ndim > 1);
+    for (int64_t i = 0; i < *out_shape; i++) {
+      Execute(out, out_shape + 1, out_strides + 1,
+              first, first_type, first_strides + 1,
+              second, second_type, second_strides + 1,
+              third, third_type, third_strides + 1,
+              std::integral_constant<int, ndim - 1>());
+      expression_detail::Advance(first, 1, *first_strides, first_type);
+      expression_detail::Advance(second, 1, *second_strides, second_type);
+      expression_detail::Advance(third, 1, *third_strides, third_type);
+      out += *out_strides;
+    }
+  }
+
+  static void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
+                      Arg0 first, DALIDataType first_type, const int64_t *first_strides,
+                      Arg1 second, DALIDataType second_type, const int64_t *second_strides,
+                      Arg2 third, DALIDataType third_type, const int64_t *third_strides,
+                      std::integral_constant<int, 1>) {
+    for (int64_t i = 0; i < *out_shape; i++) {
+      *out = meta_t::impl(expression_detail::Access<Result>(first, i, first_type),
+                          expression_detail::Access<Result>(second, i, second_type),
+                          expression_detail::Access<Result>(third, i, third_type));
+      expression_detail::Advance(first, 1, *first_strides, first_type);
+      expression_detail::Advance(second, 1, *second_strides, second_type);
+      expression_detail::Advance(third, 1, *third_strides, third_type);
+      out += *out_strides;
+    }
+  }
+
+  static void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
+                      Arg0 first, DALIDataType first_type, const int64_t *first_strides,
+                      Arg1 second, DALIDataType second_type, const int64_t *second_strides,
+                      Arg2 third, DALIDataType third_type, const int64_t *third_strides,
+                      int ndim) {
+    VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+      return Execute(
+        out, out_shape, out_strides,
+        first, first_type, first_strides,
+        second, second_type, second_strides,
+        third, third_type, third_strides,
+        std::integral_constant<int, Dims>());
+    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
   }
 };
 

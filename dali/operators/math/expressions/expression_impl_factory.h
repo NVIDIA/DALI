@@ -121,6 +121,28 @@ DALI_HOST_DEV T Access(T value, int64_t, DALIDataType) {
   return value;
 }
 
+
+template <typename T>
+DALI_HOST_DEV void Advance(const T*& ptr, int64_t n, int64_t stride) {
+  ptr += n * stride;
+}
+
+template <typename T>
+DALI_HOST_DEV void Advance(T value, int64_t, int64_t) {
+}
+
+static DALI_HOST_DEV void Advance(const void*& ptr, int64_t n, int64_t stride, DALIDataType type_id) {
+  TYPE_SWITCH(type_id, type2id, T, ARITHMETIC_ALLOWED_TYPES, (
+    const T *ptr2 = reinterpret_cast<const T*>(ptr);
+    Advance<T>(ptr2, n, stride);
+    ptr = ptr2;
+  ), ptr = {};);  // NOLINT(whitespace/parens)
+}
+
+template <typename T>
+DALI_HOST_DEV void Advance(T value, int64_t, int64_t, DALIDataType) {
+}
+
 template <bool as_ptr, typename T>
 using param_t = std::conditional_t<as_ptr, const void*, T>;
 
