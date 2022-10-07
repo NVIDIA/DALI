@@ -344,7 +344,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
 
   while (HasEmptySlot() && more_frames_to_decode_) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-      if (SendFrameToParser()) {
+      if (!SendFrameToParser()) {
         continue;
       }
     } else {
