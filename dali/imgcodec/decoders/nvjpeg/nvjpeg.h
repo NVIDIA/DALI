@@ -22,9 +22,9 @@
 #include <vector>
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
-#include "dali/core/dev_buffer.h"
 #include "dali/imgcodec/decoders/decoder_parallel_impl.h"
 #include "dali/imgcodec/decoders/nvjpeg/nvjpeg_memory.h"
+#include "dali/pipeline/data/buffer.h"
 
 namespace dali {
 namespace imgcodec {
@@ -77,14 +77,25 @@ class DLL_PUBLIC NvJpegDecoderInstance : public BatchParallelDecoderImpl {
     DecoderData decoder_data;
 
     nvjpegBufferDevice_t device_buffer;
-    nvjpegBufferPinned_t pinned_buffer;
+    std::array<nvjpegBufferPinned_t, 2> pinned_buffers;
+    int which_buffer = 0;
+    int current_buffer_idx() const { return which_buffer; }
+    int next_buffer_idx() const { return 1 - which_buffer; }
+    void swap_buffers() { which_buffer = 1 - which_buffer; }
+
+    nvjpegBufferPinned_t pinned_buffer() const {
+      return pinned_buffers[which_buffer];
+    }
+    CUDAEvent &decode_event() {
+      return decode_events[which_buffer];
+    }
 
     nvjpegJpegStream_t jpeg_stream;
     CUDAStreamLease stream;
-    CUDAEvent decode_event;
+    std::array<CUDAEvent, 2> decode_events;
     nvjpegDecodeParams_t params;
 
-    DeviceBuffer<uint8_t> intermediate_buffer;
+    Buffer<GPUBackend> intermediate_buffer;
 
     PerThreadResources(nvjpegHandle_t, nvjpegDevAllocator_t*, nvjpegPinnedAllocator_t*,
                        int device_id);
