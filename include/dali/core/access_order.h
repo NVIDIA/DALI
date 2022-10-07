@@ -18,6 +18,7 @@
 #include <cuda_runtime.h>
 #include <cstddef>
 #include "dali/core/api_helper.h"
+#include "dali/core/cuda_stream_pool.h"
 
 namespace dali {
 
@@ -32,7 +33,10 @@ class DLL_PUBLIC AccessOrder {
  public:
   constexpr AccessOrder() = default;
   constexpr AccessOrder(cudaStream_t stream, int device_id)
-  : stream_(stream), device_id_(device_id) {}
+      : stream_(stream), device_id_(device_id) {}
+
+  explicit AccessOrder(const CUDAStreamLease &stream_lease)
+      : stream_(stream_lease), device_id_(stream_lease.device_id()) {}
 
   AccessOrder(int) = delete;  // NOLINT  prevent construction from 0
   AccessOrder(std::nullptr_t) = delete;  // NOLINT

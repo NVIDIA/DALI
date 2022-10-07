@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "dali/core/cuda_event.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
@@ -216,7 +217,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
         layout_(),
-        sync_worker_(device_id_, false, "ExternalSource syncworker") {
+        sync_worker_(device_id_, false, "ExternalSource syncworker"),
+        internal_copy_stream_(CUDAStreamPool::instance().Get(device_id_)) {
     spec.TryGetArgument(dtype_, "dtype");
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
@@ -372,7 +374,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
                 bool /*use_copy_kernel = false*/) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
     state_.push_back({false, true});
-    auto tl_elm = tl_data_.GetEmpty();
+    auto tl_elm = GetEmptyOutputBatch();
     // set pinned if needed
     if (batch.is_pinned() != tl_elm.front()->is_pinned()) {
       tl_elm.front()->Reset();
@@ -401,7 +403,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder order = {},
                 bool use_copy_kernel = false) {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    auto tl_elm = tl_data_.GetEmpty();
+    auto tl_elm = GetEmptyOutputBatch();
     bool copied_shared_data = false;
 
     if (batch.IsContiguous()) {
@@ -435,7 +437,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     std::list<uptr_tl_type> tl_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_elm = tl_data_.GetEmpty();
+      tl_elm = GetEmptyOutputBatch();
     }
     // set pinned if needed
     tl_elm.front()->set_order(AccessOrder::host());
@@ -459,8 +461,17 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     std::list<uptr_tl_type> tl_elm;
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_elm = tl_data_.GetEmpty();
+      tl_elm = GetEmptyOutputBatch();
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
+    }
+    // If we got a host order, this means that means, we most probably got it via FeedPipeline,
+    // and we are trying to pass the data from CPU to GPU.
+    // As we keep the order in tl_data_ as internal_copy_stream_, we will use an actual stream
+    // for running and synchronizing with the copy. Note that the Copy can be truly asynchronous
+    // if it comes from pinned memory or happens on a device with integrated memory (like Xavier)
+    // where CPU and GPU share the same memory.
+    if (!order.is_device()) {
+      order = tl_elm.front()->order();
     }
     tl_elm.front()->Copy(batch, order, use_copy_kernel);
     CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
@@ -563,6 +574,16 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     cv_.notify_one();
   }
 
+  /**
+   * @brief Get the empty output batch from tl_data_, first assigning the correct order to it.
+   * @warning User is responsible for holding busy_m_ mutex when calling this function.
+   */
+  std::list<uptr_tl_type> GetEmptyOutputBatch() {
+    auto result = tl_data_.GetEmpty();
+    result.front()->set_order(AccessOrder(internal_copy_stream_));
+    return result;
+  }
+
   string output_name_;
   detail::CachingList<uptr_tl_type> tl_data_;
   detail::CachingList<uptr_cuda_event_type> copy_to_storage_events_;
@@ -604,6 +625,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   bool zero_copy_noncontiguous_gpu_input_ = false;
 
   WorkerThread sync_worker_;
+  CUDAStreamLease internal_copy_stream_;
 };
 
 }  // namespace dali
