@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TEST_DUMMY_OP_H_
-#define DALI_TEST_DUMMY_OP_H_
+#ifndef DALI_TEST_OPERATORS_DUMMY_OP_H_
+#define DALI_TEST_OPERATORS_DUMMY_OP_H_
 
 #include <vector>
 
@@ -43,4 +43,4 @@ class DummyOp : public Operator<Backend> {
 
 }  // namespace dali
 
-#endif  // DALI_TEST_DUMMY_OP_H_
+#endif  // DALI_TEST_OPERATORS_DUMMY_OP_H_
