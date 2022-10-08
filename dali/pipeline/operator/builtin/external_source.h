@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/access_order.h"
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/nvtx.h"
@@ -218,7 +219,12 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         ndim_(-1),
         layout_(),
         sync_worker_(device_id_, false, "ExternalSource syncworker"),
-        internal_copy_stream_(CUDAStreamPool::instance().Get(device_id_)) {
+        internal_copy_stream_(std::is_same<Backend, CPUBackend>::value ?
+                                  CUDAStreamLease{} :
+                                  CUDAStreamPool::instance().Get(device_id_)),
+        internal_copy_order_(std::is_same<Backend, CPUBackend>::value ?
+                                 AccessOrder::host() :
+                                 AccessOrder(internal_copy_stream_)) {
     spec.TryGetArgument(dtype_, "dtype");
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
@@ -580,7 +586,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    */
   std::list<uptr_tl_type> GetEmptyOutputBatch() {
     auto result = tl_data_.GetEmpty();
-    result.front()->set_order(AccessOrder(internal_copy_stream_));
+    result.front()->set_order(internal_copy_order_);
     return result;
   }
 
@@ -626,6 +632,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   WorkerThread sync_worker_;
   CUDAStreamLease internal_copy_stream_;
+  AccessOrder internal_copy_order_;
 };
 
 }  // namespace dali

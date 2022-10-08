@@ -45,7 +45,7 @@ void ExternalSource<GPUBackend>::RunImpl(Workspace &ws) {
 
   std::swap(output, *tensor_list_elm.front());
   output.set_order(ws.stream(), false);
-  tensor_list_elm.front()->set_order(AccessOrder(internal_copy_stream_));
+  tensor_list_elm.front()->set_order(internal_copy_order_);
 
   if (!state_info.no_copy || state_info.copied_shared_data) {
     RecycleBuffer(tensor_list_elm, &internal_copy_to_storage);
