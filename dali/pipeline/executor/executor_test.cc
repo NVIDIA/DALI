@@ -631,9 +631,8 @@ TYPED_TEST(ExecutorTest, TestPinning) {
                                     .AddOutput("copy_1", "cpu")),
               "Copy_1");
 
-  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+  graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddArg("device", "cpu")
-                                    .AddArg("layout", "")
                                     .AddInput("copy_0", "cpu")
                                     .AddOutput("pass_through_0", "cpu")),
               "PassThrough_0");
@@ -660,19 +659,18 @@ TYPED_TEST(ExecutorTest, TestPinning) {
                                     .AddOutput("copy_2", "cpu")),
               "Copy_2");
 
-  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+  graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddArg("device", "cpu")
-                                    .AddArg("layout", "")
                                     .AddInput("copy_2", "cpu")
                                     .AddOutput("pass_through_1", "cpu")),
               "PassThrough_1");
 
   // Check pinning argument inputs to operators in GPU stage
-  graph.AddOp(this->PrepareSpec(OpSpec("random__CoinFlip")
+  graph.AddOp(this->PrepareSpec(OpSpec("CopyArgumentOp")
                                     .AddArg("device", "gpu")
-                                    .AddArgumentInput("probability", "pass_through_1")
+                                    .AddArgumentInput("to_copy", "pass_through_1")
                                     .AddOutput("out_2", "gpu")),
-              "CoinFlip");
+              "DummyOpGpu");
 
   vector<string> outputs = {"copy_0_cpu",         "copy_1_cpu", "pass_through_0_cpu", "copy_2_cpu",
                             "pass_through_1_cpu", "out_0_gpu",  "out_1_cpu",          "out_2_gpu"};
