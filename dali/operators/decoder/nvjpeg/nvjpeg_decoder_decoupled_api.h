@@ -38,9 +38,13 @@
 #include "dali/core/static_switch.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
-#if NVJPEG_VER_MAJOR > 11 || \
-    (NVJPEG_VER_MAJOR == 11 && (NVJPEG_VER_MINOR > 4 || \
-                               (NVJPEG_VER_MINOR == 4 && NVJPEG_VER_PATCH >= 1)))
+#define NVJPEG_FLAT_VERSION(major, minor, patch) ((major)*1000000+(minor)*1000+(patch))
+
+#define NVJPEG_AT_LEAST(major, minor, patch) \
+  (NVJPEG_FLAT_VERSION(major, minor, patch) <= NVJPEG_FLAT_VERSION( \
+      NVJPEG_VER_MAJOR, NVJPEG_VER_MINOR, NVJPEG_VER_PATCH))
+
+#if NVJPEG_AT_LEAST(11, 4, 1)
   #define IS_HW_DECODER_COMPATIBLE 1
 #else
   #define IS_HW_DECODER_COMPATIBLE 0
@@ -118,10 +122,13 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
         LOG_LINE << "Using NVJPEG_BACKEND_HARDWARE" << std::endl;
         CUDA_CALL(nvjpegJpegStateCreate(handle_, &state_hw_batched_));
+      #if NVJPEG_AT_LEAST(11, 9, 0)
         if (nvjpegIsSymbolAvailable("nvjpegGetHardwareDecoderInfo")) {
           nvjpegGetHardwareDecoderInfo(handle_, &num_hw_engines_, &num_hw_cores_per_engine_);
           // ToDo adjust hw_decoder_load_ based on num_hw_engines_ and num_hw_cores_per_engine_
-        } else {
+        } else  // NOLINT
+      #endif
+        {
           // assume pre H100 so the defaults are as follow
           num_hw_engines_ = 1;
           num_hw_cores_per_engine_ = 5;
