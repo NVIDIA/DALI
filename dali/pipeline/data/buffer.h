@@ -445,7 +445,9 @@ class DLL_PUBLIC Buffer {
       DALI_FAIL("Cannot reallocate a buffer on a different device!");
 
     if (new_num_bytes <= num_bytes_) {
-      set_order(order);
+      if (order) {
+        set_order(order);
+      }
       return;
     }
 
@@ -489,7 +491,9 @@ class DLL_PUBLIC Buffer {
    *       set_order(order) separately for less synchronization.
    */
   void reset(AccessOrder order = {}) {
-    set_order(order);
+    if (order) {
+      set_order(order);
+    }
     free_storage();
     type_ = {};
     allocate_ = {};
@@ -550,7 +554,9 @@ class DLL_PUBLIC Buffer {
       free_storage();
 
     // Set the new order before replacing the allocation
-    set_order(order);
+    if (order) {
+      set_order(order);
+    }
 
     // Fill the remaining members in the order as they appear in class.
     type_ = TypeTable::GetTypeInfo(type);
