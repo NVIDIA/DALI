@@ -208,6 +208,9 @@ TYPED_TEST(TensorListTest, ConsistentDeviceAndOrder) {
 
   // uninitialized is not associated with any device id
   EXPECT_EQ(empty.device_id(), CPU_ONLY_DEVICE_ID);
+
+  // No zeroing of order
+  EXPECT_THROW(empty.set_order({}), std::runtime_error);
 }
 
 TYPED_TEST(TensorListTest, TestReserveResize) {

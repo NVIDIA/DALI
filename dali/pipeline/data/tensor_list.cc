@@ -463,8 +463,7 @@ const TensorListShape<> &TensorList<Backend>::shape() const & {
 
 template <typename Backend>
 void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
-  if (!order)
-    return;
+  DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
   // Optimization: synchronize only once, if needed.
   if (this->order().is_device() && order && synchronize) {
     bool need_sync = contiguous_buffer_.has_data();

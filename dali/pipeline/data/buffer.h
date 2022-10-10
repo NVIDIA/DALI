@@ -366,8 +366,7 @@ class DLL_PUBLIC Buffer {
    *                    synchronization is guaranteed by other means.
    */
   void set_order(AccessOrder order, bool synchronize = true) {
-    if (!order.has_value())
-      return;
+    DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
     if (!synchronize) {
       order_ = order;
       return;
@@ -446,7 +445,9 @@ class DLL_PUBLIC Buffer {
       DALI_FAIL("Cannot reallocate a buffer on a different device!");
 
     if (new_num_bytes <= num_bytes_) {
-      set_order(order);
+      if (order) {
+        set_order(order);
+      }
       return;
     }
 
@@ -490,7 +491,9 @@ class DLL_PUBLIC Buffer {
    *       set_order(order) separately for less synchronization.
    */
   void reset(AccessOrder order = {}) {
-    set_order(order);
+    if (order) {
+      set_order(order);
+    }
     free_storage();
     type_ = {};
     allocate_ = {};
@@ -543,6 +546,8 @@ class DLL_PUBLIC Buffer {
    * @remark Note that the device_id inside the order can differ from the device_id that is passed
    * individually. The device_id describes the location of the memory and the order can describe
    * the dependency on the work that is happening on another device.
+   *
+   * @remark If order is empty, current order is used.
    */
   inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                                      DALIDataType type, size_t size, int device_id,
@@ -551,7 +556,9 @@ class DLL_PUBLIC Buffer {
       free_storage();
 
     // Set the new order before replacing the allocation
-    set_order(order);
+    if (order) {
+      set_order(order);
+    }
 
     // Fill the remaining members in the order as they appear in class.
     type_ = TypeTable::GetTypeInfo(type);
