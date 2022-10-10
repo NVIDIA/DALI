@@ -20,6 +20,7 @@ import nvidia.dali.types as types
 import glob
 from test_utils import get_dali_extra_path
 from nvidia.dali.backend import TensorListGPU
+from nose2.tools import params
 
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
 
@@ -75,19 +76,12 @@ def ref_iter(epochs=1, device='cpu'):
             yield np.array(output[0])
 
 
-def test_video_decoder_cpu():
+@params('cpu', 'mixed')
+def test_video_decoder(device):
     batch_size = 4
     epochs = 1
-    for seq, ref_seq in zip(video_decoder_iter(batch_size, epochs),
-                            ref_iter(epochs)):
-        assert seq.shape == ref_seq.shape
-        assert np.array_equal(seq, ref_seq)
-
-
-def test_video_decoder_mixed():
-    batch_size = 4
-    epochs = 2
-    for seq, ref_seq in zip(video_decoder_iter(batch_size, epochs, 'mixed'),
-                            ref_iter(epochs, 'gpu')):
+    decoder_iter = video_decoder_iter(batch_size, epochs, device)
+    ref_dec_iter = ref_iter(epochs, device='cpu' if device == 'cpu' else 'gpu')
+    for seq, ref_seq in zip(decoder_iter, ref_dec_iter):
         assert seq.shape == ref_seq.shape
         assert np.array_equal(seq, ref_seq)

@@ -53,6 +53,11 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
                  "Type of the input buffer must be uint8.");
     DALI_ENFORCE(input.sample_dim() == 1,
                  "Input buffer must be 1-dimensional.");
+    for (int64_t i = 0; i < input.num_samples(); ++i) {
+      DALI_ENFORCE(input[i].shape().num_elements() > 0,
+                   make_string("Incorrect sample at position: ", i, ". ",
+                               "Video decoder does not support empty input samples."));
+    }
   }
 
   TensorListShape<4> ReadOutputShape() {

@@ -30,7 +30,6 @@ bool VideoDecoderBase<MixedBackend, FramesDecoderGpu>::SetupImpl(
     size_t size = sample.shape().num_elements();
     frames_decoders_[i] = std::make_unique<FramesDecoderGpu>(data, size, stream);
   }
-  CUDA_CALL(cudaStreamSynchronize(stream));
   output_desc.resize(1);
   output_desc[0].shape = ReadOutputShape();
   output_desc[0].type = DALI_UINT8;
