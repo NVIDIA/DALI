@@ -366,8 +366,7 @@ class DLL_PUBLIC Buffer {
    *                    synchronization is guaranteed by other means.
    */
   void set_order(AccessOrder order, bool synchronize = true) {
-    if (!order.has_value())
-      return;
+    DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
     if (!synchronize) {
       order_ = order;
       return;
