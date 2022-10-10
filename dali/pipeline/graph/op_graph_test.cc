@@ -609,15 +609,14 @@ TEST_F(OpGraphTest, TestGetTensorOrigin) {
                                     .AddOutput("contiguous_data", "cpu")),  // tensor node 2
               "MakeContiguous");
 
-  graph.AddOp(this->PrepareSpec(OpSpec("Reshape")
+  graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddInput("contiguous_data", "cpu")
-                                    .AddArg("layout", "INeedToSpecifyAnArgumentToNotMakeItNoOp")
-                                    .AddOutput("reshape_data", "cpu")),  // tensor node 3
+                                    .AddOutput("passthrough_data", "cpu")),  // tensor node 3
               "Reshape");
 
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
-                                    .AddInput("reshape_data", "cpu")
+                                    .AddInput("passthrough_data", "cpu")
                                     .AddOutput("copy_1_data", "cpu")),  // tensor node 4
               "Copy1");
 
