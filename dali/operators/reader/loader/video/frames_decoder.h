@@ -73,7 +73,6 @@ struct AvState {
 
 /**
  * @brief Helper representing video file kept in memory. Allows reading and seeking.
- *
  */
 struct MemoryVideoFile {
   MemoryVideoFile(const char *data, int64_t size)
@@ -90,7 +89,6 @@ struct MemoryVideoFile {
 
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
- *
  */
 class DLL_PUBLIC FramesDecoder {
  public:
@@ -130,7 +128,6 @@ class DLL_PUBLIC FramesDecoder {
 
   /**
    * @brief Height of a video frame in pixels
-   *
    */
   int Height() const {
     return av_state_->codec_params_->height;
