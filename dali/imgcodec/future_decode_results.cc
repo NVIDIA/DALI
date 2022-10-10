@@ -22,6 +22,13 @@
 namespace dali {
 namespace imgcodec {
 
+/**
+ * @brief State object shared between DecodeResultsPromise and FutureDecodeResults
+ *
+ * When creating a promise, a shared state object is created and then shared when the promise
+ * is copied. Finally, it's also shared when a future object is obtained from a promise.
+ * This object is where the actual synchronization and notificiation is implemented.
+ */
 class DecodeResultsSharedState {
  public:
   static std::shared_ptr<DecodeResultsSharedState> get() {
