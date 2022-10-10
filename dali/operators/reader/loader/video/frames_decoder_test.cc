@@ -31,12 +31,12 @@
 namespace dali {
 class FramesDecoderTestBase : public VideoTestBase {
  public:
-  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth) {
+  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
       decoder.ReadNextFrame(FrameData());
-      AssertFrame(FrameData(), i, ground_truth);
+      AssertFrame(FrameData(), i, ground_truth, eps);
     }
 
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
@@ -46,45 +46,45 @@ class FramesDecoderTestBase : public VideoTestBase {
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
       decoder.ReadNextFrame(FrameData());
-      AssertFrame(FrameData(), i, ground_truth);
+      AssertFrame(FrameData(), i, ground_truth, eps);
     }
 
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
   }
 
-  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth) {
+  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
     ASSERT_EQ(decoder.Height(), ground_truth.Height());
     ASSERT_EQ(decoder.Width(), ground_truth.Width());
     ASSERT_EQ(decoder.Channels(), ground_truth.NumChannels());
     ASSERT_EQ(decoder.NumFrames(), ground_truth.NumFrames());
     ASSERT_EQ(decoder.IsVfr(), ground_truth.IsVfr());
 
-    RunSequentialTest(decoder, ground_truth);
+    RunSequentialTest(decoder, ground_truth, eps);
     decoder.Reset();
 
     // Read first frame
     ASSERT_EQ(decoder.NextFrameIdx(), 0);
     decoder.ReadNextFrame(FrameData());
-    AssertFrame(FrameData(), 0, ground_truth);
+    AssertFrame(FrameData(), 0, ground_truth, eps);
 
     // Seek to frame
     decoder.SeekFrame(25);
     ASSERT_EQ(decoder.NextFrameIdx(), 25);
     decoder.ReadNextFrame(FrameData());
-    AssertFrame(FrameData(), 25, ground_truth);
+    AssertFrame(FrameData(), 25, ground_truth, eps);
 
     // Seek back to frame
     decoder.SeekFrame(12);
     ASSERT_EQ(decoder.NextFrameIdx(), 12);
     decoder.ReadNextFrame(FrameData());
-    AssertFrame(FrameData(), 12, ground_truth);
+    AssertFrame(FrameData(), 12, ground_truth, eps);
 
     // Seek to last frame (flush frame)
     int last_frame_index = ground_truth.NumFrames() - 1;
     decoder.SeekFrame(last_frame_index);
     ASSERT_EQ(decoder.NextFrameIdx(), last_frame_index);
     decoder.ReadNextFrame(FrameData());
-    AssertFrame(FrameData(), last_frame_index, ground_truth);
+    AssertFrame(FrameData(), last_frame_index, ground_truth, eps);
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
 
     // Wrap around to first frame
@@ -92,7 +92,7 @@ class FramesDecoderTestBase : public VideoTestBase {
     decoder.Reset();
     ASSERT_EQ(decoder.NextFrameIdx(), 0);
     decoder.ReadNextFrame(FrameData());
-    AssertFrame(FrameData(), 0, ground_truth);
+    AssertFrame(FrameData(), 0, ground_truth, eps);
 
     // Seek to random frames and read them
     std::mt19937 gen(0);
@@ -103,19 +103,20 @@ class FramesDecoderTestBase : public VideoTestBase {
 
       decoder.SeekFrame(next_index);
       decoder.ReadNextFrame(FrameData());
-      AssertFrame(FrameData(), next_index, ground_truth);
+      AssertFrame(FrameData(), next_index, ground_truth, eps);
     }
   }
 
-  virtual void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) = 0;
+  virtual void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth,
+                           double eps = 1.0) = 0;
 
   virtual uint8_t *FrameData() = 0;
 };
 
 class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
  public:
-  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
-    ground_truth.CompareFrame(index, frame);
+  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth, double eps = 1.0) override {
+    ground_truth.CompareFrame(index, frame, eps);
   }
 
   void SetUp() override {
@@ -144,9 +145,9 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
-  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
+  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth, double eps = 1.0) override {
     MemCopy(FrameDataCpu(), frame, ground_truth.FrameSize());
-    ground_truth.CompareFrameAvgError(index, frame_cpu_buffer_.data());
+    ground_truth.CompareFrameAvgError(index, frame_cpu_buffer_.data(), eps);
   }
 
   void SetUp() override {
@@ -336,5 +337,18 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
   RunSequentialTest(decoder, vfr_hevc_videos_[1]);
 }
 
+TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4NoIndex) {
+  auto memory_video = MemoryVideo(cfr_mpeg4_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, cfr_videos_[0], 3.0);
+}
+
+TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4NoIndex) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, vfr_videos_[0], 3.0);
+}
 
 }  // namespace dali

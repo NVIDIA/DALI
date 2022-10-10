@@ -108,11 +108,13 @@ class DLL_PUBLIC FramesDecoder {
    * @param memory_file Pointer to memory with video file data.
    * @param memory_file_size Size of memory_file in bytes.
    * @param build_index If set to false index will not be build and some features are unavailable.
+   * @param init_codecs If set to false CPU codec part is not initalized, only parser
    *
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
-  FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true);
+  FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true,
+                bool init_codecs = true);
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -232,9 +234,9 @@ class DLL_PUBLIC FramesDecoder {
 
   void BuildIndex();
 
-  void InitAvState();
+  void InitAvState(bool init_codecs = true);
 
-  void FindVideoStream();
+  void FindVideoStream(bool init_codecs = true);
 
   void LazyInitSwContext();
 
@@ -244,6 +246,11 @@ class DLL_PUBLIC FramesDecoder {
 
   std::string Filename() {
     return filename_.has_value() ? filename_.value() : "memory file";
+  }
+
+  std::string CodecName() {
+    return av_state_->codec_ ? av_state_->codec_->name :
+                               to_string(static_cast<int>(av_state_->codec_params_->codec_id));
   }
 
   int channels_ = 3;
