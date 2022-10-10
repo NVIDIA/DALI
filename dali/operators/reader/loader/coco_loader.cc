@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -523,7 +523,6 @@ void CocoLoader::ParseJsonAnnotations() {
   bool remap_classes = !spec_.GetArgument<bool>("avoid_class_remapping");
 
   int new_image_id = 0;
-  int annotation_id = 0;
   int total_count = 0;
 
   for (auto &img_filename : images_) {
@@ -600,7 +599,6 @@ void CocoLoader::ParseJsonAnnotations() {
           }
         }
       }
-      ++annotation_id;
       ++objects_in_sample;
     }
 
