@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_MATH_EXPRESSIONS_BROADCASTING_H_
 
 #include <utility>
+#include "dali/core/small_vector.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"
 
@@ -120,22 +121,19 @@ DLL_PUBLIC TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh,
 DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
 
 /**
- * @brief Simplifies shapes by collapsing dimensions that are the same in all shapes
- *
+ * @brief It simplifies shapes for arithmetic op execution with broadcasting.
+ *        It detects and collapses adjacent dimensions that are not broadcasted.
  * @param shapes span of shapes to broadcast
- * @return SmallVector<std::pair<int, int>, 5> groups of dimensions to collapse [i, j)
- */
-DLL_PUBLIC SmallVector<std::pair<int, int>, 5> SimplifiedShapeCollapseGroups(
-    span<TensorShape<> *> shapes);
-
-/**
- * @brief It simplifies a shape for arithmetic op execution with broadcasting.
- *        It detects and collapses adjacent dimensions that are not broadcasted
+ * @param modify_shapes if True, the shapes will be modified, otherwise, only the groups
+ *        of dimensions to be collapsed are returned.
  * @remarks For shapes that don't need broadcasting, it results in a 1D shape.
+ * @return pair of dimensions [d0, d1) to be collapsed
  */
-DLL_PUBLIC void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes);
+using GroupDims = ::std::pair<int, int>;
+DLL_PUBLIC SmallVector<GroupDims, 5> SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes,
+                                                          bool modify_shapes = true);
 DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
-DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c);
+DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<> &c);
 
 /**
  * @brief Check whether broadcasting should be enabled (via env variable)
