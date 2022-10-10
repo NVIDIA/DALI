@@ -612,7 +612,7 @@ TEST_F(OpGraphTest, TestGetTensorOrigin) {
   graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddInput("contiguous_data", "cpu")
                                     .AddOutput("passthrough_data", "cpu")),  // tensor node 3
-              "Reshape");
+              "Passthrough");
 
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")

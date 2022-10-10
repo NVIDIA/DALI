@@ -24,8 +24,7 @@ namespace dali {
 template <typename Backend>
 class PassthroughOp : public Operator<Backend> {
  public:
-  inline explicit PassthroughOp(const OpSpec &spec) :
-    Operator<Backend>(spec) {}
+  inline explicit PassthroughOp(const OpSpec &spec) : Operator<Backend>(spec) {}
 
   inline ~PassthroughOp() override = default;
 

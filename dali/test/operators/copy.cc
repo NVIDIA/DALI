@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/data/types.h"
 #include "dali/test/operators/copy.h"
+#include "dali/pipeline/data/types.h"
 
 namespace dali {
 
