@@ -815,5 +815,34 @@ def test_arithmetic_ops_broadcasting():
 
     for kinds in list_product(["cpu", "gpu"], ["cpu", "gpu"]):
         for (op, op_desc, get_range) in sane_operations:
-            for types_in in [(np.int8, np.int8)]:
-                yield check_arithm_op, kinds, types_in, op, get_sh, get_range, op_desc
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                if types_in != (np.bool_, np.bool_) or op_desc == "*":
+                    yield check_arithm_op, kinds, types_in, op, get_sh, get_range, op_desc
+
+# def test_ternary_ops_broadcasting():
+#     os.environ['DALI_BROADCASTING_ENABLED'] = '1'
+
+#     def get_sh(arg_idx):
+#         # shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
+#         # shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
+#         # shapes2 = [(43, 1, 3), (4, 1, 16), (8, 1, 2), (1, 1, 1)]
+#         shapes0 = 4*[(3, 3, 3)]
+#         shapes1 = 4*[(1, 1, 3)]
+#         shapes2 = 4*[(3, 1, 3)]
+#         if arg_idx == 0:
+#             return shapes0
+#         elif arg_idx == 1:
+#             return shapes1
+#         elif arg_idx == 2:
+#             return shapes2
+#         else:
+#             assert False
+#     for kinds in ("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"):
+#         for (op, op_desc) in ternary_operations:
+#             for types_in in itertools.product(selected_input_arithm_types,
+#                                               selected_input_arithm_types,
+#                                               selected_input_arithm_types):
+#                 #yield check_arithm_op, kinds, types_in, op, get_sh, get_range, op_desc
+#                 print(check_ternary_op, kinds, types_in, op, get_sh, op_desc)
+#                 check_ternary_op(kinds, types_in, op, get_sh, op_desc)
+# test_ternary_ops_broadcasting()

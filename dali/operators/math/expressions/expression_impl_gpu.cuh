@@ -22,25 +22,49 @@
 #include "dali/operators/math/expressions/expression_tree.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/core/fast_div.h"
+// TODO(janton): move this out of "reduce"?
+#include "dali/kernels/reduce/reduce_drop_dims.h"
 
 namespace dali {
+template <int ndim>
+using DD =  kernels::reduce_impl::DropDims<ndim/2+1>;
 
 template <int nargs, int ndim>
 struct SampleDescGPU {
   struct {
     void *data;
     DALIDataType dtype;
-    fast_div<uint64_t> strides[ndim];
     int64_t shape[ndim];  // NOLINT[runtime/arrays]
   } output;
 
   struct {
     const void *data;
     DALIDataType dtype;
-    int64_t shape[ndim];  // NOLINT[runtime/arrays]
-    int64_t strides[ndim];  // NOLINT[runtime/arrays]
+    DD<ndim> dd;
   } args[nargs];
 };
+
+template <int nargs, int ndim>
+void ToSampleDescGPU(SampleDescGPU<nargs, ndim> &sample_desc,
+                     const SampleDesc &sample) {
+  const auto &sh = sample.output.shape;
+  sample_desc.output.data = sample.output.data;
+  sample_desc.output.dtype = sample.output.dtype;
+  for (int d = 0; d < ndim; d++)
+    sample_desc.output.shape[d] = sample.output.shape[d];
+
+  for (int arg_idx = 0; arg_idx < nargs; arg_idx++) {
+    sample_desc.args[arg_idx].data = sample.args[arg_idx].data;
+    sample_desc.args[arg_idx].dtype = sample.args[arg_idx].dtype;
+
+    uint64_t bitmask = 0;
+    for (int d = 0; d < ndim; d++) {
+      if (sample.args[arg_idx].strides[d] == 0)
+        bitmask |= 1 << d;
+    }
+    sample_desc.args[arg_idx].dd = DD<ndim>(sh, bitmask);
+  }
+}
 
 /**
  * @brief Loop over tile of `extent` length
@@ -65,7 +89,7 @@ __device__ void ExecuteUnOp(Result *result, const Input *in, int64_t offset, int
  */
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int64_t offset,
-                               int64_t extent) {
+                             int64_t extent) {
   using meta_t = arithm_meta<op, GPUBackend>;
   int64_t start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;
@@ -87,24 +111,17 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int6
  */
 template <ArithmeticOp op, int Dims, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOpND(Result *result, const Left *l, const Right *r, int64_t offset,
-                               int64_t extent, const fast_div<uint64_t> *strides_out,
-                               const int64_t *strides_l, const int64_t *strides_r) {
+                               int64_t extent,
+                               const DD<Dims> &l_dd,
+                               const DD<Dims> &r_dd) {
   using meta_t = arithm_meta<op, GPUBackend>;
   int64_t block_start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t block_end = offset + extent;
   int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
 
-  for (uint64_t idx = block_start; idx < block_end; idx += block_step) {
-    uint64_t idx_l = 0, idx_r = 0;
-    uint64_t tmp_idx = idx;
-    #pragma unroll
-    for (int d = 0; d < Dims; d++) {
-      int i_d = div_mod(tmp_idx, tmp_idx, strides_out[d]);
-      idx_l += i_d * strides_l[d];
-      idx_r += i_d * strides_r[d];
-    }
-    idx_l += tmp_idx;  // remaining dims have equal strides
-    idx_r += tmp_idx;
+  for (int64_t idx = block_start; idx < block_end; idx += block_step) {
+    int64_t idx_l = l_dd.reindex(idx);
+    int64_t idx_r = r_dd.reindex(idx);
     result[idx] = meta_t::impl(l[idx_l], r[idx_r]);
   }
 }
@@ -182,27 +199,17 @@ __device__ void ExecuteTernaryOp(Result *result,
                                  DALIDataType second_type,
                                  DALIDataType third_type,
                                  int64_t offset, int64_t extent,
-                                 const fast_div<uint64_t> *strides_out,
-                                 const uint64_t *strides_first,
-                                 const uint64_t *strides_second,
-                                 const uint64_t *strides_third) {
+                                 const DD<Dims> &first_dd,
+                                 const DD<Dims> &second_dd,
+                                 const DD<Dims> &third_dd) {
   using meta_t = arithm_meta<op, GPUBackend>;
   int64_t block_start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
   int64_t block_end = offset + extent;
-  for (uint64_t idx = block_start; idx < block_end; idx += block_step) {
-    uint64_t idx_first = 0, idx_second = 0, idx_third = 0;
-    uint64_t tmp_idx = idx;
-    #pragma unroll
-    for (int d = 0; d < Dims; d++) {
-      int i_d = div_mod(tmp_idx, tmp_idx, strides_out[d]);
-      idx_first += i_d * strides_first[d];
-      idx_second += i_d * strides_second[d];
-      idx_third += i_d * strides_third[d];
-    }
-    idx_first += tmp_idx;  // remaining dims have equal strides
-    idx_second += tmp_idx;
-    idx_third += tmp_idx;
+  for (int64_t idx = block_start; idx < block_end; idx += block_step) {
+    int64_t idx_first = first_dd.reindex(idx);
+    int64_t idx_second = second_dd.reindex(idx);
+    int64_t idx_third = third_dd.reindex(idx);
     result[idx] = meta_t::impl(
       expression_detail::Access<Result>(first, idx_first, first_type),
       expression_detail::Access<Result>(second, idx_second, third_type),
@@ -234,8 +241,7 @@ __global__ void ExecuteTiledBinOpND(const SampleDescGPU<2, ndim> *samples, const
   auto left = static_cast<const Left *>(sample.args[0].data);
   auto right = static_cast<const Right *>(sample.args[1].data);
   ExecuteBinOpND<op, ndim>(output, left, right, tile.offset, tile.extent_size,
-                           &sample.output.strides[0], &sample.args[0].strides[0],
-                           &sample.args[1].strides[0]);
+                           sample.args[0].dd, sample.args[1].dd);
 }
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right,
@@ -337,19 +343,7 @@ class ExprImplGPUInvokeUnary : public ExprImplBase {
     for (int i = 0; i < samples.size(); i++) {
       auto &sample_desc = sample_descs[i];
       auto &sample = samples[i];
-      sample_desc.output.data = sample.output.data;
-      sample_desc.output.dtype = sample.output.dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.output.shape[d] = sample.output.shape[d];
-        sample_desc.output.strides[d] = sample.output.strides[d];
-      }
-
-      sample_desc.args[0].data = sample.args[0].data;
-      sample_desc.args[0].dtype = sample.args[0].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[0].shape[d] = sample.args[0].shape[d];
-        sample_desc.args[0].strides[d] = sample.args[0].strides[d];
-      }
+      ToSampleDescGPU(sample_descs[i], samples[i]);
     }
 
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, sample_descs, tiles);
@@ -391,25 +385,7 @@ class ExprImplGPUInvokeBinary : public ExprImplBase {
         make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, ndim>>(samples.size()),
                   samples.size());
     for (int i = 0; i < samples.size(); i++) {
-      auto &sample_cpu = samples_cpu[i];
-      auto &sample = samples[i];
-      sample_cpu.output.data = sample.output.data;
-      sample_cpu.output.dtype = sample.output.dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_cpu.output.shape[d] = sample.output.shape[d];
-        sample_cpu.output.strides[d] = sample.output.strides[d];
-      }
-
-      auto prepare_args = [&](int i) {
-        sample_cpu.args[i].data = sample.args[i].data;
-        sample_cpu.args[i].dtype = sample.args[i].dtype;
-        for (int d = 0; d < ndim; d++) {
-          sample_cpu.args[i].shape[d] = sample.args[i].shape[d];
-          sample_cpu.args[i].strides[d] = sample.args[i].strides[d];
-        }
-      };
-      prepare_args(0);
-      prepare_args(1);
+      ToSampleDescGPU(samples_cpu[i], samples[i]);
     }
 
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);
@@ -448,35 +424,7 @@ class ExprImplGPUInvokeTernary : public ExprImplBase {
         make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, 1>>(samples.size()),
                   samples.size());
     for (int i = 0; i < samples.size(); i++) {
-      auto &sample_desc = sample_descs[i];
-      auto &sample = samples[i];
-      sample_desc.output.data = sample.output.data;
-      sample_desc.output.dtype = sample.output.dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.output.shape[d] = sample.output.shape[d];
-        sample_desc.output.strides[d] = sample.output.strides[d];
-      }
-
-      sample_desc.args[0].data = sample.args[0].data;
-      sample_desc.args[0].dtype = sample.args[0].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[0].shape[d] = sample.args[0].shape[d];
-        sample_desc.args[0].strides[d] = sample.args[0].strides[d];
-      }
-
-      sample_desc.args[1].data = sample.args[1].data;
-      sample_desc.args[1].dtype = sample.args[1].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[1].shape[d] = sample.args[1].shape[d];
-        sample_desc.args[1].strides[d] = sample.args[1].strides[d];
-      }
-
-      sample_desc.args[2].data = sample.args[2].data;
-      sample_desc.args[2].dtype = sample.args[2].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[2].shape[d] = sample.args[2].shape[d];
-        sample_desc.args[2].strides[d] = sample.args[2].strides[d];
-      }
+      ToSampleDescGPU(sample_descs[i], samples[i]);
     }
 
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, sample_descs, tiles);

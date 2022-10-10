@@ -107,7 +107,6 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
       sample.output.dtype = type2id<Result>::value;
       for (int d = 0; d < out_tv.shape.sample_dim(); d++) {
         sample.output.shape[d] = out_tv.shape[d];
-        sample.output.strides[d] = out_strides[d];
       }
 
       auto left_tv = left.gpu()[sample_idx];
@@ -115,20 +114,14 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
       kernels::CalcStrides(left_strides, left_tv.shape);
       sample.args[0].data = left_tv.data;
       sample.args[0].dtype = type2id<Result>::value;
-      for (int d = 0; d < left_tv.shape.sample_dim(); d++) {
-        sample.args[0].shape[d] = left_tv.shape[d];
-        sample.args[0].strides[d] = left_strides[d];
-      }
+      sample.args[0].dd = DD<1>(out_tv.shape, 0);
 
       auto right_tv = right.gpu()[sample_idx];
       TensorShape<> right_strides;
       kernels::CalcStrides(right_strides, right_tv.shape);
       sample.args[1].data = right_tv.data;
       sample.args[1].dtype = type2id<Result>::value;
-      for (int d = 0; d < right_tv.shape.sample_dim(); d++) {
-        sample.args[1].shape[d] = right_tv.shape[d];
-        sample.args[1].strides[d] = right_strides[d];
-      }
+      sample.args[1].dd = DD<1>(out_tv.shape, 0);
 
       for (int extent_idx = 0; extent_idx < TestConfig::tiles_per_sample; extent_idx++) {
         int tile_idx = sample_idx * TestConfig::tiles_per_sample + extent_idx;
