@@ -112,8 +112,8 @@ __device__ void ExecuteBinOp(Result *result, const Left *l, const Right *r, int6
 template <ArithmeticOp op, int Dims, typename Result, typename Left, typename Right>
 __device__ void ExecuteBinOpND(Result *result, const Left *l, const Right *r, int64_t offset,
                                int64_t extent,
-                               const DD<Dims> &l_dd,
-                               const DD<Dims> &r_dd) {
+                               DD<Dims> l_dd,
+                               DD<Dims> r_dd) {
   using meta_t = arithm_meta<op, GPUBackend>;
   int64_t block_start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t block_end = offset + extent;
@@ -199,9 +199,9 @@ __device__ void ExecuteTernaryOp(Result *result,
                                  DALIDataType second_type,
                                  DALIDataType third_type,
                                  int64_t offset, int64_t extent,
-                                 const DD<Dims> &first_dd,
-                                 const DD<Dims> &second_dd,
-                                 const DD<Dims> &third_dd) {
+                                 DD<Dims> first_dd,
+                                 DD<Dims> second_dd,
+                                 DD<Dims> third_dd) {
   using meta_t = arithm_meta<op, GPUBackend>;
   int64_t block_start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
