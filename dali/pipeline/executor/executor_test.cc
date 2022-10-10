@@ -666,9 +666,9 @@ TYPED_TEST(ExecutorTest, TestPinning) {
               "PassThrough_1");
 
   // Check pinning argument inputs to operators in GPU stage
-  graph.AddOp(this->PrepareSpec(OpSpec("DummyOp")
+  graph.AddOp(this->PrepareSpec(OpSpec("CopyArgumentOp")
                                     .AddArg("device", "gpu")
-                                    .AddArgumentInput("arg_input_f", "pass_through_1")
+                                    .AddArgumentInput("to_copy", "pass_through_1")
                                     .AddOutput("out_2", "gpu")),
               "DummyOpGpu");
 

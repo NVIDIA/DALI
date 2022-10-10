@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_TEST_OPERATORS_PASSTHROUGH_H_
-#define DALI_TEST_OPERATORS_PASSTHROUGH_H_
+#ifndef DALI_TEST_OPERATORS_COPY_H_
+#define DALI_TEST_OPERATORS_COPY_H_
 
 #include <vector>
 
@@ -22,14 +22,16 @@
 namespace dali {
 
 template <typename Backend>
-class PassthroughOp : public Operator<Backend> {
+class CopyArgumentOp : public Operator<Backend> {
  public:
-  inline explicit PassthroughOp(const OpSpec &spec) :
-    Operator<Backend>(spec) {}
+  inline explicit CopyArgumentOp(const OpSpec &spec) : Operator<Backend>(spec) {
+    DALI_ENFORCE(spec.HasTensorArgument("to_copy"),
+                 "This testing operator accepts only tensor argument inputs of type float.");
+  }
 
-  inline ~PassthroughOp() override = default;
+  inline ~CopyArgumentOp() override = default;
 
-  DISABLE_COPY_MOVE_ASSIGN(PassthroughOp);
+  DISABLE_COPY_MOVE_ASSIGN(CopyArgumentOp);
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
@@ -37,10 +39,10 @@ class PassthroughOp : public Operator<Backend> {
   }
 
   void RunImpl(workspace_t<Backend> &ws) override {
-    ws.template Output<Backend>(0).ShareData(ws.template Input<Backend>(0));
+    ws.template Output<Backend>(0).Copy(ws.ArgumentInput("to_copy"), ws.stream());
   }
 };
 
 }  // namespace dali
 
-#endif  // DALI_TEST_OPERATORS_PASSTHROUGH_H_
+#endif  // DALI_TEST_OPERATORS_COPY_H_
