@@ -228,19 +228,17 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
 bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
   // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ != -1) {
-      if (frame.pts_ == Index(next_frame_idx_).pts) {
-        if (copy_to_output) {
-          copyD2D(data, frame.frame_.data(), FrameSize());
-        }
-        LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
-          std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
-
-        frame.pts_ = -1;
-
-        ++next_frame_idx_;
-        return true;
+    if (frame.pts_ != -1 && frame.pts_ == Index(next_frame_idx_).pts) {
+      if (copy_to_output) {
+        copyD2D(data, frame.frame_.data(), FrameSize());
       }
+      LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+        std::setw(5) << frame.pts_ << ", current copy " << copy_to_output << std::endl;
+
+      frame.pts_ = -1;
+
+      ++next_frame_idx_;
+      return true;
     }
   }
 
@@ -340,17 +338,6 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
 
   if (EmptyBuffer()) {
     next_frame_idx_ = -1;
-  }
-
-  while (HasEmptySlot() && more_frames_to_decode_) {
-    if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-      if (!SendFrameToParser()) {
-        continue;
-      }
-    } else {
-      SendLastPacket();
-      more_frames_to_decode_ = false;
-    }
   }
 
   return true;
