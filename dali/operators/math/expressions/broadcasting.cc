@@ -350,11 +350,17 @@ SmallVector<std::pair<int, int>, 5> SimplifyShapesForBroadcasting(span<TensorSha
       add_group(d);
     }
     add_group(d);
+  }
 
-    if (modify_shapes) {
-      for (int i = 0; i < n; i++) {
-        *shapes[i] = outs[i];
-      }
+  for (int i = 0; i < n; i++) {
+    if (volume(outs[i]) == 1) {
+      outs[i] = {};
+    }
+  }
+
+  if (modify_shapes) {
+    for (int i = 0; i < n; i++) {
+      *shapes[i] = outs[i];
     }
   }
 
