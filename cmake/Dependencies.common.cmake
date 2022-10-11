@@ -142,25 +142,6 @@ if(BUILD_NVCOMP)
   list(APPEND DALI_LIBS ${nvcomp_LIBS})
 endif()
 
-# if(BUILD_NVCOMP)
-#   find_library(nvcomp_LIBS PATHS ${NVCOMP_ROOT_DIR} PATH_SUFFIXES lib lib64)
-#   find_library(nvcomp_INCLUDE_DIRS PATHS ${NVCOMP_ROOT_DIR} PATH_SUFFIXES include)
-#   if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
-#     message(FATAL_ERROR "nvcomp could not be found. Try to specify it's location with `-DNVCOMP_ROOT_DIR`.")
-#   endif()
-#   message(STATUS "Found nvcomp: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIRS}.")
-#   include_directories(SYSTEM ${nvcomp_INCLUDE_DIRS})
-#   list(APPEND DALI_LIBS ${nvcomp_LIBS})
-#   list(APPEND DALI_EXCLUDES liblmdb.a)
-# endif()
-
-# if(BUILD_NVCOMP)
-#   find_package(NVCOMP PATHS ${NVCOMP_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH} REQUIRED)
-#   message(STATUS "Found nvcomp: ${NVCOMP_CONFIG} ${NVCOMP_INCLUDE_DIR} ${NVCOMP_LIBRARY} ${NVCOMP_LIBRARIES}.")
-#   include_directories(SYSTEM ${NVCOMP_INCLUDE_DIR})
-#   list(APPEND DALI_LIBS ${NVCOMP_LIBRARY})
-# endif()
-
 
 ##################################################################
 # FFmpeg

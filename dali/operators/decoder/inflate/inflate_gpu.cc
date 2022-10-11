@@ -12,9 +12,135 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <nvcomp/lz4.h>
+
+#include "dali/core/backend_tags.h"
+#include "dali/core/common.h"
+#include "dali/core/host_dev.h"
+#include "dali/core/static_switch.h"
+#include "dali/core/tensor_shape.h"
+#include "dali/kernels/kernel_manager.h"
 #include "dali/operators/decoder/inflate/inflate.h"
+#include "dali/operators/decoder/inflate/inflate_params.h"
+#include "dali/pipeline/data/sequence_utils.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/arg_helper.h"
+#include "dali/pipeline/operator/operator.h"
 
 namespace dali {
+
+namespace inflate {
+
+#define INFLATE_SUPPORTED_TYPES \
+  (bool, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, float16)
+
+
+template <typename Status>
+void nvcompCall(Status status) {
+  if (status != nvcompSuccess) {
+    throw std::runtime_error(make_string("nvComp returned non-zero status: ", status));
+  }
+}
+
+class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
+ public:
+  explicit InflateOpGpuLZ4Impl(const OpSpec &spec) : InflateOpImplBase<GPUBackend>{spec} {}
+
+  void RunImpl(workspace_t<GPUBackend> &ws) override {
+    const auto &input = ws.template Input<GPUBackend>(0);
+    auto &output = ws.template Output<GPUBackend>(0);
+    SetupInChunks(input);
+    SetupOutChunks(output);
+
+    kernels::DynamicScratchpad scratchpad({}, ws.stream());
+    ctx_.gpu.stream = ws.stream();
+    ctx_.scratchpad = &scratchpad;
+
+    size_t *in_sizes;
+    void const **in;
+    size_t *out_sizes;
+    void **out;
+    std::tie(in_sizes, in, out_sizes, out) = ctx_.scratchpad->ToContiguousGPU(
+        ctx_.gpu.stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
+
+    auto total_chunks_num = params_.GetTotalChunksNum();
+    size_t tempSize;
+    inflate::nvcompCall(nvcompBatchedLZ4DecompressGetTempSize(
+        total_chunks_num, params_.GetMaxOutChunkVol(), &tempSize));
+
+    void *temp = ctx_.scratchpad->AllocateGPU<uint8_t>(tempSize);
+    inflate::nvcompCall(nvcompBatchedLZ4DecompressAsync(in, in_sizes, out_sizes, nullptr,
+                                                        total_chunks_num, temp, tempSize, out,
+                                                        nullptr, ws.stream()));
+  }
+
+ protected:
+  template <typename TL>
+  void SetupInChunks(const TL &input) {
+    auto in_view = view<const uint8_t>(input);
+    auto batch_size = in_view.shape.num_samples();
+    const auto &num_chunks_per_sample = params_.GetChunksNumPerSample();
+    auto total_chunks_num = params_.GetTotalChunksNum();
+    const auto &offsets = params_.GetInChunkOffsets();
+    input_ptrs_.clear();
+    input_ptrs_.reserve(total_chunks_num);
+    for (int64_t sample_idx = 0, chunk_flat_idx = 0; sample_idx < batch_size; sample_idx++) {
+      auto num_chunks = num_chunks_per_sample[sample_idx].num_elements();
+      const uint8_t *sample_base_ptr = in_view.data[sample_idx];
+      for (int chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++, chunk_flat_idx++) {
+        input_ptrs_.push_back(sample_base_ptr + offsets[chunk_flat_idx]);
+      }
+    }
+  }
+
+  template <typename TL>
+  void SetupOutChunks(TL &output) {
+    TYPE_SWITCH(output.type(), type2id, Out, INFLATE_SUPPORTED_TYPES, (
+      BOOL_SWITCH(params_.HasChunks(), HasChunks, (
+        SetupOutChunksTyped<HasChunks, Out>(output);
+      ));  //NOLINT
+    ), DALI_FAIL(  //NOLINT
+      make_string("Unsupported output type was specified for GPU inflate LZ4 operator: `",
+                  output.type(), "`.")));
+  }
+
+  template <int sequence_dim, typename Out, typename TL>
+  void SetupOutChunksTyped(TL &output) {
+    auto out_view = view<Out>(output);
+    auto batch_size = out_view.shape.num_samples();
+    auto total_chunks_num = params_.GetTotalChunksNum();
+    inflated_ptrs_.clear();
+    inflated_ptrs_.reserve(total_chunks_num);
+    inflated_sizes_.clear();
+    inflated_sizes_.reserve(total_chunks_num);
+    for (int64_t sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+      auto sample_range = sequence_utils::unfolded_view_range<sequence_dim>(out_view[sample_idx]);
+      auto chunk_size = sample_range.SliceSize() * sizeof(Out);
+      for (auto &&chunk : sample_range) {
+        inflated_sizes_.push_back(chunk_size);
+        inflated_ptrs_.push_back(static_cast<void *>(chunk.data));
+      }
+    }
+  }
+
+  kernels::KernelContext ctx_;
+
+  std::vector<const void *> input_ptrs_;
+  std::vector<void *> inflated_ptrs_;
+  std::vector<size_t> inflated_sizes_;
+};
+
+}  // namespace inflate
+
+template <>
+void Inflate<GPUBackend>::SetupOpImpl() {
+  if (!impl_) {
+    DALI_ENFORCE(alg_ == inflate::InflateAlg::LZ4,
+                 make_string("Algorithm `", to_string(alg_),
+                             "` is not supported by the GPU inflate operator."));
+    impl_ = std::make_unique<inflate::InflateOpGpuLZ4Impl>(spec_);
+  }
+}
 
 DALI_REGISTER_OPERATOR(experimental__Inflate, Inflate<GPUBackend>, GPU);
 

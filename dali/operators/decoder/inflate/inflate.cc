@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
+
 #include "dali/operators/decoder/inflate/inflate.h"
 
 namespace dali {
@@ -20,18 +22,19 @@ DALI_SCHEMA(experimental__Inflate)
     .DocStr(R"code(Inflate the binary input using specified decompression algorithm.)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddArg("shape", "The shape of the output (decoded) sample or frame.", DALI_INT_VEC, true)
-    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_UINT8)
-    .AddOptionalArg("frame_offset",
+    .AddArg(inflate::shapeArgName, "The shape of the output (decoded) sample or frame.",
+            DALI_INT_VEC, true)
+    .AddOptionalTypeArg(inflate::dTypeArgName, R"code(Output data type.)code", DALI_NO_TYPE)
+    .AddOptionalArg(inflate::offsetArgName,
                     "Required if the input sample is a sequence of encoded samples.",
                     std::vector<int>{}, true)
-    .AddOptionalArg("frame_size",
+    .AddOptionalArg(inflate::sizeArgName,
                     "Ignored if input is not a sequence. If the input is a sequence, signifies the "
                     "sizes of corresponding encoded frames, if not provided consecutive frames are "
                     "assumed to be densely packed and sizes are inferred from ``frame_offset``.",
                     std::vector<int>{}, true)
     .AddOptionalArg(
-        "algorithm",
+        inflate::algArgName,
         R"code(Algorithm to be used to decode the data. Currently only ``LZ4`` is supported.)code",
         "LZ4");
 
