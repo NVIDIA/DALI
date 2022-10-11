@@ -244,6 +244,20 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     EXPECT_EQ(simple_b, b);
     EXPECT_EQ(simple_c, c);
   }
+
+  // Simulating putting out shape as one of the shapes
+  {
+    TensorShape<> a = {1, 2, 64};
+    TensorShape<> b = {1, 2, 64};
+    TensorShape<> c = {1};
+    SimplifyShapesForBroadcasting(a, b, c);
+    TensorShape<> simple_a = {1 * 2 * 64};
+    TensorShape<> simple_b = {1 * 2 * 64};
+    TensorShape<> simple_c = {};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+    EXPECT_EQ(simple_c, c);
+  }
 }
 
 

@@ -329,6 +329,7 @@ void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
   }
 
   if (d < ndim) {
+    group_start = d;
     for (int i = 0; i < n; i++)
       volumes[i] *= get(i, d);
 
