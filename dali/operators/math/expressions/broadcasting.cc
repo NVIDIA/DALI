@@ -274,8 +274,7 @@ void ExpandToNDims(TensorShape<> &sh, int ndim) {
   sh = shape_cat(TensorShape<>(std::vector<int64_t>(ndim - sh.sample_dim(), 1)), sh);
 }
 
-SmallVector<std::pair<int, int>, 5> SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes,
-                                                                  bool modify_shapes) {
+void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
   int n = shapes.size();
   SmallVector<TensorShape<>, 3> outs;
   outs.resize(n);
@@ -303,7 +302,6 @@ SmallVector<std::pair<int, int>, 5> SimplifyShapesForBroadcasting(span<TensorSha
   SmallVector<int64_t, 3> volumes;
   volumes.resize(n, 1);
 
-  SmallVector<std::pair<int, int>, 6> groups;
   int group_start = 0;
 
   auto can_collapse = [&](int d) {
@@ -317,10 +315,6 @@ SmallVector<std::pair<int, int>, 5> SimplifyShapesForBroadcasting(span<TensorSha
   };
 
   auto add_group = [&](int d) {
-    if (groups.empty())  // there were leading degenerate dims
-      groups.emplace_back(0, d);
-    else
-      groups.emplace_back(group_start, d);
     group_start = d;
     for (int i = 0; i < n; i++) {
       outs[i].shape.push_back(volumes[i]);
@@ -346,7 +340,6 @@ SmallVector<std::pair<int, int>, 5> SimplifyShapesForBroadcasting(span<TensorSha
           volumes[i] *= get(i, d);
         continue;
       }
-
       add_group(d);
     }
     add_group(d);
@@ -358,23 +351,19 @@ SmallVector<std::pair<int, int>, 5> SimplifyShapesForBroadcasting(span<TensorSha
     }
   }
 
-  if (modify_shapes) {
-    for (int i = 0; i < n; i++) {
-      *shapes[i] = outs[i];
-    }
+  for (int i = 0; i < n; i++) {
+    *shapes[i] = outs[i];
   }
-
-  return groups;
 }
 
 void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b) {
   std::array<TensorShape<>*, 2> arr = {&a, &b};
-  (void) SimplifyShapesForBroadcasting(make_span(arr), true);
+  SimplifyShapesForBroadcasting(make_span(arr));
 }
 
 void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c) {
   std::array<TensorShape<>*, 3> arr = {&a, &b, &c};
-  (void) SimplifyShapesForBroadcasting(make_span(arr), true);
+  SimplifyShapesForBroadcasting(make_span(arr));
 }
 
 }  // namespace dali

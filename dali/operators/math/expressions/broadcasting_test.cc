@@ -230,6 +230,20 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     EXPECT_EQ(simple_b, b);
     EXPECT_EQ(simple_c, c);
   }
+
+  // Adjacent ones in the middle
+  {
+    TensorShape<> a = {2, 4, 5, 6, 3};
+    TensorShape<> b = {2, 1, 1, 1, 3};
+    TensorShape<> c = {2, 1, 1, 1, 3};
+    SimplifyShapesForBroadcasting(a, b, c);
+    TensorShape<> simple_a = {2, 4 * 5 * 6, 3};
+    TensorShape<> simple_b = {2,         1, 3};
+    TensorShape<> simple_c = {2,         1, 3};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+    EXPECT_EQ(simple_c, c);
+  }
 }
 
 

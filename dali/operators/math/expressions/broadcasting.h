@@ -122,16 +122,12 @@ DLL_PUBLIC void ExpandToNDims(TensorShape<> &sh, int ndim);
 
 /**
  * @brief It simplifies shapes for arithmetic op execution with broadcasting.
- *        It detects and collapses adjacent dimensions that are not broadcasted.
+ *        It detects and collapses adjacent dimensions into groups of dimensions
+ *        that either broadcasted or not.
  * @param shapes span of shapes to broadcast
- * @param modify_shapes if True, the shapes will be modified, otherwise, only the groups
- *        of dimensions to be collapsed are returned.
  * @remarks For shapes that don't need broadcasting, it results in a 1D shape.
- * @return pair of dimensions [d0, d1) to be collapsed
  */
-using GroupDims = ::std::pair<int, int>;
-DLL_PUBLIC SmallVector<GroupDims, 5> SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes,
-                                                          bool modify_shapes = true);
+void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes);
 DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
 DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<> &c);
 
