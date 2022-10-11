@@ -377,12 +377,4 @@ void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorSha
   (void) SimplifyShapesForBroadcasting(make_span(arr), true);
 }
 
-bool IsBroadcastingEnabled() {
-  static bool value = []() {
-    const char *env = std::getenv("DALI_BROADCASTING_ENABLED");
-    return env && atoi(env);
-  }();
-  return value;
-}
-
 }  // namespace dali

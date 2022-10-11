@@ -135,10 +135,6 @@ DLL_PUBLIC SmallVector<GroupDims, 5> SimplifyShapesForBroadcasting(span<TensorSh
 DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
 DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<> &c);
 
-/**
- * @brief Check whether broadcasting should be enabled (via env variable)
- */
-DLL_PUBLIC bool IsBroadcastingEnabled();
 
 }  // namespace dali
 
