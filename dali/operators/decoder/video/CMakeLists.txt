@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-collect_headers(DALI_INST_HDRS PARENT_SCOPE)
-collect_sources(DALI_OPERATOR_SRCS PARENT_SCOPE)
-collect_test_sources(DALI_OPERATOR_TEST_SRCS PARENT_SCOPE)
+list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_base.h")
+
+if (BUILD_FFMPEG)
+  list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_cpu.h")
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_cpu.cc")
+endif (BUILD_FFMPEG)
+
+if (BUILD_NVDEC)
+  list(APPEND DALI_INST_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_mixed.h")
+  list(APPEND DALI_OPERATOR_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/video_decoder_mixed.cc")
+endif (BUILD_NVDEC)
+
+set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)
+set(DALI_INST_HDRS ${DALI_INST_HDRS} PARENT_SCOPE)
