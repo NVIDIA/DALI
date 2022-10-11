@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libswscale.so.6"
     "${DEPS_PATH}/lib/libtiff.so.5"
     "${DEPS_PATH}/lib/libsndfile.so.1"
-    "${DEPS_PATH}/lib/libFLAC.so.8"
+    "${DEPS_PATH}/lib/libFLAC.so.12"
     "${DEPS_PATH}/lib/libogg.so.0"
     "${DEPS_PATH}/lib/libvorbis.so.0"
     "${DEPS_PATH}/lib/libvorbisenc.so.2"
