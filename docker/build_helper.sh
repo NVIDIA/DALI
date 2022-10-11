@@ -142,8 +142,12 @@ if [ "${BUILD_PYTHON}" = "ON" ]; then
         ### This appears to be a bug in binutils
         ### (http://bugs.strategoxt.org/browse/NIXPKGS-85).
         bundle_wheel nvidia_dali[_-]*.whl NO NO ${OUT_DEBUG_WHL_NAME} "${BUNDLE_PATH_PREFIX}" &
+        pids[0]=$!
         bundle_wheel nvidia_dali[_-]*.whl YES ${TEST_BUNDLED_LIBS} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}" &
-        wait
+        pids[1]=$!
+        for pid in ${pids[*]}; do
+            wait $pid
+        done
     else
         bundle_wheel nvidia_dali[_-]*.whl NO ${TEST_BUNDLED_LIBS} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}"
     fi
