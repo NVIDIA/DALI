@@ -121,27 +121,19 @@ DALI_HOST_DEV T Access(T value, int64_t, DALIDataType) {
   return value;
 }
 
-
 template <typename T>
-DALI_HOST_DEV void Advance(const T*& ptr, int64_t n, int64_t stride) {
-  ptr += n * stride;
-}
-
-template <typename T>
-DALI_HOST_DEV void Advance(T value, int64_t, int64_t) {
-}
-
-static DALI_HOST_DEV void Advance(const void*& ptr, int64_t n, int64_t stride, DALIDataType type_id) {
-  TYPE_SWITCH(type_id, type2id, T, ARITHMETIC_ALLOWED_TYPES, (
-    const T *ptr2 = reinterpret_cast<const T*>(ptr);
-    Advance<T>(ptr2, n, stride);
-    ptr = ptr2;
-  ), ptr = {};);  // NOLINT(whitespace/parens)
+DALI_HOST_DEV void Advance(T value, int64_t) {
+  std::cout << "Advance takes no effect\n";
 }
 
 template <typename T>
-DALI_HOST_DEV void Advance(T value, int64_t, int64_t, DALIDataType) {
+static DALI_HOST_DEV void Advance(const void*& ptr, int64_t stride) {
+  std::cout << "Advance " << (uint64_t) static_cast<const uint8_t*>(ptr) << " to ";
+  ptr = static_cast<const uint8_t*>(ptr) + stride * sizeof(T);
+  std::cout << (uint64_t) static_cast<const uint8_t*>(ptr) 
+            << " stride=" << stride << " sizeof(T)=" << sizeof(T) << "\n";
 }
+
 
 template <bool as_ptr, typename T>
 using param_t = std::conditional_t<as_ptr, const void*, T>;
@@ -230,27 +222,22 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
   for (int s = 0; s < nsamples; s++) {
     out_samples.emplace_back(GetOutput<Backend>(func, ws, s), GetArgPack(func, ws, st, spec, s));
 
-    SmallVector<TensorShape<>*, kMaxArity> shape_ptrs;
+    SmallVector<TensorShape<>*, kMaxArity + 1> shape_ptrs;
+    shape_ptrs.push_back(&(out_samples.back().output.shape));
     for (auto &arg : out_samples.back().args) {
       shape_ptrs.push_back(&arg.shape);
     }
     span<TensorShape<>*> shape_ptrs_span = make_span(shape_ptrs);
-    auto &out_sh = out_samples.back().output.shape;
-
-    auto group_dims = SimplifiedShapeCollapseGroups(make_span(shape_ptrs));
-    for (auto *sh : shape_ptrs) {
-      *sh = collapse_dims(*sh, group_dims);
-    }
-    out_sh = collapse_dims(out_sh, group_dims);
+    SimplifyShapesForBroadcasting(make_span(shape_ptrs));
   }
 
-  // Making sure all samples have same dimensionality
-  int out_max_ndim = out_samples[0].output.shape.sample_dim();
+  // Making sure all samples have same dimensionality and
+  // at least 1D (the implementation requires it)
+  int out_max_ndim = 1;
   SmallVector<int, kMaxArity> args_max_ndim;
-  args_max_ndim.resize(out_samples[0].args.size());
-  for (size_t a = 0; a < out_samples[0].args.size(); a++)
-    args_max_ndim[a] = out_samples[0].args[a].shape.sample_dim();
-  for (int s = 1; s < nsamples; s++) {
+  args_max_ndim.resize(out_samples[0].args.size(), 1);
+
+  for (int s = 0; s < nsamples; s++) {
     out_max_ndim = std::max(out_max_ndim, out_samples[s].output.shape.sample_dim());
     for (size_t a = 0; a < out_samples[s].args.size(); a++)
       args_max_ndim[a] = std::max(args_max_ndim[a], out_samples[s].args[a].shape.sample_dim());

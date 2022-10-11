@@ -354,12 +354,6 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
     output_desc[0] = {result_shape_, result_type_id_};
 
-    if (broadcasting_ && !IsBroadcastingEnabled()) {
-      DALI_FAIL(
-          "Arithmetic operator shape broadcasting is a experimental feature, currently disabled. "
-          "To enable it, set the environment variable DALI_BROADCASTING_ENABLED=1");
-    }
-
     // 1D tiling only when not broadcasting
     bool no_tiling = std::is_same<Backend, CPUBackend>::value && broadcasting_;
     if (no_tiling) {

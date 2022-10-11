@@ -104,7 +104,7 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     EXPECT_EQ(simple_b, b);
   }
 
-  // // First expanding channels, then collapsing
+  // First expanding channels, then collapsing
   {
     TensorShape<> a = {2, 1, 10, 2, 1, 3};
     TensorShape<> b =       {10, 2, 2, 3};
@@ -126,35 +126,35 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     EXPECT_EQ(simple_b, b);
   }
 
-  // // Any shape and a scalar should reduce to one dim
+  // Any shape and a scalar should reduce to one dim
   {
     TensorShape<> a = {2, 1, 10, 2, 1, 3};
     TensorShape<> b = {};
     SimplifyShapesForBroadcasting(a, b);
     TensorShape<> simple_a = {120};
-    TensorShape<> simple_b = {1};
+    TensorShape<> simple_b = {};
     EXPECT_EQ(simple_a, a);
     EXPECT_EQ(simple_b, b);
   }
 
-  // // Any shape and a scalar-like should reduce to one dim
+  // Any shape and a scalar-like should reduce to one dim
   {
     TensorShape<> a = {2, 1, 10, 2, 1, 3};
-    TensorShape<> b = {1};
+    TensorShape<> b = {};
     SimplifyShapesForBroadcasting(a, b);
     TensorShape<> simple_a = {120};
-    TensorShape<> simple_b = {1};
+    TensorShape<> simple_b = {};
     EXPECT_EQ(simple_a, a);
     EXPECT_EQ(simple_b, b);
   }
 
-  // // Group of ones can always be collapsed
+  // Group of ones can always be collapsed
   {
     TensorShape<> a = {2, 1, 10, 2, 1, 3};
     TensorShape<> b = {1, 1,  1, 1, 1, 1};
     SimplifyShapesForBroadcasting(a, b);
     TensorShape<> simple_a = {120};
-    TensorShape<> simple_b = {1};
+    TensorShape<> simple_b = {};
     EXPECT_EQ(simple_a, a);
     EXPECT_EQ(simple_b, b);
   }
@@ -164,7 +164,7 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     TensorShape<> b = {1, 1, 1};
     SimplifyShapesForBroadcasting(a, b);
     TensorShape<> simple_a = {4 * 3 * 16};
-    TensorShape<> simple_b = {1};
+    TensorShape<> simple_b = {};
     EXPECT_EQ(simple_a, a);
     EXPECT_EQ(simple_b, b);
   }
@@ -186,7 +186,7 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     TensorShape<> c = {1024, 1024};
     SimplifyShapesForBroadcasting(a, b, c);
     TensorShape<> simple_a = {1024 * 1024};
-    TensorShape<> simple_b = {1};
+    TensorShape<> simple_b = {};
     TensorShape<> simple_c = {1024 * 1024};
     EXPECT_EQ(simple_a, a);
     EXPECT_EQ(simple_b, b);
@@ -198,8 +198,62 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     TensorShape<> c = {1024, 1024};
     SimplifyShapesForBroadcasting(a, b, c);
     TensorShape<> simple_a = {1024 * 1024};
-    TensorShape<> simple_b = {1};
+    TensorShape<> simple_b = {};
     TensorShape<> simple_c = {1024 * 1024};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+    EXPECT_EQ(simple_c, c);
+  }
+
+  // All ones
+  {
+    TensorShape<> a = {1, 1, 1, 1, 1, 1};
+    TensorShape<> b = {};
+    TensorShape<> c = {1, 1};
+    SimplifyShapesForBroadcasting(a, b, c);
+    TensorShape<> simple_a = {};
+    TensorShape<> simple_b = {};
+    TensorShape<> simple_c = {};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+    EXPECT_EQ(simple_c, c);
+  }
+  {
+    TensorShape<> a = {1, 1, 1};
+    TensorShape<> b = {1, 1, 1};
+    TensorShape<> c = {1, 1, 1};
+    SimplifyShapesForBroadcasting(a, b, c);
+    TensorShape<> simple_a = {};
+    TensorShape<> simple_b = {};
+    TensorShape<> simple_c = {};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+    EXPECT_EQ(simple_c, c);
+  }
+
+  // Adjacent ones in the middle
+  {
+    TensorShape<> a = {2, 4, 5, 6, 3};
+    TensorShape<> b = {2, 1, 1, 1, 3};
+    TensorShape<> c = {2, 1, 1, 1, 3};
+    SimplifyShapesForBroadcasting(a, b, c);
+    TensorShape<> simple_a = {2, 4 * 5 * 6, 3};
+    TensorShape<> simple_b = {2,         1, 3};
+    TensorShape<> simple_c = {2,         1, 3};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+    EXPECT_EQ(simple_c, c);
+  }
+
+  // Simulating putting out shape as one of the shapes
+  {
+    TensorShape<> a = {1, 2, 64};
+    TensorShape<> b = {1, 2, 64};
+    TensorShape<> c = {1};
+    SimplifyShapesForBroadcasting(a, b, c);
+    TensorShape<> simple_a = {1 * 2 * 64};
+    TensorShape<> simple_b = {1 * 2 * 64};
+    TensorShape<> simple_c = {};
     EXPECT_EQ(simple_a, a);
     EXPECT_EQ(simple_b, b);
     EXPECT_EQ(simple_c, c);

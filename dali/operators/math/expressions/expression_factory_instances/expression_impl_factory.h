@@ -103,7 +103,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
         // Both are non-scalar tensors
         result.reset(new ImplTensorTensor<op, Out_t, Left_t, Right_t>());
       } else {
-        // DALI_FAIL("Expression cannot have two scalar operands");
+        // TODO(janton) : do something else?
         result.reset(new ImplTensorConstant<op, Out_t, Left_t, Right_t>());
       }
     ), DALI_FAIL(make_string("Invalid type (right operand): ", right_type)););  // NOLINT

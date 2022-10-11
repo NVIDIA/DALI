@@ -274,144 +274,86 @@ void ExpandToNDims(TensorShape<> &sh, int ndim) {
   sh = shape_cat(TensorShape<>(std::vector<int64_t>(ndim - sh.sample_dim(), 1)), sh);
 }
 
+void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
+  int n = shapes.size();
+  SmallVector<TensorShape<>, 3> outs;
+  outs.resize(n);
 
-SmallVector<std::pair<int, int>, 5> SimplifiedShapeCollapseGroups(span<TensorShape<>*> shapes) {
-  SmallVector<std::pair<int, int>, 5> group_dims;
-  int full_ndim = shapes[0]->sample_dim();
-  for (int i = 1; i < shapes.size(); i++) {
-    full_ndim = std::max(full_ndim, shapes[i]->sample_dim());
-  }
-  if (shapes.size() < 2) {  // Unary operator, can simply collapse to 1D
-    if (full_ndim > 1)
-      group_dims.emplace_back(0, full_ndim);
-    return group_dims;
-  }
-  // First, if needed expand dimensions
-  for (auto *sh : shapes) {
-    ExpandToNDims(*sh, full_ndim);
-  }
+  int ndim = shapes[0]->size();
+  for (int i = 1; i < n; i++)
+    if (static_cast<int>(shapes[i]->size()) > ndim)
+      ndim = shapes[i]->size();
 
-  // True if all dim-th extents are equal
-  auto all_same = [=](int dim) {
-    int64_t extent = -1;
-    for (int k = 0; k < shapes.size(); k++) {
-      if (extent == -1) {
-        extent = (*shapes[k])[dim];
-      } else if (extent != (*shapes[k])[dim]) {
+  auto get = [&](int shape, int dim) -> int64_t {
+    auto &s = *shapes[shape];
+    dim -= ndim - s.size();  // add leading unit dims
+    if (dim < 0)
+      return 1;  // implicit unit dim
+    return s[dim];
+  };
+
+  auto should_skip = [&](int d) {
+    for (int i = 0; i < n; i++)
+      if (get(i, d) != 1)
         return false;
-      }
+    return true;
+  };
+
+  SmallVector<int64_t, 3> volumes;
+  volumes.resize(n, 1);
+
+  int group_start = 0;
+
+  auto can_collapse = [&](int d) {
+    for (int i = 0; i < n; i++) {
+      bool prev_b = get(i, group_start) == 1;
+      bool curr_b = get(i, d) == 1;
+      if (prev_b != curr_b)
+        return false;
     }
     return true;
   };
 
-  // True if all dim-th extents are one
-  auto all_ones = [=](int dim) {
-    for (int k = 0; k < shapes.size(); k++) {
-      if (1 != (*shapes[k])[dim]) {
-        return false;
-      }
+  auto add_group = [&](int d) {
+    group_start = d;
+    for (int i = 0; i < n; i++) {
+      outs[i].shape.push_back(volumes[i]);
+      volumes[i] = get(i, d);
     }
-    return true;
   };
 
-  // True if all dim-th extents are the same, or equal to one
-  auto all_same_or_one = [=](int dim) {
-    int64_t extent = -1;
-    for (int k = 0; k < shapes.size(); k++) {
-      int64_t value = (*shapes[k])[dim];
-      if (value == 1)
+  int d = 0;
+  for (; d < ndim; d++) {
+    if (!should_skip(d))
+      break;
+  }
+
+  if (d < ndim) {
+    group_start = d;
+    for (int i = 0; i < n; i++)
+      volumes[i] *= get(i, d);
+
+    for (d++; d < ndim; d++) {
+      if (should_skip(d))
         continue;
-      if (extent == -1) {
-        extent = value;
-      } else if (extent != value) {
-        return false;
+      if (can_collapse(d)) {
+        for (int i = 0; i < n; i++)
+          volumes[i] *= get(i, d);
+        continue;
       }
+      add_group(d);
     }
-    return true;
-  };
-
-  // Can collapse dimensions with 'odd ones' (not all extents are 1)
-  // when there is no transition from or to odd one in the two dimensions
-  // Examples:
-  // 1. Can collapse even if we have transition from 2 to 1,
-  //    because there are only ones on the second dimension
-  // {2 1} -> {2}
-  // {1 1} -> {1}
-  // 2. Can NOT collapse because there is a transition to 1
-  // {2 1} -> {2 1}
-  // {2 2} -> {2 2}
-  auto can_merge_ones = [=](int dim) {
-    for (int k = 0; k < shapes.size(); k++) {
-      auto &sh = *shapes[k];
-      if ((sh[dim] != 1 && sh[dim + 1] == 1 && !all_ones(dim + 1)) ||
-          (sh[dim] == 1 && !all_ones(dim) && sh[dim + 1] != 1)) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // We can merge a dimension with the next if any of the following conditions apply:
-  // 1. All extents on that dimension and the next are the same (that also includes all ones)
-  // 2. All extents on that dimension and the next are the same or one,
-  //    and the ones are either present or not present in both dimensions
-  auto can_merge_next = [=](int dim) {
-    if (all_same(dim) && all_same(dim + 1))
-      return true;
-    else if (all_same_or_one(dim) && all_same_or_one(dim + 1) && can_merge_ones(dim))
-      return true;
-    else
-      return false;
-  };
-
-  // Updates the volumes with the new dimension and returns true if the resulting volumes are
-  // compatible (all the same except for 1s)
-  auto compatible_vol = [=](SmallVector<int64_t, kMaxArity>& volumes, int dim) {
-    int64_t curr_vol = -1;
-    for (int k = 0; k < shapes.size(); k++) {
-      volumes[k] *= (*shapes[k])[dim];
-      if (volumes[k] == 1)
-        continue;  // always compatible
-      else if (curr_vol == -1)
-        curr_vol = volumes[k];
-      else if (curr_vol != volumes[k])
-        return false;  // not compatible
-    }
-    return true;
-  };
-
-  int i = 0;
-  SmallVector<int64_t, kMaxArity> volumes;
-  volumes.resize(shapes.size(), 1);
-  for (; i < full_ndim - 1;) {
-    if (compatible_vol(volumes, i)) {
-      int j = i + 1;
-      for (; j < full_ndim;) {
-        if (compatible_vol(volumes, j) && can_merge_next(j - 1)) {
-          j++;
-        } else {
-          break;
-        }
-      }
-      int group_sz = j - i;
-      if (group_sz > 1) {
-        group_dims.emplace_back(i, group_sz);
-      }
-      i = j;
-    } else {
-      i++;
-    }
-    // clean accumulated volumes
-    volumes.clear();
-    volumes.resize(shapes.size(), 1);
+    add_group(d);
   }
-  return group_dims;
-}
 
-void SimplifyShapesForBroadcasting(span<TensorShape<>*> shapes) {
-  auto group_dims = SimplifiedShapeCollapseGroups(shapes);
-  for (auto *sh : shapes) {
-    *sh = collapse_dims(*sh, group_dims);
+  for (int i = 0; i < n; i++) {
+    if (volume(outs[i]) == 1) {
+      outs[i] = {};
+    }
+  }
+
+  for (int i = 0; i < n; i++) {
+    *shapes[i] = outs[i];
   }
 }
 
@@ -423,14 +365,6 @@ void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b) {
 void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c) {
   std::array<TensorShape<>*, 3> arr = {&a, &b, &c};
   SimplifyShapesForBroadcasting(make_span(arr));
-}
-
-bool IsBroadcastingEnabled() {
-  static bool value = []() {
-    const char *env = std::getenv("DALI_BROADCASTING_ENABLED");
-    return env && atoi(env);
-  }();
-  return value;
 }
 
 }  // namespace dali

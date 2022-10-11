@@ -449,18 +449,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   }
 }
 
-// TODO(janton): remove when broadcasting is always enabled
-struct BroadcastEnabledContext {
-  BroadcastEnabledContext() {
-    setenv("DALI_BROADCASTING_ENABLED", "1", 0);
-  }
-  ~BroadcastEnabledContext() {
-    setenv("DALI_BROADCASTING_ENABLED", "0", 0);
-  }
-};
-
 TEST(ArithmeticOpsTest, BroadcastCPU) {
-  BroadcastEnabledContext broadcasting_enabled;
   constexpr int batch_size = 1;
   constexpr int num_threads = 4;
   const auto tensor_a_sh = uniform_list_shape(batch_size, {2, 2, 3});
@@ -517,7 +506,6 @@ TEST(ArithmeticOpsTest, BroadcastCPU) {
 }
 
 TEST(ArithmeticOpsTest, BroadcastGPU) {
-  BroadcastEnabledContext broadcasting_enabled;
   constexpr int batch_size = 1;
   constexpr int num_threads = 4;
   const auto tensor_a_sh = uniform_list_shape(batch_size, {2, 2, 3});

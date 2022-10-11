@@ -103,8 +103,6 @@ __device__ void ExecuteBinOpND(Result *result, const Left *l, const Right *r, in
       idx_l += i_d * strides_l[d];
       idx_r += i_d * strides_r[d];
     }
-    idx_l += tmp_idx;  // remaining dims have equal strides
-    idx_r += tmp_idx;
     result[idx] = meta_t::impl(l[idx_l], r[idx_r]);
   }
 }
@@ -172,20 +170,20 @@ __device__ void ExecuteTernaryOp(Result *result,
 /**
  * @brief Loop over tile of `extent` length, ternary op and different strides (used for broadcasting)
  */
-template <ArithmeticOp op, int Dims, typename Result, bool IsFirstTensor, bool IsSecondTensor,
-          bool IsThirdTensor>
-__device__ void ExecuteTernaryOp(Result *result,
-                                 expression_detail::param_t<IsFirstTensor, Result> first,
-                                 expression_detail::param_t<IsSecondTensor, Result> second,
-                                 expression_detail::param_t<IsThirdTensor, Result> third,
-                                 DALIDataType first_type,
-                                 DALIDataType second_type,
-                                 DALIDataType third_type,
-                                 int64_t offset, int64_t extent,
-                                 const fast_div<uint64_t> *strides_out,
-                                 const uint64_t *strides_first,
-                                 const uint64_t *strides_second,
-                                 const uint64_t *strides_third) {
+template <ArithmeticOp op, typename Result, bool IsFirstTensor, bool IsSecondTensor,
+          bool IsThirdTensor, int ndim>
+__device__ void ExecuteTernaryOpND(Result *result,
+                                   expression_detail::param_t<IsFirstTensor, Result> first,
+                                   expression_detail::param_t<IsSecondTensor, Result> second,
+                                   expression_detail::param_t<IsThirdTensor, Result> third,
+                                   DALIDataType first_type,
+                                   DALIDataType second_type,
+                                   DALIDataType third_type,
+                                   int64_t offset, int64_t extent,
+                                   const fast_div<uint64_t> *strides_out,
+                                   const int64_t *strides_first,
+                                   const int64_t *strides_second,
+                                   const int64_t *strides_third) {
   using meta_t = arithm_meta<op, GPUBackend>;
   int64_t block_start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
@@ -194,19 +192,16 @@ __device__ void ExecuteTernaryOp(Result *result,
     uint64_t idx_first = 0, idx_second = 0, idx_third = 0;
     uint64_t tmp_idx = idx;
     #pragma unroll
-    for (int d = 0; d < Dims; d++) {
+    for (int d = 0; d < ndim; d++) {
       int i_d = div_mod(tmp_idx, tmp_idx, strides_out[d]);
       idx_first += i_d * strides_first[d];
       idx_second += i_d * strides_second[d];
       idx_third += i_d * strides_third[d];
     }
-    idx_first += tmp_idx;  // remaining dims have equal strides
-    idx_second += tmp_idx;
-    idx_third += tmp_idx;
     result[idx] = meta_t::impl(
       expression_detail::Access<Result>(first, idx_first, first_type),
-      expression_detail::Access<Result>(second, idx_second, third_type),
-      expression_detail::Access<Result>(third, idx_third, second_type));
+      expression_detail::Access<Result>(second, idx_second, second_type),
+      expression_detail::Access<Result>(third, idx_third, third_type));
   }
 }
 
@@ -256,7 +251,7 @@ __global__ void ExecuteTiledBinOp1D(const SampleDescGPU<2, 1> *samples, const Ti
  */
 template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
-__global__ void ExecuteTiledTernaryOp(const SampleDescGPU<3, 1> *samples, const TileDesc *tiles) {
+__global__ void ExecuteTiledTernaryOp1D(const SampleDescGPU<3, 1> *samples, const TileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
   auto output = static_cast<Result *>(sample.output.data);
@@ -270,6 +265,27 @@ __global__ void ExecuteTiledTernaryOp(const SampleDescGPU<3, 1> *samples, const 
       expression_detail::Pass<IsThirdTensor, Result>(arg2.data, arg2.dtype),
       arg0.dtype, arg1.dtype, arg2.dtype,
       tile.offset, tile.extent_size);
+}
+
+/**
+ * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
+ */
+template <ArithmeticOp op, typename Result,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor, int ndim>
+__global__ void ExecuteTiledTernaryOpND(const SampleDescGPU<3, ndim> *samples, const TileDesc *tiles) {
+  const auto &tile = tiles[blockIdx.y];
+  const auto &sample = samples[tile.sample_idx];
+  auto output = static_cast<Result *>(sample.output.data);
+  auto &arg0 = sample.args[0];
+  auto &arg1 = sample.args[1];
+  auto &arg2 = sample.args[2];
+  ExecuteTernaryOpND<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor, ndim>(
+      output,
+      expression_detail::Pass<IsFirstTensor, Result>(arg0.data, arg0.dtype),
+      expression_detail::Pass<IsSecondTensor, Result>(arg1.data, arg1.dtype),
+      expression_detail::Pass<IsThirdTensor, Result>(arg2.data, arg2.dtype),
+      arg0.dtype, arg1.dtype, arg2.dtype, tile.offset, tile.extent_size,
+      &sample.output.strides[0], &arg0.strides[0],  &arg1.strides[0], &arg2.strides[0]);
 }
 
 template <ArithmeticOp op, typename Result, typename Input>
@@ -303,7 +319,16 @@ template <ArithmeticOp op, typename Result, bool IsFirstTensor, bool IsSecondTen
 struct InvokerTernaryOp {
   static void Invoke(const SampleDescGPU<3, 1> *samples, const TileDesc *tiles, dim3 grid,
                      dim3 block, cudaStream_t stream) {
-    ExecuteTiledTernaryOp<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>
+    ExecuteTiledTernaryOp1D<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>
+        <<<grid, block, 0, stream>>>(samples, tiles);
+  }
+
+  template <int ndim>
+  static void Invoke(const SampleDescGPU<3, ndim> *samples, const TileDesc *tiles, dim3 grid,
+                     dim3 block, cudaStream_t stream) {
+    // Otherwise we wouldn't land here
+    assert(ndim > 1 && (IsFirstTensor + IsSecondTensor + IsThirdTensor) > 1);
+    ExecuteTiledTernaryOpND<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor, ndim>
         <<<grid, block, 0, stream>>>(samples, tiles);
   }
 };
@@ -430,22 +455,24 @@ class ExprImplGPUInvokeTernary : public ExprImplBase {
  public:
   void Execute(ExprImplContext &ctx, span<const SampleDesc> samples,
                span<const TileDesc> tiles) override {
-    kernels::DynamicScratchpad s({}, ctx.stream);
-    TileDesc *tiles_gpu = nullptr;
-    SampleDescGPU<kNumArgs, 1> *samples_gpu = nullptr;
-
-    assert(samples.size() > 0);
     int ndim = samples[0].output.shape.sample_dim();
+    VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+      ExecuteImpl<Dims>(ctx, samples, tiles);
+    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
+  }
+
+  template <int ndim>
+  void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
+                   span<const TileDesc> tiles) {
+    kernels::DynamicScratchpad s({}, ctx.stream);
+    assert(samples.size() > 0);
     for (int i = 0; i < samples.size(); i++) {
       assert(ndim == samples[i].output.shape.sample_dim());
       assert(kNumArgs == samples[i].args.size());
     }
 
-    if (ndim > 1)  // TODO(janton): implement
-      DALI_FAIL("Broadcasting not supported yet for ternary ops");
-
     auto sample_descs =
-        make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, 1>>(samples.size()),
+        make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, ndim>>(samples.size()),
                   samples.size());
     for (int i = 0; i < samples.size(); i++) {
       auto &sample_desc = sample_descs[i];
@@ -478,7 +505,8 @@ class ExprImplGPUInvokeTernary : public ExprImplBase {
         sample_desc.args[2].strides[d] = sample.args[2].strides[d];
       }
     }
-
+    SampleDescGPU<kNumArgs, ndim> *samples_gpu = nullptr;
+    TileDesc *tiles_gpu = nullptr;
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, sample_descs, tiles);
     auto grid = GetGridLayout(kBlocksX, tiles.size());
     auto block = dim3(kThreadNum, 1, 1);
