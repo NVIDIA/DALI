@@ -90,6 +90,11 @@ TEST(MMPoolResource, CoalescingFreeTree) {
 }
 
 TEST(MMPoolResource, ReturnToUpstream) {
+  cudaDeviceProp device_prop;
+  CUDA_CALL(cudaGetDeviceProperties(&device_prop, 0));
+  if (device_prop.integrated) {
+      GTEST_SKIP() << "GPU and CPU memory are shared. Overallocating taunts OOM killer";
+  }
   test_device_resource upstream;
   {
     pool_resource_base<memory_kind::device, coalescing_free_tree, detail::dummy_lock>
