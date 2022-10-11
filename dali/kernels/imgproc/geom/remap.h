@@ -15,24 +15,25 @@
 #ifndef DALI_KERNELS_IMGPROC_GEOM_REMAP_H_
 #define DALI_KERNELS_IMGPROC_GEOM_REMAP_H_
 
+#include <vector>
 #include <optional>
 #include "dali/core/common.h"
 #include "dali/kernels/kernel.h"
 #include "include/dali/core/boundary.h"
 #include "include/dali/core/geom/box.h"
 
-namespace dali {
-namespace kernels {
+namespace dali::kernels::remap {
 
 
 /**
  * API for Remap operation. Remap applies a generic geometrical transformation to an image.
- * @tparam Backend
- * @tparam T
+ * @tparam Backend Storage backend for data.
+ * @tparam T Type of input and output data.
  */
 template <typename Backend, typename T>
 struct RemapKernel {
   using Border = boundary::Boundary<T>;
+  using MapType = typename std::conditional<std::is_same<T, double>::value, double, float>::type;
   /**
    * Perform remap algorithm. This function allows to apply a different transformation to every
    * sample in a batch. For a special case, where the same transformation is applied for every
@@ -50,6 +51,12 @@ struct RemapKernel {
    * assigned with unmodified pixels from the source image, i.e.:
    * mapx(x, y) < 0 || mapx(x, y) > input.width => output(x, y) ::== input(x, y)
    *
+   * Each ROI descriptor consists of 2 points: `lo` and `hi`. It is assumed, that `lo` denotes
+   * upper-left corner of the ROI and `hi` denotes bottom-right corner. In both `lo` and `hi`,
+   * first coordinate denotes value along x axis (i.e. width of the image) and the second
+   * coordinate denotes value along y axis (i.e. height of the image). The (0, 0) point is the
+   * upper-left corner of the image.
+   *
    * @param context Context for the operation.
    * @param output Output batch.
    * @param input Input batch.
@@ -64,25 +71,26 @@ struct RemapKernel {
    * @param borders Determines, how to handle pixels on a border on an image (or ROI). If empty,
    *                it is assumed that every sample is processed with REFLECT_101.
    */
-  void Run(KernelContext &context, TensorListView<Backend, T> output,
-           TensorListView<Backend, const T> input, TensorListView<Backend, const float, 2> mapsx,
-           TensorListView<Backend, const float, 2> mapsy, span<Box<2, int64_t>> output_rois = {},
-           span<Box<2, int64_t>> input_rois = {}, span<DALIInterpType> interpolations = {},
-           span<Border> borders = {}) = 0;
+  virtual void Run(KernelContext &context, TensorListView<Backend, T> output,
+                   TensorListView<Backend, const T> input,
+                   TensorListView<Backend, const MapType, 2> mapsx,
+                   TensorListView<Backend, const MapType, 2> mapsy,
+                   span<Box<2, int64_t>> output_rois = {}, span<Box<2, int64_t>> input_rois = {},
+                   span<DALIInterpType> interpolations = {}, span<Border> borders = {}) = 0;
 
 
   /**
    * Convenient overload. This function shall be used when the transformation parameters are the
    * same for every sample in an input batch.
    */
-  void Run(KernelContext &context, TensorListView<Backend, T> output,
-           TensorListView<Backend, const T> input, TensorView<Backend, const float, 2> mapx,
-           TensorView<Backend, const float, 2> mapy, Box<2, int64_t> output_roi = {},
-           Box<2, int64_t> input_roi = {}, DALIInterpType interpolation = DALI_INTERP_LINEAR,
-           Border border = {}) = 0;
+  virtual void Run(KernelContext &context, TensorListView<Backend, T> output,
+                   TensorListView<Backend, const T> input,
+                   TensorView<Backend, const MapType, 2> mapx,
+                   TensorView<Backend, const MapType, 2> mapy,
+                   Box<2, int64_t> output_roi = {}, Box<2, int64_t> input_roi = {},
+                   DALIInterpType interpolation = DALI_INTERP_LINEAR, Border border = {}) = 0;
 };
 
-}  // namespace kernels
-}  // namespace dali
+}  // namespace dali::kernels::remap
 
 #endif  // DALI_KERNELS_IMGPROC_GEOM_REMAP_H_

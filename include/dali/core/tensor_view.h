@@ -482,6 +482,22 @@ struct TensorListView<Backend, DataType, DynamicDimensions>
   TensorListView &operator=(TensorListView &&) = default;
 
   /** @{ */
+  /** @brief Construction from contiguous memory */
+
+  TensorListView(std::nullptr_t, const std::vector<TensorShape<DynamicDimensions>> &shapes)
+      : Base(TensorListShape<DynamicDimensions>(shapes)) {}
+
+  template <int other_sample_ndim>
+  TensorListView(std::nullptr_t, const TensorListShape<other_sample_ndim> &shape)
+      : Base(shape) {}
+
+  template <int other_sample_ndim>
+  TensorListView(std::nullptr_t, TensorListShape<other_sample_ndim> &&shape)
+      : Base(std::move(shape)) {}
+
+  /** @} */
+
+  /** @{ */
   /** @brief  Construction from contiguous memory */
 
   TensorListView(DataType *data, const std::vector<TensorShape<DynamicDimensions>> &shapes)
@@ -648,6 +664,27 @@ template <typename StorageBackend, int ndim, typename T>
 TensorListView<StorageBackend, T, ndim> make_tensor_list(T *const *data,
                                                          TensorListShape<ndim> shape) {
   return { data, std::move(shape) };
+}
+
+template <typename StorageBackend, int ndim, typename T>
+TensorListView<StorageBackend, T, ndim> make_tensor_list(
+    const TensorView<StorageBackend, T, ndim> &tv) {
+  return {tv.data, {tv.shape}};
+}
+
+template <typename StorageBackend, int ndim, typename T>
+TensorListView<StorageBackend, T, ndim> make_tensor_list(
+    const std::vector<TensorView<StorageBackend, T, ndim>> &tvs) {
+  std::vector<TensorShape<ndim>> shapes(tvs.size());
+  for (size_t i = 0; i < tvs.size(); i++) {
+    shapes[i] = tvs[i].shape;
+  }
+  TensorListView<StorageBackend, T, ndim> tlv{nullptr, shapes};
+  tlv.data.resize(tvs.size());
+  for (size_t i = 0; i < tvs.size(); i++) {
+    tlv.data[i] = tvs[i].data;
+  }
+  return tlv;
 }
 
 /**

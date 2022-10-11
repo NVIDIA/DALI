@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <numeric>
+#include <random>
 #include <utility>
 
 #include "dali/core/tensor_shape.h"
@@ -516,6 +517,85 @@ TEST(TensorListView, Reshape) {
   EXPECT_EQ(r7.shape, shape7);
   for (int i = 0; i < 3; i++)
     EXPECT_EQ(r7.data[i], reinterpret_cast<uint16_t*>(tlv.data[i]));
+}
+
+
+class TensorListViewFromVectorOfTensorViewTest : public ::testing::Test {
+ protected:
+  using T = uint8_t;
+  using Backend = StorageCPU;
+
+  template <int ndim>
+  void PrepareTestData(const std::vector<TensorShape<ndim>> &shapes) {
+    std::uniform_int_distribution<> idist(0, 255);
+    auto irng = [&]() { return idist(mt_); };
+    size_t batch_size = shapes.size();
+
+    test_data_.resize(batch_size);
+    for (size_t i = 0; i < batch_size; i++) {
+      test_data_[i].resize(volume(shapes[i]));
+      generate(test_data_[i].begin(), test_data_[i].end(), irng);
+      data_pointers_.emplace_back(test_data_[i].data());
+    }
+  }
+
+  template <typename Backend, typename T, int ndim>
+  bool compare(TensorListView<Backend, T, ndim> lhs, TensorListView<Backend, T, ndim> rhs) {
+    if (lhs.shape != rhs.shape)
+      return false;
+    if (lhs.data != rhs.data)
+      return false;
+    return true;
+  }
+  std::vector<std::vector<T>> test_data_;
+  std::vector<T *> data_pointers_;
+  std::mt19937 mt_;
+};
+
+TEST_F(TensorListViewFromVectorOfTensorViewTest, StaticDimTest) {
+  constexpr int ndim = 3;
+
+  std::vector<TensorShape<ndim>> shapes{
+      {1080, 1920, 3},
+      {480, 640, 3},
+      {24, 24, 24},
+  };
+
+  PrepareTestData(shapes);
+
+  size_t batch_size = shapes.size();
+  std::vector<TensorView<Backend, T, ndim>> tvs;
+  for (size_t i = 0; i < batch_size; i++) {
+    tvs.emplace_back(this->test_data_[i].data(), shapes[i]);
+  }
+
+  auto tl_from_tvs = make_tensor_list(tvs);
+  TensorListView<Backend, T, ndim> tl_from_data_pointers(this->data_pointers_.data(), shapes);
+
+  EXPECT_TRUE(this->compare(tl_from_tvs, tl_from_data_pointers));
+}
+
+TEST_F(TensorListViewFromVectorOfTensorViewTest, DynamicDimTest) {
+  constexpr int ndim = -1;
+
+  std::vector<TensorShape<ndim>> shapes{
+      {1080, 1920, 3},
+      {480, 640, 3},
+      {24, 24, 24},
+  };
+
+  PrepareTestData(shapes);
+
+  size_t batch_size = shapes.size();
+  std::vector<TensorView<Backend, T, ndim>> tvs;
+  for (size_t i = 0; i < batch_size; i++) {
+    tvs.emplace_back(this->test_data_[i].data(), shapes[i]);
+  }
+
+  auto tl_from_tvs = make_tensor_list(tvs);
+  TensorListView<Backend, T, ndim> tl_from_data_pointers(this->data_pointers_.data(), shapes);
+
+  EXPECT_TRUE(this->compare(tl_from_tvs, tl_from_data_pointers));
 }
 
 }  // namespace kernels

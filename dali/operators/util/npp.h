@@ -31,6 +31,23 @@
 
 namespace dali {
 
+inline NppiInterpolationMode to_npp(DALIInterpType interp) {
+  switch (interp) {
+    case DALI_INTERP_NN:
+      return NPPI_INTER_NN;
+    case DALI_INTERP_LINEAR:
+      return NPPI_INTER_LINEAR;
+    case DALI_INTERP_CUBIC:
+      return NPPI_INTER_CUBIC;
+    case DALI_INTERP_LANCZOS3:
+      return NPPI_INTER_LANCZOS3_ADVANCED;
+    default:
+      DALI_FAIL(make_string("Unsupported interpolation type. Interpolation type (", interp,
+                            ") is not supported by NPP."));
+  }
+}
+
+
 class NppError : public std::runtime_error {
  public:
   explicit NppError(NppStatus result, const char *details = nullptr)

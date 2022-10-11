@@ -55,7 +55,7 @@ class TestTensorList {
       cpumem_ = mm::alloc_raw_unique<char, mm::memory_kind::host>(size, 256);
       if (gpumem_)
         CUDA_CALL(cudaMemcpyAsync(cpumem_.get(), gpumem_.get(), size,
-                                  cudaMemcpyDeviceToHost, stream));
+                                  cudaMemcpyDefault, stream));
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(cpumem_.get()), std::move(out_shape) };
@@ -69,7 +69,7 @@ class TestTensorList {
       gpumem_ = mm::alloc_raw_unique<char, mm::memory_kind::device>(size, 256);
       if (cpumem_)
         CUDA_CALL(cudaMemcpyAsync(gpumem_.get(), cpumem_.get(), size,
-                                  cudaMemcpyHostToDevice, stream));
+                                  cudaMemcpyDefault, stream));
     }
     auto out_shape = convert_dim<out_dim>(shape_);
     return { reinterpret_cast<T*>(gpumem_.get()), std::move(out_shape) };
