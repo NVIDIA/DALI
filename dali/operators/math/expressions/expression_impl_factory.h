@@ -121,20 +121,6 @@ DALI_HOST_DEV T Access(T value, int64_t, DALIDataType) {
   return value;
 }
 
-template <typename T>
-DALI_HOST_DEV void Advance(T value, int64_t) {
-  std::cout << "Advance takes no effect\n";
-}
-
-template <typename T>
-static DALI_HOST_DEV void Advance(const void*& ptr, int64_t stride) {
-  std::cout << "Advance " << (uint64_t) static_cast<const uint8_t*>(ptr) << " to ";
-  ptr = static_cast<const uint8_t*>(ptr) + stride * sizeof(T);
-  std::cout << (uint64_t) static_cast<const uint8_t*>(ptr) 
-            << " stride=" << stride << " sizeof(T)=" << sizeof(T) << "\n";
-}
-
-
 template <bool as_ptr, typename T>
 using param_t = std::conditional_t<as_ptr, const void*, T>;
 

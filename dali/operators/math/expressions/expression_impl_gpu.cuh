@@ -272,7 +272,8 @@ __global__ void ExecuteTiledTernaryOp1D(const SampleDescGPU<3, 1> *samples, cons
  */
 template <ArithmeticOp op, typename Result,
           bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor, int ndim>
-__global__ void ExecuteTiledTernaryOpND(const SampleDescGPU<3, ndim> *samples, const TileDesc *tiles) {
+__global__ void ExecuteTiledTernaryOpND(const SampleDescGPU<3, ndim> *samples,
+                                        const TileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
   auto output = static_cast<Result *>(sample.output.data);
