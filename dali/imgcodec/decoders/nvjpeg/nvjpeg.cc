@@ -41,6 +41,7 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
   resources_.reserve(tp_->NumThreads());
 
   if (host_memory_padding_ > 0) {
+    CUDA_CALL(nvjpegSetPinnedMemoryPadding(host_memory_padding_, nvjpeg_handle_));
     for (auto thread_id : tp_->GetThreadIds()) {
       nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding_);
       nvjpeg_memory::AddHostBuffer(thread_id, host_memory_padding_);
@@ -48,6 +49,7 @@ NvJpegDecoderInstance(int device_id, const std::map<std::string, any> &params)
   }
 
   if (device_memory_padding_ > 0) {
+    CUDA_CALL(nvjpegSetDeviceMemoryPadding(device_memory_padding_, nvjpeg_handle_));
     for (auto thread_id : tp_->GetThreadIds()) {
       nvjpeg_memory::AddBuffer<mm::memory_kind::device>(thread_id, device_memory_padding_);
     }
@@ -65,12 +67,15 @@ PerThreadResources::PerThreadResources(nvjpegHandle_t nvjpeg_handle,
                                        int device_id)
   : stream(CUDAStreamPool::instance().Get(device_id)) {
   CUDA_CALL(nvjpegJpegStreamCreate(nvjpeg_handle, &jpeg_stream));
-  CUDA_CALL(nvjpegBufferPinnedCreate(nvjpeg_handle, pinned_allocator,
-                                     &pinned_buffer));
+  for (auto &buffer : pinned_buffers) {
+    CUDA_CALL(nvjpegBufferPinnedCreate(nvjpeg_handle, pinned_allocator,
+                                      &buffer));
+  }
   CUDA_CALL(nvjpegBufferDeviceCreate(nvjpeg_handle, device_allocator,
                                      &device_buffer));
 
-  decode_event = CUDAEvent::Create(device_id);
+  for (auto &event : decode_events)
+    event = CUDAEvent::Create(device_id);
 
   auto backend = NVJPEG_BACKEND_HYBRID;  // TODO(msala) allow other backens
   CUDA_CALL(nvjpegDecoderCreate(nvjpeg_handle, backend, &decoder_data.decoder));
@@ -82,14 +87,16 @@ PerThreadResources::PerThreadResources(nvjpegHandle_t nvjpeg_handle,
 NvJpegDecoderInstance::PerThreadResources::PerThreadResources(PerThreadResources&& other)
 : decoder_data(other.decoder_data)
 , device_buffer(other.device_buffer)
-, pinned_buffer(other.pinned_buffer)
 , jpeg_stream(other.jpeg_stream)
 , stream(std::move(other.stream))
-, decode_event(std::move(other.decode_event))
+, decode_events(std::move(other.decode_events))
 , params(std::move(other.params)) {
   other.decoder_data = {};
   other.device_buffer = nullptr;
-  other.pinned_buffer = nullptr;
+  for (int i = 0; i < 2; i++) {
+    pinned_buffers[i] = other.pinned_buffers[i];
+    other.pinned_buffers[i] = nullptr;
+  }
   other.jpeg_stream = nullptr;
   other.params = nullptr;
 }
@@ -119,9 +126,13 @@ NvJpegDecoderInstance::PerThreadResources::~PerThreadResources() {
   if (jpeg_stream) {
     CUDA_CALL(nvjpegJpegStreamDestroy(jpeg_stream));
   }
-  if (pinned_buffer) {
-    CUDA_CALL(nvjpegBufferPinnedDestroy(pinned_buffer));
+
+  for (auto &buffer : pinned_buffers) {
+    if (buffer) {
+      CUDA_CALL(nvjpegBufferPinnedDestroy(buffer));
+    }
   }
+
   if (device_buffer) {
     CUDA_CALL(nvjpegBufferDeviceDestroy(device_buffer));
   }
@@ -195,6 +206,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
                           opts.dtype != DALI_UINT8 ||
                           is_orientation_adjusted;
 
+  ctx.resources.swap_buffers();
+  auto &decode_event = ctx.resources.decode_event();
   try {
     ParseJpegSample(*in, opts, ctx);
 
@@ -203,15 +216,13 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
       ctx.shape[1] = roi_shape[1];
     }
 
-    // Synchronizing on the access to intermediate buffer
     auto& intermediate_buffer = ctx.resources.intermediate_buffer;
-    CUDA_CALL(cudaEventSynchronize(ctx.resources.decode_event));
 
     uint8_t* decode_out;
     if (needs_processing) {
-      intermediate_buffer.clear();
-      intermediate_buffer.resize(volume(ctx.shape));
-      decode_out = intermediate_buffer.data();
+      intermediate_buffer.set_order(cudaStream_t(ctx.resources.stream));
+      intermediate_buffer.resize(volume(ctx.shape), DALI_UINT8);
+      decode_out = intermediate_buffer.mutable_data<uint8_t>();
     } else {
       decode_out = out.mutable_data<uint8_t>();
     }
@@ -228,8 +239,8 @@ DecodeResult NvJpegDecoderInstance::DecodeImplTask(int thread_idx,
     return {false, std::current_exception()};
   }
 
-  CUDA_CALL(cudaEventRecord(ctx.resources.decode_event, ctx.resources.stream));
-  CUDA_CALL(cudaStreamWaitEvent(stream, ctx.resources.decode_event, 0));
+  CUDA_CALL(cudaEventRecord(decode_event, ctx.resources.stream));
+  CUDA_CALL(cudaStreamWaitEvent(stream, decode_event, 0));
   return {true, nullptr};
 }
 
@@ -248,10 +259,9 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   auto& state = ctx.resources.decoder_data.state;
   auto& jpeg_stream = ctx.resources.jpeg_stream;
   auto& stream = ctx.resources.stream;
-  auto& decode_event = ctx.resources.decode_event;
   auto& device_buffer = ctx.resources.device_buffer;
 
-  CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer));
+  CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer()));
   CUDA_CALL(nvjpegJpegStreamParse(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(),
                                   false, false, ctx.resources.jpeg_stream));
   CUDA_CALL(nvjpegDecodeJpegHost(nvjpeg_handle_, decoder, state, ctx.resources.params,
@@ -262,6 +272,7 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   nvjpeg_image.channel[0] = out;
   nvjpeg_image.pitch[0] = ctx.shape[1] * ctx.shape[2];
 
+  CUDA_CALL(cudaEventSynchronize(ctx.resources.decode_event()));
   CUDA_CALL(nvjpegStateAttachDeviceBuffer(state, device_buffer));
   CUDA_CALL(nvjpegDecodeJpegTransferToDevice(nvjpeg_handle_, decoder, state, jpeg_stream,
                                              stream));
