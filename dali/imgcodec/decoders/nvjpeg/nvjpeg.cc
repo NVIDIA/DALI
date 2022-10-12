@@ -23,6 +23,7 @@
 #include "dali/imgcodec/registry.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/imgcodec/util/convert_gpu.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 namespace imgcodec {
@@ -261,6 +262,7 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   auto& stream = ctx.resources.stream;
   auto& device_buffer = ctx.resources.device_buffer;
 
+  CUDA_CALL(cudaEventSynchronize(ctx.resources.decode_event()));
   CUDA_CALL(nvjpegStateAttachPinnedBuffer(state, ctx.resources.pinned_buffer()));
   CUDA_CALL(nvjpegJpegStreamParse(nvjpeg_handle_, in.RawData<unsigned char>(), in.Size(),
                                   false, false, ctx.resources.jpeg_stream));
@@ -272,7 +274,6 @@ void NvJpegDecoderInstance::DecodeJpegSample(ImageSource& in, uint8_t *out, Deco
   nvjpeg_image.channel[0] = out;
   nvjpeg_image.pitch[0] = ctx.shape[1] * ctx.shape[2];
 
-  CUDA_CALL(cudaEventSynchronize(ctx.resources.decode_event()));
   CUDA_CALL(nvjpegStateAttachDeviceBuffer(state, device_buffer));
   CUDA_CALL(nvjpegDecodeJpegTransferToDevice(nvjpeg_handle_, decoder, state, jpeg_stream,
                                              stream));
