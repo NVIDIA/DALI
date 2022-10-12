@@ -29,7 +29,7 @@ bool VideoDecoderBase<CPUBackend, FramesDecoder>::SetupImpl(std::vector<OutputDe
     auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
     size_t size = sample.shape().num_elements();
     thread_pool.AddWork([this, i, data, size](int tid) {
-      frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size);
+      frames_decoders_[i] = std::make_unique<FramesDecoder>(data, size, true);
     });
   }
   thread_pool.RunAll();
