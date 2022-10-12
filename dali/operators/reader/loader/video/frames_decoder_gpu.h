@@ -116,7 +116,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   bool HasEmptySlot() const;
 
-  bool EmptyBuffer() const;
+  bool IsBufferEmpty() const;
 
   void InitBitStreamFilter();
 

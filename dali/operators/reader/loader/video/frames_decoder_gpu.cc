@@ -336,7 +336,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
 
   frame_buffer_[frame_to_return_index].pts_ = -1;
 
-  if (EmptyBuffer()) {
+  if (IsBufferEmpty()) {
     next_frame_idx_ = -1;
   }
 
@@ -397,7 +397,7 @@ bool FramesDecoderGpu::HasEmptySlot() const {
   return false;
 }
 
-bool FramesDecoderGpu::EmptyBuffer() const {
+bool FramesDecoderGpu::IsBufferEmpty() const {
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1) {
       return false;
