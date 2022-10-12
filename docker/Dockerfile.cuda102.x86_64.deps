@@ -10,18 +10,7 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_
     chmod +x cuda_*.run && \
     # just installing with override on Ubuntu 20:04 doesn't work for some reason so unpack and move
     ./cuda_*.run --extract=/tmp/cuda/ --override && mv /tmp/cuda/cuda-toolkit/ /usr/local/cuda && \
-    rm -f cuda_*.run && \
-    for f in $(find /usr/local/cuda/lib64/ -iname "*.a"); do            \
-        echo $f                                                      && \
-        /usr/local/cuda/bin/nvprune -gencode arch=compute_35,code=sm_35 \
-                                    -gencode arch=compute_50,code=sm_50 \
-                                    -gencode arch=compute_60,code=sm_60 \
-                                    -gencode arch=compute_70,code=sm_70 \
-                                    -gencode arch=compute_70,code=sm_70 \
-                                    -gencode arch=compute_75            \
-        $f -o $f;                                                       \
-    done
-
+    rm -f cuda_*.run;
 
 FROM scratch
 COPY --from=cuda /usr/local/cuda /usr/local/cuda
