@@ -13,8 +13,8 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.8.0/local_ins
     for f in $(find /usr/local/cuda/lib64/ -iname "*.a"); do            \
         echo $f                                                      && \
         /usr/local/cuda/bin/nvprune -gencode arch=compute_70,code=sm_70 \
-                                    -gencode arch=compute_70,code=sm_80 \
-                                    -gencode arch=compute_70,code=sm_90 \
+                                    -gencode arch=compute_80,code=sm_80 \
+                                    -gencode arch=compute_90,code=sm_90 \
         $f -o $f;                                                       \
     done
 

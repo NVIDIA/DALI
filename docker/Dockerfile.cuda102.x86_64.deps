@@ -17,6 +17,8 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_
                                     -gencode arch=compute_50,code=sm_50 \
                                     -gencode arch=compute_60,code=sm_60 \
                                     -gencode arch=compute_70,code=sm_70 \
+                                    -gencode arch=compute_70,code=sm_70 \
+                                    -gencode arch=compute_75            \
         $f -o $f;                                                       \
     done
 
