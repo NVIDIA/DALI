@@ -25,7 +25,6 @@
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/workspace/host_workspace.h"
 #include "dali/kernels/signal/resampling_cpu.h"
 #include "dali/kernels/signal/downmixing.h"
 #include "dali/core/tensor_view.h"
@@ -55,9 +54,9 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
   inline ~AudioDecoderCpu() override = default;
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
 
   bool CanInferOutputs() const override {
@@ -71,7 +70,7 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
                     int thread_idx, int sample_idx);
 
   template <typename OutputType>
-  void DecodeBatch(workspace_t<Backend> &ws);
+  void DecodeBatch(Workspace &ws);
 
   int64_t OutputLength(int64_t in_length, double in_rate, int sample_idx) const {
     if (use_resampling_) {

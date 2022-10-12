@@ -47,9 +47,9 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
   inline ~ReduceWithMeanInput() override = default;
 
   bool SetupImpl(
-    std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+    std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    auto &input = ws.template Input<Backend>(0);
+    auto &input = ws.Input<Backend>(0);
 
     output_desc[0].type = DALI_FLOAT;
     output_desc[0].shape = input.shape();
@@ -68,8 +68,8 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    auto& in = ws.template Input<Backend>(0);
+  void RunImpl(Workspace &ws) override {
+    auto& in = ws.Input<Backend>(0);
     DALIDataType input_type = in.type();
     DALIDataType output_type = DALI_FLOAT;
 
@@ -83,7 +83,7 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
   }
 
   template <typename OutputType, typename InputType>
-  void RunTyped(HostWorkspace &ws) {
+  void RunTyped(Workspace &ws, CPUBackend) {
     auto& in = ws.Input<CPUBackend>(0);
     auto in_view = view<const InputType>(in);
 
@@ -129,7 +129,7 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
   }
 
   template <typename OutputType, typename InputType>
-  void RunTyped(DeviceWorkspace &ws) {
+  void RunTyped(Workspace &ws, GPUBackend) {
     auto& in = ws.Input<GPUBackend>(0);
     auto in_view = view<const InputType>(in);
 
@@ -164,6 +164,11 @@ class ReduceWithMeanInput : public Operator<Backend>, detail::AxesHelper {
           ws.stream()));
       }
     }
+  }
+
+  template <typename OutputType, typename InputType>
+  void RunTyped(Workspace &ws) {
+    RunTyped<OutputType, InputType>(ws, Backend{});
   }
 
  private:

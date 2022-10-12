@@ -23,7 +23,7 @@ namespace dali {
 
 template <>
 bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                const workspace_t<GPUBackend> &ws) {
+                                const Workspace &ws) {
   output_desc.resize(1);
   const auto &input = ws.Input<GPUBackend>(0);
   auto in_shape = input.shape();
@@ -56,7 +56,7 @@ bool Pad<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void Pad<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void Pad<GPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());

@@ -45,8 +45,8 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   }
 
  protected:
-  void ValidateInput(const workspace_t<Backend> &ws) {
-    const auto &input = ws.template Input<InBackend>(0);
+  void ValidateInput(const Workspace &ws) {
+    const auto &input = ws.Input<InBackend>(0);
     DALI_ENFORCE(input.type() == DALI_UINT8,
                  "Type of the input buffer must be uint8.");
     DALI_ENFORCE(input.sample_dim() == 1,

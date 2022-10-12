@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,8 +47,8 @@ class RootMeanSquareOp : public Reduce<ReductionType, Backend, RootMeanSquareOp>
     return DALI_FLOAT;
   }
 
-  void RunImplImpl(workspace_t<Backend> &ws) {
-    auto& in = ws.template Input<Backend>(0);
+  void RunImplImpl(Workspace &ws) {
+    auto& in = ws.Input<Backend>(0);
     DALIDataType input_type = in.type();
     DALIDataType output_type = this->OutputType(input_type);
 

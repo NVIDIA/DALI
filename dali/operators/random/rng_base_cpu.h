@@ -102,10 +102,10 @@ inline std::pair<int64_t, int64_t> get_chunk(int64_t npixels, int c, int chunks)
 
 template <typename Backend, typename Impl, bool IsNoiseGen>
 template <typename T, typename Dist>
-void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(workspace_t<CPUBackend> &ws) {
+void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend) {
   // Should never be called for Backend != CPUBackend
   static_assert(std::is_same<Backend, CPUBackend>::value, "Invalid backend");
-  auto &output = ws.template Output<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto out_view = view<T>(output);
   const auto &out_shape = out_view.shape;
   auto &tp = ws.GetThreadPool();

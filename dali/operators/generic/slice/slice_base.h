@@ -53,9 +53,9 @@ class SliceBase : public Operator<Backend> {
 
   template <typename OutputType, int Dims>
   void FillArgs(std::vector<kernels::SliceArgs<OutputType, Dims>>& slice_args,
-                const workspace_t<Backend> &ws) {
+                const Workspace &ws) {
     this->ProcessCroppingAttrs(spec_, ws);
-    const auto &input = ws.template Input<Backend>(0);
+    const auto &input = ws.Input<Backend>(0);
     auto in_shape = input.shape();
     int nsamples = in_shape.num_samples();
     int ndim = in_shape.sample_dim();
@@ -79,14 +79,14 @@ class SliceBase : public Operator<Backend> {
    /**
    * @brief Implementation specific (Crop, Slice, ...)
    */
-  virtual void ProcessCroppingAttrs(const OpSpec &spec, const workspace_t<Backend> &ws) = 0;
+  virtual void ProcessCroppingAttrs(const OpSpec &spec, const Workspace &ws) = 0;
   virtual const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const = 0;
 
   bool CanInferOutputs() const override {
     return true;
   }
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
-  void RunImpl(workspace_t<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   std::vector<float> fill_values_;
   DALIDataType input_type_ = DALI_NO_TYPE;

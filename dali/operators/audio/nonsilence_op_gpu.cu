@@ -86,8 +86,8 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(NonsilenceOperatorGpu);
 
  protected:
-  void RunImpl(workspace_t<GPUBackend> &ws) override {
-    auto dtype = ws.template Input<GPUBackend>(0).type();
+  void RunImpl(Workspace &ws) override {
+    auto dtype = ws.Input<GPUBackend>(0).type();
     TYPE_SWITCH(dtype, type2id, T, (NONSILENCE_TYPES),
       (RunImplTyped<T>(ws);),
       (DALI_FAIL(
@@ -208,11 +208,11 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   }
 
   template <typename T>
-  void RunImplTyped(workspace_t<GPUBackend> &ws) {
-    auto input = view<const T, 1>(ws.template Input<GPUBackend>(0));
+  void RunImplTyped(Workspace &ws) {
+    auto input = view<const T, 1>(ws.Input<GPUBackend>(0));
     int nsamples = input.shape.num_samples();
-    auto out_begin = view<int32_t, 0>(ws.template Output<GPUBackend>(0));
-    auto out_len = view<int32_t, 0>(ws.template Output<GPUBackend>(1));
+    auto out_begin = view<int32_t, 0>(ws.Output<GPUBackend>(0));
+    auto out_len = view<int32_t, 0>(ws.Output<GPUBackend>(1));
 
     // 1. Compute MMS
     kernels::DynamicScratchpad scratchpad({}, ws.stream());

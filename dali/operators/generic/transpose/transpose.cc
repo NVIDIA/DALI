@@ -29,7 +29,7 @@ class TransposeCPU : public Transpose<CPUBackend> {
  public:
   explicit inline TransposeCPU(const OpSpec &spec) : Transpose(spec) {}
 
-  void RunImpl(HostWorkspace& ws) {
+  void RunImpl(Workspace &ws) {
         const auto& input = ws.Input<CPUBackend>(0);
     auto& output = ws.Output<CPUBackend>(0);
     output.SetLayout(output_layout_);

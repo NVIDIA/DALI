@@ -122,9 +122,9 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
     R.Initialize(params.lobes, params.lookup_size);
   }
 
-  void RunImpl(HostWorkspace &ws) override {
-    auto &out = ws.template Output<CPUBackend>(0);
-    const auto &in = ws.template Input<CPUBackend>(0);
+  void RunImpl(Workspace &ws) override {
+    auto &out = ws.Output<CPUBackend>(0);
+    const auto &in = ws.Input<CPUBackend>(0);
 
     const auto &out_shape = out.shape();
     const auto &in_shape = in.shape();

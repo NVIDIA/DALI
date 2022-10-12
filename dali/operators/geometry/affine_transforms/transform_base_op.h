@@ -61,7 +61,7 @@ class TransformBaseOp : public SequenceOperator<Backend, true> {
   const TransformImpl &This() const noexcept { return static_cast<const TransformImpl&>(*this); }
 
  protected:
-  void CheckInputShape(const workspace_t<CPUBackend> &ws) {
+  void CheckInputShape(const Workspace &ws) {
     if (has_input_) {
       auto in_t_ndim = input_transform_ndim(ws);
       DALI_ENFORCE(in_t_ndim == ndim_,
@@ -70,11 +70,11 @@ class TransformBaseOp : public SequenceOperator<Backend, true> {
     }
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
     has_input_ = ws.NumInput() > 0;
     auto curr_batch_size = has_input_ ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
     if (has_input_) {
-      auto &input = ws.template Input<Backend>(0);
+      auto &input = ws.Input<Backend>(0);
       const auto &shape = input.shape();
       DALI_ENFORCE(is_uniform(shape), "All matrices must have the same shape.");
       DALI_ENFORCE(input.type() == dtype_,
@@ -101,19 +101,19 @@ class TransformBaseOp : public SequenceOperator<Backend, true> {
   }
 
   template <typename T>
-  void RunImplTyped(workspace_t<Backend> &ws, dims<>) {
+  void RunImplTyped(Workspace &ws, dims<>) {
     DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_));
   }
 
   template <typename T, int ndim, int... ndims>
-  void RunImplTyped(workspace_t<Backend> &ws, dims<ndim, ndims...>) {
+  void RunImplTyped(Workspace &ws, dims<ndim, ndims...>) {
     if (ndim_ != ndim) {
       RunImplTyped<T>(ws, dims<ndims...>());
       return;
     }
 
     constexpr int mat_dim = ndim + 1;
-    auto &out = ws.template Output<Backend>(0);
+    auto &out = ws.Output<Backend>(0);
     out.SetLayout({});  // no layout
 
     int64_t num_mats = This().IsConstantTransform() ? 1 : nsamples_;
@@ -124,7 +124,7 @@ class TransformBaseOp : public SequenceOperator<Backend, true> {
 
     auto out_view = view<T>(out);
     if (has_input_) {
-      auto &in = ws.template Input<Backend>(0);
+      auto &in = ws.Input<Backend>(0);
       auto in_view = view<const T>(in);
       for (int i = 0; i < nsamples_; i++) {
         int mat_idx = num_mats == 1 ? 0 : i;
@@ -138,16 +138,16 @@ class TransformBaseOp : public SequenceOperator<Backend, true> {
     }
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
       using SupportedDims = typename TransformImpl::SupportedDims;
       RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
   }
 
-  void PostprocessOutputs(workspace_t<Backend> &ws) override {
+  void PostprocessOutputs(Workspace &ws) override {
     if (this->IsExpanding()) {
-      auto &out = ws.template Output<Backend>(0);
+      auto &out = ws.Output<Backend>(0);
       int sample_dim = out.sample_dim();
       assert(sample_dim > 0);
       TensorLayout layout;
@@ -157,9 +157,9 @@ class TransformBaseOp : public SequenceOperator<Backend, true> {
     }
   }
 
-  int input_transform_ndim(const workspace_t<Backend> &ws) const {
+  int input_transform_ndim(const Workspace &ws) const {
     assert(has_input_);
-    auto &input = ws.template Input<Backend>(0);
+    auto &input = ws.Input<Backend>(0);
     const auto& shape = input.shape();
     int ndims = shape[0][0];
     assert(shape[0][1] == ndims + 1);

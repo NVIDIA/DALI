@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ bool ExpandDims<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const 
 
 template <typename Backend>
 void ExpandDims<Backend>::GenerateSrcDims(const Workspace &ws) {
-  auto &in = ws.template Input<Backend>(0);
+  auto &in = ws.Input<Backend>(0);
   const auto &input_shape = in.shape();
   int ndim = input_shape.sample_dim();
   auto in_layout = in.GetLayout();

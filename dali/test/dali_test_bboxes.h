@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_BBOXES_H_
 #define DALI_TEST_DALI_TEST_BBOXES_H_
 
@@ -52,7 +52,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->RunCPU();
     pipe->RunGPU();
 
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe->Outputs(&ws);
   }
 
@@ -92,7 +92,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->RunCPU();
     pipe->RunGPU();
 
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe->Outputs(&ws);
 
     auto images_cpu = this->CopyToHost(ws.Output<GPUBackend>(0))[0];
@@ -139,7 +139,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->RunCPU();
     pipe->RunGPU();
 
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe->Outputs(&ws);
 
     std::vector<std::shared_ptr<TensorList<CPUBackend>>> ret;
@@ -152,7 +152,7 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
 
   vector<std::shared_ptr<TensorList<CPUBackend>>> Reference(
       const vector<TensorList<CPUBackend> *> &inputs,
-      DeviceWorkspace *ws) override {
+      Workspace *ws) override {
     auto &from = ws->Output<GPUBackend>(1);
     auto reference = this->CopyToHost(from);
     reference[0]->SetLayout(from.GetLayout());

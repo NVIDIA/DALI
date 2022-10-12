@@ -53,10 +53,10 @@ class ResampleBase : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
     outputs.resize(1);
     if (dtype_ == DALI_NO_TYPE)
-      dtype_ = ws.template Input<Backend>(0).type();
+      dtype_ = ws.Input<Backend>(0).type();
 
     outputs[0].type = dtype_;
     CalculateShapeAndArgs(outputs[0].shape, ws);
@@ -64,8 +64,8 @@ class ResampleBase : public Operator<Backend> {
     return true;
   }
 
-  void CalculateShapeAndArgs(TensorListShape<> &out_shape, const workspace_t<Backend> &ws) {
-    const auto &input = ws.template Input<Backend>(0);
+  void CalculateShapeAndArgs(TensorListShape<> &out_shape, const Workspace &ws) {
+    const auto &input = ws.Input<Backend>(0);
     const TensorListShape<> &shape = input.shape();
     DALI_ENFORCE(shape.sample_dim() == 1 || shape.sample_dim() == 2,
       "Audio resampling supports only time series data, with an optional innermost "

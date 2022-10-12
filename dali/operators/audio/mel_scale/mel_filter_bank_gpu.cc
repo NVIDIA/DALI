@@ -21,7 +21,7 @@ namespace dali {
 
 template <>
 bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                          const workspace_t<GPUBackend> &ws) {
+                                          const Workspace &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &in_shape = input.shape();
@@ -43,7 +43,7 @@ bool MelFilterBank<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void MelFilterBank<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void MelFilterBank<GPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   const auto &in_shape = input.shape();

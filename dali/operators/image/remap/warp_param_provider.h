@@ -100,7 +100,6 @@ template <typename Backend, int spatial_ndim, typename MappingParams, typename B
 class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<BorderType> {
  public:
   using SpatialShape = TensorShape<spatial_ndim>;
-  using Workspace = workspace_t<Backend>;
 
   virtual ~WarpParamProvider() = default;
 
@@ -208,7 +207,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   }
 
   static inline int NumSamples(const Workspace &ws) {
-    return ws.template Input<Backend>(0).shape().num_samples();
+    return ws.Input<Backend>(0).shape().num_samples();
   }
 
   virtual void ResetParams() {

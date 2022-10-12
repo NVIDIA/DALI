@@ -27,7 +27,6 @@
 #include "dali/operators/math/expressions/expression_tree.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {

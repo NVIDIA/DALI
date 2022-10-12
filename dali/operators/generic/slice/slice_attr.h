@@ -74,7 +74,7 @@ class NamedSliceAttr {
   }
 
   template <typename Backend>
-  bool ProcessArguments(const OpSpec& spec, const workspace_t<Backend>& ws,
+  bool ProcessArguments(const OpSpec& spec, const Workspace &ws,
                         int curr_batch_size = -1, int ndim = -1) {
     if (curr_batch_size < 0)
       curr_batch_size = ws.GetInputBatchSize(0);
@@ -211,7 +211,7 @@ class PositionalSliceAttr {
   }
 
   template <typename Backend>
-  bool ProcessArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
+  bool ProcessArguments(const OpSpec &spec, const Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     int ndim = ws.GetInputDim(0);
 
@@ -253,13 +253,13 @@ class PositionalSliceAttr {
   template <typename T, typename Backend>
   void GetPositionalSliceArgsCPU(TensorListView<StorageCPU, T> &anchor,
                                  TensorListView<StorageCPU, T> &shape,
-                                 const workspace_t<Backend>& ws) {
+                                 const Workspace &ws) {
     AccessOrder order;
     auto in_cpu_view = [&](int idx, TensorList<CPUBackend>& cpu_buffer) {
-      if (ws.template InputIsType<CPUBackend>(idx)) {
-        return view<T>(ws.template Input<CPUBackend>(idx));
+      if (ws.InputIsType<CPUBackend>(idx)) {
+        return view<T>(ws.Input<CPUBackend>(idx));
       } else {
-        const auto& arg = ws.template Input<GPUBackend>(idx);
+        const auto& arg = ws.Input<GPUBackend>(idx);
         if (!order)
           order = AccessOrder(ws.stream());
         cpu_buffer.set_order(order);
@@ -361,7 +361,7 @@ class SliceAttr {
   }
 
   template <typename Backend>
-  void ProcessArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
+  void ProcessArguments(const OpSpec &spec, const Workspace &ws) {
     use_named_args_ = named_slice_attr_.template ProcessArguments<Backend>(spec, ws);
     if (use_named_args_) {
       if (spec.HasArgument("normalized_anchor") || spec.HasArgument("normalized_shape")) {

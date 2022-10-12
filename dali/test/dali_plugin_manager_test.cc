@@ -49,7 +49,7 @@ class DummyTest : public ::dali::DALITest {
 
     pipe.Build(outputs);
     pipe.SetExternalInput("data", data);
-    dali::DeviceWorkspace ws;
+    dali::Workspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);

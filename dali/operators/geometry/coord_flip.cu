@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class CoordFlipGPU : public CoordFlip<GPUBackend> {
   ~CoordFlipGPU() override = default;
   DISABLE_COPY_MOVE_ASSIGN(CoordFlipGPU);
 
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<GPUBackend>::RunImpl;
@@ -65,7 +65,7 @@ class CoordFlipGPU : public CoordFlip<GPUBackend> {
   Tensor<GPUBackend> scratchpad_;
 };
 
-void CoordFlipGPU::RunImpl(workspace_t<GPUBackend> &ws) {
+void CoordFlipGPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);

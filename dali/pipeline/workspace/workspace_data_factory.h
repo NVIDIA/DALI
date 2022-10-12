@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,13 +21,10 @@
 
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/workspace/device_workspace.h"
-#include "dali/pipeline/workspace/host_workspace.h"
-#include "dali/pipeline/workspace/mixed_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 #include "dali/core/static_switch.h"
 #include "dali/core/tuple_helpers.h"
-#include "dali/pipeline/util/op_type_to_workspace.h"
 
 namespace dali {
 
@@ -63,8 +60,7 @@ constexpr StorageDevice GetStorageDevice(size_t storage_idx) {
 // :: Int -> Workspace Output Type
 template <int storage_idx>
 struct workspace_out_data_type_gen {
-  using type = typename op_type_to_workspace_t<GetOpType(storage_idx)>::
-      template output_t<storage_backend_t<GetStorageDevice(storage_idx)>>;
+  using type = std::shared_ptr<TensorList<storage_backend_t<GetStorageDevice(storage_idx)>>>;
 };
 
 // Helper struct for buffering Storage for Workspace Output Types
@@ -140,13 +136,7 @@ using tensor_data_store_queue_t =
     detail::tuple_generator_t<workspace_out_data_queue_t,
                               detail::build_seq_t<0, GetMaxTensorStoreIndex()>>;
 
-template <int op_type>
-using workspace_blob_gen_type = std::vector<op_type_to_workspace_t<static_cast<OpType>(op_type)>>;
-
-// Tuple used for generic workspace blob = tuple containing vectors for all Workspace types
-using workspace_store_t =
-    detail::tuple_generator_t<workspace_blob_gen_type,
-                              detail::build_seq_t<0, static_cast<int>(OpType::COUNT)>>;
+using workspace_blob_gen_type = std::vector<Workspace>;
 
 template <OpType op_type, StorageDevice device>
 struct BatchFactoryImpl {

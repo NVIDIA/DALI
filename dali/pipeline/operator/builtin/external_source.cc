@@ -18,14 +18,14 @@
 namespace dali {
 
 template <>
-void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void ExternalSource<CPUBackend>::RunImpl(Workspace &ws) {
   std::list<uptr_tl_type> tensor_list_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     tensor_list_elm = tl_data_.PopFront();
     state_.pop_front();
   }
-  auto &output = ws.template Output<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   // if the output is pinned and input not it needs to be copied
   if (output.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
     auto &thread_pool = ws.GetThreadPool();
@@ -35,7 +35,7 @@ void ExternalSource<CPUBackend>::RunImpl(HostWorkspace &ws) {
 
     // as we copy element by element and the output is contiguous we need to set layout
     // for the whole output not each element(view)
-    auto &output = ws.template Output<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     output.SetLayout(tensor_list_elm.front()->GetLayout());
 
     for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {

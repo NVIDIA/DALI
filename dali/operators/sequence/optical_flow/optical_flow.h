@@ -81,10 +81,10 @@ class OpticalFlow : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(OpticalFlow);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     if (enable_external_hints_) {
-      const auto &hints = ws.template Input<Backend>(1);
+      const auto &hints = ws.Input<Backend>(1);
       // Extract calculation params
       ExtractParams(input, hints);
     } else {
@@ -131,7 +131,7 @@ class OpticalFlow : public Operator<Backend> {
     return true;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   bool CanInferOutputs() const override {
     return true;

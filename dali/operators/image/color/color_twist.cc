@@ -140,9 +140,9 @@ DALI_REGISTER_OPERATOR(Saturation, ColorTwistCpu, CPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistCpu, CPU);
 
 template <typename OutputType, typename InputType, int ndim>
-void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
+void ColorTwistCpu::RunImplHelper(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto out_shape = output.shape();
   output.SetLayout(input.GetLayout());
   auto &tp = ws.GetThreadPool();
@@ -167,8 +167,8 @@ void ColorTwistCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   tp.RunAll();
 }
 
-void ColorTwistCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
+void ColorTwistCpu::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
       VALUE_SWITCH(input.sample_dim(), NDim, (3, 4), (

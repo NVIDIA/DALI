@@ -146,7 +146,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
     per_sample_nvalues_.reserve(max_batch_size_);
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     if (values_.HasExplicitValue()) {
       // read only once for build time arguments
       if (!values_.HasExplicitConstant() || per_sample_values_.empty()) {
@@ -211,7 +211,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
   }
 
   template <typename T>
-  void RunImplTyped(workspace_t<Backend> &ws) {
+  void RunImplTyped(Workspace &ws) {
     using Base = RNGBase<Backend, UniformDistribution<Backend>, false>;
     if (values_.HasExplicitValue()) {
       using ImplT = typename ImplDiscrete<T>::type;
@@ -222,7 +222,7 @@ class UniformDistribution : public RNGBase<Backend, UniformDistribution<Backend>
     }
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_UNIFORM_DIST_TYPES), (
       this->template RunImplTyped<T>(ws);
     ), (  // NOLINT

@@ -348,14 +348,14 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     hw_decoder_bs_ = CalcHwDecoderBatchSize(hw_decoder_load_, curr_batch_size);
     return false;
   }
 
   using dali::OperatorBase::Run;
-  void Run(MixedWorkspace &ws) override {
+  void Run(Workspace &ws) override {
     SetupSharedSampleParams(ws);
     ParseImagesInfo(ws);
     ProcessImages(ws);
@@ -563,7 +563,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     return false;
   }
 
-  void ParseImagesInfo(MixedWorkspace &ws) {
+  void ParseImagesInfo(Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     output_shape_.resize(curr_batch_size);
     samples_cache_.clear();
@@ -712,7 +712,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     RebalanceAndSortSamples();
   }
 
-  void ProcessImagesCache(MixedWorkspace &ws) {
+  void ProcessImagesCache(Workspace &ws) {
     auto& output = ws.Output<GPUBackend>(0);
     for (auto *sample : samples_cache_) {
       assert(sample);
@@ -723,7 +723,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     LoadDeferred(ws.stream());
   }
 
-  void ProcessImagesCuda(MixedWorkspace &ws) {
+  void ProcessImagesCuda(Workspace &ws) {
     auto& output = ws.Output<GPUBackend>(0);
     const auto &input = ws.Input<CPUBackend>(0);
     for (auto *sample : samples_single_) {
@@ -809,7 +809,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   }
 #endif  // NVJPEG2K_ENABLED
 
-  void ProcessImagesJpeg2k(MixedWorkspace &ws) {
+  void ProcessImagesJpeg2k(Workspace &ws) {
 #if NVJPEG2K_ENABLED
     if (!nvjpeg2k_handle_) {
       return;
@@ -831,7 +831,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif  // NVJPEG2K_ENABLED
   }
 
-  void ProcessImagesHost(MixedWorkspace &ws) {
+  void ProcessImagesHost(Workspace &ws) {
     const auto &input = ws.Input<CPUBackend>(0);
     auto& output = ws.Output<GPUBackend>(0);
     for (auto *sample : samples_host_) {
@@ -849,7 +849,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     }
   }
 
-  void ProcessImagesHw(MixedWorkspace &ws) {
+  void ProcessImagesHw(Workspace &ws) {
 #if IS_HW_DECODER_COMPATIBLE
     auto& output = ws.Output<GPUBackend>(0);
     if (!samples_hw_batched_.empty()) {
@@ -934,7 +934,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #endif
   }
 
-  void ProcessImages(MixedWorkspace &ws) {
+  void ProcessImages(Workspace &ws) {
     auto &output = ws.Output<GPUBackend>(0);
     assert(output_shape_.num_samples() ==
            ws.GetInputBatchSize(0));  // If fails: Incorrect number of samples in shape

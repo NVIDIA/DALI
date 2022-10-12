@@ -34,9 +34,9 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator_factory.h"
 #include "dali/pipeline/util/batch_utils.h"
-#include "dali/pipeline/util/backend2workspace_map.h"
-#include "dali/pipeline/workspace/device_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/sample_workspace.h"
+#include "dali/pipeline/util/thread_pool.h"
 
 namespace dali {
 
@@ -80,17 +80,10 @@ class DLL_PUBLIC OperatorBase {
 
   DLL_PUBLIC virtual inline ~OperatorBase() {}
 
-  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) {
-    DALI_FAIL("CPU execution is not implemented for this operator!");
+  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+    DALI_FAIL("Not implemented!");
   }
 
-  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
-    DALI_FAIL("GPU execution is not implemented for this operator!");
-  }
-
-  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) {
-    DALI_FAIL("Mixed execution is not implemented for this operator!");
-  }
 
   /**
    * @brief If Operator can infer the output shapes it means that its output would use a single
@@ -101,24 +94,10 @@ class DLL_PUBLIC OperatorBase {
   }
 
   /**
-   * @brief Executes the operator on a batch of samples on the CPU.
-   */
-  DLL_PUBLIC virtual void Run(HostWorkspace &ws) {
-    DALI_FAIL("CPU execution is not implemented for this operator!");
-  }
-
-  /**
    * @brief Executes the operator on a batch of samples on the GPU.
    */
-  DLL_PUBLIC virtual void Run(DeviceWorkspace &ws) {
+  DLL_PUBLIC virtual void Run(Workspace &ws) {
     DALI_FAIL("GPU execution is not implemented for this operator!");
-  }
-
-  /**
-   * @brief Used by operators interfacing with both CPU and GPU.
-   */
-  DLL_PUBLIC virtual void Run(MixedWorkspace &ws) {
-    DALI_FAIL("Mixed execution is not implemented for this operator!");
   }
 
   /**
@@ -201,10 +180,10 @@ class DLL_PUBLIC OperatorBase {
 
   // TODO(mszolucha): remove these two to allow i2i variable batch size, when all ops are ready
   template <typename Backend>
-  DLL_PUBLIC void EnforceUniformInputBatchSize(const workspace_t<Backend> &ws) const;
+  DLL_PUBLIC void EnforceUniformInputBatchSize(const Workspace &ws) const;
 
   template <typename Backend>
-  DLL_PUBLIC void EnforceUniformOutputBatchSize(const workspace_t<Backend> &ws) const;
+  DLL_PUBLIC void EnforceUniformOutputBatchSize(const Workspace &ws) const;
 
   const OpSpec spec_;
   int num_threads_;
@@ -233,27 +212,25 @@ class DLL_PUBLIC OperatorBase {
 template <typename Backend>
 class Operator : public OperatorBase {};
 
-template <typename Workspace>
-TensorLayout GetInputLayout(Workspace& ws, int i) {
-  if (ws.template InputIsType<CPUBackend>(i)) {
-    auto &in = ws.template Input<CPUBackend>(i);
+inline TensorLayout GetInputLayout(const Workspace &ws, int i) {
+  if (ws.InputIsType<CPUBackend>(i)) {
+    auto &in = ws.Input<CPUBackend>(i);
     return in.GetLayout();
   }
 
-  assert(ws.template InputIsType<GPUBackend>(i));
-  auto &in = ws.template Input<GPUBackend>(i);
+  assert(ws.InputIsType<GPUBackend>(i));
+  auto &in = ws.Input<GPUBackend>(i);
   return in.GetLayout();
 }
 
-template <typename Workspace>
-TensorLayout GetOutputLayout(Workspace &ws, int i) {
-  if (ws.template OutputIsType<CPUBackend>(i)) {
-    auto &out = ws.template Output<CPUBackend>(i);
+inline TensorLayout GetOutputLayout(const Workspace &ws, int i) {
+  if (ws.OutputIsType<CPUBackend>(i)) {
+    auto &out = ws.Output<CPUBackend>(i);
     return out.GetLayout();
   }
 
-  assert(ws.template OutputIsType<GPUBackend>(i));
-  auto &out = ws.template Output<GPUBackend>(i);
+  assert(ws.OutputIsType<GPUBackend>(i));
+  auto &out = ws.Output<GPUBackend>(i);
   return out.GetLayout();
 }
 
@@ -267,13 +244,13 @@ class Operator<CPUBackend> : public OperatorBase {
   using OperatorBase::Setup;
   using OperatorBase::Run;
 
-  bool Setup(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     EnforceUniformInputBatchSize<CPUBackend>(ws);
     CheckInputLayouts(ws, spec_);
     return SetupImpl(output_desc, ws);
   }
 
-  void Run(HostWorkspace &ws) override {
+  void Run(Workspace &ws) override {
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     ws.GetThreadPool().WaitForWork();
@@ -287,12 +264,12 @@ class Operator<CPUBackend> : public OperatorBase {
    * @param ws
    * @return true iff the operator specified the output shape and type
    */
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) = 0;
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
 
   /**
    * @brief Legacy implementation of CPU operator using per-sample approach
    *
-   * Usage of this API is deprecated. For CPU Ops `void RunImpl(HostWorkspace &ws)`
+   * Usage of this API is deprecated. For CPU Ops `void RunImpl(Workspace &ws)`
    * should be overridden instead.
    */
   virtual void RunImpl(SampleWorkspace &ws) {}
@@ -300,7 +277,7 @@ class Operator<CPUBackend> : public OperatorBase {
   /**
    * @brief Implementation of the operator - to be implemented by derived ops.
    */
-  virtual void RunImpl(HostWorkspace &ws) {
+  virtual void RunImpl(Workspace &ws) {
     // This is implemented, as a default, using the RunImpl that accepts SampleWorkspace,
     // allowing for fallback to old per-sample implementations.
 
@@ -328,7 +305,7 @@ class Operator<CPUBackend> : public OperatorBase {
   /**
    * @brief Shared param setup. Legacy implementation for per-sample approach
    *
-   * Usage of this API is deprecated. For CPU Ops `void SetupImpl(HostWorkspace &ws)`
+   * Usage of this API is deprecated. For CPU Ops `void SetupImpl(Workspace &ws)`
    * should be used instead.
    */
   virtual void SetupSharedSampleParams(SampleWorkspace &ws) {}
@@ -336,10 +313,10 @@ class Operator<CPUBackend> : public OperatorBase {
   /**
    * @brief Shared param setup.
    *
-   * Usage of this API is deprecated. For CPU Ops `void SSetupImpl(HostWorkspace &ws)`
+   * Usage of this API is deprecated. For CPU Ops `void SSetupImpl(Workspace &ws)`
    * should be used instead.
    */
-  virtual void SetupSharedSampleParams(HostWorkspace &ws) {}
+  virtual void SetupSharedSampleParams(Workspace &ws) {}
 };
 
 template <>
@@ -352,13 +329,13 @@ class Operator<GPUBackend> : public OperatorBase {
   using OperatorBase::Setup;
   using OperatorBase::Run;
 
-  bool Setup(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     EnforceUniformInputBatchSize<GPUBackend>(ws);
     CheckInputLayouts(ws, spec_);
     return SetupImpl(output_desc, ws);
   }
 
-  void Run(DeviceWorkspace &ws) override {
+  void Run(Workspace &ws) override {
     SetupSharedSampleParams(ws);
     RunImpl(ws);
     EnforceUniformOutputBatchSize<GPUBackend>(ws);
@@ -371,18 +348,18 @@ class Operator<GPUBackend> : public OperatorBase {
    * @param ws
    * @return true iff the operator specified the output shape and type
    */
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) = 0;
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
 
   /**
    * @brief Implementation of the operator - to be
    * implemented by derived ops.
    */
-  virtual void RunImpl(DeviceWorkspace &ws) = 0;
+  virtual void RunImpl(Workspace &ws) = 0;
 
   /**
    * @brief Shared param setup
    */
-  virtual void SetupSharedSampleParams(DeviceWorkspace &ws) {}
+  virtual void SetupSharedSampleParams(Workspace &ws) {}
 };
 
 template <>
@@ -395,7 +372,7 @@ class Operator<MixedBackend> : public OperatorBase {
   using OperatorBase::Setup;
   using OperatorBase::Run;
 
-  bool Setup(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     EnforceUniformInputBatchSize<MixedBackend>(ws);
     return SetupImpl(output_desc, ws);
   }
@@ -407,14 +384,14 @@ class Operator<MixedBackend> : public OperatorBase {
    * @param ws
    * @return true iff the operator specified the output shape and type
    */
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) = 0;
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
 
-  void Run(MixedWorkspace &ws) override = 0;
+  void Run(Workspace &ws) override = 0;
 
   /**
    * @brief Shared param setup
    */
-  virtual void SetupSharedSampleParams(MixedWorkspace &ws) {}
+  virtual void SetupSharedSampleParams(Workspace &ws) {}
 };
 
 // Create registries for CPU & GPU Operators

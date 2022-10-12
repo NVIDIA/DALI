@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,9 +48,9 @@ class Resize : public Operator<Backend>
 
   bool CanInferOutputs() const override { return true; }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   void SaveAttrs(const TensorListView<StorageCPU, int, 1> &shape_data,
                  const TensorListShape<> &orig_shape) const {
@@ -93,9 +93,9 @@ class Resize : public Operator<Backend>
 
 template <typename Backend>
 bool Resize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                const workspace_t<Backend> &ws) {
+                                const Workspace &ws) {
   output_desc.resize(save_attrs_ ? 2 : 1);
-  auto &input = ws.template Input<Backend>(0);
+  auto &input = ws.Input<Backend>(0);
 
   const auto &in_shape = input.shape();
   auto in_type = input.type();

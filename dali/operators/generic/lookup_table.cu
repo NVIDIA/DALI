@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ __global__ void LookupValuesImpl(const LutSampleDesc *samples, const kernels::Bl
 }  // namespace detail
 
 template<>
-void LookupTable<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void LookupTable<GPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &shape = input.shape();
   auto &output = ws.Output<GPUBackend>(0);

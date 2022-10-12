@@ -25,7 +25,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/pipeline/workspace/device_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
@@ -67,7 +67,7 @@ void MakeRandomBatch(TensorList<CPUBackend> &data, int N,
   }
 }
 
-void CheckResults(const DeviceWorkspace& ws, int batch_size, int i,
+void CheckResults(const Workspace & ws, int batch_size, int i,
                   TensorList<CPUBackend> &data, int output_idx) {
   TensorList<CPUBackend> res_cpu;
   if (ws.OutputIsType<GPUBackend>(output_idx)) {

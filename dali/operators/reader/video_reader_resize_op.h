@@ -41,7 +41,7 @@ class VideoReaderResize : public VideoReader,
   inline ~VideoReaderResize() override = default;
 
  protected:
-  void SetOutputShapeType(TensorList<GPUBackend> &output, DeviceWorkspace &ws) override {
+  void SetOutputShapeType(TensorList<GPUBackend> &output, Workspace &ws) override {
     input_shape_ = prefetched_batch_tensors_[curr_batch_consumer_].shape();
 
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape_, "FHWC");
@@ -67,7 +67,7 @@ class VideoReaderResize : public VideoReader,
   void ProcessVideo(
     TensorList<GPUBackend> &video_output,
     TensorList<GPUBackend> &video_batch,
-    DeviceWorkspace &ws) override {
+    Workspace &ws) override {
     TensorListShape<> input_shape(1, sequence_dim);
     for (int data_idx = 0; data_idx < video_batch.num_samples(); ++data_idx) {
       TensorList<GPUBackend> input;

@@ -32,11 +32,11 @@ class DummyOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> &) override {
+  void RunImpl(Workspace &) override {
     DALI_FAIL("I'm a dummy op don't run me");
   }
 };

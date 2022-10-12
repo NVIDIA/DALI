@@ -35,10 +35,10 @@ class VideoDecoderMixed: public VideoDecoderBase<MixedBackend, FramesDecoderGpu>
                  spec.GetArgument<bool>("affine"),
                  "mixed video decoder") {}
 
-  void Run(workspace_t<MixedBackend> &ws) override;
+  void Run(Workspace &ws) override;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<MixedBackend> &ws) override;
+                 const Workspace &ws) override;
 
  private:
   ThreadPool thread_pool_;

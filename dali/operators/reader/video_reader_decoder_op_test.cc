@@ -75,7 +75,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     int video_idx = 0;
 
-    DeviceWorkspace ws;
+    Workspace ws;
     while (sequence_id < num_sequences) {
       pipe.RunCPU();
       pipe.RunGPU();
@@ -142,7 +142,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
     int num_sequences = 5;
 
-    DeviceWorkspace ws;
+    Workspace ws;
     for (int sequence_id = 0; sequence_id < num_sequences; ++sequence_id) {
       pipe.RunCPU();
       pipe.RunGPU();
@@ -326,18 +326,18 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
   int label_buffer = -1;
 
   for (int batch_id = 0; batch_id < 20; ++batch_id) {
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe.RunCPU();
     pipe.RunGPU();
     pipe.Outputs(&ws);
 
-    auto &cpu_frame_output = ws.template Output<dali::CPUBackend>(0);
-    auto &gpu_frame_output = ws.template Output<dali::GPUBackend>(1);
-    auto &old_frame_output = ws.template Output<dali::GPUBackend>(2);
+    auto &cpu_frame_output = ws.Output<dali::CPUBackend>(0);
+    auto &gpu_frame_output = ws.Output<dali::GPUBackend>(1);
+    auto &old_frame_output = ws.Output<dali::GPUBackend>(2);
 
-    auto &cpu_label_output = ws.template Output<dali::CPUBackend>(3);
-    auto &gpu_label_output = ws.template Output<dali::GPUBackend>(4);
-    auto &old_label_output = ws.template Output<dali::GPUBackend>(5);
+    auto &cpu_label_output = ws.Output<dali::CPUBackend>(3);
+    auto &gpu_label_output = ws.Output<dali::GPUBackend>(4);
+    auto &old_label_output = ws.Output<dali::GPUBackend>(5);
 
     for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
       const auto cpu_sample = cpu_frame_output.tensor<uint8_t>(sample_id);

@@ -69,13 +69,13 @@ inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
  * @brief Recurse over expression tree and return the only matching layout
  */
 template <typename Backend>
-DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backend> &ws) {
+DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const Workspace &ws) {
   if (expr.GetNodeType() == NodeType::Constant) {
     return "";
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    return ws.template Input<Backend>(e.GetInputIndex()).GetLayout();
+    return ws.Input<Backend>(e.GetInputIndex()).GetLayout();
   }
   if (expr.GetSubexpressionCount() == 0) {
     return "";
@@ -104,13 +104,13 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const workspace_t<Backen
  * @brief Recurse over expression tree, fill the missing types of TensorInputs
  */
 template <typename Backend>
-DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const workspace_t<Backend> &ws) {
+DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const Workspace &ws) {
   if (expr.GetNodeType() == NodeType::Constant) {
     return expr.GetTypeId();
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetTypeId(ws.template Input<Backend>(e.GetInputIndex()).type());
+    expr.SetTypeId(ws.Input<Backend>(e.GetInputIndex()).type());
     return expr.GetTypeId();
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
@@ -184,7 +184,7 @@ inline TensorListShape<> ShapePromotion(const std::string &op,
  */
 template <typename Backend>
 DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
-                                                           const workspace_t<Backend> &ws,
+                                                           const Workspace &ws,
                                                            int batch_size) {
   if (expr.GetNodeType() == NodeType::Constant) {
     expr.SetShape(TensorListShape<0>(batch_size));
@@ -192,7 +192,7 @@ DLL_PUBLIC inline const TensorListShape<> &PropagateShapes(ExprNode &expr,
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetShape(ws.template Input<Backend>(e.GetInputIndex()).shape());
+    expr.SetShape(ws.Input<Backend>(e.GetInputIndex()).shape());
     return expr.GetShape();
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
@@ -312,7 +312,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     for (int i = 1; i < ws.NumInput(); i++) {
       DALI_ENFORCE(ws.GetInputBatchSize(i) == ws.GetInputBatchSize(0),
@@ -341,7 +341,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
   }
 
   using Operator<Backend>::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   void AllocateIntermediateNodes() {

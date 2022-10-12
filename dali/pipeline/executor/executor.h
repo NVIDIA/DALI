@@ -42,9 +42,6 @@
 #include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
-#include "dali/pipeline/workspace/device_workspace.h"
-#include "dali/pipeline/workspace/host_workspace.h"
-#include "dali/pipeline/workspace/mixed_workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
@@ -75,8 +72,8 @@ class DLL_PUBLIC ExecutorBase {
   DLL_PUBLIC virtual void RunCPU() = 0;
   DLL_PUBLIC virtual void RunMixed() = 0;
   DLL_PUBLIC virtual void RunGPU() = 0;
-  DLL_PUBLIC virtual void Outputs(DeviceWorkspace *ws) = 0;
-  DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws) = 0;
+  DLL_PUBLIC virtual void Outputs(Workspace *ws) = 0;
+  DLL_PUBLIC virtual void ShareOutputs(Workspace *ws) = 0;
   DLL_PUBLIC virtual void ReleaseOutputs() = 0;
   DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
   DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
@@ -126,8 +123,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void RunCPU() override;
   DLL_PUBLIC void RunMixed() override;
   DLL_PUBLIC void RunGPU() override;
-  DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override;
-  DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws) override;
+  DLL_PUBLIC void Outputs(Workspace *ws) override;
+  DLL_PUBLIC void ShareOutputs(Workspace *ws) override;
   DLL_PUBLIC void ReleaseOutputs() override;
   DLL_PUBLIC ExecutorMetaMap GetExecutorMeta() override;
   DLL_PUBLIC void Shutdown() override;
@@ -177,8 +174,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     }
   }
 
-  template <typename W>
-  inline void FillStats(ExecutorMetaMap &memory_stats, W &ws, std::string op_name,
+  inline void FillStats(ExecutorMetaMap &memory_stats, Workspace &ws, std::string op_name,
                         std::mutex &write_mutex) {
     if (enable_memory_stats_) {
         size_t out_size = 0;
@@ -194,13 +190,13 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
           max_out_size = 0;
           reserved_size = 0;
           max_reserved_size = 0;
-          if (ws.template OutputIsType<CPUBackend>(i)) {
-            auto &out = ws.template Output<CPUBackend>(i);
+          if (ws.OutputIsType<CPUBackend>(i)) {
+            auto &out = ws.Output<CPUBackend>(i);
             out_size = out.nbytes();
             reserved_size = out.capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
           } else {
-            auto &out = ws.template Output<GPUBackend>(i);
+            auto &out = ws.Output<GPUBackend>(i);
             out_size = out.nbytes();
             reserved_size = out.capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
@@ -347,7 +343,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   WorkspacePolicy ws_policy_;
 
  private:
-  template <typename Workspace>
   void RunHelper(OpNode &op_node, Workspace &ws);
 
   void RethrowError() const {
@@ -455,13 +450,13 @@ void Executor<WorkspacePolicy, QueuePolicy>::ReleaseOutputs() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::Outputs(DeviceWorkspace *ws) {
+void Executor<WorkspacePolicy, QueuePolicy>::Outputs(Workspace *ws) {
   ReleaseOutputs();
   ShareOutputs(ws);
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
+void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputs(Workspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
   DeviceGuard g(device_id_);
   ws->Clear();

@@ -31,13 +31,13 @@ class CastGPU : public Cast<GPUBackend> {
  public:
   explicit CastGPU(const OpSpec &spec) : Cast<GPUBackend>{spec}, block_setup_{block_volume_scale} {}
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override;
-  void RunImpl(DeviceWorkspace &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   ~CastGPU() override = default;
 
  protected:
-  void PrepareBlocks(const DeviceWorkspace &ws);
+  void PrepareBlocks(const Workspace &ws);
 
   static const int block_volume_scale = 4;
 
@@ -51,12 +51,12 @@ class CastGPU : public Cast<GPUBackend> {
   USE_OPERATOR_MEMBERS();
 };
 
-bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+bool CastGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   PrepareBlocks(ws);
   return Cast<GPUBackend>::SetupImpl(output_desc, ws);
 }
 
-void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
+void CastGPU::PrepareBlocks(const Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   const auto &input_shape = input.shape();
   if (input.sample_dim() > 0) {
@@ -69,7 +69,7 @@ void CastGPU::PrepareBlocks(const DeviceWorkspace &ws) {
   block_setup_.SetupBlocks(collapsed_shape_, true);
 }
 
-void CastGPU::RunImpl(DeviceWorkspace &ws) {
+void CastGPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());

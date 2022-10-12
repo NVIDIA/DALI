@@ -92,7 +92,7 @@ constexpr int kNOutputDims = 2;
 constexpr int kNInputDims = 4;
 
 template<>
-void OpticalFlow<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+void OpticalFlow<GPUBackend>::RunImpl(Workspace &ws) {
   // This is a workaround for an issue with nvcuvid in drivers >460 and < 470.21 where concurrent
   // use on default context and non-default streams may lead to memory corruption.
   cudaStream_t of_stream = ws.stream();

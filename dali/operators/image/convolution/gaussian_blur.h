@@ -57,21 +57,21 @@ class GaussianBlur : public SequenceOperator<Backend> {
     return true;
   }
 
-  bool ShouldExpand(const workspace_t<Backend>& ws) override;
+  bool ShouldExpand(const Workspace &ws) override;
 
   // Overrides unnecessary coalescing
-  bool ProcessOutputDesc(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws,
+  bool ProcessOutputDesc(std::vector<OutputDesc>& output_desc, const Workspace &ws,
                          bool is_inferred) override {
     assert(is_inferred && output_desc.size() == 1);
-    const auto& input = ws.template Input<Backend>(0);
+    const auto& input = ws.Input<Backend>(0);
     // The shape of data stays untouched
     output_desc[0].shape = input.shape();
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override;
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override;
 
-  void RunImpl(workspace_t<Backend>& ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   DALIDataType dtype_ = DALI_NO_TYPE;
@@ -92,7 +92,7 @@ constexpr static const char* kWindowSizeArgName = "window_size";
  */
 template <int axes>
 inline GaussianBlurParams<axes> ObtainSampleParams(int sample, const OpSpec& spec,
-                                                   const ArgumentWorkspace& ws) {
+                                                   const ArgumentWorkspace &ws) {
   GaussianBlurParams<axes> params;
   GetGeneralizedArg<float>(make_span(params.sigmas), kSigmaArgName, sample, spec, ws);
   GetGeneralizedArg<int>(make_span(params.window_sizes), kWindowSizeArgName, sample, spec, ws);

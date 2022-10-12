@@ -114,9 +114,9 @@ class CropMirrorNormalize : public Operator<Backend> {
   inline ~CropMirrorNormalize() override = default;
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   bool CanInferOutputs() const override {
     return true;
@@ -154,8 +154,8 @@ class CropMirrorNormalize : public Operator<Backend> {
   }
 
   template <int Dims>
-  void SetupCommonImplTyped(const OpSpec &spec, const workspace_t<Backend> &ws) {
-    const auto &input = ws.template Input<Backend>(0);
+  void SetupCommonImplTyped(const OpSpec &spec, const Workspace &ws) {
+    const auto &input = ws.Input<Backend>(0);
     input_type_ = input.type();
     assert(output_type_ != DALI_NO_TYPE);
 
@@ -216,8 +216,8 @@ class CropMirrorNormalize : public Operator<Backend> {
     }
   }
 
-  void SetupCommonImpl(const workspace_t<Backend> &ws) {
-    const auto &input = ws.template Input<Backend>(0);
+  void SetupCommonImpl(const Workspace &ws) {
+    const auto &input = ws.Input<Backend>(0);
     int ndim = input.shape().sample_dim();
     VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
       SetupCommonImplTyped<Dims>(spec_, ws);

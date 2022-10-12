@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryCpuTernary(const ExprFunc &expr) {
   return result;
 }
 
-std::unique_ptr<ExprImplBase> ExprImplFactory(const HostWorkspace &ws, const ExprNode &expr) {
+std::unique_ptr<ExprImplBase> ExprImplFactory(const ExprNode &expr, CPUBackend) {
   DALI_ENFORCE(expr.GetNodeType() == NodeType::Function, "Only function nodes can be executed.");
 
   switch (expr.GetSubexpressionCount()) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -124,8 +124,8 @@ inline void AddOperatorToPipeline(Pipeline &pipeline, const OpSpec &op_spec) {
 }
 
 
-inline DeviceWorkspace CreateWorkspace() {
-  DeviceWorkspace ws;
+inline Workspace CreateWorkspace() {
+  Workspace ws;
   return ws;
 }
 
@@ -142,9 +142,9 @@ GetOutputsFromPipeline(Pipeline &pipeline, const std::string &output_backend) {
   pipeline.Outputs(&workspace);
   for (int output_idx = 0; output_idx < workspace.NumOutput(); output_idx++) {
     if (workspace.OutputIsType<CPUBackend>(output_idx)) {
-      ret.emplace_back(&workspace.template Output<CPUBackend>(output_idx));
+      ret.emplace_back(&workspace.Output<CPUBackend>(output_idx));
     } else {
-      ret.emplace_back(&workspace.template Output<GPUBackend>(output_idx));
+      ret.emplace_back(&workspace.Output<GPUBackend>(output_idx));
     }
   }
   return ret;

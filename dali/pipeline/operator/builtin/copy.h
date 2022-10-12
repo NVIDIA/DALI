@@ -39,18 +39,18 @@ class Copy : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    const auto &input = ws.template Input<Backend>(0);
+    const auto &input = ws.Input<Backend>(0);
     output_desc[0].type = input.type();
     output_desc[0].shape = input.shape();
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    auto &input = ws.template Input<Backend>(0);
+  void RunImpl(Workspace &ws) override {
+    auto &input = ws.Input<Backend>(0);
     auto data_type_size = input.type_info().size();
-    auto &output = ws.template Output<Backend>(0);
+    auto &output = ws.Output<Backend>(0);
     output.SetLayout(input.GetLayout());
     for (int i = 0; i < input.num_samples(); i++) {
       auto tensor_shape = input.tensor_shape(i);
@@ -61,7 +61,7 @@ class Copy : public Operator<Backend> {
     RunCopies(ws);
   }
 
-  void RunCopies(workspace_t<Backend> &ws);
+  void RunCopies(Workspace &ws);
 
   std::conditional_t<
       std::is_same<Backend, CPUBackend>::value,

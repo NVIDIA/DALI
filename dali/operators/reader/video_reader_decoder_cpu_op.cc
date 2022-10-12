@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ VideoReaderDecoderCpu::VideoReaderDecoderCpu(const OpSpec &spec)
 
 void VideoReaderDecoderCpu::RunImpl(SampleWorkspace &ws) {
   const auto &sample = GetSample(ws.data_idx());
-  auto &video_output = ws.template Output<CPUBackend>(0);
+  auto &video_output = ws.Output<CPUBackend>(0);
 
   video_output.Copy(sample.data_);
 

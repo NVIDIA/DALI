@@ -58,9 +58,9 @@ using detail::UnzipPairs;
 template <typename Backend>
 class OpImplInterface {
  public:
-  virtual void Setup(TensorListShape<> &shape, const workspace_t<Backend> &ws,
+  virtual void Setup(TensorListShape<> &shape, const Workspace &ws,
                      TensorListShape<> sequence_extents) = 0;
-  virtual void Run(workspace_t<Backend> &ws) = 0;
+  virtual void Run(Workspace &ws) = 0;
   virtual ~OpImplInterface() = default;
 };
 
@@ -77,7 +77,6 @@ class WarpOpImpl : public OpImplInterface<Backend> {
   static constexpr int spatial_ndim = Kernel::spatial_ndim;
   static constexpr int tensor_ndim = Kernel::tensor_ndim;
   using ParamProvider = WarpParamProvider<Backend, spatial_ndim, MappingParams, BorderType>;
-  using Workspace = workspace_t<Backend>;
 
   /**
    * @param spec  Pointer to a persistent OpSpec object,
@@ -93,10 +92,10 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     sequence_extents_ = std::move(sequence_extents);
     param_provider_->SetContext(Spec(), ws, sequence_extents_);
 
-    input_ = view<const InputType, tensor_ndim>(ws.template Input<Backend>(0));
+    input_ = view<const InputType, tensor_ndim>(ws.Input<Backend>(0));
     param_provider_->Setup();
 
-    SetupBackend(shape, ws);
+    SetupBackend(shape, ws, Backend{});
   }
 
   void Run(Workspace &ws) override {
@@ -120,7 +119,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     return context;
   }
 
-  void SetupBackend(TensorListShape<> &shape, const DeviceWorkspace &ws) {
+  void SetupBackend(TensorListShape<> &shape, const Workspace &ws, GPUBackend) {
     auto context = GetContext(ws);
     kmgr_.Resize<Kernel>(1);
     auto &req = kmgr_.Setup<Kernel>(
@@ -133,7 +132,7 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     shape = req.output_shapes[0];
   }
 
-  void SetupBackend(TensorListShape<> &shape, const HostWorkspace &ws) {
+  void SetupBackend(TensorListShape<> &shape, const Workspace &ws, CPUBackend) {
     int N = input_.num_samples();
     kmgr_.Resize<Kernel>(N);
 
@@ -154,12 +153,15 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     }
   }
 
+  void SetupBackend(TensorListShape<> &shape, const Workspace &ws) {
+    SetupBackend(shape, ws, Backend{});
+  }
 
-  void RunBackend(HostWorkspace &ws) {
+  void RunBackend(Workspace &ws, CPUBackend) {
     param_provider_->SetContext(Spec(), ws, sequence_extents_);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
+    auto output = view<OutputType, tensor_ndim>(ws.Output<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.Input<Backend>(0));
 
     ThreadPool &pool = ws.GetThreadPool();
     auto interp_types = param_provider_->InterpTypes();
@@ -181,11 +183,11 @@ class WarpOpImpl : public OpImplInterface<Backend> {
     pool.RunAll();
   }
 
-  void RunBackend(DeviceWorkspace &ws) {
+  void RunBackend(Workspace &ws, GPUBackend) {
     param_provider_->SetContext(Spec(), ws, sequence_extents_);
 
-    auto output = view<OutputType, tensor_ndim>(ws.template Output<Backend>(0));
-    input_ = view<const InputType,  tensor_ndim>(ws.template Input<Backend>(0));
+    auto output = view<OutputType, tensor_ndim>(ws.Output<Backend>(0));
+    input_ = view<const InputType,  tensor_ndim>(ws.Input<Backend>(0));
     auto context = GetContext(ws);
     kmgr_.Run<Kernel>(
         0, context,
@@ -195,6 +197,10 @@ class WarpOpImpl : public OpImplInterface<Backend> {
         param_provider_->OutputSizes(),
         param_provider_->InterpTypes(),
         param_provider_->Border());
+  }
+
+  void RunBackend(Workspace &ws) {
+    RunBackend(ws, Backend{});
   }
 };
 
@@ -222,7 +228,6 @@ class Warp : public SequenceOperator<Backend> {
   using MyType = Derived;
   MyType &This() { return static_cast<MyType&>(*this); }
   const MyType &This() const { return static_cast<const MyType&>(*this); }
-  using Workspace = workspace_t<Backend>;
   using SequenceOperator<Backend>::IsExpanding;
   using SequenceOperator<Backend>::GetInputExpandDesc;
 
@@ -307,7 +312,7 @@ class Warp : public SequenceOperator<Backend> {
   void SetupWarp(TensorListShape<> &out_shape,
                  DALIDataType &out_type,
                  const Workspace &ws) {
-    auto &input = ws.template Input<Backend>(0);
+    auto &input = ws.Input<Backend>(0);
     input_shape_ = input.shape();
     input_type_ = input.type();
     output_type_ = output_type_arg_ == DALI_NO_TYPE ? input_type_ : output_type_arg_;
@@ -341,8 +346,8 @@ class Warp : public SequenceOperator<Backend> {
   void RunImpl(Workspace &ws) override {
     assert(impl_);
     impl_->Run(ws);
-    auto &out = ws.template Output<Backend>(0);
-    auto &in = ws.template Input<Backend>(0);
+    auto &out = ws.Output<Backend>(0);
+    auto &in = ws.Input<Backend>(0);
     out.SetLayout(in.GetLayout());
   }
 

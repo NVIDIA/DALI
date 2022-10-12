@@ -34,7 +34,7 @@ void VideoReaderDecoderGpu::Prefetch() {
 }
 
 bool VideoReaderDecoderGpu::SetupImpl(
-  std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) {
+  std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   DataReader<GPUBackend, VideoSampleGpu>::SetupImpl(output_desc, ws);
 
   output_desc.resize(has_labels_ ? 2 : 1);
@@ -61,7 +61,7 @@ bool VideoReaderDecoderGpu::SetupImpl(
   return true;
 }
 
-void VideoReaderDecoderGpu::RunImpl(DeviceWorkspace &ws) {
+void VideoReaderDecoderGpu::RunImpl(Workspace &ws) {
   auto &video_output = ws.Output<GPUBackend>(0);
   int batch_size = GetCurrBatchSize();
 

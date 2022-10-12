@@ -67,7 +67,7 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
         factor_("factor", spec) {
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     factor_.Acquire(spec, ws, nsamples);
   }
 
@@ -88,7 +88,7 @@ class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
   }
 
   using BaseImpl::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_SHOT_NOISE_TYPES), (
       using ImplT = Impl<T>;
       BaseImpl::template RunImplTyped<T, ImplT>(ws);

@@ -37,7 +37,7 @@ class Crop : public SliceBase<Backend> {
     crop_attr_(spec) {}
 
  protected:
-  void ProcessCroppingAttrs(const OpSpec &spec, const workspace_t<Backend> &ws) override {
+  void ProcessCroppingAttrs(const OpSpec &spec, const Workspace &ws) override {
     crop_attr_.ProcessArguments(spec, ws);
   }
 

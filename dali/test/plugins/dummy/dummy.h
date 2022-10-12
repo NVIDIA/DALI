@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,14 +38,14 @@ class Dummy : public ::dali::Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const ::dali::workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+                 const ::dali::Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     output_desc.resize(1);
     output_desc[0] = {input.shape(), input.type()};
     return true;
   }
 
-  void RunImpl(::dali::workspace_t<Backend> &ws) override;
+  void RunImpl(::dali::Workspace &ws) override;
 };
 
 }  // namespace other_ns

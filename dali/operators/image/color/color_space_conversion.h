@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,9 +37,9 @@ class ColorSpaceConversion : public Operator<Backend> {
   bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
+                 const Workspace &ws) override {
     output_desc.resize(1);
-    const auto &input = ws.template Input<Backend>(0);
+    const auto &input = ws.Input<Backend>(0);
     auto in_sh = input.shape();
     auto ndim = in_sh.sample_dim();
     int nsamples = in_sh.num_samples();
@@ -58,7 +58,7 @@ class ColorSpaceConversion : public Operator<Backend> {
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 

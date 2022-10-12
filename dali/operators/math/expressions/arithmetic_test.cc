@@ -32,7 +32,7 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   std::string expr_str = "div(sub(&0 &1) $2:int32)";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
-  HostWorkspace ws;
+  Workspace ws;
   std::shared_ptr<TensorList<CPUBackend>> in[3];
   DALIDataType types[3] = {DALI_UINT8, DALI_INT16, DALI_INT32};
   for (int i = 0; i < 3; i++) {
@@ -67,7 +67,7 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   std::string expr_str = "sub(&0 $1:int32))";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
-  HostWorkspace ws;
+  Workspace ws;
   std::shared_ptr<TensorList<CPUBackend>> in[1];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorList<CPUBackend>>();
@@ -84,7 +84,7 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   std::string expr_str = "sub(&0 $1:int32))";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
-  HostWorkspace ws;
+  Workspace ws;
   std::shared_ptr<TensorList<CPUBackend>> in[1];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorList<CPUBackend>>();
@@ -101,7 +101,7 @@ TEST(ArithmeticOpsTest, TreePropagationError) {
   std::string expr_str = "div(sub(&0 &1) &2)";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
-  HostWorkspace ws;
+  Workspace ws;
   std::shared_ptr<TensorList<CPUBackend>> in[3];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorList<CPUBackend>>();
@@ -221,7 +221,7 @@ class BinaryArithmeticOpsTest
 
     pipe.RunCPU();
     pipe.RunGPU();
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe.Outputs(&ws);
     vector<T> result_cpu(shape.num_elements());
     auto *target_ptr = result_cpu.data();
@@ -337,7 +337,7 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   pipe.SetExternalInput("data1", batch);
   pipe.RunCPU();
   pipe.RunGPU();
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.Outputs(&ws);
 
   vector<int32_t> result2_cpu(tensor_elements);
@@ -394,7 +394,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   pipe.SetExternalInput("data1", batch[1]);
   pipe.RunCPU();
   pipe.RunGPU();
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.Outputs(&ws);
   ASSERT_EQ(ws.Output<CPUBackend>(0).type(), DALI_FLOAT);
   ASSERT_EQ(ws.Output<GPUBackend>(1).type(), DALI_FLOAT);
@@ -453,7 +453,7 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
   pipe.SetExternalInput("data0", batch);
   pipe.RunCPU();
   pipe.RunGPU();
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.Outputs(&ws);
 
   for (int sample_id = 0; sample_id < batch_size; sample_id++) {
@@ -517,7 +517,7 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
       pipe.SetExternalInput("data1", batch[1]);
       pipe.RunCPU();
       pipe.RunGPU();
-      DeviceWorkspace ws;
+      Workspace ws;
       pipe.Outputs(&ws);
 
 
@@ -661,7 +661,7 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   pipe.SetExternalInput("data0", batch);
   pipe.RunCPU();
   pipe.RunGPU();
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.Outputs(&ws);
   vector<int32_t> result1_cpu(tensor_elements);
 

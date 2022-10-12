@@ -88,7 +88,7 @@ class TransformScaleCPU
     }
   }
 
-  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+  void ProcessArgs(const OpSpec &spec, const Workspace &ws) {
     assert(scale_.HasExplicitValue());
     ArgValueFlags flags = ArgValue_EnforceUniform;
     scale_.Acquire(spec, ws, nsamples_, flags);

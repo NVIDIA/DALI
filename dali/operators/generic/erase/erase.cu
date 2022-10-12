@@ -50,8 +50,8 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     kmgr_.Resize<EraseKernel>(1);
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override {
-    const auto &input = ws.template Input<GPUBackend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    const auto &input = ws.Input<GPUBackend>(0);
     auto layout = input.GetLayout();
     auto type = input.type();
     auto shape = input.shape();
@@ -69,9 +69,9 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     return true;
   };
 
-  void RunImpl(workspace_t<GPUBackend> &ws) override {
-    const auto &input_ref = ws.template Input<GPUBackend>(0);
-    auto &output_ref = ws.template Output<GPUBackend>(0);
+  void RunImpl(Workspace &ws) override {
+    const auto &input_ref = ws.Input<GPUBackend>(0);
+    auto &output_ref = ws.Output<GPUBackend>(0);
     output_ref.SetLayout(input_ref.GetLayout());
     auto input = view<const T, Dims>(input_ref);
     int nsamples = input.num_samples();
@@ -88,7 +88,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
     }
   }
 
-  void AcquireArgs(const DeviceWorkspace &ws, TensorListShape<> in_shape,
+  void AcquireArgs(const Workspace &ws, TensorListShape<> in_shape,
                    TensorLayout in_layout) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     auto args = detail::GetEraseArgs<T, Dims>(spec_, ws, fill_value_arg_, in_shape, in_layout);
@@ -157,7 +157,7 @@ class EraseImplGpu : public OpImplBase<GPUBackend> {
 
 template <>
 bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                  const workspace_t<GPUBackend> &ws) {
+                                  const Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto in_shape = input.shape();
   auto channel_dim = input.GetLayout().find('C');
@@ -180,7 +180,7 @@ bool Erase<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void Erase<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void Erase<GPUBackend>::RunImpl(Workspace &ws) {
   assert(impl_ != nullptr);
   impl_->RunImpl(ws);
 }

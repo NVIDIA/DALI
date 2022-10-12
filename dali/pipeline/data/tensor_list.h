@@ -634,9 +634,9 @@ class DLL_PUBLIC TensorList {
 
 
   // Forward declarations in signature, beware
-  friend void MakeSampleView(class SampleWorkspace &sample, class HostWorkspace &batch,
+  friend void MakeSampleView(class SampleWorkspace &sample, class Workspace &batch,
                              int data_idx, int thread_idx);
-  friend void FixBatchPropertiesConsistency(class HostWorkspace &ws, bool contiguous);
+  friend void FixBatchPropertiesConsistency(class Workspace &ws, bool contiguous);
 
   auto &tensor_handle(size_t pos) {
     return tensors_[pos];

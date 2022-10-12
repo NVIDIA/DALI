@@ -298,11 +298,11 @@ class DummyPresizeOpCPU : public Operator<CPUBackend> {
       : Operator<CPUBackend>(spec) {
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(HostWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
     int num_samples = input.shape().num_samples();
     auto &output = ws.Output<CPUBackend>(0);
@@ -323,11 +323,11 @@ class DummyPresizeOpGPU : public Operator<GPUBackend> {
       : Operator<GPUBackend>(spec) {
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(DeviceWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     int num_samples = input.shape().num_samples();
     auto &output = ws.Output<GPUBackend>(0);
@@ -348,12 +348,12 @@ class DummyPresizeOpMixed : public Operator<MixedBackend> {
       : Operator<MixedBackend>(spec) {
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const MixedWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
   using Operator<MixedBackend>::Run;
-  void Run(MixedWorkspace &ws) override {
+  void Run(Workspace &ws) override {
     auto &input = ws.Input<CPUBackend>(0);
     int num_samples = input.shape().num_samples();
     auto &output = ws.Output<GPUBackend>(0);
@@ -455,7 +455,7 @@ TEST_F(PipelineTestOnce, TestPresize) {
 
   pipe.Build(outputs);
   pipe.SetExternalInput("raw_jpegs", data);
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);
@@ -629,7 +629,7 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // Now we interleave the calls to Outputs() and Run() for the rest of the batch
   int obtained_outputs = 0;
   for (int i = GPU + CPU; i < N; i++) {
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe.Outputs(&ws);
     test::CheckResults(ws, batch_size, obtained_outputs++, tl);
     pipe.SetExternalInput("data", splited_tl[i]);
@@ -640,14 +640,14 @@ TEST_F(PrefetchedPipelineTest, TestFillQueues) {
   // We consumed all the data and have it in the Pipeline, now we need to run
   // Mixed and GPU stage to consume what was produced by the CPU
   for (int i = 0; i < CPU; i++) {
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe.Outputs(&ws);
     test::CheckResults(ws, batch_size, obtained_outputs++, tl);
     pipe.RunGPU();
   }
   // Now we consule what we buffered in the beggining
   for (int i = 0; i < GPU; i++) {
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe.Outputs(&ws);
     test::CheckResults(ws, batch_size, obtained_outputs++, tl);
   }
@@ -657,11 +657,11 @@ class DummyOpToAdd : public Operator<CPUBackend> {
  public:
   explicit DummyOpToAdd(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(HostWorkspace &ws) override {}
+  void RunImpl(Workspace &ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpToAdd, DummyOpToAdd, CPU);
@@ -676,11 +676,11 @@ class DummyOpNoSync : public Operator<CPUBackend> {
  public:
   explicit DummyOpNoSync(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(HostWorkspace &ws) override {}
+  void RunImpl(Workspace &ws) override {}
 };
 
 DALI_REGISTER_OPERATOR(DummyOpNoSync, DummyOpNoSync, CPU);

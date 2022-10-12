@@ -81,7 +81,7 @@ class ResizeOpImplGPU : public ResizeBase<GPUBackend>::Impl {
     }
   }
 
-  void RunResize(DeviceWorkspace &ws,
+  void RunResize(Workspace &ws,
                  TensorList<GPUBackend> &output,
                  const TensorList<GPUBackend> &input) override {
     auto in_view = view<const In>(input);

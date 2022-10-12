@@ -15,12 +15,12 @@
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/builtin/make_contiguous.h"
-#include "dali/pipeline/workspace/device_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
 
-void MakeContiguousMixed::Run(MixedWorkspace &ws) {
-  const auto& input = ws.template Input<CPUBackend>(0);
+void MakeContiguousMixed::Run(Workspace &ws) {
+  const auto& input = ws.Input<CPUBackend>(0);
   int sample_dim = input[0].shape().sample_dim();
   size_t batch_size = input.num_samples();
   DALIDataType type = input.type();
@@ -66,9 +66,9 @@ void MakeContiguousMixed::Run(MixedWorkspace &ws) {
   }
 }
 
-void MakeContiguousGPU::RunImpl(DeviceWorkspace &ws) {
-  const auto& input = ws.template Input<GPUBackend>(0);
-  auto& output = ws.template Output<GPUBackend>(0);
+void MakeContiguousGPU::RunImpl(Workspace &ws) {
+  const auto& input = ws.Input<GPUBackend>(0);
+  auto& output = ws.Output<GPUBackend>(0);
   DomainTimeRange tr("[DALI][MakeContiguousGPU] D2D", DomainTimeRange::kGreen);
   if (IsPassThrough()) {
     output.ShareData(input);

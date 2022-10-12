@@ -58,21 +58,21 @@ class Laplacian : public SequenceOperator<Backend> {
     return true;
   }
 
-  bool ShouldExpand(const workspace_t<Backend>& ws) override;
+  bool ShouldExpand(const Workspace &ws) override;
 
   // Overrides unnecessary coalescing
-  bool ProcessOutputDesc(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws,
+  bool ProcessOutputDesc(std::vector<OutputDesc>& output_desc, const Workspace &ws,
                          bool is_inferred) override {
     assert(is_inferred && output_desc.size() == 1);
-    const auto& input = ws.template Input<Backend>(0);
+    const auto& input = ws.Input<Backend>(0);
     // The shape of data stays untouched
     output_desc[0].shape = input.shape();
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override;
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override;
 
-  void RunImpl(workspace_t<Backend>& ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   DALIDataType dtype_ = DALI_NO_TYPE;

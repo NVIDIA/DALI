@@ -47,7 +47,7 @@ to the dynamic range of this type.)",
 
 template <>
 template <typename OutputType, typename InputType, int out_dim, int in_dim>
-void CoordTransform<CPUBackend>::RunTyped(HostWorkspace &ws) {
+void CoordTransform<CPUBackend>::RunTyped(Workspace &ws) {
   auto &in = ws.Input<CPUBackend>(0);
   auto &out = ws.Output<CPUBackend>(0);
   auto in_view = view<const InputType>(in);

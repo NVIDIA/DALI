@@ -121,12 +121,12 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   }
 
  protected:
-  virtual void SetOutputShapeType(TensorList<GPUBackend> &output, DeviceWorkspace &ws) {
+  virtual void SetOutputShapeType(TensorList<GPUBackend> &output, Workspace &ws) {
     auto &curr_batch = prefetched_batch_tensors_[curr_batch_consumer_];
     output.Resize(curr_batch.shape(), curr_batch.type());
   }
 
-  void PrepareAdditionalOutputs(DeviceWorkspace &ws) {
+  void PrepareAdditionalOutputs(Workspace &ws) {
     int output_index = 1;
     if (output_labels_) {
       label_output_ = &ws.Output<GPUBackend>(output_index++);
@@ -146,7 +146,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
   }
 
   virtual void ProcessVideo(TensorList<GPUBackend> &video_output,
-                            TensorList<GPUBackend> &video_batch, DeviceWorkspace &ws) {
+                            TensorList<GPUBackend> &video_batch, Workspace &ws) {
     video_output.Copy(video_batch, ws.stream());
     video_output.SetLayout("FHWC");
   }
@@ -180,7 +180,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper> {
     }
   }
 
-  void RunImpl(DeviceWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     auto &video_output = ws.Output<GPUBackend>(0);
     auto &curent_batch = prefetched_batch_tensors_[curr_batch_consumer_];
 

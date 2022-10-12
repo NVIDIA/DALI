@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
                           .AddOutput("encoded_bboxes", "cpu")
                           .AddOutput("encoded_labels", "cpu"));
 
-    dali::DeviceWorkspace ws;
+    dali::Workspace ws;
     this->RunOperator(&ws);
     this->CheckAnswersForCocoOnCpu(&ws, offset);
   }
@@ -64,7 +64,7 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
                           .AddOutput("encoded_bboxes", "gpu")
                           .AddOutput("encoded_labels", "gpu"));
 
-    dali::DeviceWorkspace ws;
+    dali::Workspace ws;
     this->RunOperator(&ws);
     this->CheckAnswersForCocoOnGpu(&ws, offset);
   }
@@ -1084,13 +1084,13 @@ class BoxEncoderTest : public GenericBBoxesTest<ImgType> {
     }
   }
 
-  void CheckAnswersForCocoOnCpu(DeviceWorkspace *ws, bool offset = false) {
+  void CheckAnswersForCocoOnCpu(Workspace *ws, bool offset = false) {
     TensorList<CPUBackend> &boxes = ws->Output<dali::CPUBackend>(0);
     TensorList<CPUBackend> &labels = ws->Output<dali::CPUBackend>(1);
     CheckAnswersForCoco(&boxes, &labels, offset);
   }
 
-  void CheckAnswersForCocoOnGpu(DeviceWorkspace *ws, bool offset = false) {
+  void CheckAnswersForCocoOnGpu(Workspace *ws, bool offset = false) {
     auto boxes = this->CopyTensorListToHost(ws->Output<dali::GPUBackend>(0));
     auto labels = this->CopyTensorListToHost(ws->Output<dali::GPUBackend>(1));
     CheckAnswersForCoco(boxes.get(), labels.get(), offset);
