@@ -60,6 +60,20 @@ def get_data():
     return out
 
 
+# The same code is used as CPU-only pipeline to test if TF plugin loads successfully
+# during its installation.
+def test_tensorflow_build_check():
+
+    @pipeline_def()
+    def get_dali_pipe():
+        data = types.Constant(1)
+        return data
+
+    pipe = get_dali_pipe(batch_size=3, device_id=types.CPU_ONLY_DEVICE_ID, num_threads=1)
+    pipe.build()
+    pipe.run()
+
+
 def test_move_to_device_end():
     test_data_shape = [1, 3, 0, 4]
 
@@ -72,7 +86,7 @@ def test_move_to_device_end():
     pipe.set_outputs(outs.gpu())
     assert_raises(
         RuntimeError, pipe.build,
-        glob='Cannot move the data node __ExternalSource_0 to the GPU in a CPU-only pipeline. '
+        glob='Cannot move the data node __ExternalSource_* to the GPU in a CPU-only pipeline. '
              'The `device_id` parameter is set to `CPU_ONLY_DEVICE_ID`. '
              'Set `device_id` to a valid GPU identifier to enable GPU features in the pipeline.')
 

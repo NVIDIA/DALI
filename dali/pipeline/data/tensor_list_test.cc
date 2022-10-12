@@ -176,6 +176,43 @@ TYPED_TEST(TensorListTest, TestGetTypeSizeBytes) {
   }
 }
 
+TYPED_TEST(TensorListTest, ConsistentDeviceAndOrder) {
+  using Backend = std::tuple_element_t<0, TypeParam>;
+  auto shape = uniform_list_shape(10, {1, 2, 3});
+  TensorList<Backend> non_pinned, cpu_pinned, empty;
+  non_pinned.SetContiguity(this->kContiguity);
+  cpu_pinned.SetContiguity(this->kContiguity);
+  empty.SetContiguity(this->kContiguity);
+
+  non_pinned.set_pinned(false);
+  // pin only for CPU, it doesn't make sense for GPU.
+  cpu_pinned.set_pinned(std::is_same_v<CPUBackend, Backend>);
+
+  non_pinned.Resize(shape, DALI_INT32);
+  cpu_pinned.Resize(shape, DALI_INT32);
+
+  // By default we use host order
+  EXPECT_EQ(non_pinned.order(), AccessOrder::host());
+  EXPECT_EQ(cpu_pinned.order(), AccessOrder::host());
+  EXPECT_EQ(empty.order(), AccessOrder::host());
+
+  if (std::is_same_v<CPUBackend, Backend>) {
+    // On CPU pinned memory is associated with device after allocation, regular memory is not
+    EXPECT_EQ(non_pinned.device_id(), CPU_ONLY_DEVICE_ID);
+    EXPECT_EQ(cpu_pinned.device_id(), 0);
+  } else {
+    // On GPU we associate all allocations with current device, by default 0.
+    EXPECT_EQ(non_pinned.device_id(), 0);
+    EXPECT_EQ(cpu_pinned.device_id(), 0);
+  }
+
+  // uninitialized is not associated with any device id
+  EXPECT_EQ(empty.device_id(), CPU_ONLY_DEVICE_ID);
+
+  // No zeroing of order
+  EXPECT_THROW(empty.set_order({}), std::runtime_error);
+}
+
 TYPED_TEST(TensorListTest, TestReserveResize) {
   using Backend = std::tuple_element_t<0, TypeParam>;
   TensorList<Backend> tl;
@@ -919,9 +956,7 @@ std::vector<std::pair<std::string, std::function<void(TensorList<Backend> &)>>> 
       {"pinned", [pinned](TensorList<Backend> &t) { t.set_pinned(pinned); }},
       {"order",
        [device_id](TensorList<Backend> &t) {
-         constexpr bool is_device = std::is_same_v<Backend, GPUBackend>;
-         const auto order = is_device ? AccessOrder(cuda_stream, device_id) : AccessOrder::host();
-         t.set_order(order);
+         t.set_order(AccessOrder(cuda_stream, device_id));
        }},
   };
 }
@@ -933,7 +968,7 @@ TYPED_TEST(TensorListSuite, PartialSetupSetMultiGPU) {
     GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
-  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
+  const auto order = AccessOrder(cuda_stream, device);
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
@@ -1031,7 +1066,7 @@ TYPED_TEST(TensorListSuite, FullSetupSetMultiGPU) {
     GTEST_SKIP() << "This test requires at least 2 CUDA devices";
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
   constexpr int device = 1;
-  const auto order = is_device ? AccessOrder(cuda_stream, device) : AccessOrder::host();
+  const auto order = AccessOrder(cuda_stream, device);
   Tensor<TypeParam> t;
   t.set_device_id(device);
   t.set_order(order);
