@@ -51,6 +51,11 @@ if not initialized:
                             "The next release will support only 10.2 from 10.x familly. "
                             "Please update your environment to CUDA version 10.2 or newer.")
 
+    if __cuda_version__ < 110:
+        deprecation_warning("DALI 1.19 is the last official release that supports CUDA 10.2. "
+                            "The next release will only support CUDA 11 and CUDA 12. "
+                            "Please update your CUDA toolkit.")
+
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
 
