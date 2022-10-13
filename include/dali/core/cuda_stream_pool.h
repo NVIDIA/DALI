@@ -142,11 +142,36 @@ class CUDAStreamLease {
   }
 
   /**
-   * @brief Conversion to a stream handle; enables the use of this object with CUDA runtime APIs.
+   * @brief Obtains the leased stream handle
    */
-  operator cudaStream_t() const noexcept {
+  cudaStream_t get() const & noexcept {
     return stream_;
   }
+
+  /**
+   * @brief Cannot obtain a valid handle from a temporary CUDAStreamLease
+   *
+   * By the time this function returns, the stream is returned to the pool.
+   * The stream will be alive as long as the owning CUDAStreamPool lives, but it can be leased
+   * to another party.
+   */
+  cudaStream_t get() && = delete;
+
+  /**
+   * @brief Conversion to a stream handle; enables the use of this object with CUDA runtime APIs.
+   */
+  operator cudaStream_t() const & noexcept {
+    return stream_;
+  }
+
+  /**
+   * @brief Cannot obtain a valid handle from a temporary CUDAStreamLease
+   *
+   * By the time this function returns, the stream is returned to the pool.
+   * The stream will be alive as long as the owning CUDAStreamPool lives, but it can be leased
+   * to another party.
+   */
+  operator cudaStream_t() && = delete;
 
   explicit operator bool() const noexcept {
     return stream_;
