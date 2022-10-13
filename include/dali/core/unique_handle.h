@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,8 +71,13 @@ class UniqueHandle {
     return *this;
   }
 
+  /// @brief Obtain the stored handle
+  constexpr handle_type get() const & noexcept { return handle_; }
+  constexpr handle_type get() && = delete;
+
   /// @brief Make the wrapper usable in most context in which the handle type can be used.
-  constexpr operator handle_type() const noexcept { return handle_; }
+  constexpr operator handle_type() const & noexcept { return get(); }
+  constexpr operator handle_type() && = delete;
 
   /**
    * @brief Destroys the underlying resource and resets the handle to null value.

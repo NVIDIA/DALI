@@ -142,11 +142,21 @@ class CUDAStreamLease {
   }
 
   /**
-   * @brief Conversion to a stream handle; enables the use of this object with CUDA runtime APIs.
+   * @brief Obtains the leased stream handle
    */
-  operator cudaStream_t() const noexcept {
+  cudaStream_t get() const & noexcept {
     return stream_;
   }
+
+  cudaStream_t get() && = delete;
+
+  /**
+   * @brief Conversion to a stream handle; enables the use of this object with CUDA runtime APIs.
+   */
+  operator cudaStream_t() const & noexcept {
+    return stream_;
+  }
+  operator cudaStream_t() && = delete;
 
   explicit operator bool() const noexcept {
     return stream_;
