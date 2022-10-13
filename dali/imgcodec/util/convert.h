@@ -274,11 +274,6 @@ void Convert(Out *out, const int64_t *out_strides, int out_channel_dim, DALIImag
     out_channel_stride = -out_channel_stride;
   }
 
-  if (out_format == DALI_ANY_DATA) {
-    // Conversion to DALI_ANY_DATA is a no-op
-    out_format = in_format;
-  }
-
   // Here we remove the channel dimension in order to process whole pixels
   TensorShape<> in_strides_no_channel = detail::RemoveDim(in_strides, in_strides + ndim,
                                                           in_channel_dim);

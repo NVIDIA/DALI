@@ -679,6 +679,7 @@ TYPED_TEST(ExecutorTest, TestPinning) {
 
   // Set the data for the external source
   auto *src_op = dynamic_cast<ExternalSource<CPUBackend> *>(graph.Node(OpType::CPU, 0).op.get());
+  ASSERT_NE(src_op, nullptr);
   TensorList<CPUBackend> tl;
   tl.Resize(uniform_list_shape(this->batch_size_, TensorShape<>{}), DALI_FLOAT);
   src_op->SetDataSource(tl);

@@ -26,6 +26,10 @@ namespace imgcodec {
 void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
              ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
              ROI roi, Orientation orientation) {
+  DALI_ENFORCE(in_layout.find('H') >= 0 && in_layout.find('W') >= 0,
+               "Input layout has to contain at least H and W dimensions.");
+  DALI_ENFORCE(out_layout.find('H') >= 0 && out_layout.find('W') >= 0,
+               "Output layout has to contain at least H and W dimensions.");
   auto out_shape = out.shape();
   const auto &in_shape = in.shape();
   assert(in_shape.sample_dim() == out_shape.sample_dim());

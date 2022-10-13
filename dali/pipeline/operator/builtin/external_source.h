@@ -478,8 +478,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   template <typename SrcBackend>
   inline void ValidateInputData(const TensorList<SrcBackend> &batch) {
-    bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
-    bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
+    const bool is_gpu_src = std::is_same<SrcBackend, GPUBackend>::value;
+    const bool is_gpu_dst = std::is_same<Backend, GPUBackend>::value;
     if (is_gpu_src && !is_gpu_dst) {
       DALI_WARN(
           "Warning: Loading GPU-originated data into CPU ExternalSource operator is discouraged "
