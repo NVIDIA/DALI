@@ -148,6 +148,13 @@ class CUDAStreamLease {
     return stream_;
   }
 
+  /**
+   * @brief Cannot obtain a valie handle from a temporary CUDAStreamLease
+   *
+   * By the time this function returns, the stream is returned to the pool.
+   * The stream will be alive as long as the owning CUDAStreamPool lives, but it can be leased
+   * to another party.
+   */
   cudaStream_t get() && = delete;
 
   /**
@@ -156,6 +163,14 @@ class CUDAStreamLease {
   operator cudaStream_t() const & noexcept {
     return stream_;
   }
+
+  /**
+   * @brief Cannot obtain a valie handle from a temporary CUDAStreamLease
+   *
+   * By the time this function returns, the stream is returned to the pool.
+   * The stream will be alive as long as the owning CUDAStreamPool lives, but it can be leased
+   * to another party.
+   */
   operator cudaStream_t() && = delete;
 
   explicit operator bool() const noexcept {

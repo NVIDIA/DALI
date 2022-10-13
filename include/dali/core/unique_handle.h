@@ -71,12 +71,25 @@ class UniqueHandle {
     return *this;
   }
 
-  /// @brief Obtain the stored handle
+  /**
+   * @brief Obtains the stored handle
+   *
+   * The value is valid as long as the owning unique handle object is not destroyed, reset
+   * or overwritten.
+   */
   constexpr handle_type get() const & noexcept { return handle_; }
+
+  /**
+   * @brief Cannot obtain a valid handle from a temporary UniqueHandle
+   *
+   * If this function was allowed, the returned handle would have been destroyed
+   * by the time it's available to the caller.
+   */
   constexpr handle_type get() && = delete;
 
-  /// @brief Make the wrapper usable in most context in which the handle type can be used.
+  /// @brief Make the wrapper usable in most context in which the handle type can be used
   constexpr operator handle_type() const & noexcept { return get(); }
+  /// @brief Cannot obtain a valie handle from a temporary UniqueHandle (see `get`)
   constexpr operator handle_type() && = delete;
 
   /**
