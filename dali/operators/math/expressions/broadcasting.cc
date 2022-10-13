@@ -274,33 +274,101 @@ void ExpandToNDims(TensorShape<> &sh, int ndim) {
   sh = shape_cat(TensorShape<>(std::vector<int64_t>(ndim - sh.sample_dim(), 1)), sh);
 }
 
-void SimplifyShapesForBroadcasting(TensorShape<>& lhs, TensorShape<> &rhs) {
-  // First, if needed expand dimensions
-  int full_ndim = std::max(lhs.sample_dim(), rhs.sample_dim());
-  if (lhs.sample_dim() != rhs.sample_dim()) {
-    ExpandToNDims(lhs, full_ndim);
-    ExpandToNDims(rhs, full_ndim);
+void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
+  int n = shapes.size();
+  SmallVector<TensorShape<>, 3> outs;
+  outs.resize(n);
+
+  int ndim = shapes[0]->sample_dim();
+  for (int i = 1; i < n; i++)
+    if (static_cast<int>(shapes[i]->sample_dim()) > ndim)
+      ndim = shapes[i]->sample_dim();
+
+  auto get = [&](int shape, int dim) -> int64_t {
+    auto &s = *shapes[shape];
+    dim -= ndim - s.sample_dim();  // add leading unit dims
+    if (dim < 0)
+      return 1;  // implicit unit dim
+    return s[dim];
+  };
+
+  // We skip dimensions where all operands have extent 1
+  auto should_skip = [&](int d) {
+    for (int i = 0; i < n; i++)
+      if (get(i, d) != 1)
+        return false;
+    return true;
+  };
+
+  SmallVector<int64_t, 3> volumes;
+  volumes.resize(n, 1);
+
+  int group_start = 0;
+
+  // Can collapse current dimension if shares the same condition as the current group.
+  // The condition is either extent 1 or not.
+  auto can_collapse = [&](int d) {
+    for (int i = 0; i < n; i++) {
+      bool prev_b = get(i, group_start) == 1;
+      bool curr_b = get(i, d) == 1;
+      if (prev_b != curr_b)
+        return false;
+    }
+    return true;
+  };
+
+  // Closes the group, collapsing all the dims into one
+  auto add_group = [&](int d) {
+    group_start = d;
+    for (int i = 0; i < n; i++) {
+      outs[i].shape.push_back(volumes[i]);
+      volumes[i] = get(i, d);
+    }
+  };
+
+  int d = 0;
+  for (; d < ndim; d++) {
+    if (!should_skip(d))
+      break;
   }
 
-  int i = 0;
-  SmallVector<std::pair<int, int>, 5> group_dims;
-  while (i < full_ndim) {
-    if (lhs[i] != rhs[i]) {
-      i++;
-      continue;
+  if (d < ndim) {
+    group_start = d;
+    for (int i = 0; i < n; i++)
+      volumes[i] *= get(i, d);
+
+    for (d++; d < ndim; d++) {
+      if (should_skip(d))
+        continue;
+      if (can_collapse(d)) {
+        for (int i = 0; i < n; i++)
+          volumes[i] *= get(i, d);
+        continue;
+      }
+      add_group(d);
     }
-    int j = i;
-    for (; j < full_ndim; j++) {
-      if (lhs[j] != rhs[j]) break;
-    }
-    if (i < j) {
-      group_dims.emplace_back(i, j - i);
-    }
-    i = j;
+    add_group(d);
   }
 
-  lhs = collapse_dims(lhs, group_dims);
-  rhs = collapse_dims(rhs, group_dims);
+  for (int i = 0; i < n; i++) {
+    if (volume(outs[i]) == 1) {
+      outs[i] = {};
+    }
+  }
+
+  for (int i = 0; i < n; i++) {
+    *shapes[i] = outs[i];
+  }
+}
+
+void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b) {
+  std::array<TensorShape<>*, 2> arr = {&a, &b};
+  SimplifyShapesForBroadcasting(make_span(arr));
+}
+
+void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<>& c) {
+  std::array<TensorShape<>*, 3> arr = {&a, &b, &c};
+  SimplifyShapesForBroadcasting(make_span(arr));
 }
 
 }  // namespace dali
