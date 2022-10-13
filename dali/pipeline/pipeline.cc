@@ -578,10 +578,6 @@ void Pipeline::RunGPU() {
   executor_->RunGPU();
 }
 
-void Pipeline::SetCompletionCallback(ExecutorBase::ExecutorCallback cb) {
-  executor_->SetCompletionCallback(std::move(cb));
-}
-
 bool Pipeline::ValidateOutputs(const DeviceWorkspace &ws) const {
   DALI_ENFORCE(ws.NumOutput() == static_cast<int>(output_descs_.size()),
                make_string("Number of outputs does not match. Expected: ", output_descs_.size(),

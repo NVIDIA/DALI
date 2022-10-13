@@ -14,8 +14,6 @@
 
 
 #include <gtest/gtest.h>
-#include <chrono>
-#include <future>
 
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
@@ -459,13 +457,6 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
           .AddOutput("final_images", "cpu")), "");
 
   vector<string> outputs = {"final_images_cpu"};
-  int cb_counter = 0;
-  std::promise<int> barrier;
-  auto barrier_future = barrier.get_future();
-  exe->SetCompletionCallback([&cb_counter, &barrier]() mutable {
-    ++cb_counter;
-    barrier.set_value(cb_counter);
-  });
 
   exe->Build(&graph, outputs);
 
@@ -485,9 +476,6 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
   exe->Outputs(&ws);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_EQ(ws.NumOutput(), 1);
-  auto status = barrier_future.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 1);
   ASSERT_TRUE(ws.OutputIsType<CPUBackend>(0));
 }
 
@@ -527,19 +515,6 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           .AddOutput("final_images", "gpu")), "");
 
   vector<string> outputs = {"final_images_gpu"};
-  int cb_counter = 0;
-  std::promise<void> barrier_1, barrier_2;
-  auto barrier_future_1 = barrier_1.get_future();
-  auto barrier_future_2 = barrier_2.get_future();
-  exe->SetCompletionCallback([&cb_counter, &barrier_1, &barrier_2]() mutable {
-    ++cb_counter;
-    if (cb_counter == 1) {
-      barrier_1.set_value();
-    }
-    if (cb_counter == 2) {
-      barrier_2.set_value();
-    }
-  });
   exe->Build(&graph, outputs);
 
   // Set the data for the external source
@@ -578,9 +553,6 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   exe->RunMixed();
   exe->RunGPU();
 
-  auto status_1 = barrier_future_1.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_1, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 1);
   src_op->SetDataSource(tl2);
   exe->RunCPU();
   exe->RunMixed();
@@ -597,10 +569,6 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   ASSERT_EQ(ws.NumOutput(), 1);
   ASSERT_EQ(ws.NumInput(), 0);
   ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-
-  auto status_2 = barrier_future_2.wait_for(std::chrono::seconds(5));
-  ASSERT_EQ(status_2, std::future_status::ready);
-  ASSERT_EQ(cb_counter, 2);
 
   test::CheckResults(ws, batch_size, 1, tl);
 }
