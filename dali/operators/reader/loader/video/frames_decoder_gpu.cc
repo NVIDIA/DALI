@@ -134,8 +134,8 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
 }
 
 FramesDecoderGpu::FramesDecoderGpu(
-  const char *memory_file, int memory_file_size, cudaStream_t stream) :
-  FramesDecoder(memory_file, memory_file_size),
+  const char *memory_file, int memory_file_size, cudaStream_t stream, bool build_index) :
+  FramesDecoder(memory_file, memory_file_size, build_index),
   frame_buffer_(num_decode_surfaces_),
   stream_(stream) {
   InitGpuDecoder();
@@ -170,7 +170,7 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
-  if (current_pts == NextFramePts()) {
+  if (HasIndex() && current_pts == NextFramePts()) {
     // Currently decoded frame is actually the one we wanted
     frame_returned_ = true;
 
@@ -182,6 +182,9 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
     }
     frame_output = current_frame_output_;
   } else {
+    LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+        std::setw(5) << current_pts << ", current copy " << current_copy_to_output_ << std::endl;
+
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
     slot.pts_ = current_pts;
@@ -222,15 +225,10 @@ void FramesDecoderGpu::SeekFrame(int frame_id) {
   FramesDecoder::SeekFrame(frame_id);
 }
 
-bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
-  // No more frames in the file
-  if (next_frame_idx_ == -1) {
-    return false;
-  }
-
+bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output) {
   // Check if requested frame was buffered earlier
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ == Index(next_frame_idx_).pts) {
+    if (frame.pts_ != -1 && frame.pts_ == Index(next_frame_idx_).pts) {
       if (copy_to_output) {
         copyD2D(data, frame.frame_.data(), FrameSize());
       }
@@ -248,32 +246,9 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   current_frame_output_ = data;
 
   while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-    if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+    if (!SendFrameToParser()) {
       continue;
     }
-
-    // Store pts from current packet to indicate,
-    // that this frame is in the decoder
-    piped_pts_.push(av_state_->packet_->pts);
-
-    // Add header needed for NVDECODE to the packet
-    if (filtered_packet_->data) {
-      av_packet_unref(filtered_packet_);
-    }
-    DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
-    DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
-
-    // Prepare nv packet
-    CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
-    memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
-    packet->payload = filtered_packet_->data;
-    packet->payload_size = filtered_packet_->size;
-    packet->flags = CUVID_PKT_TIMESTAMP;
-    packet->timestamp = filtered_packet_->pts;
-
-    // Send packet to the nv decoder
-    frame_returned_ = false;
-    CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
 
     if (frame_returned_) {
       ++next_frame_idx_;
@@ -286,6 +261,99 @@ bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
   SendLastPacket();
   next_frame_idx_ = -1;
   return true;
+}
+
+bool FramesDecoderGpu::SendFrameToParser() {
+  if (av_state_->packet_->stream_index != av_state_->stream_id_) {
+    return false;
+  }
+
+  // Store pts from current packet to indicate,
+  // that this frame is in the decoder
+  piped_pts_.push(av_state_->packet_->pts);
+
+  // Add header needed for NVDECODE to the packet
+  if (filtered_packet_->data) {
+    av_packet_unref(filtered_packet_);
+  }
+  DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
+  DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
+
+  // Prepare nv packet
+  CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
+  memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
+  packet->payload = filtered_packet_->data;
+  packet->payload_size = filtered_packet_->size;
+  packet->flags = CUVID_PKT_TIMESTAMP;
+  packet->timestamp = filtered_packet_->pts;
+
+  // Send packet to the nv decoder
+  frame_returned_ = false;
+  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+  return true;
+}
+
+bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output) {
+  current_copy_to_output_ = copy_to_output;
+  current_frame_output_ = data;
+
+  // Initial fill of the buffer
+  while (HasEmptySlot() && more_frames_to_decode_) {
+    if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+      if (!SendFrameToParser()) {
+        continue;
+      }
+    } else {
+      SendLastPacket();
+      more_frames_to_decode_ = false;
+    }
+  }
+
+  int frame_to_return_index = -1;
+  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+    if (frame_buffer_[i].pts_ != -1) {
+      frame_to_return_index = i;
+      break;
+    }
+  }
+
+  for (size_t i = 1; i < frame_buffer_.size(); ++i) {
+    if (frame_buffer_[i].pts_ != -1) {
+      if (frame_buffer_[frame_to_return_index].pts_ > frame_buffer_[i].pts_) {
+        frame_to_return_index = i;
+      }
+    }
+  }
+
+  copyD2D(
+    current_frame_output_,
+    frame_buffer_[frame_to_return_index].frame_.data(),
+    FrameSize());
+  LOG_LINE << "Read frame, index " << next_frame_idx_ << ", timestamp " <<
+          std::setw(5) << frame_buffer_[frame_to_return_index].pts_ <<
+          ", current copy " << copy_to_output << std::endl;
+  ++next_frame_idx_;
+
+  frame_buffer_[frame_to_return_index].pts_ = -1;
+
+  if (IsBufferEmpty()) {
+    next_frame_idx_ = -1;
+  }
+
+  return true;
+}
+
+bool FramesDecoderGpu::ReadNextFrame(uint8_t *data, bool copy_to_output) {
+  // No more frames in the file
+  if (next_frame_idx_ == -1) {
+    return false;
+  }
+
+  if (HasIndex()) {
+    return ReadNextFrameWithIndex(data, copy_to_output);
+  } else {
+    return ReadNextFrameWithoutIndex(data, copy_to_output);
+  }
 }
 
 void FramesDecoderGpu::SendLastPacket(bool flush) {
@@ -320,8 +388,28 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   DALI_FAIL("Could not find empty slot in the frame buffer");
 }
 
+bool FramesDecoderGpu::HasEmptySlot() const {
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ == -1) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool FramesDecoderGpu::IsBufferEmpty() const {
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ != -1) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void FramesDecoderGpu::Reset() {
   SendLastPacket(true);
+  more_frames_to_decode_ = true;
   FramesDecoder::Reset();
 }
 

@@ -40,6 +40,16 @@ class FramesDecoderTestBase : public VideoTestBase {
     }
 
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
+
+    decoder.Reset();
+
+    for (int i = 0; i < decoder.NumFrames(); ++i) {
+      ASSERT_EQ(decoder.NextFrameIdx(), i);
+      decoder.ReadNextFrame(FrameData());
+      AssertFrame(FrameData(), i, ground_truth);
+    }
+
+    ASSERT_EQ(decoder.NextFrameIdx(), -1);
   }
 
   void RunTest(FramesDecoder &decoder, TestVideo &ground_truth) {
@@ -307,6 +317,23 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, NoIndexSeek) {
   RunFailureTest([&]() -> void {
     decoder.SeekFrame(10);},
     "Functionality is unavailible when index is not built.");
+}
+
+TEST_F(FramesDecoderGpuTest, VariableFrameRateNoIndex) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, vfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
+  if (!FramesDecoderGpu::SupportsHevc()) {
+    GTEST_SKIP();
+  }
+  auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, vfr_hevc_videos_[1]);
 }
 
 
