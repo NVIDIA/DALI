@@ -44,13 +44,21 @@ def build_src_pipe(device, layout=None):
     return src_pipe, len(batches)
 
 
-def _test_feed_input(device):
+def _test_feed_input(device, is_serialized):
     src_pipe, batch_size = build_src_pipe(device)
 
     dst_pipe = Pipeline(batch_size, 1, 0, exec_async=False, exec_pipelined=False)
     dst_pipe.set_outputs(fn.external_source(name="ext", device=device))
-    dst_pipe.build()
-    for iter in range(3):
+    if is_serialized:
+        serialized = dst_pipe.serialize()
+        dst_pipe = None
+        dst_pipe = Pipeline.deserialize(serialized_pipeline=serialized, batch_size=batch_size,
+                                        num_threads=1, device_id=0, exec_async=False,
+                                        exec_pipelined=False)
+        dst_pipe.build()
+    else:
+        dst_pipe.build()
+    for _ in range(3):
         out1 = src_pipe.run()
         dst_pipe.feed_input("ext", out1[0])
         out2 = dst_pipe.run()
@@ -59,7 +67,8 @@ def _test_feed_input(device):
 
 def test_feed_input():
     for device in ["cpu", "gpu"]:
-        yield _test_feed_input, device
+        for is_serialized in [True, False]:
+            yield _test_feed_input, device, is_serialized
 
 
 def _test_callback(device, as_tensors, change_layout_to=None):
