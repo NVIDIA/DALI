@@ -149,7 +149,7 @@ class CUDAStreamLease {
   }
 
   /**
-   * @brief Cannot obtain a valie handle from a temporary CUDAStreamLease
+   * @brief Cannot obtain a valid handle from a temporary CUDAStreamLease
    *
    * By the time this function returns, the stream is returned to the pool.
    * The stream will be alive as long as the owning CUDAStreamPool lives, but it can be leased
@@ -165,7 +165,7 @@ class CUDAStreamLease {
   }
 
   /**
-   * @brief Cannot obtain a valie handle from a temporary CUDAStreamLease
+   * @brief Cannot obtain a valid handle from a temporary CUDAStreamLease
    *
    * By the time this function returns, the stream is returned to the pool.
    * The stream will be alive as long as the owning CUDAStreamPool lives, but it can be leased
