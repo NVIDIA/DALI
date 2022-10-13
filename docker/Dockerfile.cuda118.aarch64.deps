@@ -9,12 +9,4 @@ RUN apt update && apt install -y libxml2 curl perl gcc && \
 RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run && \
     chmod +x cuda_*.run && \
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
-    rm -f cuda_*.run && \
-    for f in $(find /usr/local/cuda/lib64/ -iname "*.a"); do            \
-        echo $f                                                      && \
-        /usr/local/cuda/bin/nvprune -gencode arch=compute_70,code=sm_70 \
-                                    -gencode arch=compute_70,code=sm_80 \
-                                    -gencode arch=compute_70,code=sm_90 \
-        $f -o $f;                                                       \
-    done
-
+    rm -f cuda_*.run;
