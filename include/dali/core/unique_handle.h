@@ -89,7 +89,7 @@ class UniqueHandle {
 
   /// @brief Make the wrapper usable in most context in which the handle type can be used
   constexpr operator handle_type() const & noexcept { return get(); }
-  /// @brief Cannot obtain a valie handle from a temporary UniqueHandle (see `get`)
+  /// @brief Cannot obtain a valid handle from a temporary UniqueHandle (see `get`)
   constexpr operator handle_type() && = delete;
 
   /**
