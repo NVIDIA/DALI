@@ -279,19 +279,20 @@ void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
   SmallVector<TensorShape<>, 3> outs;
   outs.resize(n);
 
-  int ndim = shapes[0]->size();
+  int ndim = shapes[0]->sample_dim();
   for (int i = 1; i < n; i++)
-    if (static_cast<int>(shapes[i]->size()) > ndim)
-      ndim = shapes[i]->size();
+    if (static_cast<int>(shapes[i]->sample_dim()) > ndim)
+      ndim = shapes[i]->sample_dim();
 
   auto get = [&](int shape, int dim) -> int64_t {
     auto &s = *shapes[shape];
-    dim -= ndim - s.size();  // add leading unit dims
+    dim -= ndim - s.sample_dim();  // add leading unit dims
     if (dim < 0)
       return 1;  // implicit unit dim
     return s[dim];
   };
 
+  // We skip dimensions where all operands have extent 1
   auto should_skip = [&](int d) {
     for (int i = 0; i < n; i++)
       if (get(i, d) != 1)
@@ -304,6 +305,8 @@ void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
 
   int group_start = 0;
 
+  // Can collapse current dimension if shares the same condition as the current group.
+  // The condition is either extent 1 or not.
   auto can_collapse = [&](int d) {
     for (int i = 0; i < n; i++) {
       bool prev_b = get(i, group_start) == 1;
@@ -314,6 +317,7 @@ void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
     return true;
   };
 
+  // Closes the group, collapsing all the dims into one
   auto add_group = [&](int d) {
     group_start = d;
     for (int i = 0; i < n; i++) {
