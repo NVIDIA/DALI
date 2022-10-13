@@ -327,6 +327,9 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateNoIndex) {
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
+  if (!FramesDecoderGpu::SupportsHevc()) {
+    GTEST_SKIP();
+  }
   auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
 
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
