@@ -476,7 +476,7 @@ void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
       }
     }
     if (need_sync)
-      this->order().wait(order);
+      order.wait(this->order());
   }
   contiguous_buffer_.set_order(order, false);
   for (auto &t : tensors_)
