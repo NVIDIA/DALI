@@ -25,11 +25,23 @@ namespace dali {
 
 class VideoDecoderMixed: public VideoDecoderBase<MixedBackend, FramesDecoderGpu> {
   using VideoDecoderBase::DecodeSample;
+  using VideoDecoderBase::num_threads_;
 
  public:
-  explicit VideoDecoderMixed(const OpSpec &spec): VideoDecoderBase(spec) {}
+  explicit VideoDecoderMixed(const OpSpec &spec):
+    VideoDecoderBase(spec),
+    thread_pool_(num_threads_,
+                 spec.GetArgument<int>("device_id"),
+                 false,
+                 "mixed video decoder") {}
 
   void Run(workspace_t<MixedBackend> &ws) override;
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc,
+                 const workspace_t<MixedBackend> &ws) override;
+
+ private:
+  ThreadPool thread_pool_;
 };
 
 }  // namespace dali

@@ -16,9 +16,8 @@
 
 namespace dali {
 
-template <>
-bool VideoDecoderBase<CPUBackend, FramesDecoder>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                                            const workspace_t<CPUBackend> &ws) {
+bool VideoDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                const workspace_t<CPUBackend> &ws) {
   ValidateInput(ws);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();
