@@ -219,8 +219,11 @@ class DLL_PUBLIC TensorList {
    * function would still report that they are sharing data. It is advised that all samples are
    * replaced this way otherwise the contiguous allocation would be kept alive.
    *
-   * The metadata (pinned, type, device_id, order, layout) must match what is already set
-   * for the whole batch to maintain consistency.
+   * The metadata (pinned, type, device_id, layout) must match what is already set for the whole
+   * batch to maintain consistency.
+   *
+   * We wait for the order of incoming sample in the order of the batch to allow correctly ordered
+   * access of the new sample.
    *
    * @param sample_idx index of sample to be set
    * @param src owner of source sample
@@ -238,8 +241,11 @@ class DLL_PUBLIC TensorList {
    * function would still report that they are sharing data. It is advised that all samples are
    * replaced this way otherwise the contiguous allocation would be kept alive.
    *
-   * The metadata (pinned, type, device_id, order, layout) must match what is already set
-   * for the whole batch to maintain consistency.
+   * The metadata (pinned, type, device_id, layout) must match what is already set for the whole
+   * batch to maintain consistency.
+   *
+   * We wait for the order of incoming sample in the order of the batch to allow correctly ordered
+   * access of the new sample.
    *
    * @param sample_idx index of sample to be set
    * @param src sample owner
@@ -256,12 +262,15 @@ class DLL_PUBLIC TensorList {
    * function would still report that they are sharing data. It is advised that all samples are
    * replaced this way otherwise the contiguous allocation would be kept alive.
    *
-   * The metadata (pinned, type, device_id, order, layout) must match what is already set
-   * for the whole batch to maintain consistency.
+   * The metadata (pinned, type, device_id, layout) must match what is already set for the whole
+   * batch to maintain consistency.
+   *
+   * We wait for the order of incoming sample in the order of the batch to allow correctly ordered
+   * access of the new sample.
    */
   DLL_PUBLIC void SetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes, bool pinned,
                             const TensorShape<> &shape, DALIDataType type, int device_id,
-                            AccessOrder order = {}, const TensorLayout &layout = "");
+                            AccessOrder order, const TensorLayout &layout = "");
   /** @} */
 
   /**
@@ -364,6 +373,16 @@ class DLL_PUBLIC TensorList {
    */
   DLL_PUBLIC void Resize(const TensorListShape<> &new_shape, DALIDataType new_type,
                          BatchContiguity state = BatchContiguity::Automatic);
+
+  /**
+   * @brief Resize individual sample. Allowed only in non-contiguous mode - it will convert the
+   * TensorList on the first call. The type must be already known, and the TensorList must heave
+   * enough elements for this operation.
+   *
+   * @param sample_idx sample index to be resized
+   * @param new_shape requested shape
+   */
+  DLL_PUBLIC void ResizeSample(int sample_idx, const TensorShape<> &new_shape);
 
   /**
    * @brief Reserve memory as one contiguous allocation
@@ -703,7 +722,7 @@ class DLL_PUBLIC TensorList {
    * @param error_suffix Additional description added to the error message
    */
   void VerifySampleShareCompatibility(DALIDataType type, int sample_dim, TensorLayout layout,
-                                      bool pinned, AccessOrder order, int device_id,
+                                      bool pinned, int device_id,
                                       const std::string &error_suffix = ".");
 
   /**

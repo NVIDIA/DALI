@@ -221,7 +221,7 @@ TensorList<Backend> &TensorList<Backend>::operator=(TensorList<Backend> &&other)
 template <typename Backend>
 void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int sample_dim,
                                                          TensorLayout layout, bool pinned,
-                                                         AccessOrder order, int device_id,
+                                                         int device_id,
                                                          const std::string &error_suffix) {
   // Checks in the order of class members
   DALI_ENFORCE(this->type() == type,
@@ -241,9 +241,6 @@ void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int 
                make_string("Sample must have the same pinned status as target batch, current: ",
                            this->is_pinned(), ", new: ", pinned, error_suffix));
 
-  DALI_ENFORCE(this->order() == order,
-               make_string("Sample must have the same order as the target batch", error_suffix));
-
   DALI_ENFORCE(this->device_id() == device_id,
                make_string("Sample must have the same device id as target batch, current: ",
                            this->device_id(), ", new: ", device_id, error_suffix));
@@ -261,7 +258,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const TensorList<Backend> &s
   if (&src.tensors_[src_sample_idx] == &tensors_[sample_idx])
     return;
   VerifySampleShareCompatibility(src.type(), src.shape().sample_dim(), src.GetLayout(),
-                                 src.is_pinned(), src.order(), src.device_id(),
+                                 src.is_pinned(), src.device_id(),
                                  make_string(" for source sample idx: ", src_sample_idx,
                                              " and target sample idx: ", sample_idx, "."));
 
@@ -270,6 +267,11 @@ void TensorList<Backend>::SetSample(int sample_idx, const TensorList<Backend> &s
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
   tensors_[sample_idx].ShareData(src.tensors_[src_sample_idx]);
+  // As the order was simply copied over, we have to fix it back.
+  // We will be accessing it in order of this buffer, so we need to wait for all the work
+  // from the "incoming" src order.
+  tensors_[sample_idx].set_order(order(), false);
+  order().wait(src.order());
 
   if (src.GetLayout().empty() && !GetLayout().empty()) {
     tensors_[sample_idx].SetLayout(GetLayout());
@@ -284,7 +286,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const Tensor<Backend> &owner
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
   VerifySampleShareCompatibility(owner.type(), owner.shape().sample_dim(), owner.GetLayout(),
-                                 owner.is_pinned(), owner.order(), owner.device_id(),
+                                 owner.is_pinned(), owner.device_id(),
                                  make_string(" for sample idx: ", sample_idx, "."));
 
   shape_.set_tensor_shape(sample_idx, owner.shape());
@@ -292,6 +294,11 @@ void TensorList<Backend>::SetSample(int sample_idx, const Tensor<Backend> &owner
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
   tensors_[sample_idx].ShareData(owner);
+  // As the order was simply copied over, we have to fix it back.
+  // We will be accessing it in order of this buffer, so we need to wait for all the work
+  // from the "incoming" src order.
+  tensors_[sample_idx].set_order(order(), false);
+  order().wait(owner.order());
 
   if (owner.GetLayout().empty() && !GetLayout().empty()) {
     tensors_[sample_idx].SetLayout(GetLayout());
@@ -307,7 +314,7 @@ void TensorList<Backend>::SetSample(int sample_idx, const shared_ptr<void> &ptr,
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Setting any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
-  VerifySampleShareCompatibility(type, shape.sample_dim(), layout, pinned, order, device_id,
+  VerifySampleShareCompatibility(type, shape.sample_dim(), layout, pinned, device_id,
                                  make_string(" for sample idx: ", sample_idx, "."));
 
   DALI_ENFORCE(!IsContiguous());
@@ -316,6 +323,11 @@ void TensorList<Backend>::SetSample(int sample_idx, const shared_ptr<void> &ptr,
   // Setting a new share overwrites the previous one - so we can safely assume that even if
   // we had a sample sharing into TL, it will be overwritten
   tensors_[sample_idx].ShareData(ptr, bytes, pinned, shape, type, device_id, order);
+  // As the order was simply copied over, we have to fix it back.
+  // We will be accessing it in order of this buffer, so we need to wait for all the work
+  // from the "incoming" src order.
+  tensors_[sample_idx].set_order(this->order(), false);
+  this->order().wait(order);
 
   if (layout.empty() && !GetLayout().empty()) {
     tensors_[sample_idx].SetLayout(GetLayout());
@@ -574,6 +586,25 @@ void TensorList<Backend>::Resize(const TensorListShape<> &new_shape, DALIDataTyp
 
 
 template <typename Backend>
+void TensorList<Backend>::ResizeSample(int sample_idx, const TensorShape<> &new_shape) {
+  DALI_ENFORCE(IsValidType(type()),
+               "Sample in TensorList cannot be resized with invalid type. Set the type first for "
+               "the whole TensorList using set_type or Resize.");
+  DALI_ENFORCE(sample_dim() == new_shape.sample_dim(),
+               "Sample in TensorList cannot be resized with non-compatible batch dimension. Use "
+               "set_sample_dim or Resize to set correct sample dimension for the whole batch.");
+  // Bounds check
+  assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
+  // Resizing any individual sample converts the batch to non-contiguous mode
+  MakeNoncontiguous();
+  if (tensors_[sample_idx].capacity() >= volume(new_shape) * type_.size())
+    return;
+  shape_.set_tensor_shape(sample_idx, new_shape);
+  tensors_[sample_idx].Resize(new_shape);
+}
+
+
+template <typename Backend>
 void TensorList<Backend>::SetSize(int new_size) {
   DALI_ENFORCE(new_size >= 0, make_string("Incorrect size: ", new_size));
   resize_tensors(new_size);
@@ -820,6 +851,13 @@ template <typename SrcBackend>
 void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder order,
                                bool use_copy_kernel) {
   auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
+
+  if (!src.has_data() && !IsValidType(src.type())) {
+    Reset();
+    SetLayout(src.GetLayout());
+    // no copying to do
+    return;
+  }
 
   Resize(src.shape(), src.type());
   // After resize the state_, curr_num_tensors_, type_, sample_dim_, shape_ (and pinned)
