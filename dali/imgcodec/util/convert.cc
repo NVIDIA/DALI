@@ -26,10 +26,6 @@ namespace imgcodec {
 void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType out_format,
              ConstSampleView<CPUBackend> in, TensorLayout in_layout, DALIImageType in_format,
              ROI roi, Orientation orientation) {
-  DALI_ENFORCE(in_layout.find('H') >= 0 && in_layout.find('W') >= 0,
-               "Input layout has to contain at least H and W dimensions.");
-  DALI_ENFORCE(out_layout.find('H') >= 0 && out_layout.find('W') >= 0,
-               "Output layout has to contain at least H and W dimensions.");
   auto out_shape = out.shape();
   const auto &in_shape = in.shape();
   assert(in_shape.sample_dim() == out_shape.sample_dim());
@@ -37,6 +33,10 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   int spatial_ndim = ndim - 1;
   int in_channel_dim = ImageLayoutInfo::ChannelDimIndex(in_layout);
   int out_channel_dim = ImageLayoutInfo::ChannelDimIndex(out_layout);
+  int h_dim = ImageLayoutInfo::DimIndex(out_layout, 'H');
+  int w_dim = ImageLayoutInfo::DimIndex(out_layout, 'W');
+  DALI_ENFORCE(h_dim >= 0 && w_dim >= 0,
+               "Output layout has to contain at least H and W dimensions.");
 
   DALI_ENFORCE(in_layout == out_layout,
     "Not implemented: currently layout transposition is not supported");
@@ -81,8 +81,6 @@ void Convert(SampleView<CPUBackend> out, TensorLayout out_layout, DALIImageType 
   TYPE_SWITCH(out.type(), type2id, Out, (IMGCODEC_TYPES),
     TYPE_SWITCH(in.type(), type2id, In, (IMGCODEC_TYPES),
       auto out_ptr = out.mutable_data<Out>();
-      auto h_dim = ImageLayoutInfo::DimIndex(out_layout, 'H');
-      auto w_dim = ImageLayoutInfo::DimIndex(out_layout, 'W');
       ApplyOrientation(orientation, out_ptr,
                        out_strides[w_dim], out_shape[w_dim],
                        out_strides[h_dim], out_shape[h_dim]);
