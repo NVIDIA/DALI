@@ -67,7 +67,7 @@ class ShapeParams {
 
   void ProcessInputArgs(const workspace_t<Backend> &ws, int batch_size) {
     SetupOffsetsAndSizes(ws);
-    shape_.Acquire(spec_, ws, batch_size);
+    shape_.Acquire(spec_, ws, batch_size, ArgValue_Default, ArgShapeFromSize<1>{});
     SetupOutputShape(shape_.get());
   }
 
@@ -211,7 +211,10 @@ class ShapeParams {
     assert(sizes_.size() == offset_shape_.num_elements());
   }
 
-  void SetupOutputShape(const TensorListView<StorageCPU, const int, 1> &provided_shape) {
+  void SetupOutputShape(const TensorListView<StorageCPU, const int> &provided_shape) {
+    DALI_ENFORCE(provided_shape.sample_dim() == 0 || provided_shape.sample_dim() == 1,
+                 make_string("The shape argument must be a scalar a 1D tensor, got tensor with `",
+                             provided_shape.sample_dim(), "` extents."));
     auto chunk_shapes = ParseOutputShape(provided_shape);
     if (!HasChunks()) {
       output_shape_ = chunk_shapes;
@@ -227,7 +230,7 @@ class ShapeParams {
   }
 
   TensorListShape<> ParseOutputShape(
-      const TensorListView<StorageCPU, const int, 1> &provided_shape) {
+      const TensorListView<StorageCPU, const int> &provided_shape) {
     auto num_samples = provided_shape.num_samples();
     if (num_samples == 0) {
       return {};
@@ -264,7 +267,7 @@ class ShapeParams {
 
   const OpSpec &spec_;
 
-  ArgValue<int, 1> shape_;
+  ArgValue<int, DynamicDimensions> shape_;
   ArgValue<int, 1> frame_offset_;
   ArgValue<int, 1> frame_size_;
 
