@@ -36,7 +36,6 @@ class FramesDecoderTestBase : public VideoTestBase {
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
       ASSERT_TRUE(decoder.ReadNextFrame(FrameData()));
-      // SaveFrame(FrameData(), i, 0, 0, "/home/awolant/Downloads/frames/", decoder.Width(), decoder.Height());
       AssertFrame(FrameData(), i, ground_truth);
     }
 
@@ -48,7 +47,6 @@ class FramesDecoderTestBase : public VideoTestBase {
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
       ASSERT_TRUE(decoder.ReadNextFrame(FrameData()));
-      // SaveFrame(FrameData(), i, 1, 0, "/home/awolant/Downloads/frames/", decoder.Width(), decoder.Height());
       AssertFrame(FrameData(), i, ground_truth);
     }
 
