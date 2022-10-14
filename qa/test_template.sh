@@ -129,7 +129,10 @@ do
         # install the latest cuda wheel for CUDA 11.x tests if not in conda and if it is x86_64
         version_ge "$CUDA_VERSION" "110" && \
           if [ -z "$CONDA_PREFIX" ] && [ "$(uname -m)" == "x86_64" ]; then
-            install_pip_pkg "pip install --upgrade nvidia-npp-cu11 nvidia-nvjpeg-cu11 nvidia-cufft-cu11 -f /pip-packages"
+            install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
+                                                   nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                   nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
+                                                   -f /pip-packages"
           fi
 
         # install packages
