@@ -28,7 +28,7 @@ bool VideoDecoderBase<MixedBackend, FramesDecoderGpu>::SetupImpl(
     auto sample = input[i];
     auto data = reinterpret_cast<const char *>(sample.data<uint8_t>());
     size_t size = sample.shape().num_elements();
-    frames_decoders_[i] = std::make_unique<FramesDecoderGpu>(data, size, stream);
+    frames_decoders_[i] = std::make_unique<FramesDecoderGpu>(data, size, stream, false);
   }
   output_desc.resize(1);
   output_desc[0].shape = ReadOutputShape();
