@@ -32,7 +32,7 @@ class VideoDecoderMixed: public VideoDecoderBase<MixedBackend, FramesDecoderGpu>
     VideoDecoderBase(spec),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
-                 false,
+                 spec.GetArgument<bool>("affine"),
                  "mixed video decoder") {}
 
   void Run(workspace_t<MixedBackend> &ws) override;

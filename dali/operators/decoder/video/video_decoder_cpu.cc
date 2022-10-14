@@ -60,7 +60,12 @@ The video streams can be in most of the container file formats. FFmpeg is used t
  number of frames in a sequence and can differ for each sample.)code")
     .NumInput(1)
     .NumOutput(1)
-    .InputDox(0, "buffer", "TensorList", "Data buffer with a loaded video file.");
+    .InputDox(0, "buffer", "TensorList", "Data buffer with a loaded video file.")
+    .AddOptionalArg("affine",
+    R"code(Applies only to the mixed backend type.
+
+If set to True, each thread in the internal thread pool will be tied to a specific CPU core.
+ Otherwise, the threads can be reassigned to any CPU core by the operating system.)code", true);
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);
 
