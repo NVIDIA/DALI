@@ -35,20 +35,24 @@ class FramesDecoderTestBase : public VideoTestBase {
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
-      decoder.ReadNextFrame(FrameData());
+      ASSERT_TRUE(decoder.ReadNextFrame(FrameData()));
+      // SaveFrame(FrameData(), i, 0, 0, "/home/awolant/Downloads/frames/", decoder.Width(), decoder.Height());
       AssertFrame(FrameData(), i, ground_truth);
     }
 
+    ASSERT_FALSE(decoder.ReadNextFrame(FrameData()));
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
 
     decoder.Reset();
 
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
-      decoder.ReadNextFrame(FrameData());
+      ASSERT_TRUE(decoder.ReadNextFrame(FrameData()));
+      // SaveFrame(FrameData(), i, 1, 0, "/home/awolant/Downloads/frames/", decoder.Width(), decoder.Height());
       AssertFrame(FrameData(), i, ground_truth);
     }
 
+    ASSERT_FALSE(decoder.ReadNextFrame(FrameData()));
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
   }
 
@@ -115,7 +119,7 @@ class FramesDecoderTestBase : public VideoTestBase {
 class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
  public:
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
-    ground_truth.CompareFrame(index, frame);
+    ground_truth.CompareFrameAvgError(index, frame, 2.0);
   }
 
   void SetUp() override {
@@ -178,6 +182,11 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateHevc) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateMpeg4) {
+  FramesDecoder decoder(cfr_mpeg4_videos_paths_[0]);
+  RunTest(decoder, cfr_videos_[0]);
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   FramesDecoder decoder(vfr_videos_paths_[1]);
   RunTest(decoder, vfr_videos_[1]);
@@ -219,7 +228,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidCodec) {
     path,
     make_string(
       "Unsupported video codec: vp9 in file: ", path,
-      " Supported codecs: h264, HEVC."));
+      " Supported codecs: h264, HEVC, MPEG-4 Part2."));
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {

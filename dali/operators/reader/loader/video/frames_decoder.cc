@@ -81,7 +81,8 @@ using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 
 const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
   AVCodecID::AV_CODEC_ID_H264,
-  AVCodecID::AV_CODEC_ID_HEVC
+  AVCodecID::AV_CODEC_ID_HEVC,
+  AVCodecID::AV_CODEC_ID_MPEG4
 };
 
 int64 FramesDecoder::NumFrames() const {
@@ -131,6 +132,12 @@ void FramesDecoder::FindVideoStream() {
 
     if (av_state_->codec_->type == AVMEDIA_TYPE_VIDEO) {
       av_state_->stream_id_ = i;
+
+      if (Height() == 0 || Width() == 0) {
+        avformat_find_stream_info(av_state_->ctx_, nullptr);
+        DALI_ENFORCE(Height() != 0 && Width() != 0, "Couldn't load video size info.");
+      }
+
       return;
     }
   }
@@ -157,7 +164,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
       "Unsupported video codec: ",
       av_state_->codec_->name,
       " in file: ", Filename(),
-      " Supported codecs: h264, HEVC."));
+      " Supported codecs: h264, HEVC, MPEG-4 Part2."));
   InitAvState();
   BuildIndex();
   DetectVfr();
@@ -319,13 +326,16 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
 
     LOG_LINE << "Read frame (ReadRegularFrame), index " << next_frame_idx_ << ", timestamp " <<
       std::setw(5)  << av_state_->frame_->pts << ", current copy " << copy_to_output << std::endl;
-    if (!copy_to_output) {
-      ++next_frame_idx_;
-      return true;
+
+    ++next_frame_idx_;
+    if (next_frame_idx_ >= NumFrames()) {
+      next_frame_idx_ = -1;
     }
 
-    CopyToOutput(data);
-    ++next_frame_idx_;
+    if (copy_to_output) {
+      CopyToOutput(data);
+    }
+    
     return true;
   }
 
