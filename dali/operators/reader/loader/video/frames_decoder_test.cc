@@ -119,7 +119,7 @@ class FramesDecoderTestBase : public VideoTestBase {
 class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
  public:
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
-    ground_truth.CompareFrameAvgError(index, frame, 2.0);
+    ground_truth.CompareFrame(index, frame);
   }
 
   void SetUp() override {
@@ -138,6 +138,12 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
 
  private:
   std::vector<uint8_t> frame_buffer_;
+};
+
+class FramesDecoderMpeg4Test_CpuOnlyTests : public FramesDecoderTest_CpuOnlyTests {
+  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
+    ground_truth.CompareFrameAvgError(index, frame, 2.0);
+  }
 };
 
 class FramesDecoderGpuTest : public FramesDecoderTestBase {
@@ -182,7 +188,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateHevc) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
-TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateMpeg4) {
+TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, ConstantFrameRateMpeg4) {
   FramesDecoder decoder(cfr_mpeg4_videos_paths_[0]);
   RunTest(decoder, cfr_videos_[0]);
 }
@@ -195,6 +201,11 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevc) {
   FramesDecoder decoder(vfr_hevc_videos_paths_[0]);
   RunTest(decoder, vfr_hevc_videos_[0]);
+}
+
+TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, VariableFrameRateMpeg4) {
+  FramesDecoder decoder(vfr_mpeg4_videos_paths_[0]);
+  RunTest(decoder, vfr_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
