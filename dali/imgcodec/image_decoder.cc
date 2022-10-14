@@ -364,7 +364,11 @@ void ImageDecoder::DecoderWorker::process_batch(std::unique_ptr<ScheduledWork> w
         DecodeResult r = future.get_one(sub_idx);
         if (r.success) {
           if (!decode_to_gpu && !work->gpu_outputs.empty()) {
-            copy(work->gpu_outputs[sub_idx], work->cpu_outputs[sub_idx], work->ctx.stream);
+            try {
+              copy(work->gpu_outputs[sub_idx], work->cpu_outputs[sub_idx], work->ctx.stream);
+            } catch (...) {
+              r = DecodeResult::Failure(std::current_exception());
+            }
           }
           work->results.set(work->indices[sub_idx], r);
         } else {  // failed to decode
