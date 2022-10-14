@@ -15,14 +15,15 @@
 import numpy as np
 import cupy as cp
 import lz4.block
-import os
+# import os
 
 from nvidia.dali import pipeline_def, fn
-import nvidia.dali.types as types
+# import nvidia.dali.types as types
 # from types import DALIDataType
 
-from nose_utils import assert_raises
-from test_utils import dali_type_to_np, get_dali_extra_path, np_type_to_dali
+# from nose_utils import assert_raises
+# from test_utils import dali_type_to_np, get_dali_extra_path
+from test_utils import np_type_to_dali
 
 # test_data_root = get_dali_extra_path()
 # caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -85,6 +86,7 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
         inflated, baseline = pipe.run()
         check_batch(inflated, baseline, iter_size)
 
+
 def test_sample_inflate():
     seed = 42
     for batch_size in [1, 8, 64, 256, 348]:
@@ -131,7 +133,7 @@ def test_scalar_shape():
             yield _test_scalar_shape, dtype, shape
 
 
-def test_offsets():
+def test_offsets(seed, chunk_ndim):
     pass
 
 

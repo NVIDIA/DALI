@@ -195,6 +195,17 @@ class ShapeParams {
 
   template <typename TLShape>
   void InferSizesFromOffsets(int batch_size, const TLShape &in_shape) {
+    auto last_chunk_error_msg = [](auto sample_idx) {
+      return make_string(
+          "The last chunk's offset exceeds the size of the sample for sample of idx ", sample_idx,
+          ".");
+    };
+    auto non_monotone_error = [](auto sample_idx) {
+      return make_string("If the `", offsetArgName, "` argument is specified and the `",
+                         sizeArgName, "` is not, the offsets must be strictly increasing. ",
+                         "The size of a chunk would be non-positive for sample of idx ", sample_idx,
+                         ".");
+    };
     // if frame sizes are not provided, they are inferred assuming that
     // the input data are densely packed and offsets describe consecutive chunks
     sizes_.clear();
@@ -206,10 +217,11 @@ class ShapeParams {
       }
       auto in_chunk_size = in_shape[sample_idx].num_elements();
       for (int chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++, flat_chunk_idx++) {
-        int64_t next_chunk_offset =
-            chunk_idx < num_chunks - 1 ? offsets_[flat_chunk_idx + 1] : in_chunk_size;
+        bool is_last_chunk = chunk_idx == num_chunks - 1;
+        int64_t next_chunk_offset = is_last_chunk ? in_chunk_size : offsets_[flat_chunk_idx + 1];
         int64_t chunk_size = next_chunk_offset - offsets_[flat_chunk_idx];
-        DALI_ENFORCE(chunk_size > 0);  // or non-strict?
+        DALI_ENFORCE(chunk_size > 0, is_last_chunk ? last_chunk_error_msg(sample_idx) :
+                                                     non_monotone_error(sample_idx));
         sizes_.push_back(chunk_size);
       }
     }
