@@ -23,6 +23,11 @@ from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
 
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
+# filter out HEVC because some GPUs do not support it
+filenames = filter(lambda filename: 'hevc' not in filename, filenames)
+
+files = [np.fromfile(
+    filename, dtype=np.uint8) for filename in filenames]
 
 
 @pipeline_def(device_id=0)
@@ -45,10 +50,10 @@ def reference_pipeline(filename, device='cpu'):
 
 def video_loader(batch_size, epochs):
     idx = 0
-    while idx < epochs * len(filenames):
+    while idx < epochs * len(files):
         batch = []
         for _ in range(batch_size):
-            batch.append(np.fromfile(filenames[idx % len(filenames)], dtype=np.uint8))
+            batch.append(files[idx % len(files)])
             idx = idx + 1
         yield batch
 
@@ -57,7 +62,7 @@ def video_decoder_iter(batch_size, epochs=1, device='cpu'):
     pipe = video_decoder_pipeline(batch_size=batch_size, device_id=0, num_threads=4,
                                   source=video_loader(batch_size, epochs), device=device)
     pipe.build()
-    for _ in range(int((epochs * len(filenames) + batch_size - 1) / batch_size)):
+    for _ in range(int((epochs * len(files) + batch_size - 1) / batch_size)):
         output, = pipe.run()
         if isinstance(output, TensorListGPU):
             output = output.as_cpu()
@@ -78,8 +83,8 @@ def ref_iter(epochs=1, device='cpu'):
 
 @params('cpu', 'mixed')
 def test_video_decoder(device):
-    batch_size = 4
-    epochs = 1
+    batch_size = 3
+    epochs = 3
     decoder_iter = video_decoder_iter(batch_size, epochs, device)
     ref_dec_iter = ref_iter(epochs, device='cpu' if device == 'cpu' else 'gpu')
     for seq, ref_seq in zip(decoder_iter, ref_dec_iter):
