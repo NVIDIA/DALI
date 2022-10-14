@@ -67,7 +67,7 @@ class ShapeParams {
 
   void ProcessInputArgs(const workspace_t<Backend> &ws, int batch_size) {
     SetupOffsetsAndSizes(ws);
-    shape_.Acquire(spec_, ws, batch_size, ArgValue_Default, ArgShapeFromSize<1>{});
+    shape_.Acquire(spec_, ws, batch_size, ArgValue_EnforceUniform, ArgShapeFromSize<1>{});
     SetupOutputShape(shape_.get());
   }
 
@@ -102,11 +102,11 @@ class ShapeParams {
     return frame_offset_.HasExplicitValue();
   }
 
+ private:
   bool HasExplicitChunkSizes() const {
     return frame_size_.HasExplicitValue();
   }
 
- private:
   void SetupOffsetsAndSizes(const workspace_t<Backend> &ws) {
     const auto &in_shape = ws.GetInputShape(0);
     int batch_size = in_shape.num_samples();
@@ -156,12 +156,11 @@ class ShapeParams {
       for (int chunk_idx = 0; chunk_idx < offsets.shape[sample_idx].num_elements(); chunk_idx++) {
         DALI_ENFORCE(
             chunk_offsets[chunk_idx] >= 0,
-            make_string(
-                "Chunks offsets must be non-negative. Got negative offset for sample of idx ",
-                sample_idx, "."));
+            make_string("Input chunks offsets must be non-negative. Got negative offset for ",
+                        "sample of idx ", sample_idx, "."));
         DALI_ENFORCE(chunk_offsets[chunk_idx] < sample_num_bytes,
-                     make_string("Chunks offsets cannot exceed the sample size. Got offset `",
-                                 chunk_offsets[chunk_idx], "` while the sample size size is `",
+                     make_string("Input chunks offsets cannot exceed the sample size. Got offset `",
+                                 chunk_offsets[chunk_idx], "` while the sample size is `",
                                  sample_num_bytes, "` for sample of idx ", sample_idx, "."));
       }
     }
@@ -173,17 +172,23 @@ class ShapeParams {
     for (int64_t sample_idx = 0, flat_chunk_idx = 0; sample_idx < batch_size; sample_idx++) {
       auto num_chunks = offset_shape_[sample_idx].num_elements();
       DALI_ENFORCE(num_chunks == sizes.shape[sample_idx].num_elements(),
-                   make_string("The number of chunk offsets and chunk sizes must match for "
-                               "corresponding samples. However for sample of idx ",
-                               sample_idx, " there are ", num_chunks, " and ",
-                               sizes.shape[sample_idx].num_elements(), " for `", offsetArgName,
-                               "` and for `", sizeArgName, "` respectively."));
+                   make_string("The number of `", offsetArgName, "` and `", sizeArgName,
+                               "` must match for corresponding samples. However for sample of idx ",
+                               sample_idx, " there are ", num_chunks, " offsets and ",
+                               sizes.shape[sample_idx].num_elements(), " sizes."));
       int64_t sample_num_bytes = in_shape[sample_idx].num_elements();
       const int *chunk_sizes = sizes.data[sample_idx];
       for (int chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++, flat_chunk_idx++) {
         int64_t chunk_size = chunk_sizes[chunk_idx];
-        DALI_ENFORCE(chunk_size >= 0);
-        DALI_ENFORCE(offsets_[flat_chunk_idx] + chunk_size < sample_num_bytes);
+        DALI_ENFORCE(chunk_size > 0,
+                     make_string("Input chunk size must be positive. Got chunk size `", chunk_size,
+                                 "` for sample of idx ", sample_idx, "."));
+        DALI_ENFORCE(
+            offsets_[flat_chunk_idx] + chunk_size <= sample_num_bytes,
+            make_string("Input chunk cannot exceed the sample size. However, for a sample of idx ",
+                        sample_idx, ", got a chunk that starts at the position `",
+                        offsets_[flat_chunk_idx], "` and has size `", chunk_size,
+                        "` while the sample contains only `", sample_num_bytes, "` bytes."));
       }
     }
   }
@@ -229,8 +234,7 @@ class ShapeParams {
     }
   }
 
-  TensorListShape<> ParseOutputShape(
-      const TensorListView<StorageCPU, const int> &provided_shape) {
+  TensorListShape<> ParseOutputShape(const TensorListView<StorageCPU, const int> &provided_shape) {
     auto num_samples = provided_shape.num_samples();
     if (num_samples == 0) {
       return {};

@@ -38,7 +38,8 @@ namespace inflate {
 template <typename Status>
 void nvcompCall(Status status) {
   if (status != nvcompSuccess) {
-    throw std::runtime_error(make_string("nvComp returned non-zero status: ", status));
+    throw std::runtime_error(
+        make_string("Inflate GPU op error: nvComp returned non-zero status: `", status, "`."));
   }
 }
 
@@ -47,6 +48,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
   explicit InflateOpGpuLZ4Impl(const OpSpec &spec) : InflateOpImplBase<GPUBackend>{spec} {}
 
   void RunImpl(workspace_t<GPUBackend> &ws) override {
+    auto total_chunks_num = params_.GetTotalChunksNum();
     const auto &input = ws.template Input<GPUBackend>(0);
     auto &output = ws.template Output<GPUBackend>(0);
     SetupInChunks(input);
@@ -63,7 +65,6 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     std::tie(in_sizes, in, out_sizes, out) = ctx_.scratchpad->ToContiguousGPU(
         ctx_.gpu.stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
 
-    auto total_chunks_num = params_.GetTotalChunksNum();
     size_t tempSize;
     inflate::nvcompCall(nvcompBatchedLZ4DecompressGetTempSize(
         total_chunks_num, params_.GetMaxOutChunkVol(), &tempSize));
