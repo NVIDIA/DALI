@@ -1,0 +1,173 @@
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <vector>
+
+#include "dali/core/common.h"
+#include "dali/core/util.h"
+#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/builtin/merge.h"
+#include "dali/pipeline/operator/builtin/split_merge.h"
+
+namespace dali {
+
+
+template <typename Backend>
+bool Merge<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+  input_sample_count_ = 0;
+  int nonzero_input_sample_idx = -1;
+  for (int input_category_idx = 0; input_category_idx < kMaxCategories; input_category_idx++) {
+    const auto &input = ws.template Input<Backend>(input_category_idx);
+    input_sample_count_ += input.num_samples();
+    // We could do additional error checking for input consistency, but the SetSample already does
+    // the same.
+  }
+
+  const auto &predicate = ws.ArgumentInput("predicate");
+  DALI_ENFORCE(
+      input_sample_count_ == predicate.num_samples(),
+      make_string("Merge description must cover whole input, got ", input_sample_count_,
+                  " input samples and ", predicate.num_samples(), " elements denoting the merge."));
+  DALI_ENFORCE(predicate.shape().sample_dim() == 0, "Only scalar indexing is supported.");
+  return false;
+}
+
+
+template <typename Backend>
+void Merge<Backend>::RunImpl(Workspace &ws) {
+  auto &output = ws.template Output<Backend>(0);
+  const auto &predicate = ws.ArgumentInput("predicate");
+  auto sample_idx_in_input = uniform_array<kMaxCategories>(0);
+
+  WriteTestsDiagnostics(ws);
+
+  if (!pinned_) {
+    // We produce pinned data if the executor said so
+    pinned_ = output.is_pinned();
+    // TODO(klecki): We keep pinedness if it was passed to us:
+    for (int input_category = 0; input_category < kMaxCategories; input_category++) {
+      pinned_ = *pinned_ || ws.template Input<Backend>(input_category).is_pinned();
+    }
+  }
+
+  if (*pinned_ || std::is_same_v<Backend, GPUBackend>) {
+    cudaGetDevice(&device_id_);
+  } else {
+    device_id_ = CPU_ONLY_DEVICE_ID;
+  }
+
+  // We propagate views only, so just don't care about what is here and reset
+  output.Reset();
+  for (int input_category = 0; input_category < kMaxCategories; input_category++) {
+    const auto &input = ws.template Input<Backend>(input_category);
+    if (input.num_samples() > 0) {
+      output.set_type(input.type());
+      output.set_sample_dim(input.shape().sample_dim());
+      output.SetLayout(input.GetLayout());
+      break;
+    }
+  }
+  // The pinned (and order) can differ depending on the pipeline graph. Let the executor
+  // set the desired one, and we will copy if we don't match. Device_id is different depending on
+  // pinnedness of the memory
+  output.set_device_id(device_id_);
+  output.set_pinned(*pinned_);
+
+  output.SetSize(input_sample_count_);
+
+  for (int output_sample_idx = 0; output_sample_idx < predicate.num_samples();
+       output_sample_idx++) {
+    int input_category_idx = get_category_index(predicate, output_sample_idx);
+    auto &input = ws.template Input<Backend>(input_category_idx);
+
+    // get the index within input category and increment for the next occurrence.
+    int input_sample_idx = sample_idx_in_input[input_category_idx];
+    sample_idx_in_input[input_category_idx]++;
+
+    if (std::is_same_v<Backend, GPUBackend> || input.is_pinned() == *pinned_) {
+      output.SetSample(output_sample_idx, input, input_sample_idx);
+    } else {
+      // Pessimistic variant, we need to copy.
+      // TODO(klecki): Do one allocation, where samples that we share are 0-volumed - this might
+      // be perf optimization reducing the number of allocations to 1.
+      CopySampleToOutput(output, output_sample_idx, input, input_sample_idx, ws);
+    }
+  }
+  FinalizeCopy(ws);
+  WriteTestsDiagnostics(ws);
+}
+
+template <>
+void Merge<CPUBackend>::CopySampleToOutput(TensorList<CPUBackend> &output, int output_sample_idx,
+                                           const TensorList<CPUBackend> &input,
+                                           int input_sample_idx, Workspace &ws) {
+  auto &tp = ws.GetThreadPool();
+  tp.AddWork(
+      [&output, &input, output_sample_idx, input_sample_idx](int thread_idx) {
+        output.ResizeSample(output_sample_idx, input.shape()[input_sample_idx]);
+        output.CopySample(output_sample_idx, input, input_sample_idx, output.order());
+      },
+      volume(input.tensor_shape_span(input_sample_idx)));
+}
+
+
+template <>
+void Merge<CPUBackend>::FinalizeCopy(Workspace &ws) {
+  ws.GetThreadPool().RunAll();
+}
+
+
+template <>
+void Merge<GPUBackend>::CopySampleToOutput(TensorList<GPUBackend> &output, int output_sample_idx,
+                                           const TensorList<GPUBackend> &input,
+                                           int input_sample_idx, Workspace &ws) {
+  assert(false && "This codepath should not be executed");
+}
+
+
+template <>
+void Merge<GPUBackend>::FinalizeCopy(Workspace &ws) {
+  assert(false && "This codepath should not be executed");
+}
+
+
+template <typename Backend>
+void Merge<Backend>::RegisterTestsDiagnostics() {
+  this->RegisterDiagnostic("input_0_pinned", &in_0_pinned_);
+  this->RegisterDiagnostic("input_1_pinned", &in_1_pinned_);
+  this->RegisterDiagnostic("output_pinned", &out_pinned_);
+}
+
+
+template <typename Backend>
+void Merge<Backend>::WriteTestsDiagnostics(const Workspace &ws) {
+  in_0_pinned_ = ws.template Input<Backend>(0).is_pinned();
+  in_1_pinned_ = ws.template Input<Backend>(1).is_pinned();
+  out_pinned_ = ws.template Output<Backend>(0).is_pinned();
+}
+
+
+DALI_SCHEMA(experimental___Merge)
+    .DocStr(R"code(Merge batch based on a predicate.)code")
+    .NumInput(2)
+    .NumOutput(1)
+    .AddArg("predicate", "Boolean categorization of the inputs", DALI_BOOL, true)
+    .SamplewisePassThrough()
+    .MakeDocHidden();
+
+DALI_REGISTER_OPERATOR(experimental___Merge, Merge<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(experimental___Merge, Merge<GPUBackend>, GPU);
+
+}  // namespace dali

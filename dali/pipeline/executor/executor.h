@@ -37,6 +37,7 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
+#include "dali/pipeline/operator/builtin/split_merge.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/batch_utils.h"
 #include "dali/pipeline/util/event_pool.h"
@@ -626,11 +627,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
     for (int tid = 0; tid < graph.NumTensor(); tid++) {
       // Only CPU storage device in CPU_ONLY mode
       auto &cpu_cpu_queue =
-          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
+          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
       auto &mixed_cpu_queue =
-          get_queue<OpType::MIXED, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
+          get_queue<OpType::MIXED, StorageDevice::CPU>(tensor_to_store_queue[tid]);
       auto &gpu_cpu_queue =
-          get_queue<OpType::GPU, StorageDevice::CPU>(tensor_to_store_queue_[tid]);
+          get_queue<OpType::GPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
 
       for (auto &t : cpu_cpu_queue) {
         t->set_pinned(false);
@@ -685,6 +686,48 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
           pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
         }
       }
+    }
+  }
+
+  auto any_pinned = [&](int tid) {
+    auto origin_group = graph.GetTensorOrigin(tid);
+    for (auto &origin_tensor_id : origin_group) {
+      auto &parent_tensor_queue =
+          get_queue<OpType::CPU, StorageDevice::CPU>(tensor_to_store_queue[tid]);
+      for (auto &tensor : parent_tensor_queue) {
+        if (tensor->is_pinned()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // anything that goes into a Merge CPU node, needs to be uniformly pinned
+  for (int i = 0; i < graph.NumOp(OpType::CPU); i++) {
+    auto &node = graph.Node(OpType::CPU, i);
+    if (!isMerge(node.spec.GetSchema())) {
+      continue;
+    }
+    bool should_pin_all = false;
+    // we are interested only in the proper inputs, find out if any of them is pinned
+    for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
+      auto tid = node.parent_tensors[j];
+      should_pin_all = should_pin_all || any_pinned(tid);
+      if (should_pin_all) {
+        break;
+      }
+    }
+    if (!should_pin_all) {
+      continue;
+    }
+    // If any input was pinned, try to pin everything, indicate to the output that we expect
+    // data to be pinned.
+    // Some operator may still ignore pinning, for example a no_copy External Source.
+    // Just use the whole group that goes through Merge node.
+    for (int j = 0; j < node.spec.NumOutput(); ++j) {
+      auto tid = node.children_tensors[j];
+      pin_cpu_passthrough(tensor_to_store_queue, graph, tid);
     }
   }
 }
