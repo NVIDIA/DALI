@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import cupy as cp
 import lz4.block
 import os
 
@@ -21,18 +22,23 @@ import nvidia.dali.types as types
 # from types import DALIDataType
 
 from nose_utils import assert_raises
-from test_utils import get_dali_extra_path
+from test_utils import dali_type_to_np, get_dali_extra_path, np_type_to_dali
 
 # test_data_root = get_dali_extra_path()
 # caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
 # test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
 
 
-def _test_sample_inflate(batch_size, dtype, seed):
+def sample_to_lz4(sample):
+    deflated_buf = lz4.block.compress(sample, store_size=False)
+    return np.frombuffer(deflated_buf, dtype=np.uint8)
+
+
+def _test_sample_inflate(batch_size, np_dtype, seed):
     epoch_size = 10 * batch_size
     rng = np.random.default_rng(seed=seed)
     permutation = rng.permutation(epoch_size)
-    np_dtype = types.to_numpy_type(dtype)
+    dtype = np_type_to_dali(np_dtype)
 
     def gen_iteration_sizes():
         num_yielded_samples = 0
@@ -54,9 +60,7 @@ def _test_sample_inflate(batch_size, dtype, seed):
             def sample(sample_size):
                 start = (sample_size - 1) * sample_size // 2
                 sample = np.array([start + i for i in range(sample_size)], dtype=np_dtype)
-                deflated_buf = lz4.block.compress(sample, store_size=False)
-                deflated = np.frombuffer(deflated_buf, dtype=np.uint8)
-                return sample, deflated
+                return sample, sample_to_lz4(sample)
 
             samples, deflated = list(zip(*[sample(sample_size) for sample_size in sample_sizes]))
             yield list(samples), list(deflated), np.array(sample_sizes, dtype=np.int32)
@@ -79,13 +83,54 @@ def _test_sample_inflate(batch_size, dtype, seed):
 
 
 def test_sample_inflate():
-    seed = 46
+    seed = 42
     for batch_size in [1, 8, 64, 256, 348]:
-        for dtype in [
-                types.DALIDataType.UINT8, types.DALIDataType.INT8, types.DALIDataType.UINT16,
-                types.DALIDataType.INT32, types.DALIDataType.FLOAT, types.DALIDataType.FLOAT16
-        ]:
+        for dtype in [np.uint8, np.int8, np.uint16, np.int32, np.float32, np.float16]:
             yield _test_sample_inflate, batch_size, dtype, seed
             seed += 1
 
 
+def _test_scalar_shape(dtype, shape):
+
+    def sample_source(sample_info):
+        sample_size = np.prod(shape)
+        x = sample_info.idx_in_epoch + 1
+        sample = np.array([i * x for i in range(sample_size)], dtype=dtype).reshape(shape)
+        return sample
+
+    def deflated_source(sample_info):
+        sample = sample_source(sample_info)
+        return cp.array(sample_to_lz4(sample))
+
+    @pipeline_def
+    def pipeline():
+        baseline = fn.external_source(source=sample_source, batch=False)
+        deflated = fn.external_source(source=deflated_source, batch=False, device="gpu")
+        inflated = fn.experimental.inflate(deflated, shape=shape, dtype=np_type_to_dali(dtype))
+        return inflated, baseline
+
+    pipe = pipeline(batch_size=16, num_threads=4, device_id=0)
+    pipe.build()
+    for _ in range(4):
+        inflated, baseline = pipe.run()
+        inflated = [np.array(sample) for sample in inflated.as_cpu()]
+        baseline = [np.array(sample) for sample in baseline]
+        len(inflated) == len(baseline)
+        for inflated_sample, baseline_sample in zip(inflated, baseline):
+            np.testing.assert_array_equal(inflated_sample, baseline_sample)
+
+
+def test_scalar_shape():
+    largest_prime_smaller_than_2_to_16 = 65521
+    prime_larger_than_2_to_16 = 262147
+    for shape in [
+            largest_prime_smaller_than_2_to_16, prime_larger_than_2_to_16, [3, 5, 7],
+            np.array([31, 101, 17], dtype=np.int32), [4, 8, 16, 2], [100, 10]
+    ]:
+        for dtype in [np.uint8, np.float32, np.uint16]:
+            yield _test_scalar_shape, dtype, shape
+
+
+# test offsets
+# test offsets and sizes
+# test failures
