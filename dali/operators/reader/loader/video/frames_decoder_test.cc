@@ -140,7 +140,7 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
 
 class FramesDecoderMpeg4Test_CpuOnlyTests : public FramesDecoderTest_CpuOnlyTests {
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
-    ground_truth.CompareFrameAvgError(index, frame, 2.0);
+    ground_truth.CompareFrameAvgError(index, frame, 2.3);
   }
 };
 
@@ -313,6 +313,13 @@ TEST_F(FramesDecoderGpuTest, InMemoryVfrHevcVideo) {
   RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
+TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, InMemoryVfrMpeg4Video) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[1]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_videos_[1]);
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
 
@@ -322,6 +329,13 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevcNoIndex) {
   auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
+
+  FramesDecoder decoder(memory_video.data(), memory_video.size(), false);
+  RunSequentialTest(decoder, vfr_hevc_videos_[1]);
+}
+
+TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, VariableFrameRateMpeg4NoIndex) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[1]);
 
   FramesDecoder decoder(memory_video.data(), memory_video.size(), false);
   RunSequentialTest(decoder, vfr_hevc_videos_[1]);

@@ -203,7 +203,7 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
     make_string(
       "Unsupported video codec: ",
       av_state_->codec_->name,
-      ". Supported codecs: h264, HEVC."));
+      ". Supported codecs: h264, HEVC, MPEG-4 Part2."));
   InitAvState();
 
   if (!build_index) {
@@ -335,7 +335,7 @@ bool FramesDecoder::ReadRegularFrame(uint8_t *data, bool copy_to_output) {
     if (copy_to_output) {
       CopyToOutput(data);
     }
-    
+
     return true;
   }
 
