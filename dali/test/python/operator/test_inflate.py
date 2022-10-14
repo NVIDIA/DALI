@@ -34,6 +34,14 @@ def sample_to_lz4(sample):
     return np.frombuffer(deflated_buf, dtype=np.uint8)
 
 
+def check_batch(inflated, baseline, batch_size):
+    inflated = [np.array(sample) for sample in inflated.as_cpu()]
+    baseline = [np.array(sample) for sample in baseline]
+    assert batch_size == len(inflated) == len(baseline)
+    for inflated_sample, baseline_sample in zip(inflated, baseline):
+        np.testing.assert_array_equal(inflated_sample, baseline_sample)
+
+
 def _test_sample_inflate(batch_size, np_dtype, seed):
     epoch_size = 10 * batch_size
     rng = np.random.default_rng(seed=seed)
@@ -75,12 +83,7 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
     pipe.build()
     for iter_size in iteration_sizes:
         inflated, baseline = pipe.run()
-        inflated = [np.array(sample) for sample in inflated.as_cpu()]
-        baseline = [np.array(sample) for sample in baseline]
-        assert iter_size == len(inflated) == len(baseline)
-        for inflated_sample, baseline_sample in zip(inflated, baseline):
-            np.testing.assert_array_equal(inflated_sample, baseline_sample)
-
+        check_batch(inflated, baseline, iter_size)
 
 def test_sample_inflate():
     seed = 42
@@ -109,15 +112,12 @@ def _test_scalar_shape(dtype, shape):
         inflated = fn.experimental.inflate(deflated, shape=shape, dtype=np_type_to_dali(dtype))
         return inflated, baseline
 
-    pipe = pipeline(batch_size=16, num_threads=4, device_id=0)
+    batch_size = 16
+    pipe = pipeline(batch_size=batch_size, num_threads=8, device_id=0)
     pipe.build()
     for _ in range(4):
         inflated, baseline = pipe.run()
-        inflated = [np.array(sample) for sample in inflated.as_cpu()]
-        baseline = [np.array(sample) for sample in baseline]
-        len(inflated) == len(baseline)
-        for inflated_sample, baseline_sample in zip(inflated, baseline):
-            np.testing.assert_array_equal(inflated_sample, baseline_sample)
+        check_batch(inflated, baseline, batch_size)
 
 
 def test_scalar_shape():
@@ -131,6 +131,13 @@ def test_scalar_shape():
             yield _test_scalar_shape, dtype, shape
 
 
-# test offsets
-# test offsets and sizes
-# test failures
+def test_offsets():
+    pass
+
+
+def test_offsets_and_sizes():
+    pass
+
+
+def test_error_checking():
+    pass
