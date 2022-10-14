@@ -16,15 +16,17 @@
 #define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_GPU_H_
 
 #include <cuda_runtime.h>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
-#include "dali/core/cuda_utils.h"
+#include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
@@ -141,6 +143,44 @@ class SliceFlipNormalizePermutePadGpu {
     return at_least_2_dims && no_permute && no_sliced_or_pad && no_channel_dim && can_collapse;
   }
 
+  std::tuple<float *, float *, OutputType *> SetupParams(KernelContext context) {
+    int num_samples = processed_args_.size();
+    float *norm_add_cpu = nullptr, *norm_mul_cpu = nullptr;
+    if (need_normalize_) {
+      norm_add_cpu = context.scratchpad->AllocatePinned<float>(num_samples * norm_args_size_);
+      norm_mul_cpu = context.scratchpad->AllocatePinned<float>(num_samples * norm_args_size_);
+      for (int i = 0; i < num_samples; i++) {
+        auto &args = processed_args_[i];
+        auto *norm_add_data = norm_add_cpu + i * norm_args_size_;
+        auto *norm_mul_data = norm_mul_cpu + i * norm_args_size_;
+        for (int d = 0; d < norm_args_size_; d++) {
+          norm_add_data[d] = -args.mean[d] * args.inv_stddev[d];
+          norm_mul_data[d] = args.inv_stddev[d];
+        }
+      }
+    }
+
+    assert(nfill_values_ > 0);
+    OutputType *fill_values_cpu = context.scratchpad->AllocatePinned<OutputType>(
+          num_samples * nfill_values_);
+    for (int i = 0; i < num_samples; i++) {
+      auto *fill_values = fill_values_cpu + i * nfill_values_;
+      auto &args = processed_args_[i];
+      for (int d = 0; d < nfill_values_; d++)
+        fill_values[d] = args.fill_values[d];
+    }
+
+    float *norm_add_gpu = nullptr, *norm_mul_gpu = nullptr;
+    OutputType *fill_values_gpu;
+    std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = context.scratchpad->ToContiguousGPU(
+      context.gpu.stream,
+      make_span(norm_add_cpu, num_samples * norm_args_size_),
+      make_span(norm_mul_cpu, num_samples * norm_args_size_),
+      make_span(fill_values_cpu, num_samples * nfill_values_));
+
+    return std::tuple<float *, float *, OutputType *>(norm_add_gpu, norm_mul_gpu, fill_values_gpu);
+  }
+
   /**
    * @brief Runs generic implementation based on flattened indexes and fast_div
    */
@@ -183,37 +223,9 @@ class SliceFlipNormalizePermutePadGpu {
 
     const auto num_samples = in.size();
 
-    float *norm_add_cpu = nullptr, *norm_mul_cpu = nullptr;
     float *norm_add_gpu = nullptr, *norm_mul_gpu = nullptr;
-    if (need_normalize_) {
-      norm_add_cpu = context.scratchpad->AllocatePinned<float>(num_samples * norm_args_size_);
-      norm_mul_cpu = context.scratchpad->AllocatePinned<float>(num_samples * norm_args_size_);
-      for (int i = 0; i < num_samples; i++) {
-        auto &sample_args = processed_args_[i];
-        auto *norm_add_data = norm_add_cpu + i * norm_args_size_;
-        auto *norm_mul_data = norm_mul_cpu + i * norm_args_size_;
-        for (int d = 0; d < norm_args_size_; d++) {
-          norm_add_data[d] = -sample_args.mean[d] * sample_args.inv_stddev[d];
-          norm_mul_data[d] = sample_args.inv_stddev[d];
-        }
-      }
-    }
-
-    assert(nfill_values_ > 0);
-    OutputType *fill_values_cpu = context.scratchpad->AllocatePinned<OutputType>(
-          num_samples * nfill_values_);
-    for (int i = 0; i < num_samples; i++) {
-      auto *fill_values = fill_values_cpu + i * nfill_values_;
-      auto &sample_args = processed_args_[i];
-      for (int d = 0; d < nfill_values_; d++)
-        fill_values[d] = sample_args.fill_values[d];
-    }
-    OutputType *fill_values_gpu;
-    std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = context.scratchpad->ToContiguousGPU(
-      context.gpu.stream,
-      make_span(norm_add_cpu, num_samples * norm_args_size_),
-      make_span(norm_mul_cpu, num_samples * norm_args_size_),
-      make_span(fill_values_cpu, num_samples * nfill_values_));
+    OutputType *fill_values_gpu = nullptr;
+    std::tie(norm_add_gpu, norm_mul_gpu, fill_values_gpu) = SetupParams(context);
 
     auto *sample_descs_cpu =
         context.scratchpad->AllocatePinned<detail::SampleDesc<Dims>>(num_samples);
