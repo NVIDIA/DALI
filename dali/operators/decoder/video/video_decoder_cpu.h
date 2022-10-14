@@ -29,6 +29,8 @@ class VideoDecoderCpu: public VideoDecoderBase<CPUBackend, FramesDecoder> {
  public:
   explicit VideoDecoderCpu(const OpSpec &spec): VideoDecoderBase(spec) {}
 
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
+
   void RunImpl(workspace_t<CPUBackend> &ws) override;
 };
 

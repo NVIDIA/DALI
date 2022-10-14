@@ -40,8 +40,6 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
 
   USE_OPERATOR_MEMBERS();
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
-
   bool CanInferOutputs() const override {
     return true;
   }
@@ -86,7 +84,6 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     }
   }
 
- private:
   std::vector<std::unique_ptr<FramesDecoder>> frames_decoders_;
 };
 
