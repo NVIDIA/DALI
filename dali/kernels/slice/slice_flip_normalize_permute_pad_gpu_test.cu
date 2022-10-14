@@ -13,10 +13,11 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/kernels/scratch.h"
-#include "dali/kernels/slice/slice_kernel_test.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_gpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_kernel_test.h"
+#include "dali/kernels/slice/slice_kernel_test.h"
 
 namespace dali {
 namespace kernels {
@@ -44,9 +45,7 @@ class SliceFlipNormalizePermutePadGpuTest : public SliceFlipNormalizePermutePadT
     KernelType kernel;
     KernelRequirements req = kernel.Setup(ctx, test_data.gpu(), args);
 
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
+    kernels::DynamicScratchpad scratchpad;
     ctx.scratchpad = &scratchpad;
 
     TensorListShape<> output_shapes = req.output_shapes[0];

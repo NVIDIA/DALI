@@ -38,7 +38,6 @@ class SliceFlipNormalizePermutePadGpu {
  private:
   static constexpr size_t kBlockDim = 256;
   size_t block_size_ = 32 * kBlockDim;
-  size_t block_count_ = 0;
 
   using ProcessedArgs = detail::SliceFlipNormalizePermutePadProcessedArgs<Dims>;
   std::vector<ProcessedArgs> processed_args_;
@@ -48,23 +47,32 @@ class SliceFlipNormalizePermutePadGpu {
   int nfill_values_ = 0;
   int channel_dim_ = -1;
 
+  SmallVector<bool, 64> sample_need_pad_;
+  bool need_pad_ = false;
+
+  SmallVector<bool, 64> sample_need_flip_;
+  bool need_flip_ = false;
+
  public:
   using Args = SliceFlipNormalizePermutePadArgs<Dims>;
   KernelRequirements Setup(KernelContext &context,
                            const InListGPU<InputType, Dims> &in,
                            const std::vector<Args> &args) {
     KernelRequirements req;
-    ScratchpadEstimator se;
     const size_t num_samples = in.size();
 
     norm_args_size_ = -1;
     has_channels_ = false;
     need_normalize_ = false;
+    need_pad_ = false;
+    need_flip_ = false;
     nfill_values_ = 0;
     channel_dim_ = -1;
 
     processed_args_.clear();
     processed_args_.reserve(args.size());
+    sample_need_flip_.resize(num_samples);
+    sample_need_pad_.resize(num_samples);
     for (size_t i = 0; i < num_samples; i++) {
       auto in_shape = in.tensor_shape(i);
       processed_args_.emplace_back(detail::ProcessArgs(args[i], in_shape));
@@ -86,54 +94,16 @@ class SliceFlipNormalizePermutePadGpu {
         if (channel_dim_ != sample_args.channel_dim)
           throw std::invalid_argument("channel dim should be the same for all the samples");
       }
+
+      sample_need_pad_[i] =
+          NeedPad(Dims, sample_args.anchor.data(), sample_args.in_shape.data(),
+                  sample_args.out_shape.data());
+      need_pad_ |= sample_need_pad_[i];
+      sample_need_flip_[i] = false;
+      for (int d = 0; d < Dims; d++)
+        sample_need_flip_[i] |= sample_args.in_strides[d] < 0;
+      need_flip_ |= sample_need_flip_[i];
     }
-
-    if (need_normalize_) {
-      se.add<mm::memory_kind::pinned, float>(num_samples * norm_args_size_);
-      se.add<mm::memory_kind::pinned, float>(num_samples * norm_args_size_);
-      se.add<mm::memory_kind::device, float>(num_samples * norm_args_size_);
-      se.add<mm::memory_kind::device, float>(num_samples * norm_args_size_);
-    }
-
-    assert(nfill_values_ > 0);
-    se.add<mm::memory_kind::pinned, OutputType>(num_samples * nfill_values_);
-    se.add<mm::memory_kind::device, OutputType>(num_samples * nfill_values_);
-
-    se.add<mm::memory_kind::pinned, detail::SampleDesc<Dims>>(num_samples);
-    se.add<mm::memory_kind::device, detail::SampleDesc<Dims>>(num_samples);
-
-    int blocks_per_sm_;
-    CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_,
-      detail::SliceFlipNormalizePermutePadKernel<false, false, false, OutputType, InputType, Dims>,
-      kBlockDim,
-      0));
-
-    block_count_ = 0;
-    auto number_of_blocks = GetSmCount() * blocks_per_sm_;
-    size_t all_sample_sizes = 0;
-
-    for (auto &elem : args) {
-      size_t sample_size = volume(elem.shape);
-      all_sample_sizes += sample_size;
-      block_count_ += static_cast<size_t>(std::ceil(
-        sample_size / static_cast<float>(block_size_)));
-    }
-    auto block_remainder = block_count_ % number_of_blocks;
-    if (block_remainder != 0) {
-      block_count_ += number_of_blocks - block_remainder;
-    }
-    block_size_ = div_ceil(all_sample_sizes, block_count_);
-
-    block_count_ = 0;
-    for (auto &elem : args) {
-      size_t sample_size = volume(elem.shape);
-      block_count_ += static_cast<size_t>(std::ceil(
-        sample_size / static_cast<float>(block_size_)));
-    }
-
-    se.add<mm::memory_kind::pinned, detail::BlockDesc>(block_count_);
-    se.add<mm::memory_kind::device, detail::BlockDesc>(block_count_);
-    req.scratch_sizes = se.sizes;
 
     auto in_shapes = in.shape;
     TensorListShape<Dims> output_shapes(in_shapes.size(), Dims);
@@ -171,12 +141,43 @@ class SliceFlipNormalizePermutePadGpu {
     return at_least_2_dims && no_permute && no_sliced_or_pad && no_channel_dim && can_collapse;
   }
 
-  void Run(KernelContext &context,
-           const OutListGPU<OutputType, Dims> &out,
-           const InListGPU<InputType, Dims> &in,
-           const std::vector<Args> &args) {
-    (void) args;
-    if (block_count_ == 0) {
+  /**
+   * @brief Runs generic implementation based on flattened indexes and fast_div
+   */
+  void RunGenericImpl(KernelContext &context,
+                      const OutListGPU<OutputType, Dims> &out,
+                      const InListGPU<InputType, Dims> &in,
+                      const std::vector<Args> &args) {
+    int blocks_per_sm;
+    CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm,
+      detail::SliceFlipNormalizePermutePadKernel<false, false, false, OutputType, InputType, Dims>,
+      kBlockDim,
+      0));
+
+    size_t block_count = 0;
+    auto number_of_blocks = GetSmCount() * blocks_per_sm;
+    size_t all_sample_sizes = 0;
+
+    for (auto &elem : args) {
+      size_t sample_size = volume(elem.shape);
+      all_sample_sizes += sample_size;
+      block_count += static_cast<size_t>(std::ceil(
+        sample_size / static_cast<float>(block_size_)));
+    }
+    auto block_remainder = block_count % number_of_blocks;
+    if (block_remainder != 0) {
+      block_count += number_of_blocks - block_remainder;
+    }
+    block_size_ = div_ceil(all_sample_sizes, block_count);
+
+    block_count = 0;
+    for (auto &elem : args) {
+      size_t sample_size = volume(elem.shape);
+      block_count += static_cast<size_t>(std::ceil(
+        sample_size / static_cast<float>(block_size_)));
+    }
+
+    if (block_count == 0) {
       return;  // no data to copy
     }
 
@@ -217,9 +218,8 @@ class SliceFlipNormalizePermutePadGpu {
     auto *sample_descs_cpu =
         context.scratchpad->AllocatePinned<detail::SampleDesc<Dims>>(num_samples);
     auto *block_descs_cpu =
-        context.scratchpad->AllocatePinned<detail::BlockDesc>(block_count_);
+        context.scratchpad->AllocatePinned<detail::BlockDesc>(block_count);
 
-    bool need_pad = false, need_flip = false;
     for (int i = 0; i < in.size(); i++) {
       const auto in_shape = in.tensor_shape(i);
       auto &processed_args = processed_args_[i];
@@ -235,14 +235,8 @@ class SliceFlipNormalizePermutePadGpu {
       sample_desc.channel_dim = processed_args.channel_dim;
       sample_desc.in = in.tensor_data(i) + processed_args.input_offset;
       sample_desc.out = out.tensor_data(i);
-      sample_desc.need_pad =
-          NeedPad(Dims, processed_args.anchor.data(), processed_args.in_shape.data(),
-                  processed_args.out_shape.data());
-      need_pad |= sample_desc.need_pad;
-      sample_desc.need_flip = false;
-      for (int d = 0; d < Dims; d++)
-        sample_desc.need_flip |= processed_args.in_strides[d] < 0;
-      need_flip |= sample_desc.need_flip;
+      sample_desc.need_pad = sample_need_pad_[i];
+      sample_desc.need_flip = sample_need_flip_[i];
 
       int last_dim = Dims - 1;
       while (CanCollapseLastDim(sample_desc, last_dim)) {
@@ -277,12 +271,12 @@ class SliceFlipNormalizePermutePadGpu {
     std::tie(sample_descs_gpu, block_descs_gpu) = context.scratchpad->ToContiguousGPU(
         context.gpu.stream,
         make_span(sample_descs_cpu, num_samples),
-        make_span(block_descs_cpu, block_count_));
+        make_span(block_descs_cpu, block_count));
 
-    BOOL_SWITCH(need_pad, NeedPad, (
-      BOOL_SWITCH(need_flip, NeedFlip, (
+    BOOL_SWITCH(need_pad_, NeedPad, (
+      BOOL_SWITCH(need_flip_, NeedFlip, (
         BOOL_SWITCH(need_normalize_, NeedNormalize, (
-          auto grid = block_count_;
+          auto grid = block_count;
           // need to handle __half due to compilation differences
           detail::SliceFlipNormalizePermutePadKernel
             <NeedPad, NeedFlip, NeedNormalize,
@@ -293,6 +287,13 @@ class SliceFlipNormalizePermutePadGpu {
     ));  // NOLINT
 
     CUDA_CALL(cudaGetLastError());
+  }
+
+  void Run(KernelContext &context,
+           const OutListGPU<OutputType, Dims> &out,
+           const InListGPU<InputType, Dims> &in,
+           const std::vector<Args> &args) {
+    RunGenericImpl(context, out, in, args);
   }
 };
 
