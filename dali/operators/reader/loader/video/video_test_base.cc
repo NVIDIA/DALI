@@ -90,6 +90,14 @@ std::vector<std::string> VideoTestBase::vfr_hevc_videos_frames_paths_{
   testing::dali_extra_path() + "/db/video/vfr/frames_1_hevc/",
   testing::dali_extra_path() + "/db/video/vfr/frames_2_hevc/"};
 
+std::vector<std::string> VideoTestBase::cfr_mpeg4_videos_frames_paths_{
+  testing::dali_extra_path() + "/db/video/cfr/frames_1_mpeg4/",
+  testing::dali_extra_path() + "/db/video/cfr/frames_2_mpeg4/"};
+
+std::vector<std::string> VideoTestBase::vfr_mpeg4_videos_frames_paths_{
+  testing::dali_extra_path() + "/db/video/vfr/frames_1_mpeg4/",
+  testing::dali_extra_path() + "/db/video/vfr/frames_2_mpeg4/"};
+
 std::vector<std::string> VideoTestBase::cfr_videos_paths_{
   testing::dali_extra_path() + "/db/video/cfr/test_1.mp4",
   testing::dali_extra_path() + "/db/video/cfr/test_2.mp4"};
@@ -118,6 +126,8 @@ std::vector<std::string> VideoTestBase::vfr_mpeg4_videos_paths_{
 std::vector<TestVideo> VideoTestBase::cfr_videos_;
 std::vector<TestVideo> VideoTestBase::vfr_videos_;
 std::vector<TestVideo> VideoTestBase::vfr_hevc_videos_;
+std::vector<TestVideo> VideoTestBase::cfr_mpeg4_videos_;
+std::vector<TestVideo> VideoTestBase::vfr_mpeg4_videos_;
 
 void VideoTestBase::SetUpTestSuite() {
   if (cfr_videos_.size() > 0) {
@@ -135,6 +145,14 @@ void VideoTestBase::SetUpTestSuite() {
 
   for (auto &folder_path : vfr_hevc_videos_frames_paths_) {
     vfr_hevc_videos_.push_back(TestVideo(folder_path, true));
+  }
+
+  for (auto &folder_path : cfr_mpeg4_videos_frames_paths_) {
+    cfr_mpeg4_videos_.push_back(TestVideo(folder_path, false));
+  }
+
+  for (auto &folder_path : vfr_mpeg4_videos_frames_paths_) {
+    vfr_mpeg4_videos_.push_back(TestVideo(folder_path, true));
   }
 }
 

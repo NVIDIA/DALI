@@ -110,6 +110,8 @@ class VideoTestBase : public ::testing::Test {
   static std::vector<std::string> cfr_videos_frames_paths_;
   static std::vector<std::string> vfr_videos_frames_paths_;
   static std::vector<std::string> vfr_hevc_videos_frames_paths_;
+  static std::vector<std::string> cfr_mpeg4_videos_frames_paths_;
+  static std::vector<std::string> vfr_mpeg4_videos_frames_paths_;
 
   static std::vector<std::string> cfr_videos_paths_;
   static std::vector<std::string> vfr_videos_paths_;
@@ -123,6 +125,8 @@ class VideoTestBase : public ::testing::Test {
   static std::vector<TestVideo> cfr_videos_;
   static std::vector<TestVideo> vfr_videos_;
   static std::vector<TestVideo> vfr_hevc_videos_;
+  static std::vector<TestVideo> cfr_mpeg4_videos_;
+  static std::vector<TestVideo> vfr_mpeg4_videos_;
 
   static void SetUpTestSuite();
 

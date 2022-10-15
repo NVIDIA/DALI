@@ -138,12 +138,6 @@ class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
   std::vector<uint8_t> frame_buffer_;
 };
 
-class FramesDecoderMpeg4Test_CpuOnlyTests : public FramesDecoderTest_CpuOnlyTests {
-  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
-    ground_truth.CompareFrameAvgError(index, frame, 2.3);
-  }
-};
-
 class FramesDecoderGpuTest : public FramesDecoderTestBase {
  public:
   static void SetUpTestSuite() {
@@ -194,9 +188,9 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateHevc) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
-TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, ConstantFrameRateMpeg4) {
+TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateMpeg4) {
   FramesDecoder decoder(cfr_mpeg4_videos_paths_[0]);
-  RunTest(decoder, cfr_videos_[0]);
+  RunTest(decoder, cfr_mpeg4_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
@@ -209,9 +203,9 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevc) {
   RunTest(decoder, vfr_hevc_videos_[0]);
 }
 
-TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, VariableFrameRateMpeg4) {
+TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateMpeg4) {
   FramesDecoder decoder(vfr_mpeg4_videos_paths_[0]);
-  RunTest(decoder, vfr_videos_[0]);
+  RunTest(decoder, vfr_mpeg4_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidPath) {
@@ -331,11 +325,11 @@ TEST_F(FramesDecoderGpuTest, InMemoryVfrHevcVideo) {
   RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
-TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, InMemoryVfrMpeg4Video) {
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrMpeg4Video) {
   auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[1]);
 
   FramesDecoder decoder(memory_video.data(), memory_video.size());
-  RunTest(decoder, vfr_videos_[1]);
+  RunTest(decoder, vfr_mpeg4_videos_[1]);
 }
 
 TEST_F(FramesDecoderGpuMpeg4Test, InMemoryVfrMpeg4Video) {
@@ -359,11 +353,11 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevcNoIndex) {
   RunSequentialTest(decoder, vfr_hevc_videos_[1]);
 }
 
-TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, VariableFrameRateMpeg4NoIndex) {
+TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateMpeg4NoIndex) {
   auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[1]);
 
   FramesDecoder decoder(memory_video.data(), memory_video.size(), false);
-  RunSequentialTest(decoder, vfr_hevc_videos_[1]);
+  RunSequentialTest(decoder, vfr_mpeg4_videos_[1]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, NoIndexSeek) {
