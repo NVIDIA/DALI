@@ -270,14 +270,14 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   RunTest(decoder, vfr_hevc_videos_[1]);
 }
 
-TEST_F(FramesDecoderGpuMpeg4Test, ConstantFrameRateMpeg4) {
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateMpeg4) {
   FramesDecoderGpu decoder(cfr_mpeg4_videos_paths_[0]);
-  RunTest(decoder, cfr_videos_[0]);
+  RunTest(decoder, cfr_mpeg4_videos_[0]);
 }
 
-TEST_F(FramesDecoderGpuMpeg4Test, VariableFrameRateMpeg4) {
-  FramesDecoderGpu decoder(vfr_mpeg4_videos_paths_[1]);
-  RunTest(decoder, vfr_videos_[1]);
+TEST_F(FramesDecoderGpuTest, VariableFrameRateMpeg4) {
+  FramesDecoderGpu decoder(vfr_mpeg4_videos_paths_[0]);
+  RunTest(decoder, vfr_mpeg4_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryCfrVideo) {
@@ -332,11 +332,11 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrMpeg4Video) {
   RunTest(decoder, vfr_mpeg4_videos_[1]);
 }
 
-TEST_F(FramesDecoderGpuMpeg4Test, InMemoryVfrMpeg4Video) {
-  auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[1]);
+TEST_F(FramesDecoderGpuTest, InMemoryVfrMpeg4Video) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[0]);
   
-  FramesDecoderGpu decoder(vfr_mpeg4_videos_paths_[1]);
-  RunTest(decoder, vfr_videos_[1]);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
+  RunTest(decoder, vfr_mpeg4_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {
@@ -387,11 +387,11 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
   RunSequentialTest(decoder, vfr_hevc_videos_[1]);
 }
 
-TEST_F(FramesDecoderGpuMpeg4Test, VariableFrameRateMpeg4NoIndex) {
+TEST_F(FramesDecoderGpuTest, VariableFrameRateMpeg4NoIndex) {
   auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[0]);
 
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
-  RunSequentialTest(decoder, vfr_hevc_videos_[0]);
+  RunSequentialTest(decoder, vfr_mpeg4_videos_[0]);
 }
 
 
