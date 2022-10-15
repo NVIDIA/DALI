@@ -51,6 +51,10 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   case AVCodecID::AV_CODEC_ID_HEVC:
     bsf = av_bsf_get_by_name("hevc_mp4toannexb");
     break;
+  case AVCodecID::AV_CODEC_ID_MPEG4:
+    // TODO(awolant): Detecting packed bframes and applying mpeg4_unpack_bframes bitstream filter
+    bsf = av_bsf_get_by_name("null");
+    break;
   default:
     DALI_FAIL(make_string(
       "Could not find suitable bit stream filter for codec: ",
@@ -69,7 +73,6 @@ void FramesDecoderGpu::InitBitStreamFilter() {
 }
 
 cudaVideoCodec FramesDecoderGpu::GetCodecType() {
-  // Code assumes av_state_->codec_->id in FramesDecoder::SupportedCodecs
   switch (av_state_->codec_params_->codec_id) {
   case AV_CODEC_ID_HEVC:
     return cudaVideoCodec_HEVC;
@@ -122,6 +125,21 @@ void FramesDecoderGpu::InitGpuDecoder() {
   parser_info.pfnSequenceCallback = detail::process_video_sequence;
   parser_info.pfnDecodePicture = detail::process_picture_decode;
   parser_info.pfnDisplayPicture = nullptr;
+
+  if (av_state_->codec_params_->codec_id == AV_CODEC_ID_MPEG4) {
+    CUVIDEOFORMATEX parser_extinfo;
+    auto extradata = av_state_->ctx_->streams[0]->codecpar->extradata;
+    auto extradata_size = av_state_->ctx_->streams[0]->codecpar->extradata_size;
+
+    memset(&parser_extinfo, 0, sizeof(parser_extinfo));
+    parser_info.pExtVideoInfo = &parser_extinfo;
+    if (extradata_size > 0) {
+      auto hdr_size = std::min(sizeof(parser_extinfo.raw_seqhdr_data),
+                              static_cast<std::size_t>(extradata_size));
+      parser_extinfo.format.seqhdr_data_length = hdr_size;
+      memcpy(parser_extinfo.raw_seqhdr_data, extradata, hdr_size);
+    }
+  }
 
   CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
 
