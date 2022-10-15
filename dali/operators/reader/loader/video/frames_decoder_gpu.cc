@@ -71,13 +71,16 @@ void FramesDecoderGpu::InitBitStreamFilter() {
 cudaVideoCodec FramesDecoderGpu::GetCodecType() {
   // Code assumes av_state_->codec_->id in FramesDecoder::SupportedCodecs
   switch (av_state_->codec_params_->codec_id) {
-    case AV_CODEC_ID_HEVC: return cudaVideoCodec_HEVC;
-    case AV_CODEC_ID_H264: return cudaVideoCodec_H264;
-    case AV_CODEC_ID_MPEG4: return cudaVideoCodec_MPEG4;
-    default: {
-      DALI_FAIL(make_string("Unsupported codec type ", av_state_->codec_->id));
-      return {};
-    }
+  case AV_CODEC_ID_HEVC:
+    return cudaVideoCodec_HEVC;
+  case AV_CODEC_ID_H264:
+    return cudaVideoCodec_H264;
+  case AV_CODEC_ID_MPEG4:
+    return cudaVideoCodec_MPEG4;
+  default: {
+    DALI_FAIL(make_string("Unsupported codec type ", av_state_->codec_->id));
+    return {};
+  }
   }
 }
 
