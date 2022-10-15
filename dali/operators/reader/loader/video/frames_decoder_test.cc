@@ -338,6 +338,13 @@ TEST_F(FramesDecoderMpeg4Test_CpuOnlyTests, InMemoryVfrMpeg4Video) {
   RunTest(decoder, vfr_videos_[1]);
 }
 
+TEST_F(FramesDecoderGpuMpeg4Test, InMemoryVfrMpeg4Video) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[1]);
+  
+  FramesDecoderGpu decoder(vfr_mpeg4_videos_paths_[1]);
+  RunTest(decoder, vfr_videos_[1]);
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
 
@@ -384,6 +391,13 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevcNoIndex) {
 
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
   RunSequentialTest(decoder, vfr_hevc_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuMpeg4Test, VariableFrameRateMpeg4NoIndex) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, vfr_hevc_videos_[0]);
 }
 
 
