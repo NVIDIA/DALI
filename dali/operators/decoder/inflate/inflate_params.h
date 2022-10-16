@@ -34,6 +34,8 @@ constexpr static const char *algArgName = "algorithm";
 constexpr static const char *shapeArgName = "shape";
 constexpr static const char *offsetArgName = "chunks_offsets";
 constexpr static const char *sizeArgName = "chunks_sizes";
+constexpr static const char *layoutArgName = "layout";
+constexpr static const char *sequenceLayoutArgName = "sequence_extent";
 
 enum class InflateAlg {
   LZ4
@@ -48,12 +50,13 @@ inline std::string to_string(const InflateAlg &alg) {
   }
 }
 
-inline InflateAlg parse_inflate_alg(const std::string &inflate_alg_str) {
-  if (inflate_alg_str == "LZ4") {
+inline InflateAlg parse_inflate_alg(std::string str) {
+  std::transform(str.begin(), str.end(), str.begin(), [](auto c) { return std::tolower(c); });
+  if (str == "lz4") {
     return InflateAlg::LZ4;
   }
   DALI_FAIL(make_string("Unknown inflate algorithm was specified for `", algArgName,
-                        "` argument: `", inflate_alg_str, "`."));
+                        "` argument: `", str, "`."));
 }
 
 template <typename Backend>
@@ -62,13 +65,20 @@ class ShapeParams {
   explicit ShapeParams(const OpSpec &spec)
       : spec_{spec},
         shape_{shapeArgName, spec},
-        frame_offset_{offsetArgName, spec},
-        frame_size_{sizeArgName, spec} {}
+        chunk_offsets_{offsetArgName, spec},
+        chunk_sizes_{sizeArgName, spec},
+        layout_{spec.GetArgument<TensorLayout>(layoutArgName)},
+        sequence_extent_{spec.GetArgument<TensorLayout>(sequenceLayoutArgName)} {
+    DALI_ENFORCE(sequence_extent_.size() == 1,
+                 make_string("The `", sequenceLayoutArgName, "` must be a single character, got `",
+                             sequence_extent_, "`."));
+  }
 
   void ProcessInputArgs(const workspace_t<Backend> &ws, int batch_size) {
     SetupOffsetsAndSizes(ws);
     shape_.Acquire(spec_, ws, batch_size, ArgValue_EnforceUniform, ArgShapeFromSize<1>{});
     SetupOutputShape(shape_.get());
+    SetupOutputLayout();
   }
 
   auto GetMaxOutChunkVol() const {
@@ -78,16 +88,20 @@ class ShapeParams {
   auto GetTotalChunksNum() const {
     auto total_chunks_num = sizes_.size();
     assert(total_chunks_num == offsets_.size());
-    assert(total_chunks_num == offset_shape_.num_elements());
+    assert(total_chunks_num == chunks_per_sample_.num_elements());
     return total_chunks_num;
   }
 
   const auto &GetChunksNumPerSample() const {
-    return offset_shape_;
+    return chunks_per_sample_;
   }
 
-  TensorListShape<> GetOutputShape() const {
+  const TensorListShape<> &GetOutputShape() const {
     return output_shape_;
+  }
+
+  const TensorLayout &GetOutputLayout() const {
+    return output_layout_;
   }
 
   const std::vector<int64_t> &GetInChunkOffsets() const {
@@ -99,102 +113,164 @@ class ShapeParams {
   }
 
   bool HasChunks() const {
-    return frame_offset_.HasExplicitValue();
+    return HasExplicitChunkOffsets() || HasExplicitChunkSizes();
   }
 
  private:
+  bool HasExplicitChunkOffsets() const {
+    return chunk_offsets_.HasExplicitValue();
+  }
+
   bool HasExplicitChunkSizes() const {
-    return frame_size_.HasExplicitValue();
+    return chunk_sizes_.HasExplicitValue();
+  }
+
+  void SetupOutputLayout() {
+    if (layout_.empty()) {
+      return;
+    }
+    DALI_ENFORCE(
+        layout_.size() == GetOutputShape().sample_dim(),
+        make_string("The size of inflated chunks' layout must match the number of extents in "
+                    "the output shape. However, got the layout `",
+                    layout_, "` while the chunks output shape has ", GetOutputShape().sample_dim(),
+                    " extents."));
+    if (!HasChunks()) {
+      output_layout_ = layout_;
+    } else {
+      assert(sequence_extent_.size() == 1);
+      output_layout_ = sequence_extent_ + layout_;
+    }
   }
 
   void SetupOffsetsAndSizes(const workspace_t<Backend> &ws) {
-    const auto &in_shape = ws.GetInputShape(0);
-    int batch_size = in_shape.num_samples();
-    DALI_ENFORCE(HasChunks() || !HasExplicitChunkSizes(),
-                 make_string("If the `", sizeArgName,
-                             "` argument is specified for the inflate operator, the `",
-                             offsetArgName, "` is required."));
+    if (HasChunks()) {
+      AcquireInferOffsetsSizes(ws);
+    } else {
+      const auto &in_shape = ws.GetInputShape(0);
+      int batch_size = in_shape.num_samples();
+      chunks_per_sample_ = uniform_list_shape(batch_size, TensorShape<1>{1});
+      offsets_.resize(batch_size, 0);
+      sizes_.clear();
+      sizes_.reserve(batch_size);
+      for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+        sizes_.push_back(in_shape[sample_idx].num_elements());
+      }
+    }
+  }
+
+  void AcquireInferOffsetsSizes(const workspace_t<Backend> &ws) {
+    assert(HasChunks());
 
     const auto copy_to_vector = [](auto &v, const auto &tlv) {
       v.clear();
       v.reserve(tlv.shape.num_elements());
       for (int sample_idx = 0; sample_idx < tlv.shape.num_samples(); sample_idx++) {
         auto num_elements = tlv.shape[sample_idx].num_elements();
-        const auto *sample_data = tlv.data[sample_idx];
-        v.insert(v.end(), sample_data, sample_data + num_elements);
+        const auto *chunks_data = tlv.data[sample_idx];
+        v.insert(v.end(), chunks_data, chunks_data + num_elements);
       }
     };
 
-    if (!HasChunks()) {
-      offset_shape_ = uniform_list_shape(batch_size, TensorShape<1>{1});
-      offsets_.resize(batch_size, 0);
-    } else {
-      frame_offset_.Acquire(spec_, ws, batch_size);
-      const auto &offset_views = frame_offset_.get();
-      ValidateOffsets(offset_views, in_shape, batch_size);
-      offset_shape_ = offset_views.shape;
+    const auto validate_offset = [](auto sample_idx, auto sample_num_bytes, auto chunk_offset) {
+      DALI_ENFORCE(chunk_offset >= 0,
+                   make_string("Input chunks offsets must be non-negative. Got ", chunk_offset,
+                               " offset for sample of idx ", sample_idx, "."));
+      DALI_ENFORCE(chunk_offset < sample_num_bytes,
+                   make_string("Input chunks offsets cannot exceed the sample size. Got offset ",
+                               chunk_offset, " while the sample size is ", sample_num_bytes,
+                               " for sample of idx ", sample_idx, "."));
+    };
+
+    const auto validate_size = [](auto sample_idx, auto sample_num_bytes, auto chunk_size) {
+      DALI_ENFORCE(chunk_size > 0,
+                   make_string("Input chunk size must be positive. Got ", chunk_size,
+                               " offset for sample of idx ", sample_idx, "."));
+      DALI_ENFORCE(chunk_size <= sample_num_bytes,
+                   make_string("Input chunk size cannot exceed the sample size. Got size ",
+                               chunk_size, " while the sample size is ", sample_num_bytes,
+                               " for sample of idx ", sample_idx, "."));
+    };
+
+    const auto &in_shape = ws.GetInputShape(0);
+    int batch_size = in_shape.num_samples();
+
+    if (HasExplicitChunkOffsets()) {
+      chunk_offsets_.Acquire(spec_, ws, batch_size);
+      ValidateChunks(chunk_offsets_.get(), in_shape, validate_offset);
+    }
+    if (HasExplicitChunkSizes()) {
+      chunk_sizes_.Acquire(spec_, ws, batch_size);
+      ValidateChunks(chunk_sizes_.get(), in_shape, validate_size);
+    }
+    if (HasExplicitChunkOffsets() && HasExplicitChunkSizes()) {
+      const auto &offset_views = chunk_offsets_.get();
+      const auto &size_views = chunk_sizes_.get();
+      ValidateSizesAgainstOffsets(offset_views, size_views, in_shape);
+      chunks_per_sample_ = offset_views.shape;
       copy_to_vector(offsets_, offset_views);
-    }
-
-    if (!HasExplicitChunkSizes()) {
-      InferSizesFromOffsets(batch_size, in_shape);
-    } else {
-      assert(HasChunks());
-      frame_size_.Acquire(spec_, ws, batch_size);
-      const auto &size_views = frame_size_.get();
-      ValidateSizesAgainstOffsets(size_views, batch_size, in_shape);
       copy_to_vector(sizes_, size_views);
+    } else if (HasExplicitChunkOffsets()) {
+      const auto &offset_views = chunk_offsets_.get();
+      chunks_per_sample_ = offset_views.shape;
+      copy_to_vector(offsets_, offset_views);
+      InferSizesFromOffsets(in_shape);
+    } else {
+      assert(HasExplicitChunkSizes());
+      const auto &size_views = chunk_sizes_.get();
+      chunks_per_sample_ = size_views.shape;
+      copy_to_vector(sizes_, size_views);
+      InferOffsetsFromSizes(in_shape);
     }
   }
 
-  template <typename InShape>
-  void ValidateOffsets(const TensorListView<StorageCPU, const int, 1> &offsets,
-                       const InShape &in_shape, int batch_size) {
-    for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+  template <typename T, typename InShape, typename ChunkValidator>
+  void ValidateChunks(const TensorListView<StorageCPU, const T, 1> &samples,
+                      const InShape &in_shape, ChunkValidator &&chunk_validator) {
+    for (int sample_idx = 0; sample_idx < in_shape.num_samples(); sample_idx++) {
       auto sample_num_bytes = in_shape[sample_idx].num_elements();
-      const int *chunk_offsets = offsets.data[sample_idx];
-      for (int chunk_idx = 0; chunk_idx < offsets.shape[sample_idx].num_elements(); chunk_idx++) {
-        DALI_ENFORCE(
-            chunk_offsets[chunk_idx] >= 0,
-            make_string("Input chunks offsets must be non-negative. Got negative offset for ",
-                        "sample of idx ", sample_idx, "."));
-        DALI_ENFORCE(chunk_offsets[chunk_idx] < sample_num_bytes,
-                     make_string("Input chunks offsets cannot exceed the sample size. Got offset `",
-                                 chunk_offsets[chunk_idx], "` while the sample size is `",
-                                 sample_num_bytes, "` for sample of idx ", sample_idx, "."));
+      const auto *chunks_data = samples.data[sample_idx];
+      for (int chunk_idx = 0; chunk_idx < samples.shape[sample_idx].num_elements(); chunk_idx++) {
+        chunk_validator(sample_idx, sample_num_bytes, chunks_data[chunk_idx]);
       }
     }
   }
 
-  template <typename TLShape>
-  void ValidateSizesAgainstOffsets(const TensorListView<StorageCPU, const int, 1> &sizes,
-                                   int batch_size, const TLShape &in_shape) {
-    for (int64_t sample_idx = 0, flat_chunk_idx = 0; sample_idx < batch_size; sample_idx++) {
-      auto num_chunks = offset_shape_[sample_idx].num_elements();
-      DALI_ENFORCE(num_chunks == sizes.shape[sample_idx].num_elements(),
-                   make_string("The number of `", offsetArgName, "` and `", sizeArgName,
-                               "` must match for corresponding samples. However for sample of idx ",
-                               sample_idx, " there are ", num_chunks, " offsets and ",
-                               sizes.shape[sample_idx].num_elements(), " sizes."));
-      int64_t sample_num_bytes = in_shape[sample_idx].num_elements();
-      const int *chunk_sizes = sizes.data[sample_idx];
-      for (int chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++, flat_chunk_idx++) {
-        int64_t chunk_size = chunk_sizes[chunk_idx];
-        DALI_ENFORCE(chunk_size > 0,
-                     make_string("Input chunk size must be positive. Got chunk size `", chunk_size,
-                                 "` for sample of idx ", sample_idx, "."));
+  template <typename InOffsetT, typename InSizeT, typename TLShape>
+  void ValidateSizesAgainstOffsets(const TensorListView<StorageCPU, const InOffsetT, 1> &offsets,
+                                   const TensorListView<StorageCPU, const InSizeT, 1> &sizes,
+                                   const TLShape &in_shape) {
+    auto batch_size = in_shape.num_samples();
+    for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+      auto num_chunks = offsets.shape[sample_idx].num_elements();
+      DALI_ENFORCE(
+          num_chunks == sizes.shape[sample_idx].num_elements(),
+          make_string("The number of elements passed as `", offsetArgName, "` and `", sizeArgName,
+                      "` must match for corresponding samples. However for sample of idx ",
+                      sample_idx, " there are ", num_chunks, " offsets and ",
+                      sizes.shape[sample_idx].num_elements(), " sizes."));
+    }
+    for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+      auto num_chunks = offsets.shape[sample_idx].num_elements();
+      auto sample_num_bytes = in_shape[sample_idx].num_elements();
+      const auto *chunk_offsets = offsets.data[sample_idx];
+      const auto *chunk_sizes = sizes.data[sample_idx];
+      for (int chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
+        int64_t chunk_end = chunk_offsets[chunk_idx];
+        chunk_end += chunk_sizes[chunk_idx];
         DALI_ENFORCE(
-            offsets_[flat_chunk_idx] + chunk_size <= sample_num_bytes,
+            chunk_end <= sample_num_bytes,
             make_string("Input chunk cannot exceed the sample size. However, for a sample of idx ",
-                        sample_idx, ", got a chunk that starts at the position `",
-                        offsets_[flat_chunk_idx], "` and has size `", chunk_size,
-                        "` while the sample contains only `", sample_num_bytes, "` bytes."));
+                        sample_idx, ", got a chunk that starts at the position ",
+                        chunk_offsets[chunk_idx], " and has size ", chunk_sizes[chunk_idx],
+                        " while the sample contains only ", sample_num_bytes, " bytes."));
       }
     }
   }
 
   template <typename TLShape>
-  void InferSizesFromOffsets(int batch_size, const TLShape &in_shape) {
+  void InferSizesFromOffsets(const TLShape &in_shape) {
+    assert(offsets_.size() == chunks_per_sample_.num_elements());
     auto last_chunk_error_msg = [](auto sample_idx) {
       return make_string(
           "The last chunk's offset exceeds the size of the sample for sample of idx ", sample_idx,
@@ -203,15 +279,14 @@ class ShapeParams {
     auto non_monotone_error = [](auto sample_idx) {
       return make_string("If the `", offsetArgName, "` argument is specified and the `",
                          sizeArgName, "` is not, the offsets must be strictly increasing. ",
-                         "The size of a chunk would be non-positive for sample of idx ", sample_idx,
-                         ".");
+                         "The inferred size of a chunk would be non-positive for sample of idx ",
+                         sample_idx, ".");
     };
-    // if frame sizes are not provided, they are inferred assuming that
-    // the input data are densely packed and offsets describe consecutive chunks
+    auto batch_size = in_shape.num_samples();
     sizes_.clear();
-    sizes_.reserve(offset_shape_.num_elements());
+    sizes_.reserve(chunks_per_sample_.num_elements());
     for (int64_t sample_idx = 0, flat_chunk_idx = 0; sample_idx < batch_size; sample_idx++) {
-      auto num_chunks = offset_shape_[sample_idx].num_elements();
+      auto num_chunks = chunks_per_sample_[sample_idx].num_elements();
       if (num_chunks == 0) {
         continue;
       }
@@ -225,13 +300,37 @@ class ShapeParams {
         sizes_.push_back(chunk_size);
       }
     }
-    assert(sizes_.size() == offset_shape_.num_elements());
+    assert(offsets_.size() == sizes_.size());
+  }
+
+  template <typename TLShape>
+  void InferOffsetsFromSizes(const TLShape &in_shape) {
+    assert(sizes_.size() == chunks_per_sample_.num_elements());
+    auto batch_size = in_shape.num_samples();
+    offsets_.clear();
+    offsets_.reserve(chunks_per_sample_.num_elements());
+    for (int64_t sample_idx = 0, flat_chunk_idx = 0; sample_idx < batch_size; sample_idx++) {
+      auto num_chunks = chunks_per_sample_[sample_idx].num_elements();
+      if (num_chunks == 0) {
+        continue;
+      }
+      int64_t cum_offset = 0;
+      auto sample_num_bytes = in_shape[sample_idx].num_elements();
+      for (int chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++, flat_chunk_idx++) {
+        offsets_.push_back(cum_offset);
+        cum_offset += sizes_[flat_chunk_idx];
+      }
+      DALI_ENFORCE(cum_offset <= sample_num_bytes,
+                   make_string("The sum of chunk sizes for sample of idx ", sample_idx,
+                               " exceeds the total size of the sample"));
+    }
+    assert(offsets_.size() == sizes_.size());
   }
 
   void SetupOutputShape(const TensorListView<StorageCPU, const int> &provided_shape) {
     DALI_ENFORCE(provided_shape.sample_dim() == 0 || provided_shape.sample_dim() == 1,
-                 make_string("The shape argument must be a scalar a 1D tensor, got tensor with `",
-                             provided_shape.sample_dim(), "` extents."));
+                 make_string("The shape argument must be a scalar or a 1D tensor, got tensor with ",
+                             provided_shape.sample_dim(), " extents."));
     auto chunk_shapes = ParseOutputShape(provided_shape);
     if (!HasChunks()) {
       output_shape_ = chunk_shapes;
@@ -239,7 +338,7 @@ class ShapeParams {
       int batch_size = chunk_shapes.num_samples();
       output_shape_.resize(batch_size, chunk_shapes.sample_dim() + 1);
       for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-        int num_chunks = offset_shape_[sample_idx].num_elements();
+        int num_chunks = chunks_per_sample_[sample_idx].num_elements();
         output_shape_.set_tensor_shape(
             sample_idx, shape_cat(TensorShape<>{num_chunks}, chunk_shapes[sample_idx]));
       }
@@ -257,24 +356,15 @@ class ShapeParams {
                              "provided for the output sample of idx 0."));
     TensorListShape<> shape(num_samples, sample_dim);
     for (int sample_idx = 0; sample_idx < provided_shape.num_samples(); sample_idx++) {
-      DALI_ENFORCE(
-          sample_dim = provided_shape.shape[sample_idx].num_elements(),
-          make_string("The output shapes must have uniform dimensionality, however shapes "
-                      "passed as the `",
-                      shapeArgName, "` argument have different number of extents. ",
-                      "The shape for sample of idx 0 has ", sample_dim,
-                      " extents while the shape provided for the sample of idx ", sample_idx,
-                      " has ", provided_shape.shape[sample_idx].num_elements(), " extents."));
       const int *data = provided_shape.tensor_data(sample_idx);
-      TensorShape<> sample_shape(sample_dim);
       for (int d = 0; d < sample_dim; d++) {
-        sample_shape[d] = data[d];
         DALI_ENFORCE(
             data[d] >= 0,
             make_string("Extents of the output shape must be non-negative integers. Please verify "
                         "the sample of idx ",
                         sample_idx, " passed as the argument `", shapeArgName, "`."));
       }
+      TensorShape<> sample_shape(data, data + sample_dim);
       max_output_sample_vol_ = std::max(max_output_sample_vol_, volume(sample_shape));
       shape.set_tensor_shape(sample_idx, sample_shape);
     }
@@ -284,15 +374,18 @@ class ShapeParams {
   const OpSpec &spec_;
 
   ArgValue<int, DynamicDimensions> shape_;
-  ArgValue<int, 1> frame_offset_;
-  ArgValue<int, 1> frame_size_;
+  ArgValue<int, 1> chunk_offsets_;
+  ArgValue<int, 1> chunk_sizes_;
+  TensorLayout layout_;
+  TensorLayout sequence_extent_;
 
-  TensorListShape<1> offset_shape_;
+  TensorListShape<1> chunks_per_sample_;
   std::vector<int64_t> offsets_;
   std::vector<size_t> sizes_;
 
   int64_t max_output_sample_vol_;
   TensorListShape<> output_shape_;
+  TensorLayout output_layout_ = "";
 };
 
 }  // namespace inflate

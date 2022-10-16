@@ -19,23 +19,68 @@
 namespace dali {
 
 DALI_SCHEMA(experimental__Inflate)
-    .DocStr(R"code(Inflate the binary input using specified decompression algorithm.)code")
+    .DocStr(R"code(Inflates/decompresses the input using specified decompression algorithm.
+
+The input must be a 1D tensor of bytes (uint8). The shape and type of the decompressed samples
+is required. Each input sample can either be a single compressed chunk or consist of multiple
+compressed chunks that have the same shape when inflated, so that they can be be merged into
+a single tensor where the leftmost extent of the tensor corresponds to the number of the chunks.
+
+If the sample is comprised of multiple chunks, the ``chunks_offsets`` or ``chunks_sizes``
+must be specified. In that case, the ``shape`` must describe the shape of a single inflated
+(output) chunk. For sequences, the number of chunks will automatically be added as
+the outermost extent to the output tensors.
+
+For example, the following snippet presents decompression of a video-like sequences.
+Each video sequence was deflated by, first, compressing each frame separately and then
+concatenating compressed frames from the corresponding sequences.::
+
+  @pipeline_def
+  def inflate_sequence_pipeline():
+    compressed_seq, uncompressed_frame_shape, compressed_frames_sizes = fn.external_source(...)
+    sequences = fn.experimental.inflate(
+        compressed_seq.gpu(),
+        shape=uncompressed_frame_shape,
+        chunks_sizes=compressed_frames_sizes,
+        layout="HWC",
+        sequence_extent="F")
+    return sequences
+
+)code")
     .NumInput(1)
     .NumOutput(1)
-    .AddArg(inflate::shapeArgName, "The shape of the output (decoded) sample or frame.",
-            DALI_INT_VEC, true)
-    .AddOptionalTypeArg(inflate::dTypeArgName, R"code(Output data type.)code", DALI_NO_TYPE)
-    .AddOptionalArg(inflate::offsetArgName,
-                    "Required if the input sample is a sequence of encoded samples.",
+    .AddArg(inflate::shapeArgName, "The shape of the output (inflated) chunk.", DALI_INT_VEC, true)
+    .AddOptionalTypeArg(inflate::dTypeArgName, "The output (inflated) data type.", DALI_NO_TYPE)
+    .AddOptionalArg(inflate::offsetArgName, R"code("A list of offsets within the sample describing
+where the consecutive chunks begin.
+
+If the ``chunks_sizes`` is not specified, it is assumed that the chunks are densely packed
+in the input tensor and the last chunk ends with the sample's end.)code",
                     std::vector<int>{}, true)
     .AddOptionalArg(inflate::sizeArgName,
-                    "Ignored if input is not a sequence. If the input is a sequence, signifies the "
-                    "sizes of corresponding encoded frames, if not provided consecutive frames are "
-                    "assumed to be densely packed and sizes are inferred from ``frame_offset``.",
+                    R"code("A list of sizes of corresponding input chunks.
+
+If the ``chunks_offsets`` is not specified, it is assumed that the chunks are densely packed
+in the input tensor and the first chunk starts at the beginning of the sample.)code",
                     std::vector<int>{}, true)
-    .AddOptionalArg(
-        inflate::algArgName,
-        R"code(Algorithm to be used to decode the data. Currently only ``LZ4`` is supported.)code",
-        "LZ4");
+    .AddOptionalArg(inflate::algArgName, R"code(Algorithm to be used to decode the data.
+
+Currently only ``LZ4`` is supported.)code",
+                    "LZ4")
+    .AddOptionalArg(inflate::layoutArgName, R"code(Layout of the output (inflated) chunk.
+
+If the samples consist of multiple chunks, the ``sequence_extent`` extent
+will be automatically added to the beginning of the specified layout.)code",
+                    TensorLayout(""))
+    .AddOptionalArg(inflate::sequenceLayoutArgName, R"code(The name for the sequence extent.
+
+If the samples consist of multiple chunks, the extra sequence extent will be added as the leftmost
+extent to the output tensor. By default it is assumed to be video frames,
+hence the default ``F`` extent.
+
+The value is ignored if the ``layout`` is not specified or the input is not a sequence
+( neither ``chunks_offsets`` nor ``chunks_sizes`` is specified).
+)code",
+                    TensorLayout("F"));
 
 }  // namespace dali

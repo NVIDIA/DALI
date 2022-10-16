@@ -16,7 +16,6 @@
 
 #include "dali/core/backend_tags.h"
 #include "dali/core/common.h"
-#include "dali/core/host_dev.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/kernel_manager.h"
@@ -24,7 +23,6 @@
 #include "dali/operators/decoder/inflate/inflate_params.h"
 #include "dali/pipeline/data/sequence_utils.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
