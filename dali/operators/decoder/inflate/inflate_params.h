@@ -144,11 +144,16 @@ class ShapeParams {
   }
 
   void SetupOffsetsAndSizes(const workspace_t<Backend> &ws) {
+    const auto &in_shape = ws.GetInputShape(0);
+    int batch_size = in_shape.num_samples();
+    for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
+      DALI_ENFORCE(in_shape[sample_idx].num_elements() > 0,
+                   make_string("Input sample cannot be empty, but the sample at index ", sample_idx,
+                               " has volume 0."));
+    }
     if (HasChunks()) {
       AcquireInferOffsetsSizes(ws);
     } else {
-      const auto &in_shape = ws.GetInputShape(0);
-      int batch_size = in_shape.num_samples();
       chunks_per_sample_ = uniform_list_shape(batch_size, TensorShape<1>{1});
       offsets_.resize(batch_size, 0);
       sizes_.clear();
