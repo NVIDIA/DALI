@@ -35,7 +35,10 @@ def sample_to_lz4(sample):
     return np.frombuffer(deflated_buf, dtype=np.uint8)
 
 
-def check_batch(inflated, baseline, batch_size):
+def check_batch(inflated, baseline, batch_size, layout=None):
+    layout = layout or ""
+    assert inflated.layout() == layout, (f"The batch layout '({inflated.layout()})' does "
+                                         f"not match the expected layout ({layout})")
     inflated = [np.array(sample) for sample in inflated.as_cpu()]
     baseline = [np.array(sample) for sample in baseline]
     assert batch_size == len(inflated) == len(baseline)
@@ -95,7 +98,7 @@ def test_sample_inflate():
             seed += 1
 
 
-def _test_scalar_shape(dtype, shape):
+def _test_scalar_shape(dtype, shape, layout):
 
     def sample_source(sample_info):
         sample_size = np.prod(shape)
@@ -111,7 +114,8 @@ def _test_scalar_shape(dtype, shape):
     def pipeline():
         baseline = fn.external_source(source=sample_source, batch=False)
         deflated = fn.external_source(source=deflated_source, batch=False, device="gpu")
-        inflated = fn.experimental.inflate(deflated, shape=shape, dtype=np_type_to_dali(dtype))
+        inflated = fn.experimental.inflate(deflated, shape=shape, dtype=np_type_to_dali(dtype),
+                                           layout=layout)
         return inflated, baseline
 
     batch_size = 16
@@ -119,18 +123,19 @@ def _test_scalar_shape(dtype, shape):
     pipe.build()
     for _ in range(4):
         inflated, baseline = pipe.run()
-        check_batch(inflated, baseline, batch_size)
+        check_batch(inflated, baseline, batch_size, layout)
 
 
 def test_scalar_shape():
     largest_prime_smaller_than_2_to_16 = 65521
     prime_larger_than_2_to_16 = 262147
-    for shape in [
-            largest_prime_smaller_than_2_to_16, prime_larger_than_2_to_16, [3, 5, 7],
-            np.array([31, 101, 17], dtype=np.int32), [4, 8, 16, 2], [100, 10]
-    ]:
+    for shape, layout in [(largest_prime_smaller_than_2_to_16, "X"),
+                          (largest_prime_smaller_than_2_to_16, None),
+                          (prime_larger_than_2_to_16, "Y"), ([3, 5, 7], "ABC"), ([3, 5, 7], ""),
+                          ([13, 15, 7], None), (np.array([31, 101, 17], dtype=np.int32), "DEF"),
+                          ([4, 8, 16, 2], "FGNH"), ([100, 10], "WW")]:
         for dtype in [np.uint8, np.float32, np.uint16]:
-            yield _test_scalar_shape, dtype, shape
+            yield _test_scalar_shape, dtype, shape, layout
 
 
 def test_offsets(seed, chunk_ndim):

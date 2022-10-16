@@ -49,6 +49,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     auto total_chunks_num = params_.GetTotalChunksNum();
     const auto &input = ws.template Input<GPUBackend>(0);
     auto &output = ws.template Output<GPUBackend>(0);
+    output.SetLayout(params_.GetOutputLayout());
     SetupInChunks(input);
     SetupOutChunks(output);
 

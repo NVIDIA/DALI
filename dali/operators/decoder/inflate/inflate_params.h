@@ -134,7 +134,7 @@ class ShapeParams {
         make_string("The size of inflated chunks' layout must match the number of extents in "
                     "the output shape. However, got the layout `",
                     layout_, "` while the chunks output shape has ", GetOutputShape().sample_dim(),
-                    " extents."));
+                    " extent(s)."));
     if (!HasChunks()) {
       output_layout_ = layout_;
     } else {
