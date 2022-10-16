@@ -129,12 +129,12 @@ class ShapeParams {
     if (layout_.empty()) {
       return;
     }
+    auto sample_dim = GetOutputShape().sample_dim() - HasChunks();
     DALI_ENFORCE(
-        layout_.size() == GetOutputShape().sample_dim(),
+        layout_.size() == sample_dim,
         make_string("The size of inflated chunks' layout must match the number of extents in "
                     "the output shape. However, got the layout `",
-                    layout_, "` while the chunks output shape has ", GetOutputShape().sample_dim(),
-                    " extent(s)."));
+                    layout_, "` while the chunks output shape has ", sample_dim, " extent(s)."));
     if (!HasChunks()) {
       output_layout_ = layout_;
     } else {
@@ -351,9 +351,6 @@ class ShapeParams {
       return {};
     }
     int sample_dim = provided_shape[0].num_elements();
-    DALI_ENFORCE(sample_dim >= 1,
-                 make_string("The output sample cannot be a scalar, however empty shape was "
-                             "provided for the output sample of idx 0."));
     TensorListShape<> shape(num_samples, sample_dim);
     for (int sample_idx = 0; sample_idx < provided_shape.num_samples(); sample_idx++) {
       const int *data = provided_shape.tensor_data(sample_idx);

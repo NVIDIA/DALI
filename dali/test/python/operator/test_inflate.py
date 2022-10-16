@@ -15,19 +15,9 @@
 import numpy as np
 import cupy as cp
 import lz4.block
-# import os
 
 from nvidia.dali import pipeline_def, fn
-# import nvidia.dali.types as types
-# from types import DALIDataType
-
-# from nose_utils import assert_raises
-# from test_utils import dali_type_to_np, get_dali_extra_path
 from test_utils import np_type_to_dali
-
-# test_data_root = get_dali_extra_path()
-# caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
-# test_data_video = os.path.join(test_data_root, 'db', 'optical_flow', 'sintel_trailer')
 
 
 def sample_to_lz4(sample):
@@ -138,13 +128,78 @@ def test_scalar_shape():
             yield _test_scalar_shape, dtype, shape, layout
 
 
-def test_offsets(seed, chunk_ndim):
-    pass
+def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute):
+    rng = np.random.default_rng(seed=seed)
+
+    def source():
+
+        def uniform(shape):
+            return dtype(rng.uniform(-2**31, 2**31 - 1, shape))
+
+        def std(shape):
+            return dtype(128 * rng.standard_normal(shape) + 3)
+
+        def smaller_std(shape):
+            return dtype(16 * rng.standard_normal(shape))
+        max_extent_size = 64 if ndim >= 3 else 128
+        distrs = [uniform, std, smaller_std]
+        distrs = rng.permutation(distrs)
+        num_chunks = np.int32(rng.uniform(1, 32))
+        shape = np.int32(rng.uniform(0, max_extent_size, ndim))
+        sample = np.array([(distrs[i % len(distrs)])(shape) for i in range(num_chunks)],
+                          dtype=dtype)
+        chunks = [sample_to_lz4(chunk) for chunk in sample]
+        sizes = [len(chunk) for chunk in chunks]
+        offsets = np.int32(np.cumsum([0] + sizes[:-1]))
+        sizes = np.array(sizes, dtype=np.int32)
+        deflated = np.concatenate(chunks)
+        if permute:
+            assert mode == "offset_and_size"
+            perm = rng.permutation(num_chunks)
+            sample = sample[perm]
+            offsets = offsets[perm]
+            sizes = sizes[perm]
+        if mode == "offset_only":
+            return sample, deflated, shape, offsets
+        elif mode == "size_only":
+            return sample, deflated, shape, sizes
+        else:
+            assert mode == "offset_and_size"
+            return sample, deflated, shape, offsets, sizes
+
+    @pipeline_def
+    def pipeline():
+        input_data = fn.external_source(source=source, batch=False,
+                                        num_outputs=5 if mode == "offset_and_size" else 4)
+        if mode == "offset_only":
+            baseline, deflated, shape, offsets = input_data
+            sizes = None
+        elif mode == "size_only":
+            baseline, deflated, shape, sizes = input_data
+            offsets = None
+        else:
+            baseline, deflated, shape, offsets, sizes = input_data
+        inflated = fn.experimental.inflate(deflated.gpu(), shape=shape,
+                                           dtype=np_type_to_dali(dtype), chunks_offsets=offsets,
+                                           chunks_sizes=sizes, layout=layout)
+        return inflated, baseline
+
+    pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    pipe.build()
+    if layout:
+        layout = "F" + layout
+    for _ in range(4):
+        inflated, baseline = pipe.run()
+        check_batch(inflated, baseline, batch_size, layout)
 
 
-def test_offsets_and_sizes():
-    pass
-
-
-def test_error_checking():
-    pass
+def test_chunks():
+    seed = 42
+    batch_sizes = [1, 9, 31]
+    for dtype in [np.uint8, np.int16, np.float32]:
+        for ndim, layout in [(0, None), (1, None), (2, "XY"), (3, "ABC"), (3, "")]:
+            for mode, permute in [("offset_only", False), ("size_only", False),
+                                  ("offset_and_size", False), ("offset_and_size", True)]:
+                batch_size = batch_sizes[seed % len(batch_sizes)]
+                yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, permute
+                seed += 1
