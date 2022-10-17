@@ -240,7 +240,6 @@ TYPED_TEST(NppRemapTest, RemapVsOpencvUnifiedParametersTest) {
   using T = TypeParam;
 
   NppRemapKernel<typename NppRemapTest<T>::StorageType, T> kernel;
-  vector<DALIInterpType> interps(this->batch_size_, DALI_INTERP_NN);
   kernel.Run(this->ctx_, make_tensor_list(this->remap_out_tv_),
              make_tensor_list(this->remap_in_tv_), this->mapx_tv_[0], this->mapy_tv_[0], {}, {},
              DALI_INTERP_NN);

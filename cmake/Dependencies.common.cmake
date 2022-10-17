@@ -18,9 +18,9 @@
 if (BUILD_OPENCV)
   # For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
 
-  find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs calib3d)
+  find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs)
   if(NOT OpenCV_FOUND)
-    find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc imgcodecs calib3d)
+    find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc imgcodecs)
   endif()
 
   message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"3.0\")")

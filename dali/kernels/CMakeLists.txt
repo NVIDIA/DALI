@@ -89,7 +89,7 @@ if (BUILD_TEST)
     ${DALI_ROOT}/dali/test/dali_test_config.cc)
 
   # TODO(janton): Remove dependency with target `dali`
-  target_link_libraries(dali_kernel_test PUBLIC dali_kernels dali opencv_ccalib)
+  target_link_libraries(dali_kernel_test PUBLIC dali_kernels dali)
   target_link_libraries(dali_kernel_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
   target_link_libraries(dali_kernel_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   target_link_libraries(dali_kernel_test PRIVATE "-pie")

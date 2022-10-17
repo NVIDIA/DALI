@@ -525,7 +525,8 @@ class TensorListViewFromVectorOfTensorViewTest : public ::testing::Test {
   using T = uint8_t;
   using Backend = StorageCPU;
 
-  template <int ndim>
+
+  template<int ndim>
   void PrepareTestData(const std::vector<TensorShape<ndim>> &shapes) {
     std::uniform_int_distribution<> idist(0, 255);
     auto irng = [&]() { return idist(mt_); };
@@ -539,7 +540,8 @@ class TensorListViewFromVectorOfTensorViewTest : public ::testing::Test {
     }
   }
 
-  template <typename Backend, typename T, int ndim>
+
+  template<typename Backend, typename T, int ndim>
   bool compare(TensorListView<Backend, T, ndim> lhs, TensorListView<Backend, T, ndim> rhs) {
     if (lhs.shape != rhs.shape)
       return false;
@@ -547,6 +549,8 @@ class TensorListViewFromVectorOfTensorViewTest : public ::testing::Test {
       return false;
     return true;
   }
+
+
   std::vector<std::vector<T>> test_data_;
   std::vector<T *> data_pointers_;
   std::mt19937 mt_;
@@ -556,9 +560,9 @@ TEST_F(TensorListViewFromVectorOfTensorViewTest, StaticDimTest) {
   constexpr int ndim = 3;
 
   std::vector<TensorShape<ndim>> shapes{
-      {1080, 1920, 3},
-      {480, 640, 3},
-      {24, 24, 24},
+          {1080, 1920, 3},
+          {480,  640,  3},
+          {24,   24,   24},
   };
 
   PrepareTestData(shapes);
@@ -575,13 +579,14 @@ TEST_F(TensorListViewFromVectorOfTensorViewTest, StaticDimTest) {
   EXPECT_TRUE(this->compare(tl_from_tvs, tl_from_data_pointers));
 }
 
+
 TEST_F(TensorListViewFromVectorOfTensorViewTest, DynamicDimTest) {
   constexpr int ndim = -1;
 
   std::vector<TensorShape<ndim>> shapes{
-      {1080, 1920, 3},
-      {480, 640, 3},
-      {24, 24, 24},
+          {1080, 1920, 3},
+          {480,  640,  3},
+          {24,   24,   24},
   };
 
   PrepareTestData(shapes);
