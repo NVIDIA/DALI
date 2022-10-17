@@ -4,8 +4,7 @@ topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/../..
 source $topdir/qa/setup_test_common.sh
 
 # save old CUDA symlink, remove CUDA wheel that is suppose to be latest
-version_ge "$CUDA_VERSION" "110" && \
-version_le "$CUDA_VERSION" "110" && \
+version_eq "$CUDA_VERSION_MAJOR" "11" && \
   mv /usr/local/cuda /usr/local/cuda_bak && \
   ln -s cuda-11.1 /usr/local/cuda && \
   pip uninstall -y `pip list | grep nvidia-cu | cut -d " " -f1` `pip list | grep nvidia-n | cut -d " " -f1` \
@@ -24,7 +23,7 @@ bash -e ./test.sh
 popd
 
 # restore old CUDA symlink, reinstall the latest CUDA wheels
-version_ge "$CUDA_VERSION" "110" && \
+version_eq "$CUDA_VERSION_MAJOR" "11" && \
   rm -rf /usr/local/cuda && mv /usr/local/cuda_bak /usr/local/cuda && \
   pip install nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
               nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
