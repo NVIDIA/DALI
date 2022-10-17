@@ -2,6 +2,7 @@
 
 CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 CUDA_VERSION=${CUDA_VERSION:-100}
+CUDA_VERSION_MAJOR=${CUDA_VERSION:0:2}
 
 PYTHON_VERSION=$(python -c "import sys; print(\"{}.{}\".format(sys.version_info[0],sys.version_info[1]))")
 PYTHON_VERSION_SHORT=${PYTHON_VERSION/\./}
