@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "dali/core/format.h"
@@ -64,7 +65,7 @@ inline TileCover GetTiledCover(const TensorListShape<> &shape, int tile_size,
     ranges.push_back({tiles_used, tiles_end});
     tiles_used = tiles_end;
   }
-  return std::make_tuple(descs, ranges);
+  return std::make_tuple(std::move(descs), std::move(ranges));
 }
 
 inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
@@ -79,7 +80,7 @@ inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
   for (int task = 0; task < ntasks; task++) {
     ranges.push_back({task, task+1});
   }
-  return std::make_tuple(descs, ranges);
+  return std::make_tuple(std::move(descs), std::move(ranges));
 }
 
 /**
@@ -211,15 +212,8 @@ DLL_PUBLIC inline bool PropagateShapes(TensorListShape<> &result_shape,
   for (const auto& sh : shapes)
     shapes_ptrs.push_back(&sh);
   auto shapes_ptrs_span = make_span(shapes_ptrs);
-  if (!CanBroadcast(shapes_ptrs_span)) {
-    std::stringstream ss;
-    ss << "Can't broadcast shapes:";
-    for (auto &sh : shapes_ptrs_span) {
-      ss << " " << *sh;
-    }
-    DALI_FAIL(ss.str());
-  }
 
+  // Throws an error if the shapes can't be broadcasted
   BroadcastShape(result_shape, shapes_ptrs_span);
   func.SetShape(result_shape);
   needed_broadcasting |= NeedBroadcasting(shapes_ptrs_span);
@@ -386,6 +380,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
   std::unique_ptr<ExprNode> expr_;
   TensorListShape<> result_shape_;
+  bool broadcasting_ = false;  // broadcasting required?
   bool types_layout_inferred_ = false;
   DALIDataType result_type_id_ = DALIDataType::DALI_NO_TYPE;
   TensorLayout result_layout_;
@@ -402,7 +397,6 @@ class ArithmeticGenericOp : public Operator<Backend> {
   // CPU packs up to 64 tiles in one task, GPU porcesses all of them in one task
   static constexpr int kTaskSize =
       std::is_same<Backend, CPUBackend>::value ? 64 : std::numeric_limits<int>::max();
-  bool broadcasting_ = false;  // broadcasting required?
 
   USE_OPERATOR_MEMBERS();
 };

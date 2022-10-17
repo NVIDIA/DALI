@@ -46,7 +46,8 @@ TEST(ArithmeticOpsTest, TreePropagation) {
 
   auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
   TensorListShape<> result_shape;
-  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  bool need_broadcasting = PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  EXPECT_FALSE(need_broadcasting);
   auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
   auto expected_shape = TensorListShape<>{{1}, {2}};
   EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
@@ -77,7 +78,8 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   ws.AddInput(in[0]);
 
   TensorListShape<> result_shape;
-  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  bool need_broadcasting = PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  EXPECT_FALSE(need_broadcasting);
   auto expected_shape = TensorListShape<>{{}, {}};
   EXPECT_EQ(result_shape, expected_shape);
 }
@@ -95,7 +97,8 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   ws.AddInput(in[0]);
 
   TensorListShape<> result_shape;
-  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  bool need_broadcasting = PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  EXPECT_FALSE(need_broadcasting);
   auto expected_shape = TensorListShape<>{{1}, {1}};
   EXPECT_EQ(result_shape, expected_shape);
 }
@@ -116,9 +119,9 @@ TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
   ws.AddInput(in[2]);
 
   TensorListShape<> result_shape;
-  ASSERT_TRUE(PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2));
+  EXPECT_TRUE(PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2));
   TensorListShape<> expected_sh = {{10}, {2}};
-  ASSERT_EQ(expected_sh, result_shape);
+  EXPECT_EQ(expected_sh, result_shape);
 }
 
 
@@ -159,26 +162,17 @@ inline bool operator==(const TileRange &l, const TileRange &r) {
 TEST(ArithmeticOpsTest, GetTiledCover) {
   TensorListShape<> shape0({{150}, {50}, {150}, {30}});
   auto result0 = GetTiledCover(shape0, 50, 4);
-  std::vector<TileDesc> cover0 = {{0, 0, 50},
-                                  {0, 50, 50},
-                                  {0, 100, 50},
-                                  {1, 0, 50},
-                                  {2, 0, 50},
-                                  {2, 50, 50},
-                                  {2, 100, 50},
-                                  {3, 0, 30}};
+  std::vector<TileDesc> cover0 = {{0, 0, 50}, {0, 50, 50},  {0, 100, 50},
+                                  {1, 0, 50}, {2, 0, 50}, {2, 50, 50},
+                                  {2, 100, 50}, {3, 0, 30}};
   std::vector<TileRange> range0 = {{0, 4}, {4, 8}};
   EXPECT_EQ(std::get<0>(result0), cover0);
   EXPECT_EQ(std::get<1>(result0), range0);
 
   TensorListShape<> shape1({{42}, {75}, {42}, {121}});
   auto result1 = GetTiledCover(shape1, 50, 4);
-  std::vector<TileDesc> cover1 = {{0, 0, 42},
-                                  {1, 0, 50},
-                                  {1, 50, 25},
-                                  {2, 0, 42},
-                                  {3, 0, 50},
-                                  {3, 50, 50},
+  std::vector<TileDesc> cover1 = {{0, 0, 42}, {1, 0, 50}, {1, 50, 25},
+                                  {2, 0, 42}, {3, 0, 50}, {3, 50, 50},
                                   {3, 100, 21}};
   std::vector<TileRange> range1 = {{0, 4}, {4, 7}};
   EXPECT_EQ(std::get<0>(result1), cover1);
@@ -274,6 +268,70 @@ class BinaryArithmeticOpsTest
       offset += shape[i].num_elements();
     }
   }
+
+  void TestBroadcast() {
+    constexpr int batch_size = 1;
+    constexpr int num_threads = 4;
+    const auto tensor_a_sh = uniform_list_shape(batch_size, {16, 7, 3});
+    const auto tensor_b_sh = uniform_list_shape(batch_size, {16, 1, 3});
+    TensorShape<> strides0 = {7*3, 3, 1};
+    TensorShape<> strides1 = {1*3, 0, 1};
+
+    auto backend = testing::detail::BackendStringName<Backend>();
+
+
+    Pipeline pipe(batch_size, num_threads, 0);
+
+    pipe.AddExternalInput("data0");
+    pipe.AddExternalInput("data1");
+
+    pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                         .AddArg("device", backend)
+                         .AddArg("expression_desc", "add(&0 &1)")
+                         .AddInput("data0", backend)
+                         .AddInput("data1", backend)
+                         .AddOutput("result0", backend),
+                     "arithm");
+
+    vector<std::pair<string, string>> outputs = {{"result0", backend}};
+
+    pipe.Build(outputs);
+
+    TensorList<CPUBackend> batch[2];
+    FillBatch<int>(batch[0], tensor_a_sh);
+    FillBatch<int>(batch[1], tensor_b_sh);
+
+    pipe.SetExternalInput("data0", batch[0]);
+    pipe.SetExternalInput("data1", batch[1]);
+    pipe.RunCPU();
+    pipe.RunGPU();
+    DeviceWorkspace ws;
+    pipe.Outputs(&ws);
+    ASSERT_EQ(DALI_INT32, ws.Output<Backend>(0).type());
+    auto result_shape = ws.Output<Backend>(0).shape();
+    ASSERT_EQ(tensor_a_sh, result_shape);
+
+    for (int sample_id = 0; sample_id < batch_size; sample_id++) {
+      const auto *data0 = batch[0].template tensor<int>(sample_id);
+      const auto *data1 = batch[1].template tensor<int>(sample_id);
+
+      const auto *result0_gpu = ws.Output<Backend>(0).template tensor<int>(sample_id);
+      vector<int> result0_cpu(result_shape[sample_id].num_elements());
+      int *out = result0_cpu.data();
+      MemCopy(out, result0_gpu, result_shape[sample_id].num_elements() * sizeof(int));
+      CUDA_CALL(cudaStreamSynchronize(0));
+      TensorShape<> out_sh = tensor_a_sh[sample_id];
+      for (int64_t i0 = 0, i = 0; i0 < out_sh[0]; i0++) {
+        for (int64_t i1 = 0; i1 < out_sh[1]; i1++) {
+          for (int i2 = 0; i2 < out_sh[2]; i2++, i++) {
+            auto ref = data0[i0 * strides0[0] + i1 * strides0[1] + i2 * strides0[2]] +
+                       data1[i0 * strides1[0] + i1 * strides1[1] + i2 * strides1[2]];
+            EXPECT_EQ(out[i], ref);
+          }
+        }
+      }
+  }
+}
 
   void TestFunction() {
     TensorListShape<> shape0{{32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323},
@@ -449,121 +507,12 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   }
 }
 
-TEST(ArithmeticOpsTest, BroadcastCPU) {
-  constexpr int batch_size = 1;
-  constexpr int num_threads = 4;
-  const auto tensor_a_sh = uniform_list_shape(batch_size, {2, 2, 3});
-  const auto tensor_b_sh = uniform_list_shape(batch_size, {2, 1, 3});
-  Pipeline pipe(batch_size, num_threads, 0);
-
-  pipe.AddExternalInput("data0");
-  pipe.AddExternalInput("data1");
-
-  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
-                       .AddArg("device", "cpu")
-                       .AddArg("expression_desc", "add(&0 &1)")
-                       .AddInput("data0", "cpu")
-                       .AddInput("data1", "cpu")
-                       .AddOutput("result0", "cpu"),
-                   "arithm_cpu");
-
-  vector<std::pair<string, string>> outputs = {{"result0", "cpu"}};
-
-  pipe.Build(outputs);
-
-  TensorList<CPUBackend> batch[2];
-  FillBatch<int>(batch[0], tensor_a_sh);
-  FillBatch<int>(batch[1], tensor_b_sh);
-
-  pipe.SetExternalInput("data0", batch[0]);
-  pipe.SetExternalInput("data1", batch[1]);
-  pipe.RunCPU();
-  pipe.RunGPU();
-  DeviceWorkspace ws;
-  pipe.Outputs(&ws);
-  ASSERT_EQ(DALI_INT32, ws.Output<CPUBackend>(0).type());
-  ASSERT_EQ(tensor_a_sh, ws.Output<CPUBackend>(0).shape());
-
-  for (int sample_id = 0; sample_id < batch_size; sample_id++) {
-    const auto *data0 = batch[0].tensor<int>(sample_id);
-    const auto *data1 = batch[1].tensor<int>(sample_id);
-    auto *result0 = ws.Output<CPUBackend>(0).tensor<int>(sample_id);
-
-    TensorShape<> strides_a = {2*3, 3, 1};
-    TensorShape<> strides_b = {1*3, 0, 1};
-
-    for (int i0 = 0, i = 0; i0 < 2; i0++) {
-      for (int i1 = 0; i1 < 2; i1++) {
-        for (int i2 = 0; i2 < 3; i2++, i++) {
-          int a = data0[i0 * strides_a[0] + i1 * strides_a[1] + i2 * strides_a[2]];
-          int b = data1[i0 * strides_b[0] + i1 * strides_b[1] + i2 * strides_b[2]];
-          int expected = a + b;
-          EXPECT_EQ(result0[i], expected);
-        }
-      }
-    }
-  }
+TEST_F(BinaryArithmeticOpCPUint32Test, Broadcast) {
+  this->TestBroadcast();
 }
 
-TEST(ArithmeticOpsTest, BroadcastGPU) {
-  constexpr int batch_size = 1;
-  constexpr int num_threads = 4;
-  const auto tensor_a_sh = uniform_list_shape(batch_size, {2, 2, 3});
-  const auto tensor_b_sh = uniform_list_shape(batch_size, {2, 1, 3});
-  Pipeline pipe(batch_size, num_threads, 0);
-
-  pipe.AddExternalInput("data0");
-  pipe.AddExternalInput("data1");
-
-  pipe.AddOperator(OpSpec("ArithmeticGenericOp")
-                       .AddArg("device", "gpu")
-                       .AddArg("expression_desc", "add(&0 &1)")
-                       .AddInput("data0", "gpu")
-                       .AddInput("data1", "gpu")
-                       .AddOutput("result0", "gpu"),
-                   "arithm_cpu");
-
-  vector<std::pair<string, string>> outputs = {{"result0", "gpu"}};
-
-  pipe.Build(outputs);
-
-  TensorList<CPUBackend> batch[2];
-  FillBatch<int>(batch[0], tensor_a_sh);
-  FillBatch<int>(batch[1], tensor_b_sh);
-
-  pipe.SetExternalInput("data0", batch[0]);
-  pipe.SetExternalInput("data1", batch[1]);
-  pipe.RunCPU();
-  pipe.RunGPU();
-  DeviceWorkspace ws;
-  pipe.Outputs(&ws);
-  ASSERT_EQ(DALI_INT32, ws.Output<GPUBackend>(0).type());
-  auto result_shape = ws.Output<GPUBackend>(0).shape();
-  ASSERT_EQ(tensor_a_sh, result_shape);
-
-  for (int sample_id = 0; sample_id < batch_size; sample_id++) {
-    const auto *data0 = batch[0].tensor<int>(sample_id);
-    const auto *data1 = batch[1].tensor<int>(sample_id);
-
-    const auto *result0_gpu = ws.Output<GPUBackend>(0).tensor<int>(sample_id);
-    vector<int> result0(result_shape[sample_id].num_elements());
-    MemCopy(result0.data(), result0_gpu, result_shape[sample_id].num_elements() * sizeof(int));
-    CUDA_CALL(cudaStreamSynchronize(0));
-
-    TensorShape<> strides_a = {2*3, 3, 1};
-    TensorShape<> strides_b = {1*3, 0, 1};
-
-    for (int i0 = 0, i = 0; i0 < 2; i0++) {
-      for (int i1 = 0; i1 < 2; i1++) {
-        for (int i2 = 0; i2 < 3; i2++, i++) {
-          int a = data0[i0 * strides_a[0] + i1 * strides_a[1] + i2 * strides_a[2]];
-          int b = data1[i0 * strides_b[0] + i1 * strides_b[1] + i2 * strides_b[2]];
-          int expected = a + b;
-          EXPECT_EQ(result0[i], expected);
-        }
-      }
-    }
-  }
+TEST_F(BinaryArithmeticOpGPUint32Test, Broadcast) {
+  this->TestBroadcast();
 }
 
 
