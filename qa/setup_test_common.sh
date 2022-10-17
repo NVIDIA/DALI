@@ -17,6 +17,7 @@ function version_gt() { test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" 
 function version_le() { test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" == "$1"; }
 function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" != "$1"; }
 function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
+function version_eq() { test "$1" == "$2"; }
 
 if [ -n "$gather_pip_packages" ]
 then
@@ -26,7 +27,7 @@ fi
 
 # If driver version is less than 450 and CUDA version is 11,
 # add /usr/local/cuda/compat to LD_LIBRARY_PATH
-version_ge "$CUDA_VERSION" "110" && \
+version_eq "$CUDA_VERSION_MAJOR" "11" && \
 version_lt "$NVIDIA_SMI_DRIVER_VERSION" "450.0" && \
 export LD_LIBRARY_PATH="/usr/local/cuda/compat:$LD_LIBRARY_PATH"
 echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
