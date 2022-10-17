@@ -46,11 +46,17 @@ Box<2, int64_t> default_roi(const TensorShape<ndims> &ts) {
  *         the border is always BoundaryType::CONSTANT and equal to 0.
  *
  * @see RemapKernel.
+ *
+ * @tparam Backend Storage backend, must be GPU-accessible.
+ * @tparam T Type of the input and output data.
  */
 template<typename Backend, typename T>
 struct NppRemapKernel : public RemapKernel<Backend, T> {
   using Border = typename RemapKernel<Backend, T>::Border;
   using MapType = typename RemapKernel<Backend, T>::MapType;
+  using SupportedInputTypes = std::tuple<uint8_t, int16_t, uint16_t, float>;
+  static_assert(has_type_v<T, SupportedInputTypes>, "Unsupported input type.");
+  static_assert(is_gpu_accessible<Backend>::type, "The backend must be GPU-accessible.");
 
 
   void Run(KernelContext &context,

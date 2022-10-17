@@ -258,6 +258,33 @@ using check_kernel = detail::check_kernel_has_run<Kernel, assert_>;
 template <typename Kernel>
 using is_kernel = check_kernel<Kernel, false>;
 
+namespace detail {
+
+template<typename T, typename Tuple>
+struct has_type;
+
+template<typename T>
+struct has_type<T, std::tuple<>> : std::false_type {};
+
+template<typename T, typename U, typename... Ts>
+struct has_type<T, std::tuple<U, Ts...>> : has_type<T, std::tuple<Ts...>> {};
+
+template<typename T, typename... Ts>
+struct has_type<T, std::tuple<T, Ts...>> : std::true_type {};
+
+}  // namespace detail
+
+/**
+ * Checks, if the Tuple contains a given type T.
+ *
+ * Usage example:
+ * using Tup = std::tuple<int, double, MyType>;
+ * static_assert(has_type_v<double, Tup>);  // this will pass
+ * static_assert(has_type_v<float,  Tup>);  // this will fail
+ */
+template<typename T, typename Tuple>
+constexpr bool has_type_v = detail::has_type<T, Tuple>::type::value;
+
 }  // namespace kernels
 }  // namespace dali
 
