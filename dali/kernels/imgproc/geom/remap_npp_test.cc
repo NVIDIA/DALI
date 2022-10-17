@@ -76,11 +76,13 @@ alloc_test_data(TensorShape<ndims> shape, Generator g, cudaStream_t stream = 0) 
  * Outlying pixels for given two images are the pixels, that do not match the corresponding one.
  * In other words, these are the pixels that are not (0,0,0) in the difference of the images.
  *
+ * @tparam T Type of the input data.
  * @param diff The difference of two images (img1 - img2).
  * @return Number of outlying pixels.
  */
+template<typename T>
 size_t count_outlying_pixels(const cv::Mat &diff) {
-  const auto &p = diff.data;
+  const auto &p = reinterpret_cast<const T *>(diff.data);
   int ret = 0;
   for (int i = 0; i < diff.rows * diff.cols * diff.channels(); i += 3) {
     if (p[i] + p[i + 1] + p[i + 2] != 0) ret++;
@@ -90,15 +92,13 @@ size_t count_outlying_pixels(const cv::Mat &diff) {
 
 }  // namespace
 
-template<typename T>
+
+/**
+ * Test of the NppRemapKernel.
+ * @tparam InputT Type of the input data to the kernel.
+ */
+template<typename InputT>
 class NppRemapTest : public ::testing::Test {
-  /*
-   * The idea of this test is to:
-   * 1. Prepare test data,
-   * 2. Run NppRemapKernel,
-   * 3. Run cv::remap,
-   * 4. Compare results.
-   */
  protected:
   using StorageType = StorageUnified;
 
@@ -111,7 +111,11 @@ class NppRemapTest : public ::testing::Test {
    */
   void SetUp() final {
     // Prepare random number generators
-    uniform_int_distribution<> imgdist{0, 255};
+    conditional_t<
+            is_floating_point_v<InputT>,
+            uniform_real_distribution<>,
+            uniform_int_distribution<>
+    > imgdist{0, 255};
     uniform_real_distribution<> wdist{0, static_cast<double>(width_)};
     uniform_real_distribution<> hdist{0, static_cast<double>(height_)};
     auto imgrng = [&]() { return imgdist(mt_); };
@@ -136,8 +140,8 @@ class NppRemapTest : public ::testing::Test {
       auto &myd = mapy_data_[sample_idx];
 
       // Allocating test data and returning the buffer together with the containers
-      tie(rit, ric, rid) = alloc_test_data<StorageType, const T, -1>(img_shape_, imgrng);
-      tie(rot, roc, rod) = alloc_test_data<StorageType, T, -1>(img_shape_, []() { return 0; });
+      tie(rit, ric, rid) = alloc_test_data<StorageType, const InputT, -1>(img_shape_, imgrng);
+      tie(rot, roc, rod) = alloc_test_data<StorageType, InputT, -1>(img_shape_, []() { return 0; });
       tie(mxt, mxc, mxd) = alloc_test_data<StorageType, const MapType, 2>(map_shape_, wrng);
       tie(myt, myc, myd) = alloc_test_data<StorageType, const MapType, 2>(map_shape_, hrng);
 
@@ -171,14 +175,14 @@ class NppRemapTest : public ::testing::Test {
   TensorShape<> img_shape_ = {height_, width_, 3};
   TensorShape<> map_shape_ = {height_, width_};
 
-  using MapType = std::conditional_t<std::is_same_v<T, double>, double, float>;
+  using MapType = float;
 
   /**
    * Buffers, that store the test data.
    * These are filled after SetUp() call.
    */
-  vector<const T *> remap_in_data_{batch_size_};
-  vector<T *> remap_out_data_{batch_size_};
+  vector<const InputT *> remap_in_data_{batch_size_};
+  vector<InputT *> remap_out_data_{batch_size_};
   vector<const MapType *> mapx_data_{batch_size_}, mapy_data_{batch_size_};
 
   /**
@@ -187,8 +191,8 @@ class NppRemapTest : public ::testing::Test {
    * `TensorListView<>`, because the vector is more convenient to work together with cv::Mat
    * and converting the vector to TensorListView is easy.
    */
-  vector<TensorView<StorageType, const T, -1>> remap_in_tv_{batch_size_};
-  vector<TensorView<StorageType, T, -1>> remap_out_tv_{batch_size_};
+  vector<TensorView<StorageType, const InputT, -1>> remap_in_tv_{batch_size_};
+  vector<TensorView<StorageType, InputT, -1>> remap_out_tv_{batch_size_};
   vector<TensorView<StorageType, const MapType, 2>> mapx_tv_{batch_size_};
   vector<TensorView<StorageType, const MapType, 2>> mapy_tv_{batch_size_};
   vector<cv::Mat> remap_in_cv_{batch_size_}, remap_out_cv_{batch_size_}, mapx_cv_{
@@ -199,8 +203,8 @@ class NppRemapTest : public ::testing::Test {
   KernelContext ctx_;
 };
 
-using NppRemapTypes = ::testing::Types<uint8_t, uint16_t, int16_t, float, double>;
-TYPED_TEST_SUITE(NppRemapTest, NppRemapTypes);
+using NppRemapInputTypes = ::testing::Types<uint8_t, uint16_t, int16_t, float>;
+TYPED_TEST_SUITE(NppRemapTest, NppRemapInputTypes);
 
 
 TYPED_TEST(NppRemapTest, RemapVsOpencvTest) {
@@ -224,7 +228,7 @@ TYPED_TEST(NppRemapTest, RemapVsOpencvTest) {
     ASSERT_EQ(npp_remap.cols, this->width_);
     ASSERT_EQ(this->height_, remap_out_cv[sample_idx].rows);
     ASSERT_EQ(this->width_, remap_out_cv[sample_idx].cols);
-    EXPECT_LE(static_cast<float>(count_outlying_pixels(npp_remap - remap_out_cv[sample_idx])) /
+    EXPECT_LE(static_cast<float>(count_outlying_pixels<T>(npp_remap - remap_out_cv[sample_idx])) /
               this->width_ / this->height_,
               .01);  // Expect that there's less than 1% of outlying pixels
   }
@@ -253,7 +257,7 @@ TYPED_TEST(NppRemapTest, RemapVsOpencvUnifiedParametersTest) {
     ASSERT_EQ(npp_remap.cols, this->width_);
     ASSERT_EQ(this->height_, remap_out_cv[sample_idx].rows);
     ASSERT_EQ(this->width_, remap_out_cv[sample_idx].cols);
-    EXPECT_LE(static_cast<float>(count_outlying_pixels(npp_remap - remap_out_cv[sample_idx])) /
+    EXPECT_LE(static_cast<float>(count_outlying_pixels<T>(npp_remap - remap_out_cv[sample_idx])) /
               this->width_ / this->height_,
               .01);  // Expect that there's less than 1% of outlying pixels
   }
