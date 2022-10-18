@@ -49,15 +49,9 @@ constexpr StorageDevice GetStorageDevice(size_t storage_idx) {
   return static_cast<StorageDevice>(storage_idx % static_cast<size_t>(StorageDevice::COUNT));
 }
 
-// We use a tuple that can hold Output Type from Device, Host, Mixed and Support workspaces,
-// so we have a unifided place that can own any of this type.
-// Additionally, we use order of those types deifned by GetTensorStoreIndex
-// We have 4 workspaces with two possible Backends, obtatining 8 types
-// This can be clearer as
-// std::tuple<DeviceOutputType<CPUBackend>, DeviceOutputType<GPUBackend>,
-//            HostOutputType<CPUBackend>, ...
-// but that way we ensure correct order of types and not use 8 static_asserts
-// :: Int -> Workspace Output Type
+/**
+ * @brief Maps storage index to the output type stored in the workspace
+ */
 template <int storage_idx>
 struct workspace_out_data_type_gen {
   using type = std::shared_ptr<TensorList<storage_backend_t<GetStorageDevice(storage_idx)>>>;
@@ -141,7 +135,6 @@ using workspace_blob_gen_type = std::vector<Workspace>;
 template <OpType op_type, StorageDevice device>
 struct BatchFactoryImpl {
   static tensor_store_elem_t<op_type, device> CreateOutputBatch(int batch_size) {
-    // Output batch from GPU, MIXED and SUPPORT Ops are shared_ptr<Something>
     using BatchType = typename tensor_store_elem_t<op_type, device>::element_type;
     auto output = std::make_shared<BatchType>(batch_size);
     if (op_type == OpType::CPU) {

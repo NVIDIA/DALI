@@ -100,6 +100,11 @@ inline ArgumentWorkspace::const_iterator end(const ArgumentWorkspace& ws) {
  * storing all data required by an operator,
  * including its input and output, parameter tensors and
  * meta-data about execution.
+ *
+ * @tparam DataObject - the class template used for storing data (`TensorList` or `Tensor`)
+ * @tparam ptr_t      - the template that creates a pointer from the `DataObject<Backend>`;
+ *                      currently `std::shared_ptr` for `Workspace`
+ *                      and `std::add_pointer_t` for `SampleWorkspace`
  */
 template <template <typename Backend> class DataObject,
           template <typename T> class ptr_t = std::shared_ptr>
