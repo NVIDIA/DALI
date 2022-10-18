@@ -509,7 +509,7 @@ TYPED_TEST(TensorListTest, TestCopy) {
 
 TYPED_TEST(TensorListTest, TestCopyEmpty) {
   using Backend = std::tuple_element_t<0, TypeParam>;
-  TensorList<Backend> tl;
+  TensorList<Backend> tl, uninitialized;
   tl.SetContiguity(this->kContiguity);
 
   tl.template set_type<float>();
@@ -524,6 +524,13 @@ TYPED_TEST(TensorListTest, TestCopyEmpty) {
     ASSERT_EQ(tl.type(), tl2.type());
     ASSERT_EQ(tl._num_elements(), tl2._num_elements());
     ASSERT_EQ(tl.GetLayout(), tl2.GetLayout());
+
+    tl2.Copy(uninitialized);
+    ASSERT_FALSE(tl2.has_data());
+    ASSERT_EQ(uninitialized.num_samples(), tl2.num_samples());
+    ASSERT_EQ(uninitialized.type(), tl2.type());
+    ASSERT_EQ(uninitialized._num_elements(), tl2._num_elements());
+    ASSERT_EQ(uninitialized.GetLayout(), tl2.GetLayout());
   }
 }
 
@@ -954,10 +961,6 @@ std::vector<std::pair<std::string, std::function<void(TensorList<Backend> &)>>> 
       {"layout", [layout](TensorList<Backend> &t) { t.SetLayout(layout); }},
       {"device id", [device_id](TensorList<Backend> &t) { t.set_device_id(device_id); }},
       {"pinned", [pinned](TensorList<Backend> &t) { t.set_pinned(pinned); }},
-      {"order",
-       [device_id](TensorList<Backend> &t) {
-         t.set_order(AccessOrder(cuda_stream, device_id));
-       }},
   };
 }
 
@@ -1324,6 +1327,71 @@ TYPED_TEST(TensorListSuite, NoncontiguousResize) {
     EXPECT_EQ(tv[i].type(), DALI_FLOAT);
     CompareWithNumber(tv[i], 2.f);
   }
+}
+
+
+TYPED_TEST(TensorListSuite, ResizeSample) {
+  TensorList<TypeParam> tv;
+  tv.SetContiguity(BatchContiguity::Automatic);
+
+  auto new_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  tv.Resize(new_shape, DALI_FLOAT, BatchContiguity::Contiguous);
+  EXPECT_TRUE(tv.IsContiguous());
+
+  for (int i = 0; i < 3; i++) {
+    FillWithNumber(tv[i], 1 + i * 1.f);
+  }
+
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NE(tv[i].raw_data(), nullptr);
+    EXPECT_EQ(tv[i].shape(), new_shape[i]);
+    EXPECT_EQ(tv[i].type(), DALI_FLOAT);
+    CompareWithNumber(tv[i], 1 + i * 1.f);
+  }
+
+  auto new_sample_shape = TensorShape<>{10, 10, 3};
+  new_shape.set_tensor_shape(1, new_sample_shape);
+
+  tv.ResizeSample(1, new_sample_shape);
+
+  EXPECT_FALSE(tv.IsContiguous());
+  for (int i = 0; i < 3; i++) {
+    EXPECT_EQ(tv[i].shape(), new_shape[i]);
+  }
+
+  FillWithNumber(tv[1], 42.f);
+
+  EXPECT_EQ(tv[1].shape(), new_sample_shape);
+  EXPECT_EQ(tv[1].type(), DALI_FLOAT);
+  CompareWithNumber(tv[1], 42.f);
+
+  auto new_smaller_sample_shape = TensorShape<>{5, 5, 3};
+  new_shape.set_tensor_shape(1, new_smaller_sample_shape);
+
+  tv.ResizeSample(1, new_smaller_sample_shape);
+
+  EXPECT_FALSE(tv.IsContiguous());
+  for (int i = 0; i < 3; i++) {
+    EXPECT_EQ(tv[i].shape(), new_shape[i]);
+  }
+
+  FillWithNumber(tv[1], 42.f);
+
+  EXPECT_EQ(tv[1].shape(), new_smaller_sample_shape);
+  EXPECT_EQ(tv[1].type(), DALI_FLOAT);
+  CompareWithNumber(tv[1], 42.f);
+}
+
+
+TYPED_TEST(TensorListSuite, ResizeSampleProhibited) {
+  TensorList<TypeParam> tv;
+  auto sample_shape = TensorShape<>{10, 10};
+  tv.SetContiguity(BatchContiguity::Automatic);
+  EXPECT_THROW(tv.ResizeSample(0, sample_shape), std::runtime_error);
+  auto shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+  tv.Resize(shape, DALI_FLOAT, BatchContiguity::Contiguous);
+
+  EXPECT_THROW(tv.ResizeSample(1, sample_shape), std::runtime_error);
 }
 
 
