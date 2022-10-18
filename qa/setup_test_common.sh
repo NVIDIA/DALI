@@ -9,7 +9,7 @@ PYTHON_VERSION_SHORT=${PYTHON_VERSION/\./}
 
 NVIDIA_SMI_DRIVER_VERSION=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+') || true
 
-DALI_CUDA_MAJOR_VERSION=$(pip list | grep nvidia-dali-.*-cuda | cut -d " " -f1) && \
+DALI_CUDA_MAJOR_VERSION=$(pip list | grep nvidia-dali.*-cuda | cut -d " " -f1) && \
                         DALI_CUDA_MAJOR_VERSION=${DALI_CUDA_MAJOR_VERSION#*cuda} && \
                         DALI_CUDA_MAJOR_VERSION=${DALI_CUDA_MAJOR_VERSION:0:2}
 
