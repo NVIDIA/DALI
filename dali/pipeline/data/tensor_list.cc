@@ -597,8 +597,6 @@ void TensorList<Backend>::ResizeSample(int sample_idx, const TensorShape<> &new_
   assert(sample_idx >= 0 && sample_idx < curr_num_tensors_);
   // Resizing any individual sample converts the batch to non-contiguous mode
   MakeNoncontiguous();
-  if (tensors_[sample_idx].capacity() >= volume(new_shape) * type_.size())
-    return;
   shape_.set_tensor_shape(sample_idx, new_shape);
   tensors_[sample_idx].Resize(new_shape);
 }
