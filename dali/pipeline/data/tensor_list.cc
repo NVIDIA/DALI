@@ -850,7 +850,8 @@ void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder or
                                bool use_copy_kernel) {
   auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
 
-  if (!src.has_data() && !IsValidType(src.type())) {
+  if (!IsValidType(src.type())) {
+    assert(!src.has_data() && "It is not possible to have data without valid type.");
     Reset();
     SetLayout(src.GetLayout());
     // no copying to do

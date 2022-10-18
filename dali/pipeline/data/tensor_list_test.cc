@@ -1364,6 +1364,22 @@ TYPED_TEST(TensorListSuite, ResizeSample) {
   EXPECT_EQ(tv[1].shape(), new_sample_shape);
   EXPECT_EQ(tv[1].type(), DALI_FLOAT);
   CompareWithNumber(tv[1], 42.f);
+
+  auto new_smaller_sample_shape = TensorShape<>{5, 5, 3};
+  new_shape.set_tensor_shape(1, new_smaller_sample_shape);
+
+  tv.ResizeSample(1, new_smaller_sample_shape);
+
+  EXPECT_FALSE(tv.IsContiguous());
+  for (int i = 0; i < 3; i++) {
+    EXPECT_EQ(tv[i].shape(), new_shape[i]);
+  }
+
+  FillWithNumber(tv[1], 42.f);
+
+  EXPECT_EQ(tv[1].shape(), new_smaller_sample_shape);
+  EXPECT_EQ(tv[1].type(), DALI_FLOAT);
+  CompareWithNumber(tv[1], 42.f);
 }
 
 
