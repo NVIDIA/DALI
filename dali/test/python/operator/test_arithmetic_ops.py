@@ -568,6 +568,8 @@ def test_ternary_ops_selected():
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
 
+# Only selected types, otherwise it takes too long
+
 @attr('slow')
 def slow_test_ternary_ops_kinds():
     for kinds in ternary_input_kinds:

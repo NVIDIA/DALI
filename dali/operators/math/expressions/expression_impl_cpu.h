@@ -71,7 +71,10 @@ class ExprImplCpuTT : public ExprImplBase {
     auto &right = sample.args[1];
     const auto *right_ptr = static_cast<const Right *>(sample.args[1].data);
 
-    if (sample.args[0].shape == sample.args[1].shape) {
+    // Shapes are simplified so that we end up with 1D operands when both operands
+    // have the same shape.
+    if (sample.args[0].shape.sample_dim() == 1) {
+      assert(sample.args[1].shape.sample_dim() == 1);
       Execute(output_ptr, left_ptr, right_ptr, tile.offset, tile.extent_size);
     } else {
       assert(tile.offset == 0);

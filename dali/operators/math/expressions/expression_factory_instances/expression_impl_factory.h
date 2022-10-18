@@ -95,15 +95,14 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryBinOp(const ExprFunc &expr) {
   TYPE_SWITCH(left_type, type2id, Left_t, ARITHMETIC_ALLOWED_TYPES, (
     TYPE_SWITCH(right_type, type2id, Right_t, ARITHMETIC_ALLOWED_TYPES, (
       using Out_t = typename arithm_meta<op, Backend>::template result_t<Left_t, Right_t>;
-      if (is_non_scalar(expr[0]) && is_scalar(expr[1])) {
-        result.reset(new ImplTensorConstant<op, Out_t, Left_t, Right_t>());
-      } else if (is_scalar(expr[0]) && is_non_scalar(expr[1])) {
-        result.reset(new ImplConstantTensor<op, Out_t, Left_t, Right_t>());
-      } else if (is_non_scalar(expr[0]) && is_non_scalar(expr[1])) {
+      if (is_non_scalar(expr[0]) && is_non_scalar(expr[1])) {
         // Both are non-scalar tensors
         result.reset(new ImplTensorTensor<op, Out_t, Left_t, Right_t>());
+      } else if (is_scalar(expr[0]) && is_non_scalar(expr[1])) {
+        result.reset(new ImplConstantTensor<op, Out_t, Left_t, Right_t>());
       } else {
-        // TODO(janton) : do something else?
+        // Either Tensor/Scalar or Scalar/Scalar. In the second case we treat
+        // the first argument as tensor.
         result.reset(new ImplTensorConstant<op, Out_t, Left_t, Right_t>());
       }
     ), DALI_FAIL(make_string("Invalid type (right operand): ", right_type)););  // NOLINT

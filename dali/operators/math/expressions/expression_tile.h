@@ -54,6 +54,9 @@ inline std::ostream &operator<<(std::ostream &os, const TileRange &v) {
 using OutputSamplePtr = void *;
 using InputSamplePtr = const void *;
 
+/**
+ * @brief Output tensor data
+ */
 struct OutputData {
   OutputSamplePtr data = nullptr;
   DALIDataType dtype = DALI_NO_TYPE;
@@ -61,6 +64,9 @@ struct OutputData {
   TensorShape<> strides{};
 };
 
+/**
+ * @brief Operand tensor data
+ */
 struct OperandData {
   InputSamplePtr data = nullptr;
   DALIDataType dtype = DALI_NO_TYPE;
@@ -68,7 +74,14 @@ struct OperandData {
   TensorShape<> strides{};
 };
 
+/**
+ * @brief Group of operands
+ */
 using ArgPack = SmallVector<OperandData, kMaxArity>;
+
+/**
+ * @brief Sample descriptor, including metadata about operands and output tensors
+ */
 struct SampleDesc {
   SampleDesc() = default;
   SampleDesc(OutputData output, const ArgPack &args)

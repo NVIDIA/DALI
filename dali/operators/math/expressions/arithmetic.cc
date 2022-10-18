@@ -37,7 +37,7 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
               assert(batch_size == static_cast<int>(samples_per_task_[i].size()));
               auto samples = make_cspan(samples_per_task_[i]);
               exec_order_[i].impl->Execute(exec_order_[i].ctx, samples,
-                                            make_cspan(&tile_cover_[extent_idx], 1));
+                                           make_cspan(&tile_cover_[extent_idx], 1));
             }
           }
         },

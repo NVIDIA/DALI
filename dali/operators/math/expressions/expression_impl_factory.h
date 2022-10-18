@@ -131,22 +131,6 @@ struct ExprImplTask {
   ExprImplContext ctx;
 };
 
-inline OutputSamplePtr GetOutputSamplePointer(HostWorkspace &ws, int output_idx, int sample_idx) {
-  return ws.template Output<CPUBackend>(output_idx).raw_mutable_tensor(sample_idx);
-}
-
-inline OutputSamplePtr GetOutputSamplePointer(DeviceWorkspace &ws, int output_idx, int sample_idx) {
-  return ws.template Output<GPUBackend>(output_idx).raw_mutable_tensor(sample_idx);
-}
-
-inline InputSamplePtr GetInputSamplePointer(HostWorkspace &ws, int input_idx, int sample_idx) {
-  return ws.template Input<CPUBackend>(input_idx).raw_tensor(sample_idx);
-}
-
-inline InputSamplePtr GetInputSamplePointer(DeviceWorkspace &ws, int input_idx, int sample_idx) {
-  return ws.template Input<GPUBackend>(input_idx).raw_tensor(sample_idx);
-}
-
 template <typename Backend>
 inline OutputData GetOutput(const ExprFunc &func, workspace_t<Backend> &ws, int sample_idx) {
   auto &out = ws.template Output<Backend>(0);
@@ -182,9 +166,10 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
     } else if (func[i].GetNodeType() == NodeType::Tensor) {
       const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
       auto input_idx = tensor.GetInputIndex();
-      result[i].data = GetInputSamplePointer(ws, input_idx, sample_idx);
+      auto &in = ws.template Input<Backend>(input_idx);
+      result[i].data = in.raw_tensor(sample_idx);
       result[i].dtype = tensor.GetTypeId();
-      result[i].shape = ws.template Input<Backend>(input_idx).tensor_shape(sample_idx);
+      result[i].shape = in.tensor_shape(sample_idx);
       kernels::CalcStrides(result[i].strides, result[i].shape);
     }
   }
@@ -241,10 +226,10 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
 }
 
 /**
- * @brief Prepare vector of ExtendedTiles for every task that we have to execute, filling
- * the pointers to data.
+ * @brief Prepare vector of SampleDesc for every task that we have to execute, filling
+ * the pointers to data, shapes, etc.
  *
- * @param tiles_per_task  Output vectors of ExtendedTiles per every task to execute
+ * @param samples_per_task  Output vectors of SampleDesc for each sample to be executed
  */
 template <typename Backend>
 void PrepareSamplesPerTask(std::vector<std::vector<SampleDesc>> &samples_per_task,

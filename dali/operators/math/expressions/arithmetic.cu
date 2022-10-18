@@ -22,6 +22,7 @@ template <>
 void ArithmeticGenericOp<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
   PrepareSamplesPerTask<GPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
   ws.Output<GPUBackend>(0).SetLayout(result_layout_);
+  assert(tile_range_.size() == 1 && "Expected to cover whole GPU execution by 1 task");
   auto tiles = make_cspan(tile_cover_);
   for (size_t i = 0; i < exec_order_.size(); i++) {
     // call impl for whole batch
