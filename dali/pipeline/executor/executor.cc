@@ -169,13 +169,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   }
 
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
-    if (callback_) {
-      // Record event that will allow to call the callback after whole run of this pipeline is
-      // finished.
-      CUDA_CALL(
-          cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
-    }
-
     if (!mixed_output_events_.empty()) {
       int queue_id = mixed_idxs[OpType::MIXED];
       CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
@@ -183,10 +176,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
 
     // We know that this is the proper stream, we do not need to look it up in any workspace
     CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
-  } else {
-    if (callback_) {
-      callback_();
-    }
   }
 
   // Pass the work to the gpu stage
@@ -255,14 +244,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   if (!gpu_output_events_.empty()) {
     int queue_id = gpu_idxs[OpType::GPU];
     CUDA_CALL(cudaEventRecord(gpu_output_events_.GetEvent(queue_id), gpu_op_stream_));
-  }
-
-  // Schedule the call to any callback registered previously
-  if (callback_) {
-    CUDA_CALL(
-        cudaStreamWaitEvent(gpu_op_stream_, mixed_callback_events_[gpu_idxs[OpType::MIXED]], 0));
-    CUDA_CALL(cudaStreamAddCallback(gpu_op_stream_, &detail::gpu_finished_callback,
-                                    static_cast<void *>(&callback_), 0));
   }
 
   // We know that this is the proper stream, we do not need to look it up in any workspace
