@@ -80,9 +80,7 @@ class DLL_PUBLIC OperatorBase {
 
   DLL_PUBLIC virtual inline ~OperatorBase() {}
 
-  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
-    DALI_FAIL("Not implemented!");
-  }
+  DLL_PUBLIC virtual bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
 
 
   /**
@@ -94,11 +92,9 @@ class DLL_PUBLIC OperatorBase {
   }
 
   /**
-   * @brief Executes the operator on a batch of samples on the GPU.
+   * @brief Executes the operator on a batch of samples.
    */
-  DLL_PUBLIC virtual void Run(Workspace &ws) {
-    DALI_FAIL("GPU execution is not implemented for this operator!");
-  }
+  DLL_PUBLIC virtual void Run(Workspace &ws) = 0;
 
   /**
    * @brief returns the name of the operator. By default returns
