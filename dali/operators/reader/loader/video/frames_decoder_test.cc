@@ -169,15 +169,6 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   DeviceBuffer<uint8_t> frame_gpu_buffer_;
 };
 
-class FramesDecoderGpuMpeg4Test : public FramesDecoderGpuTest {
-  void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth) override {
-    MemCopy(FrameDataCpu(), frame, ground_truth.FrameSize());
-    SaveFrame(FrameDataCpu(), index, 0, 0, "/home/awolant/Downloads/frames/", ground_truth.Width(), ground_truth.Height());
-    ground_truth.CompareFrameAvgError(index, frame_cpu_buffer_.data(), 3.0);
-  }
-};
-
-
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   FramesDecoder decoder(cfr_videos_paths_[0]);
   RunTest(decoder, cfr_videos_[0]);
@@ -334,7 +325,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrMpeg4Video) {
 
 TEST_F(FramesDecoderGpuTest, InMemoryVfrMpeg4Video) {
   auto memory_video = MemoryVideo(vfr_mpeg4_videos_paths_[0]);
-  
+
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_mpeg4_videos_[0]);
 }
