@@ -185,8 +185,8 @@ class ImgcodecHostDecoder : public DecoderBase<CPUBackend> {
   ~ImgcodecHostDecoder() override = default;
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<CPUBackend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<CPUBackend>::RunImpl;
@@ -199,8 +199,8 @@ class ImgcodecMixedDecoder : public DecoderBase<MixedBackend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_descs,
-                 const workspace_t<MixedBackend> &ws) override;
-  void Run(workspace_t<MixedBackend> &ws) override;
+                 const Workspace &ws) override;
+  void Run(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<MixedBackend>::Run;

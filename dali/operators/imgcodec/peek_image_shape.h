@@ -36,9 +36,9 @@ class ImgcodecPeekImageShape : public Operator<CPUBackend> {
   bool CanInferOutputs() const override;
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(HostWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<CPUBackend>::RunImpl;

@@ -60,7 +60,7 @@ bool ImgcodecPeekImageShape::CanInferOutputs() const {
 }
 
 bool ImgcodecPeekImageShape::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                       const HostWorkspace &ws) {
+                                       const Workspace &ws) {
   const auto &input = ws.template Input<CPUBackend>(0);
   size_t batch_size = input.num_samples();
   output_desc.resize(1);
@@ -68,10 +68,10 @@ bool ImgcodecPeekImageShape::SetupImpl(std::vector<OutputDesc> &output_desc,
   return true;
 }
 
-void ImgcodecPeekImageShape::RunImpl(HostWorkspace &ws) {
+void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
   auto &thread_pool = ws.GetThreadPool();
-  const auto &input = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   DALI_ENFORCE(input.type() == DALI_UINT8 && input.sample_dim() == 1,
                 "The input must be a raw, undecoded file stored as a flat uint8 array.");
 
