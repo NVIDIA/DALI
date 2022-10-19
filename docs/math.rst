@@ -109,16 +109,18 @@ expressions. A value from a smaller tensor is "broadcast" so it contributes to m
 values. At its simplest, a scalar value is broadcast to all output values. In more complex cases,
 the values can be broadcast along some dimensions if one of the operands has size 1 and the other is larger::
 
-    [[A, B]] + [[D, E],   == [[ A+D,  B+E ],
-                [F, G]]       [ A+F,  B+G ]]
+                [[D, E],       [[ A+D,  B+E ],
+    [[A, B]] +   [F, G],   ==   [ A+F,  B+G ],
+                 [H, J]]        [ A+H,  B+J ]]
 
 
 In the example above, the operands have shapes of (1, 2) and (2, 2). The values from the array
 [[A, B]] are broadcast along axis 0. It's possible that both operands are subject to broadcasting
 along different dimensions::
 
-    [[A, B]] + [[D],   == [[ A+D,  B+D ],
-                [E]]       [ A+E,  B+E ]]
+                [[D],      [[ A+D,  B+D ],
+    [[A, B ]] +  [E],  ==   [ A+E,  B+E ],
+                 [F]]       [ A+F,  B+F ]]
 
 
 In this example, the shapes are (1, 2) and (2, 1) - the first operand is broadcast along axis 0 and
