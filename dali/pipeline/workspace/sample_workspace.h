@@ -23,27 +23,21 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/workspace/device_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/workspace/host_workspace.h"
-#include "dali/pipeline/workspace/mixed_workspace.h"
 
 namespace dali {
-
-template <typename Backend>
-using SampleInputType = Tensor<Backend> *;
-template <typename Backend>
-using SampleOutputType = Tensor<Backend> *;
 
 /**
  * @brief SampleWorkspace is workspace used for the legacy, deprcated CPU Operator implementation.
  * It has views of all data required for an operator to perform its computation on a single sample,
- * the data is actually owned by a corresponding HostWorkspace
+ * the data is actually owned by a corresponding Workspace
  */
-class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleOutputType> {
+class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<Tensor, std::add_pointer_t> {
  public:
-  DLL_PUBLIC SampleWorkspace() : data_idx_(-1), thread_idx_(-1), stream_(0), has_stream_(false) {}
+  using Base = WorkspaceBase<Tensor, std::add_pointer_t>;
+  DLL_PUBLIC SampleWorkspace() : data_idx_(-1), thread_idx_(-1) {}
 
   DLL_PUBLIC ~SampleWorkspace() override = default;
 
@@ -52,11 +46,9 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
    * to a default state.
    */
   DLL_PUBLIC inline void Clear() {
-    WorkspaceBase<SampleInputType, SampleOutputType>::Clear();
+    Base::Clear();
     data_idx_ = -1;
     thread_idx_ = -1;
-    has_stream_ = false;
-    stream_ = 0;
   }
 
   int GetInputBatchSize(int) const {
@@ -102,37 +94,16 @@ class DLL_PUBLIC SampleWorkspace : public WorkspaceBase<SampleInputType, SampleO
     thread_idx_ = thread_idx;
   }
 
-  /**
-   * @brief Returns true if the workspace contains a valid stream.
-   */
-  DLL_PUBLIC inline bool has_stream() const override {
-    return has_stream_;
-  }
-
-  /**
-   * @brief Sets the stream for this workspace.
-   */
-  DLL_PUBLIC inline void set_stream(cudaStream_t stream) {
-    has_stream_ = true;
-    stream_ = stream;
-  }
-
  private:
-  cudaStream_t stream_impl() const override {
-    return stream_;
-  }
-
   int data_idx_, thread_idx_;
-  cudaStream_t stream_;
-  bool has_stream_;
 };
 
 /**
  * @brief Fill the `sample` with data references to the ones owned by the `batch` for given
  * `data_idx` and set the `thread_idx`.
  */
-DLL_PUBLIC void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, int data_idx,
-                                 int thread_idx);
+DLL_PUBLIC void MakeSampleView(SampleWorkspace &sample, Workspace &batch,
+                               int data_idx, int thread_idx);
 
 /**
  * @brief Update the TensorList properties based on the ones that were set in the individual
@@ -145,7 +116,7 @@ DLL_PUBLIC void MakeSampleView(SampleWorkspace& sample, HostWorkspace& batch, in
  * @param ws The workspace to update after executing samplewise operator
  * @param contiguous If the operator infers outputs and thus uses contiguous allocations
  */
-DLL_PUBLIC void FixBatchPropertiesConsistency(HostWorkspace& ws, bool contiguous);
+DLL_PUBLIC void FixBatchPropertiesConsistency(Workspace &ws, bool contiguous);
 
 }  // namespace dali
 

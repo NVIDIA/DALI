@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
   string serialized = pipe.SerializeToProtobuf();
 
   // Run once to allocate the memory
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.RunCPU();
   pipe.RunGPU();
   pipe.Outputs(&ws);

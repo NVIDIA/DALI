@@ -17,7 +17,7 @@
 namespace dali {
 
 bool VideoDecoderMixed::SetupImpl(
-  std::vector<OutputDesc> &output_desc, const workspace_t<MixedBackend> &ws) {
+  std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   ValidateInput(ws);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();
@@ -38,7 +38,7 @@ bool VideoDecoderMixed::SetupImpl(
   return true;
 }
 
-void VideoDecoderMixed::Run(workspace_t<MixedBackend> &ws) {
+void VideoDecoderMixed::Run(Workspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   const auto &input = ws.Input<CPUBackend>(0);
   int batch_size = input.num_samples();

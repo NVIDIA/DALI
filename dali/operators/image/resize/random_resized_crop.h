@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,10 +50,10 @@ class RandomResizedCrop : public Operator<Backend>
   bool CanInferOutputs() const override { return true; }
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     InitParams(curr_batch_size);
-    auto &input = ws.template Input<Backend>(0);
+    auto &input = ws.Input<Backend>(0);
     const auto &in_shape = input.shape();
     DALIDataType in_type = input.type();
 
@@ -88,7 +88,7 @@ class RandomResizedCrop : public Operator<Backend>
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   void BackendInit();

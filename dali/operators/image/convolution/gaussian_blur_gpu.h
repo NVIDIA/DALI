@@ -54,10 +54,10 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
   explicit GaussianBlurOpGpu(const OpSpec* spec, const DimDesc& dim_desc)
       : spec_(*spec), dim_desc_(dim_desc) {}
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<GPUBackend>& ws) override {
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
     ctx_.gpu.stream = ws.stream();
 
-    const auto& input = ws.template Input<GPUBackend>(0);
+    const auto& input = ws.Input<GPUBackend>(0);
     auto processed_shape = input.shape();
     int nsamples = processed_shape.num_samples();
     // If we are sequence-like, make sure that all sequence elements are compressed to first dim
@@ -95,9 +95,9 @@ class GaussianBlurOpGpu : public OpImplBase<GPUBackend> {
     return true;
   }
 
-  void RunImpl(workspace_t<GPUBackend>& ws) override {
-    const auto& input = ws.template Input<GPUBackend>(0);
-    auto& output = ws.template Output<GPUBackend>(0);
+  void RunImpl(Workspace &ws) override {
+    const auto& input = ws.Input<GPUBackend>(0);
+    auto& output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
 
     auto processed_shape = input.shape();

@@ -24,9 +24,9 @@ DALI_REGISTER_OPERATOR(Saturation, ColorTwistGpu, GPU);
 DALI_REGISTER_OPERATOR(ColorTwist, ColorTwistGpu, GPU);
 
 template <typename OutputType, typename InputType>
-void ColorTwistGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
-  auto &output = ws.template Output<GPUBackend>(0);
+void ColorTwistGpu::RunImplHelper(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());
   auto sh = input.shape();
   auto num_dims = sh.sample_dim();
@@ -53,8 +53,8 @@ void ColorTwistGpu::RunImplHelper(workspace_t<GPUBackend> &ws) {
   kernel_manager_.Run<Kernel>(0, ctx, tvout, tvin, tmatrices, toffsets);
 }
 
-void ColorTwistGpu::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
+void ColorTwistGpu::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, COLOR_TWIST_SUPPORTED_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, COLOR_TWIST_SUPPORTED_TYPES, (
       {

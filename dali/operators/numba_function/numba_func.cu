@@ -117,7 +117,7 @@ NumbaFuncImpl<GPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {
 
 template <>
 bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-    const workspace_t<GPUBackend> &ws) {
+    const Workspace &ws) {
   int ninputs = ws.NumInput();
   int noutputs = out_types_.size();
   DALI_ENFORCE(in_types_.size() == static_cast<size_t>(ninputs), make_string(
@@ -169,7 +169,7 @@ bool NumbaFuncImpl<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 
 template <>
-void NumbaFuncImpl<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void NumbaFuncImpl<GPUBackend>::RunImpl(Workspace &ws) {
   auto N = ws.Input<GPUBackend>(0).shape().num_samples();
   int ninputs = ws.NumInput();
 

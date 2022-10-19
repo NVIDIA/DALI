@@ -89,7 +89,7 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
         per_channel_(spec.GetArgument<bool>("per_channel")) {
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     prob_.Acquire(spec, ws, nsamples);
     salt_vs_pepper_.Acquire(spec, ws, nsamples);
     if (salt_val_.HasExplicitValue())
@@ -130,7 +130,7 @@ class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, 
   }
 
   using BaseImpl::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_SALT_AND_PEPPER_NOISE_TYPES), (
       using ImplT = Impl<T>;
       BaseImpl::template RunImplTyped<T, ImplT>(ws);

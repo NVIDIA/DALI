@@ -38,17 +38,17 @@ class PerFrame : public Operator<Backend> {
     return false;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     output_desc.resize(1);
     output_desc[0].type = input.type_info().id();
     output_desc[0].shape = input.shape();
     return false;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    auto &in = ws.template Input<Backend>(0);
-    auto &out = ws.template Output<Backend>(0);
+  void RunImpl(Workspace &ws) override {
+    auto &in = ws.Input<Backend>(0);
+    auto &out = ws.Output<Backend>(0);
     out.ShareData(in);
     auto layout = in.GetLayout();
     auto sample_dim = in.sample_dim();

@@ -128,10 +128,10 @@ class Normalize<CPUBackend> : public NormalizeBase<CPUBackend> {
   friend class NormalizeBase<CPUBackend>;
 
   template <typename OutputType, typename InputType>
-  void SetupTyped(const HostWorkspace &ws);
+  void SetupTyped(const Workspace &ws);
 
   template <typename OutputType, typename InputType>
-  void RunTyped(HostWorkspace &ws);
+  void RunTyped(Workspace &ws);
 
   void AllocTempStorage();
   void FoldMeans();
@@ -145,7 +145,7 @@ DALI_REGISTER_OPERATOR(Normalize, Normalize<CPUBackend>, CPU);
 using namespace normalize;  // NOLINT
 
 template <typename OutputType, typename InputType>
-void Normalize<CPUBackend>::SetupTyped(const HostWorkspace &ws) {
+void Normalize<CPUBackend>::SetupTyped(const Workspace &ws) {
   auto &input = ws.Input<CPUBackend>(0);
   int nsamples = input.num_samples();
 
@@ -244,7 +244,7 @@ void Normalize<CPUBackend>::FoldStdDev() {
 }
 
 template <typename OutputType, typename InputType>
-void Normalize<CPUBackend>::RunTyped(HostWorkspace &ws) {
+void Normalize<CPUBackend>::RunTyped(Workspace &ws) {
   ThreadPool &tp = ws.GetThreadPool();
 
   auto &input = ws.Input<CPUBackend>(0);

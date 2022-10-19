@@ -201,7 +201,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
   }
   pipeline->EnableExecutorMemoryStats(enable_memory_stats);
   pipeline->Build();
-  auto ws = std::make_unique<dali::DeviceWorkspace>();
+  auto ws = std::make_unique<dali::Workspace>();
   dali::CUDAStreamLease stream;
   if (pipeline->device_id() >= 0) {
     stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
@@ -223,7 +223,7 @@ void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *seriali
   if (pipeline->device_id() >= 0) {
     stream = dali::CUDAStreamPool::instance().Get(pipeline->device_id());
   }
-  auto ws = std::make_unique<dali::DeviceWorkspace>();
+  auto ws = std::make_unique<dali::Workspace>();
   auto bs_map = std::make_unique<batch_size_map_t>();
   pipe_handle->ws = ws.release();
   pipe_handle->copy_stream = stream.release().release();
@@ -368,14 +368,14 @@ void daliRun(daliPipelineHandle *pipe_handle) {
 
 void daliOutput(daliPipelineHandle *pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
+  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
   pipeline->Outputs(ws);
 }
 
 
 void daliShareOutput(daliPipelineHandle *pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
+  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
   pipeline->ShareOutputs(ws);
 }
 
@@ -386,7 +386,7 @@ void daliOutputRelease(daliPipelineHandle *pipe_handle) {
 }
 
 int64_t daliOutputHasUniformShape(daliPipelineHandle* pipe_handle, int i) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
   if (ws->OutputIsType<CPUBackend>(i)) {
     return is_uniform(ws->Output<CPUBackend>(i).shape());
   } else {
@@ -395,7 +395,7 @@ int64_t daliOutputHasUniformShape(daliPipelineHandle* pipe_handle, int i) {
 }
 
 template<typename T>
-static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {
+static int64_t *daliShapeAtHelper(dali::Workspace *ws, int n, int k) {
   int64_t *c_shape = nullptr;
   std::vector<dali::Index> shape;
   const auto &out_tensor_list = ws->Output<T>(n);
@@ -418,7 +418,7 @@ static int64_t *daliShapeAtHelper(dali::DeviceWorkspace *ws, int n, int k) {
 }
 
 static int64_t* daliShapeAtTypedHelper(daliPipelineHandle* pipe_handle, int n, int k) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliShapeAtHelper<CPUBackend>(ws, n, k);
   } else {
@@ -435,14 +435,14 @@ int64_t* daliShapeAt(daliPipelineHandle* pipe_handle, int n) {
 }
 
 template <typename T>
-static dali_data_type_t daliTypeAtHelper(dali::DeviceWorkspace* ws, int n) {
+static dali_data_type_t daliTypeAtHelper(dali::Workspace* ws, int n) {
   const auto &out_tensor_list = ws->Output<T>(n);
   auto type_id = out_tensor_list.type();
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
 
 dali_data_type_t daliTypeAt(daliPipelineHandle* pipe_handle, int n) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliTypeAtHelper<CPUBackend>(ws, n);
   } else {
@@ -452,12 +452,12 @@ dali_data_type_t daliTypeAt(daliPipelineHandle* pipe_handle, int n) {
 
 
 template <typename T>
-static size_t daliNumTensorsHelper(dali::DeviceWorkspace* ws, int n) {
+static size_t daliNumTensorsHelper(dali::Workspace* ws, int n) {
   return ws->Output<T>(n).num_samples();
 }
 
 size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliNumTensorsHelper<CPUBackend>(ws, n);
   } else {
@@ -466,12 +466,12 @@ size_t daliNumTensors(daliPipelineHandle* pipe_handle, int n) {
 }
 
 template <typename T>
-static size_t daliNumElementsHelper(dali::DeviceWorkspace* ws, int n) {
+static size_t daliNumElementsHelper(dali::Workspace* ws, int n) {
   return ws->Output<T>(n)._num_elements();
 }
 
 size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliNumElementsHelper<CPUBackend>(ws, n);
   } else {
@@ -480,12 +480,12 @@ size_t daliNumElements(daliPipelineHandle* pipe_handle, int n) {
 }
 
 template <typename T>
-static size_t daliTensorSizeHelper(dali::DeviceWorkspace* ws, int n) {
+static size_t daliTensorSizeHelper(dali::Workspace* ws, int n) {
   return ws->Output<T>(n).nbytes();
 }
 
 size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliTensorSizeHelper<CPUBackend>(ws, n);
   } else {
@@ -494,7 +494,7 @@ size_t daliTensorSize(daliPipelineHandle* pipe_handle, int n) {
 }
 
 template <typename T>
-static size_t daliMaxDimTensorsHelper(dali::DeviceWorkspace* ws, int n) {
+static size_t daliMaxDimTensorsHelper(dali::Workspace* ws, int n) {
   const auto &out_tensor_list = ws->Output<T>(n);
   size_t tensors_num = out_tensor_list.num_samples();
   int max_num_dim = 0;
@@ -511,7 +511,7 @@ static size_t daliMaxDimTensorsHelper(dali::DeviceWorkspace* ws, int n) {
 }
 
 size_t daliMaxDimTensors(daliPipelineHandle* pipe_handle, int n) {
-  dali::DeviceWorkspace* ws = reinterpret_cast<dali::DeviceWorkspace*>(pipe_handle->ws);
+  dali::Workspace* ws = reinterpret_cast<dali::Workspace*>(pipe_handle->ws);
   if (ws->OutputIsType<CPUBackend>(n)) {
     return daliMaxDimTensorsHelper<CPUBackend>(ws, n);
   } else {
@@ -556,7 +556,7 @@ void daliOutputCopy(daliPipelineHandle *pipe_handle, void *dst, int output_idx,
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
   auto dst_mem_kind = GetMemKind(dst_type, is_pinned);
 
-  dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
+  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
   assert(ws != nullptr);
 
   AccessOrder wait_order = AccessOrder::host();
@@ -587,7 +587,7 @@ void daliOutputCopySamples(daliPipelineHandle *pipe_handle, void **dsts, int out
   bool use_copy_kernel = flags & DALI_use_copy_kernel;
   auto dst_mem_kind = GetMemKind(dst_type, is_pinned);
 
-  dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
+  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
   assert(ws != nullptr);
 
   AccessOrder wait_order = AccessOrder::host();
@@ -634,7 +634,7 @@ void daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int outpu
 
 void daliDeletePipeline(daliPipelineHandle* pipe_handle) {
   dali::Pipeline *pipeline = reinterpret_cast<dali::Pipeline *>(pipe_handle->pipe);
-  dali::DeviceWorkspace *ws = reinterpret_cast<dali::DeviceWorkspace *>(pipe_handle->ws);
+  dali::Workspace *ws = reinterpret_cast<dali::Workspace *>(pipe_handle->ws);
   auto *bs_map = reinterpret_cast<batch_size_map_t *>(pipe_handle->batch_size_map);
   DALI_ENFORCE(pipeline != nullptr && ws != nullptr, "Pipeline already deleted");
   if (pipe_handle->copy_stream) {

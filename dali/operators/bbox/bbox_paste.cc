@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ canvas and ``(1,1)`` aligns it to bottom-right.
       0.5f, true);
 
 template<>
-void BBoxPaste<CPUBackend>::RunImpl(Workspace<CPUBackend> &ws) {
+void BBoxPaste<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   const auto input_data = input.data<float>();
 

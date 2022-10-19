@@ -261,7 +261,7 @@ void Reshape<Backend>::ShapeFromInput(const TensorListLike &tl, bool relative) {
 
 template <typename Backend>
 void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
-  auto &in = ws.template Input<Backend>(0);
+  auto &in = ws.Input<Backend>(0);
   input_shape_ = in.shape();
   const int N = input_shape_.num_samples();
   switch (shape_source_) {
@@ -294,7 +294,7 @@ void Reshape<Backend>::CalculateOutputShape(const Workspace &ws) {
         ShapeFromInput(ws.ArgumentInput("shape"), false);
       break;
     case ShapeSource::Input:
-      ShapeFromInput(ws.template Input<CPUBackend>(1), false);
+      ShapeFromInput(ws.Input<CPUBackend>(1), false);
       break;
     case ShapeSource::None:
       if (!use_src_dims_) {
@@ -379,13 +379,13 @@ TensorLayout Reshape<Backend>::GetOutputLayout(const Workspace &ws) const {
     // layout was explicitly cleared
     return TensorLayout();
   }
-  auto &in = ws.template Input<Backend>(0);
+  auto &in = ws.Input<Backend>(0);
   auto in_layout = in.GetLayout();
   return in_layout.ndim() == output_shape_.sample_dim() ? in_layout : TensorLayout();
 }
 
 template <>
-void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void Reshape<CPUBackend>::RunImpl(Workspace &ws) {
   auto &out = ws.Output<CPUBackend>(0);
   auto &in = ws.Input<CPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
@@ -400,7 +400,7 @@ void Reshape<CPUBackend>::RunImpl(HostWorkspace &ws) {
 }
 
 template <>
-void Reshape<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void Reshape<GPUBackend>::RunImpl(Workspace &ws) {
   auto &out = ws.Output<GPUBackend>(0);
   auto &in = ws.Input<GPUBackend>(0);
   TensorLayout layout = GetOutputLayout(ws);
@@ -420,7 +420,7 @@ void Reshape<Backend>::CheckSrcDims(const Workspace &ws) {
     return;
   }
 
-  const auto &in = ws.template Input<Backend>(0);
+  const auto &in = ws.Input<Backend>(0);
   const auto &input_shape = in.shape();
   const int ndim = input_shape.sample_dim();
   for (size_t d = 0; d < src_dims_.size(); d++) {

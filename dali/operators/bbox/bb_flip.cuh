@@ -40,7 +40,7 @@ class BbFlipGPU : public BbFlip<GPUBackend> {
   }
 
  protected:
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
   using BbFlip<GPUBackend>::RunImpl;
 
  private:

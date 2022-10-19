@@ -53,14 +53,14 @@ class CoordFlipCPU : public CoordFlip<CPUBackend> {
   ~CoordFlipCPU() override = default;
   DISABLE_COPY_MOVE_ASSIGN(CoordFlipCPU);
 
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<CPUBackend>::RunImpl;
   using CoordFlip<CPUBackend>::layout_;
 };
 
-void CoordFlipCPU::RunImpl(workspace_t<CPUBackend> &ws) {
+void CoordFlipCPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();

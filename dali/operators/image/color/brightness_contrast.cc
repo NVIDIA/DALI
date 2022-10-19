@@ -96,9 +96,9 @@ DALI_REGISTER_OPERATOR(Contrast, BrightnessContrastCpu, CPU);
 
 
 template <typename OutputType, typename InputType, int ndim>
-void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
+void BrightnessContrastCpu::RunImplHelper(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
   auto& tp = ws.GetThreadPool();
   int num_samples = input.num_samples();
@@ -128,8 +128,8 @@ void BrightnessContrastCpu::RunImplHelper(workspace_t<CPUBackend> &ws) {
   tp.RunAll();
 }
 
-void BrightnessContrastCpu::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
+void BrightnessContrastCpu::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, BRIGHTNESS_CONTRAST_SUPPORTED_TYPES, (
       VALUE_SWITCH(input.sample_dim(), NDim, (3, 4), (

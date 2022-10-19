@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 namespace dali {
 
 template <>
-void Copy<GPUBackend>::RunCopies(DeviceWorkspace &ws) {
+void Copy<GPUBackend>::RunCopies(Workspace &ws) {
   scatter_gather_.Run(ws.stream(), true);
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ class LookupTable : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     if (std::is_same<Backend, GPUBackend>::value && !lut_.shape().num_elements()) {
       TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (
           auto data = span<OutputType>(static_cast<OutputType *>(value_mem_.get()),
@@ -112,12 +112,12 @@ class LookupTable : public Operator<Backend> {
     }
     output_desc.resize(1);
     output_desc[0].type = output_type_;
-    const auto &input = ws.template Input<Backend>(0);
+    const auto &input = ws.Input<Backend>(0);
     output_desc[0].shape = input.shape();
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   DALIDataType input_type_, output_type_;

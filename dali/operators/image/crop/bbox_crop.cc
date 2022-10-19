@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ template <int ndim>
 void CollectShape(std::vector<i64vec<ndim>> &v,
                   const std::string &name,
                   const OpSpec& spec,
-                  const workspace_t<CPUBackend>& ws,
+                  const Workspace &ws,
                   span<const int> perm) {
   int batch_size = spec.GetArgument<int>("max_batch_size");
   v.clear();
@@ -489,7 +489,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
                   "` or `", default_bbox_layout_start_shape, "`. Got: `", bbox_layout_, "`"));
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     if (has_input_shape_ || has_crop_shape_) {
       // Converting the shapes to "WHD" or "WH" if necessary
       auto default_shape_layout = InternalShapeLayout(ndim);
@@ -508,8 +508,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     return false;
   }
 
-  void RunImpl(workspace_t<CPUBackend> &ws) override {
-    const auto &in_boxes = ws.template Input<CPUBackend>(0);
+  void RunImpl(Workspace &ws) override {
+    const auto &in_boxes = ws.Input<CPUBackend>(0);
     auto in_boxes_view = view<const float>(in_boxes);
     auto in_boxes_shape = in_boxes_view.shape;
     int num_samples = in_boxes_shape.num_samples();
@@ -531,11 +531,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
     tp.RunAll();
 
-    auto &anchor_out = ws.template Output<CPUBackend>(0);
+    auto &anchor_out = ws.Output<CPUBackend>(0);
     anchor_out.Resize(uniform_list_shape(num_samples, {ndim}), DALI_FLOAT);
     auto anchor_out_view = view<float>(anchor_out);
 
-    auto &shape_out = ws.template Output<CPUBackend>(1);
+    auto &shape_out = ws.Output<CPUBackend>(1);
     shape_out.Resize(uniform_list_shape(num_samples, {ndim}), DALI_FLOAT);
     auto shape_out_view = view<float>(shape_out);
 
@@ -555,7 +555,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
       sh[0] = sample_data_[sample_idx].prospective_crop.boxes.size();
       sh[1] = ncoords;
     }
-    auto &bbox_out = ws.template Output<CPUBackend>(2);
+    auto &bbox_out = ws.Output<CPUBackend>(2);
     bbox_out.Resize(bbox_out_shape, DALI_FLOAT);
     auto bbox_out_view = view<float>(bbox_out);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -566,10 +566,10 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     int next_out_idx = 3;
     if (has_labels_) {
-      const auto &labels_in = ws.template Input<CPUBackend>(1);
+      const auto &labels_in = ws.Input<CPUBackend>(1);
       auto labels_in_view = view<const int>(labels_in);
 
-      auto &labels_out = ws.template Output<CPUBackend>(next_out_idx++);
+      auto &labels_out = ws.Output<CPUBackend>(next_out_idx++);
       TensorListShape<> labels_out_shape = labels_in.shape();
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         auto sh = labels_out_shape.tensor_shape_span(sample_idx);
@@ -592,7 +592,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
 
     if (output_bbox_indices_) {
-      auto &bbox_indices_out = ws.template Output<CPUBackend>(next_out_idx++);
+      auto &bbox_indices_out = ws.Output<CPUBackend>(next_out_idx++);
       TensorListShape<> bbox_indices_out_shape;
       bbox_indices_out_shape.resize(num_samples, 1);
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -903,8 +903,8 @@ RandomBBoxCrop<CPUBackend>::RandomBBoxCrop(const OpSpec &spec)
 
 template <>
 bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                           const workspace_t<CPUBackend> &ws) {
-  const auto &boxes = ws.template Input<CPUBackend>(0);
+                                           const Workspace &ws) {
+  const auto &boxes = ws.Input<CPUBackend>(0);
   auto tl_shape = boxes.shape();
   DALI_ENFORCE(tl_shape.sample_dim() == 2, make_string(
     "Unexpected number of dimensions for bounding boxes input: ", tl_shape.sample_dim()));
@@ -933,7 +933,7 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void RandomBBoxCrop<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void RandomBBoxCrop<CPUBackend>::RunImpl(Workspace &ws) {
   assert(impl_ != nullptr);
   impl_->RunImpl(ws);
 }

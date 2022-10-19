@@ -19,7 +19,7 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/workspace/device_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 
 template <typename Enum>
@@ -57,7 +57,7 @@ void MakeRandomBatch(TensorList<CPUBackend> &data, int N,
  *             the end.
  * @param output_idx Index of the output in the workspace
  */
-void CheckResults(const DeviceWorkspace& ws, int batch_size, int i,
+void CheckResults(const Workspace & ws, int batch_size, int i,
                   TensorList<CPUBackend> &data, int output_idx = 0);
 
 }  // namespace test

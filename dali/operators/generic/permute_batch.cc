@@ -32,7 +32,7 @@ of scalars representing indices of the tensors in the input batch.
 The indices must be within ``[0..batch_size)`` range. Repetitions and omissions are allowed.)",
     DALI_INT_VEC, true);
 
-void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void PermuteBatch<CPUBackend>::RunImpl(Workspace &ws) {
   auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   const auto &output_shape = output.shape();
@@ -52,7 +52,7 @@ void PermuteBatch<CPUBackend>::RunImpl(HostWorkspace &ws) {
   tp.RunAll();
 }
 
-void PermuteBatch<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void PermuteBatch<GPUBackend>::RunImpl(Workspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 

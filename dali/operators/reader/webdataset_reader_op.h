@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ class DLL_PUBLIC WebdatasetReader : public DataReader<CPUBackend, vector<Tensor<
     loader_ = InitLoader<WebdatasetLoader>(spec);
   }
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const HostWorkspace&) override;
-  void RunImpl(HostWorkspace& ws) override;
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace&) override;
+  void RunImpl(Workspace &ws) override;
   bool CanInferOutputs() const override {
     return true;
   }

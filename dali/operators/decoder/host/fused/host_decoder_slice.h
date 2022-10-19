@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ class HostDecoderSlice : public HostDecoder {
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderSlice);
 
  protected:
-  inline void RunImpl(HostWorkspace &ws) override {
+  inline void RunImpl(Workspace &ws) override {
     slice_attr_.ProcessArguments<CPUBackend>(spec_, ws);
     Operator<CPUBackend>::RunImpl(ws);
   }

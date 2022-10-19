@@ -22,7 +22,7 @@ class CastCPU : public Cast<CPUBackend> {
  public:
   explicit CastCPU(const OpSpec &spec) : Cast<CPUBackend>{spec} {}
 
-  void RunImpl(HostWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   ~CastCPU() override = default;
 
@@ -37,7 +37,7 @@ inline void CpuHelper(OType *out, const IType *in, size_t N) {
   }
 }
 
-void CastCPU::RunImpl(HostWorkspace &ws) {
+void CastCPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   const auto &input_shape = input.shape();
   auto &output = ws.Output<CPUBackend>(0);

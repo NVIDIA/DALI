@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,14 +79,14 @@ class MFCC : public Operator<Backend> {
 
  protected:
   bool CanInferOutputs() const override { return true; }
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
-  void RunImpl(workspace_t<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
-  void GetArguments(const workspace_t<Backend> &ws) {
-    auto nsamples = ws.template Input<Backend>(0).shape().size();
+  void GetArguments(const Workspace &ws) {
+    auto nsamples = ws.Input<Backend>(0).shape().size();
     DctArgs arg;
     arg.ndct = spec_.template GetArgument<int>("n_mfcc");
     DALI_ENFORCE(arg.ndct > 0, "number of MFCCs should be > 0");

@@ -61,7 +61,7 @@ class DecodeTestBase : public GenericDecoderTest<ImgType> {
 
   vector<std::shared_ptr<TensorList<CPUBackend>>> Reference(
     const vector<TensorList<CPUBackend> *> &inputs,
-    DeviceWorkspace *ws) override {
+    Workspace *ws) override {
     // single input - encoded images
     // single output - decoded images
     TensorList<CPUBackend> out(inputs[0]->num_samples());

@@ -82,7 +82,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
 
   DLL_PUBLIC void RunGPU() override;
 
-  DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override {
+  DLL_PUBLIC void Outputs(Workspace *ws) override {
     CheckForErrors();
     try {
       SeparatedPipelinedExecutor::Outputs(ws);

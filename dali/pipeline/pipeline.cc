@@ -578,7 +578,7 @@ void Pipeline::RunGPU() {
   executor_->RunGPU();
 }
 
-bool Pipeline::ValidateOutputs(const DeviceWorkspace &ws) const {
+bool Pipeline::ValidateOutputs(const Workspace &ws) const {
   DALI_ENFORCE(ws.NumOutput() == static_cast<int>(output_descs_.size()),
                make_string("Number of outputs does not match. Expected: ", output_descs_.size(),
                            ". Received: ", ws.NumOutput(), "."));
@@ -595,7 +595,7 @@ bool Pipeline::ValidateOutputs(const DeviceWorkspace &ws) const {
   return true;
 }
 
-void Pipeline::Outputs(DeviceWorkspace *ws) {
+void Pipeline::Outputs(Workspace *ws) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
   try {
     executor_->Outputs(ws);
@@ -609,7 +609,7 @@ void Pipeline::Outputs(DeviceWorkspace *ws) {
   ValidateOutputs(*ws);
 }
 
-void Pipeline::ShareOutputs(DeviceWorkspace *ws) {
+void Pipeline::ShareOutputs(Workspace *ws) {
   DALI_ENFORCE(built_, "\"Build()\" must be called prior to executing the pipeline.");
   try {
     executor_->ShareOutputs(ws);

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ template <typename Backend>
 class Reshape : public Operator<Backend> {
  public:
   using Base = Operator<Backend>;
-  using Workspace = workspace_t<Backend>;
 
   explicit Reshape(const OpSpec &spec_);
 
@@ -53,7 +52,7 @@ class Reshape : public Operator<Backend> {
   inline void SetOutputType(const Workspace &ws) {
     output_type_ = output_type_arg_ != DALI_NO_TYPE
       ? &TypeTable::GetTypeInfo(output_type_arg_)
-      : &ws.template Input<Backend>(0).type_info();
+      : &ws.Input<Backend>(0).type_info();
   }
 
   std::vector<int> src_dims_;

@@ -104,7 +104,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     Warp<interp, per_channel_transform>(out, in, displace, fill);
   }
 
-  void RunSample(HostWorkspace &ws, int sample_idx, int thread_idx) {
+  void RunSample(Workspace &ws, int sample_idx, int thread_idx) {
     const auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
 
@@ -147,7 +147,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
@@ -155,7 +155,7 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     return true;
   }
 
-  void RunImpl(HostWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
     const auto &shape = input.shape();
     auto &output = ws.Output<CPUBackend>(0);
@@ -176,14 +176,14 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
   }
 
   template <typename U = Displacement>
-  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(HostWorkspace &ws, int sample_idx,
+  std::enable_if_t<HasParam<U>::value> PrepareDisplacement(Workspace &ws, int sample_idx,
                                                            int thread_idx) {
     auto *p = &displace_[thread_idx].param;
     displace_[thread_idx].Prepare(p, spec_, ws, sample_idx);
   }
 
   template <typename U = Displacement>
-  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(HostWorkspace &, int, int) {}
+  std::enable_if_t<!HasParam<U>::value> PrepareDisplacement(Workspace &, int, int) {}
 
   USE_OPERATOR_MEMBERS();
   using Operator<CPUBackend>::RunImpl;

@@ -68,14 +68,14 @@ class OneHotCPU : public OneHot<CPUBackend> {
 
   ~OneHotCPU() override = default;
 
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   USE_OPERATOR_MEMBERS();
 };
 
-void OneHotCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
+void OneHotCPU::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto in_shape = input.shape();
   auto num_samples = in_shape.num_samples();

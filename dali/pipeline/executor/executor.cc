@@ -287,7 +287,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
 }
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-template <typename Workspace>
 void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspace &ws) {
   auto &output_desc = op_node.output_desc;
   auto &op = *op_node.op;
@@ -307,10 +306,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   };
 
   for (int i = 0; i < ws.NumOutput(); i++) {
-    if (ws.template OutputIsType<CPUBackend>(i)) {
-      set_order(ws.template Output<CPUBackend>(i));
+    if (ws.OutputIsType<CPUBackend>(i)) {
+      set_order(ws.Output<CPUBackend>(i));
     } else {
-      set_order(ws.template Output<GPUBackend>(i));
+      set_order(ws.Output<GPUBackend>(i));
     }
   }
 
@@ -328,12 +327,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   for (int i = 0; i < spec.NumRegularInput(); i++) {
     bool had_empty_layout = false;
-    if (ws.template InputIsType<CPUBackend>(i)) {
+    if (ws.InputIsType<CPUBackend>(i)) {
       had_empty_layout =
-          SetDefaultLayoutIfNeeded(ws.template UnsafeMutableInput<CPUBackend>(i), schema, i);
+          SetDefaultLayoutIfNeeded(ws.UnsafeMutableInput<CPUBackend>(i), schema, i);
     } else {
       had_empty_layout =
-          SetDefaultLayoutIfNeeded(ws.template UnsafeMutableInput<GPUBackend>(i), schema, i);
+          SetDefaultLayoutIfNeeded(ws.UnsafeMutableInput<GPUBackend>(i), schema, i);
     }
     if (had_empty_layout) empty_layout_in_idxs.push_back(i);
   }
@@ -355,10 +354,10 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
                     "CanInferOutputs should always return true.");
       for (int i = 0; i < ws.NumOutput(); i++) {
         auto &desc = output_desc[i];
-        if (ws.template OutputIsType<CPUBackend>(i)) {
-          ws.template Output<CPUBackend>(i).Resize(desc.shape, desc.type);
+        if (ws.OutputIsType<CPUBackend>(i)) {
+          ws.Output<CPUBackend>(i).Resize(desc.shape, desc.type);
         } else {
-          ws.template Output<GPUBackend>(i).Resize(desc.shape, desc.type);
+          ws.Output<GPUBackend>(i).Resize(desc.shape, desc.type);
         }
       }
     } else {
@@ -374,11 +373,11 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   }
 
   for (int i : empty_layout_in_idxs) {
-    if (ws.template InputIsType<CPUBackend>(i)) {
-      auto &in = ws.template UnsafeMutableInput<CPUBackend>(i);
+    if (ws.InputIsType<CPUBackend>(i)) {
+      auto &in = ws.UnsafeMutableInput<CPUBackend>(i);
       in.SetLayout({});
     } else {
-      auto &in = ws.template UnsafeMutableInput<GPUBackend>(i);
+      auto &in = ws.UnsafeMutableInput<GPUBackend>(i);
       in.SetLayout({});
     }
   }

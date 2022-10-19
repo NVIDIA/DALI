@@ -165,8 +165,7 @@ class CropAttr {
     return anchor;
   }
 
-  template <typename Workspace>
-  void ProcessArguments(const OpSpec& spec, const Workspace& ws) {
+  void ProcessArguments(const OpSpec& spec, const Workspace &ws) {
     int batch_size = ws.GetInputBatchSize(0);
     for (int data_idx = 0; data_idx < batch_size; data_idx++) {
       ProcessArguments(spec, &ws, data_idx);

@@ -37,9 +37,9 @@ class TransposeGPU : public Transpose<GPUBackend> {
   }
 
  protected:
-  bool SetupImpl(vector<OutputDesc> &descs, const DeviceWorkspace &ws) override {
+  bool SetupImpl(vector<OutputDesc> &descs, const Workspace &ws) override {
     Transpose<GPUBackend>::SetupImpl(descs, ws);
-    const auto &input = ws.template Input<GPUBackend>(0);
+    const auto &input = ws.Input<GPUBackend>(0);
 
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
@@ -48,7 +48,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
     return true;
   }
 
-  void RunImpl(DeviceWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
 

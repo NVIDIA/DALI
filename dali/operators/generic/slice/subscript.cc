@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,9 +67,9 @@ DALI_SCHEMA(TensorSubscript)
 
 template <>
 template <int ndim, int element_size>
-void TensorSubscript<CPUBackend>::RunTyped(HostWorkspace &ws) {
-  auto &input = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
+void TensorSubscript<CPUBackend>::RunTyped(Workspace &ws) {
+  auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
   int N = input.num_samples();
   using T = kernels::type_of_size<element_size>;
   ThreadPool &tp = ws.GetThreadPool();
@@ -113,15 +113,15 @@ struct SubscriptDimCheck : public Operator<Backend> {
     num_subscripts_ = spec.GetArgument<int>("num_subscripts");
   }
 
-  bool SetupImpl(vector<OutputDesc> &desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(vector<OutputDesc> &desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    auto &in = ws.template Input<Backend>(0);
+  void RunImpl(Workspace &ws) override {
+    auto &in = ws.Input<Backend>(0);
     DALI_ENFORCE(num_subscripts_ <= in.sample_dim(), make_string("Too many indices (",
       num_subscripts_, ") for a ", in.sample_dim(), "-D tensor."));
-    auto &out = ws.template Output<Backend>(0);
+    auto &out = ws.Output<Backend>(0);
     out.ShareData(in);
   }
 

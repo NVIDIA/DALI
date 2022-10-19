@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ class Paste : public Operator<Backend> {
   virtual inline ~Paste() = default;
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     input_ptrs_.set_type<const uint8_t *>();
     output_ptrs_.set_type<uint8_t *>();
@@ -63,13 +63,13 @@ class Paste : public Operator<Backend> {
     return false;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  void RunImpl(legacy_workspace_t<Backend> &ws) override;
 
-  void SetupSharedSampleParams(Workspace<Backend> &ws) override;
+  void SetupSharedSampleParams(legacy_workspace_t<Backend> &ws) override;
 
-  void SetupSampleParams(Workspace<Backend> &ws);
+  void SetupSampleParams(legacy_workspace_t<Backend> &ws);
 
-  void RunHelper(Workspace<Backend> &ws);
+  void RunHelper(legacy_workspace_t<Backend> &ws);
 
   // Op parameters
   int C_;

@@ -82,7 +82,7 @@ class TransformTranslationCPU
     }
   }
 
-  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+  void ProcessArgs(const OpSpec &spec, const Workspace &ws) {
     assert(offset_.HasExplicitValue());
     ArgValueFlags flags = ArgValue_EnforceUniform;
     offset_.Acquire(spec, ws, nsamples_, flags);

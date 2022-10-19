@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ TYPED_TEST(ParserTest, BasicTest) {
   data[1] = W;
   data[2] = C;
 
-  HostWorkspace workspace;
+  Workspace workspace;
   SampleWorkspace ws;
 
   MakeSampleView(ws, workspace, 0, 0);

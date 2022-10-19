@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 namespace dali {
 
 template <>
-void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
   PrepareTilesForTasks<CPUBackend>(tiles_per_task_, exec_order_, tile_cover_, ws, constant_storage_,
                                    spec_);
   auto &pool = ws.GetThreadPool();

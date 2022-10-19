@@ -32,10 +32,10 @@ class Normalize<GPUBackend> : public NormalizeBase<GPUBackend> {
   friend class NormalizeBase<GPUBackend>;
 
   template <typename OutputType, typename InputType>
-  void SetupTyped(const DeviceWorkspace &ws);
+  void SetupTyped(const Workspace &ws);
 
   template <typename OutputType, typename InputType>
-  void RunTyped(DeviceWorkspace &ws);
+  void RunTyped(Workspace &ws);
 
   void AllocTempStorage();
   void FoldMeans();
@@ -143,7 +143,7 @@ Normalize<GPUBackend>::BroadcastMean(KernelContext &ctx, float value) const {
 }
 
 template <typename OutputType, typename InputType>
-void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
+void Normalize<GPUBackend>::SetupTyped(const Workspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   int nsamples = input.num_samples();
 
@@ -206,7 +206,7 @@ void Normalize<GPUBackend>::SetupTyped(const DeviceWorkspace &ws) {
 }
 
 template <typename OutputType, typename InputType>
-void Normalize<GPUBackend>::RunTyped(DeviceWorkspace &ws) {
+void Normalize<GPUBackend>::RunTyped(Workspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
   TensorListView<StorageGPU, const InputType> in_view = view<const InputType>(input);
 

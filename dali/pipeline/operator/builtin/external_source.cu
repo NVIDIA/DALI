@@ -21,7 +21,7 @@
 namespace dali {
 
 template<>
-void ExternalSource<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void ExternalSource<GPUBackend>::RunImpl(Workspace &ws) {
   std::list<uptr_tl_type> tensor_list_elm;
   std::list<uptr_cuda_event_type> internal_copy_to_storage;
   ExternalSourceState state_info;

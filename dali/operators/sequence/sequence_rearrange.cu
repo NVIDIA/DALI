@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 namespace dali {
 
 template <>
-void SequenceRearrange<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void SequenceRearrange<GPUBackend>::RunImpl(Workspace &ws) {
   scatter_gather_.Reset();
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);

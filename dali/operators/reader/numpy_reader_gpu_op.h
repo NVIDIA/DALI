@@ -59,8 +59,8 @@ class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
   }
 
   template <typename T, int Dims>
-  void RunImplTyped(DeviceWorkspace &ws);
-  void RunImpl(DeviceWorkspace &ws) override;
+  void RunImplTyped(Workspace &ws);
+  void RunImpl(Workspace &ws) override;
   using Operator<GPUBackend>::RunImpl;
 
 

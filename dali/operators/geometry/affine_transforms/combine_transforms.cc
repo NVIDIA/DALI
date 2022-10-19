@@ -60,9 +60,9 @@ class CombineTransformsCPU : public SequenceOperator<CPUBackend> {
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_descs,
-                 const workspace_t<CPUBackend> &ws) override {
+                 const Workspace &ws) override {
     assert(ws.NumInput() > 1);
-    TensorListShape<> in0_shape = ws.template Input<CPUBackend>(0).shape();
+    TensorListShape<> in0_shape = ws.Input<CPUBackend>(0).shape();
     ndim_ = in0_shape[0][0];
     nsamples_ = in0_shape.size();
 
@@ -74,7 +74,7 @@ class CombineTransformsCPU : public SequenceOperator<CPUBackend> {
         "(ndim, ndim+1) representing an affine transform. Got: ", in0_shape));
 
     for (int i = 0; i < ws.NumInput(); i++) {
-      const auto &shape = ws.template Input<CPUBackend>(i).shape();
+      const auto &shape = ws.Input<CPUBackend>(i).shape();
       DALI_ENFORCE(shape == in0_shape,
         make_string("All input transforms are expected to have the same shape. Got: ",
                     in0_shape, " and ", shape, " for the ", i, "-th input."));
@@ -87,26 +87,26 @@ class CombineTransformsCPU : public SequenceOperator<CPUBackend> {
   }
 
   template <typename T>
-  void RunImplTyped(workspace_t<CPUBackend> &ws, dims<>) {
+  void RunImplTyped(Workspace &ws, dims<>) {
     DALI_FAIL(make_string("Unsupported number of dimensions ", ndim_));
   }
 
   template <typename T, int ndim, int... ndims>
-  void RunImplTyped(workspace_t<CPUBackend> &ws, dims<ndim, ndims...>) {
+  void RunImplTyped(Workspace &ws, dims<ndim, ndims...>) {
     if (ndim_ != ndim) {
       RunImplTyped<T>(ws, dims<ndims...>());
       return;
     }
 
     constexpr int mat_dim = ndim + 1;
-    auto &out = ws.template Output<CPUBackend>(0);
+    auto &out = ws.Output<CPUBackend>(0);
     out.SetLayout({});  // no layout
 
     SmallVector<TensorListView<StorageCPU, const T, 2>, 64> in_views;
     assert(ws.NumInput() > 1);
     in_views.reserve(ws.NumInput());
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
-      auto &in = ws.template Input<CPUBackend>(input_idx);
+      auto &in = ws.Input<CPUBackend>(input_idx);
       in_views.push_back(view<const T, 2>(in));
     }
     auto out_view = view<T, 2>(out);
@@ -147,15 +147,15 @@ class CombineTransformsCPU : public SequenceOperator<CPUBackend> {
     }
   }
 
-  void RunImpl(workspace_t<CPUBackend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
       RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
   }
 
-  void PostprocessOutputs(workspace_t<CPUBackend> &ws) override {
+  void PostprocessOutputs(Workspace &ws) override {
     if (this->IsExpanding()) {
-      auto &out = ws.template Output<CPUBackend>(0);
+      auto &out = ws.Output<CPUBackend>(0);
       int sample_dim = out.sample_dim();
       assert(sample_dim > 0);
       TensorLayout layout;

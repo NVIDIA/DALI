@@ -151,7 +151,7 @@ class TransformShearCPU
     }
   }
 
-  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+  void ProcessArgs(const OpSpec &spec, const Workspace &ws) {
     auto shape_from_size =
       [](int64_t size) {
         int ndim = sqrt(size) + 1;

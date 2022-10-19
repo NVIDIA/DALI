@@ -42,9 +42,9 @@ class Cast : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    const auto &input = ws.template Input<Backend>(0);
+    const auto &input = ws.Input<Backend>(0);
     output_desc[0].shape = input.shape();
     output_desc[0].type = output_type_;
     return true;

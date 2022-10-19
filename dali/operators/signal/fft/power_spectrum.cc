@@ -56,7 +56,7 @@ The supported values are:
 
 template <>
 bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                          const workspace_t<CPUBackend> &ws) {
+                                          const Workspace &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
@@ -83,7 +83,7 @@ bool PowerSpectrum<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void PowerSpectrum<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void PowerSpectrum<CPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto in_shape = input.shape();
