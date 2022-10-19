@@ -74,7 +74,7 @@ class ShapeParams {
                              sequence_extent_, "`."));
   }
 
-  void ProcessInputArgs(const workspace_t<Backend> &ws, int batch_size) {
+  void ProcessInputArgs(const Workspace &ws, int batch_size) {
     SetupOffsetsAndSizes(ws);
     shape_.Acquire(spec_, ws, batch_size, ArgValue_EnforceUniform, ArgShapeFromSize<1>{});
     SetupOutputShape(shape_.get());
@@ -143,7 +143,7 @@ class ShapeParams {
     }
   }
 
-  void SetupOffsetsAndSizes(const workspace_t<Backend> &ws) {
+  void SetupOffsetsAndSizes(const Workspace &ws) {
     const auto &in_shape = ws.GetInputShape(0);
     int batch_size = in_shape.num_samples();
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
@@ -164,7 +164,7 @@ class ShapeParams {
     }
   }
 
-  void AcquireInferOffsetsSizes(const workspace_t<Backend> &ws) {
+  void AcquireInferOffsetsSizes(const Workspace &ws) {
     assert(HasChunks());
 
     const auto copy_to_vector = [](auto &v, const auto &tlv) {

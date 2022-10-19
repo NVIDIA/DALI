@@ -41,7 +41,7 @@ class InflateOpImplBase : public OpImplBase<Backend> {
                     dtype_, "` instead."));
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto input_type = ws.GetInputDataType(0);
     auto input_shape = ws.GetInputShape(0);
     DALI_ENFORCE(
@@ -84,13 +84,13 @@ class Inflate : public Operator<Backend> {
  protected:
   void SetupOpImpl();
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     SetupOpImpl();
     assert(impl_ != nullptr);
     return impl_->SetupImpl(output_desc, ws);
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     assert(impl_ != nullptr);
     impl_->RunImpl(ws);
   }

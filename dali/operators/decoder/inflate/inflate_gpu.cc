@@ -45,7 +45,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
  public:
   explicit InflateOpGpuLZ4Impl(const OpSpec &spec) : InflateOpImplBase<GPUBackend>{spec} {}
 
-  void RunImpl(workspace_t<GPUBackend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     auto total_chunks_num = params_.GetTotalChunksNum();
     const auto &input = ws.template Input<GPUBackend>(0);
     auto &output = ws.template Output<GPUBackend>(0);
