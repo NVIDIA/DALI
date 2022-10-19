@@ -1232,6 +1232,17 @@ Parameters
         pipeline._pipe.Build()
         pipeline._built = True
         pipeline._deserialized = True
+        pipeline._max_batch_size = kw.get("batch_size", -1)
+        pipeline._num_threads = kw.get("num_threads", -1)
+        pipeline._device_id = kw.get("device_id", -1)
+        pipeline._exec_pipelined = kw.get("exec_pipelined", True)
+        pipeline._prefetch_queue_depth = kw.get("prefetch_queue_depth", 2)
+        pipeline._exec_async = kw.get("exec_async", True)
+        pipeline._bytes_per_sample = kw.get("bytes_per_sample", 0)
+        pipeline._set_affinity = kw.get("set_affinity", False)
+        pipeline._max_streams = kw.get("max_streams", -1)
+        pipeline._default_cuda_stream_priority = kw.get("default_cuda_stream_priority", 0)
+
         return pipeline
 
     def deserialize_and_build(self, serialized_pipeline):
