@@ -754,7 +754,7 @@ def _process_op_name(op_schema_name, make_hidden=False):
     op_full_name = op_schema_name.replace(namespace_delim, '.')
     *submodule, op_name = op_full_name.split('.')
     if make_hidden:
-        submodule = (*submodule, 'hidden')
+        submodule = [*submodule, 'hidden']
     return op_full_name, submodule, op_name
 
 
