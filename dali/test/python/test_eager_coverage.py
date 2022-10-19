@@ -1218,6 +1218,7 @@ excluded_methods = [
     'readers.video_resize',   # not supported for CPU
     'optical_flow',           # not supported for CPU
     'paste',                  # not supported for CPU
+    'experimental.inflate',   # not supported for CPU
 ]
 
 

@@ -228,7 +228,3 @@ def test_chunks():
                 oversized_shape = ndim > 0 and seed % 2 == 1
                 yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape
                 seed += 1
-
-
-# * test error messaging
-# * test variable batch size

@@ -1276,6 +1276,7 @@ excluded_methods = [
     "paste",  # not supported for CPU
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.remap",  # operator is GPU-only
+    "experimental.inflate",  # not supported for CPU
 ]
 
 
