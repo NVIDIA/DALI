@@ -867,3 +867,33 @@ def test_broadcasting_dimensionality_limits():
     shape_b_ok = (1, 2, 3, 4, 1, 5, 1, 1, 1, 6)
     for device in ['cpu', 'gpu']:
         impl(device, shape_a_ok, shape_b_ok)
+
+
+def test_broadcasting_incompatible_shapes():
+    def impl(device, shape_a, shape_b):
+        @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+        def pipe():
+            a = fn.random.uniform(range=[-1, 1], shape=shape_a)
+            b = fn.random.uniform(range=[-1, 1], shape=shape_b)
+            return a + b
+        p = pipe()
+        p.build()
+        p.run()
+
+    error_msg1 = "Can't broadcast shapes:*" + \
+                 "2 x 3 x 4 (d=2, belonging to sample_idx=0)\n" + \
+                 "2 x 3 x 3 (d=2, belonging to sample_idx=0)"
+    shape_a1 = (2, 3, 4)
+    shape_b1 = (2, 3, 3)
+    for device in ['cpu', 'gpu']:
+        with assert_raises(RuntimeError, glob=error_msg1):
+            impl(device, shape_a1, shape_b1)
+
+    error_msg2 = "Can't broadcast shapes:*" + \
+                 "1 x 4 (d=1, belonging to sample_idx=0)\n" + \
+                 "3 (d=0, belonging to sample_idx=0)"
+    shape_a2 = (1, 4)
+    shape_b2 = (3)
+    for device in ['cpu', 'gpu']:
+        with assert_raises(RuntimeError, glob=error_msg2):
+            impl(device, shape_a2, shape_b2)
