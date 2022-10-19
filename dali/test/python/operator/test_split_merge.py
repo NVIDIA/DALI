@@ -45,7 +45,7 @@ def split_merge_pipe(dev):
     true_branch, false_branch = fn.experimental._split(input, predicate=pred)
     true_rotated = fn.rotate(true_branch, angle=15)
     false_flipped = fn.flip(false_branch, horizontal=True)
-    return fn.experimental.hidden._merge(true_rotated, false_flipped, predicate=pred)
+    return fn.experimental._merge(true_rotated, false_flipped, predicate=pred)
 
 
 def check_split_merge(dev, pred_gen):
