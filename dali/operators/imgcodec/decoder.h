@@ -45,9 +45,9 @@ class DecoderBase : public Operator<Backend> {
     GetDecoderSpecificArguments(spec);
   }
 
-  virtual void SetupRoiGenerator(const OpSpec &spec, const workspace_t<Backend> &ws) {}
+  virtual void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) {}
 
-  virtual ROI GetRoi(const OpSpec &spec, const workspace_t<Backend> &ws, std::size_t data_idx,
+  virtual ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
                      TensorShape<> shape) {
     return {};
   }
@@ -86,8 +86,8 @@ class DecoderBase : public Operator<Backend> {
 
   bool CanInferOutputs() const override { return true; }
 
-  void SetupShapes(const OpSpec &spec, const workspace_t<Backend> &ws,
-                    std::vector<OutputDesc> &output_descs, ThreadPool& tp) {
+  void SetupShapes(const OpSpec &spec, const Workspace &ws,
+                    std::vector<OutputDesc> &output_descs, ThreadPool &tp) {
     output_descs.resize(1);
     auto &input = ws.template Input<CPUBackend>(0);
     int nsamples = input.num_samples();
@@ -140,11 +140,11 @@ class WithCropAttr : public Decoder, CropAttr {
   explicit WithCropAttr(const OpSpec &spec) : Decoder(spec), CropAttr(spec) {}
 
  protected:
-  void SetupRoiGenerator(const OpSpec &spec, const workspace_t<Backend> &ws) override {
+  void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) override {
     CropAttr::ProcessArguments(spec, ws);
   }
 
-  ROI GetRoi(const OpSpec &spec, const workspace_t<Backend> &ws, std::size_t data_idx,
+  ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
              TensorShape<> shape) override {
     return RoiFromCropWindowGenerator(GetCropWindowGenerator(data_idx), shape);
   }
@@ -155,11 +155,11 @@ class WithSliceAttr : public Decoder, SliceAttr {
  public:
   explicit WithSliceAttr(const OpSpec &spec) : Decoder(spec), SliceAttr(spec) {}
  protected:
-  void SetupRoiGenerator(const OpSpec &spec, const workspace_t<Backend> &ws) override {
+  void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) override {
     SliceAttr::ProcessArguments<Backend>(spec, ws);
   }
 
-  ROI GetRoi(const OpSpec &spec, const workspace_t<Backend> &ws, std::size_t data_idx,
+  ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
              TensorShape<> shape) override {
     return RoiFromCropWindowGenerator(SliceAttr::GetCropWindowGenerator(data_idx), shape);
   }
@@ -170,9 +170,9 @@ class WithRandomCropAttr : public Decoder, RandomCropAttr {
  public:
   explicit WithRandomCropAttr(const OpSpec &spec) : Decoder(spec), RandomCropAttr(spec) {}
  protected:
-  void SetupRoiGenerator(const OpSpec &spec, const workspace_t<Backend> &ws) override {}
+  void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) override {}
 
-  ROI GetRoi(const OpSpec &spec, const workspace_t<Backend> &ws, std::size_t data_idx,
+  ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
              TensorShape<> shape) override {
     return RoiFromCropWindowGenerator(RandomCropAttr::GetCropWindowGenerator(data_idx), shape);
   }

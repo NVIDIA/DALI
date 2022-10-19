@@ -23,7 +23,6 @@ import random
 from nvidia.dali import pipeline_def
 
 from nose_utils import assert_raises
-from test_utils import check_output_pattern
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
@@ -50,7 +49,7 @@ def get_img_files(data_path, subdir='*', ext=None):
 def decoder_pipe(data_path, device, use_fast_idct=False):
     inputs, labels = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
     decoded = fn.experimental.decoders.image(inputs, device=device, output_type=types.RGB,
-                                use_fast_idct=use_fast_idct)
+                                             use_fast_idct=use_fast_idct)
 
     return decoded, labels
 
@@ -95,11 +94,12 @@ def create_decoder_slice_pipeline(data_path, device):
 
     anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
     shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
-    images_sliced_1 = fn.experimental.decoders.image_slice(jpegs, anchor, shape, device=device,
-                                              hw_decoder_load=0.7, output_type=types.RGB,
-                                              axes=(0, 1))
+    images_sliced_1 = fn.experimental.decoders.image_slice(
+            jpegs, anchor, shape,
+            axes=(0, 1),
+            device=device, hw_decoder_load=0.7)
 
-    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7, output_type=types.RGB)
+    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
     images_sliced_2 = fn.slice(images, anchor, shape, axes=(0, 1))
 
     return images_sliced_1, images_sliced_2
@@ -114,11 +114,15 @@ def create_decoder_crop_pipeline(data_path, device):
     w = 242
     h = 230
 
-    images_crop_1 = fn.experimental.decoders.image_crop(jpegs, device=device, output_type=types.RGB,
-                                           hw_decoder_load=0.7, crop=(w, h), crop_pos_x=crop_pos_x,
-                                           crop_pos_y=crop_pos_y)
+    images_crop_1 = fn.experimental.decoders.image_crop(
+            jpegs,
+            crop=(w, h),
+            crop_pos_x=crop_pos_x,
+            crop_pos_y=crop_pos_y,
+            device=device,
+            hw_decoder_load=0.7,)
 
-    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7, output_type=types.RGB)
+    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
 
     images_crop_2 = fn.crop(images, crop=(w, h), crop_pos_x=crop_pos_x, crop_pos_y=crop_pos_y)
 
@@ -136,7 +140,7 @@ def create_decoder_random_crop_pipeline(data_path, device):
         jpegs, device=device, output_type=types.RGB, hw_decoder_load=0.7, seed=seed)
     images_random_crop_1 = fn.resize(images_random_crop_1, size=(w, h))
 
-    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7, output_type=types.RGB)
+    images = fn.experimental.decoders.image(jpegs, device=device, hw_decoder_load=0.7)
     images_random_crop_2 = fn.random_resized_crop(images, size=(w, h), seed=seed)
 
     return images_random_crop_1, images_random_crop_2
@@ -182,8 +186,8 @@ def test_image_decoder_fused():
             validation_fun = mean_close
         for device in {'cpu', 'mixed'}:
             for img_type in test_good_path:
-                yield run_decode_fused, test_fun, good_path, img_type, batch_size, \
-                      device, threads, validation_fun
+                yield (run_decode_fused, test_fun, good_path, img_type, batch_size,
+                       device, threads, validation_fun)
 
 
 def check_FastDCT_body(batch_size, img_type, device):
@@ -281,7 +285,10 @@ def _testimpl_image_decoder_crop_error_oob(device):
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
     def pipe(device):
         encoded, _ = fn.readers.file(file_root=file_root)
-        decoded = fn.experimental.decoders.image_crop(encoded, device=device, crop_w=10000, crop_h=100)
+        decoded = fn.experimental.decoders.image_crop(
+                encoded,
+                crop_w=10000, crop_h=100,
+                device=device)
         return decoded
 
     p = pipe(device)
@@ -301,7 +308,11 @@ def _testimpl_image_decoder_slice_error_oob(device):
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
     def pipe(device):
         encoded, _ = fn.readers.file(file_root=file_root)
-        decoded = fn.experimental.decoders.image_slice(encoded, device=device, end=[10000], axes=[1])
+        decoded = fn.experimental.decoders.image_slice(
+                encoded,
+                device=device,
+                end=[10000],
+                axes=[1])
         return decoded
 
     p = pipe(device)
@@ -361,8 +372,8 @@ def _testimpl_image_decoder_peek_shape(name, expected_shape, image_type=types.AN
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def peek_shape_pipeline(file):
         encoded, _ = fn.readers.file(files=[file])
-        return fn.experimental.peek_image_shape(encoded, image_type=image_type,
-            adjust_orientation=adjust_orientation)
+        return fn.experimental.peek_image_shape(
+            encoded, image_type=image_type, adjust_orientation=adjust_orientation)
 
     pipe = peek_shape_pipeline(file)
     pipe.build()

@@ -303,12 +303,12 @@ ImgcodecHostDecoder::ImgcodecHostDecoder(const OpSpec &spec)
 }
 
 bool ImgcodecHostDecoder::SetupImpl(std::vector<OutputDesc> &output_descs,
-                            const workspace_t<CPUBackend> &ws) {
+                            const Workspace &ws) {
   SetupShapes(spec_, ws, output_descs, ws.GetThreadPool());
   return true;
 }
 
-void ImgcodecHostDecoder::RunImpl(workspace_t<CPUBackend> &ws) {
+void ImgcodecHostDecoder::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout("HWC");
@@ -346,12 +346,12 @@ ImgcodecMixedDecoder::ImgcodecMixedDecoder(const OpSpec &spec)
 
 
 bool ImgcodecMixedDecoder::SetupImpl(std::vector<OutputDesc> &output_descs,
-                                     const workspace_t<MixedBackend> &ws) {
+                                     const Workspace &ws) {
   SetupShapes(spec_, ws, output_descs, thread_pool_);
   return true;
 }
 
-void ImgcodecMixedDecoder::Run(workspace_t<MixedBackend> &ws) {
+void ImgcodecMixedDecoder::Run(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout("HWC");
