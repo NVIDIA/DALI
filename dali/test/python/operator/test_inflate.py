@@ -226,5 +226,6 @@ def test_chunks():
                                   ("offset_and_size", False), ("offset_and_size", True)]:
                 batch_size = batch_sizes[seed % len(batch_sizes)]
                 oversized_shape = ndim > 0 and seed % 2 == 1
-                yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape
+                yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, \
+                    permute, oversized_shape
                 seed += 1

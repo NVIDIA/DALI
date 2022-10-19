@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/core/static_switch.h"
 #include "dali/operators/decoder/inflate/inflate_gpu.h"
 #include "dali/pipeline/data/views.h"
 

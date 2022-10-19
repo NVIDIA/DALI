@@ -14,6 +14,9 @@
 
 #include <nvcomp/lz4.h>
 
+#include <memory>
+#include <vector>
+
 #include "dali/core/backend_tags.h"
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
@@ -72,8 +75,8 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
 
     // nvCOMP uses ``out_sizes`` to avoid OOB accesses if the actual data size after the compression
     // is greater than what follows from the shapes reported by the user.
-    // Here, we take care of the opposite case, when the allocations are bigger than really necessary
-    // and thus may contain some uninitialized memory.
+    // Here, we take care of the opposite case, when the allocations are bigger than really
+    // necessary and thus may contain some uninitialized memory.
     FillTheTails(output.type(), total_chunks_num, out, actual_out_sizes, out_sizes, stream);
   }
 

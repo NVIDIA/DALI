@@ -1158,8 +1158,8 @@ def test_inflate():
         return np.frombuffer(deflated_buf, dtype=np.uint8)
 
     def inflate_pipline(max_batch_size, inputs, device):
-        input_data = [[
-            sample_to_lz4(sample) for sample in batch]
+        input_data = [
+            [sample_to_lz4(sample) for sample in batch]
             for batch in inputs]
         input_shape = [
             [np.array(sample.shape, dtype=np.int32) for sample in batch]
@@ -1180,7 +1180,10 @@ def test_inflate():
             j += 1
 
     sample = sample_gen()
-    batches = [[next(sample) for _ in range(5)], [next(sample) for _ in range(13)], [next(sample) for _ in range(2)]]
+    batches = [
+        [next(sample) for _ in range(5)],
+        [next(sample) for _ in range(13)],
+        [next(sample) for _ in range(2)]]
 
     check_pipeline(batches, inflate_pipline, devices=['gpu'])
 
