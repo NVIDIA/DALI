@@ -853,9 +853,10 @@ def test_broadcasting_dimensionality_limits():
         p.run()
 
     # ERROR
-    error_msg = "Broadcasting pattern too complex. Can't operate with simplified" + \
-                " shapes with more than 6 groups of dimensions. Got 10 groups. " + \
-                "For more details see https://docs.nvidia.com/deeplearning/dali/user-guide/docs/math.html"
+    error_msg = \
+        "Broadcasting pattern too complex. Can't operate with simplified" + \
+        " shapes with more than 6 groups of dimensions. Got 10 groups. " + \
+        "For more details see  https://docs.nvidia.com/deeplearning/dali/user-guide/docs/math.html"
     shape_a_err = (2, 1, 2, 1, 2, 1, 2, 1, 2, 1)
     shape_b_err = (1, 2, 1, 2, 1, 2, 1, 2, 1, 2)
     for device in ['cpu', 'gpu']:
