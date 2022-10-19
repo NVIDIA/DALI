@@ -46,11 +46,15 @@ void OutputShape(OutShape &&out_shape,
     }
 
     int extent = info.shape[in_d];
-    if (roi) {
-      if (d < roi.end.size())
-        extent = roi.end[d];
-      if (d < roi.begin.size())
-        extent -= roi.begin[d];
+    if (d < roi.end.size()) {
+      DALI_ENFORCE(0 <= roi.end[d] && roi.end[d] <= info.shape[in_d],
+                   "ROI end must fit within the image bounds");
+      extent = roi.end[d];
+    }
+    if (d < roi.begin.size()) {
+      DALI_ENFORCE(0 <= roi.begin[d] && roi.begin[d] <= info.shape[in_d],
+                   "ROI begin must fit within the image bounds");
+      extent -= roi.begin[d];
     }
 
     out_shape[d + (d >= out_channel_dim)] = extent;

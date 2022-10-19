@@ -337,7 +337,8 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
     }
   }
 
-  uint64_t out_row_stride = roi.shape()[1] * out_channels;
+  const auto roi_shape = roi.shape();
+  uint64_t out_row_stride = roi_shape[1] * out_channels;
 
   DALIImageType in_format;
   if (info.channels == 1)
@@ -347,7 +348,7 @@ DecodeResult LibTiffDecoderInstance::DecodeImplTask(int thread_idx,
   else
     in_format = DALI_ANY_DATA;
 
-  TensorShape<> img_shape = {roi.shape()[0], roi.shape()[1], out_channels};
+  TensorShape<> img_shape = {roi_shape[0], roi_shape[1], out_channels};
   TensorShape<> img_strides = kernels::GetStrides(img_shape);
   TensorShape<> tile_shape = {info.tile_height, info.tile_width, info.channels};
   TensorShape<> tile_strides = kernels::GetStrides(tile_shape);

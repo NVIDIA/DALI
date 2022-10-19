@@ -109,6 +109,31 @@ TEST(OutputShapeTest, RoiBoth) {
   EXPECT_EQ(out[2], 3);
 }
 
+TEST(OutputShapeTest, NegativeRoi) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  ROI roi;
+  roi.begin = { -1, 5 };
+  roi.end = { 77, 55 };
+  for (int a = 0; a < 360; a += 90) {
+    ii.orientation.rotate = a;
+    ASSERT_THROW(OutputShape(out, ii, {}, roi), DALIException);
+  }
+}
+
+TEST(OutputShapeTest, RoiExceedingShape) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  ROI roi;
+  roi.begin = { 7, 5 };
+  roi.end = { 481, 641 };
+  for (int a = 0; a < 360; a += 90) {
+    ii.orientation.rotate = a;
+    ASSERT_THROW(OutputShape(out, ii, {}, roi), DALIException);
+  }
+}
 
 TEST(OutputShapeTest, Rotate) {
   ImageInfo ii;
@@ -147,6 +172,27 @@ TEST(OutputShapeTest, RoiRotate) {
     EXPECT_EQ(out[0], 70);
     EXPECT_EQ(out[1], 50);
     EXPECT_EQ(out[2], 3);
+  }
+}
+
+TEST(OutputShapeTest, InvalidRoiRotate) {
+  ImageInfo ii;
+  ii.shape = { 480, 640, 3 };
+  TensorShape<> out;
+  ROI roi;
+  roi.begin = { 7, 5 };
+  roi.end = { 432, 543 };
+  for (int a = 0; a < 360; a += 90) {
+    ii.orientation.rotate = a;
+    if (a % 180 == 90) {
+      ASSERT_THROW(OutputShape(out, ii, {}, roi), DALIException);
+    } else {
+      OutputShape(out, ii, {}, roi);
+      ASSERT_EQ(out.sample_dim(), 3);
+      EXPECT_EQ(out[0], 425);
+      EXPECT_EQ(out[1], 538);
+      EXPECT_EQ(out[2], 3);
+    }
   }
 }
 
