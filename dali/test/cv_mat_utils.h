@@ -27,9 +27,10 @@
 namespace dali {
 namespace testing {
 
-template <int _ndim, class T>
-cv::Mat tensor_to_mat(const TensorView<StorageCPU, T, _ndim> &tensor,
+template <typename Storage, int _ndim, class T>
+cv::Mat tensor_to_mat(const TensorView<Storage, T, _ndim> &tensor,
                       bool has_channels = true, bool convert_to_BGR = true) {
+  static_assert(is_cpu_accessible<Storage>::value, "The data has to be CPU accessible.");
   int ndim = tensor.dim();
   int nch = has_channels ? tensor.shape[ndim - 1] : 1;
   int spatial_ndim = ndim - has_channels;
