@@ -132,9 +132,17 @@ endif()
 # nvcomp
 ##################################################################
 if(BUILD_NVCOMP)
-  find_library(nvcomp_LIBS NAMES nvcomp PATHS ${NVCOMP_ROOT_DIR} PATH_SUFFIXES lib lib64)
-  find_path(nvcomp_INCLUDE_DIR NAMES nvcomp/lz4.h PATHS "${NVCOMP_ROOT_DIR}/include")
-  if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
+  find_library(
+    nvcomp_LIBS
+    NAMES nvcomp
+    PATHS ${NVCOMP_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES lib lib64)
+  find_path(
+    nvcomp_INCLUDE_DIR
+    NAMES nvcomp
+    PATHS ${NVCOMP_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES include)
+  if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND OR ${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
     message(FATAL_ERROR "nvCOMP could not be found. Try to specify it's location with `-DNVCOMP_ROOT_DIR`.")
   endif()
   message(STATUS "Found nvCOMP: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIR}.")
