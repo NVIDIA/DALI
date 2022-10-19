@@ -83,6 +83,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVDEC=${BUILD_NVDEC:-ON}                    \
       -DBUILD_NVML=${BUILD_NVML:-ON}                      \
       -DBUILD_CUFILE=${BUILD_CUFILE:-ON}                  \
+      -DBUILD_NVCOMP=${BUILD_NVCOMP:-ON}                  \
       -DLINK_LIBCUDA=${LINK_LIBCUDA:-OFF}                 \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-${WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT}}\
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \

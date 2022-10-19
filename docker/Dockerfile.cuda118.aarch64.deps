@@ -10,3 +10,15 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.8.0/local_ins
     chmod +x cuda_*.run && \
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;
+
+RUN NVCOMP_VERSION=2.4 && \
+    apt-get update && \
+    apt-get install wget -y && \
+    mkdir nvcomp && \
+    cd nvcomp && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_${NVCOMP_VERSION}_Linux_SBSA_CUDA_11.4.tgz && \
+    tar -xvf nvcomp*.tgz && \
+    cp -rv include/nvcomp* /usr/local/include/ && \
+    cp -v lib/*.so /usr/local/lib/ && \
+    cd .. && \
+    rm -rf nvcomp
