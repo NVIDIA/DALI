@@ -150,7 +150,7 @@ TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
 
 inline bool operator==(const TileDesc &l, const TileDesc &r) {
   return l.sample_idx == r.sample_idx &&
-         l.offset == r.offset && l.extent_size == r.extent_size;
+         l.offset == r.offset && l.size == r.size;
 }
 
 inline bool operator==(const TileRange &l, const TileRange &r) {

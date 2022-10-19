@@ -39,7 +39,7 @@ class ExprImplCpuT : public ExprImplBase {
     const auto &sample = samples[tile.sample_idx];
     auto output = static_cast<Result *>(sample.output.data);
     auto input = static_cast<const Input *>(sample.args[0].data);
-    Execute(output, input, tile.offset, tile.extent_size);
+    Execute(output, input, tile.offset, tile.size);
   }
 
  private:
@@ -74,10 +74,10 @@ class ExprImplCpuTT : public ExprImplBase {
     // have the same shape.
     if (sample.args[0].shape.sample_dim() == 1) {
       assert(sample.args[1].shape.sample_dim() == 1);
-      Execute(output_ptr, left_ptr, right_ptr, tile.offset, tile.extent_size);
+      Execute(output_ptr, left_ptr, right_ptr, tile.offset, tile.size);
     } else {
       assert(tile.offset == 0);
-      assert(tile.extent_size == volume(sample.output.shape));
+      assert(tile.size == volume(sample.output.shape));
       Execute(output_ptr, output.shape.data(), output.strides.data(),
               left_ptr, left.strides.data(), right_ptr, right.strides.data(),
               sample.output.shape.sample_dim());
@@ -149,7 +149,7 @@ class ExprImplCpuCT : public ExprImplBase {
     auto output = static_cast<Result *>(sample.output.data);
     auto left_ptr = static_cast<const Left *>(sample.args[0].data);
     auto right_ptr = static_cast<const Right *>(sample.args[1].data);
-    Execute(output, *left_ptr, right_ptr, tile.offset, tile.extent_size);
+    Execute(output, *left_ptr, right_ptr, tile.offset, tile.size);
   }
 
  private:
@@ -176,7 +176,7 @@ class ExprImplCpuTC : public ExprImplBase {
     auto output = static_cast<Result *>(sample.output.data);
     auto left_ptr = static_cast<const Left *>(sample.args[0].data);
     auto right_ptr = static_cast<const Right *>(sample.args[1].data);
-    Execute(output, left_ptr, *right_ptr, tile.offset, tile.extent_size);
+    Execute(output, left_ptr, *right_ptr, tile.offset, tile.size);
   }
 
  private:
@@ -216,10 +216,10 @@ class ExprImplCpuTernary : public ExprImplBase {
               expression_detail::Pass<IsSecondTensor, Result>(second.data, second.dtype),
               second.dtype,
               expression_detail::Pass<IsThirdTensor, Result>(third.data, third.dtype),
-              third.dtype, tile.offset, tile.extent_size);
+              third.dtype, tile.offset, tile.size);
     } else {
       assert(tile.offset == 0);
-      assert(tile.extent_size == volume(sample.output.shape));
+      assert(tile.size == volume(sample.output.shape));
       Execute(output, sample.output.shape.data(), sample.output.strides.data(),
               expression_detail::Pass<IsFirstTensor, Result>(first.data, first.dtype),
               first.dtype, first.strides.data(),

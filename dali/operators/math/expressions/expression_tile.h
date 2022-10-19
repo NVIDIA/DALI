@@ -32,11 +32,11 @@ namespace dali {
 struct TileDesc {
   int sample_idx;       // id of sample inside within the batch
   int64_t offset;
-  int64_t extent_size;
+  int64_t size;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const TileDesc &v) {
-  os << "{" << v.sample_idx << ", " << v.offset << ", " << v.extent_size
+  os << "{" << v.sample_idx << ", " << v.offset << ", " << v.size
      << "}";
   return os;
 }

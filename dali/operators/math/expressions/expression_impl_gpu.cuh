@@ -214,7 +214,7 @@ __global__ void ExecuteTiledUnOp(const SampleDescGPU<1, 1> *samples, const TileD
   const auto &sample = samples[tile.sample_idx];
   auto *output = static_cast<Result *>(sample.output.data) + tile.offset;
   const auto *in = static_cast<const Input *>(sample.args[0].data) + tile.offset;
-  ExecuteUnOp<op>(output, in, tile.offset, tile.extent_size);
+  ExecuteUnOp<op>(output, in, tile.offset, tile.size);
 }
 
 /**
@@ -228,7 +228,7 @@ __global__ void ExecuteTiledBinOpND(const SampleDescGPU<2, ndim> *samples, const
   auto output = static_cast<Result *>(sample.output.data);
   auto left = static_cast<const Left *>(sample.args[0].data);
   auto right = static_cast<const Right *>(sample.args[1].data);
-  ExecuteBinOpND<op, ndim>(output, left, right, tile.offset, tile.extent_size,
+  ExecuteBinOpND<op, ndim>(output, left, right, tile.offset, tile.size,
                            &sample.output.strides[0], &sample.args[0].strides[0],
                            &sample.args[1].strides[0]);
 }
@@ -242,7 +242,7 @@ __global__ void ExecuteTiledBinOp1D(const SampleDescGPU<2, 1> *samples, const Ti
   auto left = static_cast<const Left *>(sample.args[0].data);
   auto right = static_cast<const Right *>(sample.args[1].data);
   ExecuteBinOp<op>(output, expression_detail::Pass<IsLeftTensor>(left),
-                   expression_detail::Pass<IsRightTensor>(right), tile.offset, tile.extent_size);
+                   expression_detail::Pass<IsRightTensor>(right), tile.offset, tile.size);
 }
 
 
@@ -264,7 +264,7 @@ __global__ void ExecuteTiledTernaryOp1D(const SampleDescGPU<3, 1> *samples, cons
       expression_detail::Pass<IsSecondTensor, Result>(arg1.data, arg1.dtype),
       expression_detail::Pass<IsThirdTensor, Result>(arg2.data, arg2.dtype),
       arg0.dtype, arg1.dtype, arg2.dtype,
-      tile.offset, tile.extent_size);
+      tile.offset, tile.size);
 }
 
 /**
@@ -285,7 +285,7 @@ __global__ void ExecuteTiledTernaryOpND(const SampleDescGPU<3, ndim> *samples,
       expression_detail::Pass<IsFirstTensor, Result>(arg0.data, arg0.dtype),
       expression_detail::Pass<IsSecondTensor, Result>(arg1.data, arg1.dtype),
       expression_detail::Pass<IsThirdTensor, Result>(arg2.data, arg2.dtype),
-      arg0.dtype, arg1.dtype, arg2.dtype, tile.offset, tile.extent_size,
+      arg0.dtype, arg1.dtype, arg2.dtype, tile.offset, tile.size,
       &sample.output.strides[0], &arg0.strides[0],  &arg1.strides[0], &arg2.strides[0]);
 }
 

@@ -61,7 +61,7 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
         int tile_id = sample_id * TestConfig::tiles_per_sample + extent_id;
         tile_descs[tile_id].sample_idx = sample_id;
         tile_descs[tile_id].offset = TestConfig::tile_size * extent_id;
-        tile_descs[tile_id].extent_size = TestConfig::tile_size;
+        tile_descs[tile_id].size = TestConfig::tile_size;
       }
     }
 
