@@ -23,7 +23,6 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/common.h"
-#include "dali/pipeline/workspace/device_workspace.h"
 
 // Found by benchmarking coalesced vs non coalesced on diff size images
 #define COALESCE_THRESHOLD 8192
@@ -47,14 +46,14 @@ class MakeContiguousBase : public Operator<Backend> {
     return !pass_through_;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    if (ws.template InputIsType<CPUBackend>(0)) {
-      auto &input = ws.template Input<CPUBackend>(0);
+    if (ws.InputIsType<CPUBackend>(0)) {
+      auto &input = ws.Input<CPUBackend>(0);
       output_desc[0].shape = input.shape();
       output_desc[0].type = input.type();
     } else {
-      auto &input = ws.template Input<GPUBackend>(0);
+      auto &input = ws.Input<GPUBackend>(0);
       output_desc[0].shape = input.shape();
       output_desc[0].type = input.type();
     }
@@ -98,7 +97,7 @@ class MakeContiguousGPU : public MakeContiguousBase<GPUBackend> {
       MakeContiguousBase<GPUBackend>(spec) {}
 
   using Operator<GPUBackend>::RunImpl;
-  void RunImpl(DeviceWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguousGPU);
 };
 
@@ -108,7 +107,7 @@ class MakeContiguousMixed : public MakeContiguousBase<MixedBackend> {
       MakeContiguousBase<MixedBackend>(spec) {}
   using Operator<MixedBackend>::Run;
 
-  void Run(MixedWorkspace &ws) override;
+  void Run(Workspace &ws) override;
 
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguousMixed);
 };
@@ -119,7 +118,7 @@ class MakeContiguousCPU : public MakeContiguousBase<CPUBackend> {
       MakeContiguousBase<CPUBackend>(spec) {}
 
   using Operator<CPUBackend>::RunImpl;
-  void RunImpl(HostWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguousCPU);
 };
 

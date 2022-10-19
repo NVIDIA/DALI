@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,12 +39,12 @@ class SelectMasksCPU : public Operator<CPUBackend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   template <typename T>
-  void RunImplTyped(workspace_t<CPUBackend> &ws);
+  void RunImplTyped(Workspace &ws);
 
   struct PolygonDesc {
     int new_mask_id = -1;

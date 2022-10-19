@@ -3,7 +3,7 @@
 namespace other_ns {
 
 template <>
-void Dummy<::dali::CPUBackend>::RunImpl(::dali::HostWorkspace &ws) {
+void Dummy<::dali::CPUBackend>::RunImpl(::dali::Workspace &ws) {
   const auto &input = ws.Input<::dali::CPUBackend>(0);
   auto &output = ws.Output<::dali::CPUBackend>(0);
 

@@ -52,7 +52,7 @@ class NumpyReader : public DataReader<Backend, Target> {
   using DataReader<Backend, Target>::GetSample;
   using Operator<Backend>::spec_;
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override {
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     DataReader<Backend, Target>::SetupImpl(output_desc, ws);
 
@@ -158,7 +158,7 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
   }
 
  protected:
-  void RunImpl(HostWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
   using Operator<CPUBackend>::RunImpl;
 
  private:

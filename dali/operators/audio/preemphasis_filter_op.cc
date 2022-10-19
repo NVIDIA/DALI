@@ -47,16 +47,16 @@ The value of ``X_border`` depends on the ``border`` argument::
 class PreemphasisFilterCPU : public PreemphasisFilter<CPUBackend> {
  public:
   explicit PreemphasisFilterCPU(const OpSpec &spec) : PreemphasisFilter<CPUBackend>(spec) {}
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   template <typename OutputType, typename InputType>
-  void RunImplTyped(workspace_t<CPUBackend> &ws);
+  void RunImplTyped(Workspace &ws);
 };
 
 template <typename OutputType, typename InputType>
-void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
+void PreemphasisFilterCPU::RunImplTyped(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto &tp = ws.GetThreadPool();
   auto shape = input.shape();
@@ -91,8 +91,8 @@ void PreemphasisFilterCPU::RunImplTyped(workspace_t<CPUBackend> &ws) {
   tp.RunAll();
 }
 
-void PreemphasisFilterCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
+void PreemphasisFilterCPU::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
       RunImplTyped<OutputType, InputType>(ws);

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,8 +66,8 @@ class PreemphasisFilter : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+                 const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     AcquireArguments(ws);
     output_desc.resize(detail::kNumOutputs);
     auto shape = input.shape();
@@ -77,7 +77,7 @@ class PreemphasisFilter : public Operator<Backend> {
   }
 
  protected:
-  void AcquireArguments(const workspace_t<Backend> &ws) {
+  void AcquireArguments(const Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     this->GetPerSampleArgument(preemph_coeff_, detail::kCoeff, ws, curr_batch_size);
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 namespace other_ns {
 
 template<>
-void Dummy<::dali::GPUBackend>::RunImpl(::dali::DeviceWorkspace &ws) {
+void Dummy<::dali::GPUBackend>::RunImpl(::dali::Workspace &ws) {
   const auto &input = ws.Input<::dali::GPUBackend>(0);
   const auto &shape = input.shape();
   auto &output = ws.Output<::dali::GPUBackend>(0);

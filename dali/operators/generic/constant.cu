@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ void FillTensorList(
 }  // namespace
 
 template <>
-void Constant<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void Constant<GPUBackend>::RunImpl(Workspace &ws) {
   if (output_.num_samples() == 0) {
     TYPE_SWITCH(output_type_, type2id, type, CONSTANT_OP_SUPPORTED_TYPES,
       (

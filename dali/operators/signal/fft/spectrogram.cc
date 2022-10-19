@@ -99,8 +99,8 @@ struct SpectrogramImplCpu : OpImplBase<CPUBackend> {
   using FftKernel = kernels::signal::fft::Fft1DCpu<OutputType, InputType, WindowsDims>;
 
   explicit SpectrogramImplCpu(const OpSpec & spec);
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   int window_length_ = -1;
@@ -178,7 +178,7 @@ SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
 
 template <bool time_major>
 bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc,
-                                               const workspace_t<CPUBackend> &ws) {
+                                               const Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   kernels::KernelContext ctx;
@@ -251,7 +251,7 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
 }
 
 template <bool time_major>
-void SpectrogramImplCpu<time_major>::RunImpl(workspace_t<CPUBackend> &ws) {
+void SpectrogramImplCpu<time_major>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto out_shape = output.shape();

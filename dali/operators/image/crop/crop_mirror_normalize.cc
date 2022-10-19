@@ -78,7 +78,7 @@ DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU
 
 template <>
 bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                                const HostWorkspace &ws) {
+                                                const Workspace &ws) {
   output_desc.resize(1);
   SetupCommonImpl(ws);
   const auto &input = ws.Input<CPUBackend>(0);
@@ -107,7 +107,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
 }
 
 template <>
-void CropMirrorNormalize<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void CropMirrorNormalize<CPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(output_layout_);

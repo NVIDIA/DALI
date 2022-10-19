@@ -198,7 +198,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   bool RunOutputs() {
-    DeviceWorkspace ws;
+    Workspace ws;
     exe_->Outputs(&ws);
     auto &tensor_gpu_list = ws.Output<GPUBackend>(0);
     TensorList<CPUBackend> tensor_cpu_list;
@@ -492,7 +492,7 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
 
   exe->Build(&graph, outputs);
   exe->RunCPU();
-  DeviceWorkspace ws;
+  Workspace ws;
   EXPECT_THROW(exe->ShareOutputs(&ws), std::exception);
 }
 
@@ -584,7 +584,7 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
       input_cpu.mutable_tensor<uint8_t>(sample_idx)[i] = counter % 255;
     }
   }
-  DeviceWorkspace ws;
+  Workspace ws;
   if (dev == "cpu") {
     // take Make Contiguous into account
     pipe.SetExternalInput("es", input_cpu);

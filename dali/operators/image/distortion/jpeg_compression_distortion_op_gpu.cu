@@ -29,7 +29,7 @@ class JpegCompressionDistortionGPU : public JpegCompressionDistortion<GPUBackend
   using Operator<GPUBackend>::RunImpl;
 
  protected:
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   using JpegDistortionKernel = kernels::jpeg::JpegCompressionDistortionGPU;
@@ -44,7 +44,7 @@ TensorListView<StorageGPU, Type, 3> frames_to_samples(
   return reinterpret<Type>(view, std::move(new_shape));
 }
 
-void JpegCompressionDistortionGPU::RunImpl(workspace_t<GPUBackend> &ws) {
+void JpegCompressionDistortionGPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 

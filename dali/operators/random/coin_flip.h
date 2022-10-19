@@ -57,7 +57,7 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
         probability_("probability", spec) {
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     probability_.Acquire(spec, ws, nsamples);
   }
 
@@ -74,7 +74,7 @@ class CoinFlip : public RNGBase<Backend, CoinFlip<Backend>, false> {
   }
 
   using RNGBase<Backend, CoinFlip<Backend>, false>::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_COINFLIP_TYPES), (
       BaseImpl::template RunImplTyped<T, Impl>(ws);
     ), (  // NOLINT

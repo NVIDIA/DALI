@@ -41,8 +41,8 @@ class CoordTransform : public SequenceOperator<Backend, true>, private MTTransfo
 
  protected:
   using Base::spec_;
-  bool SetupImpl(std::vector<OutputDesc> &output_descs, const workspace_t<Backend> &ws) override {
-    auto &input = ws.template Input<Backend>(0);     // get a reference to the input tensor list
+  bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
+    auto &input = ws.Input<Backend>(0);     // get a reference to the input tensor list
     const auto &input_shape = input.shape();         // get a shape - use const-ref to avoid copying
     output_descs.resize(1);                          // only one output
     output_descs[0].type = dtype_;
@@ -68,9 +68,9 @@ class CoordTransform : public SequenceOperator<Backend, true>, private MTTransfo
                   input_type, ", or `float`. Got: ", dtype_));
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    auto &in = ws.template Input<Backend>(0);
-    auto &out = ws.template Output<Backend>(0);
+  void RunImpl(Workspace &ws) override {
+    auto &in = ws.Input<Backend>(0);
+    auto &out = ws.Output<Backend>(0);
     out.SetLayout(in.GetLayout());
 
     if (out.shape().num_elements() == 0)
@@ -100,7 +100,7 @@ class CoordTransform : public SequenceOperator<Backend, true>, private MTTransfo
     )  // NOLINT
   }
 
-  void PrepareTransformArguments(const workspace_t<Backend> &ws,
+  void PrepareTransformArguments(const Workspace &ws,
                                  const TensorListShape<> &input_shape) {
     input_pt_dim_ = 0;
     output_pt_dim_ = 0;
@@ -130,7 +130,7 @@ class CoordTransform : public SequenceOperator<Backend, true>, private MTTransfo
 
  private:
   template <typename OutputType, typename InputType, int out_dim, int in_dim>
-  void RunTyped(workspace_t<Backend> &ws);
+  void RunTyped(Workspace &ws);
 
   DALIDataType dtype_;
 

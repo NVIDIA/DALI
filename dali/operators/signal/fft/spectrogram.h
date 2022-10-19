@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,12 +33,12 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
  protected:
   bool CanInferOutputs() const override { return true; }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     assert(impl_ != nullptr);
     return impl_->SetupImpl(output_desc, ws);
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     assert(impl_ != nullptr);
     impl_->RunImpl(ws);
   }

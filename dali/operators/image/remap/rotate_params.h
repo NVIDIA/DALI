@@ -103,7 +103,6 @@ class RotateParamProvider
   static constexpr int spatial_ndim = spatial_ndim_;
   using MappingParams = RotateParams<spatial_ndim>;
   using Base = WarpParamProvider<Backend, spatial_ndim, MappingParams, BorderType>;
-  using Workspace = typename Base::Workspace;
   using SpatialShape = typename Base::SpatialShape;
   using Base::ws_;
   using Base::spec_;

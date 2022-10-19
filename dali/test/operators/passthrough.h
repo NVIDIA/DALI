@@ -31,12 +31,12 @@ class PassthroughOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(PassthroughOp);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    ws.template Output<Backend>(0).ShareData(ws.template Input<Backend>(0));
+  void RunImpl(Workspace &ws) override {
+    ws.Output<Backend>(0).ShareData(ws.Input<Backend>(0));
   }
 };
 

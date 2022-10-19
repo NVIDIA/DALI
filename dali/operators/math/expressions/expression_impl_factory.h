@@ -29,7 +29,6 @@
 #include "dali/operators/math/expressions/expression_tile.h"
 #include "dali/operators/math/expressions/expression_tree.h"
 #include "dali/pipeline/data/types.h"
-#include "dali/pipeline/util/backend2workspace_map.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/kernels/common/utils.h"
 
@@ -132,8 +131,8 @@ struct ExprImplTask {
 };
 
 template <typename Backend>
-inline OutputData GetOutput(const ExprFunc &func, workspace_t<Backend> &ws, int sample_idx) {
-  auto &out = ws.template Output<Backend>(0);
+inline OutputData GetOutput(const ExprFunc &func, Workspace &ws, int sample_idx) {
+  auto &out = ws.Output<Backend>(0);
   void *out_ptr = out.raw_mutable_tensor(sample_idx);
   auto shape = out.shape()[sample_idx];
   TensorShape<> strides;
@@ -150,7 +149,7 @@ inline OutputData GetOutput(const ExprFunc &func, workspace_t<Backend> &ws, int 
  * @brief Type erased obtaining pointers to inputs
  */
 template <typename Backend>
-inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
+inline ArgPack GetArgPack(const ExprFunc &func, Workspace &ws,
                           const ConstantStorage<Backend> &st, const OpSpec &spec, int sample_idx) {
   ArgPack result;
   result.resize(func.GetSubexpressionCount());
@@ -166,7 +165,7 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
     } else if (func[i].GetNodeType() == NodeType::Tensor) {
       const auto &tensor = dynamic_cast<const ExprTensor &>(func[i]);
       auto input_idx = tensor.GetInputIndex();
-      auto &in = ws.template Input<Backend>(input_idx);
+      auto &in = ws.Input<Backend>(input_idx);
       result[i].data = in.raw_tensor(sample_idx);
       result[i].dtype = tensor.GetTypeId();
       result[i].shape = in.tensor_shape(sample_idx);
@@ -182,7 +181,7 @@ inline ArgPack GetArgPack(const ExprFunc &func, workspace_t<Backend> &ws,
 template <typename Backend>
 void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
                         const ExprFunc &func,
-                        workspace_t<Backend> &ws, const ConstantStorage<Backend> &st,
+                        Workspace &ws, const ConstantStorage<Backend> &st,
                         const OpSpec &spec) {
   int nsamples =  ws.GetInputBatchSize(0);
   out_samples.clear();
@@ -234,7 +233,7 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
 template <typename Backend>
 void PrepareSamplesPerTask(std::vector<std::vector<SampleDesc>> &samples_per_task,
                            const std::vector<ExprImplTask> &task_exec_order,
-                           workspace_t<Backend> &ws,
+                           Workspace &ws,
                            const ConstantStorage<Backend> &constant_storage,
                            const OpSpec &spec) {
   int ntasks = task_exec_order.size();
@@ -249,18 +248,14 @@ void PrepareSamplesPerTask(std::vector<std::vector<SampleDesc>> &samples_per_tas
 /**
  * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
  *        a static type switch over the `expr` data. CPU variant.
- *
- * @param ws Workspace to disambiguate over backend.
  */
-std::unique_ptr<ExprImplBase> ExprImplFactory(const HostWorkspace &ws, const ExprNode &expr);
+std::unique_ptr<ExprImplBase> ExprImplFactory(const ExprNode &expr, CPUBackend);
 
 /**
  * @brief Convert runtime expression tree `expr` to an executor for this expression by doing
  *        a static type switch over the `expr` data. GPU variant.
- *
- * @param ws Workspace to disambiguate over backend.
  */
-std::unique_ptr<ExprImplBase> ExprImplFactory(const DeviceWorkspace &ws, const ExprNode &expr);
+std::unique_ptr<ExprImplBase> ExprImplFactory(const ExprNode &expr, GPUBackend);
 
 struct ExprImplCache {
   template <typename Backend>
@@ -270,7 +265,7 @@ struct ExprImplCache {
     if (it != cache_.end()) {
       return it->second.get();
     }
-    auto new_impl = ExprImplFactory(workspace_t<Backend>{}, expr);
+    auto new_impl = ExprImplFactory(expr, Backend{});
     auto ptr = std::shared_ptr<ExprImplBase>(std::move(new_impl));
     cache_[node_desc] = ptr;
     return ptr.get();

@@ -108,7 +108,7 @@ class TransformRotationCPU
     }
   }
 
-  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+  void ProcessArgs(const OpSpec &spec, const Workspace &ws) {
     angle_.Acquire(spec, ws, nsamples_, TensorShape<0>{});
     ndim_ = axis_.HasExplicitValue() ? 3 : 2;
     if (axis_.HasExplicitValue()) {

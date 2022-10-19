@@ -307,7 +307,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     if (blocking_) {
       cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
@@ -337,7 +337,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
    */
   using Operator<Backend>::RunImpl;
 
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   // pass cuda_event by pointer to allow default, nullptr value, with the
   // reference it is not that easy

@@ -17,9 +17,9 @@
 
 namespace dali {
 
-void MakeContiguousCPU::RunImpl(HostWorkspace &ws) {
-  auto &input = ws.template Input<CPUBackend>(0);
-  auto &output = ws.template Output<CPUBackend>(0);
+void MakeContiguousCPU::RunImpl(Workspace &ws) {
+  auto &input = ws.Input<CPUBackend>(0);
+  auto &output = ws.Output<CPUBackend>(0);
 
   DomainTimeRange tr("[DALI][MakeContiguousCPU] H2H", DomainTimeRange::kBlue);
   if (IsPassThrough()) {

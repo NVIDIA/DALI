@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ void RunKernel(TensorList<GPUBackend> &output, const TensorList<GPUBackend> &inp
 }
 
 template <>
-void Flip<GPUBackend>::RunImpl(Workspace<GPUBackend> &ws) {
+void Flip<GPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   output.SetLayout(input.GetLayout());

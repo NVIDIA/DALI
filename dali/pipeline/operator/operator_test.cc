@@ -40,7 +40,7 @@ TEST(InstantiateOperator, InvalidOperatorName) {
 }
 
 TEST(InstantiateOperator, RunMethodIsAccessible) {
-  HostWorkspace ws;
+  Workspace ws;
   auto op = InstantiateOperator(MakeOpSpec("Copy"));
   // We just want to test that Run method is visible (exported to the so file)
   // It is expected that the call throws as the worspace is empty
@@ -52,13 +52,28 @@ enum TestEnum : int {
   TEST_ENUM = 42
 };
 
+namespace {
+
+class TestOp : public OperatorBase {
+ public:
+  using OperatorBase::OperatorBase;
+  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    return false;
+  }
+
+  void Run(Workspace &ws) override {
+  }
+};
+
+}  // namespace
+
 template<typename T>
 class OperatorDiagnosticsTest : public ::testing::Test {
  protected:
   void SetUp() final {
     assign_value();
     auto op_spec = MakeOpSpec("Copy");
-    operator_ = std::make_unique<OperatorBase>(op_spec);
+    operator_ = std::make_unique<TestOp>(op_spec);
   }
 
   void assign_value() {

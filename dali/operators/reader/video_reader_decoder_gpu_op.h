@@ -25,9 +25,9 @@ class VideoReaderDecoderGpu : public DataReader<GPUBackend, VideoSampleGpu> {
  public:
   explicit VideoReaderDecoderGpu(const OpSpec &spec);
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-  void RunImpl(DeviceWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   bool CanInferOutputs() const override { return true; }
 

@@ -76,7 +76,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     curr_batch_size_ = ws.GetInputBatchSize(0);
 
     best_box_idx_.Resize({curr_batch_size_ * anchor_count_}, DALI_INT32);
@@ -84,7 +84,7 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
     return false;
   }
 
-  void RunImpl(Workspace<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   static constexpr int kBoxesOutputDim = 2;

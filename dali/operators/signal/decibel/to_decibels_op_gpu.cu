@@ -40,8 +40,8 @@ class ToDecibelsImpl : public OpImplBase<GPUBackend> {
     kmgr_todb_.Resize<ToDecibelsKernel>(1);
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   ToDecibelsArgs args_;
@@ -55,7 +55,7 @@ class ToDecibelsImpl : public OpImplBase<GPUBackend> {
 
 template <typename T>
 bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                  const workspace_t<GPUBackend> &ws) {
+                                  const Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto in_view = view<const T>(input);
 
@@ -79,7 +79,7 @@ bool ToDecibelsImpl<T>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <typename T>
-void ToDecibelsImpl<T>::RunImpl(workspace_t<GPUBackend> &ws) {
+void ToDecibelsImpl<T>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 
@@ -101,7 +101,7 @@ void ToDecibelsImpl<T>::RunImpl(workspace_t<GPUBackend> &ws) {
 
 template <>
 bool ToDecibels<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                       const workspace_t<GPUBackend> &ws) {
+                                       const Workspace &ws) {
   output_desc.resize(kNumOutputs);
   const auto &input = ws.Input<GPUBackend>(0);
   auto type = input.type();
@@ -118,7 +118,7 @@ bool ToDecibels<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void ToDecibels<GPUBackend>::RunImpl(workspace_t<GPUBackend> &ws) {
+void ToDecibels<GPUBackend>::RunImpl(Workspace &ws) {
   assert(impl_ != nullptr);
   impl_->RunImpl(ws);
 }

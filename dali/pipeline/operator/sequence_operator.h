@@ -87,12 +87,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   using Operator<Backend>::Run;
   using SampleBroadcasting<Backend>::BroadcastSamples;
 
-  template <typename InputBackend>
-  using ws_input_t = typename workspace_t<Backend>::template input_t<InputBackend>;
-  template <typename OutputBackend>
-  using ws_output_t = typename workspace_t<Backend>::template output_t<OutputBackend>;
-
-  bool Setup(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     CheckInputLayouts(ws, spec_);
     SetupSequenceOperator(ws);
     is_expanding_ = ShouldExpand(ws);
@@ -118,7 +113,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return is_inferred;
   }
 
-  void Run(workspace_t<Backend> &ws) override {
+  void Run(Workspace &ws) override {
     if (!IsExpanding()) {
       Operator<Backend>::Run(ws);
     } else {
@@ -145,7 +140,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    * ``ShouldExpand`` to return true if none of the inputs is expandable (i.e. !IsExpandable()).
    * Overriding the method may be useful for validation of the initial input layouts.
    */
-  virtual bool ShouldExpand(const workspace_t<Backend> &ws) {
+  virtual bool ShouldExpand(const Workspace &ws) {
     return IsExpandable();
   }
 
@@ -162,7 +157,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    * which may be easier or more performant.
    */
   virtual bool ProcessOutputDesc(std::vector<OutputDesc> &output_desc,
-                                 const workspace_t<Backend> &ws, bool is_inferred) {
+                                 const Workspace &ws, bool is_inferred) {
     if (is_inferred && IsExpanding()) {
       CoalesceOutputShapes(output_desc, ws);
     }
@@ -190,13 +185,13 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    * input. If that's not the case, the method may be overriden to provide different ExpandDesc
    * instance.
    */
-  virtual const ExpandDesc &GetOutputExpandDesc(const workspace_t<Backend> &ws,
+  virtual const ExpandDesc &GetOutputExpandDesc(const Workspace &ws,
                                                 int output_idx) const {
     (void)output_idx;
     return GetReferenceExpandDesc();
   }
 
-  virtual void InitializeExpandedArgument(const workspace_t<Backend> &ws,
+  virtual void InitializeExpandedArgument(const Workspace &ws,
                                           const std::string &arg_name,
                                           const TensorList<CPUBackend> &arg_input) {
     expanded_.AddArgumentInput(arg_name, sequence_utils::expanded_like(arg_input));
@@ -223,7 +218,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     ExpandArgumentLikeRef(ExpandedArg(arg_name), arg_input, arg_name, ref_expand_desc);
   }
 
-  virtual void InitializeExpandedInput(const workspace_t<Backend> &ws, int input_idx) {
+  virtual void InitializeExpandedInput(const Workspace &ws, int input_idx) {
     ProcessInput(ws, input_idx, [&](const auto &batch) {
       expanded_.AddInput(sequence_utils::expanded_like(batch));
     });
@@ -245,7 +240,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    * 2. have no expandable layout prefix, in that case the samples are going to be broadcast
    *    to match the other expanded inputs.
    */
-  virtual void ExpandInput(const workspace_t<Backend> &ws, int input_idx) {
+  virtual void ExpandInput(const Workspace &ws, int input_idx) {
     assert(IsExpandable());
     const auto &ref_expand_desc = GetReferenceExpandDesc();
     const auto &input_desc = GetInputExpandDesc(input_idx);
@@ -266,7 +261,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     }
   }
 
-  virtual void InitializeExpandedOutput(const workspace_t<Backend> &ws, int output_idx) {
+  virtual void InitializeExpandedOutput(const Workspace &ws, int output_idx) {
     ProcessOutput(ws, output_idx, [&](const auto &batch) {
       expanded_.AddOutput(sequence_utils::expanded_like(batch));
     });
@@ -277,7 +272,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    *
    * Assumes ``IsExpandble()`` is true, i.e. there is at least one expandable input.
    */
-  virtual void ExpandOutput(const workspace_t<Backend> &ws, int output_idx) {
+  virtual void ExpandOutput(const Workspace &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
     ProcessOutput(ws, output_idx, [&](const auto &output) {
       auto &expanded_output = ExpandedOutput<batch_backend_t<decltype(output)>>(output_idx);
@@ -289,12 +284,12 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    * @brief If the outputs were expanded, the meta-data from the expanded outputs
    * needs to be reflected in the original workspace outputs.
    */
-  virtual void PostprocessOutputs(workspace_t<Backend> &ws) {
+  virtual void PostprocessOutputs(Workspace &ws) {
     auto num_output = ws.NumOutput();
     for (int output_idx = 0; output_idx < num_output; output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       auto layout_prefix = expand_desc.ExpandedLayout();
-      if (ws.template OutputIsType<GPUBackend>(output_idx)) {
+      if (ws.OutputIsType<GPUBackend>(output_idx)) {
         SetOutputLayout<GPUBackend>(ws, output_idx, layout_prefix);
       } else {
         SetOutputLayout<CPUBackend>(ws, output_idx, layout_prefix);
@@ -312,7 +307,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
    * coalesced into ``[{1, 3, shape_1...}, {2, 2, shape_2...}]``.
    */
   virtual void CoalesceOutputShapes(std::vector<OutputDesc> &output_desc,
-                                    const workspace_t<Backend> &ws) {
+                                    const Workspace &ws) {
     for (size_t output_idx = 0; output_idx < output_desc.size(); output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       const auto &shape = output_desc[output_idx].shape;
@@ -330,7 +325,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return input_expand_desc_[input_idx];
   }
 
-  void SetupSequenceOperator(const workspace_t<Backend> &ws) {
+  void SetupSequenceOperator(const Workspace &ws) {
     auto num_inputs = ws.NumInput();
     input_expand_desc_.clear();
     input_expand_desc_.reserve(num_inputs);
@@ -343,7 +338,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     expand_like_ = InferReferenceExpandDesc(ws);
   }
 
-  const ExpandDesc *InferReferenceExpandDesc(const workspace_t<Backend> &ws) {
+  const ExpandDesc *InferReferenceExpandDesc(const Workspace &ws) {
     int input_idx = InferPositionalReferenceExpandDesc(ws);
     if (input_idx >= 0) {
       return &GetInputExpandDesc(input_idx);
@@ -355,7 +350,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return nullptr;
   }
 
-  virtual int InferPositionalReferenceExpandDesc(const workspace_t<Backend> &ws) {
+  virtual int InferPositionalReferenceExpandDesc(const Workspace &ws) {
     (void) ws;
     for (size_t input_idx = 0; input_idx < input_expand_desc_.size(); input_idx++) {
       if (input_expand_desc_[input_idx].NumDimsToExpand() > 0) {
@@ -366,7 +361,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   virtual std::unique_ptr<ExpandDesc> InferNonPositionalReferenceExpandDesc(
-      const workspace_t<Backend> &ws) {
+      const Workspace &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
@@ -389,13 +384,13 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     return *expand_like_;
   }
 
-  void ExpandInputs(const workspace_t<Backend> &ws) {
+  void ExpandInputs(const Workspace &ws) {
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       ExpandInput(ws, input_idx);
     }
   }
 
-  void ExpandOutputs(const workspace_t<Backend> &ws) {
+  void ExpandOutputs(const Workspace &ws) {
     for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
       ExpandOutput(ws, output_idx);
     }
@@ -409,7 +404,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     }
   }
 
-  bool HasPerFrameArgInputs(const workspace_t<Backend> &ws) {
+  bool HasPerFrameArgInputs(const Workspace &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
@@ -474,9 +469,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   template <typename OutputBackend>
-  void SetOutputLayout(const workspace_t<Backend> &ws, int output_idx, TensorLayout layout_prefix) {
+  void SetOutputLayout(const Workspace &ws, int output_idx, TensorLayout layout_prefix) {
     auto &expanded_output = ExpandedOutput<OutputBackend>(output_idx);
-    auto &output = ws.template Output<OutputBackend>(output_idx);
+    auto &output = ws.Output<OutputBackend>(output_idx);
     const auto &layout = expanded_output.GetLayout();
     if (layout.size() == 0) {
       output.SetLayout(layout);
@@ -486,7 +481,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     }
   }
 
-  void InitializeExpandedInputs(const workspace_t<Backend> &ws) {
+  void InitializeExpandedInputs(const Workspace &ws) {
     assert(expanded_.NumInput() == 0);
     for (int input_idx = 0; input_idx < ws.NumInput(); input_idx++) {
       InitializeExpandedInput(ws, input_idx);
@@ -494,7 +489,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     assert(expanded_.NumInput() == ws.NumInput());
   }
 
-  void InitializeExpandedOutputs(const workspace_t<Backend> &ws) {
+  void InitializeExpandedOutputs(const Workspace &ws) {
     assert(expanded_.NumOutput() == 0);
     for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
       InitializeExpandedOutput(ws, output_idx);
@@ -502,7 +497,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     assert(expanded_.NumOutput() == ws.NumOutput());
   }
 
-  void InitializeExpandedArguments(const workspace_t<Backend> &ws) {
+  void InitializeExpandedArguments(const Workspace &ws) {
     for (const auto &arg_input : ws) {
       auto &shared_tvec = arg_input.second.tvec;
       assert(shared_tvec);
@@ -510,40 +505,31 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     }
   }
 
-  void InitializeExpandedWorkspace(const workspace_t<Backend> &ws) {
-    InitializeExpandedWorkspace(expanded_, ws);
+  void InitializeExpandedWorkspace(const Workspace &ws) {
+    if (ws.HasThreadPool())
+      expanded_.SetThreadPool(&ws.GetThreadPool());
+    expanded_.set_output_order(ws.output_order());
+
     InitializeExpandedInputs(ws);
     InitializeExpandedArguments(ws);
     InitializeExpandedOutputs(ws);
   }
 
-  void InitializeExpandedWorkspace(workspace_t<CPUBackend> &expanded,
-                                   const workspace_t<CPUBackend> &ws) {
-    expanded.SetThreadPool(&ws.GetThreadPool());
-  }
-
-  void InitializeExpandedWorkspace(workspace_t<GPUBackend> &expanded,
-                                   const workspace_t<GPUBackend> &ws) {
-    if (ws.has_stream()) {
-      expanded.set_stream(ws.stream());
+  template <typename ProcessFunc>
+  void ProcessInput(const Workspace &ws, int input_idx, ProcessFunc &&process) {
+    if (ws.InputIsType<GPUBackend>(input_idx)) {
+      process(ws.Input<GPUBackend>(input_idx));
+    } else {
+      process(ws.Input<CPUBackend>(input_idx));
     }
   }
 
   template <typename ProcessFunc>
-  void ProcessInput(const workspace_t<Backend> &ws, int input_idx, ProcessFunc &&process) {
-    if (ws.template InputIsType<GPUBackend>(input_idx)) {
-      process(ws.template Input<GPUBackend>(input_idx));
+  void ProcessOutput(const Workspace &ws, int output_idx, ProcessFunc &&process) {
+    if (ws.OutputIsType<GPUBackend>(output_idx)) {
+      process(ws.Output<GPUBackend>(output_idx));
     } else {
-      process(ws.template Input<CPUBackend>(input_idx));
-    }
-  }
-
-  template <typename ProcessFunc>
-  void ProcessOutput(const workspace_t<Backend> &ws, int output_idx, ProcessFunc &&process) {
-    if (ws.template OutputIsType<GPUBackend>(output_idx)) {
-      process(ws.template Output<GPUBackend>(output_idx));
-    } else {
-      process(ws.template Output<CPUBackend>(output_idx));
+      process(ws.Output<CPUBackend>(output_idx));
     }
   }
 
@@ -554,7 +540,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
 
   template <typename OutputBackend>
   auto &ExpandedOutput(int output_idx) {
-    return expanded_.template Output<OutputBackend>(output_idx);
+    return expanded_.Output<OutputBackend>(output_idx);
   }
 
   TensorList<CPUBackend> &ExpandedArg(const std::string &arg_name) {
@@ -674,7 +660,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   std::unique_ptr<ExpandDesc> non_positional_expand_desc_;
   bool is_expanding_ = false;
   bool is_expanded_ws_initialized_ = false;
-  workspace_t<Backend> expanded_;
+  Workspace expanded_;
 };
 
 

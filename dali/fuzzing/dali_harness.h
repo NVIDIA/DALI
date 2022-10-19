@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ class FileListHarness {
     Pipeline pipeline(batch_size_, 4, device_id_);
     SetupPipeline(pipeline);
 
-    DeviceWorkspace ws;
+    Workspace ws;
     pipeline.RunCPU();
     pipeline.RunGPU();
     pipeline.Outputs(&ws);

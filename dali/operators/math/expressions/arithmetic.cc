@@ -20,7 +20,7 @@
 namespace dali {
 
 template <>
-void ArithmeticGenericOp<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
   PrepareSamplesPerTask<CPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
   auto &pool = ws.GetThreadPool();
   ws.Output<CPUBackend>(0).SetLayout(result_layout_);

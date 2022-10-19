@@ -112,7 +112,7 @@ the following formula::
 
 template <>
 bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                 const workspace_t<CPUBackend> &ws) {
+                                 const Workspace &ws) {
   GetArguments(ws);
   output_desc.resize(kNumOutputs);
   const auto &input = ws.Input<CPUBackend>(0);
@@ -150,7 +150,7 @@ bool MFCC<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void MFCC<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void MFCC<CPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   auto in_shape = input.shape();

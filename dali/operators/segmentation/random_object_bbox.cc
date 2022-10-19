@@ -111,7 +111,7 @@ has few items, but item size is big, you can use caching to save the boxes and r
 the same input is seen again. The inputs are compared based on 256-bit hash, which is much faster
 to compute than to recalculate the object boxes.)", false);
 
-bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorkspace &ws) {
+bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const Workspace &ws) {
   out_descs.resize(spec_.NumOutput());
   auto &input = ws.Input<CPUBackend>(0);
   int ndim = input.sample_dim();
@@ -133,7 +133,7 @@ bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const HostWorksp
   return true;
 }
 
-void RandomObjectBBox::AcquireArgs(const HostWorkspace &ws, int N, int ndim) {
+void RandomObjectBBox::AcquireArgs(const Workspace &ws, int N, int ndim) {
   background_.Acquire(spec_, ws, N);
   if (classes_.HasExplicitValue())
     classes_.Acquire(spec_, ws, N);
@@ -551,7 +551,7 @@ void RandomObjectBBox::AllocateTempStorage(const TensorList<CPUBackend> &input) 
   grow(tmp_filtered_storage_, max_filtered_bytes);
 }
 
-void RandomObjectBBox::RunImpl(HostWorkspace &ws) {
+void RandomObjectBBox::RunImpl(Workspace &ws) {
   auto &input = ws.Input<CPUBackend>(0);
   int N = input.num_samples();
   if (N == 0)

@@ -54,8 +54,8 @@ class PeekImageShape : public Operator<CPUBackend> {
   }
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
-    const auto &input = ws.template Input<CPUBackend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    const auto &input = ws.Input<CPUBackend>(0);
     size_t batch_size = input.num_samples();
     output_desc.resize(1);
     output_desc[0].shape = uniform_list_shape<1>(batch_size, { 3 });
@@ -70,10 +70,10 @@ class PeekImageShape : public Operator<CPUBackend> {
     }
   }
 
-  void RunImpl(HostWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     auto &thread_pool = ws.GetThreadPool();
-    const auto &input = ws.template Input<CPUBackend>(0);
-    auto &output = ws.template Output<CPUBackend>(0);
+    const auto &input = ws.Input<CPUBackend>(0);
+    auto &output = ws.Output<CPUBackend>(0);
     size_t batch_size = input.num_samples();
     DALI_ENFORCE(input.type() == DALI_UINT8,
                  "The input must be a raw, undecoded file stored as a flat uint8 array.");

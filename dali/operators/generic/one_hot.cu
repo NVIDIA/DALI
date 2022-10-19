@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ class OneHotGPU : public OneHot<GPUBackend> {
   USE_OPERATOR_MEMBERS();
 
  protected:
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   template<typename OutputType, typename InputType>
-  void RunImplTyped(workspace_t<GPUBackend> &ws, int placement_axis);
+  void RunImplTyped(Workspace &ws, int placement_axis);
 
  private:
   std::vector<detail::SampleDesc> sample_descs_;
@@ -41,8 +41,8 @@ class OneHotGPU : public OneHot<GPUBackend> {
   int recent_n_samples_ = 0;
 };
 
-bool OneHotGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
+bool OneHotGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   int num_samples = input.shape().num_samples();
   if (num_samples != recent_n_samples_) {
     recent_n_samples_ = num_samples;
@@ -54,7 +54,7 @@ bool OneHotGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_
   return OneHot<GPUBackend>::SetupImpl(output_desc, ws);
 }
 
-void OneHotGPU::RunImpl(workspace_t<GPUBackend> &ws) {
+void OneHotGPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   int output_sample_dim = output.shape().sample_dim();
@@ -68,7 +68,7 @@ void OneHotGPU::RunImpl(workspace_t<GPUBackend> &ws) {
 }
 
 template <typename OutputType, typename InputType>
-void OneHotGPU::RunImplTyped(workspace_t<GPUBackend> &ws, int axis) {
+void OneHotGPU::RunImplTyped(Workspace &ws, int axis) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   int num_samples = input.shape().num_samples();

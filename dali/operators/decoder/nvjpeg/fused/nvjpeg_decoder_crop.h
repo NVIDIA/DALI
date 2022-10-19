@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
     return CropAttr::GetCropWindowGenerator(data_idx);
   }
 
-  void SetupSharedSampleParams(MixedWorkspace &ws) override {
+  void SetupSharedSampleParams(Workspace &ws) override {
     CropAttr::ProcessArguments(spec_, ws);
   }
 };

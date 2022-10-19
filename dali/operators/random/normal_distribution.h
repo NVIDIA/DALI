@@ -61,7 +61,7 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>, 
         stddev_("stddev", spec) {
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws, int nsamples) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws, int nsamples) {
     mean_.Acquire(spec, ws, nsamples);
     stddev_.Acquire(spec, ws, nsamples);
   }
@@ -82,7 +82,7 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>, 
   }
 
   using RNGBase<Backend, NormalDistribution<Backend>, false>::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override {
+  void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_NORMDIST_TYPES), (
       using ImplT = Impl<T>;
       BaseImpl::template RunImplTyped<T, ImplT>(ws);

@@ -28,6 +28,8 @@
 
 namespace dali {
 
+class ThreadPool;
+
 /**
  * @brief Used to specify the shape and type of Output
  * that a Workspace can hold.
@@ -98,15 +100,18 @@ inline ArgumentWorkspace::const_iterator end(const ArgumentWorkspace& ws) {
  * storing all data required by an operator,
  * including its input and output, parameter tensors and
  * meta-data about execution.
+ *
+ * @tparam DataObject - the class template used for storing data (`TensorList` or `Tensor`)
+ * @tparam ptr_t      - the template that creates a pointer from the `DataObject<Backend>`;
+ *                      currently `std::shared_ptr` for `Workspace`
+ *                      and `std::add_pointer_t` for `SampleWorkspace`
  */
-template <template<typename> class InputType, template<typename> class OutputType>
+template <template <typename Backend> class DataObject,
+          template <typename T> class ptr_t = std::shared_ptr>
 class WorkspaceBase : public ArgumentWorkspace {
  public:
   template <typename Backend>
-  using input_t = InputType<Backend>;
-
-  template <typename Backend>
-  using output_t = OutputType<Backend>;
+  using DataObjectPtr = ptr_t<DataObject<Backend>>;
 
   WorkspaceBase() {}
   ~WorkspaceBase() override = default;
@@ -194,7 +199,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Intended only for executor and other internal APIs.
    */
   template <typename Backend>
-  const InputType<Backend>& InputPtr(int idx) const {
+  const DataObjectPtr<Backend>& InputPtr(int idx) const {
     return InputHandle(idx, Backend{});
   }
 
@@ -204,7 +209,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Intended only for executor and other internal APIs.
    */
   template <typename Backend>
-  const OutputType<Backend>& OutputPtr(int idx) const {
+  const DataObjectPtr<Backend>& OutputPtr(int idx) const {
     return OutputHandle(idx, Backend{});
   }
 
@@ -330,54 +335,70 @@ class WorkspaceBase : public ArgumentWorkspace {
   /**
    * @brief Adds new CPU input.
    */
-  void AddInput(InputType<CPUBackend> input) {
+  void AddInput(DataObjectPtr<CPUBackend> input) {
     AddHelper(input, &cpu_inputs_, &cpu_inputs_index_, &input_index_map_, StorageDevice::CPU);
   }
 
   /**
    * @brief Adds new GPU input.
    */
-  void AddInput(InputType<GPUBackend> input) {
+  void AddInput(DataObjectPtr<GPUBackend> input) {
     AddHelper(input, &gpu_inputs_, &gpu_inputs_index_, &input_index_map_, StorageDevice::GPU);
   }
 
   /**
    * @brief Sets the CPU input at the specified index to the given input argument
    */
-  void SetInput(int idx, InputType<CPUBackend> input) {
-    SetHelper<InputType, CPUBackend>(idx,
-                                     input,
-                                     &cpu_inputs_,
-                                     &cpu_inputs_index_,
-                                     &input_index_map_,
-                                     &cpu_inputs_,
-                                     &cpu_inputs_index_,
-                                     &gpu_inputs_,
-                                     &gpu_inputs_index_,
-                                     StorageDevice::CPU);
+  void SetInput(int idx, DataObjectPtr<CPUBackend> input) {
+    SetHelper<DataObjectPtr, CPUBackend>(
+      idx,
+      input,
+      &cpu_inputs_,
+      &cpu_inputs_index_,
+      &input_index_map_,
+      &cpu_inputs_,
+      &cpu_inputs_index_,
+      &gpu_inputs_,
+      &gpu_inputs_index_,
+      StorageDevice::CPU);
   }
 
   /**
    * @brief Sets the GPU input at the specified index to the given input argument
    */
-  void SetInput(int idx, InputType<GPUBackend> input) {
-    SetHelper<InputType, GPUBackend>(idx,
-                                     input,
-                                     &gpu_inputs_,
-                                     &gpu_inputs_index_,
-                                     &input_index_map_,
-                                     &cpu_inputs_,
-                                     &cpu_inputs_index_,
-                                     &gpu_inputs_,
-                                     &gpu_inputs_index_,
-                                     StorageDevice::GPU);
+  void SetInput(int idx, DataObjectPtr<GPUBackend> input) {
+    SetHelper<DataObjectPtr, GPUBackend>(
+      idx,
+      input,
+      &gpu_inputs_,
+      &gpu_inputs_index_,
+      &input_index_map_,
+      &cpu_inputs_,
+      &cpu_inputs_index_,
+      &gpu_inputs_,
+      &gpu_inputs_index_,
+      StorageDevice::GPU);
   }
 
+  inline void SetThreadPool(ThreadPool *pool) {
+    thread_pool_ = pool;
+  }
+
+  inline bool HasThreadPool() const {
+    return thread_pool_ != nullptr;
+  }
+
+  inline ThreadPool &GetThreadPool() const {
+    DALI_ENFORCE(HasThreadPool(), "Workspace does not have a Thread Pool.");
+    return *thread_pool_;
+  }
 
   /**
    * @brief Returns true if this workspace has CUDA stream available
    */
-  virtual bool has_stream() const = 0;
+  inline bool has_stream() const {
+    return output_order_.is_device();
+  }
 
 
   /**
@@ -390,55 +411,90 @@ class WorkspaceBase : public ArgumentWorkspace {
                  "the stream hasn't been successfully set. "
                  "Use `has_stream()`, to runtime-check, "
                  "if CUDA stream is available for this workspace");
-    auto stream = stream_impl();
-    return stream;
+    return output_order_.stream();
   }
 
+  void set_output_order(AccessOrder order) {
+    output_order_ = order;
+  }
+
+  AccessOrder output_order() const {
+    return output_order_;
+  }
+
+  void set_stream(cudaStream_t stream) {
+    output_order_ = stream;
+  }
+
+  inline void set_event(cudaEvent_t event) {
+    event_ = event;
+  }
+
+  inline cudaEvent_t event() const {
+    return event_;
+  }
+
+  inline bool has_event() const {
+    return event_ != nullptr;
+  }
+
+  /**
+   * @brief Adds a parent event that will signal this
+   * work is allowed to execute.
+   */
+  inline void AddParentEvent(cudaEvent_t event) { parent_events_.push_back(event); }
+
+  /**
+   * @brief Returns the set of parent events this workspace stores.
+   */
+  inline span<const cudaEvent_t> ParentEvents() const { return make_cspan(parent_events_); }
 
   /**
    * @brief Adds new CPU output
    */
-  void AddOutput(OutputType<CPUBackend> output) {
+  void AddOutput(DataObjectPtr<CPUBackend> output) {
     AddHelper(output, &cpu_outputs_, &cpu_outputs_index_, &output_index_map_, StorageDevice::CPU);
   }
 
   /**
    * @brief Adds new GPU output
    */
-  void AddOutput(OutputType<GPUBackend> output) {
+  void AddOutput(DataObjectPtr<GPUBackend> output) {
     AddHelper(output, &gpu_outputs_, &gpu_outputs_index_, &output_index_map_, StorageDevice::GPU);
   }
 
   /**
    * @brief Sets the CPU output at the specified index
    */
-  void SetOutput(int idx, OutputType<CPUBackend> output) {
-    SetHelper<OutputType, CPUBackend>(idx,
-                                      output,
-                                      &cpu_outputs_,
-                                      &cpu_outputs_index_,
-                                      &output_index_map_,
-                                      &cpu_outputs_,
-                                      &cpu_outputs_index_,
-                                      &gpu_outputs_,
-                                      &gpu_outputs_index_,
-                                      StorageDevice::CPU);
+  void SetOutput(int idx, DataObjectPtr<CPUBackend> output) {
+    SetHelper<DataObjectPtr, CPUBackend>(
+      idx,
+      output,
+      &cpu_outputs_,
+      &cpu_outputs_index_,
+      &output_index_map_,
+      &cpu_outputs_,
+      &cpu_outputs_index_,
+      &gpu_outputs_,
+      &gpu_outputs_index_,
+      StorageDevice::CPU);
   }
 
   /**
    * @brief Sets the GPU output at the specified index
    */
-  void SetOutput(int idx, OutputType<GPUBackend> output) {
-    SetHelper<OutputType, GPUBackend>(idx,
-                                      output,
-                                      &gpu_outputs_,
-                                      &gpu_outputs_index_,
-                                      &output_index_map_,
-                                      &cpu_outputs_,
-                                      &cpu_outputs_index_,
-                                      &gpu_outputs_,
-                                      &gpu_outputs_index_,
-                                      StorageDevice::GPU);
+  void SetOutput(int idx, DataObjectPtr<GPUBackend> output) {
+    SetHelper<DataObjectPtr, GPUBackend>(
+      idx,
+      output,
+      &gpu_outputs_,
+      &gpu_outputs_index_,
+      &output_index_map_,
+      &cpu_outputs_,
+      &cpu_outputs_index_,
+      &gpu_outputs_,
+      &gpu_outputs_index_,
+      StorageDevice::GPU);
   }
 
   /**
@@ -447,7 +503,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @throws runtime_error if the calling type does not match the
    * type of the tensor at the given index
    */
-  OutputType<CPUBackend> SharedCPUOutput(int idx) {
+  DataObjectPtr<CPUBackend> SharedCPUOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
     auto tensor_meta = output_index_map_[idx];
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output with given "
@@ -461,7 +517,7 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @throws runtime_error if the calling type does not match the
    * type of the tensor at the given index
    */
-  OutputType<GPUBackend> SharedGPUOutput(int idx) {
+  DataObjectPtr<GPUBackend> SharedGPUOutput(int idx) {
     DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
     auto tensor_meta = output_index_map_[idx];
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output with given "
@@ -551,23 +607,23 @@ class WorkspaceBase : public ArgumentWorkspace {
   }
 
 
-  const InputType<CPUBackend>& InputHandle(int idx, const CPUBackend&) const {
+  const DataObjectPtr<CPUBackend>& InputHandle(int idx, const CPUBackend&) const {
     return CPUInput(idx);
   }
 
-  const InputType<GPUBackend>& InputHandle(int idx, const GPUBackend&) const {
+  const DataObjectPtr<GPUBackend>& InputHandle(int idx, const GPUBackend&) const {
     return GPUInput(idx);
   }
 
-  const OutputType<CPUBackend>& OutputHandle(int idx, const CPUBackend&) const {
+  const DataObjectPtr<CPUBackend>& OutputHandle(int idx, const CPUBackend&) const {
     return CPUOutput(idx);
   }
 
-  const OutputType<GPUBackend>& OutputHandle(int idx, const GPUBackend&) const {
+  const DataObjectPtr<GPUBackend>& OutputHandle(int idx, const GPUBackend&) const {
     return GPUOutput(idx);
   }
 
-  inline const InputType<GPUBackend>& GPUInput(int idx) const {
+  inline const DataObjectPtr<GPUBackend>& GPUInput(int idx) const {
     auto tensor_meta = FetchAtIndex(input_index_map_, idx);
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Input with given "
         "index (" + std::to_string(idx) +
@@ -575,7 +631,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     return gpu_inputs_[tensor_meta.index];
   }
 
-  inline const InputType<CPUBackend>& CPUInput(int idx) const {
+  inline const DataObjectPtr<CPUBackend>& CPUInput(int idx) const {
     auto tensor_meta = FetchAtIndex(input_index_map_, idx);
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Input with given "
         "index (" + std::to_string(idx) +
@@ -583,7 +639,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     return cpu_inputs_[tensor_meta.index];
   }
 
-  inline const OutputType<GPUBackend>& GPUOutput(int idx) const {
+  inline const DataObjectPtr<GPUBackend>& GPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU,
                  make_string("Output with given index (", idx,
@@ -591,7 +647,7 @@ class WorkspaceBase : public ArgumentWorkspace {
     return gpu_outputs_[tensor_meta.index];
   }
 
-  inline const OutputType<CPUBackend>& CPUOutput(int idx) const {
+  inline const DataObjectPtr<CPUBackend>& CPUOutput(int idx) const {
     auto tensor_meta = FetchAtIndex(output_index_map_, idx);
     DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU,
                  make_string("Output with given index (", idx,
@@ -604,10 +660,10 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   SmallVector<int, 4> batch_sizes_;
 
-  vector<InputType<CPUBackend>> cpu_inputs_;
-  vector<OutputType<CPUBackend>> cpu_outputs_;
-  vector<InputType<GPUBackend>> gpu_inputs_;
-  vector<OutputType<GPUBackend>> gpu_outputs_;
+  vector<DataObjectPtr<CPUBackend>> cpu_inputs_;
+  vector<DataObjectPtr<CPUBackend>> cpu_outputs_;
+  vector<DataObjectPtr<GPUBackend>> gpu_inputs_;
+  vector<DataObjectPtr<GPUBackend>> gpu_outputs_;
 
   // Maps from a Tensor position in its typed vector
   // to its absolute position in the workspaces outputs
@@ -628,12 +684,28 @@ class WorkspaceBase : public ArgumentWorkspace {
     return index_map[idx];
   }
 
-
-  /**
-   * @brief Returns CUDA stream or nullptr, if the stream is unavailable
-   */
-  virtual cudaStream_t stream_impl() const = 0;
+  AccessOrder output_order_ = AccessOrder::host();
+  ThreadPool *thread_pool_ = nullptr;
+  cudaEvent_t event_ = nullptr;
+  SmallVector<cudaEvent_t, 4> parent_events_;
 };
+
+class Workspace : public WorkspaceBase<TensorList> {};
+
+class SampleWorkspace;
+
+template <typename Backend>
+struct LegacyWorkspace {
+  using type = Workspace;
+};
+
+template <>
+struct LegacyWorkspace<CPUBackend> {
+  using type = SampleWorkspace;
+};
+
+template <typename Backend>
+using legacy_workspace_t = typename LegacyWorkspace<Backend>::type;
 
 }  // namespace dali
 

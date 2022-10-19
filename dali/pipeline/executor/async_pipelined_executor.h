@@ -89,7 +89,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
 
   DLL_PUBLIC void RunGPU() override;
 
-  DLL_PUBLIC void Outputs(DeviceWorkspace *ws) override {
+  DLL_PUBLIC void Outputs(Workspace *ws) override {
     CheckForErrors();
     try {
       PipelinedExecutor::Outputs(ws);

@@ -127,7 +127,7 @@ class DataReader : public Operator<Backend> {
     }
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     StartPrefetchThread();
     ConsumerWait();
@@ -137,7 +137,7 @@ class DataReader : public Operator<Backend> {
   using Operator<Backend>::Run;
 
   // CPUBackend operators
-  void Run(HostWorkspace &ws) override {
+  void RunBackend(Workspace &ws, CPUBackend) {
     // consume batch
     DomainTimeRange tr("[DALI][DataReader] Run #" + to_string(curr_batch_consumer_),
                        DomainTimeRange::kViolet);
@@ -151,7 +151,7 @@ class DataReader : public Operator<Backend> {
     ConsumerAdvanceQueue();
   }
 
-  void EnforceUniformOutput(const HostWorkspace &ws) const {
+  void EnforceUniformOutput(const Workspace &ws) const {
     for (int out_idx = 0; out_idx < ws.NumOutput(); out_idx++) {
       auto &out = ws.Output<CPUBackend>(out_idx);
       int n = out.num_samples();
@@ -176,7 +176,7 @@ class DataReader : public Operator<Backend> {
 
 
   // GPUBackend operators
-  void Run(DeviceWorkspace &ws) override {
+  void RunBackend(Workspace &ws, GPUBackend) {
     // Consume batch
     Operator<Backend>::Run(ws);
     CUDA_CALL(cudaStreamSynchronize(ws.stream()));
@@ -185,6 +185,10 @@ class DataReader : public Operator<Backend> {
 
     // Notify we have consumed a batch
     ConsumerAdvanceQueue();
+  }
+
+  void Run(Workspace &ws) override {
+    RunBackend(ws, Backend{});
   }
 
   ReaderMeta GetReaderMeta() const override {

@@ -340,20 +340,13 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC void RunGPU();
 
   /**
-   * @brief Sets completion callback which is called when GPU work is done
-   * It blocks next GPU iteration so it is up to the developer to schedule
-   * long lasting work in some thread and just fire the work from this CB
-   */
-  DLL_PUBLIC void SetCompletionCallback(ExecutorBase::ExecutorCallback cb);
-
-  /**
    * @brief Fills the input device workspace with the output of the pipeline.
    * Previously returned buffers are released.
    * This method blocks until the next batch is complete. RunCPU, RunMixed and RunGPU
    * must be called prior to calling this or this method will result in
    * deadlock.
    */
-  DLL_PUBLIC void Outputs(DeviceWorkspace *ws);
+  DLL_PUBLIC void Outputs(Workspace *ws);
 
   /**
    * @brief Fills the input device workspace with the output of the pipeline.
@@ -362,7 +355,7 @@ class DLL_PUBLIC Pipeline {
    * must be called prior to calling this or this method will result in
    * deadlock.
    */
-  DLL_PUBLIC void ShareOutputs(DeviceWorkspace *ws);
+  DLL_PUBLIC void ShareOutputs(Workspace *ws);
 
   /**
    * @brief Release buffers returned by the Output call
@@ -549,7 +542,7 @@ class DLL_PUBLIC Pipeline {
    * Validate, that the outputs from the Pipeline match the criteria.
    * @return True, if the outputs passed the validation test.
    */
-  bool ValidateOutputs(const DeviceWorkspace &ws) const;
+  bool ValidateOutputs(const Workspace &ws) const;
 
   /**
    * @brief Prepare the OpSpec and generate operator name and output name for a specified

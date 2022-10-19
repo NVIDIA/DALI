@@ -318,7 +318,7 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(3);
     output_desc[0] = {TensorListShape<0>(ws.GetRequestedBatchSize(0)),         DALI_INT32};
     // Non-matching shapes
@@ -327,7 +327,7 @@ class TestArgumentInput_Producer : public Operator<CPUBackend> {
     return true;
   }
 
-  void RunImpl(HostWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     // Initialize all the data with a 0, 1, 2 .... sequence
     auto &out0 = ws.Output<CPUBackend>(0);
     for (int i = 0; i < out0.shape().num_samples(); i++) {
@@ -363,13 +363,13 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const HostWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     output_desc[0] = {uniform_list_shape(ws.GetRequestedBatchSize(0), {1}), DALI_INT32};
     return true;
   }
 
-  void RunImpl(HostWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     auto curr_batch_size =
         ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
     for (int i = 0; i < curr_batch_size; i++) {
@@ -441,7 +441,7 @@ TEST(ArgumentInputTest, OpSpecAccess) {
   pipe.RunCPU();
   pipe.RunGPU();
 
-  DeviceWorkspace ws;
+  Workspace ws;
   pipe.Outputs(&ws);
 }
 

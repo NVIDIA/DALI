@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,8 +65,8 @@ class SequenceRearrange : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override {
-    const auto& input = ws.template Input<Backend>(0);
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
+    const auto& input = ws.Input<Backend>(0);
     const auto& in_shape = input.shape();  // temporary in some cases
     DALI_ENFORCE(in_shape.sample_dim() > 1, "Sequence elements must have at least 1 dim");
     output_desc.resize(1);
@@ -98,7 +98,7 @@ class SequenceRearrange : public Operator<Backend> {
     return true;
   }
 
-  void RunImpl(workspace_t<Backend>& ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   USE_OPERATOR_MEMBERS();

@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,8 +71,8 @@ class ROIRandomCropCPU : public Operator<CPUBackend> {
  public:
   explicit ROIRandomCropCPU(const OpSpec &spec);
   bool CanInferOutputs() const override { return true; }
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   BatchRNG<std::mt19937> rngs_;
@@ -101,7 +101,7 @@ ROIRandomCropCPU::ROIRandomCropCPU(const OpSpec &spec)
 }
 
 bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                 const workspace_t<CPUBackend> &ws) {
+                                 const Workspace &ws) {
   int nsamples = spec_.HasTensorArgument("crop_shape") ?
                      ws.ArgumentInput("crop_shape").num_samples() :
                      ws.GetRequestedBatchSize(0);
@@ -131,7 +131,7 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
         }
       }
     } else {
-      auto &in = ws.template Input<CPUBackend>(0);
+      auto &in = ws.Input<CPUBackend>(0);
       in_shape_ = in.shape();
     }
 
@@ -174,8 +174,8 @@ bool ROIRandomCropCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
   return true;
 }
 
-void ROIRandomCropCPU::RunImpl(workspace_t<CPUBackend> &ws) {
-  auto &out_crop_start = ws.template Output<CPUBackend>(0);
+void ROIRandomCropCPU::RunImpl(Workspace &ws) {
+  auto &out_crop_start = ws.Output<CPUBackend>(0);
   auto crop_start = view<int64_t, 1>(out_crop_start);
 
   int nsamples = crop_start.shape.size();

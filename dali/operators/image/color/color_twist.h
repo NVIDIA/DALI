@@ -106,11 +106,11 @@ class ColorTwistBase : public SequenceOperator<Backend> {
   // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
   // the number of samples and parameters unnecessarily for FHWC when there are no
   // per-frame parameters provided.
-  bool ShouldExpand(const workspace_t<Backend> &ws) override {
+  bool ShouldExpand(const Workspace &ws) override {
     return SequenceOperator<Backend>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
   }
 
-  void AcquireArguments(const workspace_t<Backend> &ws) {
+  void AcquireArguments(const Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     if (this->spec_.ArgumentDefined(color::kHue)) {
       this->GetPerSampleArgument(hue_, color::kHue, ws, curr_batch_size);
@@ -142,7 +142,7 @@ class ColorTwistBase : public SequenceOperator<Backend> {
       contrast_ = std::vector<float>(curr_batch_size, 1);
     }
 
-    auto in_type = ws.template Input<Backend>(0).type();
+    auto in_type = ws.Input<Backend>(0).type();
     output_type_ = output_type_arg_ != DALI_NO_TYPE ? output_type_arg_ : in_type;
 
     if (in_type == DALI_FLOAT16 || in_type == DALI_FLOAT || in_type == DALI_FLOAT64) {
@@ -155,7 +155,7 @@ class ColorTwistBase : public SequenceOperator<Backend> {
   /**
    * @brief Creates transformation matrices based on given args
    */
-  void DetermineTransformation(const workspace_t<Backend> &ws) {
+  void DetermineTransformation(const Workspace &ws) {
     using namespace color;  // NOLINT
     AcquireArguments(ws);
     assert(hue_.size() == saturation_.size() && hue_.size() == brightness_.size());
@@ -172,8 +172,8 @@ class ColorTwistBase : public SequenceOperator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                 const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+                 const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     DetermineTransformation(ws);
     auto sh = input.shape();
     assert(static_cast<size_t>(sh.num_samples()) == tmatrices_.size());
@@ -210,10 +210,10 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(ColorTwistCpu);
 
  protected:
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   template <typename OutputType, typename InputType, int ndim>
-  void RunImplHelper(workspace_t<CPUBackend> &ws);
+  void RunImplHelper(Workspace &ws);
 };
 
 
@@ -226,10 +226,10 @@ class ColorTwistGpu : public ColorTwistBase<GPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(ColorTwistGpu);
 
  protected:
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   template <typename OutputType, typename InputType>
-  void RunImplHelper(workspace_t<GPUBackend> &ws);
+  void RunImplHelper(Workspace &ws);
 };
 
 }  // namespace dali

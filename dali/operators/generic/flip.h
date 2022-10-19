@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,9 +32,9 @@ class Flip: public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Flip);
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    auto &input = ws.template Input<Backend>(0);
+    auto &input = ws.Input<Backend>(0);
     output_desc[0].type =  input.type();
     output_desc[0].shape = input.shape();
     return true;
@@ -44,7 +44,7 @@ class Flip: public Operator<Backend> {
     return true;
   }
 
-  void RunImpl(Workspace<Backend> &ws) override;
+  void RunImpl(legacy_workspace_t<Backend> &ws) override;
 
   int GetHorizontal(const ArgumentWorkspace &ws, int idx) {
     return this->spec_.template GetArgument<int>("horizontal", &ws, idx);
@@ -58,19 +58,19 @@ class Flip: public Operator<Backend> {
     return this->spec_.template GetArgument<int>("depthwise", &ws, idx);
   }
 
-  std::vector<int> GetHorizontal(const workspace_t<Backend> &ws, int curr_batch_size) {
+  std::vector<int> GetHorizontal(const Workspace &ws, int curr_batch_size) {
     std::vector<int> result;
     OperatorBase::GetPerSampleArgument(result, "horizontal", ws, curr_batch_size);
     return result;
   }
 
-  std::vector<int> GetVertical(const workspace_t<Backend> &ws, int curr_batch_size) {
+  std::vector<int> GetVertical(const Workspace &ws, int curr_batch_size) {
     std::vector<int> result;
     OperatorBase::GetPerSampleArgument(result, "vertical", ws, curr_batch_size);
     return result;
   }
 
-  std::vector<int> GetDepthwise(const workspace_t<Backend> &ws, int curr_batch_size) {
+  std::vector<int> GetDepthwise(const Workspace &ws, int curr_batch_size) {
     std::vector<int> result;
     OperatorBase::GetPerSampleArgument(result, "depthwise", ws, curr_batch_size);
     return result;

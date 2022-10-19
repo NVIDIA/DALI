@@ -1759,7 +1759,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("RunGPU", &Pipeline::RunGPU)
     .def("Outputs",
         [](Pipeline *p) {
-          DeviceWorkspace ws;
+          Workspace ws;
           p->Outputs(&ws);
 
           py::tuple outs(ws.NumOutput());
@@ -1774,7 +1774,7 @@ PYBIND11_MODULE(backend_impl, m) {
         }, py::return_value_policy::take_ownership)
     .def("ShareOutputs",
         [](Pipeline *p) {
-          DeviceWorkspace ws;
+          Workspace ws;
           p->ShareOutputs(&ws);
 
           py::tuple outs(ws.NumOutput());

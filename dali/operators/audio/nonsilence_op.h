@@ -145,7 +145,7 @@ class NonsilenceOperator : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     AcquireArgs(spec_, ws);
     TensorShape<> scalar_shape = {};
     auto curr_batch_size = ws.GetInputBatchSize(0);
@@ -158,7 +158,7 @@ class NonsilenceOperator : public Operator<Backend> {
     return true;
   }
 
-  void AcquireArgs(const OpSpec &spec, const workspace_t<Backend> &ws) {
+  void AcquireArgs(const OpSpec &spec, const Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     this->GetPerSampleArgument(cutoff_db_, "cutoff_db", ws, curr_batch_size);
     if (spec.HasArgument("reference_power")) {
@@ -170,7 +170,7 @@ class NonsilenceOperator : public Operator<Backend> {
       reference_max_ = true;
     }
     window_length_ = spec.GetArgument<int>("window_length", &ws);
-    auto input_type = ws.template Input<Backend>(0).type();
+    auto input_type = ws.Input<Backend>(0).type();
     // If input type is not floating point, there's no need for reset interval
     reset_interval_ = IsFloatingPoint(input_type) ? spec.GetArgument<int>("reset_interval", &ws)
                                                   : -1;

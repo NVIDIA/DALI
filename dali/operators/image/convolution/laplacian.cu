@@ -72,8 +72,8 @@ extern template op_impl_uptr GetLaplacianGpuImpl<float, float>(const OpSpec*,
 // Passing to the kernel less samples (not split into frames) speeds-up
 // the processing, so expand frames dim only if some argument was specified per-frame
 template <>
-bool Laplacian<GPUBackend>::ShouldExpand(const workspace_t<GPUBackend>& ws) {
-  const auto& input = ws.template Input<GPUBackend>(0);
+bool Laplacian<GPUBackend>::ShouldExpand(const Workspace &ws) {
+  const auto& input = ws.Input<GPUBackend>(0);
   auto layout = input.GetLayout();
   dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
   bool should_expand = SequenceOperator<GPUBackend>::ShouldExpand(ws) && HasPerFrameArgInputs(ws);
@@ -87,8 +87,8 @@ bool Laplacian<GPUBackend>::ShouldExpand(const workspace_t<GPUBackend>& ws) {
 
 template <>
 bool Laplacian<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
-                                      const workspace_t<GPUBackend>& ws) {
-  const auto& input = ws.template Input<GPUBackend>(0);
+                                      const Workspace &ws) {
+  const auto& input = ws.Input<GPUBackend>(0);
   assert(input.GetLayout().empty() || input.GetLayout().size() == dim_desc_.total_axes_count);
   auto dtype = dtype_ == DALI_NO_TYPE ? input.type() : dtype_;
   DALI_ENFORCE(dtype == input.type() || dtype == DALI_FLOAT,
@@ -111,7 +111,7 @@ bool Laplacian<GPUBackend>::SetupImpl(std::vector<OutputDesc>& output_desc,
 }
 
 template <>
-void Laplacian<GPUBackend>::RunImpl(workspace_t<GPUBackend>& ws) {
+void Laplacian<GPUBackend>::RunImpl(Workspace &ws) {
   impl_->RunImpl(ws);
 }
 

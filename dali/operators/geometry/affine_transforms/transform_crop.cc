@@ -121,7 +121,7 @@ class TransformCropCPU
     }
   }
 
-  void ProcessArgs(const OpSpec &spec, const workspace_t<CPUBackend> &ws) {
+  void ProcessArgs(const OpSpec &spec, const Workspace &ws) {
     ArgValueFlags flags = ArgValue_EnforceUniform;
     from_start_.Acquire(spec, ws, nsamples_, flags);
     from_end_.Acquire(spec, ws, nsamples_, flags);

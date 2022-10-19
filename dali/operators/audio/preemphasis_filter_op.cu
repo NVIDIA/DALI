@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,17 +65,17 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
     int64_t sz = max_batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
     scratch_mem_.Resize({sz}, DALI_UINT8);
   }
-  void RunImpl(workspace_t<GPUBackend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   template <typename OutputType, typename InputType>
-  void RunImplTyped(workspace_t<GPUBackend> &ws);
+  void RunImplTyped(Workspace &ws);
 
   Tensor<GPUBackend> scratch_mem_;
 };
 
 template <typename OutputType, typename InputType>
-void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
+void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
   using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
@@ -103,8 +103,8 @@ void PreemphasisFilterGPU::RunImplTyped(workspace_t<GPUBackend> &ws) {
   detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu, border_type_);
 }
 
-void PreemphasisFilterGPU::RunImpl(workspace_t<GPUBackend> &ws) {
-  const auto &input = ws.template Input<GPUBackend>(0);
+void PreemphasisFilterGPU::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<GPUBackend>(0);
   TYPE_SWITCH(input.type(), type2id, InputType, PREEMPH_TYPES, (
     TYPE_SWITCH(output_type_, type2id, OutputType, PREEMPH_TYPES, (
       RunImplTyped<OutputType, InputType>(ws);

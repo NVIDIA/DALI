@@ -24,9 +24,7 @@
 #include "dali/pipeline/graph/op_graph.h"
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/graph/op_graph_verifier.h"
-#include "dali/pipeline/workspace/device_workspace.h"
-#include "dali/pipeline/workspace/host_workspace.h"
-#include "dali/pipeline/workspace/mixed_workspace.h"
+#include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
@@ -60,7 +58,7 @@ inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
 // We always use queue_idx = 0 if give queue has only one element -> it is not queued
 template <OpType op_type, OpType producer_type, StorageDevice device>
 enable_if_t<allows_op_input<op_type>(producer_type) && allows_tensor_input<op_type>(device)>
-add_input(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &storage,
+add_input(Workspace &ws, const tensor_data_store_queue_t &storage,
           int queue_idx = 0) {
   auto &queue = get_queue<producer_type, device>(storage);
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
@@ -72,10 +70,10 @@ add_input(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &
 // If parent op_type or device is not allowed this is a no-op
 template <OpType op_type, OpType producer_type, StorageDevice device>
 enable_if_t<!allows_op_input<op_type>(producer_type) || !allows_tensor_input<op_type>(device)>
-add_input(op_type_to_workspace_t<op_type> &, const tensor_data_store_queue_t &, int = 0) {}
+add_input(Workspace &, const tensor_data_store_queue_t &, int = 0) {}
 
 template <OpType op_type, StorageDevice device>
-void add_output(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_queue_t &storage,
+void add_output(Workspace &ws, const tensor_data_store_queue_t &storage,
                 int queue_idx = 0) {
   auto &queue = get_queue<op_type, device>(storage);
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
@@ -88,7 +86,7 @@ void add_output(op_type_to_workspace_t<op_type> &ws, const tensor_data_store_que
 // all DALIOpTypes -> implement `add_input` and add_output for all of the subclasses
 // as well with later operations
 template <OpType op_type>
-void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph, const OpNode &node,
+void SetupInputOutput(Workspace &ws, const OpGraph &graph, const OpNode &node,
                       const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
                       const QueueIdxs &idxs) {
   for (int j = 0; j < node.spec.NumRegularInput(); ++j) {
@@ -148,20 +146,19 @@ void SetupInputOutput(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
 }
 
 template <OpType op_type>
-inline void SetupThreadPool(op_type_to_workspace_t<op_type> &ws, const OpGraph &, const OpNode &,
+inline void SetupThreadPool(Workspace &ws, const OpGraph &, const OpNode &,
                             ThreadPool *, const QueueIdxs &) {
   /* No-op if we are not CPU */
 }
 
 template <>
-inline void SetupThreadPool<OpType::CPU>(op_type_to_workspace_t<OpType::CPU> &ws, const OpGraph &,
-                                         const OpNode &,
+inline void SetupThreadPool<OpType::CPU>(Workspace &ws, const OpGraph &, const OpNode &,
                                          ThreadPool *thread_pool, const QueueIdxs &) {
   ws.SetThreadPool(thread_pool);
 }
 
 template <OpType op_type>
-void SetupStreamsAndEvents(op_type_to_workspace_t<op_type> &ws, const OpGraph &graph,
+void SetupStreamsAndEvents(Workspace &ws, const OpGraph &graph,
                            const OpNode &node, int device_id, cudaStream_t mixed_op_stream,
                            cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
                            const QueueIdxs &idxs) {
@@ -169,7 +166,7 @@ void SetupStreamsAndEvents(op_type_to_workspace_t<op_type> &ws, const OpGraph &g
 }
 
 template <>
-inline void SetupStreamsAndEvents<OpType::MIXED>(MixedWorkspace &ws, const OpGraph &graph,
+inline void SetupStreamsAndEvents<OpType::MIXED>(Workspace &ws, const OpGraph &graph,
                                                  const OpNode &node, int device_id,
                                                  cudaStream_t mixed_op_stream,
                                                  cudaStream_t gpu_op_stream,
@@ -190,7 +187,7 @@ inline void SetupStreamsAndEvents<OpType::MIXED>(MixedWorkspace &ws, const OpGra
 
 template <>
 inline void SetupStreamsAndEvents<OpType::GPU>(
-    DeviceWorkspace &ws,
+    Workspace &ws,
     const OpGraph &graph, const OpNode &node, int device_id,
     cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
     const MixedOpEventMap &mixed_op_events, const QueueIdxs &idxs) {
@@ -214,12 +211,12 @@ inline void SetupStreamsAndEvents<OpType::GPU>(
 }
 
 template <OpType op_type>
-op_type_to_workspace_t<op_type> CreateWorkspace(
+Workspace CreateWorkspace(
     const OpGraph &graph, const OpNode &node, int device_id,
     const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, ThreadPool *thread_pool,
     cudaStream_t mixed_op_stream, cudaStream_t gpu_op_stream,
     const MixedOpEventMap &mixed_op_events, const QueueIdxs &idxs) {
-  op_type_to_workspace_t<op_type> ws;
+  Workspace ws;
   SetupInputOutput<op_type>(ws, graph, node, tensor_to_store_queue, idxs);
   SetupThreadPool<op_type>(ws, graph, node, thread_pool, idxs);
   SetupStreamsAndEvents<op_type>(ws, graph, node, device_id, mixed_op_stream, gpu_op_stream,
@@ -281,7 +278,7 @@ op_type_to_workspace_t<op_type> CreateWorkspace(
 template <typename QueuePolicy>
 struct JIT_WS_Policy {
   template <OpType op_type>
-  using ws_t = op_type_to_workspace_t<op_type>;
+  using ws_t = Workspace;
 
   void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
                                 const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
@@ -348,19 +345,18 @@ inline int SequentialIndex(QueueIdxs idxs, StageQueues depth, OpType last_stage)
 template <typename QueuePolicy>
 struct AOT_WS_Policy;
 
-template <typename Workspace>
-void SetOrder(Workspace &ws, AccessOrder order) {
+inline void SetOrder(Workspace &ws, AccessOrder order) {
   for (int i = 0; i < ws.NumInput(); i++) {
-    if (ws.template InputIsType<CPUBackend>(i))
-      ws.template UnsafeMutableInput<CPUBackend>(i).set_order(order);
-    else if (ws.template InputIsType<GPUBackend>(i))
-      ws.template UnsafeMutableInput<GPUBackend>(i).set_order(order);
+    if (ws.InputIsType<CPUBackend>(i))
+      ws.UnsafeMutableInput<CPUBackend>(i).set_order(order);
+    else if (ws.InputIsType<GPUBackend>(i))
+      ws.UnsafeMutableInput<GPUBackend>(i).set_order(order);
   }
   for (int i = 0; i < ws.NumOutput(); i++) {
-    if (ws.template OutputIsType<CPUBackend>(i))
-      ws.template Output<CPUBackend>(i).set_order(order);
-    else if (ws.template OutputIsType<GPUBackend>(i))
-      ws.template Output<GPUBackend>(i).set_order(order);
+    if (ws.OutputIsType<CPUBackend>(i))
+      ws.Output<CPUBackend>(i).set_order(order);
+    else if (ws.OutputIsType<GPUBackend>(i))
+      ws.Output<GPUBackend>(i).set_order(order);
   }
 }
 
@@ -386,7 +382,7 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
   }
 
   template <OpType op_type>
-  using ws_t = op_type_to_workspace_t<op_type> &;
+  using ws_t = Workspace &;
 
   void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
                                 const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
@@ -448,12 +444,12 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
  private:
   StageQueues depths_;
   // ws_id -> op_id -> workspace
-  std::vector<std::vector<HostWorkspace>> cpu_workspaces_;
-  std::vector<std::vector<MixedWorkspace>> mixed_workspaces_;
-  std::vector<std::vector<DeviceWorkspace>> gpu_workspaces_;
+  std::vector<std::vector<Workspace>> cpu_workspaces_;
+  std::vector<std::vector<Workspace>> mixed_workspaces_;
+  std::vector<std::vector<Workspace>> gpu_workspaces_;
 
   template <OpType op_type>
-  using ws_collection_t = std::vector<std::vector<op_type_to_workspace_t<op_type>>>;
+  using ws_collection_t = std::vector<std::vector<Workspace>>;
 
   // Access one of `cpu_workspaces_`, `mixed_workspaces_`, `gpu_workspaces_`
   // based on op_type. Below are specialization for the sake of simplicity
@@ -481,19 +477,19 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
 };
 
 template <>
-inline std::vector<std::vector<HostWorkspace>>&
+inline std::vector<std::vector<Workspace>>&
     AOT_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::CPU>() {
   return cpu_workspaces_;
 }
 
 template <>
-inline std::vector<std::vector<MixedWorkspace>>&
+inline std::vector<std::vector<Workspace>>&
     AOT_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::MIXED>() {
   return mixed_workspaces_;
 }
 
 template <>
-inline std::vector<std::vector<DeviceWorkspace>>&
+inline std::vector<std::vector<Workspace>>&
     AOT_WS_Policy<SeparateQueuePolicy>::GetWorkspacesCollection<OpType::GPU>() {
   return gpu_workspaces_;
 }
@@ -507,7 +503,7 @@ inline std::vector<std::vector<DeviceWorkspace>>&
 template <>
 struct AOT_WS_Policy<UniformQueuePolicy> {
   template <OpType op_type>
-  using ws_t = op_type_to_workspace_t<op_type> &;
+  using ws_t = Workspace &;
 
   ~AOT_WS_Policy() {
     for (auto &wss : wss_) {
@@ -573,25 +569,24 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
       ), DALI_FAIL("Invalid op type"));  // NOLINT(whitespace/parens)
     }
   }
+
   struct WorkspaceBlob {
-    workspace_store_t op_data;
+    std::array<std::vector<Workspace>, static_cast<int>(OpType::COUNT)> op_data;
 
     void Resize(int cpu, int mixed, int gpu) {
-      std::get<static_cast<int>(OpType::CPU)>(op_data).resize(cpu);
-      std::get<static_cast<int>(OpType::MIXED)>(op_data).resize(mixed);
-      std::get<static_cast<int>(OpType::GPU)>(op_data).resize(gpu);
+      op_data[static_cast<int>(OpType::CPU)].resize(cpu);
+      op_data[static_cast<int>(OpType::MIXED)].resize(mixed);
+      op_data[static_cast<int>(OpType::GPU)].resize(gpu);
     }
 
     void Clear() {
-      std::get<static_cast<int>(OpType::CPU)>(op_data).clear();
-      std::get<static_cast<int>(OpType::MIXED)>(op_data).clear();
-      std::get<static_cast<int>(OpType::GPU)>(op_data).clear();
+      for (auto &data : op_data)
+        data.clear();
     }
   };
   vector<WorkspaceBlob> wss_;
   int queue_size_ = -1;
 };
-
 
 }  // namespace dali
 

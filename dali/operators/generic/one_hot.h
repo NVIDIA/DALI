@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,8 +79,8 @@ class OneHot : public Operator<Backend> {
     return true;
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
-    const auto &input = ws.template Input<Backend>(0);
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    const auto &input = ws.Input<Backend>(0);
     int input_sample_dim = input.shape().sample_dim();
     int num_samples = input.shape().num_samples();
     DALI_ENFORCE(-1 <= axis_ && axis_ <= input_sample_dim,
@@ -109,12 +109,12 @@ class OneHot : public Operator<Backend> {
     return true;
   };
 
-  TensorLayout GetOutputLayout(const workspace_t<Backend> &ws, int placement_axis,
+  TensorLayout GetOutputLayout(const Workspace &ws, int placement_axis,
                                int output_sample_dim) {
     if (!new_axis_name_) {
       return {};
     }
-    const auto &input = ws.template Input<Backend>(0);
+    const auto &input = ws.Input<Backend>(0);
     auto in_layout = input.GetLayout();
     // .size method returns uint_8 which doesn't work well when 0 is printed in error message
     int in_layout_size = in_layout.size();

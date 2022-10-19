@@ -19,9 +19,9 @@ namespace dali {
 namespace tensor_property {
 
 template <>
-void SourceInfo<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
-  const auto& input = ws.template Input<CPUBackend>(0);
-  auto& output = ws.template Output<CPUBackend>(0);
+void SourceInfo<CPUBackend>::FillOutput(Workspace &ws) {
+  const auto& input = ws.Input<CPUBackend>(0);
+  auto& output = ws.Output<CPUBackend>(0);
   for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto si = GetSourceInfo(input, sample_id);
     std::memcpy(output.mutable_tensor<uint8_t>(sample_id), si.c_str(), si.length());
@@ -29,9 +29,9 @@ void SourceInfo<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
 }
 
 template <>
-void Layout<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
-  const auto& input = ws.template Input<CPUBackend>(0);
-  auto& output = ws.template Output<CPUBackend>(0);
+void Layout<CPUBackend>::FillOutput(Workspace &ws) {
+  const auto& input = ws.Input<CPUBackend>(0);
+  auto& output = ws.Output<CPUBackend>(0);
   for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto layout = GetLayout(input, sample_id);
     std::memcpy(output.mutable_tensor<uint8_t>(sample_id), layout.c_str(), layout.size());
@@ -39,9 +39,9 @@ void Layout<CPUBackend>::FillOutput(workspace_t<CPUBackend>& ws) {
 }
 
 template <>
-void SourceInfo<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
-  const auto& input = ws.template Input<GPUBackend>(0);
-  auto& output = ws.template Output<GPUBackend>(0);
+void SourceInfo<GPUBackend>::FillOutput(Workspace &ws) {
+  const auto& input = ws.Input<GPUBackend>(0);
+  auto& output = ws.Output<GPUBackend>(0);
   for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto si = GetSourceInfo(input, sample_id);
     auto output_ptr = output.raw_mutable_tensor(sample_id);
@@ -50,9 +50,9 @@ void SourceInfo<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
 }
 
 template <>
-void Layout<GPUBackend>::FillOutput(workspace_t<GPUBackend>& ws) {
-  const auto& input = ws.template Input<GPUBackend>(0);
-  auto& output = ws.template Output<GPUBackend>(0);
+void Layout<GPUBackend>::FillOutput(Workspace &ws) {
+  const auto& input = ws.Input<GPUBackend>(0);
+  auto& output = ws.Output<GPUBackend>(0);
   for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
     auto layout = GetLayout(input, sample_id);
     auto output_ptr = output.raw_mutable_tensor(sample_id);

@@ -169,8 +169,8 @@ class EraseImplCpu : public OpImplBase<CPUBackend> {
    */
   explicit EraseImplCpu(const OpSpec *spec) : spec_(*spec), fill_value_("fill_value", *spec) {}
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<CPUBackend> &ws) override;
-  void RunImpl(workspace_t<CPUBackend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   const OpSpec &spec_;
@@ -182,8 +182,8 @@ class EraseImplCpu : public OpImplBase<CPUBackend> {
 
 template <typename T, int Dims>
 bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                      const workspace_t<CPUBackend> &ws) {
-  const auto &input = ws.template Input<CPUBackend>(0);
+                                      const Workspace &ws) {
+  const auto &input = ws.Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   auto type = input.type();
   auto shape = input.shape();
@@ -201,7 +201,7 @@ bool EraseImplCpu<T, Dims>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
 
 template <typename T, int Dims>
-void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
+void EraseImplCpu<T, Dims>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
   output.SetLayout(input.GetLayout());
@@ -222,7 +222,7 @@ void EraseImplCpu<T, Dims>::RunImpl(HostWorkspace &ws) {
 
 template <>
 bool Erase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
-                                  const workspace_t<CPUBackend> &ws) {
+                                  const Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto in_shape = input.shape();
   TYPE_SWITCH(input.type(), type2id, T, ERASE_SUPPORTED_TYPES, (
@@ -236,7 +236,7 @@ bool Erase<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 }
 
 template <>
-void Erase<CPUBackend>::RunImpl(workspace_t<CPUBackend> &ws) {
+void Erase<CPUBackend>::RunImpl(Workspace &ws) {
   assert(impl_ != nullptr);
   impl_->RunImpl(ws);
 }

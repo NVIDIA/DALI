@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ void Resize<CPUBackend>::InitializeBackend() {
 }
 
 template <>
-void Resize<CPUBackend>::RunImpl(HostWorkspace &ws) {
+void Resize<CPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
 
@@ -81,7 +81,7 @@ void Resize<GPUBackend>::InitializeBackend() {
 }
 
 template<>
-void Resize<GPUBackend>::RunImpl(DeviceWorkspace &ws) {
+void Resize<GPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
 

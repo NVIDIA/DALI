@@ -48,7 +48,7 @@ class Shapes : public Operator<Backend> {
   }
   bool CanInferOutputs() const override { return true; }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     output_desc[0].type = output_type_;
     decltype(auto) shape = GetInputShape(ws);
@@ -56,8 +56,8 @@ class Shapes : public Operator<Backend> {
     return true;
   }
 
-  void RunImpl(workspace_t<Backend> &ws) override {
-    RunBackend(ws);
+  void RunImpl(Workspace &ws) override {
+    RunBackend(ws, Backend{});
   }
 
   template <typename type>
@@ -80,7 +80,7 @@ class Shapes : public Operator<Backend> {
       (DALI_FAIL(make_string("Unsupported type for Shapes: ", output_type_))));
   }
 
-  void RunBackend(DeviceWorkspace &ws) {
+  void RunBackend(Workspace &ws, GPUBackend) {
     if (!tmp_.has_data()) {
       auto &type = TypeTable::GetTypeInfo(output_type_);
       tmp_.set_type(output_type_);
@@ -93,7 +93,7 @@ class Shapes : public Operator<Backend> {
     output.Copy(tmp_, ws.stream());
   }
 
-  void RunBackend(HostWorkspace &ws) {
+  void RunBackend(Workspace &ws, CPUBackend) {
     ConvertShape(ws.Output<CPUBackend>(0), GetInputShape(ws));
   }
 
@@ -101,16 +101,12 @@ class Shapes : public Operator<Backend> {
     return uniform_list_shape<1>(shape.num_samples(), { shape.sample_dim() });
   }
 
-  static const TensorListShape<> &GetInputShape(const DeviceWorkspace &ws) {
+  static const TensorListShape<> &GetInputShape(const Workspace &ws) {
     if (ws.InputIsType<GPUBackend>(0)) {
       return ws.Input<GPUBackend>(0).shape();
     } else {
       return ws.Input<CPUBackend>(0).shape();
     }
-  }
-
-  static auto GetInputShape(const HostWorkspace &ws) {
-    return ws.Input<CPUBackend>(0).shape();
   }
 
  private:

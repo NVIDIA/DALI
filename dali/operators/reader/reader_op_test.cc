@@ -125,7 +125,7 @@ TYPED_TEST(ReaderTest, SimpleTest) {
   std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
   pipe.Build(outputs);
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i=0; i < 5; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -146,7 +146,7 @@ TYPED_TEST(ReaderTest, PrefetchQueueTest) {
   std::vector<std::pair<string, string>> outputs = {{"data_out", "cpu"}};
   pipe.Build(outputs);
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i=0; i < 5; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();
@@ -192,7 +192,7 @@ TYPED_TEST(ReaderTest, LazyInitTest) {
   // This calls PrepareMetadataImpl
   ASSERT_NO_THROW(lazy_pipe.GetReaderMeta());
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i=0; i < 5; ++i) {
     lazy_pipe.RunCPU();
     lazy_pipe.RunGPU();
@@ -215,7 +215,7 @@ TYPED_TEST(ReaderTest, SequenceTest) {
   std::vector<std::pair<string, string>> outputs = {{"seq_out", "cpu"}};
   pipe.Build(outputs);
 
-  DeviceWorkspace ws;
+  Workspace ws;
   for (int i = 0; i < 4; ++i) {
     pipe.RunCPU();
     pipe.RunGPU();

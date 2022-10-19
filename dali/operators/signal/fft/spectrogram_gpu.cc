@@ -74,7 +74,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     kmgr.Resize<SpectrogramGPU>(1);
   }
 
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const DeviceWorkspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto &in = ws.Input<GPUBackend>(0);
     KernelContext ctx;
     ctx.gpu.stream = ws.stream();
@@ -133,7 +133,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     return true;
   }
 
-  void RunImpl(DeviceWorkspace &ws) override {
+  void RunImpl(Workspace &ws) override {
     const auto &in = ws.Input<GPUBackend>(0);
     auto &out = ws.Output<GPUBackend>(0);
     out.SetLayout(layout);

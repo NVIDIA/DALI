@@ -45,18 +45,18 @@ class Pad : public Operator<Backend> {
   }
 
  protected:
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const workspace_t<Backend> &ws) override;
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   using Operator<Backend>::RunImpl;
-  void RunImpl(workspace_t<Backend> &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   bool CanInferOutputs() const override {
     return true;
   }
 
  private:
-  void ReadArguments(const OpSpec &spec, const workspace_t<Backend> &ws) {
-    const auto &input = ws.template Input<Backend>(0);
+  void ReadArguments(const OpSpec &spec, const Workspace &ws) {
+    const auto &input = ws.Input<Backend>(0);
     auto curr_batch_size = ws.GetInputBatchSize(0);
     auto in_shape = input.shape();
     int ndim = in_shape.sample_dim();

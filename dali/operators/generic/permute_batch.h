@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ class PermuteBatchBase : public Operator<Backend> {
     has_indices_input_ = spec.HasTensorArgument("indices");
   }
 
-  bool SetupImpl(vector<OutputDesc> &outputs, const workspace_t<Backend> &ws) override {
+  bool SetupImpl(vector<OutputDesc> &outputs, const Workspace &ws) override {
     outputs.resize(1);
-    auto &input = ws.template Input<Backend>(0);
+    auto &input = ws.Input<Backend>(0);
     const auto &in_shape = input.shape();
     outputs[0].type = input.type();
 
@@ -82,7 +82,7 @@ class PermuteBatch<CPUBackend> : public PermuteBatchBase<CPUBackend> {
  public:
   using PermuteBatchBase::PermuteBatchBase;
 
-  void RunImpl(HostWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 };
 
 template <>
@@ -93,7 +93,7 @@ class PermuteBatch<GPUBackend> : public PermuteBatchBase<GPUBackend> {
   , sg_(1<<18) {}
 
 
-  void RunImpl(DeviceWorkspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
  private:
   kernels::ScatterGatherGPU sg_;

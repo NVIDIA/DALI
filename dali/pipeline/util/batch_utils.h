@@ -26,15 +26,14 @@ namespace dali {
  * @brief Verifies that the inputs in the workspace satisfy the layout
  *        constraints imposed by the schema.
  */
-template <typename Workspace>
 inline void CheckInputLayouts(const Workspace &ws, const OpSpec &spec) {
   auto &schema = spec.GetSchema();
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    if (ws.template InputIsType<CPUBackend>(i)) {
-      auto &input = ws.template Input<CPUBackend>(i);
+    if (ws.InputIsType<CPUBackend>(i)) {
+      auto &input = ws.Input<CPUBackend>(i);
       (void)schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
-    } else if (ws.template InputIsType<GPUBackend>(i)) {
-      auto &input = ws.template Input<GPUBackend>(i);
+    } else if (ws.InputIsType<GPUBackend>(i)) {
+      auto &input = ws.Input<GPUBackend>(i);
       (void)schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
     } else {
       DALI_FAIL(make_string("Input ", i, " has an unknown backend"));
