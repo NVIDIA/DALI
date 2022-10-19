@@ -102,7 +102,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
   // Process each CPU Op in batch
   for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU) && !exec_error_; ++cpu_op_id) {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
-    auto ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
+    decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
 
     ws.SetBatchSizes(batch_size);
 
@@ -147,7 +147,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::MIXED, i);
     try {
-      auto ws = ws_policy_.template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
+      decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
 
       ws.SetBatchSizes(batch_size);
 
@@ -212,7 +212,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   for (int i = 0; i < graph_->NumOp(OpType::GPU) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::GPU, i);
     try {
-      auto ws = ws_policy_.template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
+      decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
 
       ws.SetBatchSizes(batch_size);
 
