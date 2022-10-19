@@ -114,7 +114,7 @@ the values can be broadcast along some dimensions if one of the operands has siz
                  [H, J]]        [ A+H,  B+J ]]
 
 
-In the example above, the operands have shapes of (1, 2) and (2, 2). The values from the array
+In the example above, the operands have shapes of (1, 2) and (3, 2). The values from the array
 [[A, B]] are broadcast along axis 0. It's possible that both operands are subject to broadcasting
 along different dimensions::
 
@@ -123,7 +123,7 @@ along different dimensions::
                  [F]]       [ A+F,  B+F ]]
 
 
-In this example, the shapes are (1, 2) and (2, 1) - the first operand is broadcast along axis 0 and
+In this example, the shapes are (1, 2) and (3, 1) - the first operand is broadcast along axis 0 and
 the second is broadcast along axis 1.
 
 Shape extension
