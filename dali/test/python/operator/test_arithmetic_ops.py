@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline, DataNode
+from nvidia.dali import pipeline_def, fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.math as math
@@ -838,3 +839,31 @@ def test_ternary_ops_broadcasting():
                                               selected_input_arithm_types,
                                               selected_input_arithm_types):
                 yield check_ternary_op, kinds, types_in, op, get_sh, op_desc
+
+
+def test_broadcasting_dimensionality_limits():
+    def impl(device, shape_a, shape_b):
+        @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+        def pipe():
+            a = fn.random.uniform(range=[-1, 1], shape=shape_a)
+            b = fn.random.uniform(range=[-1, 1], shape=shape_b)
+            return a + b
+        p = pipe()
+        p.build()
+        p.run()
+
+    # ERROR
+    error_msg = "Broadcasting pattern too complex. Can't operate with simplified" + \
+                " shapes with more than 6 groups of dimensions. Got 10 groups. " + \
+                "For more details see https://docs.nvidia.com/deeplearning/dali/user-guide/docs/math.html"
+    shape_a_err = (2, 1, 2, 1, 2, 1, 2, 1, 2, 1)
+    shape_b_err = (1, 2, 1, 2, 1, 2, 1, 2, 1, 2)
+    for device in ['cpu', 'gpu']:
+        with assert_raises(RuntimeError, glob=error_msg):
+            impl(device, shape_a_err, shape_b_err)
+
+    # NO ERROR (exactly 6 groups)
+    shape_a_ok = (2, 1, 1, 1, 3, 1, 4, 5, 6, 1)
+    shape_b_ok = (1, 2, 3, 4, 1, 5, 1, 1, 1, 6)
+    for device in ['cpu', 'gpu']:
+        impl(device, shape_a_ok, shape_b_ok)

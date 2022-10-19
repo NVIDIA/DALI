@@ -379,4 +379,14 @@ void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorSha
   SimplifyShapesForBroadcasting(make_span(arr));
 }
 
+void CheckBroadcastingSimplifiedDim(int ndim) {
+  if (ndim > 6) {
+    DALI_FAIL(make_string(
+          "Broadcasting pattern too complex. Can't operate with simplified shapes with "
+          "more than 6 groups of dimensions. Got ", ndim, " groups. For more details "
+          "see https://docs.nvidia.com/deeplearning/dali/user-guide/docs/math.html"));
+  }
+}
+
+
 }  // namespace dali

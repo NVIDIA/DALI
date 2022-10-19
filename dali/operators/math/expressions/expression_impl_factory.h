@@ -137,12 +137,13 @@ inline OutputData GetOutput(const ExprFunc &func, Workspace &ws, int sample_idx)
   auto shape = out.shape()[sample_idx];
   TensorShape<> strides;
   kernels::CalcStrides(strides, shape);
-  return {
-    .data = out_ptr,
-    .dtype = out.type(),
-    .shape = shape,
-    .strides = strides
-  };
+
+  OutputData ret;
+  ret.data = out_ptr;
+  ret.dtype = out.type();
+  ret.shape = shape;
+  ret.strides = strides;
+  return ret;
 }
 
 /**
@@ -222,6 +223,9 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
       arg.strides = StridesForBroadcasting(out_sample.output.shape, arg.shape, arg.strides);
     }
   }
+
+  // Throws an error if more than 6 dims
+  CheckBroadcastingSimplifiedDim(out_max_ndim);
 }
 
 /**

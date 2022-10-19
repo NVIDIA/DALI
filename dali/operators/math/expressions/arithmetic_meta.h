@@ -30,6 +30,8 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/operators/math/expressions/math_overloads.h"
 
+#define ARITHM_OPS_ALLOWED_DIMS (1, 2, 3, 4, 5, 6)
+
 namespace dali {
 
 constexpr int kMaxArity = 3;

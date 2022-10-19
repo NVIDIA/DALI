@@ -126,13 +126,13 @@ class ExprImplCpuTT : public ExprImplBase {
   static void Execute(Result *out, const int64_t *out_shape, const int64_t *out_strides,
                       const Left* in0, const int64_t *in0_strides,
                       const Right* in1, const int64_t *in1_strides, int ndim) {
-    VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+    VALUE_SWITCH(ndim, Dims, ARITHM_OPS_ALLOWED_DIMS, (
       return Execute(
         out, out_shape, out_strides,
         in0, in0_strides,
         in1, in1_strides,
         std::integral_constant<int, Dims>());
-    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
+    ), assert(false););  // NOLINT
   }
 };
 
@@ -306,14 +306,14 @@ class ExprImplCpuTernary : public ExprImplBase {
                       expression_detail::param_t<IsThirdTensor, Result> third,
                       DALIDataType third_type, const int64_t *third_strides,
                       int ndim) {
-    VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+    VALUE_SWITCH(ndim, Dims, ARITHM_OPS_ALLOWED_DIMS, (
       return Execute(
         out, out_shape, out_strides,
         first, first_type, 0, first_strides,
         second, second_type, 0, second_strides,
         third, third_type, 0, third_strides,
         std::integral_constant<int, Dims>());
-    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
+    ), assert(false););  // NOLINT
   }
 };
 

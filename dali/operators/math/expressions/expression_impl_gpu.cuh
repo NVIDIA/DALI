@@ -94,7 +94,7 @@ __device__ void ExecuteBinOpND(Result *result, const Left *l, const Right *r, in
   int64_t block_end = offset + extent;
   int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
 
-  for (uint64_t idx = block_start; idx < block_end; idx += block_step) {
+  for (int64_t idx = block_start; idx < block_end; idx += block_step) {
     uint64_t idx_l = 0, idx_r = 0;
     uint64_t tmp_idx = idx;
     #pragma unroll
@@ -188,7 +188,7 @@ __device__ void ExecuteTernaryOpND(Result *result,
   int64_t block_start = offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
   int64_t block_end = offset + extent;
-  for (uint64_t idx = block_start; idx < block_end; idx += block_step) {
+  for (int64_t idx = block_start; idx < block_end; idx += block_step) {
     uint64_t idx_first = 0, idx_second = 0, idx_third = 0;
     uint64_t tmp_idx = idx;
     #pragma unroll
@@ -289,6 +289,30 @@ __global__ void ExecuteTiledTernaryOpND(const SampleDescGPU<3, ndim> *samples,
       &sample.output.strides[0], &arg0.strides[0],  &arg1.strides[0], &arg2.strides[0]);
 }
 
+template <int nargs, int ndim>
+void FillSampleDesc(span<SampleDescGPU<nargs, ndim>> sample_descs, span<const SampleDesc> samples) {
+  assert(sample_descs.size() == samples.size());
+  for (int i = 0; i < samples.size(); i++) {
+    auto &sample_desc = sample_descs[i];
+    auto &sample = samples[i];
+    sample_desc.output.data = sample.output.data;
+    sample_desc.output.dtype = sample.output.dtype;
+    for (int d = 0; d < ndim; d++) {
+      sample_desc.output.shape[d] = sample.output.shape[d];
+      sample_desc.output.strides[d] = sample.output.strides[d];
+    }
+
+    for (int operand_idx = 0; operand_idx < nargs; operand_idx++) {
+      sample_desc.args[operand_idx].data = sample.args[operand_idx].data;
+      sample_desc.args[operand_idx].dtype = sample.args[operand_idx].dtype;
+      for (int d = 0; d < ndim; d++) {
+        sample_desc.args[operand_idx].shape[d] = sample.args[operand_idx].shape[d];
+        sample_desc.args[operand_idx].strides[d] = sample.args[operand_idx].strides[d];
+      }
+    }
+  }
+}
+
 template <ArithmeticOp op, typename Result, typename Input>
 struct InvokerUnOp {
   static void Invoke(const SampleDescGPU<1, 1> *samples, const TileDesc *tiles, dim3 grid,
@@ -360,24 +384,7 @@ class ExprImplGPUInvokeUnary : public ExprImplBase {
     auto sample_descs =
         make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, 1>>(samples.size()),
                   samples.size());
-    for (int i = 0; i < samples.size(); i++) {
-      auto &sample_desc = sample_descs[i];
-      auto &sample = samples[i];
-      sample_desc.output.data = sample.output.data;
-      sample_desc.output.dtype = sample.output.dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.output.shape[d] = sample.output.shape[d];
-        sample_desc.output.strides[d] = sample.output.strides[d];
-      }
-
-      sample_desc.args[0].data = sample.args[0].data;
-      sample_desc.args[0].dtype = sample.args[0].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[0].shape[d] = sample.args[0].shape[d];
-        sample_desc.args[0].strides[d] = sample.args[0].strides[d];
-      }
-    }
-
+    FillSampleDesc(sample_descs, samples);
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, sample_descs, tiles);
     Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream);
   }
@@ -395,9 +402,9 @@ class ExprImplGPUInvokeBinary : public ExprImplBase {
   void Execute(ExprImplContext &ctx, span<const SampleDesc> samples,
                span<const TileDesc> tiles) override {
     int ndim = samples[0].output.shape.sample_dim();
-    VALUE_SWITCH(ndim, Dims, (1, 2, 3, 4, 5, 6), (
+    VALUE_SWITCH(ndim, Dims, ARITHM_OPS_ALLOWED_DIMS, (
       ExecuteImpl<Dims>(ctx, samples, tiles);
-    ), DALI_FAIL(make_string("Unsupported number of dimensions: ", ndim)););  // NOLINT
+    ), assert(false););  // NOLINT
   }
 
   template <int ndim>
@@ -416,27 +423,7 @@ class ExprImplGPUInvokeBinary : public ExprImplBase {
     auto samples_cpu =
         make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, ndim>>(samples.size()),
                   samples.size());
-    for (int i = 0; i < samples.size(); i++) {
-      auto &sample_cpu = samples_cpu[i];
-      auto &sample = samples[i];
-      sample_cpu.output.data = sample.output.data;
-      sample_cpu.output.dtype = sample.output.dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_cpu.output.shape[d] = sample.output.shape[d];
-        sample_cpu.output.strides[d] = sample.output.strides[d];
-      }
-
-      auto prepare_args = [&](int i) {
-        sample_cpu.args[i].data = sample.args[i].data;
-        sample_cpu.args[i].dtype = sample.args[i].dtype;
-        for (int d = 0; d < ndim; d++) {
-          sample_cpu.args[i].shape[d] = sample.args[i].shape[d];
-          sample_cpu.args[i].strides[d] = sample.args[i].strides[d];
-        }
-      };
-      prepare_args(0);
-      prepare_args(1);
-    }
+    FillSampleDesc(samples_cpu, samples);
 
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);
     auto grid = GetGridLayout(kBlocksX, tiles.size());
@@ -475,37 +462,7 @@ class ExprImplGPUInvokeTernary : public ExprImplBase {
     auto sample_descs =
         make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, ndim>>(samples.size()),
                   samples.size());
-    for (int i = 0; i < samples.size(); i++) {
-      auto &sample_desc = sample_descs[i];
-      auto &sample = samples[i];
-      sample_desc.output.data = sample.output.data;
-      sample_desc.output.dtype = sample.output.dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.output.shape[d] = sample.output.shape[d];
-        sample_desc.output.strides[d] = sample.output.strides[d];
-      }
-
-      sample_desc.args[0].data = sample.args[0].data;
-      sample_desc.args[0].dtype = sample.args[0].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[0].shape[d] = sample.args[0].shape[d];
-        sample_desc.args[0].strides[d] = sample.args[0].strides[d];
-      }
-
-      sample_desc.args[1].data = sample.args[1].data;
-      sample_desc.args[1].dtype = sample.args[1].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[1].shape[d] = sample.args[1].shape[d];
-        sample_desc.args[1].strides[d] = sample.args[1].strides[d];
-      }
-
-      sample_desc.args[2].data = sample.args[2].data;
-      sample_desc.args[2].dtype = sample.args[2].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[2].shape[d] = sample.args[2].shape[d];
-        sample_desc.args[2].strides[d] = sample.args[2].strides[d];
-      }
-    }
+    FillSampleDesc(sample_descs, samples);
     SampleDescGPU<kNumArgs, ndim> *samples_gpu = nullptr;
     TileDesc *tiles_gpu = nullptr;
     std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, sample_descs, tiles);

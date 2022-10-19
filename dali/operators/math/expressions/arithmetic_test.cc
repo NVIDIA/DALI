@@ -107,7 +107,7 @@ TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
   std::string expr_str = "div(sub(&0 &1) &2)";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
-  HostWorkspace ws;
+  Workspace ws;
   std::shared_ptr<TensorList<CPUBackend>> in[3];
   for (auto &ptr : in) {
     ptr = std::make_shared<TensorList<CPUBackend>>();
@@ -305,7 +305,7 @@ class BinaryArithmeticOpsTest
     pipe.SetExternalInput("data1", batch[1]);
     pipe.RunCPU();
     pipe.RunGPU();
-    DeviceWorkspace ws;
+    Workspace ws;
     pipe.Outputs(&ws);
     ASSERT_EQ(DALI_INT32, ws.Output<Backend>(0).type());
     auto result_shape = ws.Output<Backend>(0).shape();

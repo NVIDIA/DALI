@@ -131,6 +131,10 @@ void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes);
 DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b);
 DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorShape<> &c);
 
+/**
+ * @brief Throws an error when the number of dimensions in the simplified shapes exceeds 6
+ */
+DLL_PUBLIC void CheckBroadcastingSimplifiedDim(int ndim);
 
 }  // namespace dali
 
