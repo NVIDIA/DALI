@@ -168,6 +168,12 @@ inline std::string to_string(const DALIInterpType& interpolation) {
       return "INTERP_LINEAR";
     case DALI_INTERP_CUBIC:
       return "INTERP_CUBIC";
+    case DALI_INTERP_LANCZOS3:
+      return "INTERP_LANCZOS3";
+    case DALI_INTERP_TRIANGULAR:
+      return "INTERP_TRIANGULAR";
+    case DALI_INTERP_GAUSSIAN:
+      return "INTERP_GAUSSIAN";
     default:
       return "<unknown>";
   }
