@@ -25,15 +25,28 @@ def sample_to_lz4(sample):
     return np.frombuffer(deflated_buf, dtype=np.uint8)
 
 
-def check_batch(inflated, baseline, batch_size, layout=None):
+def check_batch(inflated, baseline, batch_size, layout=None, oversized_shape=False):
     layout = layout or ""
     assert inflated.layout() == layout, (f"The batch layout '({inflated.layout()})' does "
                                          f"not match the expected layout ({layout})")
-    inflated = [np.array(sample) for sample in inflated.as_cpu()]
-    baseline = [np.array(sample) for sample in baseline]
+    inflated_samples = [np.array(sample) for sample in inflated.as_cpu()]
+    baseline_samples = [np.array(sample) for sample in baseline]
     assert batch_size == len(inflated) == len(baseline)
-    for inflated_sample, baseline_sample in zip(inflated, baseline):
-        np.testing.assert_array_equal(inflated_sample, baseline_sample)
+    if not oversized_shape:
+        for inflated_sample, baseline_sample in zip(inflated_samples, baseline_samples):
+            np.testing.assert_array_equal(inflated_sample, baseline_sample)
+    else:
+        for inflated_sample, baseline_sample in zip(inflated_samples, baseline_samples):
+            assert len(inflated_sample) == len(baseline_sample)
+            for inflated_frame, baseline_frame in zip(inflated_sample, baseline_sample):
+                flat_inflated = inflated_frame.reshape(-1)
+                baseline_size = baseline_frame.size
+                actually_inflated = flat_inflated[:baseline_size].reshape(baseline_frame.shape)
+                np.testing.assert_array_equal(actually_inflated, baseline_frame)
+                output_tail = flat_inflated[baseline_size:]
+                assert np.all(
+                    output_tail == 0), (f"Oversized output was not properly padded with 0s. "
+                                        f"Tail size {len(output_tail)}, the tail {output_tail}")
 
 
 def _test_sample_inflate(batch_size, np_dtype, seed):
@@ -128,19 +141,22 @@ def test_scalar_shape():
             yield _test_scalar_shape, dtype, shape, layout
 
 
-def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute):
-    rng = np.random.default_rng(seed=seed)
+def seq_source(rng, ndim, dtype, mode, permute, oversized_shape):
 
-    def source():
+    def uniform(shape):
+        return dtype(rng.uniform(-2**31, 2**31 - 1, shape))
 
-        def uniform(shape):
-            return dtype(rng.uniform(-2**31, 2**31 - 1, shape))
+    def std(shape):
+        return dtype(128 * rng.standard_normal(shape) + 3)
 
-        def std(shape):
-            return dtype(128 * rng.standard_normal(shape) + 3)
+    def smaller_std(shape):
+        return dtype(16 * rng.standard_normal(shape))
 
-        def smaller_std(shape):
-            return dtype(16 * rng.standard_normal(shape))
+    def inflate_shape(shape):
+        multiplier = rng.uniform(1, 2, ndim)
+        return np.int32(shape * multiplier)
+
+    def inner():
         max_extent_size = 64 if ndim >= 3 else 128
         distrs = [uniform, std, smaller_std]
         distrs = rng.permutation(distrs)
@@ -153,6 +169,7 @@ def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute):
         offsets = np.int32(np.cumsum([0] + sizes[:-1]))
         sizes = np.array(sizes, dtype=np.int32)
         deflated = np.concatenate(chunks)
+        reported_shape = shape if not oversized_shape else inflate_shape(shape)
         if permute:
             assert mode == "offset_and_size"
             perm = rng.permutation(num_chunks)
@@ -160,26 +177,33 @@ def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute):
             offsets = offsets[perm]
             sizes = sizes[perm]
         if mode == "offset_only":
-            return sample, deflated, shape, offsets
+            return sample, deflated, reported_shape, offsets
         elif mode == "size_only":
-            return sample, deflated, shape, sizes
+            return sample, deflated, reported_shape, sizes
         else:
             assert mode == "offset_and_size"
-            return sample, deflated, shape, offsets, sizes
+            return sample, deflated, reported_shape, offsets, sizes
+
+    return inner
+
+
+def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape):
+    rng = np.random.default_rng(seed=seed)
+    source = seq_source(rng, ndim, dtype, mode, permute, oversized_shape)
 
     @pipeline_def
     def pipeline():
-        input_data = fn.external_source(source=source, batch=False,
-                                        num_outputs=5 if mode == "offset_and_size" else 4)
+        baseline, deflated, reported_shape, *rest = fn.external_source(
+            source=source, batch=False, num_outputs=5 if mode == "offset_and_size" else 4)
         if mode == "offset_only":
-            baseline, deflated, shape, offsets = input_data
+            offsets, = rest
             sizes = None
         elif mode == "size_only":
-            baseline, deflated, shape, sizes = input_data
+            sizes, = rest
             offsets = None
         else:
-            baseline, deflated, shape, offsets, sizes = input_data
-        inflated = fn.experimental.inflate(deflated.gpu(), shape=shape,
+            offsets, sizes = rest
+        inflated = fn.experimental.inflate(deflated.gpu(), shape=reported_shape,
                                            dtype=np_type_to_dali(dtype), chunks_offsets=offsets,
                                            chunks_sizes=sizes, layout=layout)
         return inflated, baseline
@@ -190,16 +214,21 @@ def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute):
         layout = "F" + layout
     for _ in range(4):
         inflated, baseline = pipe.run()
-        check_batch(inflated, baseline, batch_size, layout)
+        check_batch(inflated, baseline, batch_size, layout, oversized_shape=oversized_shape)
 
 
 def test_chunks():
     seed = 42
     batch_sizes = [1, 9, 31]
     for dtype in [np.uint8, np.int16, np.float32]:
-        for ndim, layout in [(0, None), (1, None), (2, "XY"), (3, "ABC"), (3, "")]:
+        for ndim, layout in [(0, None), (1, None), (2, "XY"), (2, None), (3, "ABC"), (3, "")]:
             for mode, permute in [("offset_only", False), ("size_only", False),
                                   ("offset_and_size", False), ("offset_and_size", True)]:
                 batch_size = batch_sizes[seed % len(batch_sizes)]
-                yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, permute
+                oversized_shape = ndim > 0 and seed % 2 == 1
+                yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape
                 seed += 1
+
+
+# * test error messaging
+# * test variable batch size

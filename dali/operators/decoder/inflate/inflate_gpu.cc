@@ -20,6 +20,7 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/decoder/inflate/inflate.h"
+#include "dali/operators/decoder/inflate/inflate_gpu.h"
 #include "dali/operators/decoder/inflate/inflate_params.h"
 #include "dali/pipeline/data/sequence_utils.h"
 #include "dali/pipeline/data/types.h"
@@ -28,10 +29,6 @@
 namespace dali {
 
 namespace inflate {
-
-#define INFLATE_SUPPORTED_TYPES \
-  (bool, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, float16)
-
 
 template <typename Status>
 void nvcompCall(Status status) {
@@ -46,32 +43,38 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
   explicit InflateOpGpuLZ4Impl(const OpSpec &spec) : InflateOpImplBase<GPUBackend>{spec} {}
 
   void RunImpl(Workspace &ws) override {
-    auto total_chunks_num = params_.GetTotalChunksNum();
     const auto &input = ws.template Input<GPUBackend>(0);
     auto &output = ws.template Output<GPUBackend>(0);
+    auto total_chunks_num = params_.GetTotalChunksNum();
     output.SetLayout(params_.GetOutputLayout());
     SetupInChunks(input);
     SetupOutChunks(output);
+    auto stream = ws.stream();
 
-    kernels::DynamicScratchpad scratchpad({}, ws.stream());
-    ctx_.gpu.stream = ws.stream();
-    ctx_.scratchpad = &scratchpad;
+    kernels::DynamicScratchpad scratchpad({}, stream);
+    size_t *actual_out_sizes = scratchpad.AllocateGPU<size_t>(total_chunks_num);
 
     size_t *in_sizes;
     void const **in;
     size_t *out_sizes;
     void **out;
-    std::tie(in_sizes, in, out_sizes, out) = ctx_.scratchpad->ToContiguousGPU(
-        ctx_.gpu.stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
+    std::tie(in_sizes, in, out_sizes, out) = scratchpad.ToContiguousGPU(
+        stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
 
     size_t tempSize;
-    inflate::nvcompCall(nvcompBatchedLZ4DecompressGetTempSize(
-        total_chunks_num, params_.GetMaxOutChunkVol(), &tempSize));
+    nvcompCall(nvcompBatchedLZ4DecompressGetTempSize(total_chunks_num, params_.GetMaxOutChunkVol(),
+                                                     &tempSize));
 
-    void *temp = ctx_.scratchpad->AllocateGPU<uint8_t>(tempSize);
-    inflate::nvcompCall(nvcompBatchedLZ4DecompressAsync(in, in_sizes, out_sizes, nullptr,
-                                                        total_chunks_num, temp, tempSize, out,
-                                                        nullptr, ws.stream()));
+    void *temp = scratchpad.AllocateGPU<uint8_t>(tempSize);
+    nvcompCall(nvcompBatchedLZ4DecompressAsync(in, in_sizes, out_sizes, actual_out_sizes,
+                                               total_chunks_num, temp, tempSize, out, nullptr,
+                                               stream));
+
+    // nvCOMP uses ``out_sizes`` to avoid OOB accesses if the actual data size after the compression
+    // is greater than what follows from the shapes reported by the user.
+    // Here, we take care of the opposite case, when the allocations are bigger than really necessary
+    // and thus may contain some uninitialized memory.
+    FillTheTails(output.type(), total_chunks_num, out, actual_out_sizes, out_sizes, stream);
   }
 
  protected:
@@ -122,8 +125,6 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
       }
     }
   }
-
-  kernels::KernelContext ctx_;
 
   std::vector<const void *> input_ptrs_;
   std::vector<void *> inflated_ptrs_;

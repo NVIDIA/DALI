@@ -29,7 +29,7 @@ a single tensor where the leftmost extent of the tensor corresponds to the numbe
 If the sample is comprised of multiple chunks, the ``chunks_offsets`` or ``chunks_sizes``
 must be specified. In that case, the ``shape`` must describe the shape of a single inflated
 (output) chunk. For sequences, the number of chunks will automatically be added as
-the outermost extent to the output tensors.
+the leftmost extent to the output tensors.
 
 For example, the following snippet presents decompression of a video-like sequences.
 Each video sequence was deflated by, first, compressing each frame separately and then
@@ -37,11 +37,11 @@ concatenating compressed frames from the corresponding sequences.::
 
   @pipeline_def
   def inflate_sequence_pipeline():
-    compressed_seq, uncompressed_frame_shape, compressed_frames_sizes = fn.external_source(...)
+    compressed_seq, uncompressed_hwc_shape, compressed_chunks_sizes = fn.external_source(...)
     sequences = fn.experimental.inflate(
         compressed_seq.gpu(),
-        shape=uncompressed_frame_shape,
-        chunks_sizes=compressed_frames_sizes,
+        chunks_sizes=compressed_chunks_sizes,  # refers to sizes in ``compressed_seq``
+        shape=uncompressed_hwc_shape,
         layout="HWC",
         sequence_extent="F")
     return sequences
