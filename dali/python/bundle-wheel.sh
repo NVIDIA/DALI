@@ -120,6 +120,9 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libopenjp2.so.7"
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"
+    "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
+    "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
+    "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
 )
 
 TMPDIR=$(mktemp -d)
