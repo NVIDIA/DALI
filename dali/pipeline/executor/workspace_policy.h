@@ -231,7 +231,6 @@ Workspace CreateWorkspace(
 // template <typename QueuePolicy>
 // struct WS_Policy {
 //   // Type trait describing how will the workspace be returned (usually by copy or by ref)
-//   template <OpType op_type>
 //   using ws_t = ...;
 //
 //   // Initialize state of Workspace Storage
@@ -251,7 +250,7 @@ Workspace CreateWorkspace(
 //    * @return Corresponding workspace for that operator/OpNode
 //    */
 //   template <OpType op_type>
-//   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx);
+//   ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx);
 //
 //   /**
 //    * @brief Get the Workspace for given `op_type` stage, when executing queue indexes `idx` part
@@ -264,7 +263,7 @@ Workspace CreateWorkspace(
 //    * @return Corresponding workspace for that operator/OpNode
 //    */
 //   template <OpType op_type>
-//   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node);
+//   ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node);
 // };
 
 /**
@@ -277,7 +276,6 @@ Workspace CreateWorkspace(
  */
 template <typename QueuePolicy>
 struct JIT_WS_Policy {
-  template <OpType op_type>
   using ws_t = Workspace;
 
   void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
@@ -295,14 +293,14 @@ struct JIT_WS_Policy {
   }
 
   template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
+  ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
     return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx), device_id_,
                                     tensor_to_store_queue_, thread_pool_, mixed_op_stream_,
                                     gpu_op_stream_, mixed_op_events_, idxs);
   }
 
   template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
+  ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
     DALI_ENFORCE(node.op_type == op_type,
                  "Wrong variant of method selected. OpType does not match.");
     return CreateWorkspace<op_type>(graph, node, device_id_, tensor_to_store_queue_, thread_pool_,
@@ -373,15 +371,16 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
     for (auto &q : cpu_workspaces_)
       for (auto &ws : q)
         SetOrder(ws, AccessOrder::host());
+
     for (auto &q : mixed_workspaces_)
       for (auto &ws : q)
-      SetOrder(ws, AccessOrder::host());
+        SetOrder(ws, AccessOrder::host());
+
     for (auto &q : gpu_workspaces_)
       for (auto &ws : q)
-      SetOrder(ws, AccessOrder::host());
+        SetOrder(ws, AccessOrder::host());
   }
 
-  template <OpType op_type>
   using ws_t = Workspace &;
 
   void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
@@ -428,14 +427,14 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
   }
 
   template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
+  ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
     int sequential_ws_idx = SequentialIndex(idxs, depths_, op_type);
     auto &workspaces = GetWorkspacesCollection<op_type>();
     return workspaces[sequential_ws_idx][partition_idx];
   }
 
   template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
+  ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
     DALI_ENFORCE(node.op_type == op_type,
                  "Wrong variant of method selected. OpType does not match.");
     return GetWorkspace<op_type>(idxs, graph, node.partition_index);
@@ -502,7 +501,6 @@ inline std::vector<std::vector<Workspace>>&
  */
 template <>
 struct AOT_WS_Policy<UniformQueuePolicy> {
-  template <OpType op_type>
   using ws_t = Workspace &;
 
   ~AOT_WS_Policy() {
@@ -531,13 +529,13 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
   }
 
   template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
+  ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
     return ws_vec[partition_idx];
   }
 
   template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
+  ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
     DALI_ENFORCE(node.op_type == op_type,
                  "Wrong variant of method selected. OpType does not match.");
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
@@ -586,6 +584,14 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
   };
   vector<WorkspaceBlob> wss_;
   int queue_size_ = -1;
+};
+
+template <typename IngoredQueuePolicy>
+struct DynamicWorkspacePolicy {
+  using ws_t = Workspace &;
+
+  ws_t GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx);
+
 };
 
 }  // namespace dali
