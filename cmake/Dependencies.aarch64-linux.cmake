@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,17 +31,15 @@ list(APPEND DALI_EXCLUDES libcudart_static.a)
 # NVIDIA NPPC library
 if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)
   CUDA_find_library(CUDA_nppicc_LIBRARY nppicc_static)
+  CUDA_find_library(CUDA_nppig_LIBRARY nppig_static)
   CUDA_find_library(CUDA_nppc_LIBRARY nppc_static)
   list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
   list(APPEND DALI_EXCLUDES libnppicc_static.a)
+  list(APPEND DALI_LIBS ${CUDA_nppig_LIBRARY})
+  list(APPEND DALI_EXCLUDES libnppig_static.a)
   list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
   list(APPEND DALI_EXCLUDES libnppc_static.a)
 endif ()
-
-list(APPEND DALI_LIBS ${CUDA_nppicc_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppicc_static.a)
-list(APPEND DALI_LIBS ${CUDA_nppc_LIBRARY})
-list(APPEND DALI_EXCLUDES libnppc_static.a)
 
 # cuFFT library
 if (NOT WITH_DYNAMIC_CUDA_TOOLKIT)

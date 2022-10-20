@@ -15,7 +15,7 @@
 #ifndef DALI_KERNELS_IMGPROC_GEOM_NPP_REMAP_CALL_H_
 #define DALI_KERNELS_IMGPROC_GEOM_NPP_REMAP_CALL_H_
 
-#include "dali/operators/util/npp.h"
+#include "dali/npp/npp.h"
 
 namespace dali::kernels::remap::detail {
 

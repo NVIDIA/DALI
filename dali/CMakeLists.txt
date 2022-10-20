@@ -35,6 +35,8 @@ string(REPLACE ";" ":" exclude_libs "${DALI_EXCLUDES}")
 ################################################
 add_subdirectory(core)
 
+add_subdirectory(npp)
+
 if (BUILD_DALI_KERNELS)
   add_subdirectory(kernels)
 endif()
