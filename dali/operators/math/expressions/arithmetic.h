@@ -213,7 +213,7 @@ DLL_PUBLIC inline bool PropagateShapes(TensorListShape<> &result_shape,
     shapes_ptrs.push_back(&sh);
   auto shapes_ptrs_span = make_span(shapes_ptrs);
 
-  // Throws an error if the shapes can't be broadcasted
+  // Throws an error if the shapes can't be broadcast
   BroadcastShape(result_shape, shapes_ptrs_span);
   func.SetShape(result_shape);
   needed_broadcasting |= NeedBroadcasting(shapes_ptrs_span);

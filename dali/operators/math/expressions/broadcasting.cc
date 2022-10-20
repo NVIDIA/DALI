@@ -30,48 +30,6 @@ void CheckNumSamples(span<const TensorListShape<>*> shapes) {
   }
 }
 
-bool HasAnyZeroVolume(span<const TensorShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    if (volume(*shapes[i]) == 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool HasAnyZeroVolume(span<const TensorListShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    for (int sample_idx = 0; sample_idx < shapes[i]->num_samples(); sample_idx++) {
-      if (shapes[i]->tensor_size(sample_idx) == 0) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-void CheckNonZeroVolume(span<const TensorShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    if (volume(*shapes[i]) == 0) {
-      DALI_FAIL(make_string("Can't broadcast shapes with zero volume. "
-                            "Got a shape with zero volume: ",
-                            shapes[i]));
-    }
-  }
-}
-
-void CheckNonZeroVolume(span<const TensorListShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    for (int sample_idx = 0; sample_idx < shapes[i]->num_samples(); sample_idx++) {
-      if (shapes[i]->tensor_size(sample_idx) == 0) {
-        DALI_FAIL(make_string("Can't broadcast shapes with zero volume. "
-                              "Got a shape with zero volume in sample_idx=",
-                              sample_idx,  ": ", shapes[i]));
-      }
-    }
-  }
-}
-
 template <typename Shape>
 int BroadcastNdimImpl(span<const Shape*> shapes) {
   DALI_ENFORCE(shapes.size() >= 1);
@@ -105,10 +63,8 @@ template <typename ShapeLike>
 bool TryBroadcastShapeImpl(int64_t& target_value, const ShapeLike& shape, int rev_d) {
   int ndim = shape.size();
   auto extent = rev_d < ndim ? shape[ndim - 1 - rev_d] : 1;
-  assert(extent > 0);
-  assert(target_value > 0);
-  if (extent > 1 && extent != target_value) {
-    if (target_value > 1)
+  if (extent != 1 && extent != target_value) {
+    if (target_value != 1)
       return false;
     target_value = extent;
   }
@@ -139,7 +95,6 @@ std::string BroadcastErrorMessage(const Shapes& shapes,
 }
 
 void BroadcastShape(TensorShape<>& result, span<const TensorShape<>*> shapes) {
-  CheckNonZeroVolume(shapes);
   DALI_ENFORCE(shapes.size() >= 1);
   if (shapes.size() == 1) {
     result = *shapes[0];
@@ -163,7 +118,6 @@ void BroadcastShape(TensorShape<>& result, span<const TensorShape<>*> shapes) {
 }
 
 void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>*> shapes) {
-  CheckNonZeroVolume(shapes);
   DALI_ENFORCE(shapes.size() >= 1);
   if (shapes.size() == 1) {
     result = *shapes[0];
@@ -189,9 +143,6 @@ void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>*> sh
 }
 
 bool CanBroadcast(span<const TensorShape<>*> shapes) {
-  if (HasAnyZeroVolume(shapes)) {
-    return false;
-  }
   if (shapes.size() < 2) {
     return true;
   }
@@ -207,9 +158,6 @@ bool CanBroadcast(span<const TensorShape<>*> shapes) {
 }
 
 bool CanBroadcast(span<const TensorListShape<>*> shapes) {
-  if (HasAnyZeroVolume(shapes)) {
-    return false;
-  }
   if (shapes.size() < 2) {
     return true;
   }
@@ -233,9 +181,7 @@ bool NeedBroadcastImpl(span<const Shape*> shapes) {
     return false;
   const auto *prev_sh = shapes[0];
   for (int i = 1; i < shapes.size(); i++) {
-    if (IsScalarLike(*prev_sh)) {
-      prev_sh = shapes[i];
-    } else if (!IsScalarLike(*shapes[i]) && *prev_sh != *shapes[i]) {
+    if (*prev_sh != *shapes[i]) {
       return true;
     }
   }

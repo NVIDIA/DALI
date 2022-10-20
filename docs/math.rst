@@ -140,7 +140,8 @@ Limitations
 ===========
 
 The broadcasting operations in DALI can have only limited complexity. When broadcasting, the adjacent axes that need
-or don't broadcasting are grouped. There can be up to six alternating broadcast/non-broadcast groups. Example of grouping::
+or do not need broadcasting are grouped. There can be up to six alternating broadcast/non-broadcast groups. Example of
+grouping::
 
     shape of A == a, b, 1, c, d
     shape of B == a, b, e, 1, 1

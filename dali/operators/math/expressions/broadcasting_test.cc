@@ -12,19 +12,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <gtest/gtest.h>
 #include "dali/operators/math/expressions/broadcasting.h"
+#include <gtest/gtest.h>
+#include <string>
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/utils.h"
 
 namespace dali {
 namespace test {
 
+void PrintShapesImpl(std::stringstream& ss) {}
+
+template <typename Shape>
+void PrintShapesImpl(std::stringstream& ss, const Shape& sh0) {
+  ss << "{" << to_string(sh0) << "}\n";
+}
+
+template <typename Shape, typename... Shapes>
+void PrintShapesImpl(std::stringstream& ss, const Shape& sh0, Shapes... shapes) {
+  PrintShapesImpl(ss, sh0);
+  PrintShapesImpl(ss, shapes...);
+}
+
+template <typename... Shapes>
+std::string PrintShapes(Shapes... shapes) {
+  std::stringstream ss;
+  ss << "shapes:\n";
+  PrintShapesImpl(ss, shapes...);
+  return ss.str();
+}
+
+template <typename... Shapes>
+void ExpectCanBroadcastTrue(Shapes... shapes) {
+  EXPECT_TRUE(CanBroadcast(shapes...)) << PrintShapes(shapes...);
+}
+
+template <typename... Shapes>
+void ExpectCanBroadcastFalse(Shapes... shapes) {
+  EXPECT_FALSE(CanBroadcast(shapes...)) << PrintShapes(shapes...);
+}
+
+template <typename... Shapes>
+void ExpectNeedBroadcastTrue(Shapes... shapes) {
+  EXPECT_TRUE(NeedBroadcasting(shapes...)) << PrintShapes(shapes...);
+}
+
+template <typename... Shapes>
+void ExpectNeedBroadcastFalse(Shapes... shapes) {
+  EXPECT_FALSE(NeedBroadcasting(shapes...)) << PrintShapes(shapes...);
+}
+
 TEST(ArithmeticOpsBroadcastingTest, BroadcastShape) {
   auto test = [](TensorShape<> expected, TensorShape<> a, TensorShape<> b) {
     TensorShape<> result0, result1;
-    ASSERT_TRUE(CanBroadcast(a, b));
-    ASSERT_TRUE(CanBroadcast(b, a));
+    ExpectCanBroadcastTrue(a, b);
+    ExpectCanBroadcastTrue(b, a);
     BroadcastShape(result0, a, b);
     EXPECT_EQ(expected, result0);
     BroadcastShape(result1, a, b);
@@ -36,18 +78,20 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastShape) {
   test({10, 10, 3}, {10, 10, 1}, {3});
   test({}, {}, {});
   test({1}, {}, {1});
+  test({0}, {}, {0});
+  test({10, 0}, {10, 1}, {10, 0});
 
   auto test_fail = [](TensorShape<> a, TensorShape<> b) {
     TensorShape<> result;
-    ASSERT_FALSE(CanBroadcast(a, b));
-    ASSERT_FALSE(CanBroadcast(b, a));
-    ASSERT_THROW(BroadcastShape(result, a, b), std::runtime_error);
-    ASSERT_THROW(BroadcastShape(result, b, a), std::runtime_error);
+    ExpectCanBroadcastFalse(a, b);
+    ExpectCanBroadcastFalse(b, a);
+    EXPECT_THROW(BroadcastShape(result, a, b), std::runtime_error);
+    EXPECT_THROW(BroadcastShape(result, b, a), std::runtime_error);
   };
   test_fail({3, 2}, {2, 3});
   test_fail({2}, {2, 3});
   test_fail({2, 2}, {2, 0});
-  test_fail({}, {0});
+  test_fail({10, 10}, {10, 0});
 }
 
 TEST(ArithmeticOpsBroadcastingTest, BroadcastTensorListShape) {
@@ -67,6 +111,8 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastTensorListShape) {
        {{1, 3, 2}, {3, 2, 1}, {2, 1, 1}}, {{1, 1, 2}, {3, 2, 4}, {1, 4, 1}});
   test({{1, 3, 2}, {3, 2, 4}, {2, 4, 1}},
        {{3, 1}, {2, 1}, {1, 1}}, {{1, 1, 2}, {3, 1, 4}, {2, 4, 1}});
+  test({{1, 3, 2}, {3, 2, 0}, {2, 4, 1}},  // broadcast zero is OK
+       {{3, 1}, {2, 1}, {1, 1}}, {{1, 1, 2}, {3, 1, 0}, {2, 4, 1}});
 
   auto test_fail = [](TensorListShape<> a, TensorListShape<> b) {
     TensorListShape<> result;
@@ -77,6 +123,8 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastTensorListShape) {
   };
   test_fail({{1, 3, 2}, {3, 2, 1}, {1, 1, 1}}, {{1, 1, 2}, {3, 3, 4}, {4, 1, 1}});
   test_fail({{1, 3, 2}, {3, 2, 1}, {4, 1, 1}}, {{1, 0, 2}, {3, 2, 4}, {1, 2, 1}});
+  // zero incompatible with non-unit
+  test_fail({{1, 3, 2}, {3, 0, 1}, {4, 1, 1}}, {{1, 0, 2}, {3, 2, 4}, {1, 2, 1}});
 }
 
 
@@ -93,7 +141,7 @@ TEST(ArithmeticOpsBroadcastingTest, StridesForBroadcasting) {
 }
 
 TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
-  // Only collapsing dims that are not broadcasted
+  // Only collapsing dims that are not broadcast
   {
     TensorShape<> a = {10, 2, 2, 3};
     TensorShape<> b = {10, 2, 1, 3};
@@ -175,6 +223,27 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     SimplifyShapesForBroadcasting(a, b);
     TensorShape<> simple_a = {24,  1};
     TensorShape<> simple_b = { 1, 24};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+  }
+
+  // Zeros should be treated as any other non-unit dimension
+  {
+    TensorShape<> a = {0, 2, 64};
+    TensorShape<> b = {1, 2, 64};
+    SimplifyShapesForBroadcasting(a, b);
+    TensorShape<> simple_a = {0, 2 * 64};
+    TensorShape<> simple_b = {1, 2 * 64};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+  }
+
+  {
+    TensorShape<> a = {20, 10, 1};
+    TensorShape<> b = {20, 1,  0};
+    SimplifyShapesForBroadcasting(a, b);
+    TensorShape<> simple_a = {20, 10, 1};
+    TensorShape<> simple_b = {20, 1,  0};
     EXPECT_EQ(simple_a, a);
     EXPECT_EQ(simple_b, b);
   }
@@ -264,7 +333,7 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
 TEST(ArithmeticOpsBroadcastingTest, BroadcastSpanShapes) {
   auto test = [](TensorShape<> expected, auto&&... shapes) {
     TensorShape result0;
-    ASSERT_TRUE(CanBroadcast(shapes...));
+    ExpectCanBroadcastTrue(shapes...);
     BroadcastShape(result0, shapes...);
     EXPECT_EQ(expected, result0);
   };
@@ -287,35 +356,41 @@ TEST(ArithmeticOpsBroadcastingTest, BroadcastSpanShapes) {
 
 TEST(ArithmeticOpsBroadcastingTest, NeedBroadcastShape) {
   auto test_no_need = [](TensorShape<> a, TensorShape<> b) {
-    EXPECT_FALSE(NeedBroadcasting(a, b));
-    EXPECT_FALSE(NeedBroadcasting(b, a));
+    ExpectNeedBroadcastFalse(a, b);
+    ExpectNeedBroadcastFalse(b, a);
   };
   auto test_need = [](TensorShape<> a, TensorShape<> b) {
-    EXPECT_TRUE(NeedBroadcasting(a, b));
-    EXPECT_TRUE(NeedBroadcasting(b, a));
+    ExpectNeedBroadcastTrue(a, b);
+    ExpectNeedBroadcastTrue(b, a);
   };
 
   test_no_need({1, 2, 3}, {1, 2, 3});
-  test_no_need({1, 2, 3}, {});   // scalar
-  test_no_need({1, 2, 3}, {1});  // scalar-like
+  test_no_need({10, 0}, {10, 0});  // zero is not special
+
+  test_need({1, 2, 3}, {});   // scalar
+  test_need({1, 2, 3}, {1});  // scalar-like
 
   test_need({1, 2, 3}, {1, 1, 3});
   test_need({1, 2, 2, 3}, {2, 1});
+  // zero volume is treated the same as any non unit dim
+  test_need({0, 3}, {1, 3});
+  test_need({10, 1, 0, 3}, {10, 10, 1, 3});
 }
 
 TEST(ArithmeticOpsBroadcastingTest, NeedBroadcastTensorListShape) {
   auto test_no_need = [](TensorListShape<> a, TensorListShape<> b) {
-    EXPECT_FALSE(NeedBroadcasting(a, b));
-    EXPECT_FALSE(NeedBroadcasting(b, a));
+    ExpectNeedBroadcastFalse(a, b);
+    ExpectNeedBroadcastFalse(b, a);
   };
   auto test_need = [](TensorListShape<> a, TensorListShape<> b) {
-    EXPECT_TRUE(NeedBroadcasting(a, b));
-    EXPECT_TRUE(NeedBroadcasting(b, a));
+    ExpectNeedBroadcastTrue(a, b);
+    ExpectNeedBroadcastTrue(b, a);
   };
 
   test_no_need({{1, 2, 3}, {1, 2, 1}}, {{1, 2, 3}, {1, 2, 1}});
-  test_no_need({{2}, {2}}, {{1}, {1}});  // scalar-like
+  test_no_need({{1}, {1}}, {{1}, {1}});
 
+  test_need({{2}, {2}}, {{1}, {1}});
   test_need({{1, 2, 3}, {1, 2, 1}}, {{1, 2, 1}, {1, 2, 3}});
 }
 
