@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "dali/core/call_at_exit.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/queue_metadata.h"
@@ -188,6 +189,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
   for (int cpu_op_id = 0; cpu_op_id < graph_->NumOp(OpType::CPU) && !exec_error_; ++cpu_op_id) {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
     decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
+    auto finally = AtScopeExit([&]{
+      ws_policy_.WorkspaceUsed(ws);
+    });
 
     int batch_size = InferBatchSizeFromInput(ws, stage_batch_size);
     ws.SetBatchSizes(batch_size);
