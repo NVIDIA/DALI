@@ -18,7 +18,7 @@ RUN NVCOMP_VERSION=2.4 && \
     cd nvcomp && \
     wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_${NVCOMP_VERSION}_Linux_SBSA_CUDA_11.4.tgz && \
     tar -xvf nvcomp*.tgz && \
-    cp -rv include/nvcomp* /usr/local/include/ && \
-    cp -v lib/*.so /usr/local/lib/ && \
+    cp -rv include/nvcomp* /usr/local/cuda/include/ && \
+    cp -v lib/*.so /usr/local/cuda/lib64/ && \
     cd .. && \
     rm -rf nvcomp

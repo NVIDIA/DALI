@@ -132,18 +132,23 @@ endif()
 # nvcomp
 ##################################################################
 if(BUILD_NVCOMP)
+  message(WARNING "Building DALI with nvCOMP. Note nvCOMP IS NOT an open source software. "
+          "See more at https://developer.nvidia.com/nvcomp")
   find_library(
     nvcomp_LIBS
     NAMES nvcomp
-    PATHS ${NVCOMP_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
     PATH_SUFFIXES lib lib64)
   find_path(
     nvcomp_INCLUDE_DIR
     NAMES nvcomp
-    PATHS ${NVCOMP_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
     PATH_SUFFIXES include)
-  if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND OR ${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
-    message(FATAL_ERROR "nvCOMP could not be found. Try to specify it's location with `-DNVCOMP_ROOT_DIR`.")
+  if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
+    message(FATAL_ERROR "nvCOMP libs could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+  endif()
+  if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
+    message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
   endif()
   message(STATUS "Found nvCOMP: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIR}.")
   include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
