@@ -24,15 +24,19 @@ namespace {
 
 typedef void* NPPCDRIVER;
 typedef void* NPPICCDRIVER;
+typedef void* NPPIGDRIVER;
 
 static const char __NppcLibName[] = "libnppc.so";
 static const char __NppiccLibName[] = "libnppicc.so";
+static const char __NppigLibName[] = "libnppig.so";
 #if CUDA_VERSION >= 11000
 static const char __NppcLibNameCuVer[] = "libnppc.so.11";
 static const char __NppiccLibNameCuVer[] = "libnppicc.so.11";
+static const char __NppigLibNameCuVer[] = "libnppig.so.11";
 #else
 static const char __NppcLibNameCuVer[] = "libnppc.so.10";
 static const char __NppiccLibNameCuVer[] = "libnppicc.so.10";
+static const char __NppigLibNameCuVer[] = "libnppig.so.10";
 #endif
 
 NPPCDRIVER loadNppcLibrary() {
@@ -43,7 +47,7 @@ NPPCDRIVER loadNppcLibrary() {
     ret = dlopen(__NppcLibName, RTLD_NOW);
     if (!ret) {
       throw std::runtime_error("dlopen libnppc.so failed!. Please install "
-                                "CUDA toolkit or NPP python wheel.");
+          "CUDA toolkit or NPP python wheel.");
     }
   }
   return ret;
@@ -57,7 +61,21 @@ NPPICCDRIVER loadNppiccLibrary() {
     ret = dlopen(__NppiccLibName, RTLD_NOW);
     if (!ret) {
       throw std::runtime_error("dlopen libnppicc.so failed!. Please install "
-                                "CUDA toolkit or NPP python wheel.");
+          "CUDA toolkit or NPP python wheel.");
+    }
+  }
+  return ret;
+}
+
+NPPIGDRIVER loadNppigLibrary() {
+  NPPIGDRIVER ret = nullptr;
+
+  ret = dlopen(__NppigLibNameCuVer, RTLD_NOW);
+  if (!ret) {
+    ret = dlopen(__NppigLibName, RTLD_NOW);
+    if (!ret) {
+      throw std::runtime_error("dlopen libnppig.so failed!. Please install "
+          "CUDA toolkit or NPP python wheel.");
     }
   }
   return ret;
@@ -65,15 +83,18 @@ NPPICCDRIVER loadNppiccLibrary() {
 
 }  // namespace
 
-// Loads symbol from either libnppc or libnppicc providing a unified
-// interface to whole npp
+// Load a symbol from all NPP libs that we use, to provide a unified interface
 void *NppLoadSymbol(const char *name) {
   static NPPCDRIVER nppcDrvLib = loadNppcLibrary();
   static NPPICCDRIVER nppiccDrvLib = loadNppiccLibrary();
+  static NPPIGDRIVER nppigDrvLib = loadNppigLibrary();
   // check processing library, core later if symbol not found
   void *ret = nppiccDrvLib ? dlsym(nppiccDrvLib, name) : nullptr;
   if (!ret) {
-    ret = nppcDrvLib ? dlsym(nppcDrvLib, name) : nullptr;
+    ret = nppigDrvLib ? dlsym(nppigDrvLib, name) : nullptr;
+    if (!ret) {
+      ret = nppcDrvLib ? dlsym(nppcDrvLib, name) : nullptr;
+    }
   }
   return ret;
 }
