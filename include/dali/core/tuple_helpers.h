@@ -233,6 +233,34 @@ using tuple_generator_t = typename tuple_generator_type<type_generator, Sequence
 using detail::apply;
 using detail::apply_all;
 
+
+namespace detail {
+
+template<typename T, typename Tuple>
+struct contains;
+
+template<typename T>
+struct contains<T, std::tuple<>> : std::false_type {};
+
+template<typename T, typename U, typename... Ts>
+struct contains<T, std::tuple<U, Ts...>> : contains<T, std::tuple<Ts...>> {};
+
+template<typename T, typename... Ts>
+struct contains<T, std::tuple<T, Ts...>> : std::true_type {};
+
+}  // namespace detail
+
+/**
+ * Checks, if the Tuple contains a given type T.
+ *
+ * Usage example:
+ * using Tup = std::tuple<int, double, MyType>;
+ * static_assert(contains_v<double, Tup>);  // this will pass
+ * static_assert(contains_v<float,  Tup>);  // this will fail
+ */
+template<typename T, typename Tuple>
+constexpr bool contains_v = detail::contains<T, Tuple>::type::value;
+
 }  // namespace dali
 
 #endif  // DALI_CORE_TUPLE_HELPERS_H_
