@@ -23,6 +23,7 @@ import os
 import re
 from collections.abc import Iterable
 from nose.plugins.attrib import attr
+from nose.tools import nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
@@ -150,17 +151,6 @@ def test_mixed_op_bad_device():
         yield check_mixed_op_bad_device, device_id, error_msg
 
 
-def test_image_decoder_cpu():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    with pipe:
-        input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-        decoded = fn.decoders.image(input, output_type=types.RGB)
-        pipe.set_outputs(decoded)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
-
-
 def check_single_input(op, input_layout="HWC", get_data=get_data, batch=True, cycle=None,
                        exec_async=True, exec_pipelined=True, **kwargs):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None, exec_async=exec_async,
@@ -277,28 +267,36 @@ def test_noise_shot_cpu():
 def test_noise_salt_and_pepper_cpu():
     check_single_input(fn.noise.salt_and_pepper)
 
-
-def test_image_decoder_crop_device():
+@nottest
+def _test_image_decoder_args_cpu(decoder_type, **args):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image_crop(input, output_type=types.RGB, crop=(10, 10))
+    decoded = decoder_type(input, output_type=types.RGB, **args)
     pipe.set_outputs(decoded)
     pipe.build()
     for _ in range(3):
         pipe.run()
 
+def test_image_decoder_cpu():
+    _test_image_decoder_args_cpu(fn.decoders.image)
 
-def test_image_decoder_random_crop_device():
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
-    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image_random_crop(input, output_type=types.RGB)
-    pipe.set_outputs(decoded)
-    pipe.build()
-    for _ in range(3):
-        pipe.run()
+def test_experimental_image_decoder_cpu():
+    _test_image_decoder_args_cpu(fn.experimental.decoders.image)
+
+def test_image_decoder_crop_cpu():
+    _test_image_decoder_args_cpu(fn.decoders.image_crop, crop=(10, 10))
+
+def test_experimental_image_decoder_crop_cpu():
+    _test_image_decoder_args_cpu(fn.experimental.decoders.image_crop, crop=(10, 10))
+
+def test_image_decoder_random_crop_cpu():
+    _test_image_decoder_args_cpu(fn.decoders.image_random_crop)
+
+def test_experimental_image_decoder_random_crop_cpu():
+    _test_image_decoder_args_cpu(fn.experimental.decoders.image_random_crop)
 
 
-def test_coin_flip_device():
+def test_coin_flip_cpu():
     check_no_input(fn.random.coin_flip)
 
 
@@ -593,7 +591,8 @@ def test_slice_cpu():
         pipe.run()
 
 
-def test_image_decoder_slice_cpu():
+@nottest
+def _test_image_decoder_slice_cpu(decoder_type):
     anch_shape = [2]
 
     def get_anchors():
@@ -610,11 +609,17 @@ def test_image_decoder_slice_cpu():
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     anchors = fn.external_source(source=get_anchors)
     shape = fn.external_source(source=get_shape)
-    processed = fn.decoders.image_slice(input, anchors, shape)
+    processed = decoder_type(input, anchors, shape)
     pipe.set_outputs(processed)
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_image_decoder_slice_cpu():
+    _test_image_decoder_slice_cpu(fn.decoders.image_slice)
+
+def test_experimental_image_decoder_slice_cpu():
+    _test_image_decoder_slice_cpu(fn.experimental.decoders.image_slice)
 
 
 def test_pad_cpu():
@@ -1025,14 +1030,21 @@ def test_squeeze_cpu():
     check_single_input(fn.squeeze, axis_names="YZ", get_data=get_data, input_layout="HWCYZ")
 
 
-def test_peek_image_shape_cpu():
+@nottest
+def _test_peek_image_shape_cpu(op):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    shapes = fn.peek_image_shape(input)
+    shapes = op(input)
     pipe.set_outputs(shapes)
     pipe.build()
     for _ in range(3):
         pipe.run()
+
+def test_peek_image_shape_cpu():
+    _test_peek_image_shape_cpu(fn.peek_image_shape)
+
+def test_experimental_peek_image_shape_cpu():
+    _test_peek_image_shape_cpu(fn.experimental.peek_image_shape)
 
 
 def test_separated_exec_setup():
@@ -1112,6 +1124,10 @@ tested_methods = [
     "decoders.image_crop",
     "decoders.image_slice",
     "decoders.image_random_crop",
+    "experimental.decoders.image",
+    "experimental.decoders.image_crop",
+    "experimental.decoders.image_slice",
+    "experimental.decoders.image_random_crop",
     "decoders.audio",
     "external_source",
     "stack",
@@ -1222,6 +1238,7 @@ tested_methods = [
     "batch_permutation",
     "squeeze",
     "peek_image_shape",
+    "experimental.peek_image_shape",
     "expand_dims",
     "coord_transform",
     "grid_mask",
