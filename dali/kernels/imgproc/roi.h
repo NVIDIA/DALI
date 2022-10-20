@@ -139,10 +139,7 @@ TensorShape<ndims> ShapeFromRoi(const Roi<ndims> &roi) {
   DALI_ENFORCE(all_coords(roi.hi >= roi.lo), "Cannot create a TensorShape from an invalid Roi");
   TensorShape<ndims> ret;
   auto e = roi.extent();
-  auto ridx = ndims;
-  for (size_t idx = 0; idx < ndims; idx++) {
-    ret[--ridx] = e[idx];
-  }
+  std::reverse_copy(e.begin(), e.end(), ret.begin());
   return ret;
 }
 
