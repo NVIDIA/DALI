@@ -190,7 +190,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl(size_t iteration_id) {
     OpNode &op_node = graph_->Node(OpType::CPU, cpu_op_id);
     decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::CPU>(cpu_idxs, *graph_, cpu_op_id);
     auto finally = AtScopeExit([&]{
-      ws_policy_.WorkspaceUsed(ws);
+      AdjustLiveness(liveness_info_, ws);
     });
 
     int batch_size = InferBatchSizeFromInput(ws, stage_batch_size);
@@ -239,6 +239,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl(size_t iteration_id) {
     try {
       decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::MIXED>(mixed_idxs, *graph_, i);
 
+      auto finally = AtScopeExit([&]{
+        AdjustLiveness(liveness_info_, ws);
+      });
       int batch_size = InferBatchSizeFromInput(ws, stage_batch_size);
       ws.SetBatchSizes(batch_size);
 
@@ -304,6 +307,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl(size_t iteration_id) {
     OpNode &op_node = graph_->Node(OpType::GPU, i);
     try {
       decltype(auto) ws = ws_policy_.template GetWorkspace<OpType::GPU>(gpu_idxs, *graph_, i);
+      auto finally = AtScopeExit([&]{
+        AdjustLiveness(liveness_info_, ws);
+      });
 
       int batch_size = InferBatchSizeFromInput(ws, stage_batch_size);
       ws.SetBatchSizes(batch_size);

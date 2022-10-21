@@ -31,6 +31,10 @@ std::vector<tensor_data_store_queue_t> CreateBackingStorageForTensorNodes(
     auto producer_op_type = op_graph.Node(tensor.producer.node).op_type;
     result[i] =
         BatchFactory(producer_op_type, tensor.producer.storage_device, batch_size, queue_sizes[i]);
+
+    tuple_for_each(result[i], [&](auto &x) {
+      x.num_consumers = tensor.consumers.size();
+    });
   }
   return result;
 }

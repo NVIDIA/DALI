@@ -98,6 +98,73 @@ class DLL_PUBLIC ExecutorBase {
   friend class ExecutorTest;
 };
 
+
+struct LivenessInfo {
+  int total_consumers{0};
+  std::atomic_int consumers_left{0};
+};
+
+inline void InitializeLivenessInfo(
+    std::map<const void *, LivenessInfo> &liveness,
+    const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue) {
+  for (auto &t : tensor_to_store_queue) {
+    tuple_for_each(t, [&](auto &q) {
+      for (auto &ptr : q) {
+        if (ptr) {
+          liveness[ptr.get()].total_consumers = q.num_consumers;
+        }
+      }
+    });
+  }
+}
+
+template <typename Backend>
+void ConsumeInput(std::map<const void *, LivenessInfo> &liveness, TensorList<Backend> *tl) {
+  LivenessInfo &L = liveness[tl];
+  if (!L.total_consumers) {
+    // std::cout << "Tensor list " << typeid(Backend).name()
+    //           << " has no liveness info." << std::endl;
+    return;
+  }
+
+  int left = --L.consumers_left;
+  // std::cout << "Consuming tensor list " << typeid(Backend).name()
+  //           << ": " << left << " consumers left out of " << L.total_consumers << endl;
+  if (left == 0) {
+    // std::cout << "Resetting tensor list: " << (void*)tl << std::endl;
+    tl->Reset();
+  }
+}
+
+inline void AdjustLiveness(std::map<const void *, LivenessInfo> &liveness, Workspace &ws) {
+  for (int i = 0; i < ws.NumOutput(); i++) {
+    const void *handle = 0;
+    if (ws.OutputIsType<CPUBackend>(i))
+      handle = &ws.Output<CPUBackend>(i);
+    else if (ws.OutputIsType<GPUBackend>(i))
+      handle = &ws.Output<GPUBackend>(i);
+    else
+      continue;
+    LivenessInfo &L = liveness[handle];
+    L.consumers_left = L.total_consumers;
+  }
+
+  for (int i = 0; i < ws.NumInput(); i++) {
+    if (ws.InputIsType<CPUBackend>(i)) {
+      ConsumeInput(liveness, &ws.UnsafeMutableInput<CPUBackend>(i));
+    } else if (ws.InputIsType<GPUBackend>(i)) {
+      ConsumeInput(liveness, &ws.UnsafeMutableInput<GPUBackend>(i));
+    }
+  }
+
+  ArgumentWorkspace &aws = ws;
+  for (auto &input : aws) {
+    ConsumeInput(liveness, input.second.tvec.get());
+  }
+}
+
+
+
 /**
  * @brief Basic executor for dali graphs. This executor enables
  * prefetching of results by maintaining two copies of output
@@ -385,6 +452,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   int checkpointing_epoch_size_ = 0;
 
  private:
+  std::map<const void *, LivenessInfo> liveness_info_;
+
   void RunHelper(OpNode &op_node, Workspace &ws, size_t iteration_id);
 
   void RethrowError() const {
@@ -525,6 +594,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
   // Create corresponding storage type for TensorNodes in graph
   tensor_to_store_queue_ =
       CreateBackingStorageForTensorNodes(*graph_, max_batch_size_, queue_sizes);
+
+  InitializeLivenessInfo(liveness_info_, tensor_to_store_queue_);
+
   // Setup stream and events that will be used for execution
   if (device_id_ != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(device_id_);

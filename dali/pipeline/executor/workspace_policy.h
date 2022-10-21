@@ -307,8 +307,6 @@ struct JIT_WS_Policy {
                                     mixed_op_stream_, gpu_op_stream_, mixed_op_events_, idxs);
   }
 
-  void WorkspaceUsed(Workspace &ws) {}
-
  private:
   // TODO(klecki): should consider if storing copy of backing storage is good idea
   int device_id_;
@@ -359,56 +357,6 @@ inline void SetOrder(Workspace &ws, AccessOrder order) {
       ws.Output<GPUBackend>(i).set_order(order);
   }
 }
-
-struct LivenessInfo {
-  int total_conumers{0};
-  std::atomic_int consumers_left{0};
-};
-
-inline void InitializeLivenessInfo(std::map<const void *, LivenessInfo> &liveness, Workspace &ws) {
-  for (int i = 0; i < ws.NumInput(); i++) {
-    const void *handle = 0;
-    if (ws.InputIsType<CPUBackend>(i))
-      handle = &ws.Input<CPUBackend>(i);
-    else if (ws.InputIsType<GPUBackend>(i))
-      handle = &ws.Input<GPUBackend>(i);
-    else
-      continue;
-    liveness[handle].total_conumers++;
-  }
-}
-
-template <typename Backend>
-void ConsumeInput(std::map<const void *, LivenessInfo> &liveness, TensorList<Backend> *tl) {
-  LivenessInfo &L = liveness[tl];
-  if (--L.consumers_left == 0) {
-    fprintf(stderr, "Resetting tensor list: %p\n", tl);
-    tl->Reset();
-  }
-}
-
-inline void AdjustLiveness(std::map<const void *, LivenessInfo> &liveness, Workspace &ws) {
-  for (int i = 0; i < ws.NumOutput(); i++) {
-    const void *handle = 0;
-    if (ws.OutputIsType<CPUBackend>(i))
-      handle = &ws.Output<CPUBackend>(i);
-    else if (ws.OutputIsType<GPUBackend>(i))
-      handle = &ws.Output<GPUBackend>(i);
-    else
-      continue;
-    LivenessInfo &L = liveness[handle];
-    L.consumers_left = L.total_conumers;
-  }
-
-  for (int i = 0; i < ws.NumInput(); i++) {
-    if (ws.InputIsType<CPUBackend>(i)) {
-      ConsumeInput(liveness, &ws.UnsafeMutableInput<CPUBackend>(i));
-    } else if (ws.InputIsType<GPUBackend>(i)) {
-      ConsumeInput(liveness, &ws.UnsafeMutableInput<CPUBackend>(i));
-    }
-  }
-}
-
 
 /**
  * @brief Ahead Of Time Workspace Policy for Separated Executor
@@ -476,7 +424,6 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
         }
       }
     }
-
   }
 
   template <OpType op_type>
@@ -491,9 +438,6 @@ struct AOT_WS_Policy<SeparateQueuePolicy> {
     DALI_ENFORCE(node.op_type == op_type,
                  "Wrong variant of method selected. OpType does not match.");
     return GetWorkspace<op_type>(idxs, graph, node.partition_index);
-  }
-
-  void WorkspaceUsed(Workspace &ws) {
   }
 
  private:
@@ -559,8 +503,6 @@ template <>
 struct AOT_WS_Policy<UniformQueuePolicy> {
   using ws_t = Workspace &;
 
-  bool auto_liveness = true;
-
   ~AOT_WS_Policy() {
     for (auto &wss : wss_) {
       for (auto &ws : std::get<static_cast<int>(OpType::CPU)>(wss.op_data))
@@ -584,19 +526,6 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
       PrepareWSB(i, graph, device_id, tensor_to_store_queue, thread_pool, mixed_op_stream,
                  gpu_op_stream, mixed_op_events);
     }
-
-    InitializeLiveness();
-  }
-
-  void InitializeLiveness() {
-    for (auto &wss : wss_) {
-      for (auto &ws : std::get<static_cast<int>(OpType::CPU)>(wss.op_data))
-        InitializeLivenessInfo(liveness_info_, ws);
-      for (auto &ws : std::get<static_cast<int>(OpType::MIXED)>(wss.op_data))
-        InitializeLivenessInfo(liveness_info_, ws);
-      for (auto &ws : std::get<static_cast<int>(OpType::GPU)>(wss.op_data))
-        InitializeLivenessInfo(liveness_info_, ws);
-    }
   }
 
   template <OpType op_type>
@@ -613,11 +542,6 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
     auto &ws_vec = std::get<static_cast<size_t>(op_type)>(wss_[idxs[op_type]].op_data);
     auto &ws = ws_vec[node.partition_index];
     return ws;
-  }
-
-  void WorkspaceUsed(Workspace &ws) {
-    if (auto_liveness)
-      AdjustLiveness(liveness_info_, ws);
   }
 
  private:
@@ -662,8 +586,8 @@ struct AOT_WS_Policy<UniformQueuePolicy> {
   };
   vector<WorkspaceBlob> wss_;
   int queue_size_ = -1;
-  std::map<const void *, LivenessInfo> liveness_info_;
 };
+
 
 }  // namespace dali
 
