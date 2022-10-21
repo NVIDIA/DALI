@@ -30,48 +30,6 @@ void CheckNumSamples(span<const TensorListShape<>*> shapes) {
   }
 }
 
-bool HasAnyZeroVolume(span<const TensorShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    if (volume(*shapes[i]) == 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool HasAnyZeroVolume(span<const TensorListShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    for (int sample_idx = 0; sample_idx < shapes[i]->num_samples(); sample_idx++) {
-      if (shapes[i]->tensor_size(sample_idx) == 0) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-void CheckNonZeroVolume(span<const TensorShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    if (volume(*shapes[i]) == 0) {
-      DALI_FAIL(make_string("Can't broadcast shapes with zero volume. "
-                            "Got a shape with zero volume: ",
-                            shapes[i]));
-    }
-  }
-}
-
-void CheckNonZeroVolume(span<const TensorListShape<>*> shapes) {
-  for (int i = 0; i < shapes.size(); i++) {
-    for (int sample_idx = 0; sample_idx < shapes[i]->num_samples(); sample_idx++) {
-      if (shapes[i]->tensor_size(sample_idx) == 0) {
-        DALI_FAIL(make_string("Can't broadcast shapes with zero volume. "
-                              "Got a shape with zero volume in sample_idx=",
-                              sample_idx,  ": ", shapes[i]));
-      }
-    }
-  }
-}
-
 template <typename Shape>
 int BroadcastNdimImpl(span<const Shape*> shapes) {
   DALI_ENFORCE(shapes.size() >= 1);
@@ -105,10 +63,8 @@ template <typename ShapeLike>
 bool TryBroadcastShapeImpl(int64_t& target_value, const ShapeLike& shape, int rev_d) {
   int ndim = shape.size();
   auto extent = rev_d < ndim ? shape[ndim - 1 - rev_d] : 1;
-  assert(extent > 0);
-  assert(target_value > 0);
-  if (extent > 1 && extent != target_value) {
-    if (target_value > 1)
+  if (extent != 1 && extent != target_value) {
+    if (target_value != 1)
       return false;
     target_value = extent;
   }
@@ -139,7 +95,6 @@ std::string BroadcastErrorMessage(const Shapes& shapes,
 }
 
 void BroadcastShape(TensorShape<>& result, span<const TensorShape<>*> shapes) {
-  CheckNonZeroVolume(shapes);
   DALI_ENFORCE(shapes.size() >= 1);
   if (shapes.size() == 1) {
     result = *shapes[0];
@@ -163,7 +118,6 @@ void BroadcastShape(TensorShape<>& result, span<const TensorShape<>*> shapes) {
 }
 
 void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>*> shapes) {
-  CheckNonZeroVolume(shapes);
   DALI_ENFORCE(shapes.size() >= 1);
   if (shapes.size() == 1) {
     result = *shapes[0];
@@ -189,9 +143,6 @@ void BroadcastShape(TensorListShape<>& result, span<const TensorListShape<>*> sh
 }
 
 bool CanBroadcast(span<const TensorShape<>*> shapes) {
-  if (HasAnyZeroVolume(shapes)) {
-    return false;
-  }
   if (shapes.size() < 2) {
     return true;
   }
@@ -207,9 +158,6 @@ bool CanBroadcast(span<const TensorShape<>*> shapes) {
 }
 
 bool CanBroadcast(span<const TensorListShape<>*> shapes) {
-  if (HasAnyZeroVolume(shapes)) {
-    return false;
-  }
   if (shapes.size() < 2) {
     return true;
   }
@@ -227,27 +175,45 @@ bool CanBroadcast(span<const TensorListShape<>*> shapes) {
   return true;
 }
 
-template <typename Shape>
-bool NeedBroadcastImpl(span<const Shape*> shapes) {
-  if (shapes.size() < 2)
-    return false;
-  const auto *prev_sh = shapes[0];
-  for (int i = 1; i < shapes.size(); i++) {
-    if (IsScalarLike(*prev_sh)) {
-      prev_sh = shapes[i];
-    } else if (!IsScalarLike(*shapes[i]) && *prev_sh != *shapes[i]) {
-      return true;
+bool NeedBroadcasting(span<const TensorShape<>*> shapes) {
+  int ndim = BroadcastNdim(shapes);
+  for (int rev_d = 0; rev_d < ndim; rev_d++) {
+    int64_t target = -1;
+    for (int i = 0; i < shapes.size(); i++) {
+      auto &sh = *shapes[i];
+      int64_t extent = rev_d < sh.sample_dim() ? sh[sh.sample_dim() - 1 - rev_d] : 1;
+      if (target == -1)
+        target = extent;
+      else if (target != extent)
+        return true;  // not equivalent shapes
     }
   }
-  return false;
-}
-
-bool NeedBroadcasting(span<const TensorShape<>*> shapes) {
-  return NeedBroadcastImpl(shapes);
+  return false;  // all shapes equivalent (equal except leading 1s)
 }
 
 bool NeedBroadcasting(span<const TensorListShape<>*> shapes) {
-  return NeedBroadcastImpl(shapes);
+  if (shapes.size() < 2)
+    return false;
+  int ndim = BroadcastNdim(shapes);
+  int nsamples = shapes[0]->num_samples();
+  for (int i = 1; i < shapes.size(); i++)
+    assert(nsamples == shapes[i]->num_samples());
+
+  for (int s = 0; s < nsamples; s++) {
+    for (int rev_d = 0; rev_d < ndim; rev_d++) {
+      int target = -1;
+      for (int i = 0; i < shapes.size(); i++) {
+        auto sh = shapes[i]->tensor_shape_span(s);
+        int ndim = shapes[i]->sample_dim();
+        int64_t extent = rev_d < ndim ? sh[ndim - 1 - rev_d] : 1;
+        if (target == -1)
+          target = extent;
+        else if (target != extent)
+          return true;  // not equivalent shapes
+      }
+    }
+  }
+  return false;  // all shapes equivalent (equal except leading 1s)
 }
 
 TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh, const TensorShape<> &in_sh,
@@ -256,13 +222,21 @@ TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh, const TensorSh
   assert(in_sh.sample_dim() == in_strides.sample_dim());
   assert(in_sh.sample_dim() <= out_sh.sample_dim());
   int out_ndim = out_sh.sample_dim();
+  int in_ndim = in_sh.sample_dim();
+  assert(in_ndim == in_strides.sample_dim());
+  assert(in_ndim <= out_ndim);
   strides.shape.resize(out_ndim, 0);
-  for (int i = (out_ndim - in_sh.sample_dim()); i < out_ndim; i++) {
-    assert(in_sh[i] == out_sh[i] || in_sh[i] == 1);
-    if (in_sh[i] == out_sh[i])
-      strides[i] = in_strides[i];
-    else
-      strides[i] = 0;
+
+  for (int i = 0; i < in_ndim; i++) {
+    int in_i = in_ndim - i - 1;
+    int out_i = out_ndim - i - 1;
+    assert(in_sh[in_i] == out_sh[out_i] || in_sh[in_i] == 1);
+    if (in_sh[in_i] == out_sh[out_i]) {
+      strides[out_i] = in_strides[in_i];
+    } else {
+      assert(in_sh[in_i] == 1);
+      strides[out_i] = 0;
+    }
   }
   return strides;
 }
@@ -370,5 +344,15 @@ void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorSha
   std::array<TensorShape<>*, 3> arr = {&a, &b, &c};
   SimplifyShapesForBroadcasting(make_span(arr));
 }
+
+void CheckBroadcastingSimplifiedDim(int ndim) {
+  if (ndim > 6) {
+    DALI_FAIL(make_string(
+          "Broadcasting pattern too complex. Can't operate with simplified shapes with "
+          "more than 6 groups of dimensions. Got ", ndim, " groups. For more details "
+          "see https://docs.nvidia.com/deeplearning/dali/user-guide/docs/math.html"));
+  }
+}
+
 
 }  // namespace dali

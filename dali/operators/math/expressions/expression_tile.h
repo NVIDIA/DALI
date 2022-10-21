@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,13 +31,12 @@ namespace dali {
  */
 struct TileDesc {
   int sample_idx;       // id of sample inside within the batch
-  int extent_idx;       // the index of tile within this sample_idx
-  int64_t extent_size;  // actually covered extent in this tile, the last can be smaller
-  int64_t tile_size;    // the size of regular tile
+  int64_t offset;
+  int64_t size;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const TileDesc &v) {
-  os << "{" << v.sample_idx << ", " << v.extent_idx << ", " << v.extent_size << ", " << v.tile_size
+  os << "{" << v.sample_idx << ", " << v.offset << ", " << v.size
      << "}";
   return os;
 }
@@ -54,28 +53,41 @@ inline std::ostream &operator<<(std::ostream &os, const TileRange &v) {
 
 using OutputSamplePtr = void *;
 using InputSamplePtr = const void *;
-using ArgPack = SmallVector<InputSamplePtr, kMaxArity>;
 
 /**
- * @brief Describe tile with pointers to output and input data for that tile.
- *
- * The pointers are intentionally stored as `void *` so we can use one tile type for all
- * possible `ExprImpl` implementations.
- * As we obtain pointers to Tensor/TensorList data, we cast them to `void *`
- * and the ExprImpl is later aware to what type should it be casted back.
- * This reduces the amount of types and compilation time significantly.
+ * @brief Output tensor data
  */
-struct ExtendedTileDesc {
-  ExtendedTileDesc() = default;
+struct OutputData {
+  OutputSamplePtr data = nullptr;
+  DALIDataType dtype = DALI_NO_TYPE;
+  TensorShape<> shape{};
+  TensorShape<> strides{};
+};
 
-  ExtendedTileDesc(const TileDesc &desc, const OutputSamplePtr &output, const ArgPack &args,
-                   DALIDataType out_type, const SmallVector<DALIDataType, kMaxArity> &in_types)
-      : desc(desc), output(output), args(args), out_type(out_type), in_types(in_types) {}
-  TileDesc desc;
-  OutputSamplePtr output;
+/**
+ * @brief Operand tensor data
+ */
+struct OperandData {
+  InputSamplePtr data = nullptr;
+  DALIDataType dtype = DALI_NO_TYPE;
+  TensorShape<> shape{};
+  TensorShape<> strides{};
+};
+
+/**
+ * @brief Group of operands
+ */
+using ArgPack = SmallVector<OperandData, kMaxArity>;
+
+/**
+ * @brief Sample descriptor, including metadata about operands and output tensors
+ */
+struct SampleDesc {
+  SampleDesc() = default;
+  SampleDesc(OutputData output, const ArgPack &args)
+      : output(output), args(args) {}
+  OutputData output;
   ArgPack args;
-  DALIDataType out_type;
-  SmallVector<DALIDataType, kMaxArity> in_types;
 };
 
 }  // namespace dali

@@ -136,7 +136,7 @@ class ArgValue {
 
   /**
    * @brief Acquires argument data, enforcing that the shape of the data matches the
-   *        expected shape or it is a scalar, which can also be broadcasted to the expected shape
+   *        expected shape or it is a scalar, which can also be broadcast to the expected shape
    *
    * @param spec
    * @param ws
@@ -194,7 +194,7 @@ class ArgValue {
 
   /**
    * @brief Acquires argument data, enforcing that the shape of the data matches the
-   *        expected shape or it is a scalar, which can also be broadcasted to the expected shape
+   *        expected shape or it is a scalar, which can also be broadcast to the expected shape
    *
    * @param spec
    * @param ws

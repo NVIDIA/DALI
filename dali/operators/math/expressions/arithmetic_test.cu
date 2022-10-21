@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,9 +60,8 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
       for (int extent_id = 0; extent_id < TestConfig::tiles_per_sample; extent_id++) {
         int tile_id = sample_id * TestConfig::tiles_per_sample + extent_id;
         tile_descs[tile_id].sample_idx = sample_id;
-        tile_descs[tile_id].extent_idx = extent_id;
-        tile_descs[tile_id].tile_size = TestConfig::tile_size;
-        tile_descs[tile_id].extent_size = TestConfig::tile_size;
+        tile_descs[tile_id].offset = TestConfig::tile_size * extent_id;
+        tile_descs[tile_id].size = TestConfig::tile_size;
       }
     }
 
@@ -90,32 +89,61 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     Fill(right.cpu(), fill_right);
 
     // Fill pointers for tiles
+    samples_data.reshape(uniform_list_shape<1>(1, {TestConfig::batch_size}));
     tiles_data.reshape(uniform_list_shape<1>(1, {TestConfig::num_tiles}));
+    auto samples_cpu = samples_data.cpu()[0];
     auto tiles_cpu = tiles_data.cpu()[0];
     // TestTensorList just allocates memory, this can leave SmallVector in weird state
-    memset(tiles_cpu.data, 0, TestConfig::num_tiles * sizeof(ExtendedTileDesc));
-    for (int sample_id = 0; sample_id < TestConfig::batch_size; sample_id++) {
-      for (int extent_id = 0; extent_id < TestConfig::tiles_per_sample; extent_id++) {
-        int tile_id = sample_id * TestConfig::tiles_per_sample + extent_id;
-        tiles_cpu(tile_id)->desc = tile_descs[tile_id];
-        tiles_cpu(tile_id)->output =
-            result.gpu(stream)[sample_id].data + extent_id * TestConfig::tile_size;
-        tiles_cpu(tile_id)->args.resize(2);
-        tiles_cpu(tile_id)->args[0] =
-            left.gpu(stream)[sample_id].data +
-            (TestConfig::IsLeftTensor ? extent_id * TestConfig::tile_size : 0);
-        tiles_cpu(tile_id)->args[1] =
-            right.gpu(stream)[sample_id].data +
-            (TestConfig::IsRightTensor ? extent_id * TestConfig::tile_size : 0);
+    memset(samples_cpu.data, 0, TestConfig::batch_size * sizeof(SampleDescGPU<2, 1>));
+    memset(tiles_cpu.data, 0, TestConfig::num_tiles * sizeof(TileDesc));
+
+    for (int sample_idx = 0; sample_idx < TestConfig::batch_size; sample_idx++) {
+      auto &sample = samples_cpu.data[sample_idx];
+
+      auto out_tv = left.gpu()[sample_idx];
+      TensorShape<> out_strides;
+      kernels::CalcStrides(out_strides, out_tv.shape);
+      sample.output.data = out_tv.data;
+      sample.output.dtype = type2id<Result>::value;
+      for (int d = 0; d < out_tv.shape.sample_dim(); d++) {
+        sample.output.shape[d] = out_tv.shape[d];
+        sample.output.strides[d] = out_strides[d];
+      }
+
+      auto left_tv = left.gpu()[sample_idx];
+      TensorShape<> left_strides;
+      kernels::CalcStrides(left_strides, left_tv.shape);
+      sample.args[0].data = left_tv.data;
+      sample.args[0].dtype = type2id<Result>::value;
+      for (int d = 0; d < left_tv.shape.sample_dim(); d++) {
+        sample.args[0].shape[d] = left_tv.shape[d];
+        sample.args[0].strides[d] = left_strides[d];
+      }
+
+      auto right_tv = right.gpu()[sample_idx];
+      TensorShape<> right_strides;
+      kernels::CalcStrides(right_strides, right_tv.shape);
+      sample.args[1].data = right_tv.data;
+      sample.args[1].dtype = type2id<Result>::value;
+      for (int d = 0; d < right_tv.shape.sample_dim(); d++) {
+        sample.args[1].shape[d] = right_tv.shape[d];
+        sample.args[1].strides[d] = right_strides[d];
+      }
+
+      for (int extent_idx = 0; extent_idx < TestConfig::tiles_per_sample; extent_idx++) {
+        int tile_idx = sample_idx * TestConfig::tiles_per_sample + extent_idx;
+        tiles_cpu.data[tile_idx] = tile_descs[tile_idx];
       }
     }
 
     tiles_gpu = tiles_data.gpu(stream)[0].data;
+    samples_gpu = samples_data.gpu(stream)[0].data;
   }
 
   void MeasurePerf() {
-    ExecuteTiledBinOp<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
-                      TestConfig::IsRightTensor><<<grid, block, 0, stream>>>(tiles_gpu);
+    ExecuteTiledBinOp1D<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
+                        TestConfig::IsRightTensor>
+        <<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
     CUDAEvent end = CUDAEvent::CreateWithFlags(0);
@@ -123,8 +151,9 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     CUDA_CALL(cudaEventRecord(start, stream));
     constexpr int kIters = 100;
     for (int i = 0; i < kIters; i++) {
-      ExecuteTiledBinOp<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
-                        TestConfig::IsRightTensor><<<grid, block, 0, stream>>>(tiles_gpu);
+      ExecuteTiledBinOp1D<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
+                          TestConfig::IsRightTensor>
+          <<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
     }
     CUDA_CALL(cudaEventRecord(end, stream));
     CUDA_CALL(cudaDeviceSynchronize());
@@ -152,16 +181,18 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
   dim3 grid = dim3(TestConfig::blocks_x, TestConfig::num_tiles, 1);
   dim3 block = dim3(TestConfig::thread_num, 1, 1);
 
-  // Tiles and data
+  // Samples, tiles and data
   std::vector<TileDesc> tile_descs;
-  kernels::TestTensorList<ExtendedTileDesc, 1> tiles_data;
+  kernels::TestTensorList<TileDesc, 1> tiles_data;
+  kernels::TestTensorList<SampleDescGPU<2, 1>, 1> samples_data;
 
   kernels::TestTensorList<Result, 1> result;
   kernels::TestTensorList<Left, 1> left;
   kernels::TestTensorList<Right, 1> right;
 
   CUDAStream stream;
-  const ExtendedTileDesc *tiles_gpu;
+  const SampleDescGPU<2, 1> *samples_gpu;
+  const TileDesc *tiles_gpu;
 };
 
 TYPED_TEST_SUITE_P(BinaryArithmeticOpGpuPerfTest);

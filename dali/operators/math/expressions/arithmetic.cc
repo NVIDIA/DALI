@@ -21,22 +21,39 @@ namespace dali {
 
 template <>
 void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
-  PrepareTilesForTasks<CPUBackend>(tiles_per_task_, exec_order_, tile_cover_, ws, constant_storage_,
-                                   spec_);
+  PrepareSamplesPerTask<CPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
   auto &pool = ws.GetThreadPool();
   ws.Output<CPUBackend>(0).SetLayout(result_layout_);
+
+  int ndim = 1;
+  for (const auto &samples : samples_per_task_) {
+    for (const auto &sample : samples) {
+      ndim = std::max(ndim, sample.output.shape.sample_dim());
+    }
+  }
+  if (ndim == 1) {
+    std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
+  } else {
+    std::tie(tile_cover_, tile_range_) = GetOneTilePerSample(result_shape_);
+  }
+
+  int batch_size = ws.GetInputBatchSize(0);
   for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
-    pool.AddWork([this, task_idx](int thread_idx) {
-      auto range = tile_range_[task_idx];
-      // Go over "tiles"
-      for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
-        // Go over expression tree in some provided order
-        for (size_t i = 0; i < exec_order_.size(); i++) {
-          exec_order_[i].impl->Execute(exec_order_[i].ctx, tiles_per_task_[i],
-                                       {extent_idx, extent_idx + 1});
-        }
-      }
-    }, -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
+    pool.AddWork(
+        [=](int thread_idx) {
+          auto range = tile_range_[task_idx];
+          // Go over "tiles"
+          for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
+            // Go over expression tree in some provided order
+            for (size_t i = 0; i < exec_order_.size(); i++) {
+              assert(batch_size == static_cast<int>(samples_per_task_[i].size()));
+              auto samples = make_cspan(samples_per_task_[i]);
+              exec_order_[i].impl->Execute(exec_order_[i].ctx, samples,
+                                           make_cspan(&tile_cover_[extent_idx], 1));
+            }
+          }
+        },
+        -task_idx);  // FIFO order, since the work is already divided to similarly sized chunks
   }
   pool.RunAll();
 }

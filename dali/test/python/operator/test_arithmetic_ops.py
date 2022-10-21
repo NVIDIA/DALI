@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali.pipeline import Pipeline, DataNode
+from nvidia.dali import pipeline_def, fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali.math as math
@@ -36,10 +37,16 @@ def list_product(*args):
 
 batch_size = 4
 
+
 # Shape of the samples, currently forces the sample to have be covered by more than 1 tile
-shape_big = [(1024, 1024)] * batch_size
+def shape_big(arg_idx):
+    return [(1024, 1024)] * batch_size
+
+
 # For the coverage of all type combinations we use smaller batch
-shape_small = [(42, 3), (4, 16), (8, 2), (1, 64)]
+def shape_small(arg_idx):
+    return [(42, 3), (4, 16), (8, 2), (1, 64)]
+
 
 # A number used to test constant inputs
 magic_number = 7
@@ -293,7 +300,8 @@ class ExternalInputIterator(object):
     the "shape" of `kinds` arguments should match the `types` argument - single elements or tuples
     of the same arity.
     """
-    def __init__(self, batch_size, shape, types, kinds, disallow_zeros=None, limited_range=None):
+    def __init__(self, batch_size, shape_gen, types, kinds,
+                 disallow_zeros=None, limited_range=None):
         try:
             self.length = len(types)
         except TypeError:
@@ -311,7 +319,7 @@ class ExternalInputIterator(object):
         for i in range(self.length):
             self.gens += [self.get_generator(self.types[i], disallow_zeros[i], limited_range[i])]
             if "scalar" not in kinds[i]:
-                self.shapes += [shape]
+                self.shapes += [shape_gen(i)]
             elif "scalar_legacy" in kinds[i]:
                 self.shapes += [[(1, )] * batch_size]
             else:
@@ -563,7 +571,6 @@ def test_ternary_ops_selected():
 
 # Only selected types, otherwise it takes too long
 
-
 @attr('slow')
 def slow_test_ternary_ops_kinds():
     for kinds in ternary_input_kinds:
@@ -793,3 +800,101 @@ def test_prohibit_min_max():
                          " be used for truth evaluation in regular Python context."))
 def test_bool_raises():
     bool(DataNode("dummy"))
+
+
+def test_binary_ops_broadcasting():
+    def get_sh(arg_idx):
+        shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
+        shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
+        if arg_idx == 0:
+            return shapes0
+        elif arg_idx == 1:
+            return shapes1
+        else:
+            assert False
+
+    for kinds in list_product(["cpu", "gpu"], ["cpu", "gpu"]):
+        for (op, op_desc, get_range) in sane_operations:
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                if types_in != (np.bool_, np.bool_) or op_desc == "*":
+                    yield check_arithm_op, kinds, types_in, op, get_sh, get_range, op_desc
+
+
+def test_ternary_ops_broadcasting():
+    def get_sh(arg_idx):
+        shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
+        shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
+        shapes2 = [(43, 1, 3), (4, 1, 16), (8, 1, 2), (1, 1, 1)]
+        if arg_idx == 0:
+            return shapes0
+        elif arg_idx == 1:
+            return shapes1
+        elif arg_idx == 2:
+            return shapes2
+        else:
+            assert False
+    for kinds in ("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"):
+        for (op, op_desc) in ternary_operations:
+            for types_in in itertools.product(selected_input_arithm_types,
+                                              selected_input_arithm_types,
+                                              selected_input_arithm_types):
+                yield check_ternary_op, kinds, types_in, op, get_sh, op_desc
+
+
+def test_broadcasting_dimensionality_limits():
+    def impl(device, shape_a, shape_b):
+        @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+        def pipe():
+            a = fn.random.uniform(range=[-1, 1], shape=shape_a)
+            b = fn.random.uniform(range=[-1, 1], shape=shape_b)
+            return a + b
+        p = pipe()
+        p.build()
+        p.run()
+
+    # ERROR
+    error_msg = \
+        "Broadcasting pattern too complex. Can't operate with simplified" + \
+        " shapes with more than 6 groups of dimensions. Got 10 groups. " + \
+        "For more details see https://docs.nvidia.com/deeplearning/dali/user-guide/docs/math.html"
+    shape_a_err = (2, 1, 2, 1, 2, 1, 2, 1, 2, 1)
+    shape_b_err = (1, 2, 1, 2, 1, 2, 1, 2, 1, 2)
+    for device in ['cpu', 'gpu']:
+        with assert_raises(RuntimeError, glob=error_msg):
+            impl(device, shape_a_err, shape_b_err)
+
+    # NO ERROR (exactly 6 groups)
+    shape_a_ok = (2, 1, 1, 1, 3, 1, 4, 5, 6, 1)
+    shape_b_ok = (1, 2, 3, 4, 1, 5, 1, 1, 1, 6)
+    for device in ['cpu', 'gpu']:
+        impl(device, shape_a_ok, shape_b_ok)
+
+
+def test_broadcasting_incompatible_shapes():
+    def impl(device, shape_a, shape_b):
+        @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+        def pipe():
+            a = fn.random.uniform(range=[-1, 1], shape=shape_a)
+            b = fn.random.uniform(range=[-1, 1], shape=shape_b)
+            return a + b
+        p = pipe()
+        p.build()
+        p.run()
+
+    error_msg1 = "Can't broadcast shapes:*" + \
+                 "2 x 3 x 4 (d=2, belonging to sample_idx=0)\n" + \
+                 "2 x 3 x 3 (d=2, belonging to sample_idx=0)"
+    shape_a1 = (2, 3, 4)
+    shape_b1 = (2, 3, 3)
+    for device in ['cpu', 'gpu']:
+        with assert_raises(RuntimeError, glob=error_msg1):
+            impl(device, shape_a1, shape_b1)
+
+    error_msg2 = "Can't broadcast shapes:*" + \
+                 "1 x 4 (d=1, belonging to sample_idx=0)\n" + \
+                 "3 (d=0, belonging to sample_idx=0)"
+    shape_a2 = (1, 4)
+    shape_b2 = (3)
+    for device in ['cpu', 'gpu']:
+        with assert_raises(RuntimeError, glob=error_msg2):
+            impl(device, shape_a2, shape_b2)

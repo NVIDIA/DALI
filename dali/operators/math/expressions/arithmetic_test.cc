@@ -34,8 +34,8 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   auto &expr_ref = *expr;
   Workspace ws;
   std::shared_ptr<TensorList<CPUBackend>> in[3];
-  DALIDataType types[3] = {DALI_UINT8, DALI_INT16, DALI_INT32};
-  for (int i = 0; i < 3; i++) {
+  DALIDataType types[2] = {DALI_UINT8, DALI_INT16};
+  for (int i = 0; i < 2; i++) {
     in[i] = std::make_shared<TensorList<CPUBackend>>();
     in[i]->Resize({{1}, {2}}, types[i]);
   }
@@ -45,11 +45,12 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   ws.AddInput(in[1]);
 
   auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
-  auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
+  TensorListShape<> result_shape;
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
-  auto expected_shpe = TensorListShape<>{{1}, {2}};
+  auto expected_shape = TensorListShape<>{{1}, {2}};
   EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
-  EXPECT_EQ(result_shape, expected_shpe);
+  EXPECT_EQ(result_shape, expected_shape);
   EXPECT_EQ(result_layout, "HW");
   EXPECT_EQ(expr_ref.GetNodeDesc(), "div:T:int32(FT:int16 CC:int32)");
   EXPECT_EQ(expr_ref.GetOutputDesc(), "FT:int32");
@@ -75,9 +76,10 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   }
   ws.AddInput(in[0]);
 
-  auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
-  auto expected_shpe = TensorListShape<>{{}, {}};
-  EXPECT_EQ(result_shape, expected_shpe);
+  TensorListShape<> result_shape;
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  auto expected_shape = TensorListShape<>{{}, {}};
+  EXPECT_EQ(result_shape, expected_shape);
 }
 
 TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
@@ -92,12 +94,35 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   }
   ws.AddInput(in[0]);
 
-  auto result_shape = PropagateShapes<CPUBackend>(expr_ref, ws, 2);
-  auto expected_shpe = TensorListShape<>{{1}, {1}};
-  EXPECT_EQ(result_shape, expected_shpe);
+  TensorListShape<> result_shape;
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  auto expected_shape = TensorListShape<>{{1}, {1}};
+  EXPECT_EQ(result_shape, expected_shape);
 }
 
-TEST(ArithmeticOpsTest, TreePropagationError) {
+TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
+  std::string expr_str = "div(sub(&0 &1) &2)";
+  auto expr = ParseExpressionString(expr_str);
+  auto &expr_ref = *expr;
+  Workspace ws;
+  std::shared_ptr<TensorList<CPUBackend>> in[3];
+  for (auto &ptr : in) {
+    ptr = std::make_shared<TensorList<CPUBackend>>();
+    ptr->Resize({{1}, {2}}, DALI_INT32);
+  }
+  in[2]->Resize({{10}, {2}});
+  ws.AddInput(in[0]);
+  ws.AddInput(in[1]);
+  ws.AddInput(in[2]);
+
+  TensorListShape<> result_shape;
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
+  TensorListShape<> expected_sh = {{10}, {2}};
+  EXPECT_EQ(expected_sh, result_shape);
+}
+
+
+TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
   std::string expr_str = "div(sub(&0 &1) &2)";
   auto expr = ParseExpressionString(expr_str);
   auto &expr_ref = *expr;
@@ -110,12 +135,10 @@ TEST(ArithmeticOpsTest, TreePropagationError) {
   in[0]->SetLayout(TensorLayout());
   in[1]->SetLayout(TensorLayout("HW"));
   in[2]->SetLayout(TensorLayout("DHW"));
-  in[2]->Resize({{10}, {2}});
   ws.AddInput(in[0]);
   ws.AddInput(in[1]);
   ws.AddInput(in[2]);
 
-  ASSERT_THROW(PropagateShapes<CPUBackend>(expr_ref, ws, 2), std::runtime_error);
   ASSERT_THROW(GetCommonLayout<CPUBackend>(expr_ref, ws), std::runtime_error);
 }
 
@@ -123,8 +146,8 @@ TEST(ArithmeticOpsTest, TreePropagationError) {
 // namespace {
 
 inline bool operator==(const TileDesc &l, const TileDesc &r) {
-  return l.sample_idx == r.sample_idx && l.extent_idx == r.extent_idx &&
-         l.extent_size == r.extent_size && l.tile_size == r.tile_size;
+  return l.sample_idx == r.sample_idx &&
+         l.offset == r.offset && l.size == r.size;
 }
 
 inline bool operator==(const TileRange &l, const TileRange &r) {
@@ -136,18 +159,18 @@ inline bool operator==(const TileRange &l, const TileRange &r) {
 TEST(ArithmeticOpsTest, GetTiledCover) {
   TensorListShape<> shape0({{150}, {50}, {150}, {30}});
   auto result0 = GetTiledCover(shape0, 50, 4);
-  std::vector<TileDesc> cover0 = {{0, 0, 50, 50}, {0, 1, 50, 50}, {0, 2, 50, 50},
-                                  {1, 0, 50, 50}, {2, 0, 50, 50}, {2, 1, 50, 50},
-                                  {2, 2, 50, 50}, {3, 0, 30, 50}};
+  std::vector<TileDesc> cover0 = {{0, 0, 50}, {0, 50, 50},  {0, 100, 50},
+                                  {1, 0, 50}, {2, 0, 50}, {2, 50, 50},
+                                  {2, 100, 50}, {3, 0, 30}};
   std::vector<TileRange> range0 = {{0, 4}, {4, 8}};
   EXPECT_EQ(std::get<0>(result0), cover0);
   EXPECT_EQ(std::get<1>(result0), range0);
 
   TensorListShape<> shape1({{42}, {75}, {42}, {121}});
   auto result1 = GetTiledCover(shape1, 50, 4);
-  std::vector<TileDesc> cover1 = {{0, 0, 42, 50}, {1, 0, 50, 50}, {1, 1, 25, 50},
-                                  {2, 0, 42, 50}, {3, 0, 50, 50}, {3, 1, 50, 50},
-                                  {3, 2, 21, 50}};
+  std::vector<TileDesc> cover1 = {{0, 0, 42}, {1, 0, 50}, {1, 50, 25},
+                                  {2, 0, 42}, {3, 0, 50}, {3, 50, 50},
+                                  {3, 100, 21}};
   std::vector<TileRange> range1 = {{0, 4}, {4, 7}};
   EXPECT_EQ(std::get<0>(result1), cover1);
   EXPECT_EQ(std::get<1>(result1), range1);
@@ -242,6 +265,70 @@ class BinaryArithmeticOpsTest
       offset += shape[i].num_elements();
     }
   }
+
+  void TestBroadcast() {
+    constexpr int batch_size = 1;
+    constexpr int num_threads = 4;
+    const auto tensor_a_sh = uniform_list_shape(batch_size, {16, 7, 3});
+    const auto tensor_b_sh = uniform_list_shape(batch_size, {16, 1, 3});
+    TensorShape<> strides0 = {7*3, 3, 1};
+    TensorShape<> strides1 = {1*3, 0, 1};
+
+    auto backend = testing::detail::BackendStringName<Backend>();
+
+
+    Pipeline pipe(batch_size, num_threads, 0);
+
+    pipe.AddExternalInput("data0");
+    pipe.AddExternalInput("data1");
+
+    pipe.AddOperator(OpSpec("ArithmeticGenericOp")
+                         .AddArg("device", backend)
+                         .AddArg("expression_desc", "add(&0 &1)")
+                         .AddInput("data0", backend)
+                         .AddInput("data1", backend)
+                         .AddOutput("result0", backend),
+                     "arithm");
+
+    vector<std::pair<string, string>> outputs = {{"result0", backend}};
+
+    pipe.Build(outputs);
+
+    TensorList<CPUBackend> batch[2];
+    FillBatch<int>(batch[0], tensor_a_sh);
+    FillBatch<int>(batch[1], tensor_b_sh);
+
+    pipe.SetExternalInput("data0", batch[0]);
+    pipe.SetExternalInput("data1", batch[1]);
+    pipe.RunCPU();
+    pipe.RunGPU();
+    Workspace ws;
+    pipe.Outputs(&ws);
+    ASSERT_EQ(DALI_INT32, ws.Output<Backend>(0).type());
+    auto result_shape = ws.Output<Backend>(0).shape();
+    ASSERT_EQ(tensor_a_sh, result_shape);
+
+    for (int sample_id = 0; sample_id < batch_size; sample_id++) {
+      const auto *data0 = batch[0].template tensor<int>(sample_id);
+      const auto *data1 = batch[1].template tensor<int>(sample_id);
+
+      const auto *result0_gpu = ws.Output<Backend>(0).template tensor<int>(sample_id);
+      vector<int> result0_cpu(result_shape[sample_id].num_elements());
+      int *out = result0_cpu.data();
+      MemCopy(out, result0_gpu, result_shape[sample_id].num_elements() * sizeof(int));
+      CUDA_CALL(cudaStreamSynchronize(0));
+      TensorShape<> out_sh = tensor_a_sh[sample_id];
+      for (int64_t i0 = 0, i = 0; i0 < out_sh[0]; i0++) {
+        for (int64_t i1 = 0; i1 < out_sh[1]; i1++) {
+          for (int i2 = 0; i2 < out_sh[2]; i2++, i++) {
+            auto ref = data0[i0 * strides0[0] + i1 * strides0[1] + i2 * strides0[2]] +
+                       data1[i0 * strides1[0] + i1 * strides1[1] + i2 * strides1[2]];
+            EXPECT_EQ(out[i], ref);
+          }
+        }
+      }
+  }
+}
 
   void TestFunction() {
     TensorListShape<> shape0{{32000}, {2345}, {212}, {1}, {100}, {6400}, {8000}, {323},
@@ -416,6 +503,15 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
     }
   }
 }
+
+TEST_F(BinaryArithmeticOpCPUint32Test, Broadcast) {
+  this->TestBroadcast();
+}
+
+TEST_F(BinaryArithmeticOpGPUint32Test, Broadcast) {
+  this->TestBroadcast();
+}
+
 
 TEST(ArithmeticOpsTest, ConstantsPipeline) {
   constexpr int magic_int = 42;
