@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <vector>
 #include "dali/core/common.h"
+#include "dali/core/boundary.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/float16.h"
 #include "dali/core/cuda_utils.h"
@@ -124,6 +125,7 @@ enum DALIDataType : int {
   DALI_PYTHON_OBJECT     = 24,
   DALI_TENSOR_LAYOUT_VEC = 25,
   DALI_DATA_TYPE_VEC     = 26,
+  DALI_BORDER_TYPE       = 27,
   DALI_DATATYPE_END      = 1000
 };
 
@@ -203,6 +205,8 @@ inline const char *GetBuiltinTypeName(DALIDataType t) {
     case DALI_INTERP_TYPE:
       return "DALIInterpType";
       break;
+    case DALI_BORDER_TYPE:
+      return "DALIBorderType";
     case DALI_TENSOR_LAYOUT:
       return "TensorLayout";
       break;
@@ -558,24 +562,25 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
   DALI_REGISTER_TYPE_IMPL(Type, dtype);
 
 // Instantiate some basic types
-DALI_REGISTER_TYPE(NoType,         DALI_NO_TYPE);
-DALI_REGISTER_TYPE(uint8_t,        DALI_UINT8);
-DALI_REGISTER_TYPE(uint16_t,       DALI_UINT16);
-DALI_REGISTER_TYPE(uint32_t,       DALI_UINT32);
-DALI_REGISTER_TYPE(uint64_t,       DALI_UINT64);
-DALI_REGISTER_TYPE(int8_t,         DALI_INT8);
-DALI_REGISTER_TYPE(int16_t,        DALI_INT16);
-DALI_REGISTER_TYPE(int32_t,        DALI_INT32);
-DALI_REGISTER_TYPE(int64_t,        DALI_INT64);
-DALI_REGISTER_TYPE(float16,        DALI_FLOAT16);
-DALI_REGISTER_TYPE(float,          DALI_FLOAT);
-DALI_REGISTER_TYPE(double,         DALI_FLOAT64);
-DALI_REGISTER_TYPE(bool,           DALI_BOOL);
-DALI_REGISTER_TYPE(string,         DALI_STRING);
-DALI_REGISTER_TYPE(DALIImageType,  DALI_IMAGE_TYPE);
-DALI_REGISTER_TYPE(DALIDataType,   DALI_DATA_TYPE);
-DALI_REGISTER_TYPE(DALIInterpType, DALI_INTERP_TYPE);
-DALI_REGISTER_TYPE(TensorLayout,   DALI_TENSOR_LAYOUT);
+DALI_REGISTER_TYPE(NoType,                 DALI_NO_TYPE);
+DALI_REGISTER_TYPE(uint8_t,                DALI_UINT8);
+DALI_REGISTER_TYPE(uint16_t,               DALI_UINT16);
+DALI_REGISTER_TYPE(uint32_t,               DALI_UINT32);
+DALI_REGISTER_TYPE(uint64_t,               DALI_UINT64);
+DALI_REGISTER_TYPE(int8_t,                 DALI_INT8);
+DALI_REGISTER_TYPE(int16_t,                DALI_INT16);
+DALI_REGISTER_TYPE(int32_t,                DALI_INT32);
+DALI_REGISTER_TYPE(int64_t,                DALI_INT64);
+DALI_REGISTER_TYPE(float16,                DALI_FLOAT16);
+DALI_REGISTER_TYPE(float,                  DALI_FLOAT);
+DALI_REGISTER_TYPE(double,                 DALI_FLOAT64);
+DALI_REGISTER_TYPE(bool,                   DALI_BOOL);
+DALI_REGISTER_TYPE(string,                 DALI_STRING);
+DALI_REGISTER_TYPE(DALIImageType,          DALI_IMAGE_TYPE);
+DALI_REGISTER_TYPE(DALIDataType,           DALI_DATA_TYPE);
+DALI_REGISTER_TYPE(DALIInterpType,         DALI_INTERP_TYPE);
+DALI_REGISTER_TYPE(boundary::BoundaryType, DALI_BORDER_TYPE);
+DALI_REGISTER_TYPE(TensorLayout,           DALI_TENSOR_LAYOUT);
 
 
 #ifdef DALI_BUILD_PROTO3
