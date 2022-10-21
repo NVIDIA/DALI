@@ -40,5 +40,5 @@ if (WITH_DYNAMIC_CUDA_TOOLKIT)
         VERBATIM)
 
     set_source_files_properties(${NPP_GENERATED_STUB} PROPERTIES GENERATED TRUE)
-    add_library(dynlink_npp STATIC npp_wrap.cc npp.cc ${NPP_GENERATED_STUB})
+    add_library(dynlink_npp STATIC npp_wrap.cc ${NPP_GENERATED_STUB})
 endif()

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -127,6 +127,10 @@ if (BUILD_TEST)
   if (BUILD_NVML)
     target_link_libraries(dali_operator_test PRIVATE dynlink_nvml)
   endif(BUILD_NVML)
+  if (WITH_DYNAMIC_CUDA_TOOLKIT)
+    target_link_libraries(dali_operator_test PRIVATE dynlink_npp)
+    target_link_libraries(dali_operator_test PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_npp>")
+  endif(WITH_DYNAMIC_CUDA_TOOLKIT)
   if (BUILD_CUFILE)
     target_link_libraries(dali_operator_test PRIVATE dynlink_cufile)
   endif()

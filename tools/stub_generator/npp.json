@@ -15,7 +15,7 @@
          "not_found_error":"nullptr" },
       "nppiColorTwist32f_8u_C3R": {},
       "nppiColorTwist32f_8u_C1R": {},
-            "nppiRemap_64f_C1R_Ctx": {},
+      "nppiRemap_64f_C1R_Ctx": {},
       "nppiRemap_64f_C3R_Ctx": {},
       "nppiRemap_32f_C1R_Ctx": {},
       "nppiRemap_32f_C3R_Ctx": {},
