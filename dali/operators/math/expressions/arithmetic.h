@@ -180,20 +180,20 @@ inline std::vector<ExprImplTask> CreateExecutionTasks(const ExprNode &expr, Expr
  *         identical shapes or scalar-like. True if the shapes needed broadcasting.
  */
 template <typename Backend>
-DLL_PUBLIC inline bool PropagateShapes(TensorListShape<> &result_shape,
+DLL_PUBLIC inline void PropagateShapes(TensorListShape<> &result_shape,
                                        ExprNode &expr,
                                        const Workspace &ws,
                                        int batch_size) {
   if (expr.GetNodeType() == NodeType::Constant) {
     expr.SetShape(TensorListShape<0>(batch_size));
     result_shape = expr.GetShape();
-    return false;
+    return;
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
     expr.SetShape(ws.Input<Backend>(e.GetInputIndex()).shape());
     result_shape = expr.GetShape();
-    return false;
+    return;
   }
   auto &func = dynamic_cast<ExprFunc &>(expr);
   int subexpression_count = expr.GetSubexpressionCount();
@@ -203,9 +203,8 @@ DLL_PUBLIC inline bool PropagateShapes(TensorListShape<> &result_shape,
 
   SmallVector<TensorListShape<>, kMaxArity> shapes;
   shapes.resize(subexpression_count);
-  bool needed_broadcasting = false;
   for (int i = 0; i < subexpression_count; i++) {
-    needed_broadcasting |= PropagateShapes<Backend>(shapes[i], func[i], ws, batch_size);
+    PropagateShapes<Backend>(shapes[i], func[i], ws, batch_size);
   }
   SmallVector<const TensorListShape<>*, kMaxArity> shapes_ptrs;
   shapes.reserve(shapes.size());
@@ -216,8 +215,7 @@ DLL_PUBLIC inline bool PropagateShapes(TensorListShape<> &result_shape,
   // Throws an error if the shapes can't be broadcast
   BroadcastShape(result_shape, shapes_ptrs_span);
   func.SetShape(result_shape);
-  needed_broadcasting |= NeedBroadcasting(shapes_ptrs_span);
-  return needed_broadcasting;
+  return;
 }
 
 inline void GetConstantNodes(ExprNode &expr, std::vector<ExprConstant *> &nodes) {
@@ -342,19 +340,11 @@ class ArithmeticGenericOp : public Operator<Backend> {
       types_layout_inferred_ = true;
     }
 
-    broadcasting_ = PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
+    PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 
     output_desc[0] = {result_shape_, result_type_id_};
-
-    // 1D tiling only when not broadcasting
-    bool no_tiling = std::is_same<Backend, CPUBackend>::value && broadcasting_;
-    if (no_tiling) {
-      std::tie(tile_cover_, tile_range_) = GetOneTilePerSample(result_shape_);
-    } else {
-      std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
-    }
     return true;
   }
 
@@ -380,7 +370,6 @@ class ArithmeticGenericOp : public Operator<Backend> {
 
   std::unique_ptr<ExprNode> expr_;
   TensorListShape<> result_shape_;
-  bool broadcasting_ = false;  // broadcasting required?
   bool types_layout_inferred_ = false;
   DALIDataType result_type_id_ = DALIDataType::DALI_NO_TYPE;
   TensorLayout result_layout_;

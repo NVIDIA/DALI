@@ -175,25 +175,45 @@ bool CanBroadcast(span<const TensorListShape<>*> shapes) {
   return true;
 }
 
-template <typename Shape>
-bool NeedBroadcastImpl(span<const Shape*> shapes) {
-  if (shapes.size() < 2)
-    return false;
-  const auto *prev_sh = shapes[0];
-  for (int i = 1; i < shapes.size(); i++) {
-    if (*prev_sh != *shapes[i]) {
-      return true;
+bool NeedBroadcasting(span<const TensorShape<>*> shapes) {
+  int ndim = BroadcastNdim(shapes);
+  for (int rev_d = 0; rev_d < ndim; rev_d++) {
+    int64_t target = -1;
+    for (int i = 0; i < shapes.size(); i++) {
+      auto &sh = *shapes[i];
+      int64_t extent = rev_d < sh.sample_dim() ? sh[sh.sample_dim() - 1 - rev_d] : 1;
+      if (target == -1)
+        target = extent;
+      else if (target != extent)
+        return true;  // not equivalent shapes
     }
   }
-  return false;
-}
-
-bool NeedBroadcasting(span<const TensorShape<>*> shapes) {
-  return NeedBroadcastImpl(shapes);
+  return false;  // all shapes equivalent (equal except leading 1s)
 }
 
 bool NeedBroadcasting(span<const TensorListShape<>*> shapes) {
-  return NeedBroadcastImpl(shapes);
+  if (shapes.size() < 2)
+    return false;
+  int ndim = BroadcastNdim(shapes);
+  int nsamples = shapes[0]->num_samples();
+  for (int i = 1; i < shapes.size(); i++)
+    assert(nsamples == shapes[i]->num_samples());
+
+  for (int s = 0; s < nsamples; s++) {
+    for (int rev_d = 0; rev_d < ndim; rev_d++) {
+      int target = -1;
+      for (int i = 0; i < shapes.size(); i++) {
+        auto sh = shapes[i]->tensor_shape_span(s);
+        int ndim = shapes[i]->sample_dim();
+        int64_t extent = rev_d < ndim ? sh[ndim - 1 - rev_d] : 1;
+        if (target == -1)
+          target = extent;
+        else if (target != extent)
+          return true;  // not equivalent shapes
+      }
+    }
+  }
+  return false;  // all shapes equivalent (equal except leading 1s)
 }
 
 TensorShape<> StridesForBroadcasting(const TensorShape<> &out_sh, const TensorShape<> &in_sh,

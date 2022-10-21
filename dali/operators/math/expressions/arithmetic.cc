@@ -25,6 +25,18 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
   auto &pool = ws.GetThreadPool();
   ws.Output<CPUBackend>(0).SetLayout(result_layout_);
 
+  int ndim = 1;
+  for (const auto &samples : samples_per_task_) {
+    for (const auto &sample : samples) {
+      ndim = std::max(ndim, sample.output.shape.sample_dim());
+    }
+  }
+  if (ndim == 1) {
+    std::tie(tile_cover_, tile_range_) = GetTiledCover(result_shape_, kTileSize, kTaskSize);
+  } else {
+    std::tie(tile_cover_, tile_range_) = GetOneTilePerSample(result_shape_);
+  }
+
   int batch_size = ws.GetInputBatchSize(0);
   for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
     pool.AddWork(

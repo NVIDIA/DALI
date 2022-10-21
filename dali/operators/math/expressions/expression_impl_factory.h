@@ -229,10 +229,9 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
 }
 
 /**
- * @brief Prepare vector of SampleDesc for every task that we have to execute, filling
- * the pointers to data, shapes, etc.
- *
- * @param samples_per_task  Output vectors of SampleDesc for each sample to be executed
+ * @brief Prepare data needed for execution.
+ *        Fills vector of SampleDesc for every task that we have to execute, including
+ *        the pointers to data, shapes, etc.
  */
 template <typename Backend>
 void PrepareSamplesPerTask(std::vector<std::vector<SampleDesc>> &samples_per_task,

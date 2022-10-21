@@ -366,6 +366,7 @@ TEST(ArithmeticOpsBroadcastingTest, NeedBroadcastShape) {
 
   test_no_need({1, 2, 3}, {1, 2, 3});
   test_no_need({10, 0}, {10, 0});  // zero is not special
+  test_no_need({1, 1, 2, 3}, {2, 3});  // we don't consider adding leading dims broadcasting
 
   test_need({1, 2, 3}, {});   // scalar
   test_need({1, 2, 3}, {1});  // scalar-like

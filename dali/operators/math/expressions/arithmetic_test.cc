@@ -34,8 +34,8 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   auto &expr_ref = *expr;
   Workspace ws;
   std::shared_ptr<TensorList<CPUBackend>> in[3];
-  DALIDataType types[3] = {DALI_UINT8, DALI_INT16, DALI_INT32};
-  for (int i = 0; i < 3; i++) {
+  DALIDataType types[2] = {DALI_UINT8, DALI_INT16};
+  for (int i = 0; i < 2; i++) {
     in[i] = std::make_shared<TensorList<CPUBackend>>();
     in[i]->Resize({{1}, {2}}, types[i]);
   }
@@ -46,8 +46,7 @@ TEST(ArithmeticOpsTest, TreePropagation) {
 
   auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
   TensorListShape<> result_shape;
-  bool need_broadcasting = PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
-  EXPECT_FALSE(need_broadcasting);
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
   auto expected_shape = TensorListShape<>{{1}, {2}};
   EXPECT_EQ(result_type, DALIDataType::DALI_INT32);
@@ -78,8 +77,7 @@ TEST(ArithmeticOpsTest, PropagateScalarInput) {
   ws.AddInput(in[0]);
 
   TensorListShape<> result_shape;
-  bool need_broadcasting = PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
-  EXPECT_FALSE(need_broadcasting);
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   auto expected_shape = TensorListShape<>{{}, {}};
   EXPECT_EQ(result_shape, expected_shape);
 }
@@ -97,8 +95,7 @@ TEST(ArithmeticOpsTest, PreservePseudoScalarInput) {
   ws.AddInput(in[0]);
 
   TensorListShape<> result_shape;
-  bool need_broadcasting = PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
-  EXPECT_FALSE(need_broadcasting);
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   auto expected_shape = TensorListShape<>{{1}, {1}};
   EXPECT_EQ(result_shape, expected_shape);
 }
@@ -119,7 +116,7 @@ TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
   ws.AddInput(in[2]);
 
   TensorListShape<> result_shape;
-  EXPECT_TRUE(PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2));
+  PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   TensorListShape<> expected_sh = {{10}, {2}};
   EXPECT_EQ(expected_sh, result_shape);
 }
