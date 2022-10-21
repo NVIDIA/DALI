@@ -134,7 +134,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
 
         float sy = 0.5f * dy;
         for (int y = 0; y < rsz_h; y++, sy += dy) {
-          int srcy = floor(sy);
+          int srcy = ::floor(sy);
           for (int x = 0; x < rsz_w; x++) {
             // This is a bit lame - i.e. this reproduces exactly what we got in CPU ResampleNN.
             // Proper solution would be to test the output and see if the output pixel is coming
@@ -142,7 +142,7 @@ class GenericResizeTest : public DALISingleOpTest<ImgType> {
             // test from scratch for NN case, as it cannot be tested with a straightforward
             // pixelwise comparison.
             float sx = (x + 0.5f) * dx;
-            int srcx = floor(sx);
+            int srcx = ::floor(sx);
             auto *dst = rsz_img.ptr<uint8_t>(y, x);
             auto *src = input.ptr<uint8_t>(srcy, srcx);
             memcpy(dst, src, elem_sz);

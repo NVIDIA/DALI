@@ -49,7 +49,7 @@ class GridMaskCpu {
       for (int x = 0; x < in.shape[1]; x++) {
         float fx = fxy + x * ca;
         float fy = fyy + x * sa;
-        auto m = (fx - floor(fx) >= ratio) || (fy - floor(fy) >= ratio);
+        auto m = (fx - std::floor(fx) >= ratio) || (fy - std::floor(fy) >= ratio);
         for (int c = 0; c < in.shape[2]; c++)
           *out_ptr++ = *in_ptr++ * m;
       }
