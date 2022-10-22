@@ -593,7 +593,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph, vector<string
 
   // Create corresponding storage type for TensorNodes in graph
   tensor_to_store_queue_ =
-      CreateBackingStorageForTensorNodes(*graph_, max_batch_size_, queue_sizes);
+      CreateBackingStorageForTensorNodes(*graph_, max_batch_size_, queue_sizes, output_names_);
 
   InitializeLivenessInfo(liveness_info_, tensor_to_store_queue_);
 
