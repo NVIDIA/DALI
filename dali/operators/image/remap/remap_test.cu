@@ -23,7 +23,7 @@ using namespace dali::remap::detail;
 using namespace std;  // NOLINT
 
 template<typename T>
-class ShiftPixelOriginTest : public ::testing::Test {
+class RemapTest : public ::testing::Test {
  protected:
   void SetUp() final {
     uniform_real_distribution<> dist{0, 1000};
@@ -50,15 +50,15 @@ class ShiftPixelOriginTest : public ::testing::Test {
   mt19937 mt_;
 };
 
-using ShiftPixelOriginTestTypes = ::testing::Types<float>;
-TYPED_TEST_SUITE(ShiftPixelOriginTest, ShiftPixelOriginTestTypes);
+using RemapTestTypes = ::testing::Types<float>;
+TYPED_TEST_SUITE(RemapTest, RemapTestTypes);
 
-TYPED_TEST(ShiftPixelOriginTest, ShiftPixelOriginTest) {
+TYPED_TEST(RemapTest, ShiftPixelOriginTest) {
   using T = TypeParam;
   for (auto &val: this->ref_data_) {
     val += .5f;
   }
-  ShiftPixelOrigin(TensorListView<StorageUnified, T>(this->test_data_, this->data_shape_),
+  ShiftPixelOrigin(TensorListView<StorageUnified, T>(this->test_data_, this->data_shape_), .5f,
                    this->stream_);
   CUDA_CALL(cudaStreamSynchronize(this->stream_));
   for (int i = 0; i < this->data_shape_.num_elements(); i++) {

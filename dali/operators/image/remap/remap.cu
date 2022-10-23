@@ -29,7 +29,7 @@ class RemapGpu : public Remap<GPUBackend> {
 
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.template Input<B>(0);
-    TYPE_SWITCH(input.type(), type2id, InputType, REMAP_SUPPORTED_TYPES, (
+    TYPE_SWITCH(input.type(), type2id, InputType, REMAP_SUPPORTED_TYPES, (//TODO indent
             {
               RunImplTyped<InputType>(ws);
             }
@@ -41,8 +41,8 @@ class RemapGpu : public Remap<GPUBackend> {
   template<typename InputType>
   void RunImplTyped(Workspace &ws) {
     const auto &input = ws.template Input<B>(0);
-    auto &mapx = ws.template Input<B>(1);
-    auto &mapy = ws.template Input<B>(2);
+    const auto &mapx = ws.template Input<B>(1);
+    const auto &mapy = ws.template Input<B>(2);
     auto &output = ws.template Output<B>(0);
     using KernelBackend = StorageGPU;
     //    using KernelBackend = backend_to_storage_device<Backend>;
@@ -52,19 +52,19 @@ class RemapGpu : public Remap<GPUBackend> {
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
 
-    std::vector<dali::boundary::Boundary<InputType>> borders(borders_.size());
-    for (int i = 0; i < borders.size(); i++) {
-      borders[i] = {borders_[i].type, any_cast<InputType>(borders_[i].value)};
+    TensorList<B> mapx_shifted, mapy_shifted;
+    if (shift_pixels_) {
+      mapx_shifted.Copy(mapx);
+      mapy_shifted.Copy(mapy);
+      detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_, ws.stream());
+      detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_, ws.stream());
     }
-    if (shift_pixels_){
-      detail::ShiftPixelOrigin(view<float>(mapx), ws.stream());
-      detail::ShiftPixelOrigin(view<float>(mapy), ws.stream());
-    }
+    cout<<"ROI\n"<<rois_<<endl;
+    cout<<"MAPS\n"<<mapx.shape()<<endl<<mapy.shape()<<endl;
     kernel.Run(ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
-               view<const float, 2>(mapx), view<const float, 2>(mapy),{},{}, make_span(interps_),
-               {/*TODO border*/});
-//    kernel.Run(ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
-//               view<const float, 2>(mapx), view<const float, 2>(mapy));
+               view<const float, 2>(shift_pixels_ ? mapx_shifted : mapx),
+               view<const float, 2>(shift_pixels_ ? mapy_shifted : mapy),
+               make_span(rois_), {}, make_span(interps_), {/* Border (currently unsupported) */});
   }
 };
 

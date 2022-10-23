@@ -35,32 +35,31 @@ __global__ shift_pixel_origin(T *data, int size, T shift_value) {
 }
 
 
-constexpr int kBlockSize = 256;
-constexpr float kOneOverBlockSize = 1.f / static_cast<float>(kBlockSize);
-
-
 template<typename T>
-void invoke_kernel(T *data, int size, cudaStream_t stream) {
+void invoke_kernel(T *data, int size, T shift_value, cudaStream_t stream) {
+  static constexpr int kBlockSize = 256;
+  static constexpr float kOneOverBlockSize = 1.f / static_cast<float>(kBlockSize);
   int num_blocks = (size + kBlockSize - 1) * kOneOverBlockSize;
-  shift_pixel_origin<<<num_blocks, kBlockSize, 0, stream>>>(data, size, .5f);
+  shift_pixel_origin<<<num_blocks, kBlockSize, 0, stream>>>(data, size, shift_value);
 }
 
 
 template<typename StorageBackend, typename T, int ndims>
-void ShiftPixelOrigin(TensorListView<StorageBackend, T, ndims> tlv, cudaStream_t stream) {
+void ShiftPixelOrigin(TensorListView<StorageBackend, T, ndims> tlv, T value, cudaStream_t stream) {
   static_assert(std::is_floating_point<T>::value,
                 "Shifting should be conducted on floating point data.");
   if (tlv.is_contiguous()) {
-    invoke_kernel(tlv.data[0], tlv.num_elements(), stream);
+    invoke_kernel(tlv.data[0], tlv.num_elements(), value, stream);
   } else {
     for (int sample_id = 0; sample_id < tlv.num_samples(); sample_id++) {
-      invoke_kernel(tlv.tensor_data(sample_id), volume(tlv.template tensor_shape(sample_id)),
+      invoke_kernel(tlv.tensor_data(sample_id), volume(tlv.template tensor_shape(sample_id)), value,
                     stream);
     }
   }
 }
-}
-}
-}
+
+}  // namespace detail
+}  // namespace remap
+}  // namespace dali
 
 #endif
