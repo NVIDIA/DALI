@@ -83,56 +83,23 @@ def update_map(mode, shape, nimages=1):
     return np.array(mapsx), np.array(mapsy)
 
 
-rois = [
-    np.array([0, 0, 100, 100], dtype=np.int32),
-    np.array([20, 30, 40, 50], dtype=np.int32),
-    # np.array([0, 0, 0, 0], dtype=np.int32),
-    # np.array([1, 1, 1, 1], dtype=np.int32),
-    np.array([4, 70, 34, 230], dtype=np.int32),
-]
-
-
-def _cv_remap(img, mapx, mapy, crop, do_crop):
-    if do_crop:
-        crop_fn = lambda tensor: tensor[crop[1]:crop[3], crop[0]:crop[2], :]
-        print("CV", '\n',
-              img.shape, img[crop[1]:crop[3], crop[0]:crop[2], :].shape, '\n',
-              mapx.shape, mapx[crop[1]:crop[3], crop[0]:crop[2]].shape, '\n',
-              mapy.shape, mapy[crop[1]:crop[3], crop[0]:crop[2]].shape
-              )
-        return cv2.remap(
-            img[crop[1]:crop[3], crop[0]:crop[2], :],
-            mapx[crop[1]:crop[3], crop[0]:crop[2]],
-            mapy[crop[1]:crop[3], crop[0]:crop[2]],
-            cv2.INTER_NEAREST,
-            cv2.BORDER_CONSTANT, 0)
+def _cv_remap(img, mapx, mapy):
     return cv2.remap(img, mapx, mapy, cv2.INTER_NEAREST, cv2.BORDER_CONSTANT, 0)
-    # else:
-    #     return cv2.remap(img[crop[0]:crop[1],crop[2]:crop[3]], mapx, mapy, cv2.INTER_NEAREST, cv2.BORDER_CONSTANT, 0)
 
 
 @pipeline_def
-def remap_pipe(remap_op, maps_data, img_size, with_roi=False):
+def remap_pipe(remap_op, maps_data, img_size):
     """
     TODO
     """
     img, _ = fn.readers.file(file_root=data_dir)
     img = fn.decoders.image(img)
     img = fn.resize(img, size=img_size)
-    roi = fn.external_source(source=rois, batch=False, cycle=True, dtype=types.INT32)
     mapx, mapy = fn.external_source(source=maps_data, batch=True, cycle=True, num_outputs=2)
     if remap_op == 'dali':
-        if with_roi:
-            # map size must match ROI, therefore we crop the map
-            mapx = mapx[roi[1]:roi[3], roi[0]:roi[2]]
-            mapy = mapy[roi[1]:roi[3], roi[0]:roi[2]]
-        froi = fn.cast(roi, dtype=types.FLOAT)
-        return fn.remap(img.gpu(), mapx.gpu(), mapy.gpu(),
-                        roi_start=froi[:2] if with_roi else None,
-                        roi_end=froi[2:] if with_roi else None,
-                        device='gpu', pixel_origin="center")
+        return fn.remap(img.gpu(), mapx.gpu(), mapy.gpu(), device='gpu', pixel_origin="center")
     elif remap_op == 'cv':
-        return fn.python_function(img, mapx, mapy, roi, with_roi, function=_cv_remap)
+        return fn.python_function(img, mapx, mapy, function=_cv_remap)
     else:
         raise InvalidArgument("Unknown remap operator.")
 
@@ -153,20 +120,8 @@ class RemapTest(unittest.TestCase):
     # @params('identity', 'reduce', 'xflip', 'yflip', 'xyflip')  # TODO random
     def test_remap(self, map_mode):
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
-        dpipe = remap_pipe('dali', maps, self.img_size, with_roi=False,
-                           **self.common_dali_pipe_params)
-        cpipe = remap_pipe('cv', maps, self.img_size, with_roi=False,
-                           **self.common_dali_pipe_params)
-        self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=3, eps=.01)
-
-    @params('identity')
-    # @params('identity', 'reduce', 'xflip', 'yflip', 'xyflip')  # TODO random
-    def test_remap_with_roi(self, map_mode):
-        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
-        dpipe = remap_pipe('dali', maps, self.img_size, with_roi=True,
-                           **self.common_dali_pipe_params)
-        cpipe = remap_pipe('cv', maps, self.img_size, with_roi=True,
-                           **self.common_dali_pipe_params)
+        dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params)
+        cpipe = remap_pipe('cv', maps, self.img_size, **self.common_dali_pipe_params)
         self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=3, eps=.01)
 
     def _compare_pipelines_pixelwise(self, pipe1, pipe2, N_iterations, eps=.01):

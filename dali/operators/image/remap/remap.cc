@@ -45,26 +45,6 @@ Defines which part of the pixel (upper-left corner or center) is interpreted as 
 This value impacts the interpolation result. To match OpenCV, please pick ``"center"``.)doc",
                                      "corner")
         .AddOptionalArg("interp", "Interpolation type.", DALI_INTERP_LINEAR)
-        .AddOptionalArg<vector<float>>("roi_start", R"code(Origin of the input region of interest (ROI).
-
-Must be specified together with ``roi_end``. The coordinates follow the tensor shape order, which is
-the same as ``size``. The coordinates can be either absolute (in pixels, which is the default) or
-relative (0..1), depending on the value of ``relative_roi`` argument. If the ROI origin is greater
-than the ROI end in any dimension, the region is flipped in that dimension.)code", nullptr, true)
-        .AddOptionalArg<vector<float>>("roi_end", R"code(End of the input region of interest (ROI).
-
-Must be specified together with ``roi_start``. The coordinates follow the tensor shape order, which is
-the same as ``size``. The coordinates can be either absolute (in pixels, which is the default) or
-relative (0..1), depending on the value of ``relative_roi`` argument. If the ROI origin is greater
-than the ROI end in any dimension, the region is flipped in that dimension.)code", nullptr, true)
-        .AddOptionalArg("roi_relative", R"code(If true, ROI coordinates are relative to the input size,
-where 0 denotes top/left and 1 denotes bottom/right)code", false)
-//        .AddOptionalArg("roi", R"doc(
-//The region of interest. Each ROI descriptor consists of 4 values: ``[lo_x, lo_y, hi_x, hi_y]``.
-//It is assumed, that ``lo`` denotes upper-left corner of the ROI and `hi` denotes bottom-right corner.
-//In both ``lo`` and ``hi``, first coordinate denotes value along x axis (i.e. width of the image)
-//and the second coordinate denotes value along y axis (i.e. height of the image).
-//The ``(0, 0)`` point is the upper-left pixel of the image.)doc",std::vector<int>{0,0,0,0}, true, true)
         .AllowSequences();
 
 

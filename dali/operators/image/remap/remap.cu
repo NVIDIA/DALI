@@ -29,10 +29,10 @@ class RemapGpu : public Remap<GPUBackend> {
 
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.template Input<B>(0);
-    TYPE_SWITCH(input.type(), type2id, InputType, REMAP_SUPPORTED_TYPES, (//TODO indent
-            {
-              RunImplTyped<InputType>(ws);
-            }
+    TYPE_SWITCH(input.type(), type2id, InputType, REMAP_SUPPORTED_TYPES, (
+    {
+      RunImplTyped<InputType>(ws);
+    }
     ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
   }
 
@@ -44,7 +44,7 @@ class RemapGpu : public Remap<GPUBackend> {
     const auto &mapx = ws.template Input<B>(1);
     const auto &mapy = ws.template Input<B>(2);
     auto &output = ws.template Output<B>(0);
-    using KernelBackend = StorageGPU;
+    using KernelBackend = StorageGPU;//TODO polymorph
     //    using KernelBackend = backend_to_storage_device<Backend>;
 //    std::unique_ptr<kernels::remap::RemapKernel<KernelBackend, InputT>> kernel;
 //    kernel = std::make_unique<kernels::remap::NppRemapKernel<KernelBackend, InputT>>();
@@ -59,12 +59,10 @@ class RemapGpu : public Remap<GPUBackend> {
       detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_, ws.stream());
       detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_, ws.stream());
     }
-    cout<<"ROI\n"<<rois_<<endl;
-    cout<<"MAPS\n"<<mapx.shape()<<endl<<mapy.shape()<<endl;
     kernel.Run(ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
                view<const float, 2>(shift_pixels_ ? mapx_shifted : mapx),
                view<const float, 2>(shift_pixels_ ? mapy_shifted : mapy),
-               make_span(rois_), {}, make_span(interps_), {/* Border (currently unsupported) */});
+               {}, {}, make_span(interps_), {});
   }
 };
 
