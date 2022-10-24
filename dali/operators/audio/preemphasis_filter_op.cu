@@ -15,6 +15,7 @@
 #include "dali/operators/audio/preemphasis_filter_op.h"
 #include <vector>
 #include "dali/pipeline/data/types.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 
@@ -81,7 +82,9 @@ void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
   auto &output = ws.Output<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);
 
-  std::vector<SampleDesc> samples_cpu(curr_batch_size);
+  auto stream = ws.stream();
+  kernels::DynamicScratchpad scratch({}, AccessOrder(stream));
+  auto samples_cpu = scratch.Allocate<mm::memory_kind::pinned, SampleDesc>(curr_batch_size);
   for (int sample_idx = 0; sample_idx < curr_batch_size; sample_idx++) {
     auto &sample = samples_cpu[sample_idx];
     sample.in = input.tensor<InputType>(sample_idx);
@@ -93,9 +96,9 @@ void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
   int64_t sz = curr_batch_size * sizeof(SampleDesc);
   scratch_mem_.Resize({sz}, DALI_UINT8);
   auto sample_descs_gpu = reinterpret_cast<SampleDesc*>(scratch_mem_.mutable_data<uint8_t>());
-  auto stream = ws.stream();
+
   CUDA_CALL(
-    cudaMemcpyAsync(sample_descs_gpu, samples_cpu.data(), sz, cudaMemcpyHostToDevice, stream));
+    cudaMemcpyAsync(sample_descs_gpu, samples_cpu, sz, cudaMemcpyHostToDevice, stream));
 
   int block = 256;
   auto blocks_per_sample = std::max(32, 1024 / curr_batch_size);
