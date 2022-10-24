@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KEasdasdasdEMAP_H_
-#define DALI_KEasdasdasdEMAP_H_
+#ifndef DALI_OPERATORS_IMAGE_REMAP_REMAP_CUH_
+#define DALI_OPERATORS_IMAGE_REMAP_REMAP_CUH_
 
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/data/views.h"
@@ -62,4 +62,4 @@ void ShiftPixelOrigin(TensorListView<StorageBackend, T, ndims> tlv, T value, cud
 }  // namespace remap
 }  // namespace dali
 
-#endif
+#endif  // DALI_OPERATORS_IMAGE_REMAP_REMAP_CUH_
