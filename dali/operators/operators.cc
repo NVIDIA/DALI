@@ -14,7 +14,7 @@
 
 #include "dali/core/api_helper.h"
 #include "dali/operators.h"
-#include "dali/operators/util/npp.h"
+#include "dali/npp/npp.h"
 #include "dali/core/cuda_stream_pool.h"
 
 #if DALI_USE_NVJPEG

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_UTIL_NPP_H_
-#define DALI_OPERATORS_UTIL_NPP_H_
+#ifndef DALI_NPP_NPP_H_
+#define DALI_NPP_NPP_H_
 
 #include <npp.h>
 #include <string>
@@ -349,4 +349,4 @@ int NPPGetVersion();
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_UTIL_NPP_H_
+#endif  // DALI_NPP_NPP_H_
