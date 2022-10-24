@@ -21,19 +21,19 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/sequence_operator.h"
 #include "include/dali/core/geom/mat.h"
 #include "include/dali/core/span.h"
 #include "include/dali/core/static_switch.h"
 
 namespace dali::remap {
 
-#define REMAP_SUPPORTED_TYPES (uint8_t)
-//#define REMAP_SUPPORTED_TYPES (uint8_t, int16_t, uint16_t, float)
+#define REMAP_SUPPORTED_TYPES (uint8_t, int16_t, uint16_t, float)
 
 template<typename Backend>
-class Remap : public Operator<Backend> { //TODO SequenceOperator
+class Remap : public SequenceOperator<Backend> {
  public:
-  explicit Remap(const OpSpec &spec) : Operator<Backend>(spec) {}
+  explicit Remap(const OpSpec &spec) : SequenceOperator<Backend>(spec) {}
 
 
   ~Remap() override = default;

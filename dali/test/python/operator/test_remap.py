@@ -13,16 +13,15 @@
 # limitations under the License.
 
 import cv2
+import os.path
+import unittest
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-from nvidia.dali.types import DALIInterpType
-import os.path
-from nvidia.dali.pipeline.experimental import pipeline_def
-import unittest
-from parameterized import parameterized
 from nose2.tools import params
+from nvidia.dali.types import DALIInterpType
+from nvidia.dali.pipeline.experimental import pipeline_def
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 data_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -34,8 +33,9 @@ def update_map(mode, shape, nimages=1):
     """
     Code for map calculation.
     Based on https://github.com/opencv/opencv/blob/3.4/samples/python/tutorial_code/ImgTrans/remap/Remap_Demo.py
-    :param mode: One of: 'identity', 'reduce', 'xflip', 'yflip', 'xyflip', 'random'
+    :param mode: One of: 'identity', 'xflip', 'yflip', 'xyflip', 'random'
     :param shape: HWC shape of a sample.
+    :param nimages: Number of maps to be generated for every axis.
     :return: tuple of 2 ndarrays (mapx: [nimages, H, W, C], mapy: [nimages, H, W, C])
     """
     mapsx = []
@@ -48,16 +48,6 @@ def update_map(mode, shape, nimages=1):
                 map_x[i, :] = [x for x in range(map_x.shape[1])]
             for j in range(map_y.shape[1]):
                 map_y[:, j] = [y for y in range(map_y.shape[0])]
-        elif mode == 'reduce':
-            for i in range(map_x.shape[0]):
-                for j in range(map_x.shape[1]):
-                    if map_x.shape[1] * 0.25 < j < map_x.shape[1] * 0.75 and \
-                            map_x.shape[0] * 0.25 < i < map_x.shape[0] * 0.75:
-                        map_x[i, j] = 2 * (j - map_x.shape[1] * 0.25) + 0.5
-                        map_y[i, j] = 2 * (i - map_y.shape[0] * 0.25) + 0.5
-                    else:
-                        map_x[i, j] = 0
-                        map_y[i, j] = 0
         elif mode == 'xflip':
             for i in range(map_x.shape[0]):
                 map_x[i, :] = [x for x in range(map_x.shape[1])]
@@ -74,13 +64,13 @@ def update_map(mode, shape, nimages=1):
             for j in range(map_y.shape[1]):
                 map_y[:, j] = [map_y.shape[0] - y for y in range(map_y.shape[0])]
         elif mode == 'random':
-            map_x = rng.uniform(low=-20, high=map_x.shape[1] + 20, size=map_x.shape)
-            map_y = rng.uniform(low=-20, high=map_y.shape[0] + 20, size=map_y.shape)
+            map_x = rng.uniform(low=0, high=map_x.shape[1] + 0, size=map_x.shape)
+            map_y = rng.uniform(low=0, high=map_y.shape[0] + 0, size=map_y.shape)
         else:
             raise InvalidArgument("Unknown map mode.")
         mapsx.append(map_x)
         mapsy.append(map_y)
-    return np.array(mapsx), np.array(mapsy)
+    return np.array(mapsx, dtype=np.float32), np.array(mapsy, dtype=np.float32)
 
 
 def _cv_remap(img, mapx, mapy):
@@ -90,14 +80,23 @@ def _cv_remap(img, mapx, mapy):
 @pipeline_def
 def remap_pipe(remap_op, maps_data, img_size):
     """
-    TODO
+    Returns either a reference pipeline or a pipeline under test.
+
+    If the remap_op argument is 'dali', this function returns a DALI pipeline under test.
+    If the remap_op argument is 'cv', this function returns a reference DALI pipeline.
+
+    :param remap_op: 'dali' or 'cv'.
+    :param maps_data: List of ndarrays, which contains data for the remap parameters (maps).
+    :param img_size: Shape of the remap parameters, but without the channels value (only spatial).
+    :return: DALI Pipeline
     """
     img, _ = fn.readers.file(file_root=data_dir)
     img = fn.decoders.image(img)
     img = fn.resize(img, size=img_size)
     mapx, mapy = fn.external_source(source=maps_data, batch=True, cycle=True, num_outputs=2)
     if remap_op == 'dali':
-        return fn.remap(img.gpu(), mapx.gpu(), mapy.gpu(), device='gpu', pixel_origin="center")
+        return fn.remap(img.gpu(), mapx.gpu(), mapy.gpu(), interp=DALIInterpType.INTERP_NN,
+                        device='gpu', pixel_origin="center")
     elif remap_op == 'cv':
         return fn.python_function(img, mapx, mapy, function=_cv_remap)
     else:
@@ -116,13 +115,12 @@ class RemapTest(unittest.TestCase):
             "exec_pipelined": False,
         }
 
-    @params('identity')
-    # @params('identity', 'reduce', 'xflip', 'yflip', 'xyflip')  # TODO random
+    @params('identity', 'xflip', 'yflip', 'xyflip', 'random')
     def test_remap(self, map_mode):
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
         dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params)
         cpipe = remap_pipe('cv', maps, self.img_size, **self.common_dali_pipe_params)
-        self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=3, eps=.01)
+        self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
 
     def _compare_pipelines_pixelwise(self, pipe1, pipe2, N_iterations, eps=.01):
         pipe1.build()

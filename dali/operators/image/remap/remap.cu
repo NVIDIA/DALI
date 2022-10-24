@@ -44,11 +44,7 @@ class RemapGpu : public Remap<GPUBackend> {
     const auto &mapx = ws.template Input<B>(1);
     const auto &mapy = ws.template Input<B>(2);
     auto &output = ws.template Output<B>(0);
-    using KernelBackend = StorageGPU;//TODO polymorph
-    //    using KernelBackend = backend_to_storage_device<Backend>;
-//    std::unique_ptr<kernels::remap::RemapKernel<KernelBackend, InputT>> kernel;
-//    kernel = std::make_unique<kernels::remap::NppRemapKernel<KernelBackend, InputT>>();
-    kernels::remap::NppRemapKernel<KernelBackend, InputType> kernel;
+    kernels::remap::NppRemapKernel<StorageGPU, InputType> kernel;
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
 
@@ -67,6 +63,5 @@ class RemapGpu : public Remap<GPUBackend> {
 };
 
 DALI_REGISTER_OPERATOR(Remap, RemapGpu, GPU);
-
 
 }  // namespace dali::remap
