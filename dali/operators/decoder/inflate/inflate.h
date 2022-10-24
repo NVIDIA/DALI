@@ -52,8 +52,8 @@ class InflateOpImplBase : public OpImplBase<Backend> {
     DALI_ENFORCE(
         input_shape.sample_dim() == 1,
         make_string("Input must be a buffer with compressed data/data chunks represented as a 1D "
-                    "tensor of uint8. Got input with `",
-                    input_shape.sample_dim(), "` dimensions instead."));
+                    "tensor of uint8. Got input with ",
+                    input_shape.sample_dim(), " dimensions instead."));
     params_.ProcessInputArgs(ws, input_shape.num_samples());
     output_desc.resize(1);
     output_desc[0].shape = params_.GetOutputShape();

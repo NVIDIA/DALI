@@ -15,8 +15,9 @@
 import numpy as np
 import lz4.block
 
-from nvidia.dali import pipeline_def, fn
+from nvidia.dali import pipeline_def, fn, types
 from test_utils import np_type_to_dali, has_operator
+from nose_utils import assert_raises
 
 
 def sample_to_lz4(sample):
@@ -137,7 +138,8 @@ def test_scalar_shape():
                           (largest_prime_smaller_than_2_to_16, None),
                           (prime_larger_than_2_to_16, "Y"), ([3, 5, 7], "ABC"), ([3, 5, 7], ""),
                           ([13, 15, 7], None), (np.array([31, 101, 17], dtype=np.int32), "DEF"),
-                          ([4, 8, 16, 2], "FGNH"), ([100, 10], "WW")]:
+                          ([4, 8, 16, 2], "FGNH"), ([100, 10], "WW"),
+                          (np.array([], dtype=np.int32), None)]:
         for dtype in [np.uint8, np.float32, np.uint16]:
             yield _test_scalar_shape, dtype, shape, layout
 
@@ -231,3 +233,136 @@ def test_chunks():
                 yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, \
                     permute, oversized_shape
                 seed += 1
+
+
+def _test_validation(pipeline, error_glob, kwargs=None):
+    with assert_raises(RuntimeError, glob=error_glob):
+        pipe = pipeline(batch_size=4, num_threads=4, device_id=0, **(kwargs or {}))
+        pipe.build()
+        pipe.run()
+
+
+@has_operator("experimental.inflate")
+def test_validation():
+
+    @pipeline_def
+    def pipeline_2d_shape():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4], dtype=np.uint8), batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=np.array([[1, 5], [4, 5]],
+                                                                     dtype=np.int32))
+        return inflated
+
+    @pipeline_def
+    def pipeline_non_elementary_dtype():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4], dtype=np.uint8), batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=4,
+                                           dtype=types.DALIDataType.TENSOR_LAYOUT)
+        return inflated
+
+    @pipeline_def
+    def pipeline_input_float():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4], dtype=np.float32),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42)
+        return inflated
+
+    @pipeline_def
+    def pipeline_input_scalar():
+        inp = fn.external_source(source=lambda: np.array(1, dtype=np.uint8), batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42)
+        return inflated
+
+    @pipeline_def
+    def pipeline_input_algorithm():
+        inp = fn.external_source(source=lambda: np.array([1], dtype=np.uint8), batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, algorithm="")
+        return inflated
+
+    @pipeline_def
+    def pipeline_too_big_chunk():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[6])
+        return inflated
+
+    @pipeline_def
+    def pipeline_too_big_chunks():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[3, 3])
+        return inflated
+
+    @pipeline_def
+    def pipeline_empty_chunk():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[0])
+        return inflated
+
+    @pipeline_def
+    def pipeline_neg_chunk():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[3, -1])
+        return inflated
+
+    @pipeline_def
+    def pipeline_too_big_offsets():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[0, 5])
+        return inflated
+
+    @pipeline_def
+    def pipeline_too_zero_size_inferred():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[1, 1])
+        return inflated
+
+    @pipeline_def
+    def pipeline_sizes_offsets_mismatched():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[1, 1],
+                                           chunks_sizes=[1, 1, 1])
+        return inflated
+
+    @pipeline_def
+    def pipeline_negative_offset():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[-5, 0],
+                                           chunks_sizes=[5, 5])
+        return inflated
+
+    @pipeline_def
+    def pipeline_chunk_exceeding_sample():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[2],
+                                           chunks_sizes=[4])
+        return inflated
+
+    yield _test_validation, pipeline_2d_shape, "The shape argument must be a scalar or a 1D tensor"
+    yield _test_validation, pipeline_non_elementary_dtype, \
+        "The inflate output type must have floating point or integral type"
+    yield _test_validation, pipeline_input_float, "Got tensor of type `float` instead"
+    yield _test_validation, pipeline_input_scalar, "Got input with 0 dimensions instead"
+    yield _test_validation, pipeline_input_algorithm, \
+        "Unknown inflate algorithm was specified for `algorithm` argument"
+    yield _test_validation, pipeline_too_big_chunk, "Input chunk size cannot exceed the sample size"
+    yield _test_validation, pipeline_too_big_chunks, \
+        "The sum of chunk sizes for sample of idx 0 exceeds the total size of the sample."
+    yield _test_validation, pipeline_empty_chunk, "Got chunk size 0 for sample of idx 0"
+    yield _test_validation, pipeline_neg_chunk, "Got chunk size -1 for sample of idx 0"
+    yield _test_validation, pipeline_too_big_offsets, \
+        "Got chunk offset 5 while the sample size is 5 for sample of idx 0"
+    yield _test_validation, pipeline_too_zero_size_inferred, \
+        "The inferred size of a chunk would be non-positive for sample of idx 0"
+    yield _test_validation, pipeline_sizes_offsets_mismatched, \
+        "for sample of idx 0 there are 2 offsets and 3 sizes"
+    yield _test_validation, pipeline_negative_offset, \
+        "Input chunks offsets must be non-negative"
+    yield _test_validation, pipeline_chunk_exceeding_sample, \
+        "Input chunk cannot exceed the sample size"

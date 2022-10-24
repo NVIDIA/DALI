@@ -181,18 +181,19 @@ class ShapeParams {
       DALI_ENFORCE(chunk_offset >= 0,
                    make_string("Input chunks offsets must be non-negative. Got ", chunk_offset,
                                " offset for sample of idx ", sample_idx, "."));
-      DALI_ENFORCE(chunk_offset < sample_num_bytes,
-                   make_string("Input chunks offsets cannot exceed the sample size. Got offset ",
-                               chunk_offset, " while the sample size is ", sample_num_bytes,
-                               " for sample of idx ", sample_idx, "."));
+      DALI_ENFORCE(
+          chunk_offset < sample_num_bytes,
+          make_string("Input chunks offsets cannot exceed the sample size. Got chunk offset ",
+                      chunk_offset, " while the sample size is ", sample_num_bytes,
+                      " for sample of idx ", sample_idx, "."));
     };
 
     const auto validate_size = [](auto sample_idx, auto sample_num_bytes, auto chunk_size) {
       DALI_ENFORCE(chunk_size > 0,
-                   make_string("Input chunk size must be positive. Got ", chunk_size,
-                               " offset for sample of idx ", sample_idx, "."));
+                   make_string("Input chunk size must be positive. Got chunk size ", chunk_size,
+                               " for sample of idx ", sample_idx, "."));
       DALI_ENFORCE(chunk_size <= sample_num_bytes,
-                   make_string("Input chunk size cannot exceed the sample size. Got size ",
+                   make_string("Input chunk size cannot exceed the sample size. Got chunk of size ",
                                chunk_size, " while the sample size is ", sample_num_bytes,
                                " for sample of idx ", sample_idx, "."));
     };
@@ -327,7 +328,7 @@ class ShapeParams {
       }
       DALI_ENFORCE(cum_offset <= sample_num_bytes,
                    make_string("The sum of chunk sizes for sample of idx ", sample_idx,
-                               " exceeds the total size of the sample"));
+                               " exceeds the total size of the sample."));
     }
     assert(offsets_.size() == sizes_.size());
   }
