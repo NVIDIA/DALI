@@ -17,6 +17,7 @@ import nvidia.dali.types as types
 from nvidia.dali.backend_impl import TensorListGPU, TensorGPU, TensorListCPU
 
 import inspect
+import functools
 import os
 import random
 import re
@@ -667,3 +668,23 @@ def python_function(*inputs, function, **kwargs):
         return function(*iteration_inputs)
 
     return dali.fn.python_function(*node_inputs, function=wrapper, **kwargs)
+
+
+def has_operator(operator):
+    def get_attr(obj, path):
+        attrs = path.split(".")
+        for attr in attrs:
+            obj = getattr(obj, attr)
+        return obj
+
+    def decorator(fun):
+        try:
+            get_attr(dali.fn, operator)
+        except AttributeError:
+            @functools.wraps(fun)
+            def dummy_case(*args, **kwargs):
+                print(f"Omitting test case for unsupported operator: `{operator}`")
+            return dummy_case
+        else:
+            return fun
+    return decorator

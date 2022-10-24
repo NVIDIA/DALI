@@ -16,7 +16,7 @@ import numpy as np
 import lz4.block
 
 from nvidia.dali import pipeline_def, fn
-from test_utils import np_type_to_dali
+from test_utils import np_type_to_dali, has_operator
 
 
 def sample_to_lz4(sample):
@@ -92,6 +92,7 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
         check_batch(inflated, baseline, iter_size)
 
 
+@has_operator("experimental.inflate")
 def test_sample_inflate():
     seed = 42
     for batch_size in [1, 8, 64, 256, 348]:
@@ -128,6 +129,7 @@ def _test_scalar_shape(dtype, shape, layout):
         check_batch(inflated, baseline, batch_size, layout)
 
 
+@has_operator("experimental.inflate")
 def test_scalar_shape():
     largest_prime_smaller_than_2_to_16 = 65521
     prime_larger_than_2_to_16 = 262147
@@ -216,6 +218,7 @@ def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute, oversized
         check_batch(inflated, baseline, batch_size, layout, oversized_shape=oversized_shape)
 
 
+@has_operator("experimental.inflate")
 def test_chunks():
     seed = 42
     batch_sizes = [1, 9, 31]

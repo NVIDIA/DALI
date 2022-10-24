@@ -30,7 +30,7 @@ import test_utils
 from segmentation_test_utils import make_batch_select_masks
 from test_detection_pipeline import coco_anchors
 from test_optical_flow import load_frames, is_of_supported
-from test_utils import module_functions
+from test_utils import module_functions, has_operator
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -1150,6 +1150,7 @@ def test_video_decoder():
     check_pipeline(batches, video_decoder_pipe, devices=['cpu', 'mixed'])
 
 
+@has_operator("experimental.inflate")
 def test_inflate():
     import lz4.block
 
