@@ -17,7 +17,7 @@
 
 namespace dali::remap {
 
-DALI_SCHEMA(Remap)  // TODO experimental
+DALI_SCHEMA(experimental__Remap)
         .DocStr(R"doc(
 The remap operation applies a generic geometrical transformation to an image. In other words,
 it takes pixel from one place in the input image and puts them in another place in

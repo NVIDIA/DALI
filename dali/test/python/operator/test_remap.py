@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import cv2
-import os.path
-import unittest
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+import os.path
+import unittest
 from nose2.tools import params
-from nvidia.dali.types import DALIInterpType
 from nvidia.dali.pipeline.experimental import pipeline_def
+from nvidia.dali.types import DALIInterpType
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 data_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -94,8 +94,9 @@ def remap_pipe(remap_op, maps_data, img_size):
     img = fn.resize(img, size=img_size)
     mapx, mapy = fn.external_source(source=maps_data, batch=True, cycle=True, num_outputs=2)
     if remap_op == 'dali':
-        return fn.remap(img.gpu(), mapx.gpu(), mapy.gpu(), interp=DALIInterpType.INTERP_NN,
-                        device='gpu', pixel_origin="center")
+        return fn.experimental.remap(img.gpu(), mapx.gpu(), mapy.gpu(),
+                                     interp=DALIInterpType.INTERP_NN, device='gpu',
+                                     pixel_origin="center")
     elif remap_op == 'cv':
         return fn.python_function(img, mapx, mapy, function=_cv_remap)
     else:

@@ -17,10 +17,6 @@
 
 namespace dali::remap {
 
-namespace {
-
-}  // namespace
-
 class RemapGpu : public Remap<GPUBackend> {
   using B = GPUBackend;
 
@@ -63,6 +59,6 @@ class RemapGpu : public Remap<GPUBackend> {
   }
 };
 
-DALI_REGISTER_OPERATOR(Remap, RemapGpu, GPU);
+DALI_REGISTER_OPERATOR(experimental__Remap, RemapGpu, GPU);
 
 }  // namespace dali::remap
