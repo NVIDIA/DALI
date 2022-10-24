@@ -45,7 +45,6 @@ export BUILD_NVML=${BUILD_NVML:-ON}
 export BUILD_FFTS=${BUILD_FFTS:-ON}
 export BUILD_CUFILE=${BUILD_CUFILE-OFF}
 export BUILD_NVCOMP=${BUILD_NVCOMP-OFF}
-export WITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP-OFF}
 export LINK_LIBCUDA=${LINK_LIBCUDA:-OFF}
 export LINK_CUDA_DYNAMICALLY=${LINK_CUDA_DYNAMICALLY:-OFF}
 export WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-OFF}
@@ -92,7 +91,6 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DBUILD_FFTS=${BUILD_FFTS}                   \
       -DBUILD_CUFILE=${BUILD_CUFILE}               \
       -DBUILD_NVCOMP=${BUILD_NVCOMP}               \
-      -DWITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP} \
       -DLINK_LIBCUDA=${LINK_LIBCUDA}               \
       -DLINK_CUDA_DYNAMICALLY=${LINK_CUDA_DYNAMICALLY} \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
@@ -109,7 +107,7 @@ if [ "${WERROR}" = "ON" ]; then
 fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
-if [ ${ARCH} = "x86_64" ] && [ "$BUILD_NVCOMP" = "ON" ] && [ "$WITH_DYNAMIC_NVCOMP" != "ON"]; then
+if [ "$BUILD_NVCOMP" = "ON" ]; then
     export BUNDLE_NVCOMP=YES
 else
     export BUNDLE_NVCOMP=NO
