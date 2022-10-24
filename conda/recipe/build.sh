@@ -52,6 +52,10 @@ else
   export WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT=OFF
 fi
 
+
+export BUILD_NVCOMP=${BUILD_NVCOMP:-ON}
+export WITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP:-OFF}
+
 # Create build directory for cmake and enter it
 mkdir $SRC_DIR/build
 cd $SRC_DIR/build
@@ -83,7 +87,8 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_NVDEC=${BUILD_NVDEC:-ON}                    \
       -DBUILD_NVML=${BUILD_NVML:-ON}                      \
       -DBUILD_CUFILE=${BUILD_CUFILE:-ON}                  \
-      -DBUILD_NVCOMP=${BUILD_NVCOMP:-ON}                  \
+      -DBUILD_NVCOMP=${BUILD_NVCOMP}                      \
+      -DWITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP}        \
       -DLINK_LIBCUDA=${LINK_LIBCUDA:-OFF}                 \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-${WITH_DYNAMIC_CUDA_TOOLKIT_DEFAULT}}\
       -DVERBOSE_LOGS=${VERBOSE_LOGS:-OFF}                 \
@@ -120,6 +125,20 @@ DEPS_SONAME=(
     "libavutil.so.57"
     "libswscale.so.6"
 )
+
+if [ ${ARCH} = "x86_64" ] && [ "$BUILD_NVCOMP" = "ON" ] && [ "$WITH_DYNAMIC_NVCOMP" != "ON"]; then
+    DEPS_LIST+=(
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
+    )
+
+    DEPS_SONAME+=(
+        "libnvcomp.so"
+        "libnvcomp_gdeflate.so"
+        "libnvcomp_bitcomp.so"
+    )
+fi
 
 PKGNAME_PATH=dali/python/nvidia/dali/
 mkdir -p $PKGNAME_PATH/.libs

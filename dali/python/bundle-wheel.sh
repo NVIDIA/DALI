@@ -50,6 +50,7 @@ OUTWHLNAME=${4:-$(basename $INWHL)}
 DEPS_PATH=${5:-/usr/local}
 OUTDIR=${6:-/wheelhouse}
 COMPRESSION=${7:-YES} # whether to compress the resulting wheel
+BUNDLE_NVCOMP=${8:-NO}
 
 if [[ "$COMPRESSION" == "NO" ]]; then
     ZIP_FLAG="-0"
@@ -120,10 +121,15 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libopenjp2.so.7"
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"
-    "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
-    "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
-    "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
 )
+
+if [ "$BUNDLE_NVCOMP" = "YES" ]; then
+    DEPS_LIST+=(
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
+    )
+fi
 
 TMPDIR=$(mktemp -d)
 pushd $TMPDIR

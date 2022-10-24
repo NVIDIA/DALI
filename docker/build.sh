@@ -170,6 +170,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_FFTS=${BUILD_FFTS}                  \
                                         BUILD_CUFILE=${BUILD_CUFILE}              \
                                         BUILD_NVCOMP=${BUILD_NVCOMP}              \
+                                        WITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP} \
                                         LINK_DRIVER=${LINK_DRIVER}                \
                                         WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
                                         STRIP_BINARY=${STRIP_BINARY}              \
@@ -212,6 +213,7 @@ else
                                    --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
                                    --build-arg "BUILD_CUFILE=${BUILD_CUFILE}"              \
                                    --build-arg "BUILD_NVCOMP=${BUILD_NVCOMP}"              \
+                                   --build-arg "WITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP}" \
                                    --build-arg "LINK_DRIVER=${LINK_DRIVER}"                \
                                    --build-arg "WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT}"\
                                    --build_arg "STRIP_BINARY=${STRIP_BINARY}"              \
