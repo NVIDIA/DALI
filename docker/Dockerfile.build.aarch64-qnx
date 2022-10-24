@@ -125,6 +125,7 @@ CMD cmake                \
   -DBUILD_LIBTIFF=ON     \
   -DBUILD_LIBSND=ON      \
   -DBUILD_FFTS=ON        \
+  -DBUILD_NVCOMP=OFF     \
   -DBUILD_NVJPEG=OFF     \
   -DBUILD_NVJPEG2K=OFF   \
   -DBUILD_NVOF=OFF       \

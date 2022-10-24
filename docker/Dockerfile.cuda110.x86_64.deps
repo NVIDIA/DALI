@@ -20,3 +20,13 @@ RUN NVJPEG2K_VERSION=0.1.0 && \
     cp /usr/include/nvjpeg2k* /usr/local/cuda/include/ && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k* /usr/local/cuda/lib64/ && \
     rm -rf /var/lib/apt/lists/*
+
+RUN NVCOMP_VERSION=2.4 && \
+    mkdir nvcomp && \
+    cd nvcomp && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_install_CUDA_11.x.tgz && \
+    tar -xvf nvcomp*.tgz && \
+    cp -rv include/nvcomp* /usr/local/cuda/include/ && \
+    cp -v lib/*.so /usr/local/cuda/lib64/ && \
+    cd .. && \
+    rm -rf nvcomp
