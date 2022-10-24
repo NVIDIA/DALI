@@ -96,6 +96,7 @@ struct ReductionStage {
 
   vector<ReductionShape> shape;
   vector<int64_t> input_offsets, output_offsets;
+  vector<int> sample_indices;
 
   int num_samples() const {
     return shape.size();
@@ -821,10 +822,14 @@ class ReduceImplGPU {
         }
         reduced[i] = sample_shape[axis];
         outer[i] *= new_outer;
-        if (axis < in_dim - 1)
-          inner[i] /= new_outer * reduced[i];
-        else
+        if (axis < in_dim - 1) {
+          if (new_outer * reduced[i] > 0)
+            inner[i] /= new_outer * reduced[i];
+          else
+            inner[i] = 0;
+        } else {
           inner[i] = 1;
+        }
       }
       prev_axis = axis;
 
@@ -894,7 +899,7 @@ class ReduceImplGPU {
   /**
    * @brief Launches a reduction stage in environment given by `ctx`
    */
-  void LaunchStage(Context &ctx, const ReductionStage &stage) {
+  void LaunchStage(Context &ctx, ReductionStage &stage) {
     ctx.work_area.BeginStage(stage.index);
     VALUE_SWITCH(stage.kind, kind, (
               ReductionKind::All,
@@ -927,7 +932,7 @@ class ReduceImplGPU {
    * @return Host-side parameter buffer containing the input pointers.
    */
   template <typename StageIn>
-  const StageIn *const *InputPtrs(Context &ctx, const ReductionStage &stage) const {
+  const StageIn *const *InputPtrs(Context &ctx, ReductionStage &stage) const {
     WorkArea &wa = ctx.work_area;
     auto *ptrs = wa.ParamBuffer<const StageIn*>(stage.num_samples());
     if (stage.index > 0) {
@@ -1004,8 +1009,26 @@ class ReduceImplGPU {
     return samples;
   }
 
+  /**
+   * @brief Permutes a sequence in place
+   *
+   * @remarks The function will return incorrect result or hang if `idx` contains repetitions.
+   */
+  template <typename Seq, typename Indices>
+  void permute_in_place(Seq &inout, Indices &&idx) {
+    using index_type = std::remove_reference_t<decltype(idx[0])>;
+    using size_type = decltype(dali::size(idx));
+    for (size_type i = 0, n = dali::size(idx); i < n; i++) {
+        size_type src_idx = idx[i];
+        while (src_idx < i)
+            src_idx = idx[src_idx];
+        if (src_idx != i)
+            std::swap(inout[i], inout[src_idx]);
+    }
+  }
+
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
-  void LaunchStage(Context &ctx, const ReductionStage &stage,
+  void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::All>) {
     assert(!is_first || ctx.input.is_contiguous());
     WorkArea &wa = ctx.work_area;
@@ -1029,7 +1052,7 @@ class ReduceImplGPU {
   }
 
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
-  void LaunchStage(Context &ctx, const ReductionStage &stage,
+  void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Sample>) {
     assert(!is_last || ctx.output.is_contiguous());
     WorkArea &wa = ctx.work_area;
@@ -1065,7 +1088,7 @@ class ReduceImplGPU {
 
 
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
-  void LaunchStage(Context &ctx, const ReductionStage &stage,
+  void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Block>) {
     assert(!is_last || ctx.output.is_contiguous());
     assert(!is_first && "Block reduction is never the first stage");
@@ -1095,12 +1118,12 @@ class ReduceImplGPU {
   }
 
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
-  void LaunchStage(Context &ctx, const ReductionStage &stage,
+  void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Inner>) {
     using SampleDesc = ReduceSampleDesc<StageOut, StageIn>;
     WorkArea &wa = ctx.work_area;
+    int num_samples = stage.num_samples();
     SampleDesc *cpu_samples = PrepareSampleDescs<StageOut, StageIn>(ctx, stage);
-
     auto *pre = GetPreprocessorBanks<is_first, 1>(wa, stage.axis);
     auto *post = GetPostprocessors<is_last>(wa);
 
@@ -1113,8 +1136,8 @@ class ReduceImplGPU {
 
     wa.CopyParamsToDevice(ctx.stream);
     dim3 block(32, max_block_size / 32);
-    int gridx = std::max(32, 512/stage.num_samples());
-    dim3 grid(gridx, stage.num_samples());
+    int gridx = std::max(32, 512/num_samples);
+    dim3 grid(gridx, num_samples);
 
     SampleDesc *gpu_samples = wa.GetDeviceParam(cpu_samples);
     auto *gpu_pre = wa.GetDeviceParam(pre);
@@ -1127,40 +1150,126 @@ class ReduceImplGPU {
   }
 
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
-  void LaunchStage(Context &ctx, const ReductionStage &stage,
+  void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Middle>) {
     using SampleDesc = ReduceSampleDesc<StageOut, StageIn>;
     WorkArea &wa = ctx.work_area;
     SampleDesc *cpu_samples = PrepareSampleDescs<StageOut, StageIn>(ctx, stage);
 
+    // There are three cases, depending on the sizes of the inner and the reduced dimension.
+    // We separate the sample into three bins by running a stable partiioning on the samples.
+
+    int num_samples = stage.num_samples();
+
+    auto &indices = stage.sample_indices;
+    indices.resize(num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+
+    auto middle_small_end = std::stable_partition(
+      indices.begin(),
+      indices.end(),
+      [&](int i) {
+        return cpu_samples[i].n_reduced < 1024 && cpu_samples[i].num_macroblocks == 1;
+      });
+
+    auto middle_large_inner_small_end = std::stable_partition(
+      middle_small_end,
+      indices.end(),
+      [&](int i) {
+        return cpu_samples[i].n_inner < 32;
+      });
+
+    int num_middle_small = middle_small_end - indices.begin();
+    int num_middle_large_inner_small = middle_large_inner_small_end - middle_small_end;
+    int num_middle_large_inner_medium = indices.end() - middle_large_inner_small_end;
+
     auto *pre = GetPreprocessorBanks<is_first, 2>(wa, stage.axis);
     auto *post = GetPostprocessors<is_last>(wa);
 
-    using pre_bank_t = std::remove_cv_t<std::remove_reference_t<decltype(*pre)>>;;
-    using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
-    using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
-
-    int max_block_size = std::min(1024, MaxThreadsPerBlock(
-      ReduceMiddleKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>));
+    permute_in_place(cpu_samples, indices);
+    permute_in_place(pre, indices);
+    permute_in_place(post, indices);
 
     wa.CopyParamsToDevice(ctx.stream);
-    dim3 block(32, max_block_size / 32);
-    int gridx = std::max(32, 512/stage.num_samples());
-    dim3 grid(gridx, stage.num_samples());
-    const int shm_size = 0x8000;  // 32 kB shared mem
 
     SampleDesc *gpu_samples = wa.GetDeviceParam(cpu_samples);
     auto *gpu_pre = wa.GetDeviceParam(pre);
     auto *gpu_post = wa.GetDeviceParam(post);
 
-    ReduceMiddleKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
-      gpu_samples, This().GetReduction(), gpu_pre, gpu_post);
+    using pre_bank_t = std::remove_cv_t<std::remove_reference_t<decltype(*pre)>>;;
+    using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
+    using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
-    CUDA_CALL(cudaGetLastError());
+    auto launch_params = [&](auto kernel, int nsamples, int shm_size) {
+      int preferred_block_size = 256;
+      int preferred_grid_size;  // unused
+      CUDA_CALL(cudaOccupancyMaxPotentialBlockSize(
+        &preferred_grid_size,
+        &preferred_block_size,
+        kernel,
+        shm_size));
+
+      dim3 block(32, preferred_block_size / 32);
+      int gridx = std::max(32, 512/nsamples);
+      dim3 grid(gridx, nsamples);
+      return std::make_pair(grid, block);
+    };
+
+    dim3 grid, block;
+    int sample_offset = 0;
+
+    // MiddleSmall
+    if (num_middle_small) {
+      std::tie(grid, block) = launch_params(
+          ReduceMiddleSmallKernel<Acc, Out, In, red_t, pre_bank_t, post_t>,
+          num_middle_small, 0);
+
+      ReduceMiddleSmallKernel<Acc><<<grid, block, 0, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+
+      sample_offset += num_middle_small;
+    }
+
+    int shm_size = 0x8000;
+
+    // MiddleLargeInnerSmall
+
+    if (num_middle_large_inner_small) {
+      std::tie(grid, block) = launch_params(
+          ReduceMiddleLargeInnerSmallKernel<Acc, Out, In, red_t, pre_bank_t, post_t>,
+          num_middle_large_inner_small, shm_size);
+
+      ReduceMiddleLargeInnerSmallKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+
+      sample_offset += num_middle_large_inner_small;
+    }
+
+    // MiddleLargeInnerMedium
+
+    if (num_middle_large_inner_medium) {
+      std::tie(grid, block) = launch_params(
+          ReduceMiddleLargeInnerMediumKernel<Acc, Out, In, red_t, pre_bank_t, post_t>,
+          num_middle_large_inner_medium, shm_size);
+
+      ReduceMiddleLargeInnerMediumKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+    }
+
+    assert((sample_offset + num_middle_large_inner_medium) == num_samples);
   }
 
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
-  void LaunchStage(Context &ctx, const ReductionStage &stage,
+  void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::Fold>) {
     assert(is_last);
     assert(!stage.shape.empty());
@@ -1196,7 +1305,7 @@ class ReduceImplGPU {
   }
 
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
-  void LaunchStage(Context &ctx, const ReductionStage &stage,
+  void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::None>) {
     assert(is_last);
     assert(!stage.shape.empty());

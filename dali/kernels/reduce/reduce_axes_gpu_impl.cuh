@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,6 +66,31 @@ struct UniformPreprocessorBank {
 };
 
 }  // namespace reduce_impl
+
+
+
+
+/**
+ * @brief This function is used when the reduction fills the output with the neutral element
+ *
+ * This function will apply postprocessing to the neutral value.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename Out, typename Reduction, typename Postprocessor>
+__device__ void ReduceNeutral(Out *out, Reduction reduce, int64_t n,
+                              Postprocessor post) {
+  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
+  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
+  auto out_val = ConvertSat<Out>(reduce.template neutral<Acc>());
+  for (int64_t index = base_idx; index < n; index += grid_stride) {
+    out[index] = out_val;
+  }
+}
 
 
 /**
@@ -299,7 +324,9 @@ __device__ void ReduceInner(const ReduceSampleDesc<Out, In> &sample,
   Out *out = sample.out;
   const In *in = sample.in;
 
-  if (n_reduced == 1) {
+  if (n_reduced == 0) {
+    ReduceNeutral<Acc>(out, reduce, n_outer, post);
+  } else if (n_reduced == 1) {
     ReduceNone(out, in, n_outer, pre_bank, post);
   } else if (n_reduced < 32 && sample.num_macroblocks == 1) {
     ReduceInnerSmall<Acc>(out, in, n_outer, n_reduced, reduce, pre_bank, post);
@@ -628,6 +655,56 @@ __global__ void ReduceMiddleKernel(const ReduceSampleDesc<Out, In> *samples,
   } else {
     ReduceMiddleLargeInnerMedium<Acc>(sample, reduce, pre_bank, postprocessor);
   }
+}
+
+
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleSmallKernel(const ReduceSampleDesc<Out, In> *samples,
+                                        Reduction reduce = {},
+                                        const PreprocessorBank *pre = nullptr,
+                                        const Postprocessor *post = nullptr) {
+  auto sample = samples[blockIdx.y];
+
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+
+  ReduceMiddleSmall<Acc>(sample, reduce, pre_bank, postprocessor);
+}
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleLargeInnerSmallKernel(const ReduceSampleDesc<Out, In> *samples,
+                                                 Reduction reduce = {},
+                                                 const PreprocessorBank *pre = nullptr,
+                                                 const Postprocessor *post = nullptr) {
+  auto sample = samples[blockIdx.y];
+
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+
+  ReduceMiddleLargeInnerSmall<Acc>(sample, reduce, pre_bank, postprocessor);
+}
+
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleLargeInnerMediumKernel(const ReduceSampleDesc<Out, In> *samples,
+                                                   Reduction reduce = {},
+                                                   const PreprocessorBank *pre = nullptr,
+                                                   const Postprocessor *post = nullptr) {
+  auto sample = samples[blockIdx.y];
+
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+
+  ReduceMiddleLargeInnerMedium<Acc>(sample, reduce, pre_bank, postprocessor);
 }
 
 }  // namespace kernels

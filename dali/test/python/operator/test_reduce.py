@@ -14,6 +14,7 @@
 
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
+from nose.tools import nottest
 
 import numpy as np
 
@@ -385,3 +386,40 @@ def test_reduce_axis_names():
         for reduction in reductions_with_mean_input:
             yield run_reduce_with_layout_with_mean_input, batch_size, get_batch, reduction, \
                 axes, axis_names, batch_fn
+
+
+@nottest
+def _test_reduce_large_data(rank, axes, device):
+    batch_size = 16
+    num_batches = 2
+    data = []
+    for _ in range(num_batches):
+        batch = []
+        for _ in range(batch_size):
+            size = np.random.randint(1, 128, size=rank)
+            batch.append(np.random.random(size=size).astype(np.float32))
+        data.append(batch)
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == 'gpu' else None)
+    input = fn.external_source(data, cycle=True, device=device)
+    reduced = fn.reductions.sum(input, axes=axes)
+    pipe.set_outputs(reduced)
+    pipe.build()
+
+    for b, batch in enumerate(data):
+        out, = pipe.run()
+        if device == 'gpu':
+            out = out.as_cpu()
+        for i in range(batch_size):
+            ref = np.sum(batch[i], axis=axes)
+            assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
+
+def test_reduce_large_data():
+    np.random.seed(1234)
+    for device in ['gpu']:
+        for rank in range(1, 4):
+            for axis_mask in range(1, 2**rank):
+                axes = tuple(filter(lambda x: x >= 0,
+                                    (i if axis_mask & (1 << i) else -1 for i in range(rank))))
+                yield _test_reduce_large_data, rank, axes, device

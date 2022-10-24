@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,27 @@ namespace dali {
 namespace kernels {
 
 TEST(SumGPU, SplitStageBatch) {
+  TensorListShape<> in_shape = {{
+    { 32, 3, 64000 },
+    { 15, 3, 128000 },
+    { 72000, 3, 7 }
+  }};
+  TensorListShape<> ref_out_shape = {{
+    TensorShape<>{3}
+  }};
+  int axes[] = { 0, 2 };
+
+  testing::ReductionKernelTest<SumGPU<uint64_t, uint8_t>, uint64_t, uint8_t> test;
+  for (int iter = 0; iter < 3; iter++) {
+    test.Setup(in_shape, ref_out_shape, make_span(axes), false, true);
+    test.FillData(0, 255);
+    test.Run();
+    RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true, reductions::sum());
+    test.Check();
+  }
+}
+
+TEST(SumGPU, ReduceMiddleRandomBench) {
   TensorListShape<> in_shape = {{
     { 32, 3, 64000 },
     { 15, 3, 128000 },
