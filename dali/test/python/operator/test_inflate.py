@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-import cupy as cp
 import lz4.block
 
 from nvidia.dali import pipeline_def, fn
@@ -111,7 +110,7 @@ def _test_scalar_shape(dtype, shape, layout):
 
     def deflated_source(sample_info):
         sample = sample_source(sample_info)
-        return cp.array(sample_to_lz4(sample))
+        return np.array(sample_to_lz4(sample))
 
     @pipeline_def
     def pipeline():
