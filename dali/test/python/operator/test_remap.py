@@ -18,7 +18,6 @@ import unittest
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-import nvidia.dali.types as types
 from nose2.tools import params
 from nvidia.dali.types import DALIInterpType
 from nvidia.dali.pipeline.experimental import pipeline_def
@@ -32,7 +31,7 @@ rng = np.random.default_rng()
 def update_map(mode, shape, nimages=1):
     """
     Code for map calculation.
-    Based on https://github.com/opencv/opencv/blob/3.4/samples/python/tutorial_code/ImgTrans/remap/Remap_Demo.py
+    Based on https://github.com/opencv/opencv/blob/3.4/samples/python/tutorial_code/ImgTrans/remap/Remap_Demo.py  # noqa
     :param mode: One of: 'identity', 'xflip', 'yflip', 'xyflip', 'random'
     :param shape: HWC shape of a sample.
     :param nimages: Number of maps to be generated for every axis.
@@ -67,7 +66,7 @@ def update_map(mode, shape, nimages=1):
             map_x = rng.uniform(low=0, high=map_x.shape[1] + 0, size=map_x.shape)
             map_y = rng.uniform(low=0, high=map_y.shape[0] + 0, size=map_y.shape)
         else:
-            raise InvalidArgument("Unknown map mode.")
+            raise ValueError("Unknown map mode.")
         mapsx.append(map_x)
         mapsy.append(map_y)
     return np.array(mapsx, dtype=np.float32), np.array(mapsy, dtype=np.float32)
@@ -100,7 +99,7 @@ def remap_pipe(remap_op, maps_data, img_size):
     elif remap_op == 'cv':
         return fn.python_function(img, mapx, mapy, function=_cv_remap)
     else:
-        raise InvalidArgument("Unknown remap operator.")
+        raise ValueError("Unknown remap operator.")
 
 
 class RemapTest(unittest.TestCase):
@@ -128,13 +127,14 @@ class RemapTest(unittest.TestCase):
         for _ in range(N_iterations):
             out1 = pipe1.run()
             out2 = pipe2.run()
-            self.assertTrue(len(out1) == len(out2),
-                            f"Numbers of outputs in the pipelines does not match: {len(out1)} vs {len(out2)}.")
+            self.assertTrue(
+                len(out1) == len(out2),
+                f"Numbers of outputs in the pipelines does not match: {len(out1)} vs {len(out2)}.")
             for i in range(len(out1)):
-                out1_data = out1[i].as_cpu() if isinstance(out1[i][0], dali.backend_impl.TensorGPU) \
-                    else out1[i]
-                out2_data = out2[i].as_cpu() if isinstance(out2[i][0], dali.backend_impl.TensorGPU) \
-                    else out2[i]
+                out1_data = out1[i].as_cpu() \
+                    if isinstance(out1[i][0], dali.backend_impl.TensorGPU) else out1[i]
+                out2_data = out2[i].as_cpu() \
+                    if isinstance(out2[i][0], dali.backend_impl.TensorGPU) else out2[i]
                 for sample1, sample2 in zip(out1_data, out2_data):
                     s1 = np.array(sample1)
                     s2 = np.array(sample2)
@@ -142,8 +142,9 @@ class RemapTest(unittest.TestCase):
                                     f"Sample shapes do not match: {s1.shape} vs {s2.shape}")
                     noutliers = self._count_outlying_pixels(s1, s2)
                     size = np.prod(s1.shape[:-1])
-                    self.assertTrue(noutliers / size < eps,
-                                    f"Test failed. Actual error: {noutliers / size}, expected: {eps}.")
+                    self.assertTrue(
+                        noutliers / size < eps,
+                        f"Test failed. Actual error: {noutliers / size}, expected: {eps}.")
 
     @staticmethod
     def _count_outlying_pixels(sample1, sample2):

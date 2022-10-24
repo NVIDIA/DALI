@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/image/remap/remap.h"
+#include <string>
 
 namespace dali::remap {
 
@@ -48,4 +49,4 @@ This value impacts the interpolation result. To match OpenCV, please pick ``"cen
         .AllowSequences();
 
 
-}
+}  // namespace dali::remap

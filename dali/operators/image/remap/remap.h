@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNasdasdM_REMAP_H_
-#define DALI_KERNasdasdM_REMAP_H_
+#ifndef DALI_OPERATORS_IMAGE_REMAP_REMAP_H_
+#define DALI_OPERATORS_IMAGE_REMAP_REMAP_H_
 
+#include <vector>
+#include <string>
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/kernels/imgproc/geom/remap.h"
 #include "dali/kernels/imgproc/geom/remap_npp.h"
@@ -25,6 +27,7 @@
 #include "include/dali/core/geom/mat.h"
 #include "include/dali/core/span.h"
 #include "include/dali/core/static_switch.h"
+
 
 namespace dali::remap {
 
@@ -100,4 +103,4 @@ class Remap : public SequenceOperator<Backend> {
 }  // namespace dali::remap
 
 
-#endif
+#endif  // DALI_OPERATORS_IMAGE_REMAP_REMAP_H_

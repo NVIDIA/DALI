@@ -15,11 +15,11 @@
 #include "dali/operators/image/remap/remap.h"
 #include "dali/operators/image/remap/remap.cuh"
 #include <gtest/gtest.h>
+#include <vector>
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali::remap::test {
-using namespace dali::remap::detail;
-
+using namespace dali::remap::detail;  // NOLINT
 using namespace std;  // NOLINT
 
 template<typename T>
@@ -55,7 +55,7 @@ TYPED_TEST_SUITE(RemapTest, RemapTestTypes);
 
 TYPED_TEST(RemapTest, ShiftPixelOriginTest) {
   using T = TypeParam;
-  for (auto &val: this->ref_data_) {
+  for (auto &val : this->ref_data_) {
     val += .5f;
   }
   ShiftPixelOrigin(TensorListView<StorageUnified, T>(this->test_data_, this->data_shape_), .5f,
@@ -66,4 +66,4 @@ TYPED_TEST(RemapTest, ShiftPixelOriginTest) {
   }
 }
 
-}  // namespace dali
+}  // namespace dali::remap::test

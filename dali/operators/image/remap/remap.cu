@@ -23,6 +23,7 @@ namespace {
 
 class RemapGpu : public Remap<GPUBackend> {
   using B = GPUBackend;
+
  public:
   explicit RemapGpu(const OpSpec &spec) : Remap<B>(spec) {}
 
