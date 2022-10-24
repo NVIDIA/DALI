@@ -455,8 +455,6 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                                 PckgVer("2.3.4", python_max_ver="3.8",
                                         dependencies=["protobuf<4"])],
                              "110": [
-                                PckgVer("1.15.5", python_max_ver="3.7",
-                                        dependencies=["protobuf<4"]),
                                 PckgVer("2.9.2", python_min_ver="3.7",
                                         dependencies=["protobuf<4"]),
                                 PckgVer("2.10.0", python_min_ver="3.7",
