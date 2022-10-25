@@ -382,8 +382,26 @@ void ReduceMiddleSmall(const ReduceSampleDesc<Out, In> &sample,
     auto pre = pre_bank.Get({outer, inner});
     OnlineReducer<Acc, Reduction> red;
     red.reset();
-    for (int i = 0; i < n_reduced; i++)
-      red.add(pre(__ldg(base + i * n_inner)), reduce);
+    {
+      In tmp[4];
+      int i;
+      for (i = 0; i + 4 <= n_reduced; i += 4) {
+        tmp[0] = __ldg(base + (i+0) * n_inner);
+        tmp[1] = __ldg(base + (i+1) * n_inner);
+        tmp[2] = __ldg(base + (i+2) * n_inner);
+        tmp[3] = __ldg(base + (i+3) * n_inner);
+        red.add(pre(tmp[0]), reduce);
+        red.add(pre(tmp[1]), reduce);
+        red.add(pre(tmp[2]), reduce);
+        red.add(pre(tmp[3]), reduce);
+      }
+      #pragma unroll 4
+      for (int j = 0; j < n_reduced - i; j++)
+        tmp[j] = __ldg(base + (i+j) * n_inner);
+      #pragma unroll 4
+      for (int j = 0; j < n_reduced - i; j++)
+        red.add(pre(tmp[j]), reduce);
+    }
     out[idx] = ConvertSat<Out>(post(red.result()));
   }
 }

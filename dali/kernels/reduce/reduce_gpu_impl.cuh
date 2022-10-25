@@ -1009,24 +1009,6 @@ class ReduceImplGPU {
     return samples;
   }
 
-  /**
-   * @brief Permutes a sequence in place
-   *
-   * @remarks The function will return incorrect result or hang if `idx` contains repetitions.
-   */
-  template <typename Seq, typename Indices>
-  void permute_in_place(Seq &inout, Indices &&idx) {
-    using index_type = std::remove_reference_t<decltype(idx[0])>;
-    using size_type = decltype(dali::size(idx));
-    for (size_type i = 0, n = dali::size(idx); i < n; i++) {
-        size_type src_idx = idx[i];
-        while (src_idx < i)
-            src_idx = idx[src_idx];
-        if (src_idx != i)
-            std::swap(inout[i], inout[src_idx]);
-    }
-  }
-
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
   void LaunchStage(Context &ctx, ReductionStage &stage,
                    ReductionKindTag<ReductionKind::All>) {
