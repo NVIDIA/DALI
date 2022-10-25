@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,11 @@
 #define DALI_KERNELS_TRANSPOSE_TRANSPOSE_GPU_SETUP_CUH_
 
 #include <cuda_runtime.h>
+#include <algorithm>
 #include <utility>
-#include "dali/core/tensor_view.h"
+#include "dali/core/api_helper.h"
 #include "dali/core/fast_div.h"
+#include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/transpose/transpose_gpu_impl.cuh"
 #include "dali/kernels/transpose/transpose_util.h"

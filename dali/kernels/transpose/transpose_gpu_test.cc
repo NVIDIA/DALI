@@ -15,6 +15,7 @@
 #include "dali/kernels/transpose/transpose_gpu.h"  // NOLINT
 #include <gtest/gtest.h>
 #include <random>
+#include <algorithm>
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/transpose/transpose_test.h"
