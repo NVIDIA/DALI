@@ -15,6 +15,7 @@
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
 #include <sstream>
+#include <cstring>
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
 #include "dali/core/device_guard.h"

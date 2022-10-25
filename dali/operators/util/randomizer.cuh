@@ -17,6 +17,7 @@
 #define DALI_OPERATORS_UTIL_RANDOMIZER_CUH_
 
 #include <math.h>
+#include <cassert>
 #include <memory>
 #include "dali/core/host_dev.h"
 #include "dali/core/device_guard.h"
