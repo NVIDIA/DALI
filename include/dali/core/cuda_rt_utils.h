@@ -56,7 +56,7 @@ inline const cudaDeviceProp &GetDeviceProperties(int device_id = -1) {
   static std::vector<bool> read(dev_count, false);
   static std::vector<cudaDeviceProp> properties(dev_count);
   if (!read[device_id]) {
-    CUDA_CALL(cudaGetDeviceProperties(&properties[device_id], 0));
+    CUDA_CALL(cudaGetDeviceProperties(&properties[device_id], device_id));
     read[device_id] = true;
   }
   return properties[device_id];
