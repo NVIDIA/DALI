@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/kernels/signal/resampling_cpu.h"
 #include <gtest/gtest.h>
 #include <vector>
 #include <numeric>
-#include "dali/kernels/signal/resampling_cpu.h"
+#include "dali/core/cuda_error.h"
 #include "dali/kernels/signal/resampling_test.h"
 
 namespace dali {
