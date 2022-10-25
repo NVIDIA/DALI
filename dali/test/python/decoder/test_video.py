@@ -25,6 +25,8 @@ from nose2.tools import params
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
 # filter out HEVC because some GPUs do not support it
 filenames = filter(lambda filename: 'hevc' not in filename, filenames)
+# mpeg4 is not yet supported in the CPU operator itself
+filenames = filter(lambda filename: 'mpeg4' not in filename, filenames)
 
 files = [np.fromfile(
     filename, dtype=np.uint8) for filename in filenames]

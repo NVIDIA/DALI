@@ -44,12 +44,18 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
 
-  switch (av_state_->codec_->id) {
+  const char* filtername = nullptr;
+  switch (av_state_->codec_params_->codec_id) {
   case AVCodecID::AV_CODEC_ID_H264:
-    bsf = av_bsf_get_by_name("h264_mp4toannexb");
+    filtername = "h264_mp4toannexb";
     break;
   case AVCodecID::AV_CODEC_ID_HEVC:
-    bsf = av_bsf_get_by_name("hevc_mp4toannexb");
+    filtername = "hevc_mp4toannexb";
+    break;
+  case AVCodecID::AV_CODEC_ID_MPEG4:
+    if  (!strcmp(av_state_->ctx_->iformat->name, "avi")) {
+      filtername = "mpeg4_unpack_bframes";
+    }
     break;
   default:
     DALI_FAIL(make_string(
@@ -57,9 +63,16 @@ void FramesDecoderGpu::InitBitStreamFilter() {
       av_state_->codec_->name));
   }
 
-  DALI_ENFORCE(
-    av_bsf_alloc(bsf, &bsfc_) >= 0,
-    "Unable to allocate bit stream filter");
+  if (filtername != nullptr) {
+    auto bsf = av_bsf_get_by_name(filtername);
+    DALI_ENFORCE(bsf, "Error finding bit stream filter.");
+    DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0,
+                 "Unable to allocate bit stream filter");
+  } else {
+    DALI_ENFORCE(av_bsf_get_null_filter(&bsfc_) >= 0,
+                 "Error creating pass-through filter.");
+  }
+
   DALI_ENFORCE(
     avcodec_parameters_copy(bsfc_->par_in, av_state_->ctx_->streams[0]->codecpar) >= 0,
     "Unable to copy bit stream filter parameters");
@@ -70,13 +83,16 @@ void FramesDecoderGpu::InitBitStreamFilter() {
 
 cudaVideoCodec FramesDecoderGpu::GetCodecType() {
   // Code assumes av_state_->codec_->id in FramesDecoder::SupportedCodecs
-  if (av_state_->codec_->id == AV_CODEC_ID_HEVC) {
-    return cudaVideoCodec_HEVC;
+  switch (av_state_->codec_params_->codec_id) {
+    case AV_CODEC_ID_HEVC: return cudaVideoCodec_HEVC;
+    case AV_CODEC_ID_H264: return cudaVideoCodec_H264;
+    case AV_CODEC_ID_MPEG4: return cudaVideoCodec_MPEG4;
+    default: {
+      DALI_FAIL(make_string("Unsupported codec type ", av_state_->codec_->id));
+      return {};
+    }
   }
-
-  return cudaVideoCodec_H264;
 }
-
 void FramesDecoderGpu::InitGpuDecoder() {
   nvdecode_state_ = std::make_unique<NvDecodeState>();
 
@@ -107,6 +123,7 @@ void FramesDecoderGpu::InitGpuDecoder() {
 
   // Create nv parser
   CUVIDPARSERPARAMS parser_info;
+  CUVIDEOFORMATEX parser_extinfo;
   memset(&parser_info, 0, sizeof(CUVIDPARSERPARAMS));
   parser_info.CodecType = codec_type;
   parser_info.ulMaxNumDecodeSurfaces = num_decode_surfaces_;
@@ -115,6 +132,18 @@ void FramesDecoderGpu::InitGpuDecoder() {
   parser_info.pfnSequenceCallback = detail::process_video_sequence;
   parser_info.pfnDecodePicture = detail::process_picture_decode;
   parser_info.pfnDisplayPicture = nullptr;
+
+  auto extradata = av_state_->ctx_->streams[0]->codecpar->extradata;
+  auto extradata_size = av_state_->ctx_->streams[0]->codecpar->extradata_size;
+
+  memset(&parser_extinfo, 0, sizeof(parser_extinfo));
+  parser_info.pExtVideoInfo = &parser_extinfo;
+  if (extradata_size > 0) {
+    auto hdr_size = std::min(sizeof(parser_extinfo.raw_seqhdr_data),
+                             static_cast<std::size_t>(extradata_size));
+    parser_extinfo.format.seqhdr_data_length = hdr_size;
+    memcpy(parser_extinfo.raw_seqhdr_data, extradata, hdr_size);
+  }
 
   CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
 
@@ -135,7 +164,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
 
 FramesDecoderGpu::FramesDecoderGpu(
   const char *memory_file, int memory_file_size, cudaStream_t stream, bool build_index) :
-  FramesDecoder(memory_file, memory_file_size, build_index),
+  FramesDecoder(memory_file, memory_file_size, build_index, build_index),
   frame_buffer_(num_decode_surfaces_),
   stream_(stream) {
   InitGpuDecoder();
@@ -276,6 +305,7 @@ bool FramesDecoderGpu::SendFrameToParser() {
   if (filtered_packet_->data) {
     av_packet_unref(filtered_packet_);
   }
+
   DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_state_->packet_) >= 0);
   DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
 
@@ -298,7 +328,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   current_frame_output_ = data;
 
   // Initial fill of the buffer
-  while (HasEmptySlot() && more_frames_to_decode_) {
+  frame_returned_ = false;
+  while (HasEmptySlot() && more_frames_to_decode_ && !frame_returned_) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
       if (!SendFrameToParser()) {
         continue;
@@ -323,6 +354,10 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
         frame_to_return_index = i;
       }
     }
+  }
+
+  if (frame_to_return_index == -1) {
+    return true;
   }
 
   copyD2D(

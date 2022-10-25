@@ -106,6 +106,14 @@ std::vector<std::string> VideoTestBase::vfr_hevc_videos_paths_{
   testing::dali_extra_path() + "/db/video/vfr/test_1_hevc.mp4",
   testing::dali_extra_path() + "/db/video/vfr/test_2_hevc.mp4"};
 
+std::vector<std::string> VideoTestBase::cfr_mpeg4_videos_paths_{
+  testing::dali_extra_path() + "/db/video/cfr/test_1_mpeg4.mp4",
+  testing::dali_extra_path() + "/db/video/cfr/test_2_mpeg4.mp4"};
+
+std::vector<std::string> VideoTestBase::vfr_mpeg4_videos_paths_{
+  testing::dali_extra_path() + "/db/video/vfr/test_1_mpeg4.mp4",
+  testing::dali_extra_path() + "/db/video/vfr/test_2_mpeg4.mp4"};
+
 std::vector<TestVideo> VideoTestBase::cfr_videos_;
 std::vector<TestVideo> VideoTestBase::vfr_videos_;
 std::vector<TestVideo> VideoTestBase::vfr_hevc_videos_;
