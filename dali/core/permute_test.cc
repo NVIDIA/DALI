@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,6 +122,25 @@ TEST(InversePermuteTest, ReturnVectorExplicit) {
   std::vector<int> ref  = { 3, 2, 0, 1 };
   std::vector<int> out = inverse_permutation<std::vector<int>>(perm);
   EXPECT_EQ(out, ref);
+}
+
+TEST(PermuteInPlaceTest, AllPermutationsUpTo7) {
+  const int maxN = 7;
+  std::vector<int> perm, inout;
+  for (int n = 1; n < maxN; n++) {
+    perm.resize(n);
+    inout.resize(n);
+    std::iota(perm.begin(), perm.end(), 0);
+    do {
+      // fill the input with a sequence 100, 101, ... , 100+n
+      std::iota(inout.begin(), inout.end(), 100);
+      permute_in_place(inout, perm);
+      // the element in a permuted sequence should be equal to the source index + 100
+      for (int i = 0; i < n; i++) {
+        ASSERT_EQ(inout[i], perm[i] + 100);
+      }
+    } while (std::next_permutation(perm.begin(), perm.end()));
+  }
 }
 
 }  // namespace dali
