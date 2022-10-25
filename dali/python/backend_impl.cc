@@ -17,7 +17,6 @@
 #include <sstream>
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
-#include "dali/core/boundary.h"
 #include "dali/core/device_guard.h"
 #if SHM_WRAPPER_ENABLED
 #include "dali/core/os/shared_mem.h"
@@ -1605,7 +1604,6 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("IMAGE_TYPE",    DALI_IMAGE_TYPE)
     .value("DATA_TYPE",     DALI_DATA_TYPE)
     .value("INTERP_TYPE",   DALI_INTERP_TYPE)
-    .value("BORDER_TYPE",   DALI_BORDER_TYPE)
     .value("TENSOR_LAYOUT", DALI_TENSOR_LAYOUT)
     .value("PYTHON_OBJECT", DALI_PYTHON_OBJECT)
     .value("_TENSOR_LAYOUT_VEC", DALI_TENSOR_LAYOUT_VEC)
@@ -1648,22 +1646,6 @@ PYBIND11_MODULE(backend_impl, m) {
     .value("INTERP_LANCZOS3", DALI_INTERP_LANCZOS3)
     .value("INTERP_TRIANGULAR", DALI_INTERP_TRIANGULAR)
     .value("INTERP_GAUSSIAN", DALI_INTERP_GAUSSIAN)
-    .export_values();
-
-  // DALIBorderType
-  py::enum_<boundary::BoundaryType>(types_m, "DALIBorderType", "Border policy.\n<SPHINX_IGNORE>")
-    .value("BORDER_CONSTANT", boundary::BoundaryType::CONSTANT,
-           "iiiiii|abcdefgh|iiiiiii with some specified i")
-    .value("BORDER_CLAMP", boundary::BoundaryType::CLAMP,
-           "aaaaaa|abcdefgh|hhhhhhh")
-    .value("BORDER_REFLECT_1001", boundary::BoundaryType::REFLECT_1001,
-           "fedcba|abcdefgh|hgfedcb")
-    .value("BORDER_REFLECT_101", boundary::BoundaryType::REFLECT_101,
-           "gfedcb|abcdefgh|gfedcba")
-    .value("BORDER_WRAP", boundary::BoundaryType::WRAP,
-           "cdefgh|abcdefgh|abcdefg")
-    .value("BORDER_TRANSPARENT", boundary::BoundaryType::TRANSPARENT,
-           "uvwxyz|abcdefgh|ijklmno")
     .export_values();
 
   // Operator node
@@ -1948,7 +1930,6 @@ PYBIND11_MODULE(backend_impl, m) {
     DALI_OPSPEC_ADDARG(DALIDataType)
     DALI_OPSPEC_ADDARG(DALIImageType)
     DALI_OPSPEC_ADDARG(DALIInterpType)
-    DALI_OPSPEC_ADDARG(boundary::BoundaryType)
 #ifdef DALI_BUILD_PROTO3
     DALI_OPSPEC_ADDARG(TFFeature)
 #endif
