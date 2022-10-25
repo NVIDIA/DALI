@@ -26,7 +26,7 @@
 namespace dali {
 namespace kernels {
 
-namespace {
+namespace {  // NOLINT
 
 template <int n>
 using ptrdiff_vec = vec<n, ptrdiff_t>;

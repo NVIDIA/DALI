@@ -125,4 +125,4 @@ class BoxEncoder<GPUBackend> : public Operator<GPUBackend> {
 };
 }  // namespace dali
 
-#endif
+#endif  // DALI_OPERATORS_SSD_BOX_ENCODER_CUH_

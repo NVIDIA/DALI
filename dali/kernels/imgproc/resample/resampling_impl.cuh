@@ -26,7 +26,7 @@ namespace kernels {
 
 constexpr int ResampleSharedMemSize = 32<<10;
 
-namespace {
+namespace {  // NOLINT
 
 template <int n>
 using ptrdiff_vec = vec<n, ptrdiff_t>;

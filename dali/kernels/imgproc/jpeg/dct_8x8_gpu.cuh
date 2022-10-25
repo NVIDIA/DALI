@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_JPEG_DCT_8x8_GPU_H_
-#define DALI_KERNELS_IMGPROC_JPEG_DCT_8x8_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_GPU_CUH_
+#define DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_GPU_CUH_
 
 #include <cuda_runtime_api.h>
 
@@ -132,4 +132,4 @@ void dct_inv_8x8_1d(float *data) {
 }  // namespace dali
 
 
-#endif  // DALI_KERNELS_IMGPROC_JPEG_DCT_8x8_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_GPU_CUH_

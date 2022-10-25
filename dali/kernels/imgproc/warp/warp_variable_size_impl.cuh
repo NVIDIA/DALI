@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_WARP_VARIABLE_SIZE_IMPL_CUH_
-#define DALI_KERNELS_IMGPROC_WARP_VARIABLE_SIZE_IMPL_CUH_
+#ifndef DALI_KERNELS_IMGPROC_WARP_WARP_VARIABLE_SIZE_IMPL_CUH_
+#define DALI_KERNELS_IMGPROC_WARP_WARP_VARIABLE_SIZE_IMPL_CUH_
 
 #include "dali/kernels/imgproc/warp/warp_setup.cuh"
 #include "dali/kernels/imgproc/warp/block_warp.cuh"
@@ -45,4 +45,4 @@ __global__ void BatchWarpVariableSize(
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_WARP_VARIABLE_SIZE_IMPL_CUH_
+#endif  // DALI_KERNELS_IMGPROC_WARP_WARP_VARIABLE_SIZE_IMPL_CUH_

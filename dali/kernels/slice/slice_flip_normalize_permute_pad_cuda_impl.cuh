@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_KERNEL_H_
-#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_KERNEL_H_
+#ifndef DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_CUDA_IMPL_CUH_
+#define DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_CUDA_IMPL_CUH_
 
 #include <cuda_runtime.h>
 #include <utility>
@@ -170,4 +170,4 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_KERNEL_H_
+#endif  // DALI_KERNELS_SLICE_SLICE_FLIP_NORMALIZE_PERMUTE_PAD_CUDA_IMPL_CUH_
