@@ -50,25 +50,6 @@ class Remap : public SequenceOperator<Backend> {
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.template Input<Backend>(0);
-    TYPE_SWITCH(input.type(), type2id, InputType, REMAP_SUPPORTED_TYPES, (
-    {
-      return SetupImplTyped<InputType>(output_desc, ws);
-    }
-    ), DALI_FAIL(make_string("Unsupported input type: ", input.type())))  // NOLINT
-  }
-
-
- protected:
-  USE_OPERATOR_MEMBERS();
-  bool shift_pixels_ = false;
-  float shift_value_ = 0;
-  std::vector<DALIInterpType> interps_;
-
- private:
-  template<typename T>
-  bool SetupImplTyped(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
-    const auto &input = ws.template Input<Backend>(0);
-    DALI_ENFORCE(input.shape().ndim == 3, "Input has to be a HWC image.");
 
     AcquireArguments(ws);
 
@@ -81,12 +62,19 @@ class Remap : public SequenceOperator<Backend> {
   }
 
 
+ protected:
+  USE_OPERATOR_MEMBERS();
+  bool shift_pixels_ = false;
+  float shift_value_ = 0;
+  std::vector<DALIInterpType> interps_;
+
+ private:
   void AcquireArguments(const Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
 
     // Interpolation setting
     auto interp = spec_.template GetArgument<DALIInterpType>("interp", &ws);
-    interps_ = {static_cast<size_t>(curr_batch_size), interp};
+    interps_.resize(static_cast<size_t>(curr_batch_size), interp);
 
     // Pixel origin setting
     auto pixel_origin = spec_.template GetArgument<std::string>("pixel_origin", &ws);

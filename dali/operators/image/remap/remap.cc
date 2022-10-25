@@ -39,6 +39,9 @@ The ``DALIBorderType`` will always be ``CONSTANT`` with the value ``0``.
                   "Defines the remap transformation for x coordinates.")
         .InputDox(2, "mapy", "TensorList of float",
                   "Defines the remap transformation for y coordinates.")
+        .InputLayout(0, {"HWC"})
+        .InputLayout(1, {"HWC","HW"})
+        .InputLayout(2, {"HWC","HW"})
         .AddOptionalArg<std::string>("pixel_origin", R"doc(
 Pixel origin. Possible values: ``"corner"``, ``"center"``.
 
