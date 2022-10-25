@@ -1,4 +1,4 @@
-// Copyright (c) 2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/cuda_utils.h"
-#include "dali/core/error_handling.h"
+#include "dali/core/cuda_error.h"
 
 namespace dali {
 

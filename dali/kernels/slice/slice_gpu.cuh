@@ -21,6 +21,7 @@
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/fast_div.h"

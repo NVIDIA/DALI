@@ -24,7 +24,7 @@
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"

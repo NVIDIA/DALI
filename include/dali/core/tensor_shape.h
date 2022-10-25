@@ -27,7 +27,6 @@
 #include "dali/core/permute.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/dev_array.h"
-#include "dali/core/cuda_utils.h"
 #include "dali/core/format.h"
 
 namespace dali {

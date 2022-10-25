@@ -17,6 +17,7 @@
 #include <memory>
 #include <vector>
 #include "dali/core/util.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/kernels/common/type_erasure.h"
 #include "dali/kernels/transpose/transpose_gpu_def.h"
 #include "dali/kernels/transpose/transpose_gpu_impl.cuh"
