@@ -14,6 +14,8 @@
 
 #include "dali/core/permute.h"  // NOLINT
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <numeric>
 #include <vector>
 #include <array>
 #include "dali/core/span.h"
