@@ -19,7 +19,7 @@
 #include "dali/util/nvml.h"
 #endif
 #include "dali/core/format.h"
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/nvtx.h"
 

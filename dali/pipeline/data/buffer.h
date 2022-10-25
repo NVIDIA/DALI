@@ -26,7 +26,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/device_guard.h"
-#include "dali/core/error_handling.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/util.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/core/format.h"

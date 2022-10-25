@@ -14,7 +14,6 @@
 
 #include <gtest/gtest.h>
 #include "dali/core/dynlink_cuda.h"
-#include "dali/core/cuda_utils.h"
 #include "dali/core/cuda_error.h"
 
 namespace dali {

@@ -14,6 +14,7 @@
 
 #include "dali/imgcodec/parsers/tiff.h"
 #include "dali/core/byte_io.h"
+#include "dali/core/error_handling.h"
 #include "dali/imgcodec/image_orientation.h"
 
 namespace dali {

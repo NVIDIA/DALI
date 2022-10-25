@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,8 +28,7 @@
 #include "dali/core/common.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/float16.h"
-#include "dali/core/cuda_utils.h"
-#include "dali/core/error_handling.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/tensor_layout.h"
 
 #ifdef DALI_BUILD_PROTO3

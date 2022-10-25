@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_MATH_EXPRESSIONS_BROADCASTING_H_
 
 #include <utility>
+#include "dali/core/api_helper.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/tensor_shape_print.h"

@@ -14,6 +14,7 @@
 
 #include <vector>
 #include "third_party/opencv/exif/exif.h"
+#include "dali/core/error_handling.h"
 #include "dali/imgcodec/parsers/jpeg.h"
 #include "dali/core/byte_io.h"
 

@@ -30,7 +30,7 @@
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
 #include "dali/core/convert.h"
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"

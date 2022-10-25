@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <vector>
 #include "dali/core/geom/box.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/core/error_handling.h"  // TODO(michalz): remove DALI_ENFORCE from this file
 
 namespace dali {
 namespace kernels {
@@ -193,8 +194,8 @@ Roi<spatial_dims> AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape <ndi
 template <int ndims, int spatial_dims = ndims - 1>
 std::vector<Roi<spatial_dims>>
 AdjustRoi(span<const Roi<spatial_dims>> rois, const TensorListShape <ndims> &shapes) {
-  DALI_ENFORCE(rois.empty() || rois.size() == shapes.num_samples(),
-               "Either provide `rois` for every corresponding `shape`, or none.");
+  if (rois.empty() || rois.size() == shapes.num_samples())
+    throw std::invalid_argument("Either provide `rois` for every corresponding `shape`, or none.");
   std::vector<Roi<spatial_dims>> ret(shapes.num_samples());
 
   if (rois.empty()) {
