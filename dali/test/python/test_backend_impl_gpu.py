@@ -160,10 +160,22 @@ def test_cuda_array_interface_tensor_list_gpu_direct_creation():
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 
 
+def test_cuda_array_interface_tensor_list_gpu_direct_creation_list():
+    arr = cp.random.rand(3, 5, 6)
+    tensor_list = TensorListGPU([arr], "NHWC")
+    assert cp.allclose(arr.reshape(tuple([1]) + arr.shape), cp.asanyarray(tensor_list.as_tensor()))
+
+
 def test_dlpack_tensor_list_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)
     tensor_list = TensorListGPU(arr.toDlpack(), "NHWC")
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
+
+
+def test_dlpack_tensor_list_gpu_direct_creation_list():
+    arr = cp.random.rand(3, 5, 6)
+    tensor_list = TensorListGPU([arr.toDlpack()], "NHWC")
+    assert cp.allclose(arr.reshape(tuple([1]) + arr.shape), cp.asanyarray(tensor_list.as_tensor()))
 
 
 def test_cuda_array_interface_tensor_list_gpu_to_cpu():
