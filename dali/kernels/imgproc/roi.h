@@ -194,8 +194,8 @@ Roi<spatial_dims> AdjustRoi(const Roi<spatial_dims> *roi, const TensorShape <ndi
 template <int ndims, int spatial_dims = ndims - 1>
 std::vector<Roi<spatial_dims>>
 AdjustRoi(span<const Roi<spatial_dims>> rois, const TensorListShape <ndims> &shapes) {
-  if (rois.empty() || rois.size() == shapes.num_samples())
-    throw std::invalid_argument("Either provide `rois` for every corresponding `shape`, or none.");
+  DALI_ENFORCE(rois.empty() || rois.size() == shapes.num_samples(),
+               "Either provide `rois` for every corresponding `shape`, or none.");
   std::vector<Roi<spatial_dims>> ret(shapes.num_samples());
 
   if (rois.empty()) {
