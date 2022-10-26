@@ -1224,14 +1224,12 @@ class ReduceImplGPU {
       sample_offset += num_small;
     }
 
-    int shm_size = 0x8000;
-
     // Medium
 
     if (num_medium) {
       std::tie(grid, block) = launch_params(
           ReduceInnerMediumKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
-          num_medium, shm_size, 256);
+          num_medium, 0, 256);
 
       ReduceInnerMediumKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
           gpu_samples + sample_offset,
@@ -1242,6 +1240,7 @@ class ReduceImplGPU {
       sample_offset += num_medium;
     }
 
+    int shm_size = 0x8000;
     // Large
 
     if (num_large) {
