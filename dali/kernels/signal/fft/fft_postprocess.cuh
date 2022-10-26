@@ -119,7 +119,7 @@ __global__ void ConvertTimeMajorSpectrogram(
   // A warp processes a whole row (transform) to ensure sequential processing
   // and thus enable in-place operation.
 
-  int64_t wnd = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  int64_t wnd = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
   if (wnd >= nwindows)
     return;
   out += wnd * out_stride;
@@ -137,7 +137,7 @@ __global__ void ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize(
   // A warp processes a whole row (transform) to ensure sequential processing
   // and thus enable in-place operation.
 
-  int64_t wnd = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  int64_t wnd = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
   if (wnd >= nwindows)
     return;
   out += wnd * out_stride;
@@ -239,8 +239,8 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
     auto launch_kernel = [&](Out *out, int64_t out_stride,
                              const In* in, int64_t in_stride,
                              int64_t nwindows) {
-      dim3 blocks(1, div_ceil(nwindows, kBlock));
-      dim3 threads(32, kBlock);
+      dim3 blocks(div_ceil(nwindows, 8));
+      dim3 threads(32, 8);
 
       if (static_cast<const void*>(out) == static_cast<const void *>(in) &&
           sizeof(Out) != sizeof(In)) {
