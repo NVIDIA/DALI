@@ -44,6 +44,27 @@ namespace kernels {
 /// @brief Implementation details of reduction kernels
 namespace reduce_impl {
 
+template <typename Iterator, typename Predicate>
+auto multi_partition(Iterator &&begin, Iterator &&end, Predicate &&pred) {
+  auto it = std::stable_partition(begin, end, pred);
+  return std::make_tuple(std::move(it));
+}
+
+template <typename Iterator, typename Predicate0, typename... Predicates>
+auto multi_partition(Iterator &&begin, Iterator &&end, Predicate0 pred0, Predicates&&... preds) {
+  auto second_group_begin = multi_partition(
+    begin,
+    end,
+    std::forward<Predicate0>(pred0));
+
+  auto other_groups = multi_partition(
+    std::get<0>(second_group_begin),
+    end,
+    std::forward<Predicates>(preds)...);
+
+  return std::tuple_cat(second_group_begin, other_groups);
+}
+
 enum class ReductionKind {
   All,     ///< Reduce contiguous memory
   Sample,  ///< Reduce samples separately
@@ -1104,30 +1125,138 @@ class ReduceImplGPU {
                    ReductionKindTag<ReductionKind::Inner>) {
     using SampleDesc = ReduceSampleDesc<StageOut, StageIn>;
     WorkArea &wa = ctx.work_area;
-    int num_samples = stage.num_samples();
     SampleDesc *cpu_samples = PrepareSampleDescs<StageOut, StageIn>(ctx, stage);
+
+    // There are four cases, depending on the sizes of the reduced and the outer dimension.
+    // We separate the sample into bins by running a stable partiioning on the samples.
+
+    int num_samples = stage.num_samples();
+
+    auto &indices = stage.sample_indices;
+    indices.resize(num_samples);
+    std::iota(indices.begin(), indices.end(), 0);
+
+    auto groups =
+      multi_partition(
+        indices.begin(), indices.end(),
+        [&](int i) {
+          return cpu_samples[i].n_reduced == 1;
+        },
+        [&](int i) {
+         return cpu_samples[i].n_reduced < 1024 && cpu_samples[i].num_macroblocks == 1;
+        },
+        [&](int i) {
+          return cpu_samples[i].n_inner < 32;
+        });
+    auto none_end = std::get<0>(groups);
+    auto small_end = std::get<1>(groups);
+    auto medium_end = std::get<2>(groups);
+
+    int num_none = none_end - indices.begin();
+    int num_small = small_end - none_end;
+    int num_medium = medium_end - small_end;
+    int num_large = indices.end() - medium_end;
+
     auto *pre = GetPreprocessorBanks<is_first, 1>(wa, stage.axis);
     auto *post = GetPostprocessors<is_last>(wa);
 
-    using pre_bank_t = std::remove_cv_t<std::remove_reference_t<decltype(*pre)>>;;
-    using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
-    using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
-    int max_block_size = std::min(1024, MaxThreadsPerBlock(
-      ReduceInnerKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>));
+    permute_in_place(cpu_samples, indices);
+    permute_in_place(pre, indices);
+    permute_in_place(post, indices);
 
     wa.CopyParamsToDevice(ctx.stream);
-    dim3 block(32, max_block_size / 32);
-    int gridx = std::max(32, 512/num_samples);
-    dim3 grid(gridx, num_samples);
 
     SampleDesc *gpu_samples = wa.GetDeviceParam(cpu_samples);
     auto *gpu_pre = wa.GetDeviceParam(pre);
     auto *gpu_post = wa.GetDeviceParam(post);
 
-    ReduceInnerKernel<Acc><<<grid, block, 0, ctx.stream>>>(
-      gpu_samples, This().GetReduction(), gpu_pre, gpu_post);
+    using pre_bank_t = std::remove_cv_t<std::remove_reference_t<decltype(*pre)>>;;
+    using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
+    using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
+    auto launch_params = [&](auto kernel, int nsamples, int shm_size, int max_block_size) {
+      int preferred_block_size = max_block_size;
+      int preferred_grid_size;  // unused
+      CUDA_CALL(cudaOccupancyMaxPotentialBlockSize(
+        &preferred_grid_size,
+        &preferred_block_size,
+        kernel,
+        shm_size,
+        max_block_size));
+
+      dim3 block(32, preferred_block_size / 32);
+      int gridx = std::max(32, 512/nsamples);
+      dim3 grid(gridx, nsamples);
+      return std::make_pair(grid, block);
+    };
+
+    dim3 grid, block;
+    int sample_offset = 0;
+
+    // None
+    if (num_none) {
+      std::tie(grid, block) = launch_params(
+          ReduceNoneKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_none, 0, 256);
+
+      ReduceNoneKernel<Acc><<<grid, block, 0, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+
+      sample_offset += num_none;
+    }
+
+    // Small
+    if (num_small) {
+      std::tie(grid, block) = launch_params(
+          ReduceInnerSmallKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_small, 0, 256);
+
+      ReduceInnerSmallKernel<Acc><<<grid, block, 0, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+
+      sample_offset += num_small;
+    }
+
+    int shm_size = 0x8000;
+
+    // Medium
+
+    if (num_medium) {
+      std::tie(grid, block) = launch_params(
+          ReduceInnerMediumKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_medium, shm_size, 256);
+
+      ReduceInnerMediumKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+
+      sample_offset += num_medium;
+    }
+
+    // Large
+
+    if (num_large) {
+      std::tie(grid, block) = launch_params(
+          ReduceInnerLargeKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_large, shm_size, 256);
+
+      ReduceInnerLargeKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+    }
+
+    assert((sample_offset + num_large) == num_samples);
     CUDA_CALL(cudaGetLastError());
   }
 
@@ -1147,21 +1276,24 @@ class ReduceImplGPU {
     indices.resize(num_samples);
     std::iota(indices.begin(), indices.end(), 0);
 
-    auto middle_small_end = std::stable_partition(
-      indices.begin(),
-      indices.end(),
-      [&](int i) {
-        return cpu_samples[i].n_reduced < 1024 && cpu_samples[i].num_macroblocks == 1;
-      });
+    auto groups =
+      multi_partition(
+        indices.begin(), indices.end(),
+        [&](int i) {
+         return cpu_samples[i].n_reduced == 1;
+        },
+        [&](int i) {
+         return cpu_samples[i].n_reduced < 1024 && cpu_samples[i].num_macroblocks == 1;
+        },
+        [&](int i) {
+          return cpu_samples[i].n_inner < 32;
+        });
+    auto none_end = std::get<0>(groups);
+    auto middle_small_end = std::get<1>(groups);
+    auto middle_large_inner_small_end = std::get<2>(groups);
 
-    auto middle_large_inner_small_end = std::stable_partition(
-      middle_small_end,
-      indices.end(),
-      [&](int i) {
-        return cpu_samples[i].n_inner < 32;
-      });
-
-    int num_middle_small = middle_small_end - indices.begin();
+    int num_none = none_end - indices.begin();
+    int num_middle_small = middle_small_end - none_end;
     int num_middle_large_inner_small = middle_large_inner_small_end - middle_small_end;
     int num_middle_large_inner_medium = indices.end() - middle_large_inner_small_end;
 
@@ -1182,14 +1314,15 @@ class ReduceImplGPU {
     using post_t = std::remove_cv_t<std::remove_reference_t<decltype(*post)>>;;
     using red_t = std::remove_reference_t<decltype(This().GetReduction())>;
 
-    auto launch_params = [&](auto kernel, int nsamples, int shm_size) {
-      int preferred_block_size = 256;
+    auto launch_params = [&](auto kernel, int nsamples, int shm_size, int max_block_size) {
+      int preferred_block_size = max_block_size;
       int preferred_grid_size;  // unused
       CUDA_CALL(cudaOccupancyMaxPotentialBlockSize(
         &preferred_grid_size,
         &preferred_block_size,
         kernel,
-        shm_size));
+        shm_size,
+        max_block_size));
 
       dim3 block(32, preferred_block_size / 32);
       int gridx = std::max(32, 512/nsamples);
@@ -1200,11 +1333,26 @@ class ReduceImplGPU {
     dim3 grid, block;
     int sample_offset = 0;
 
+    // None
+    if (num_none) {
+      std::tie(grid, block) = launch_params(
+          ReduceNoneKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_none, 0, 256);
+
+      ReduceNoneKernel<Acc><<<grid, block, 0, ctx.stream>>>(
+          gpu_samples + sample_offset,
+          This().GetReduction(),
+          gpu_pre  ? gpu_pre  + sample_offset : nullptr,
+          gpu_post ? gpu_post + sample_offset : nullptr);
+
+      sample_offset += num_none;
+    }
+
     // MiddleSmall
     if (num_middle_small) {
       std::tie(grid, block) = launch_params(
-          ReduceMiddleSmallKernel<Acc, Out, In, red_t, pre_bank_t, post_t>,
-          num_middle_small, 0);
+          ReduceMiddleSmallKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_middle_small, 0, 256);
 
       ReduceMiddleSmallKernel<Acc><<<grid, block, 0, ctx.stream>>>(
           gpu_samples + sample_offset,
@@ -1221,8 +1369,8 @@ class ReduceImplGPU {
 
     if (num_middle_large_inner_small) {
       std::tie(grid, block) = launch_params(
-          ReduceMiddleLargeInnerSmallKernel<Acc, Out, In, red_t, pre_bank_t, post_t>,
-          num_middle_large_inner_small, shm_size);
+          ReduceMiddleLargeInnerSmallKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_middle_large_inner_small, shm_size, 256);
 
       ReduceMiddleLargeInnerSmallKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
           gpu_samples + sample_offset,
@@ -1237,8 +1385,8 @@ class ReduceImplGPU {
 
     if (num_middle_large_inner_medium) {
       std::tie(grid, block) = launch_params(
-          ReduceMiddleLargeInnerMediumKernel<Acc, Out, In, red_t, pre_bank_t, post_t>,
-          num_middle_large_inner_medium, shm_size);
+          ReduceMiddleLargeInnerMediumKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          num_middle_large_inner_medium, shm_size, 256);
 
       ReduceMiddleLargeInnerMediumKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
           gpu_samples + sample_offset,
@@ -1248,6 +1396,7 @@ class ReduceImplGPU {
     }
 
     assert((sample_offset + num_middle_large_inner_medium) == num_samples);
+    CUDA_CALL(cudaGetLastError());
   }
 
   template <typename StageOut, typename StageIn, bool is_first, bool is_last>
@@ -1318,7 +1467,7 @@ class ReduceImplGPU {
     auto *gpu_pre             = wa.GetDeviceParam(pre);
     auto *gpu_post            = wa.GetDeviceParam(post);
 
-    ReduceNoneKernel<<<grid, block, 0, ctx.stream>>>(
+    ReduceNoneRawKernel<<<grid, block, 0, ctx.stream>>>(
       gpu_out, gpu_in, gpu_sizes, gpu_pre, gpu_post);
 
     CUDA_CALL(cudaGetLastError());
