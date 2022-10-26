@@ -130,7 +130,7 @@ __global__ void ConvertTimeMajorSpectrogram(
 }
 
 template <typename Out, typename In, typename Convert>
-__global__ void ConvertTimeMajorSpectrogram_InPlaceDiffSize(
+__global__ void ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize(
       Out *out, int out_stride,
       const In *in, int in_stride, int nfft, int64_t nwindows,
       Convert convert = {}) {
@@ -244,7 +244,7 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
 
       if (static_cast<const void*>(out) == static_cast<const void *>(in) &&
           sizeof(Out) != sizeof(In)) {
-        ConvertTimeMajorSpectrogram_InPlaceDiffSize<<<blocks, threads, 0, ctx.gpu.stream>>>(
+        ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize<<<blocks, threads, 0, ctx.gpu.stream>>>(
             out, out_stride, in, in_stride, nfft, nwindows, convert_);
       } else {
         ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
