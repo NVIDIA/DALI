@@ -116,9 +116,6 @@ __global__ void ConvertTimeMajorSpectrogram(
       Out *out, int out_stride,
       const In *in, int in_stride, int nfft, int64_t nwindows,
       Convert convert = {}) {
-  // A warp processes a whole row (transform) to ensure sequential processing
-  // and thus enable in-place operation.
-
   int64_t wnd = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
   if (wnd >= nwindows)
     return;
@@ -152,6 +149,17 @@ __global__ void ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize(
     if (j < nfft)
       out[j] = v;
   }
+}
+
+template <typename Out, typename In, typename Convert>
+__global__ void ConvertTimeMajorSpectrogram_Flat(
+      Out *out, const In *in, int64_t n,
+      Convert convert = {}) {
+  int64_t offset = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  int64_t step = static_cast<int64_t>(gridDim.x) * blockDim.x;
+
+  for (int64_t i = offset; i < n; i += step)
+    out[i] = convert(in[i]);
 }
 
 template <typename Out, typename In, typename Convert = identity>
@@ -246,6 +254,17 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
           sizeof(Out) != sizeof(In)) {
         ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize<<<blocks, threads, 0, ctx.gpu.stream>>>(
             out, out_stride, in, in_stride, nfft, nwindows, convert_);
+      } else if (out_stride == in_stride) {
+        int64_t n = nfft * nwindows;
+        int block, grid;
+        CUDA_CALL(cudaOccupancyMaxPotentialBlockSize(
+            &grid, &block,
+            reinterpret_cast<void const *>(ConvertTimeMajorSpectrogram_Flat<Out, In, Convert>),
+            0,  // shm_size,
+            256));
+        grid = std::min(static_cast<int>(div_ceil(n, block)), grid);
+        ConvertTimeMajorSpectrogram_Flat<<<grid, block, 0, ctx.gpu.stream>>>(
+            out, in, nfft * nwindows, convert_);
       } else {
         ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
             out, out_stride, in, in_stride, nfft, nwindows, convert_);
