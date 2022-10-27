@@ -150,7 +150,7 @@ class SplitMerge : public ::testing::Test {
   void AddSplit(Pipeline &pipe, const std::string &name, const std::string &dev,
                 const std::string &input, const std::string &predicate,
                 const std::string &true_output, const std::string &false_output) {
-    pipe.AddOperator(OpSpec("experimental___Split")
+    pipe.AddOperator(OpSpec("_conditional__Split")
                          .AddArg("device", dev)
                          .AddInput(input, dev)
                          .AddArgumentInput("predicate", predicate)
@@ -162,7 +162,7 @@ class SplitMerge : public ::testing::Test {
   void AddMerge(Pipeline &pipe, const std::string &name, const std::string &dev,
                 const std::string &true_input, const std::string &false_input,
                 const std::string &predicate, const std::string &output) {
-    pipe.AddOperator(OpSpec("experimental___Merge")
+    pipe.AddOperator(OpSpec("_conditional__Merge")
                          .AddArg("device", dev)
                          .AddInput(true_input, dev)
                          .AddInput(false_input, dev)

@@ -31,8 +31,38 @@ bool Merge<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Works
   for (int input_category_idx = 0; input_category_idx < kMaxCategories; input_category_idx++) {
     const auto &input = ws.template Input<Backend>(input_category_idx);
     input_sample_count_ += input.num_samples();
-    // We could do additional error checking for input consistency, but the SetSample already does
-    // the same.
+    if (nonzero_input_sample_idx < 0 && input.num_samples() > 0) {
+      nonzero_input_sample_idx = input_category_idx;
+      continue;  // no point in comparing with ourselves
+    }
+    if (nonzero_input_sample_idx >= 0 && input.num_samples() > 0) {
+      const auto &base_input = ws.template Input<Backend>(nonzero_input_sample_idx);
+      const char *error_msg_base =
+          "Divergent data found in different branches of conditional operation. All paths in "
+          "conditional operation are merged into one batch which must have consistent type, "
+          "dimensionality, layout and other metadata. ";
+
+      DALI_ENFORCE(base_input.type() == input.type(),
+                   make_string(error_msg_base, "Found distinct types: ", base_input.type(), " and ",
+                               input.type(), "."));
+
+      DALI_ENFORCE(
+          base_input.shape().sample_dim() == input.shape().sample_dim(),
+          make_string(error_msg_base, "Found distinct sample dimensions: ",
+                      base_input.shape().sample_dim(), " and ", input.shape().sample_dim(), "."));
+
+      DALI_ENFORCE(base_input.GetLayout() == input.GetLayout(),
+                   make_string(error_msg_base, "Found distinct layouts: \"", base_input.GetLayout(),
+                               "\" and \"", input.GetLayout(), "\"."));
+
+      // When not pinned, we can have device_id = CPU_ONLY_DEVICE_ID, and for pinned it is the id
+      // of an actual device. We handle correct pinnedness in Run.
+      if (base_input.is_pinned() == input.is_pinned()) {
+        DALI_ENFORCE(base_input.device_id() == input.device_id(),
+                     make_string(error_msg_base, "Found distinct device id: ",
+                                 base_input.device_id(), " and ", input.device_id(), "."));
+      }
+    }
   }
 
   const auto &predicate = ws.ArgumentInput("predicate");
@@ -159,7 +189,7 @@ void Merge<Backend>::WriteTestsDiagnostics(const Workspace &ws) {
 }
 
 
-DALI_SCHEMA(experimental___Merge)
+DALI_SCHEMA(_conditional__Merge)
     .DocStr(R"code(Merge batch based on a predicate.)code")
     .NumInput(2)
     .NumOutput(1)
@@ -167,7 +197,7 @@ DALI_SCHEMA(experimental___Merge)
     .SamplewisePassThrough()
     .MakeDocHidden();
 
-DALI_REGISTER_OPERATOR(experimental___Merge, Merge<CPUBackend>, CPU);
-DALI_REGISTER_OPERATOR(experimental___Merge, Merge<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(_conditional__Merge, Merge<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(_conditional__Merge, Merge<GPUBackend>, GPU);
 
 }  // namespace dali

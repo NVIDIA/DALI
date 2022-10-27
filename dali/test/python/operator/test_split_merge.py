@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import pipeline_def
+from nvidia.dali.pipeline import pipeline_def, Pipeline
 import nvidia.dali.fn as fn
+import nvidia.dali.types as types
 
 import numpy as np
 
 from test_utils import check_batch, RandomlyShapedDataIterator
+from nose_utils import assert_raises
 
 test_iters = 4
 
@@ -39,16 +41,16 @@ def flip_pipe(dev):
 
 
 @pipeline_def
-def split_merge_pipe(dev):
+def conditional_split_merge_pipe(dev):
     input = fn.external_source(name="input", device=dev)
     pred = fn.external_source(name="predicate")
-    true_branch, false_branch = fn.experimental._split(input, predicate=pred)
+    true_branch, false_branch = fn._conditional.split(input, predicate=pred)
     true_rotated = fn.rotate(true_branch, angle=15)
     false_flipped = fn.flip(false_branch, horizontal=True)
-    return fn.experimental._merge(true_rotated, false_flipped, predicate=pred)
+    return fn._conditional.merge(true_rotated, false_flipped, predicate=pred)
 
 
-def check_split_merge(dev, pred_gen):
+def check_conditional_split_merge(dev, pred_gen):
     bs = 10
     kwargs = {
         "batch_size": bs,
@@ -56,7 +58,7 @@ def check_split_merge(dev, pred_gen):
         "device_id": 0,
         "prefetch_queue_depth": 1  # so that it's easier to use external source
     }
-    pipe_sm = split_merge_pipe(dev, **kwargs)
+    pipe_sm = conditional_split_merge_pipe(dev, **kwargs)
     pipe_true = rotate_pipe(dev, **kwargs)
     pipe_false = flip_pipe(dev, **kwargs)
     pipe_sm.build()
@@ -92,7 +94,7 @@ def check_split_merge(dev, pred_gen):
         check_batch(out, out_baseline, bs)
 
 
-def test_split_merge():
+def test_conditional_split_merge():
     rng = np.random.default_rng()
     for dev in ["cpu", "gpu"]:
         for pred_gen in [
@@ -100,4 +102,45 @@ def test_split_merge():
                 lambda x: np.array(x % 3 == 0), lambda _: np.array(False),
                 lambda _: rng.choice([np.array(True), np.array(False)])
         ]:
-            yield check_split_merge, dev, pred_gen
+            yield check_conditional_split_merge, dev, pred_gen
+
+
+@pipeline_def
+def conditional_split_merge_reinterpret_pipe(dtype, layout, shape):
+    batch_size = Pipeline.current().max_batch_size
+    input = fn.external_source(
+        source=[[np.full((10, 10, 3), 42, dtype=np.int32) for _ in range(batch_size)]], cycle=True)
+    pred = fn.external_source(
+        source=[[np.array(i % 2 == 0, dtype=np.bool) for i in range(batch_size)]], cycle=True)
+    true_branch, false_branch = fn._conditional.split(input, predicate=pred)
+    false_changed = fn.reinterpret(false_branch, dtype=dtype, layout=layout, shape=shape)
+    return fn._conditional.merge(true_branch, false_changed, predicate=pred)
+
+
+def run_conditional_split_merge_reinterpret(dtype, layout, shape):
+    bs = 10
+    kwargs = {
+        "batch_size": bs,
+        "num_threads": 4,
+        "device_id": 0,
+        "prefetch_queue_depth": 1  # so that it's easier to use external source
+    }
+    pipe = conditional_split_merge_reinterpret_pipe(dtype, layout, shape, **kwargs)
+    pipe.build()
+    pipe.run()
+
+
+def check_fail_conditional_split_merge(dtype, layout, shape, err_glob):
+    with assert_raises(RuntimeError, glob=err_glob):
+        run_conditional_split_merge_reinterpret(dtype, layout, shape)
+
+
+def test_fail_conditional_split_merge():
+    base = (
+        "Divergent data found in different branches of conditional operation. All paths in "
+        "conditional operation are merged into one batch which must have consistent type, "
+        "dimensionality, layout and other metadata. Found distinct "
+    )
+    yield check_fail_conditional_split_merge, types.UINT32, None, None, base + "types*"
+    yield check_fail_conditional_split_merge, None, "HWC", None, base + "layouts*"
+    yield check_fail_conditional_split_merge, None, None, [10, -1], base + "sample dimensions*"

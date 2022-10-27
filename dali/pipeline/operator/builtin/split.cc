@@ -95,7 +95,7 @@ void Split<Backend>::WriteTestsDiagnostics(const Workspace &ws) {
   out_1_pinned_ = ws.template Output<Backend>(1).is_pinned();
 }
 
-DALI_SCHEMA(experimental___Split)
+DALI_SCHEMA(_conditional__Split)
     .DocStr(R"code(Split batch based on a predicate.)code")
     .NumInput(1)
     .NumOutput(2)
@@ -103,7 +103,7 @@ DALI_SCHEMA(experimental___Split)
     .SamplewisePassThrough()
     .MakeDocHidden();
 
-DALI_REGISTER_OPERATOR(experimental___Split, Split<CPUBackend>, CPU);
-DALI_REGISTER_OPERATOR(experimental___Split, Split<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(_conditional__Split, Split<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(_conditional__Split, Split<GPUBackend>, GPU);
 
 }  // namespace dali
