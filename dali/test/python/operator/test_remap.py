@@ -107,21 +107,21 @@ def remap_pipe(remap_op, maps_data, img_size):
 class RemapTest(unittest.TestCase):
     def setUp(self):
         self.img_size = (480, 640)
-        self.batch_size = 3
+        self.batch_size = 64
         self.common_dali_pipe_params = {
             "batch_size": self.batch_size,
-            "num_threads": 3,
+            "num_threads": 1,
             "device_id": 0,
             # "exec_async": False,
             # "exec_pipelined": False,
         }
 
-    @params('identity', 'xflip', 'yflip', 'xyflip', 'random')
-    def test_remap(self, map_mode):
-        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
-        dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params)
-        cpipe = remap_pipe('cv', maps, self.img_size, exec_async=False, exec_pipelined=False, **self.common_dali_pipe_params)
-        self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
+    # @params('identity', 'xflip', 'yflip', 'xyflip', 'random')
+    # def test_remap(self, map_mode):
+    #     maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
+    #     dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params)
+    #     cpipe = remap_pipe('cv', maps, self.img_size, exec_async=False, exec_pipelined=False, **self.common_dali_pipe_params)
+    #     self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
 
     def _compare_pipelines_pixelwise(self, pipe1, pipe2, N_iterations, eps=.01):
         pipe1.build()

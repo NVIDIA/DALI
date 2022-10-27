@@ -46,17 +46,21 @@ class RemapGpu : public Remap<GPUBackend> {
     ctx.gpu.stream = ws.stream();
 
     TensorList<B> mapx_shifted, mapy_shifted;
+    mapx_shifted.set_order(ws.stream());
+    mapy_shifted.set_order(ws.stream());
     if (shift_pixels_) {
       mapx_shifted.Copy(mapx);
       mapy_shifted.Copy(mapy);
-      detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_, ws.stream());
-      detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_, ws.stream());
+      detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_,scratchpad_, ws.stream());
+      detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_,scratchpad_, ws.stream());
     }
     kernel.Run(ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
                view<const float, 2>(shift_pixels_ ? mapx_shifted : mapx),
                view<const float, 2>(shift_pixels_ ? mapy_shifted : mapy),
                {}, {}, make_span(interps_), {});
   }
+
+  dali::kernels::DynamicScratchpad scratchpad_{};
 };
 
 DALI_REGISTER_OPERATOR(experimental__Remap, RemapGpu, GPU);

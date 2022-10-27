@@ -19,10 +19,16 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
 #include "include/dali/core/static_switch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace remap {
 namespace detail {
+
+std::ostream &operator<<(std::ostream &os, const dim3 &d) {
+  return os << "(" << d.x << ", " << d.y << ", " << d.z << ")";
+}
+
 
 template<typename T>
 std::enable_if_t<std::is_floating_point<T>::value>
@@ -36,7 +42,37 @@ __global__ shift_pixel_origin(T *data, int size, T shift_value) {
 
 
 template<typename T>
-void invoke_kernel(T *data, int size, T shift_value, cudaStream_t stream) {
+std::enable_if_t<std::is_floating_point<T>::value>
+__global__
+shift_pixel_origin_per_batch(T **data, const size_t *sample_sizes, size_t n_samples,
+                             T shift_value) {
+  for (int sample_id = blockIdx.y;
+       sample_id < n_samples;
+       sample_id += gridDim.y) {
+    for (int component_id = blockIdx.x * blockDim.x + threadIdx.x;
+         component_id < sample_sizes[sample_id];
+         component_id += blockDim.x * gridDim.x) {
+      data[sample_id][component_id] += shift_value;
+    }
+  }
+}
+
+
+template<typename T>
+void
+invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samples, T shift_value,
+                        cudaStream_t stream) {
+  static constexpr int kBlockSizeX = 256;
+  static constexpr float kOneOverBlockSize = 1.f / static_cast<float>(kBlockSizeX);
+  dim3 block_size(kBlockSizeX);
+  dim3 grid_size(32, 32);
+  shift_pixel_origin_per_batch<<<grid_size, block_size, 0, stream>>>
+          (data_buffers, sample_sizes, n_samples, shift_value);
+}
+
+
+template<typename T>
+void invoke_kernel_per_sample(T *data, int size, T shift_value, cudaStream_t stream) {
   static constexpr int kBlockSize = 256;
   static constexpr float kOneOverBlockSize = 1.f / static_cast<float>(kBlockSize);
   int num_blocks = (size + kBlockSize - 1) * kOneOverBlockSize;
@@ -45,17 +81,43 @@ void invoke_kernel(T *data, int size, T shift_value, cudaStream_t stream) {
 
 
 template<typename StorageBackend, typename T, int ndims>
-void ShiftPixelOrigin(TensorListView<StorageBackend, T, ndims> tlv, T value, cudaStream_t stream) {
+T **GetGpuAccessibleTensors(TensorListView<StorageBackend, T, ndims> tlv,
+                            dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
+  using DataType = T *;
+  auto data_size = tlv.num_samples() * sizeof(DataType);
+  DataType *ret = ds.template AllocatePinned<DataType>(data_size);
+  cudaMemcpyAsync(ret, tlv.data.data(), data_size, cudaMemcpyDefault, stream);
+  return ret;
+}
+
+
+size_t *GetGpuAccessibleSampleSizes(size_t *sample_sizes, size_t n_samples,
+                                    dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
+  auto data_size = n_samples * sizeof(size_t);
+  auto ret = ds.template AllocatePinned<size_t>(data_size);
+  CUDA_CALL(cudaMemcpyAsync(ret, sample_sizes, data_size, cudaMemcpyDefault, stream));
+  return ret;
+}
+
+
+template<typename StorageBackend, typename T, int ndims>
+void ShiftPixelOrigin(TensorListView<StorageBackend, T, ndims> tlv, T value,
+                      dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
   static_assert(std::is_floating_point<T>::value,
                 "Shifting should be conducted on floating point data.");
-  if (tlv.is_contiguous()) {
-    invoke_kernel(tlv.data[0], tlv.num_elements(), value, stream);
-  } else {
-    for (int sample_id = 0; sample_id < tlv.num_samples(); sample_id++) {
-      invoke_kernel(tlv.tensor_data(sample_id), volume(tlv.template tensor_shape(sample_id)), value,
-                    stream);
-    }
+  static_assert(is_gpu_accessible<StorageBackend>::value, "Data must be GPU-accessible.");
+  auto n_samples = tlv.num_samples();
+  std::vector<size_t> sample_sizes_vec(n_samples);
+  for (int i = 0; i < n_samples; i++) {
+    sample_sizes_vec[i] = volume(tlv.template tensor_shape(i));
   }
+  invoke_kernel_per_batch(
+          GetGpuAccessibleTensors(tlv, ds, stream),
+          GetGpuAccessibleSampleSizes(sample_sizes_vec.data(), n_samples, ds, stream), n_samples,
+          value, stream);
+//  for (int i=0;i<n_samples;i++) {
+//    invoke_kernel_per_sample(tlv.tensor_data(i), volume(tlv.template tensor_shape(i)), value,                  stream);
+//  }
 }
 
 }  // namespace detail
