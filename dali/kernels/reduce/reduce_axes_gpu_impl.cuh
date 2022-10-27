@@ -152,8 +152,8 @@ template <typename Acc, typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
 __global__ void ReduceNoneKernel(const ReduceSampleDesc<Out, In> *samples,
-                                  Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
-                                  const Postprocessor *post = nullptr) {
+                                 Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
+                                 const Postprocessor *post = nullptr) {
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
   auto sample = samples[blockIdx.y];
@@ -347,8 +347,9 @@ template <typename Acc, typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
 __global__ void ReduceInnerSmallKernel(const ReduceSampleDesc<Out, In> *samples,
-                                  Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
-                                  const Postprocessor *post = nullptr) {
+                                       Reduction reduce = {},
+                                       const PreprocessorBank *pre = nullptr,
+                                       const Postprocessor *post = nullptr) {
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
   auto sample = samples[blockIdx.y];
@@ -361,8 +362,9 @@ template <typename Acc, typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
 __global__ void ReduceInnerMediumKernel(const ReduceSampleDesc<Out, In> *samples,
-                                  Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
-                                  const Postprocessor *post = nullptr) {
+                                        Reduction reduce = {},
+                                        const PreprocessorBank *pre = nullptr,
+                                        const Postprocessor *post = nullptr) {
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
   auto sample = samples[blockIdx.y];
@@ -375,8 +377,9 @@ template <typename Acc, typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
 __global__ void ReduceInnerLargeKernel(const ReduceSampleDesc<Out, In> *samples,
-                                  Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
-                                  const Postprocessor *post = nullptr) {
+                                       Reduction reduce = {},
+                                       const PreprocessorBank *pre = nullptr,
+                                       const Postprocessor *post = nullptr) {
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
   auto sample = samples[blockIdx.y];
@@ -688,9 +691,9 @@ template <typename Acc, typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
           typename Postprocessor = identity>
 __global__ void ReduceMiddleKernel(const ReduceSampleDesc<Out, In> *samples,
-                                  Reduction reduce = {},
-                                  const PreprocessorBank *pre = nullptr,
-                                  const Postprocessor *post = nullptr) {
+                                   Reduction reduce = {},
+                                   const PreprocessorBank *pre = nullptr,
+                                   const Postprocessor *post = nullptr) {
   auto sample = samples[blockIdx.y];
 
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
@@ -728,9 +731,9 @@ template <typename Acc, typename Out, typename In,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
           typename Postprocessor = identity>
 __global__ void ReduceMiddleLargeInnerSmallKernel(const ReduceSampleDesc<Out, In> *samples,
-                                                 Reduction reduce = {},
-                                                 const PreprocessorBank *pre = nullptr,
-                                                 const Postprocessor *post = nullptr) {
+                                                  Reduction reduce = {},
+                                                  const PreprocessorBank *pre = nullptr,
+                                                  const Postprocessor *post = nullptr) {
   auto sample = samples[blockIdx.y];
 
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
