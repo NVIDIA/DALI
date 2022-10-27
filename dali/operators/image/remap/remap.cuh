@@ -25,22 +25,6 @@ namespace dali {
 namespace remap {
 namespace detail {
 
-std::ostream &operator<<(std::ostream &os, const dim3 &d) {
-  return os << "(" << d.x << ", " << d.y << ", " << d.z << ")";
-}
-
-
-template<typename T>
-std::enable_if_t<std::is_floating_point<T>::value>
-__global__ shift_pixel_origin(T *data, int size, T shift_value) {
-  int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = blockDim.x * gridDim.x;
-  for (int i = index; i < size; i += stride) {
-    data[i] += shift_value;
-  }
-}
-
-
 template<typename T>
 std::enable_if_t<std::is_floating_point<T>::value>
 __global__
@@ -68,15 +52,6 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
   dim3 grid_size(32, 32);
   shift_pixel_origin_per_batch<<<grid_size, block_size, 0, stream>>>
           (data_buffers, sample_sizes, n_samples, shift_value);
-}
-
-
-template<typename T>
-void invoke_kernel_per_sample(T *data, int size, T shift_value, cudaStream_t stream) {
-  static constexpr int kBlockSize = 256;
-  static constexpr float kOneOverBlockSize = 1.f / static_cast<float>(kBlockSize);
-  int num_blocks = (size + kBlockSize - 1) * kOneOverBlockSize;
-  shift_pixel_origin<<<num_blocks, kBlockSize, 0, stream>>>(data, size, shift_value);
 }
 
 
@@ -115,9 +90,6 @@ void ShiftPixelOrigin(TensorListView<StorageBackend, T, ndims> tlv, T value,
           GetGpuAccessibleTensors(tlv, ds, stream),
           GetGpuAccessibleSampleSizes(sample_sizes_vec.data(), n_samples, ds, stream), n_samples,
           value, stream);
-//  for (int i=0;i<n_samples;i++) {
-//    invoke_kernel_per_sample(tlv.tensor_data(i), volume(tlv.template tensor_shape(i)), value,                  stream);
-//  }
 }
 
 }  // namespace detail
