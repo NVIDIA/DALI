@@ -99,7 +99,7 @@ template <typename T>
 __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
                                             const T *weights_down, const int *interval_ends,
                                             bool normalize, const T *norm_factors,
-                                            int mel_bins, int64_t fftdim) {
+                                            int mel_bins, int64_t nfft) {
   auto block_id = blockIdx.x;
   auto idx = block_desc[block_id].block_start + threadIdx.x;
 
@@ -111,7 +111,7 @@ __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
   const T *in = block_desc[block_id].in_frame;
   T *out =  block_desc[block_id].out_frame;
   T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
-  *(out + idx) = calcMel(in + window * fftdim, mel_bin,
+  *(out + idx) = calcMel(in + window * nfft, mel_bin,
                          weights_down, interval_ends, 1, 0, norm_factor);
 }
 
@@ -142,7 +142,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       inner_fft_ &= volume(in_shape.tensor_shape_span(s).begin() + args_.axis + 1,
                            in_shape.tensor_shape_span(s).end()) == 1;
     }
-    fft_dim_ = in_shape.tensor_shape_span(0)[args_.axis];
+    nfft_ = in_shape.tensor_shape_span(0)[args_.axis];
     if (inner_fft_) {
       SetupBlockDescsInnerFft(se, in_shape);
     } else {
@@ -167,7 +167,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       MelFilterBankKernelInnerFft
           <<<block_descs_.size(), kBlockDim1, 0, stream>>>
             (block_descs, weights_down, interval_ends, args_.normalize,
-             norm_factors, args_.nfilter, fft_dim_);
+             norm_factors, args_.nfilter, nfft_);
     } else {
       dim3 block(kBlockDim2, std::min(args_.nfilter, kBlockDim2));
       dim3 grid(block_descs_.size(), div_ceil(args_.nfilter, kBlockDim2));
@@ -229,7 +229,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
           block_descs_[block_id].out_frame = out;
           ++block_id;
         }
-        in += nwindows_[ti] * fft_dim_;
+        in += nwindows_[ti] * nfft_;
         out += nwindows_[ti] * args_.nfilter;
       }
     }
@@ -253,7 +253,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   std::vector<int64_t> nframes_;
   std::vector<int64_t> nwindows_;
   std::vector<BlockDesc<T>> block_descs_;
-  int64_t fft_dim_ = 0;
+  int64_t nfft_ = 0;
   bool inner_fft_ = false;
   USE_MEL_FILTER_IMPL_MEMBERS(T);
 };
@@ -271,9 +271,9 @@ KernelRequirements MelFilterBankGpu<T>::Setup(KernelContext &context,
   KernelRequirements req;
   req.output_shapes = {out_shape};
 
-  auto fftdim = in.shape.tensor_shape_span(0)[args.axis];
+  auto nfft = in.shape.tensor_shape_span(0)[args.axis];
   for (int s = 1; s < in.shape.num_samples(); ++s) {
-    DALI_ENFORCE(in.shape.tensor_shape_span(s)[args.axis] == fftdim,
+    DALI_ENFORCE(in.shape.tensor_shape_span(s)[args.axis] == nfft,
         "All samples should have the same FFT dimension");
   }
   ScratchpadEstimator se;

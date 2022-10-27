@@ -220,7 +220,9 @@ class MelScaleGpuBench : public BenchBase {
     }
 
     in_.reshape(in_shape_);
-    UniformRandomFill(in_.cpu(), rng, 0.0, 1.0);
+    auto in_view = in_.gpu();
+    for (int i = 0; i < in_view.num_samples(); i++)
+      CUDA_CALL(cudaMemset(in_view.data[i], rng(), in_view[i].num_elements() * sizeof(float)));
   }
   int axis_ = 0;
   int channels_ = 1;
@@ -299,7 +301,7 @@ INSTANTIATE_TEST_SUITE_P(MelScaleGpuBench, MelScaleGpuBench, testing::Combine(
                     std::make_tuple(64, 2000, 4000),
                     std::make_tuple(128, 1000, 3000),
                     std::make_tuple(512, 1000, 1500)),*/
-    testing::Values(std::make_tuple(512, 1601, 1602)),  // batch size, min_length, max_length
+    testing::Values(std::make_tuple(512, 1601, 1601)),  // batch size, min_length, max_length
     testing::Values(257, 513),    // nfft
     testing::Values(80),          // nfilter
     testing::Values(16000.0f),    // sample rate
