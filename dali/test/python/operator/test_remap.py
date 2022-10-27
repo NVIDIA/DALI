@@ -116,12 +116,13 @@ class RemapTest(unittest.TestCase):
             # "exec_pipelined": False,
         }
 
-    # @params('identity', 'xflip', 'yflip', 'xyflip', 'random')
-    # def test_remap(self, map_mode):
-    #     maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
-    #     dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params)
-    #     cpipe = remap_pipe('cv', maps, self.img_size, exec_async=False, exec_pipelined=False, **self.common_dali_pipe_params)
-    #     self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
+    @params('identity', 'xflip', 'yflip', 'xyflip', 'random')
+    def test_remap(self, map_mode):
+        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
+        dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params)
+        cpipe = remap_pipe('cv', maps, self.img_size, exec_async=False, exec_pipelined=False,
+                           **self.common_dali_pipe_params)
+        self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
 
     def _compare_pipelines_pixelwise(self, pipe1, pipe2, N_iterations, eps=.01):
         pipe1.build()
@@ -147,22 +148,6 @@ class RemapTest(unittest.TestCase):
                     self.assertTrue(
                         noutliers / size < eps,
                         f"Test failed. Actual error: {noutliers / size}, expected: {eps}.")
-
-    @params('random')
-    def test_benchmark_remap_vs_opencv(self, map_mode):
-        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
-        dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params)
-        cpipe = remap_pipe('cv', maps, self.img_size, exec_async=False, exec_pipelined=False, **self.common_dali_pipe_params)
-        dpipe.build()
-        cpipe.build()
-        dpipe.run()
-        cpipe.run()
-        n_iterations=1000
-        dtime = self._measure_time(dpipe.run,n_iterations)
-        ctime = self._measure_time(cpipe.run,n_iterations)
-        print(f"Average DALI Remap pipeline execution time: {dtime/n_iterations}")
-        print(f"Average OpenCV Remap pipeline execution time: {ctime/n_iterations}")
-        self.assertTrue(dtime < ctime)
 
     @staticmethod
     def _measure_time(func, n_iterations=1000):
