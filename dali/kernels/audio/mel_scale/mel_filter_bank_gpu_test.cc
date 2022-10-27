@@ -133,6 +133,8 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
 
   KernelContext ctx;
   ctx.gpu.stream = 0;
+  DynamicScratchpad scratch;
+  ctx.scratchpad = &scratch;
   kernels::audio::MelFilterBankArgs args;
   kernels::KernelManager kmgr;
   args.axis = axis_;

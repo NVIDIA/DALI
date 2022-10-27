@@ -16,13 +16,11 @@
 #include <memory>
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_gpu.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/core/fast_div.h"
 
 namespace dali {
 namespace kernels {
 namespace audio {
-
-const int kBlockDim2 = 32;
-const int kBlockDim1 = 1024;
 
 template <typename T>
 struct BlockDesc {
@@ -31,11 +29,12 @@ struct BlockDesc {
   union {
     struct {  // outer-dim fft
       int64_t start_window;
+      int64_t end_window;
       int64_t frame_nwindows;
     };
     struct {  // inner-dim fft
       int64_t block_start;
-      int64_t out_frame_size;
+      int64_t block_end;
     };
   };
 };
@@ -72,25 +71,21 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
                                     const T *weights_down, const int *interval_ends,
                                     bool normalize, const T *norm_factors,
                                     int mel_bins) {
-  auto block_id = blockIdx.x;
-  const T *in_frame = block_desc[block_id].in_frame;
-  T *out_frame = block_desc[block_id].out_frame;
-  int mel_bin = blockIdx.y * kBlockDim2 + threadIdx.y;
-
+  auto &block =  block_desc[blockIdx.x];
+  const T *in_frame = block.in_frame;
+  T *out_frame = block.out_frame;
+  int mel_bin = blockIdx.y * blockDim.y + threadIdx.y;
   if (mel_bin >= mel_bins)
     return;
 
-  int64_t window = block_desc[block_id].start_window + threadIdx.x;
-  int64_t nwindows = block_desc[block_id].frame_nwindows;
-
-  if (window >= nwindows)
-    return;
-
-  T *out = out_frame + mel_bin * nwindows + window;
   T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
-  *out = calcMel(in_frame, mel_bin,
-                 weights_down, interval_ends,
-                 nwindows, window, norm_factor);
+  int64_t window = block.start_window + threadIdx.x;
+  int64_t end_window = block.end_window;
+  int64_t nwindows = block.frame_nwindows;
+  for (; window < end_window; window += blockDim.x) {
+    out_frame[mel_bin * nwindows + window] =
+        calcMel(in_frame, mel_bin, weights_down, interval_ends, nwindows, window, norm_factor);
+  }
 }
 
 // For layouts with the innermost frequency dimension, data is flattened
@@ -102,17 +97,16 @@ __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
                                             int mel_bins, int64_t fftdim) {
   auto block_id = blockIdx.x;
   auto idx = block_desc[block_id].block_start + threadIdx.x;
-
-  if (idx >= block_desc[block_id].out_frame_size)
-    return;
-
-  auto window = idx / mel_bins;
-  auto mel_bin = idx % mel_bins;
-  const T *in = block_desc[block_id].in_frame;
-  T *out =  block_desc[block_id].out_frame;
-  T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
-  *(out + idx) = calcMel(in + window * fftdim, mel_bin,
-                         weights_down, interval_ends, 1, 0, norm_factor);
+  auto end = block_desc[block_id].block_end;
+  for (; idx < end; idx += blockDim.x) {
+    auto window = idx / mel_bins;
+    auto mel_bin = idx % mel_bins;
+    const T *in = block_desc[block_id].in_frame;
+    T *out = block_desc[block_id].out_frame;
+    T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
+    *(out + idx) = calcMel(in + window * fftdim, mel_bin, weights_down,
+                          interval_ends, 1, 0, norm_factor);
+  }
 }
 
 template <typename T>
@@ -131,23 +125,20 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     }
   }
 
-  void Setup(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
-    se.add<mm::memory_kind::device, int>(interval_ends_.size());
-    se.add<mm::memory_kind::device, T>(weights_down_.size());
-    if (args_.normalize)
-      se.add<mm::memory_kind::device, T>(norm_factors_.size());
-
+  void Setup(const TensorListShape<> &in_shape) {
+    int num_samples = in_shape.size();
+    nframes_.resize(num_samples);
+    nwindows_.resize(num_samples);
     inner_fft_ = true;
-    for (int s = 0; s < in_shape.size(); s++) {
-      inner_fft_ &= volume(in_shape.tensor_shape_span(s).begin() + args_.axis + 1,
-                           in_shape.tensor_shape_span(s).end()) == 1;
+    total_num_windows_ = 0;
+    for (int s = 0; s < num_samples; s++) {
+      auto sh = in_shape.tensor_shape_span(s);
+      nframes_[s] = volume(sh.begin(), sh.begin() + args_.axis);
+      nwindows_[s] = volume(sh.begin() + args_.axis + 1, sh.end());
+      total_num_windows_ += nframes_[s] * nwindows_[s];
+      inner_fft_ &= nwindows_[s] == 1;
     }
-    fft_dim_ = in_shape.tensor_shape_span(0)[args_.axis];
-    if (inner_fft_) {
-      SetupBlockDescsInnerFft(se, in_shape);
-    } else {
-      SetupBlockDescsOuterFft(se, in_shape);
-    }
+    nfft_ = in_shape.tensor_shape_span(0)[args_.axis];
   }
 
   void Compute(const T* const* in_list, T **out_list, int ndim,
@@ -165,12 +156,12 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
                                       weights_down_, norm_factors_);
     if (inner_fft_) {
       MelFilterBankKernelInnerFft
-          <<<block_descs_.size(), kBlockDim1, 0, stream>>>
+          <<<block_descs_.size(), 256, 0, stream>>>
             (block_descs, weights_down, interval_ends, args_.normalize,
-             norm_factors, args_.nfilter, fft_dim_);
+             norm_factors, args_.nfilter, nfft_);
     } else {
-      dim3 block(kBlockDim2, std::min(args_.nfilter, kBlockDim2));
-      dim3 grid(block_descs_.size(), div_ceil(args_.nfilter, kBlockDim2));
+      dim3 block(32, std::min(args_.nfilter, 32));
+      dim3 grid(block_descs_.size(), div_ceil(args_.nfilter, 32));
       MelFilterBankKernel
         <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends,
                                      args_.normalize, norm_factors, args_.nfilter);
@@ -181,71 +172,43 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   using MelFilterImplBase<T>::Args;
 
  private:
-  void SetupBlockDescsOuterFft(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
-    nframes_.clear();
-    nwindows_.clear();
-    block_descs_.clear();
-    auto batch_size = in_shape.num_samples();
-    for (int64_t ti = 0; ti < batch_size; ++ti) {
-      const auto &tshape = in_shape.tensor_shape(ti);
-      nframes_.push_back(volume(tshape.begin(), tshape.begin() + args_.axis));
-      nwindows_.push_back(volume(tshape.begin() + args_.axis + 1, tshape.end()));
-      for (int64_t s = 0; s < nframes_.back(); ++s) {
-        auto nblocks = div_ceil(nwindows_.back(), kBlockDim2);
-        for (int64_t b = 0; b < nblocks; ++b) {
-          block_descs_.push_back(BlockDesc<T>{nullptr, nullptr,
-                                              {b * kBlockDim2, nwindows_.back()}});
-        }
-      }
-    }
-    se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
-  }
-
-  void SetupBlockDescsInnerFft(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
-    nframes_.clear();
-    nwindows_.clear();
-    block_descs_.clear();
-    auto batch_size = in_shape.num_samples();
-    for (int64_t ti = 0; ti < batch_size; ++ti) {
-      const auto &tshape = in_shape.tensor_shape(ti);
-      auto sample_size = volume(tshape.begin(), tshape.begin() + args_.axis) * args_.nfilter;
-      auto nblocks = div_ceil(sample_size, kBlockDim1);
-      for (int b = 0; b < nblocks; ++b) {
-        block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {b * kBlockDim1, sample_size}});
-      }
-    }
-    se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
-  }
-
   void FillBlockDescsOuterFft(const T* const* in_list, T **out_list) {
-    int64_t block_id = 0;
-    for (uint64_t ti = 0; ti < nframes_.size(); ++ti) {
-      const T *in = in_list[ti];
-      T *out = out_list[ti];
-      for (int64_t s = 0; s < nframes_[ti]; ++s) {
-        auto nblocks = div_ceil(nwindows_[ti], kBlockDim2);
-        for (int b = 0; b < nblocks; ++b) {
-          block_descs_[block_id].in_frame = in;
-          block_descs_[block_id].out_frame = out;
-          ++block_id;
+    auto nsamples = nframes_.size();
+    block_descs_.clear();
+    block_descs_.reserve(nsamples);
+    int64_t windows_per_blk = div_ceil(total_num_windows_, 1024_i64);
+    for (int64_t s = 0; s < nsamples; s++) {
+      int64_t in_stride  = nwindows_[s] * nfft_;
+      int64_t out_stride = nwindows_[s] * args_.nfilter;
+      int64_t num_blocks = div_ceil(nwindows_[s], windows_per_blk);
+      auto in = in_list[s];
+      auto out = out_list[s];
+      for (int64_t f = 0; f < nframes_[s]; f++) {
+        for (int64_t b = 0; b < num_blocks; ++b) {
+          block_descs_.emplace_back(BlockDesc<T>{
+              in, out,
+              {b * windows_per_blk, std::min(nwindows_[s], (b + 1) * windows_per_blk),
+               nwindows_[s]}});
         }
-        in += nwindows_[ti] * fft_dim_;
-        out += nwindows_[ti] * args_.nfilter;
+        in += in_stride;
+        out += out_stride;
       }
     }
   }
 
   void FillBlockDescsInnerFft(const T* const* in_list, T **out_list) {
-    int block_id = 0;
-    int sample = 0;
-    while (block_id < static_cast<int>(block_descs_.size())) {
-      auto sample_size = block_descs_[block_id].out_frame_size;
-      auto nblocks = div_ceil(sample_size, kBlockDim1);
-      for (int i = 0; i < nblocks; ++i, ++block_id) {
-        block_descs_[block_id].in_frame = in_list[sample];
-        block_descs_[block_id].out_frame = out_list[sample];
+    int nsamples = nframes_.size();
+    block_descs_.clear();
+    block_descs_.reserve(nsamples);
+    for (int64_t s = 0; s < nsamples; s++) {
+      int64_t sample_size = nframes_[s] * args_.nfilter;
+      int64_t num_blocks = div_ceil(sample_size, 1024_i64);
+      for (int b = 0; b < num_blocks; b++) {
+        block_descs_.emplace_back(
+            BlockDesc<T>{in_list[s],
+                         out_list[s],
+                         {b * 1024, std::min(static_cast<int64_t>((b + 1) * 1024), sample_size)}});
       }
-      ++sample;
     }
   }
 
@@ -253,8 +216,9 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   std::vector<int64_t> nframes_;
   std::vector<int64_t> nwindows_;
   std::vector<BlockDesc<T>> block_descs_;
-  int64_t fft_dim_ = 0;
+  int64_t nfft_ = 0;
   bool inner_fft_ = false;
+  int64_t total_num_windows_ = 0;
   USE_MEL_FILTER_IMPL_MEMBERS(T);
 };
 
@@ -276,7 +240,6 @@ KernelRequirements MelFilterBankGpu<T>::Setup(KernelContext &context,
     DALI_ENFORCE(in.shape.tensor_shape_span(s)[args.axis] == fftdim,
         "All samples should have the same FFT dimension");
   }
-  ScratchpadEstimator se;
   args.nfft = args.nfft > 0 ? args.nfft : 2 * (in.shape[0][args.axis] - 1);
   args.freq_high = args.freq_high > 0 ? args.freq_high : args.sample_rate / 2;
   if (!impl_ || impl_->Args() != args) {
@@ -291,8 +254,7 @@ KernelRequirements MelFilterBankGpu<T>::Setup(KernelContext &context,
         break;
     }
   }
-  impl_->Setup(se, in.shape);
-  req.scratch_sizes = se.sizes;
+  impl_->Setup(in.shape);
   return req;
 }
 
