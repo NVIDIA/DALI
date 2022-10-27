@@ -399,10 +399,11 @@ def _test_reduce_large_data(rank, axes, device):
     batch_size = 16
     num_batches = 2
     data = []
+    max_extent = min(65536, int(np.floor(10000000**(1/rank))))
     for _ in range(num_batches):
         batch = []
         for _ in range(batch_size):
-            size = np.random.randint(1, 128, size=rank)
+            size = np.random.randint(1, max_extent, size=rank)
             batch.append(np.random.random(size=size).astype(np.float32))
         data.append(batch)
 
@@ -417,14 +418,22 @@ def _test_reduce_large_data(rank, axes, device):
         if device == 'gpu':
             out = out.as_cpu()
         for i in range(batch_size):
-            ref = np.sum(batch[i], axis=axes)
-            assert np.allclose(out[i], ref, 1e-5, 1e-5)
+            ref = np.sum(batch[i].astype(np.float64), axis=axes)
+            #assert np.allclose(out[i], ref, 1e-5, 1e-5)
+            if not np.allclose(out[i], ref, 1e-5, 1e-5):
+                print("At sample", i)
+                print(batch[i].shape)
+                print(out[i])
+                print(ref)
+                print(np.max(np.abs(out[i]-ref)))
+                assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
 
 
 def test_reduce_large_data():
-    np.random.seed(1234)
-    for device in ['gpu']:
-        for rank in range(1, 4):
+    np.random.seed(12344)
+    for device in ['cpu', 'gpu']:
+        for rank in [1, 2, 3, 4]:
             for axis_mask in range(1, 2**rank):
                 axes = tuple(filter(lambda x: x >= 0,
                                     (i if axis_mask & (1 << i) else -1 for i in range(rank))))

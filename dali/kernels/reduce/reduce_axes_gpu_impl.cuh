@@ -329,7 +329,7 @@ __device__ void ReduceInner(const ReduceSampleDesc<Out, In> &sample,
   Out *out = sample.out;
   const In *in = sample.in;
 
-if (n_reduced == 1) {
+  if (n_reduced == 1) {
     ReduceNone(out, in, n_outer, pre_bank, post);
   } else if (n_reduced < 32 && sample.num_macroblocks == 1) {
     ReduceInnerSmall<Acc>(out, in, n_outer, n_reduced, reduce, pre_bank, post);

@@ -34,6 +34,7 @@
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
+#include "dali/core/partition.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
 #include "dali/core/traits.h"
@@ -43,27 +44,6 @@ namespace kernels {
 
 /// @brief Implementation details of reduction kernels
 namespace reduce_impl {
-
-template <typename Iterator, typename Predicate>
-auto multi_partition(Iterator &&begin, Iterator &&end, Predicate &&pred) {
-  auto it = std::stable_partition(begin, end, pred);
-  return std::make_tuple(std::move(it));
-}
-
-template <typename Iterator, typename Predicate0, typename... Predicates>
-auto multi_partition(Iterator &&begin, Iterator &&end, Predicate0 pred0, Predicates&&... preds) {
-  auto second_group_begin = multi_partition(
-    begin,
-    end,
-    std::forward<Predicate0>(pred0));
-
-  auto other_groups = multi_partition(
-    std::get<0>(second_group_begin),
-    end,
-    std::forward<Predicates>(preds)...);
-
-  return std::tuple_cat(second_group_begin, other_groups);
-}
 
 enum class ReductionKind {
   All,     ///< Reduce contiguous memory
@@ -1143,10 +1123,10 @@ class ReduceImplGPU {
           return cpu_samples[i].n_reduced == 1;
         },
         [&](int i) {
-         return cpu_samples[i].n_reduced < 1024 && cpu_samples[i].num_macroblocks == 1;
+          return cpu_samples[i].n_reduced < 32 && cpu_samples[i].num_macroblocks == 1;
         },
         [&](int i) {
-          return cpu_samples[i].n_inner < 32;
+          return cpu_samples[i].n_reduced < 1024 && cpu_samples[i].num_macroblocks == 1;
         });
     auto none_end = std::get<0>(groups);
     auto small_end = std::get<1>(groups);
@@ -1162,8 +1142,10 @@ class ReduceImplGPU {
 
 
     permute_in_place(cpu_samples, indices);
-    permute_in_place(pre, indices);
-    permute_in_place(post, indices);
+    if (pre)
+      permute_in_place(pre, indices);
+    if (post)
+      permute_in_place(post, indices);
 
     wa.CopyParamsToDevice(ctx.stream);
 
@@ -1231,7 +1213,7 @@ class ReduceImplGPU {
           ReduceInnerMediumKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
           num_medium, 0, 256);
 
-      ReduceInnerMediumKernel<Acc><<<grid, block, shm_size, ctx.stream>>>(
+      ReduceInnerMediumKernel<Acc><<<grid, block, 0, ctx.stream>>>(
           gpu_samples + sample_offset,
           This().GetReduction(),
           gpu_pre  ? gpu_pre  + sample_offset : nullptr,
@@ -1300,8 +1282,10 @@ class ReduceImplGPU {
     auto *post = GetPostprocessors<is_last>(wa);
 
     permute_in_place(cpu_samples, indices);
-    permute_in_place(pre, indices);
-    permute_in_place(post, indices);
+    if (pre)
+      permute_in_place(pre, indices);
+    if (post)
+      permute_in_place(post, indices);
 
     wa.CopyParamsToDevice(ctx.stream);
 
