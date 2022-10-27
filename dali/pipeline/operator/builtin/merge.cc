@@ -28,11 +28,11 @@ template <typename Backend>
 bool Merge<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
   input_sample_count_ = 0;
   int nonzero_input_sample_idx = -1;
-  for (int input_category_idx = 0; input_category_idx < kMaxCategories; input_category_idx++) {
-    const auto &input = ws.template Input<Backend>(input_category_idx);
+  for (int input_group_idx = 0; input_group_idx < kMaxGroups; input_group_idx++) {
+    const auto &input = ws.template Input<Backend>(input_group_idx);
     input_sample_count_ += input.num_samples();
     if (nonzero_input_sample_idx < 0 && input.num_samples() > 0) {
-      nonzero_input_sample_idx = input_category_idx;
+      nonzero_input_sample_idx = input_group_idx;
       continue;  // no point in comparing with ourselves
     }
     if (nonzero_input_sample_idx >= 0 && input.num_samples() > 0) {
@@ -79,7 +79,7 @@ template <typename Backend>
 void Merge<Backend>::RunImpl(Workspace &ws) {
   auto &output = ws.template Output<Backend>(0);
   const auto &predicate = ws.ArgumentInput("predicate");
-  auto sample_idx_in_input = uniform_array<kMaxCategories>(0);
+  auto sample_idx_in_input = uniform_array<kMaxGroups>(0);
 
   WriteTestsDiagnostics(ws);
 
@@ -87,8 +87,8 @@ void Merge<Backend>::RunImpl(Workspace &ws) {
     // We produce pinned data if the executor said so
     pinned_ = output.is_pinned();
     // TODO(klecki): We keep pinedness if it was passed to us:
-    for (int input_category = 0; input_category < kMaxCategories; input_category++) {
-      pinned_ = *pinned_ || ws.template Input<Backend>(input_category).is_pinned();
+    for (int input_group = 0; input_group < kMaxGroups; input_group++) {
+      pinned_ = *pinned_ || ws.template Input<Backend>(input_group).is_pinned();
     }
   }
 
@@ -100,8 +100,8 @@ void Merge<Backend>::RunImpl(Workspace &ws) {
 
   // We propagate views only, so just don't care about what is here and reset
   output.Reset();
-  for (int input_category = 0; input_category < kMaxCategories; input_category++) {
-    const auto &input = ws.template Input<Backend>(input_category);
+  for (int input_group = 0; input_group < kMaxGroups; input_group++) {
+    const auto &input = ws.template Input<Backend>(input_group);
     if (input.num_samples() > 0) {
       output.set_type(input.type());
       output.set_sample_dim(input.shape().sample_dim());
@@ -119,12 +119,12 @@ void Merge<Backend>::RunImpl(Workspace &ws) {
 
   for (int output_sample_idx = 0; output_sample_idx < predicate.num_samples();
        output_sample_idx++) {
-    int input_category_idx = get_category_index(predicate, output_sample_idx);
-    auto &input = ws.template Input<Backend>(input_category_idx);
+    int input_group_idx = get_group_index(predicate, output_sample_idx);
+    auto &input = ws.template Input<Backend>(input_group_idx);
 
-    // get the index within input category and increment for the next occurrence.
-    int input_sample_idx = sample_idx_in_input[input_category_idx];
-    sample_idx_in_input[input_category_idx]++;
+    // get the index within input group and increment for the next occurrence.
+    int input_sample_idx = sample_idx_in_input[input_group_idx];
+    sample_idx_in_input[input_group_idx]++;
 
     if (std::is_same_v<Backend, GPUBackend> || input.is_pinned() == *pinned_) {
       output.SetSample(output_sample_idx, input, input_sample_idx);

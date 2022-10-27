@@ -32,11 +32,11 @@ bool Split<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Works
                   " input samples and ", predicate.num_samples(), " elements denoting the split."));
   DALI_ENFORCE(predicate.shape().sample_dim() == 0, "Only scalar indexing is supported.");
 
-  category_counts_.fill(0);
+  group_counts_.fill(0);
 
   for (int i = 0; i < predicate.num_samples(); i++) {
-    int output_category_idx = get_category_index(predicate, i);
-    category_counts_[output_category_idx]++;
+    int output_group_idx = get_group_index(predicate, i);
+    group_counts_[output_group_idx]++;
   }
 
   // TODO(klecki): we can construct the output_desc, it won't be useful now
@@ -48,10 +48,10 @@ template <typename Backend>
 void Split<Backend>::RunImpl(Workspace &ws) {
   const auto &input = ws.template Input<Backend>(0);
   const auto &predicate = ws.ArgumentInput("predicate");
-  auto sample_idx_in_output = uniform_array<kMaxCategories>(0);
+  auto sample_idx_in_output = uniform_array<kMaxGroups>(0);
 
-  for (int output_category_idx = 0; output_category_idx < kMaxCategories; output_category_idx++) {
-    auto &output = ws.template Output<Backend>(output_category_idx);
+  for (int output_group_idx = 0; output_group_idx < kMaxGroups; output_group_idx++) {
+    auto &output = ws.template Output<Backend>(output_group_idx);
 
     // We can (and need to) do it only once, for each new output instance, when it doesn't have
     // data yet. It should be consistent across iterations.
@@ -63,16 +63,16 @@ void Split<Backend>::RunImpl(Workspace &ws) {
       output.set_pinned(input.is_pinned());
       // We let the executor set the desired order, the rest is propagated from the input.
     }
-    output.SetSize(category_counts_[output_category_idx]);
+    output.SetSize(group_counts_[output_group_idx]);
   }
 
   for (int input_sample_idx = 0; input_sample_idx < predicate.num_samples(); input_sample_idx++) {
-    int output_category_idx = get_category_index(predicate, input_sample_idx);
-    auto &output = ws.template Output<Backend>(output_category_idx);
+    int output_group_idx = get_group_index(predicate, input_sample_idx);
+    auto &output = ws.template Output<Backend>(output_group_idx);
 
     // get the output index and increment for the next sample.
-    int output_sample_idx = sample_idx_in_output[output_category_idx];
-    sample_idx_in_output[output_category_idx]++;
+    int output_sample_idx = sample_idx_in_output[output_group_idx];
+    sample_idx_in_output[output_group_idx]++;
 
     // share the sample to the output
     output.SetSample(output_sample_idx, input, input_sample_idx);

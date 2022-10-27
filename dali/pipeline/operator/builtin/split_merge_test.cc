@@ -30,14 +30,15 @@
 
 
 namespace dali {
+namespace test {
 
-class SplitMerge : public ::testing::Test {
+class SplitMergeTest : public ::testing::Test {
  public:
- /**
-  * @brief Generate input tensor that will be split.
-  * This version uses Tensors that keep their sample_idx and batch size internally
-  *
-  */
+  /**
+   * @brief Generate input tensor that will be split.
+   * This version uses Tensors that keep their sample_idx and batch size internally
+   *
+   */
   virtual TensorList<CPUBackend> GetInput(int iter_idx) {
     return GetInputImpl(iter_idx, false);
   }
@@ -207,18 +208,18 @@ class SplitMerge : public ::testing::Test {
 };
 
 template <typename T>
-class SplitMergeTyped : public SplitMerge {};
+class SplitMergeTyped : public SplitMergeTest {};
 
 typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
 
 TYPED_TEST_SUITE(SplitMergeTyped, Backends);
 
-TEST_F(SplitMerge, SplitCpuMergeGpu) {
+TEST_F(SplitMergeTest, SplitCpuMergeGpu) {
   Pipeline pipe(kBatchSize, 4, 0);
   AddExternalInputs(pipe);
 
-  AddSplit(pipe, "split", "cpu", "input",  "pred", "split_0", "split_1");
-  AddMerge(pipe, "merge", "gpu", "split_0",  "split_1", "pred", "merge");
+  AddSplit(pipe, "split", "cpu", "input", "pred", "split_0", "split_1");
+  AddMerge(pipe, "merge", "gpu", "split_0", "split_1", "pred", "merge");
 
   vector<std::pair<string, string>> outputs = {{"merge", "gpu"}};
   pipe.Build(outputs);
@@ -236,23 +237,19 @@ TEST_F(SplitMerge, SplitCpuMergeGpu) {
 /**
  * @brief Trigger pinning one branch in split, and see if both are pinned.
  */
-TEST_F(SplitMerge, PinnedInside) {
+TEST_F(SplitMergeTest, PinnedInside) {
   Pipeline pipe(kBatchSize, 4, 0);
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy")
-                       .AddInput("input", "cpu")
-                       .AddOutput("input_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", "cpu"),
                    "input_copy");
 
-  AddSplit(pipe, "split", "cpu", "input_copy",  "pred", "split_0", "split_1");
+  AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
 
   // copy it, so we don't pin split_0 due to passing it to GPU, but to check it is required
   // to be pinned for consistency reasons
-  pipe.AddOperator(OpSpec("Copy")
-                       .AddInput("split_0", "cpu")
-                       .AddOutput("split_0_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("split_0", "cpu").AddOutput("split_0_copy", "cpu"),
                    "split_0_copy");
 
   // this should be made pinned, thus making the input_copy pinned.
@@ -263,10 +260,10 @@ TEST_F(SplitMerge, PinnedInside) {
                    "make_contiguous");
 
   // as the split_1 is made pinned, split_0 also should be pinned due to coming together into merge
-  AddMerge(pipe, "merge_cpu", "cpu", "split_0",  "split_1", "pred", "merge_cpu");
+  AddMerge(pipe, "merge_cpu", "cpu", "split_0", "split_1", "pred", "merge_cpu");
 
   // consume the data transferred to GPU
-  AddMerge(pipe, "merge_gpu", "gpu", "split_0",  "split_1", "pred", "merge_gpu");
+  AddMerge(pipe, "merge_gpu", "gpu", "split_0", "split_1", "pred", "merge_gpu");
 
   vector<std::pair<string, string>> outputs = {{"merge_cpu", "cpu"},
                                                {"merge_gpu", "gpu"},
@@ -289,20 +286,18 @@ TEST_F(SplitMerge, PinnedInside) {
   }
 }
 
-TEST_F(SplitMerge, PinnedThroughMerge) {
+TEST_F(SplitMergeTest, PinnedThroughMerge) {
   Pipeline pipe(kBatchSize, 4, 0);
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy")
-                       .AddInput("input", "cpu")
-                       .AddOutput("input_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", "cpu"),
                    "input_copy");
 
-  AddSplit(pipe, "split", "cpu", "input_copy",  "pred", "split_0", "split_1");
+  AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
 
   // We will cause the output to be pinned, so the input to split should also be pinned
-  AddMerge(pipe, "merge_cpu", "cpu", "split_0",  "split_1", "pred", "merge_cpu");
+  AddMerge(pipe, "merge_cpu", "cpu", "split_0", "split_1", "pred", "merge_cpu");
 
   // consume the data transferred to GPU
   pipe.AddOperator(OpSpec("MakeContiguous")
@@ -340,7 +335,7 @@ TYPED_TEST(SplitMergeTyped, SimpleCase) {
   Pipeline pipe(this->kBatchSize, 4, 0);
   this->AddExternalInputs(pipe);
 
-  this->AddSplit(pipe, "split", backend, "input",  "pred", "split_0", "split_1");
+  this->AddSplit(pipe, "split", backend, "input", "pred", "split_0", "split_1");
 
   pipe.AddOperator(OpSpec("Copy")
                        .AddArg("device", backend)
@@ -354,7 +349,7 @@ TYPED_TEST(SplitMergeTyped, SimpleCase) {
                        .AddOutput("split_1_copy", backend),
                    "copy_1");
 
-  this->AddMerge(pipe, "merge", backend, "split_0_copy",  "split_1_copy", "pred", "merge");
+  this->AddMerge(pipe, "merge", backend, "split_0_copy", "split_1_copy", "pred", "merge");
 
   vector<std::pair<string, string>> outputs = {{"merge", backend}};
   pipe.Build(outputs);
@@ -381,7 +376,7 @@ TYPED_TEST(SplitMergeTyped, ReturnSplit) {
   Pipeline pipe(this->kBatchSize, 4, 0);
   this->AddExternalInputs(pipe);
 
-  this->AddSplit(pipe, "split", backend, "input",  "pred", "split_0", "split_1");
+  this->AddSplit(pipe, "split", backend, "input", "pred", "split_0", "split_1");
 
   vector<std::pair<string, string>> outputs = {{"split_0", backend}, {"split_1", backend}};
   pipe.Build(outputs);
@@ -412,7 +407,7 @@ TYPED_TEST(SplitMergeTyped, ReturnSplit) {
   }
 }
 
-class SplitMergeNegative : public SplitMerge {
+class SplitMergeNegativeTest : public SplitMergeTest {
   // Unbiased splits only
   std::vector<std::function<int(int)>> GetSplitGenerators() override {
     static std::vector<std::function<int(int)>> split_generators = {
@@ -422,14 +417,14 @@ class SplitMergeNegative : public SplitMerge {
   }
 };
 
-TEST_F(SplitMergeNegative, MismatchedMerge) {
+TEST_F(SplitMergeNegativeTest, MismatchedMerge) {
   Pipeline pipe(kBatchSize, 4, 0);
   AddExternalInputs(pipe);
 
-  AddSplit(pipe, "split", "cpu", "input",  "pred", "split_0", "split_1");
+  AddSplit(pipe, "split", "cpu", "input", "pred", "split_0", "split_1");
 
   // Try to merge two bigger parts
-  AddMerge(pipe, "merge", "cpu", "split_0",  "split_0", "pred", "merge");
+  AddMerge(pipe, "merge", "cpu", "split_0", "split_0", "pred", "merge");
 
   vector<std::pair<string, string>> outputs = {{"merge", "cpu"}};
   pipe.Build(outputs);
@@ -451,24 +446,22 @@ TEST_F(SplitMergeNegative, MismatchedMerge) {
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
           << e.what();
-    } catch (...) {
-      FAIL() << "Unexpected exception.";
-    }
+    } catch (...) { FAIL() << "Unexpected exception."; }
   }
 }
 
-TEST_F(SplitMergeNegative, MismatchedSplit) {
+TEST_F(SplitMergeNegativeTest, MismatchedSplit) {
   Pipeline pipe(kBatchSize, 4, 0);
   AddExternalInputs(pipe);
 
   // split the predicates
-  AddSplit(pipe, "split_pred", "cpu", "pred",  "pred", "pred_left", "pred_right");
+  AddSplit(pipe, "split_pred", "cpu", "pred", "pred", "pred_left", "pred_right");
 
   // split the input
-  AddSplit(pipe, "split_input", "cpu", "input",  "pred", "input_left", "input_right");
+  AddSplit(pipe, "split_input", "cpu", "input", "pred", "input_left", "input_right");
 
   // try to split smaller input with bigger predicate
-  AddSplit(pipe, "split", "cpu", "input_left",  "pred_right", "split_0", "split_1");
+  AddSplit(pipe, "split", "cpu", "input_left", "pred_right", "split_0", "split_1");
 
   vector<std::pair<string, string>> outputs = {{"split_0", "cpu"}, {"split_1", "cpu"}};
   pipe.Build(outputs);
@@ -490,17 +483,15 @@ TEST_F(SplitMergeNegative, MismatchedSplit) {
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
           << e.what();
-    } catch (...) {
-      FAIL() << "Unexpected exception.";
-    }
+    } catch (...) { FAIL() << "Unexpected exception."; }
   }
 }
 
-TEST_F(SplitMergeNegative, MismatchedTypes) {
+TEST_F(SplitMergeNegativeTest, MismatchedTypes) {
   Pipeline pipe(kBatchSize, 4, 0);
   AddExternalInputs(pipe);
 
-  AddSplit(pipe, "split_input", "cpu", "input",  "pred", "split_0", "split_1");
+  AddSplit(pipe, "split_input", "cpu", "input", "pred", "split_0", "split_1");
 
   pipe.AddOperator(OpSpec("Cast")
                        .AddArg("device", "cpu")
@@ -527,40 +518,38 @@ TEST_F(SplitMergeNegative, MismatchedTypes) {
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
     } catch (std::runtime_error &e) {
-      static const char expected[] = "Sample must have the same type as the target batch";
+      static const char expected[] = "Found distinct types: int32 and float.";
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
           << e.what();
-    } catch (...) {
-      FAIL() << "Unexpected exception.";
-    }
+    } catch (...) { FAIL() << "Unexpected exception."; }
   }
 }
 
-class SplitMergePinnedInputs : public SplitMerge {
+class SplitMergePinnedInputsTest : public SplitMergeTest {
  public:
   TensorList<CPUBackend> GetPinnedInput(int iter_idx) {
     return GetInputImpl(iter_idx, true);
   }
 };
 
-TEST_F(SplitMergePinnedInputs, Mixes) {
+TEST_F(SplitMergePinnedInputsTest, Mixes) {
   Pipeline pipe(kBatchSize, 4, 0);
   AddExternalInputs(pipe);
 
   pipe.AddOperator(OpSpec("ExternalSource")
-                        .AddArg("device", "cpu")
-                        .AddArg("name", "input")
-                        .AddOutput("pinned_input", "cpu"),
-                    "pinned_input");
+                       .AddArg("device", "cpu")
+                       .AddArg("name", "input")
+                       .AddOutput("pinned_input", "cpu"),
+                   "pinned_input");
 
-  AddSplit(pipe, "split", "cpu", "input",  "pred", "split_0", "split_1");
+  AddSplit(pipe, "split", "cpu", "input", "pred", "split_0", "split_1");
   AddSplit(pipe, "split_pinned", "cpu", "pinned_input", "pred", "split_pinned_0", "split_pinned_1");
 
-  AddMerge(pipe, "merge_nn", "cpu", "split_0",  "split_1", "pred", "merge_nn");
-  AddMerge(pipe, "merge_pp", "cpu", "split_pinned_0",  "split_pinned_1", "pred", "merge_pp");
-  AddMerge(pipe, "merge_pn", "cpu", "split_pinned_0",  "split_1", "pred", "merge_pn");
-  AddMerge(pipe, "merge_np", "cpu", "split_0",  "split_pinned_1", "pred", "merge_np");
+  AddMerge(pipe, "merge_nn", "cpu", "split_0", "split_1", "pred", "merge_nn");
+  AddMerge(pipe, "merge_pp", "cpu", "split_pinned_0", "split_pinned_1", "pred", "merge_pp");
+  AddMerge(pipe, "merge_pn", "cpu", "split_pinned_0", "split_1", "pred", "merge_pn");
+  AddMerge(pipe, "merge_np", "cpu", "split_0", "split_pinned_1", "pred", "merge_np");
 
   vector<std::pair<string, string>> outputs = {
       {"merge_nn", "cpu"}, {"merge_pp", "cpu"}, {"merge_pn", "cpu"}, {"merge_np", "cpu"}};
@@ -593,4 +582,5 @@ TEST_F(SplitMergePinnedInputs, Mixes) {
   }
 }
 
+}  // namespace test
 }  // namespace dali

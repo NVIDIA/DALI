@@ -46,8 +46,8 @@ class Split : public Operator<Backend> {
   void WriteTestsDiagnostics(const Workspace &ws);
 
   USE_OPERATOR_MEMBERS();
-  static constexpr int kMaxCategories = 2;
-  std::array<int, kMaxCategories> category_counts_;
+  static constexpr int kMaxGroups = 2;
+  std::array<int, kMaxGroups> group_counts_;
 
   // test diagnostics
   bool in_pinned_, out_0_pinned_, out_1_pinned_;

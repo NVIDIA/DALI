@@ -60,7 +60,7 @@ class Merge : public Operator<Backend> {
   void WriteTestsDiagnostics(const Workspace &ws);
 
   USE_OPERATOR_MEMBERS();
-  static constexpr int kMaxCategories = 2;
+  static constexpr int kMaxGroups = 2;
   int input_sample_count_ = 0;
   std::optional<bool> pinned_;
   int device_id_ = CPU_ONLY_DEVICE_ID;

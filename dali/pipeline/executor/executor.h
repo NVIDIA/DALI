@@ -706,7 +706,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::PrepinData(
   // anything that goes into a Merge CPU node, needs to be uniformly pinned
   for (int i = 0; i < graph.NumOp(OpType::CPU); i++) {
     auto &node = graph.Node(OpType::CPU, i);
-    if (!isMerge(node.spec.GetSchema())) {
+    if (!IsMerge(node.spec.GetSchema())) {
       continue;
     }
     bool should_pin_all = false;

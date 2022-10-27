@@ -23,7 +23,7 @@
 namespace dali {
 
 /**
- * @brief When we have logical condition, the true category is expected to go through the first (0)
+ * @brief When we have logical condition, the true group is expected to go through the first (0)
  * output and input (respectively for split and merge), so we basically do the reverse here.
  *
  * @param condition
@@ -31,7 +31,7 @@ namespace dali {
  * @param is_logical
  * @return int
  */
-inline int get_category_index(const TensorList<CPUBackend>& condition, int condition_idx,
+inline int get_group_index(const TensorList<CPUBackend>& condition, int condition_idx,
                               bool is_logical = true) {
   assert(is_logical && "Numerical conditions are not implemented");
   bool cond_val = *condition.tensor<bool>(condition_idx);
@@ -39,16 +39,16 @@ inline int get_category_index(const TensorList<CPUBackend>& condition, int condi
   return cond_val ? 0 : 1;
 }
 
-inline bool isSplit(const OpSchema &schema) {
-  return schema.name().rfind("_Split") != std::string::npos;
+inline bool IsSplit(const OpSchema &schema) {
+  return schema.name() == "_conditional__Split";
 }
 
-inline bool isMerge(const OpSchema &schema) {
-  return schema.name().rfind("_Merge") != std::string::npos;
+inline bool IsMerge(const OpSchema &schema) {
+  return schema.name() == "_conditional__Merge";
 }
 
-inline bool isSplitOrMerge(const OpSchema &schema) {
-  return isSplit(schema) || isMerge(schema);
+inline bool IsSplitOrMerge(const OpSchema &schema) {
+  return IsSplit(schema) || IsMerge(schema);
 }
 
 }  // namespace dali
