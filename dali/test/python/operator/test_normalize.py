@@ -195,10 +195,7 @@ def err(l1, l2):
 
 def check_float(l1, l2, eps=1e-3):
     for i, a in enumerate(zip(l1, l2)):
-        # assert np.allclose(a[0], a[1], rtol=1e-3, atol=eps)
-        if not np.allclose(a[0], a[1], rtol=1e-3, atol=eps):
-            print(a[0], a[1])
-            assert np.allclose(a[0], a[1], rtol=1e-3, atol=eps)
+        assert np.allclose(a[0], a[1], rtol=1e-3, atol=eps)
 
 
 def check_integer(actual, ref, input=None):
@@ -208,11 +205,7 @@ def check_integer(actual, ref, input=None):
         max = np.iinfo(t).max
         a1 = np.clip(a[1], min, max)
         # actual values are saturated, so we must clip the reference, too
-
-        # assert np.allclose(a[0], a1, atol=2)
-        if not np.allclose(a[0], a1, atol=2):
-            print(a[0], a1)
-            assert np.allclose(a[0], a1, atol=2)
+        assert np.allclose(a[0], a1, atol=2)
 
 
 def shift_scale(batch, shift, scale):
@@ -426,14 +419,11 @@ def _test_up_to_5D_all_axis_combinations(device):
                     yield _run_test, device, batch_size, dim, None, axis_names, batch_norm
 
 
-def test_up_to_5D_all_axis_combinations():
+def test_cpu_up_to_5D_all_axis_combinations():
     for device in ["cpu", "gpu"]:
         for x in _test_up_to_5D_all_axis_combinations(device):
             yield x
 
-def test_dafuq():
-    np.random.seed(12345)
-    _run_test("gpu", 5, 3, None, 'ac', False)
 
 def test_types():
     batch_size = 50
