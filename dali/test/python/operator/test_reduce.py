@@ -169,6 +169,7 @@ def compare(dali_res, np_res):
                 print(np_sample)
                 assert np.array_equal(dali_sample, np_sample)
 
+
 def np_mean_square(input, keepdims=False, axis=None, dtype=None):
     return np.mean(np.square(input), keepdims=keepdims, axis=axis, dtype=dtype)
 
@@ -176,16 +177,18 @@ def np_mean_square(input, keepdims=False, axis=None, dtype=None):
 def np_root_mean_square(input, keepdims=False, axis=None, dtype=None):
     return np.sqrt(np_mean_square(input, keepdims=keepdims, axis=axis, dtype=dtype))
 
+
 reduce_fns = {
-    "sum" : (fn.reductions.sum, np.sum),
-    "min" : (fn.reductions.min, np.min),
-    "max" : (fn.reductions.max, np.max),
-    "mean" : (fn.reductions.mean, np.mean),
-    "mean_square" : (fn.reductions.mean_square, np_mean_square),
-    "rms" : (fn.reductions.rms, np_root_mean_square),
-    "std_dev" : (fn.reductions.std_dev, np.std),
-    "variance" : (fn.reductions.variance, np.var),
+    "sum":          (fn.reductions.sum, np.sum),
+    "min":          (fn.reductions.min, np.min),
+    "max":          (fn.reductions.max, np.max),
+    "mean":         (fn.reductions.mean, np.mean),
+    "mean_square":  (fn.reductions.mean_square, np_mean_square),
+    "rms":          (fn.reductions.rms, np_root_mean_square),
+    "std_dev":      (fn.reductions.std_dev, np.std),
+    "variance":     (fn.reductions.variance, np.var),
 }
+
 
 def run_reduce(keep_dims, reduction_name, batch_gen, input_type, output_type=None):
     batch_fn = batch_gen(input_type)
@@ -268,7 +271,8 @@ def test_sum_with_output_type():
                 for type_map in types:
                     input_type = type_map[0]
                     for output_type in type_map[1]:
-                        yield run_reduce, keep_dims, reduction_name, batch_gen, input_type, output_type
+                        yield (run_reduce,
+                               keep_dims, reduction_name, batch_gen, input_type, output_type)
 
 
 def run_reduce_with_mean_input(keep_dims, reduction_name, batch_gen, input_type, output_type=None):
@@ -419,15 +423,7 @@ def _test_reduce_large_data(rank, axes, device):
             out = out.as_cpu()
         for i in range(batch_size):
             ref = np.sum(batch[i].astype(np.float64), axis=axes)
-            #assert np.allclose(out[i], ref, 1e-5, 1e-5)
-            if not np.allclose(out[i], ref, 1e-5, 1e-5):
-                print("At sample", i)
-                print(batch[i].shape)
-                print(out[i])
-                print(ref)
-                print(np.max(np.abs(out[i]-ref)))
-                assert np.allclose(out[i], ref, 1e-5, 1e-5)
-
+            assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
 
 def test_reduce_large_data():
