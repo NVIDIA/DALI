@@ -248,6 +248,28 @@ TEST(ArithmeticOpsBroadcastingTest, SimplifyShapesForBroadcasting) {
     EXPECT_EQ(simple_b, b);
   }
 
+  // no simplification, many dims
+  {
+    TensorShape<> a = {2, 1, 2, 1, 2, 1, 2, 1, 2, 1};
+    TensorShape<> b = {1, 2, 1, 2, 1, 2, 1, 2, 1, 2};
+    auto a_copy = a;
+    auto b_copy = b;
+    SimplifyShapesForBroadcasting(a, b);
+    EXPECT_EQ(a_copy, a);
+    EXPECT_EQ(b_copy, b);
+  }
+
+  // 6 dims after simplification only
+  {
+    TensorShape<> a = {2, 1, 1, 1, 3, 1, 4, 5, 6, 1};
+    TensorShape<> b = {1, 2, 3, 4, 1, 5, 1, 1, 1, 6};
+    SimplifyShapesForBroadcasting(a, b);
+    TensorShape<> simple_a = {2, 1, 3, 1, 4 * 5 * 6, 1};
+    TensorShape<> simple_b = {1, 2 * 3 * 4, 1, 5, 1, 6};
+    EXPECT_EQ(simple_a, a);
+    EXPECT_EQ(simple_b, b);
+  }
+
   // 3 arg broadcasting
   {
     TensorShape<> a = {1024, 1024};
