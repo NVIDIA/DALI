@@ -467,7 +467,7 @@ def _test_std_dev_large_data(rank, axes, device):
 
 def test_std_dev_large_data():
     np.random.seed(12344)
-    for device in ['gpu']:
+    for device in ['cpu', 'gpu']:
         for rank in [1, 2, 3, 4]:
             for axis_mask in range(1, 2**rank):
                 axes = tuple(filter(lambda x: x >= 0,
