@@ -567,6 +567,9 @@ void ExposeTensor(py::module &m) {
       It is compatible with `Python Buffer Protocol <https://docs.python.org/3/c-api/buffer.html>`_
       and `NumPy Array Interface <https://numpy.org/doc/stable/reference/arrays.interface.html>`_.)code";
 
+  py::implicitly_convertible<py::buffer, Tensor<CPUBackend>>();
+  py::implicitly_convertible<py::capsule&, Tensor<CPUBackend>>();
+
   auto tensor_gpu_binding = py::class_<Tensor<GPUBackend>>(m, "TensorGPU")
     .def(py::init([](py::capsule &capsule, string layout = "") {
           auto t = std::make_unique<Tensor<GPUBackend>>();
@@ -682,6 +685,10 @@ void ExposeTensor(py::module &m) {
 
       :type: DALIDataType
       )code");
+
+  py::implicitly_convertible<py::object, Tensor<GPUBackend>>();
+  py::implicitly_convertible<py::capsule&, Tensor<GPUBackend>>();
+
   tensor_gpu_binding.doc() = R"code(
       Class representing a Tensor residing in GPU memory. It can be used to access individual
       samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
@@ -720,11 +727,19 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
   TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
   int expected_type = -2;
 
+  AccessOrder wait_order = AccessOrder::host();
+  AccessOrder copy_order = AccessOrder::host();
+
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
       if (i == 0) {
         non_contiguous_tmp.SetupLike(t);
+        if (std::is_same<Backend, GPUBackend>::value) {
+           // it is safe due to above if
+           Tensor<GPUBackend> *t_gpu = reinterpret_cast<Tensor<GPUBackend>*>(&t);
+           copy_order = AccessOrder(UserStream::Get()->GetStream(*t_gpu));
+        }
       }
       DALIDataType cur_type = t.type();
 
@@ -742,13 +757,6 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
       throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
                                        std::is_same<Backend, GPUBackend>::value ? "GPU." : "CPU."));
     }
-  }
-
-  AccessOrder wait_order = AccessOrder::host();
-  AccessOrder copy_order = AccessOrder::host();
-  if (!list_of_tensors.empty() && std::is_same<Backend, GPUBackend>::value) {
-    auto &t = list_of_tensors[0].cast<Tensor<GPUBackend>&>();
-    copy_order = AccessOrder(UserStream::Get()->GetStream(t));
   }
 
   contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());

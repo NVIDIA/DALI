@@ -37,6 +37,12 @@ def test_create_tensorlist():
     assert_array_equal(arr, tensorlist.as_array())
 
 
+def test_create_tensorlist_list():
+    arr = np.random.rand(3, 5, 6)
+    tensorlist = TensorListCPU([arr], "NHWC")
+    assert_array_equal(arr.reshape(tuple([1]) + arr.shape), tensorlist.as_array())
+
+
 def test_create_tensorlist_as_tensor():
     arr = np.random.rand(3, 5, 6)
     tensorlist = TensorListCPU(arr, "NHWC")

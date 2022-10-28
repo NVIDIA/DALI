@@ -23,7 +23,11 @@ from nvidia.dali.backend import CheckDLPackCapsule
 
 def convert_to_torch(tensor, device="cuda", dtype=None, size=None):
     if size is None:
-        size = [3, 5, 6]
+        if isinstance(tensor, TensorListCPU) or isinstance(tensor, TensorListGPU):
+            t = tensor.as_tensor()
+        else:
+            t = tensor
+        size = t.shape()
     dali_torch_tensor = torch.empty(size=size, device=device, dtype=dtype)
     c_type_pointer = ctypes.c_void_p(dali_torch_tensor.data_ptr())
     tensor.copy_to_external(c_type_pointer)
@@ -84,6 +88,13 @@ def test_dlpack_tensor_cpu_direct_creation():
 def test_dlpack_tensor_list_cpu_direct_creation():
     arr = torch.rand(size=[3, 5, 6], device="cpu")
     tensor_list = TensorListCPU(to_dlpack(arr), "NHWC")
+    dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
+    assert torch.all(arr.eq(dali_torch_tensor))
+
+
+def test_dlpack_tensor_list_cpu_direct_creation_list():
+    arr = torch.rand(size=[3, 5, 6], device="cpu")
+    tensor_list = TensorListCPU([to_dlpack(arr)], "NHWC")
     dali_torch_tensor = convert_to_torch(tensor_list, device=arr.device, dtype=arr.dtype)
     assert torch.all(arr.eq(dali_torch_tensor))
 
