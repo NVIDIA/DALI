@@ -21,7 +21,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "dali/core/cuda_utils.h"
 #include "dali/core/math_util.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/static_switch.h"

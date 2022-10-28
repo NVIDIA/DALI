@@ -25,6 +25,7 @@
 #include "dali/core/small_vector.h"
 #include "dali/core/cuda_event_pool.h"
 #include "dali/core/cuda_stream.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/device_guard.h"
 
 #ifndef DEBUG_ASYNC_POOL_CHECK_CONSISTENCY

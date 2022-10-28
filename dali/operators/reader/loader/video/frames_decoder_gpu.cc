@@ -22,7 +22,7 @@
 #include <iomanip>
 
 #include "dali/core/error_handling.h"
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_error.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/reader/loader/video/nvdecode/color_space.h"

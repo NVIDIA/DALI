@@ -21,6 +21,7 @@
 #include <memory>
 #include "dali/core/traits.h"
 #include "dali/core/mm/memory.h"
+#include "dali/core/cuda_error.h"
 #include "dali/kernels/context.h"
 
 namespace dali {

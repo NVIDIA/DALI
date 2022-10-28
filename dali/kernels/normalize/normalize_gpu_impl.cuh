@@ -19,6 +19,7 @@
 #include <utility>
 #include <string>
 #include "dali/core/convert.h"
+#include "dali/core/cuda_rt_utils.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/tensor_shape_print.h"

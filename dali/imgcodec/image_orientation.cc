@@ -14,6 +14,7 @@
 
 #include "dali/imgcodec/image_format.h"
 #include <string>
+#include "dali/core/error_handling.h"
 
 namespace dali {
 namespace imgcodec {

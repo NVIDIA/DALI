@@ -20,7 +20,7 @@
 #include <random>
 #include <string>
 #include <vector>
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/memory.h"
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,14 +42,14 @@ std::ostream &operator<<(std::ostream &os, const TensorListShape<ndim> &shape) {
 }
 
 template <int ndim>
-inline string to_string(const TensorShape<ndim> &shape) {
+inline std::string to_string(const TensorShape<ndim> &shape) {
   std::stringstream ss;
   ss << shape;
   return ss.str();
 }
 
 template <int ndim>
-inline string to_string(const TensorListShape<ndim> &shape) {
+inline std::string to_string(const TensorListShape<ndim> &shape) {
   std::stringstream ss;
   ss << shape;
   return ss.str();

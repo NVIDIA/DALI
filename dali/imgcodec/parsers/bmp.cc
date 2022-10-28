@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include "dali/imgcodec/parsers/bmp.h"
 #include "dali/core/byte_io.h"
+#include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/endian_util.h"

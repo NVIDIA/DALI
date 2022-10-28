@@ -19,7 +19,7 @@
 #include <cstring>
 #include <vector>
 #include <utility>
-#include "dali/core/cuda_utils.h"
+#include "dali/core/cuda_error.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/bounding_box_utils.h"
