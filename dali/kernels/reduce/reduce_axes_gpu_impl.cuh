@@ -97,8 +97,8 @@ struct ReduceSampleDesc {
  * @param post          posptprocessing unary functor
  */
 template <typename Out, typename In, typename PreprocessorBank, typename Postprocessor>
-__device__ void ReduceNone(Out *out, const In *in, int64_t n,
-                           PreprocessorBank pre_bank, Postprocessor post) {
+__device__ void ReduceFlatNone(Out *out, const In *in, int64_t n,
+                                PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
@@ -109,6 +109,33 @@ __device__ void ReduceNone(Out *out, const In *in, int64_t n,
   }
 }
 
+/**
+ * @brief This function is used when the reduction is no-op (reduced extent is 1),
+ *        but the reduced axis is not inner, so we need to account for complex addressing
+ *        of the preprocessor.
+ *
+ * This function will apply preprocessing and postprocessing, but will not do
+ * any actual reduction.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Out, typename In, typename PreprocessorBank, typename Postprocessor>
+__device__ void ReduceMiddleNone(Out *out, const In *in, int64_t n_outer, int64_t n_inner,
+                                 PreprocessorBank pre_bank, Postprocessor post) {
+  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
+  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
+  int64_t n = n_inner * n_outer;
+  for (int64_t index = base_idx; index < n; index += grid_stride) {
+    int64_t outer = index / n_inner;
+    int64_t inner = index % n_inner;
+    auto pre = pre_bank.Get(i64vec2(outer, inner));
+    out[index] = ConvertSat<Out>(post(pre(in[index])));
+  }
+}
 
 /**
  * @brief This kernel is used when the reduction is no-op (reduced extent is 1)
@@ -131,7 +158,7 @@ __global__ void ReduceNoneRawKernel(Out *const *out, const In *const *in, const 
   int sample_idx = blockIdx.y;
   PreprocessorBank pre_bank = pre ? pre[sample_idx] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[sample_idx] : Postprocessor();
-  ReduceNone(out[sample_idx], in[sample_idx], lengths[sample_idx], pre_bank, postprocessor);
+  ReduceFlatNone(out[sample_idx], in[sample_idx], lengths[sample_idx], pre_bank, postprocessor);
 }
 
 
@@ -151,9 +178,9 @@ template <typename Acc, typename Out, typename In,
           typename Reduction = reductions::sum,
           typename PreprocessorBank = reduce_impl::IdentityPreprocessor<1>,
           typename Postprocessor = identity>
-__global__ void ReduceNoneKernel(const ReduceSampleDesc<Out, In> *samples,
-                                 Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
-                                 const Postprocessor *post = nullptr) {
+__global__ void ReduceFlatNoneKernel(const ReduceSampleDesc<Out, In> *samples,
+                                     Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
+                                     const Postprocessor *post = nullptr) {
   PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
   Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
   auto sample = samples[blockIdx.y];
@@ -162,8 +189,45 @@ __global__ void ReduceNoneKernel(const ReduceSampleDesc<Out, In> *samples,
   Out *out = sample.out;
   const In *in = sample.in;
 
-  ReduceNone(out, in, n, pre_bank, postprocessor);
+  ReduceFlatNone(out, in, n, pre_bank, postprocessor);
 }
+
+/**
+ * @brief This kernel is used when the reduction is a no-op, but the reduced axis is not the inner
+ *        one, so complex preprocessing is possible.
+ *
+ * This function will apply preprocessing and postprocessing, but will not do
+ * any actual reduction.
+ * When the data sub-batch contains only samples where the reduced extent happens to be 1,
+ * this kernel will be used.
+ *
+ * @param pre_bank      preprocessor bank, providing possibly distinct procssing
+ *                      per output sample
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename PreprocessorBank = reduce_impl::IdentityPreprocessor<2>,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleNoneKernel(const ReduceSampleDesc<Out, In> *samples,
+                                       Reduction reduce = {}, const PreprocessorBank *pre = nullptr,
+                                       const Postprocessor *post = nullptr) {
+  PreprocessorBank pre_bank = pre ? pre[blockIdx.y] : PreprocessorBank();
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  auto sample = samples[blockIdx.y];
+
+  Out *out = sample.out;
+  const In *in = sample.in;
+
+  if (std::is_same<PreprocessorBank, reduce_impl::IdentityPreprocessor<2>>::value) {
+    int64_t n = sample.n_outer * sample.n_inner;  // n_reduced is 1, so we don't need to multiply
+    ReduceFlatNone(out, in, n, pre_bank, postprocessor);
+  } else {
+    ReduceMiddleNone(out, in, sample.n_outer, sample.n_inner, pre_bank, postprocessor);
+  }
+}
+
+
 
 
 /**
@@ -330,7 +394,7 @@ __device__ void ReduceInner(const ReduceSampleDesc<Out, In> &sample,
   const In *in = sample.in;
 
   if (n_reduced == 1) {
-    ReduceNone(out, in, n_outer, pre_bank, post);
+    ReduceFlatNone(out, in, n_outer, pre_bank, post);
   } else if (n_reduced < 32 && sample.num_macroblocks == 1) {
     ReduceInnerSmall<Acc>(out, in, n_outer, n_reduced, reduce, pre_bank, post);
   } else if (n_reduced < 1024 && sample.num_macroblocks == 1) {

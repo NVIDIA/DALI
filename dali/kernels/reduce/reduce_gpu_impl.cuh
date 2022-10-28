@@ -1179,10 +1179,10 @@ class ReduceImplGPU {
     // None
     if (num_none) {
       std::tie(grid, block) = launch_params(
-          ReduceNoneKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          ReduceFlatNoneKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
           num_none, 0, 256);
 
-      ReduceNoneKernel<Acc><<<grid, block, 0, ctx.stream>>>(
+      ReduceFlatNoneKernel<Acc><<<grid, block, 0, ctx.stream>>>(
           gpu_samples + sample_offset,
           This().GetReduction(),
           gpu_pre  ? gpu_pre  + sample_offset : nullptr,
@@ -1319,10 +1319,10 @@ class ReduceImplGPU {
     // None
     if (num_none) {
       std::tie(grid, block) = launch_params(
-          ReduceNoneKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
+          ReduceMiddleNoneKernel<Acc, StageOut, StageIn, red_t, pre_bank_t, post_t>,
           num_none, 0, 256);
 
-      ReduceNoneKernel<Acc><<<grid, block, 0, ctx.stream>>>(
+      ReduceMiddleNoneKernel<Acc><<<grid, block, 0, ctx.stream>>>(
           gpu_samples + sample_offset,
           This().GetReduction(),
           gpu_pre  ? gpu_pre  + sample_offset : nullptr,

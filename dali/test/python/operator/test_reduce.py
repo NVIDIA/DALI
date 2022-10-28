@@ -434,3 +434,42 @@ def test_reduce_large_data():
                 axes = tuple(filter(lambda x: x >= 0,
                                     (i if axis_mask & (1 << i) else -1 for i in range(rank))))
                 yield _test_reduce_large_data, rank, axes, device
+
+
+@nottest
+def _test_std_dev_large_data(rank, axes, device):
+    batch_size = 16
+    num_batches = 2
+    data = []
+    max_extent = min(65536, int(np.floor(10000000**(1/rank))))
+    for _ in range(num_batches):
+        batch = []
+        for _ in range(batch_size):
+            size = np.random.randint(1, max_extent, size=rank)
+            batch.append(np.random.uniform(low=1, high=2, size=size).astype(np.float32))
+        data.append(batch)
+
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0 if device == 'gpu' else None)
+    input = fn.external_source(data, cycle=True, device=device)
+    mean = fn.reductions.mean(input, axes=axes)
+    reduced = fn.reductions.std_dev(input, mean, axes=axes, ddof=0)
+    pipe.set_outputs(reduced)
+    pipe.build()
+
+    for b, batch in enumerate(data):
+        out, = pipe.run()
+        if device == 'gpu':
+            out = out.as_cpu()
+        for i in range(batch_size):
+            ref = np.std(batch[i].astype(np.float64), axis=axes, ddof=0)
+            assert np.allclose(out[i], ref, 1e-5, 1e-5)
+
+
+def test_std_dev_large_data():
+    np.random.seed(12344)
+    for device in ['gpu']:
+        for rank in [1, 2, 3, 4]:
+            for axis_mask in range(1, 2**rank):
+                axes = tuple(filter(lambda x: x >= 0,
+                                    (i if axis_mask & (1 << i) else -1 for i in range(rank))))
+                yield _test_std_dev_large_data, rank, axes, device
