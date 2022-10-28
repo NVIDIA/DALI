@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -110,36 +110,56 @@ struct power_dB {
   }
 };
 
+
 template <typename Out, typename In, typename Convert>
 __global__ void ConvertTimeMajorSpectrogram(
+      Out *out, int out_stride,
+      const In *in, int in_stride, int nfft, int64_t nwindows,
+      Convert convert = {}) {
+  int64_t wnd = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
+  if (wnd >= nwindows)
+    return;
+  out += wnd * out_stride;
+  in += wnd * in_stride;
+
+  for (int i = threadIdx.x; i < nfft; i += 32)
+    out[i] = convert(in[i]);
+}
+
+template <typename Out, typename In, typename Convert>
+__global__ void ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize(
       Out *out, int out_stride,
       const In *in, int in_stride, int nfft, int64_t nwindows,
       Convert convert = {}) {
   // A warp processes a whole row (transform) to ensure sequential processing
   // and thus enable in-place operation.
 
-  int64_t wnd = static_cast<int64_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+  int64_t wnd = static_cast<int64_t>(blockIdx.x) * blockDim.y + threadIdx.y;
   if (wnd >= nwindows)
     return;
   out += wnd * out_stride;
   in += wnd * in_stride;
 
-  // Check for in-place operation and size change
-  if (static_cast<const void*>(out) == static_cast<const void *>(in) &&
-      sizeof(Out) != sizeof(In)) {
-    // The loop starts at 0 (not threadIdx.x) to ensure there's no divergence which would
-    // cause undefined behavior in __syncwarp() (or require complex mask calculation).
-    for (int i = 0; i < nfft; i += 32) {
-      int j = i + threadIdx.x;
-      Out v = j < nfft ? convert(in[j]) : Out();
-      __syncwarp();  // memory barrier for in-place execution with non-trivial aliasing
-      if (j < nfft)
-        out[j] = v;
-    }
-  } else {
-    for (int i = threadIdx.x; i < nfft; i += 32)
-      out[i] = convert(in[i]);
+  // The loop starts at 0 (not threadIdx.x) to ensure there's no divergence which would
+  // cause undefined behavior in __syncwarp() (or require complex mask calculation).
+  for (int i = 0; i < nfft; i += 32) {
+    int j = i + threadIdx.x;
+    Out v = j < nfft ? convert(in[j]) : Out();
+    __syncwarp();  // memory barrier for in-place execution with non-trivial aliasing
+    if (j < nfft)
+      out[j] = v;
   }
+}
+
+template <typename Out, typename In, typename Convert>
+__global__ void ConvertTimeMajorSpectrogram_Flat(
+      Out *out, const In *in, int64_t n,
+      Convert convert = {}) {
+  int64_t offset = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  int64_t step = static_cast<int64_t>(gridDim.x) * blockDim.x;
+
+  for (int64_t i = offset; i < n; i += step)
+    out[i] = convert(in[i]);
 }
 
 template <typename Out, typename In, typename Convert = identity>
@@ -224,28 +244,44 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
 
     int nfft = std::min(out.shape[0][1], in.shape[0][1]);
 
+    auto launch_kernel = [&](Out *out, int64_t out_stride,
+                             const In* in, int64_t in_stride,
+                             int64_t nwindows) {
+      dim3 blocks(div_ceil(nwindows, 8));
+      dim3 threads(32, 8);
+
+      if (static_cast<const void*>(out) == static_cast<const void *>(in) &&
+          sizeof(Out) != sizeof(In)) {
+        ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize<<<blocks, threads, 0, ctx.gpu.stream>>>(
+            out, out_stride, in, in_stride, nfft, nwindows, convert_);
+      } else if (out_stride == in_stride) {
+        int64_t n = nfft * nwindows;
+        int block, grid;
+        CUDA_CALL(cudaOccupancyMaxPotentialBlockSize(
+            &grid, &block,
+            reinterpret_cast<void const *>(ConvertTimeMajorSpectrogram_Flat<Out, In, Convert>),
+            0,  // shm_size,
+            256));
+        grid = std::min(static_cast<int>(div_ceil(n, block)), grid);
+        ConvertTimeMajorSpectrogram_Flat<<<grid, block, 0, ctx.gpu.stream>>>(
+            out, in, nfft * nwindows, convert_);
+      } else {
+        ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
+            out, out_stride, in, in_stride, nfft, nwindows, convert_);
+      }
+      CUDA_CALL(cudaGetLastError());
+    };
+
     if (in.is_contiguous() && out.is_contiguous()) {
       int64_t nwindows = 0;
       for (int i = 0; i < N; i++) {
         nwindows += in.shape[i][0];
       }
-
-      dim3 blocks(1, div_ceil(nwindows, kBlock));
-      dim3 threads(32, kBlock);
-
-      ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
-          out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nfft, nwindows, convert_);
-      CUDA_CALL(cudaGetLastError());
+      launch_kernel(out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nwindows);
     } else {
       for (int i = 0; i < N; i++) {
         int nwindows = in.shape[i][0];
-
-        dim3 blocks(1, div_ceil(nwindows, kBlock));
-        dim3 threads(32, kBlock);
-
-        ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
-            out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nfft, nwindows, convert_);
-        CUDA_CALL(cudaGetLastError());
+        launch_kernel(out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nwindows);
       }
     }
   }
