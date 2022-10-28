@@ -25,22 +25,92 @@ extern "C" {
 #include <memory>
 #include <queue>
 #include <vector>
+#include <utility>
 
 #include "dali/operators/reader/loader/video/nvdecode/cuviddec.h"
 #include "dali/operators/reader/loader/video/nvdecode/nvcuvid.h"
+#include "dali/operators/reader/nvdecoder/dynlink_nvcuvid.h"
+#include "dali/core/unique_handle.h"
 
 #include "dali/core/dev_buffer.h"
 
 namespace dali {
+
+namespace detail {
+
+struct CUvideoparserHandle : public UniqueHandle<CUvideoparser, CUvideoparserHandle> {
+  DALI_INHERIT_UNIQUE_HANDLE(CUvideoparser, CUvideoparserHandle);
+
+  CUvideoparserHandle() = default;
+
+  explicit CUvideoparserHandle(CUVIDPARSERPARAMS &parser_info) {
+    CUDA_CALL(cuvidCreateVideoParser(&handle_, &parser_info));
+  }
+
+  static constexpr CUvideoparser null_handle() { return nullptr; }
+
+  static void DestroyHandle(CUvideoparser handle) {
+    cuvidDestroyVideoParser(handle);
+  }
+};
+
+struct DecInstance {
+  CUvideodecoder decoder = {};
+  cudaVideoCodec codec_type = {};
+  unsigned height = 0;
+  unsigned width = 0;
+  unsigned num_decode_surfaces = 0;
+  unsigned max_height = 0;
+  unsigned max_width = 0;
+  bool used = false;
+};
+
+class NVDECLease {
+ public:
+    constexpr NVDECLease() = default;
+
+    explicit NVDECLease(DecInstance inst) {
+      decoder = std::move(inst);
+    }
+
+    ~NVDECLease();
+
+    NVDECLease(NVDECLease &&other) {
+      *this = std::move(other);
+      other.decoder.used = false;
+    }
+
+    NVDECLease &operator=(NVDECLease &&other) {
+      if (decoder.decoder != other.decoder.decoder) {  // NOLINT
+        decoder = std::move(other.decoder);
+        other.decoder.used = false;
+      }
+      return *this;
+    }
+
+    operator CUvideodecoder() const & noexcept {
+      return decoder.decoder;
+    }
+
+    operator CUvideodecoder() && = delete;
+
+    explicit operator bool() const noexcept {
+      return decoder.used;
+    }
+
+ private:
+    DecInstance decoder;
+};
+
+}  // namespace detail
+
 struct NvDecodeState {
-  CUvideodecoder decoder;
-  CUvideoparser parser;
+  detail::NVDECLease decoder = {};
+  detail::CUvideoparserHandle parser = {};
 
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
-  uint8_t *decoded_frame_yuv;
-
-  ~NvDecodeState();
+  uint8_t *decoded_frame_yuv = nullptr;
 };
 
 struct BufferedFrame {
@@ -90,6 +160,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   static bool SupportsHevc();
 
+  void InitGpuDecoder(CUVIDEOFORMAT *video_format);
+
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
   uint8_t *current_frame_output_ = nullptr;
@@ -122,7 +194,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   cudaVideoCodec GetCodecType();
 
-  void InitGpuDecoder();
+  void InitGpuParser();
 
   bool ReadNextFrameWithIndex(uint8_t *data, bool copy_to_output);
 

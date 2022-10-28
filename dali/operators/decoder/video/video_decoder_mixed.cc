@@ -45,6 +45,9 @@ void VideoDecoderMixed::Run(Workspace &ws) {
   for (int s = 0; s < batch_size; ++s) {
     thread_pool_.AddWork([this, s, &output](int) {
       DecodeSample(output[s], s);
+      // when the decoding is done release the decoder,
+      // so it can be reused by the next sample in the batch
+      frames_decoders_[s].reset();
     }, input[s].shape().num_elements());
   }
   thread_pool_.RunAll();

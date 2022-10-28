@@ -17,6 +17,7 @@
 
 #include "dali/operators/decoder/video/video_decoder_base.h"
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
+#include "dali/pipeline/util/thread_pool.h"
 
 #ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_MIXED_H_
 #define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_MIXED_H_
