@@ -244,9 +244,8 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
 
     int nfft = std::min(out.shape[0][1], in.shape[0][1]);
 
-    auto launch_kernel = [&](Out *out, int64_t out_stride,
-                             const In* in, int64_t in_stride,
-                             int64_t nwindows) {
+    auto launch_kernel = [&](Out *out, int64_t out_stride, const In *in, int64_t in_stride,
+                             int64_t nwindows, int nfft) {
       dim3 blocks(div_ceil(nwindows, 8));
       dim3 threads(32, 8);
 
@@ -264,7 +263,7 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
             256));
         grid = std::min(static_cast<int>(div_ceil(n, block)), grid);
         ConvertTimeMajorSpectrogram_Flat<<<grid, block, 0, ctx.gpu.stream>>>(
-            out, in, nfft * nwindows, convert_);
+            out, in, n, convert_);
       } else {
         ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
             out, out_stride, in, in_stride, nfft, nwindows, convert_);
@@ -277,11 +276,11 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
       for (int i = 0; i < N; i++) {
         nwindows += in.shape[i][0];
       }
-      launch_kernel(out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nwindows);
+      launch_kernel(out.data[0], out.shape[0][1], in.data[0], in.shape[0][1], nwindows, nfft);
     } else {
       for (int i = 0; i < N; i++) {
         int nwindows = in.shape[i][0];
-        launch_kernel(out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nwindows);
+        launch_kernel(out.data[i], out.shape[i][1], in.data[i], in.shape[i][1], nwindows, nfft);
       }
     }
   }
