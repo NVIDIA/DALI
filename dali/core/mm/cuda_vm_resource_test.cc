@@ -224,10 +224,10 @@ class VMResourceTest : public ::testing::Test {
     cuda_vm_resource res(-1, block_size, va_size);
     size_t size1 = 4*block_size + (4<<20);  // ends past 4 blocks
     size_t size2 = 2*block_size - (8<<20);  // ends before 6 blocks
-    size_t size3 = size1;
     size_t size4 = (4<<20);  // after allocating 1, 2 and 4, the allocation should end at 6th block
     void *p1 = res.allocate(size1);
     void *p2 = res.allocate(size2);
+    (void)p2;
     res.deallocate(p1, size1);
     auto &region = res.va_regions_[0];
     EXPECT_EQ(region.available_blocks, 4);
@@ -250,6 +250,7 @@ class VMResourceTest : public ::testing::Test {
     EXPECT_EQ(region.available.find(true), region.available.ssize());
     EXPECT_EQ(region.available.find(false), 0);
     void *p4 = res.allocate(size4);
+    (void)p4;
     EXPECT_EQ(region.available_blocks, 0);
     EXPECT_EQ(region.mapped.find(true), 0);
     EXPECT_EQ(region.mapped.find(false), 6);

@@ -76,6 +76,8 @@ ScatterGatherBase::BlockCountAndSize(const std::vector<CopyRange> &ranges) const
 
   size_t size_per_block = std::min(max_size, max_size_per_block_);
 
+  DALI_ENFORCE(size_per_block > 0, "Non-empty set of ranges needs to be provided");
+
   size_t num_blocks = 0;
   for (auto &r : ranges)
     num_blocks += div_ceil(r.size, size_per_block);

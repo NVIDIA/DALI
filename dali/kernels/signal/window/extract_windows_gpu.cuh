@@ -532,6 +532,7 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
         out_shape.set_tensor_shape(i, { nwin, out_win_length });
       }
     }
+    DALI_ENFORCE(max_win_per_input > 0, "All inputs result in no windows to be extracted.");
 
     if (concatenate) {
       out_shape.set_tensor_shape(0, { total_windows, out_win_length });

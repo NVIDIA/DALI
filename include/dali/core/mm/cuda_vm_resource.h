@@ -593,7 +593,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
     auto *region = va_find(ptr);
     assert(region);
     CUdeviceptr region_start  = region->address_range.ptr();
-    CUdeviceptr region_end    = region->address_range.end();
     ptrdiff_t offset = dptr - region_start;
     int start_block_idx = offset / block_size_;
     int end_block_idx = (offset + size + block_size_ - 1) / block_size_;
@@ -607,7 +606,6 @@ class cuda_vm_resource : public memory_resource<memory_kind::device> {
       int next_unmapped = region->mapped.find(false, block_idx);
       if (next_unmapped >= end_block_idx)
         break;  // everything we need is mapped
-      block_idx = next_unmapped;
       int next_mapped = region->mapped.find(true, next_unmapped + 1);
       int next = std::min(end_block_idx, next_mapped);
       blocks_to_map += next - next_unmapped;

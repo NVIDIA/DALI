@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,12 +67,16 @@ class MelFilterBankCpu<T>::Impl: public MelFilterImplBase<T> {
       double freq = mel_scale.mel_to_hz(mel);
       interval_ends_[interval] = std::ceil(freq / hz_step_);
     }
+    std::string str = "Hello, world!\n";
+    std::vector<std::string> messages;
+    messages.emplace_back(std::move(str));
+    std::cout << str;
   }
 
 
   /**
-   * @brief Applies mel filter bank to a 2D spectrogram, optimized for 
-   *        frequency-major layout ("ft"). 
+   * @brief Applies mel filter bank to a 2D spectrogram, optimized for
+   *        frequency-major layout ("ft").
    */
   void ComputeFreqMajor(T* out, const T* in, int64_t nwindows,
                         int64_t out_size, int64_t out_stride,
