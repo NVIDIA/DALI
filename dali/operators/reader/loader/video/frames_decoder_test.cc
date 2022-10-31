@@ -31,7 +31,7 @@
 namespace dali {
 class FramesDecoderTestBase : public VideoTestBase {
  public:
-  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
+  virtual void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
@@ -52,7 +52,7 @@ class FramesDecoderTestBase : public VideoTestBase {
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
   }
 
-  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
+  virtual void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
     ASSERT_EQ(decoder.Height(), ground_truth.Height());
     ASSERT_EQ(decoder.Width(), ground_truth.Width());
     ASSERT_EQ(decoder.Channels(), ground_truth.NumChannels());
@@ -115,6 +115,16 @@ class FramesDecoderTestBase : public VideoTestBase {
 
 class FramesDecoderTest_CpuOnlyTests : public FramesDecoderTestBase {
  public:
+  // due to difference in CPU postprocessing on different CPUs eps is 10
+  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 10.) {
+    FramesDecoderTestBase::RunSequentialTest(decoder, ground_truth, eps);
+  }
+
+  // due to difference in CPU postprocessing on different CPUs eps is 10
+  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 10.0) {
+    FramesDecoderTestBase::RunTest(decoder, ground_truth, eps);
+  }
+
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth, double eps = 1.0) override {
     ground_truth.CompareFrame(index, frame, eps);
   }
@@ -143,6 +153,14 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     VideoTestBase::SetUpTestSuite();
     DeviceGuard(0);
     CUDA_CALL(cudaDeviceSynchronize());
+  }
+
+  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.) {
+    FramesDecoderTestBase::RunSequentialTest(decoder, ground_truth, eps);
+  }
+
+  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
+    FramesDecoderTestBase::RunTest(decoder, ground_truth, eps);
   }
 
   void AssertFrame(uint8_t *frame, int index, TestVideo& ground_truth, double eps = 1.0) override {
