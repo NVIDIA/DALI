@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DALI_OPERATORS_GENERIC_ONE_HOT_CUH_
+#define DALI_OPERATORS_GENERIC_ONE_HOT_CUH_
+
 #include <cstdint>
 #include <algorithm>
 #include "dali/core/util.h"
@@ -53,3 +56,5 @@ dim3 gridHelper(uint64_t output_vol, int batch_size, int block = 256,
 }  // namespace detail
 
 }  // namespace dali
+
+#endif  // DALI_OPERATORS_GENERIC_ONE_HOT_CUH_

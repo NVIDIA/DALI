@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_SLICE_SLICE_GPU_H_
-#define DALI_KERNELS_SLICE_SLICE_GPU_H_
+#ifndef DALI_KERNELS_SLICE_SLICE_GPU_CUH_
+#define DALI_KERNELS_SLICE_SLICE_GPU_CUH_
 
 #include <cuda_runtime.h>
 #include <utility>
@@ -39,7 +39,7 @@ __device__ DALI_FORCEINLINE bool __ldg(const bool* ptr) {
 namespace dali {
 namespace kernels {
 
-namespace {
+namespace {  // NOLINT
 
 DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
   // check idx < 0 and idx >= data_extent at once
@@ -408,4 +408,4 @@ class SliceGPU {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SLICE_SLICE_GPU_H_
+#endif  // DALI_KERNELS_SLICE_SLICE_GPU_CUH_

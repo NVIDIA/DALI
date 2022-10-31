@@ -397,4 +397,4 @@ inline std::unique_ptr<FFTPostprocess<float, float2>> GetSpectrogramPostprocesso
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_SIGNAL_FFT_FFT_TRANSPOSE_CUH_
+#endif  // DALI_KERNELS_SIGNAL_FFT_FFT_POSTPROCESS_CUH_

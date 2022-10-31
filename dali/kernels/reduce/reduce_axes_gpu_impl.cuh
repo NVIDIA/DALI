@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH
-#define _DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH
+#ifndef DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH_
+#define DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH_
 
 
 #include "dali/core/util.h"
@@ -825,4 +825,4 @@ __global__ void ReduceMiddleLargeInnerMediumKernel(const ReduceSampleDesc<Out, I
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // _DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH
+#endif  // DALI_KERNELS_REDUCE_REDUCE_AXES_GPU_IMPL_CUH_

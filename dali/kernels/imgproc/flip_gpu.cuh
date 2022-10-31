@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_FLIP_FLIP_GPU_H
-#define DALI_KERNELS_FLIP_FLIP_GPU_H
+#ifndef DALI_KERNELS_IMGPROC_FLIP_GPU_CUH_
+#define DALI_KERNELS_IMGPROC_FLIP_GPU_CUH_
 
 #include <cuda_runtime.h>
 #include <vector>
@@ -119,4 +119,4 @@ class DLL_PUBLIC FlipGPU {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_FLIP_FLIP_GPU_H
+#endif  // DALI_KERNELS_IMGPROC_FLIP_GPU_CUH_

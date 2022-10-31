@@ -26,7 +26,7 @@
 
 namespace dali {
 
-namespace {
+namespace {  // NOLINT
 
 template <bool value>
 using bool_const = std::integral_constant<bool, value>;
