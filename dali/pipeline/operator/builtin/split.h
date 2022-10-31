@@ -24,13 +24,13 @@ namespace dali {
 template <typename Backend>
 class Split : public Operator<Backend> {
  public:
-  inline explicit Split(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Split(const OpSpec &spec) : Operator<Backend>(spec) {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
   }
 
-  virtual inline ~Split() = default;
+  ~Split() override = default;
 
   bool CanInferOutputs() const override {
     return false;
@@ -46,6 +46,8 @@ class Split : public Operator<Backend> {
   void WriteTestsDiagnostics(const Workspace &ws);
 
   USE_OPERATOR_MEMBERS();
+
+  // We can only split two batches based on a boolean predicate.
   static constexpr int kMaxGroups = 2;
   std::array<int, kMaxGroups> group_counts_;
 

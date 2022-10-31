@@ -99,7 +99,12 @@ DALI_SCHEMA(_conditional__Split)
     .DocStr(R"code(Split batch based on a predicate.)code")
     .NumInput(1)
     .NumOutput(2)
-    .AddArg("predicate", "Boolean categorization of the input batch", DALI_BOOL, true)
+    .AddArg(
+        "predicate",
+        "Boolean categorization of the input batch. Must be an argument input of scalar values. "
+        "Each boolean denotes if the corresponding input sample goes into the true or false "
+        "branch.",
+        DALI_BOOL, true)
     .SamplewisePassThrough()
     .MakeDocHidden();
 

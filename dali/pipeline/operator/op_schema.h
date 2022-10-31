@@ -602,17 +602,17 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   DLL_PUBLIC bool IsPassThrough(int input_idx, int output_idx, bool strict = true) const;
 
   /**
-   * @brief Does this operator pass through any data
+   * @brief Does this operator pass through any data?
    */
   DLL_PUBLIC bool HasPassThrough() const;
 
   /**
-   * @brief Does this operator pass through any data as a whole batch to batch
+   * @brief Does this operator pass through any data as a whole batch to batch?
    */
   DLL_PUBLIC bool HasStrictPassThrough() const;
 
   /**
-   * @brief Does this operator pass through any data by the means of sharing individual samples
+   * @brief Does this operator pass through any data by the means of sharing individual samples?
    */
   DLL_PUBLIC bool HasSamplewisePassThrough() const;
 

@@ -40,7 +40,7 @@ bool Merge<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc, const Works
       const char *error_msg_base =
           "Divergent data found in different branches of conditional operation. All paths in "
           "conditional operation are merged into one batch which must have consistent type, "
-          "dimensionality, layout and other metadata. ";
+          "number of dimensions, layout and other metadata. ";
 
       DALI_ENFORCE(base_input.type() == input.type(),
                    make_string(error_msg_base, "Found distinct types: ", base_input.type(), " and ",
@@ -86,14 +86,15 @@ void Merge<Backend>::RunImpl(Workspace &ws) {
   if (!pinned_) {
     // We produce pinned data if the executor said so
     pinned_ = output.is_pinned();
-    // TODO(klecki): We keep pinedness if it was passed to us:
+    // TODO(klecki): We keep pinedness if it was passed to us - we can consider relying only
+    // on static and not run time information and remove the check below.
     for (int input_group = 0; input_group < kMaxGroups; input_group++) {
       pinned_ = *pinned_ || ws.template Input<Backend>(input_group).is_pinned();
     }
   }
 
   if (*pinned_ || std::is_same_v<Backend, GPUBackend>) {
-    cudaGetDevice(&device_id_);
+    CUDA_CALL(cudaGetDevice(&device_id_));
   } else {
     device_id_ = CPU_ONLY_DEVICE_ID;
   }
@@ -193,7 +194,12 @@ DALI_SCHEMA(_conditional__Merge)
     .DocStr(R"code(Merge batch based on a predicate.)code")
     .NumInput(2)
     .NumOutput(1)
-    .AddArg("predicate", "Boolean categorization of the inputs", DALI_BOOL, true)
+    .AddArg(
+        "predicate",
+        "Boolean categorization of the output batch. Must be an argument input of scalar values. "
+        "Each boolean denotes if the corresponding output sample comes from the true or false "
+        "branch.",
+        DALI_BOOL, true)
     .SamplewisePassThrough()
     .MakeDocHidden();
 

@@ -26,13 +26,13 @@ namespace dali {
 template <typename Backend>
 class Merge : public Operator<Backend> {
  public:
-  inline explicit Merge(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Merge(const OpSpec &spec) : Operator<Backend>(spec) {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
   }
 
-  virtual inline ~Merge() = default;
+  ~Merge() override = default;
 
   bool CanInferOutputs() const override {
     return false;
@@ -60,6 +60,8 @@ class Merge : public Operator<Backend> {
   void WriteTestsDiagnostics(const Workspace &ws);
 
   USE_OPERATOR_MEMBERS();
+
+  // We can only merge two batches based on a boolean predicate.
   static constexpr int kMaxGroups = 2;
   int input_sample_count_ = 0;
   std::optional<bool> pinned_;

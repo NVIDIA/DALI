@@ -26,16 +26,14 @@ namespace dali {
  * @brief When we have logical condition, the true group is expected to go through the first (0)
  * output and input (respectively for split and merge), so we basically do the reverse here.
  *
- * @param condition
- * @param condition_idx
- * @param is_logical
- * @return int
+ * @param condition Argument input describing the split
+ * @param condition_idx Index of the sample that this condition applies to (input for split, output
+ * for merge)
  */
 inline int get_group_index(const TensorList<CPUBackend>& condition, int condition_idx,
                               bool is_logical = true) {
   assert(is_logical && "Numerical conditions are not implemented");
   bool cond_val = *condition.tensor<bool>(condition_idx);
-  //
   return cond_val ? 0 : 1;
 }
 

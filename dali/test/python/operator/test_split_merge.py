@@ -139,7 +139,7 @@ def test_fail_conditional_split_merge():
     base = (
         "Divergent data found in different branches of conditional operation. All paths in "
         "conditional operation are merged into one batch which must have consistent type, "
-        "dimensionality, layout and other metadata. Found distinct "
+        "number of dimensions, layout and other metadata. Found distinct "
     )
     yield check_fail_conditional_split_merge, types.UINT32, None, None, base + "types*"
     yield check_fail_conditional_split_merge, None, "HWC", None, base + "layouts*"

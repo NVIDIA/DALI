@@ -321,7 +321,6 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
       all_inputs_empty = all_inputs_empty && ws.GetInputBatchSize(i) == 0;
     }
     if (all_inputs_empty) {
-      // TODO(klecki): All ops propagate the dim, type and do correct validation with empty input.
       // We skip the execution of this operator and Reset the outputs in case some state was still
       // present.
       for (int i = 0; i < spec.NumOutput(); i++) {
@@ -331,6 +330,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
           ws.template Output<GPUBackend>(i).Reset();
         }
       }
+      // TODO(klecki): Instead of skipping the execution, rework all DALI operators to correctly
+      // propagate the dim, type and do validation (arguments, types, etc) with empty input batches.
       return;
     }
   }
