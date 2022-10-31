@@ -20,7 +20,7 @@ import numpy as np
 import os
 from test_utils import get_dali_extra_path
 from nose.tools import nottest
-from nose_utils import raises, assert_raises
+from nose_utils import raises, assert_raises, assert_warns, assert_no_warnings
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 import random
 
@@ -1150,17 +1150,139 @@ def check_stop_iter(fw_iter, iterator_name, batch_size, epochs, iter_num,
         iter_size = it.size
     loader = fw_iter(pipe, iter_size, auto_reset)
     count = 0
-    for _ in range(epochs):
-        for _ in enumerate(loader):
-            count += 1
-        if not auto_reset:
-            loader.reset()
+    if not infinite and total_iter_num >= 0 and epochs * iter_num > total_iter_num:
+        warning_check = assert_warns
+    else:
+        warning_check = assert_no_warnings
+    with warning_check(glob="Pipeline unexpectedly raised StopIteration before reaching "
+                            "the end of dataset."):
+        for _ in range(epochs):
+            for _ in enumerate(loader):
+                count += 1
+            if not auto_reset:
+                loader.reset()
     if total_iter_num < 0:
         # infinite source of data
         assert count == iter_num * epochs
     else:
         # at most total_iter_num should be returned by the iterator
         assert count == min(total_iter_num, iter_num * epochs)
+
+
+def create_parallel_pipeline(source_type, lightweight, sample_shape, reader_queue_depth,
+                             batch_size, num_iterations, **kwargs):
+    if source_type == "generator":
+        cycle = None
+        batch_mode = False
+        def source(sample_info):
+            if sample_info.iteration >= num_iterations:
+                raise StopIteration
+            a = np.full(sample_shape, sample_info.idx_in_epoch, dtype=np.int32)
+            a[0, 0] = sample_info.epoch_idx
+            return a
+    else:
+        cycle = "raise"
+        batch_mode = True
+        epoch_idx = 0
+        def source():
+            nonlocal epoch_idx
+            for i in range(num_iterations):
+                batch = []
+                for j in range(batch_size):
+                    idx_in_epoch = i * batch_size + j
+                    a = np.full(sample_shape, idx_in_epoch, dtype=np.int32)
+                    a[0, 0] = epoch_idx
+                    batch.append(a)
+                yield batch
+            epoch_idx += 1
+
+    @pipeline_def
+    def pipeline():
+        data = fn.external_source(
+            source=source, batch=batch_mode, cycle=cycle,
+            prefetch_queue_depth=reader_queue_depth,
+            parallel=True)
+        if lightweight:
+            return data, data
+        else:
+            return data, fn.gaussian_blur(data.gpu(), window_size=31)
+
+    return pipeline(
+        batch_size=batch_size, device_id=0, num_threads=4,
+        py_start_method="spawn",**kwargs)
+
+
+def _check_parallel_stop_iter(fw_iter, source_type, lightweight, fw_size_aware,
+                              prefetch_queue_depth, reader_queue_depth,
+                              batch_as_np):
+    sample_shape = (1, 2,) if lightweight else (1024, 1024)
+    num_iterations = 7
+    batch_size = 6
+    num_epochs = 3
+    pipe = create_parallel_pipeline(
+        source_type, lightweight, sample_shape, reader_queue_depth, batch_size,
+        num_iterations, prefetch_queue_depth=prefetch_queue_depth)
+    pipe.build()
+    fw_size = -1 if not fw_size_aware else num_iterations * batch_size
+    it = fw_iter(pipe, fw_size, True)
+    with assert_no_warnings(regex="Resetting the pipeline|Prefetching data|StopIteration"):
+        epochs = [[batch for batch in it] for _ in range(num_epochs)]
+    assert len(epochs)
+    for epoch_idx, batches in enumerate(epochs):
+        assert len(batches) == num_iterations, \
+            f"Expected {num_iterations} batches in epoch {epoch_idx}, got: {len(batches)}"
+        for iter_idx, fw_batch in enumerate(batches):
+            batch = batch_as_np(fw_batch)
+            for sample_idx, sample in enumerate(batch):
+                sample_idx = batch_size * iter_idx + sample_idx
+                ref = np.full(sample_shape, sample_idx, dtype=np.int32)
+                ref[0, 0] = epoch_idx
+                np.testing.assert_array_equal(sample, ref)
+
+
+def check_parallel_stop_iter(fw_iter, batch_as_np):
+    for source_type in ('generator', 'callback'):
+        for lightweight in (True, False):
+            for fw_size_aware in (True, False):
+                for prefetch_queue_depth in (1, 2, 3):
+                    for reader_queue_depth in (1, 2, 3):
+                        yield _check_parallel_stop_iter, fw_iter, source_type, lightweight, \
+                            fw_size_aware, prefetch_queue_depth, reader_queue_depth, batch_as_np
+
+
+def check_too_early_reset(fw_iter, auto_reset, prefetch_queue_depth):
+    num_source_iters = 10
+    num_fw_iter_iters = num_source_iters - prefetch_queue_depth + 1
+    batch_size = 6
+    if prefetch_queue_depth == 2:
+        expected_warning = ("Resetting the pipeline before all scheduled batches have been "
+                            "consumed is discouraged and may be unsupported in the future.")
+    else:
+        assert prefetch_queue_depth == 3
+        expected_warning = ("Prefetching data into a non-empty pipeline may result "
+                            "in corrupted outputs.")
+
+    def source():
+        for i in range(num_source_iters):
+            yield [np.array([i, j]) for j in range(batch_size)]
+
+    @pipeline_def
+    def pipeline():
+        return fn.external_source(source=source, parallel=True, cycle="raise")
+
+    pipe = pipeline(
+        batch_size=batch_size, device_id=0, num_threads=4,
+        py_start_method="spawn", prefetch_queue_depth=prefetch_queue_depth)
+    pipe.build()
+    loader = fw_iter(pipe, num_fw_iter_iters * batch_size, auto_reset)
+    with assert_warns(glob=expected_warning):
+        for i, _ in enumerate(loader):
+            pass
+        assert i + 1 == num_fw_iter_iters, f"Expected {num_fw_iter_iters} iterations, got {i + 1}"
+        if not auto_reset:
+            loader.reset()
+        next(loader)
+
 
 
 @raises(Exception, glob="Negative size is supported only for a single pipeline")
@@ -1310,6 +1432,24 @@ def test_stop_iteration_mxnet_fail_single():
     check_stop_iter_fail_single(fw_iter)
 
 
+def test_too_early_reset_mxnet_warning():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    def fw_iter(pipe, size, auto_reset): return MXNetIterator(
+        pipe, [("data", MXNetIterator.DATA_TAG)], size=size, auto_reset=auto_reset)
+    for auto_reset in (True, False):
+        for prefetch_queue_depth in (2, 3):
+            yield check_too_early_reset, fw_iter, auto_reset, prefetch_queue_depth
+
+
+def test_stop_iteration_parallel_mxnet():
+    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
+    def fw_iter(pipe, size, auto_reset): return MXNetIterator(
+        pipe, [("data_0", MXNetIterator.DATA_TAG), ("data_1", MXNetIterator.DATA_TAG)],
+        size=size, auto_reset=auto_reset)
+    def as_np(batch): return batch[0].data[0].asnumpy()
+    yield from check_parallel_stop_iter(fw_iter, as_np)
+
+
 def test_mxnet_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
     check_iterator_wrapper_first_iteration(
@@ -1430,6 +1570,23 @@ def test_stop_iteration_gluon_fail_single():
     check_stop_iter_fail_single(fw_iter)
 
 
+def test_too_early_reset_gluon_warning():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    def fw_iter(pipe, size, auto_reset): return GluonIterator(
+        pipe, size=size, auto_reset=auto_reset)
+    for auto_reset in (True, False):
+        for prefetch_queue_depth in (2, 3):
+            yield check_too_early_reset, fw_iter, auto_reset, prefetch_queue_depth
+
+
+def test_stop_iteration_parallel_gluon():
+    from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
+    def fw_iter(pipe, size, auto_reset): return GluonIterator(
+        pipe, size=size, auto_reset=auto_reset)
+    def as_np(batch): return batch[0][0].asnumpy()
+    yield from check_parallel_stop_iter(fw_iter, as_np)
+
+
 def test_gluon_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.mxnet import DALIGluonIterator as GluonIterator
     check_iterator_wrapper_first_iteration(GluonIterator,  output_types=[
@@ -1488,6 +1645,23 @@ def test_stop_iteration_pytorch_fail_single():
     check_stop_iter_fail_single(fw_iter)
 
 
+def test_too_early_reset_pytorch_warning():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    def fw_iter(pipe, size, auto_reset): return PyTorchIterator(
+        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
+    for auto_reset in (True, False):
+        for prefetch_queue_depth in (2, 3):
+            yield check_too_early_reset, fw_iter, auto_reset, prefetch_queue_depth
+
+
+def test_stop_iteration_parallel_pytorch():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+    def fw_iter(pipe, size, auto_reset): return PyTorchIterator(
+        pipe, output_map=["data_0", "data_1"],  size=size, auto_reset=auto_reset)
+    def as_np(batch): return batch[0]["data_0"].numpy()
+    yield from check_parallel_stop_iter(fw_iter, as_np)
+
+
 def test_pytorch_iterator_wrapper_first_iteration():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
     check_iterator_wrapper_first_iteration(
@@ -1543,6 +1717,24 @@ def test_stop_iteration_paddle_fail_single():
     def fw_iter(pipe, size, auto_reset): return PaddleIterator(
         pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
     check_stop_iter_fail_single(fw_iter)
+
+
+def test_too_early_reset_paddle_warning():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    def fw_iter(pipe, size, auto_reset): return PaddleIterator(
+        pipe, output_map=["data"],  size=size, auto_reset=auto_reset)
+    for auto_reset in (True, False):
+        for prefetch_queue_depth in (2, 3):
+            yield check_too_early_reset, fw_iter, auto_reset, prefetch_queue_depth
+
+
+def test_stop_iteration_parallel_paddle():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+    def fw_iter(pipe, size, auto_reset): return PaddleIterator(
+        pipe, output_map=["data_0", "data_1"],  size=size, auto_reset=auto_reset)
+    def as_np(batch):
+        return np.array(batch[0]['data_0'])
+    yield from check_parallel_stop_iter(fw_iter, as_np)
 
 
 def test_paddle_iterator_wrapper_first_iteration():

@@ -18,7 +18,7 @@ from nose.tools import with_setup
 from nvidia.dali.types import SampleInfo, BatchInfo
 
 import test_external_source_parallel_utils as utils
-from nose_utils import raises
+from nose_utils import raises, assert_warns, assert_no_warnings
 
 
 def no_arg_fun():
@@ -732,3 +732,63 @@ def test_permute_dataset():
             for reader_queue_depth in (1, 5):
                 yield _test_permute_dataset, batch_size, epoch_size, trailing_samples, \
                       cb, 4, 1, reader_queue_depth
+
+
+@with_setup(utils.setup_function, utils.teardown_function)
+def _test_no_op_reset_warning(stop_earlier, prefetch_queue_depth, source, batch,
+                              batch_size, num_iterations, expected_warning):
+
+    def run_pipeline():
+
+        @dali.pipeline_def
+        def pipeline():
+            out = dali.fn.external_source(source=source, parallel=True, batch=batch)
+            return out
+
+        pipe = pipeline(
+            batch_size=batch_size, device_id=0, num_threads=4,
+            prefetch_queue_depth=prefetch_queue_depth,
+            py_start_method="spawn")
+        pipe.build()
+        utils.capture_processes(pipe._py_pool)
+        for _ in range(num_iterations - stop_earlier):
+            pipe.run()
+        pipe.reset()
+
+    if expected_warning is None:
+        with assert_no_warnings():
+            run_pipeline()
+    else:
+        with assert_warns(Warning, glob=expected_warning):
+            run_pipeline()
+
+
+def test_no_op_reset_warning():
+    num_iterations = 5
+    batch_size = 8
+
+    def gen_source():
+        for i in range(num_iterations):
+            yield [np.full((1024, 1024), batch_size * i + j) for j in range(batch_size)]
+
+    def cb_source(sample_info):
+        if sample_info.idx_in_epoch >= 42:
+            raise StopIteration
+        return np.full((5, 5), sample_info.idx_in_epoch)
+
+    for source, batch in ((gen_source, True), (cb_source, False)):
+        for prefetch_queue_depth in (1, 2, 3):
+            for stop_earlier in range(prefetch_queue_depth):
+                if stop_earlier == prefetch_queue_depth - 1:
+                    expected_warning = (
+                        "Resetting the pipeline before any of the external sources "
+                        "reached the end of epoch (i.e. raised StopIteration) "
+                        "has no effect.")
+                elif stop_earlier > 0:
+                    expected_warning = (
+                        "Resetting the pipeline before all scheduled batches have been "
+                        "consumed is discouraged and may be unsupported in the future.")
+                else:
+                    expected_warning = None
+                yield _test_no_op_reset_warning, stop_earlier, prefetch_queue_depth, \
+                    source, batch, batch_size, num_iterations, expected_warning

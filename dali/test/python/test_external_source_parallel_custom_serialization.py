@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ from nvidia.dali import pipeline_def
 from pickle import PicklingError
 
 from nose_utils import raises
-from test_utils import get_dali_extra_path, restrict_python_version
+from test_utils import get_dali_extra_path, restrict_python_version, run_pipelines
 
 tests_dali_pickling = []
 
@@ -230,7 +230,8 @@ def create_stacking_pipeline(callback, py_callback_pickler, batch_size, parallel
 
 
 def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel=True,
-                             py_num_workers=None, py_start_method="spawn", batch=False):
+                             py_num_workers=None, py_start_method="spawn", batch=False,
+                             cycle=None):
     extra = {}
     if parallel:
         extra["py_num_workers"] = py_num_workers
@@ -242,7 +243,8 @@ def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel
     def create_pipline():
         jpegs, labels = fn.external_source(
             source=callback, num_outputs=2,
-            batch=batch, parallel=parallel)
+            batch=batch, parallel=parallel,
+            cycle=cycle)
         images = fn.decoders.image(jpegs, device="cpu")
         return images, labels
 
@@ -250,8 +252,7 @@ def create_decoding_pipeline(callback, py_callback_pickler, batch_size, parallel
 
 
 def _run_and_compare_outputs(batch_size, parallel_pipeline, serial_pipeline):
-    parallel_batch = parallel_pipeline.run()
-    serial_batch = serial_pipeline.run()
+    parallel_batch, serial_batch = run_pipelines(parallel_pipeline, serial_pipeline)
     for (parallel_output, serial_output) in zip(parallel_batch, serial_batch):
         assert len(parallel_output) == batch_size
         assert len(serial_output) == batch_size
@@ -532,9 +533,9 @@ def _test_generator_closure(name, py_callback_pickler):
         batch_size=batch_size, data_set_size=batches_in_epoch * batch_size)
     parallel_pipeline = create_decoding_pipeline(callback, py_callback_pickler,
                                                  batch_size=batch_size, py_num_workers=1,
-                                                 parallel=True, batch=True)
+                                                 parallel=True, batch=True, cycle="raise")
     serial_pipeline = create_decoding_pipeline(callback, None, batch_size=batch_size,
-                                               parallel=False, batch=True)
+                                               parallel=False, batch=True, cycle="raise")
     _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
 
 
