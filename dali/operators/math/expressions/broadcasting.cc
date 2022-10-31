@@ -263,6 +263,7 @@ void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
     dim -= ndim - s.sample_dim();  // add leading unit dims
     if (dim < 0)
       return 1;  // implicit unit dim
+    assert(dim >= 0 && dim < s.sample_dim());
     return s[dim];
   };
 
@@ -296,7 +297,8 @@ void SimplifyShapesForBroadcasting(span<TensorShape<> *> shapes) {
     group_start = d;
     for (int i = 0; i < n; i++) {
       outs[i].shape.push_back(volumes[i]);
-      volumes[i] = get(i, d);
+      if (d < ndim)
+        volumes[i] = get(i, d);
     }
   };
 
