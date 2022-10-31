@@ -16,10 +16,11 @@ import random
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import nvidia.dali.tensors as tensors
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
-from nose_utils import raises, assert_warns
+from nose_utils import raises, assert_warns, assert_raises
 from nvidia.dali.types import DALIDataType
 
 
@@ -562,3 +563,20 @@ def test_non_utilized_external_source_pruning():
     # if all outputs are unused, ES should simply be pruned not preventing pipeline from operation
     for num_outputs in (None, 1, 2, 3, 4):
         yield _test_non_utilized_external_source_pruning, num_outputs
+
+
+def test_empty_es():
+    max_batch_size = 16
+
+    @pipeline_def
+    def pipeline():
+        return fn.external_source(source=lambda: [])
+
+    # Providing an empty batch was legal, but it failed on MakeContiguous node.
+    # This checks proper validation in External Source which is the only way that could provide
+    # empty batch as input into DALI graph.
+    with assert_raises(RuntimeError, glob="*ExternalSource expects non-empty batches*"):
+        pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        pipe.build()
+        pipe.run()
+
