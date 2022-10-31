@@ -31,7 +31,8 @@
 namespace dali {
 class FramesDecoderTestBase : public VideoTestBase {
  public:
-  virtual void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
+  virtual void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth,
+                                 double eps = 1.0) {
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
