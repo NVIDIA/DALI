@@ -20,6 +20,7 @@ import numpy as np
 
 from test_utils import check_batch, RandomlyShapedDataIterator
 from nose_utils import assert_raises
+from nose2.tools import params
 
 test_iters = 4
 
@@ -130,17 +131,13 @@ def run_conditional_split_merge_reinterpret(dtype, layout, shape):
     pipe.run()
 
 
-def check_fail_conditional_split_merge(dtype, layout, shape, err_glob):
-    with assert_raises(RuntimeError, glob=err_glob):
+@params((types.UINT32, None, None, "types*"),
+        (None, "HWC", None, "layouts*"),
+        (None, None, [10, -1], "sample dimensions*"))
+def test_fail_conditional_split_merge(dtype, layout, shape, err_glob):
+    base = ("Divergent data found in different branches of conditional operation. All paths in "
+            "conditional operation are merged into one batch which must have consistent type, "
+            "number of dimensions, layout and other metadata. Found distinct ")
+
+    with assert_raises(RuntimeError, glob=base + err_glob):
         run_conditional_split_merge_reinterpret(dtype, layout, shape)
-
-
-def test_fail_conditional_split_merge():
-    base = (
-        "Divergent data found in different branches of conditional operation. All paths in "
-        "conditional operation are merged into one batch which must have consistent type, "
-        "number of dimensions, layout and other metadata. Found distinct "
-    )
-    yield check_fail_conditional_split_merge, types.UINT32, None, None, base + "types*"
-    yield check_fail_conditional_split_merge, None, "HWC", None, base + "layouts*"
-    yield check_fail_conditional_split_merge, None, None, [10, -1], base + "sample dimensions*"
