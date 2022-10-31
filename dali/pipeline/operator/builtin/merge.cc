@@ -170,7 +170,7 @@ void Merge<GPUBackend>::CopySampleToOutput(TensorList<GPUBackend> &output, int o
 
 template <>
 void Merge<GPUBackend>::FinalizeCopy(Workspace &ws) {
-  assert(false && "This codepath should not be executed");
+  // no-op
 }
 
 
