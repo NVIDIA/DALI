@@ -198,6 +198,8 @@ struct MelFilterBankInnerFft {
     int bh = blockDim.y * cols_per_warp;
     for (int f0 = fft_start + threadIdx.y * cols_per_warp; f0 < fft_end; f0 += bh) {
       int fft = f0 + threadIdx.x / shm_height;
+      if (fft >= fft_end)
+        break;
       int wnd = threadIdx.x % shm_height;
       int bin0 = bin_down[fft];
       int bin1 = bin0 + 1;
@@ -401,7 +403,9 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       block2sample_.resize(block2sample_.size() + nblocks, ti);
 
       for (int b = 0; b < nblocks; ++b) {
-        block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {b * windows_per_block, nwindows}});
+        int64_t start = b * windows_per_block;
+        int64_t count = std::min<int64_t>(nwindows - start, windows_per_block);
+        block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {start, count}});
       }
     }
     se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
