@@ -30,6 +30,8 @@ try:
 except:  # noqa: E722
     pass
 
+for gpu in tf.config.experimental.list_physical_devices('GPU'):
+    tf.config.experimental.set_memory_growth(gpu, True)
 
 data_path = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/jpeg/')
 file_list_path = os.path.join(data_path, 'image_list.txt')
