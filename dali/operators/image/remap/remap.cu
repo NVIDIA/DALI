@@ -51,8 +51,8 @@ class RemapGpu : public Remap<GPUBackend> {
     if (shift_pixels_) {
       mapx_shifted.Copy(mapx);
       mapy_shifted.Copy(mapy);
-      detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_,scratchpad_, ws.stream());
-      detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_,scratchpad_, ws.stream());
+      detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_, scratchpad_, ws.stream());
+      detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_, scratchpad_, ws.stream());
     }
     kernel.Run(ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
                view<const float, 2>(shift_pixels_ ? mapx_shifted : mapx),

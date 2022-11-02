@@ -20,7 +20,7 @@ namespace dali::remap {
 DALI_SCHEMA(experimental__Remap)
         .DocStr(R"doc(
 The remap operation applies a generic geometrical transformation to an image. In other words,
-it takes pixel from one place in the input image and puts them in another place in
+it takes pixels from one place in the input image and puts them in another place in
 the output image. The transformation is described by ``mapx`` and ``mapy`` parameters, where:
 
     output(x,y) = input(mapx(x,y),mapy(x,y))
@@ -39,7 +39,7 @@ The ``DALIBorderType`` will always be ``CONSTANT`` with the value ``0``.
                   "Defines the remap transformation for x coordinates.")
         .InputDox(2, "mapy", "TensorList of float",
                   "Defines the remap transformation for y coordinates.")
-        .InputLayout(0, {"HWC","FHWC"})
+        .InputLayout(0, {"HWC", "FHWC"})
         .InputLayout(1, {"HWC", "HW", "FHWC", "FHW", "F***", "F**"})
         .InputLayout(2, {"HWC", "HW", "FHWC", "FHW", "F***", "F**"})
         .AddOptionalArg<std::string>("pixel_origin", R"doc(

@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_IMAGE_REMAP_REMAP_CUH_
 #define DALI_OPERATORS_IMAGE_REMAP_REMAP_CUH_
 
+#include <vector>
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
@@ -26,7 +27,7 @@ namespace remap {
 namespace detail {
 
 template<typename T>
-std::enable_if_t<std::is_floating_point<T>::value>
+std::enable_if_t <std::is_floating_point<T>::value>
 __global__
 shift_pixel_origin_per_batch(T **data, const size_t *sample_sizes, size_t n_samples,
                              T shift_value) {
@@ -48,20 +49,23 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
                         cudaStream_t stream) {
   static constexpr int kBlockSizeX = 256;
   static constexpr float kOneOverBlockSize = 1.f / static_cast<float>(kBlockSizeX);
+  auto max_sample_size = std::max_element(sample_sizes, sample_sizes + n_samples);
+  auto max_blocks = kBlockSizeX * kOneOverBlockSize;
   dim3 block_size(kBlockSizeX);
   dim3 grid_size(32, 32);
+  dim3 grid_size(std::min(max_blocks, 32), std::min(n_samples, 32));
   shift_pixel_origin_per_batch<<<grid_size, block_size, 0, stream>>>
           (data_buffers, sample_sizes, n_samples, shift_value);
 }
 
 
 template<typename StorageBackend, typename T, int ndims>
-T **GetGpuAccessibleTensors(TensorListView<StorageBackend, T, ndims> tlv,
+T **GetGpuAccessibleTensors(TensorListView <StorageBackend, T, ndims> tlv,
                             dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
   using DataType = T *;
   auto data_size = tlv.num_samples() * sizeof(DataType);
   DataType *ret = ds.template AllocatePinned<DataType>(data_size);
-  cudaMemcpyAsync(ret, tlv.data.data(), data_size, cudaMemcpyDefault, stream);
+  CUDA_CALL(cudaMemcpyAsync(ret, tlv.data.data(), data_size, cudaMemcpyDefault, stream));
   return ret;
 }
 
@@ -76,7 +80,7 @@ size_t *GetGpuAccessibleSampleSizes(size_t *sample_sizes, size_t n_samples,
 
 
 template<typename StorageBackend, typename T, int ndims>
-void ShiftPixelOrigin(TensorListView<StorageBackend, T, ndims> tlv, T value,
+void ShiftPixelOrigin(TensorListView <StorageBackend, T, ndims> tlv, T value,
                       dali::kernels::DynamicScratchpad &ds, cudaStream_t stream) {
   static_assert(std::is_floating_point<T>::value,
                 "Shifting should be conducted on floating point data.");

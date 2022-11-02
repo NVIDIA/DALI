@@ -58,7 +58,7 @@ TYPED_TEST_SUITE(RemapTest, RemapTestTypes);
 
 TYPED_TEST(RemapTest, ShiftPixelOriginTest) {
   using T = TypeParam;
-  for (auto &val: this->ref_data_) {
+  for (auto &val : this->ref_data_) {
     val += .5f;
   }
   dali::kernels::DynamicScratchpad ds;
