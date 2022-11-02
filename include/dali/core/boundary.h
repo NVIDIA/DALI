@@ -115,11 +115,12 @@ inline BoundaryType parse(const std::string& type) {
  * EDCBABCDEFEDCBABCD
  * ```
  */
-template <typename T>
+template <typename T, bool has_degenerated_extents=true>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T hi) {
-  if (hi - lo < 2)
+  if (has_degenerated_extents && (hi - lo < 2)) {
     return hi - 1;  // make it obviously wrong if hi <= lo
+  }
   for (;;) {
     if (idx < lo)
       idx = 2 * lo - idx;
@@ -132,7 +133,7 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T h
 }
 
 /// @brief Equivalent to `idx_reflect_101(idx, 0, size)`
-template <typename T>
+template <typename T, bool has_degenerated_extents=true>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
   return idx_reflect_101(idx, T(0), size);

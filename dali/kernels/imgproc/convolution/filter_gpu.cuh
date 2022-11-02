@@ -100,7 +100,7 @@ template <bool degenerated_extents>
 struct Reflect101 {
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
     assert(len > 0);
-    return boundary::idx_reflect_101(idx, len);
+    return boundary::idx_reflect_101<int, degenerated_extents>(idx, len);
   }
 };
 
