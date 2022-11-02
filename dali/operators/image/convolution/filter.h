@@ -103,6 +103,8 @@ InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShap
   return output_shapes;
 }
 
+// it does not handle `F` extents on the assumption that passing per-frame positional arguments
+// triggers SequenceOperator unfolding
 template <typename In, typename Backend>
 TensorListView<detail::storage_tag_map_t<Backend>, const In, 0> get_fill_values_view(
     const TensorList<Backend>& fill_values) {

@@ -85,7 +85,7 @@ inline std::string to_string(const BoundaryType& type) {
 
 inline BoundaryType parse(std::string type) {
   std::transform(type.begin(), type.end(), type.begin(), [](auto c) { return std::tolower(c); });
-  if (type == "constant")
+  if (type == "constant" || type == "const" || type == "fill")
     return BoundaryType::CONSTANT;
   if (type == "clamp")
     return BoundaryType::CLAMP;
