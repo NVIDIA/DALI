@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,10 +112,12 @@ class DaliCallbackPickler(pickle.Pickler):
             if isinstance(obj, type(dummy_lambda)) and obj.__name__ == dummy_lambda.__name__ or \
                     getattr(obj, '_dali_pickle_by_value', False):
                 return function_by_value_reducer(obj)
-            if '<locals>' in obj.__qualname__:
-                try:
-                    pickle.dumps(obj)
-                except AttributeError as e:
-                    if "Can't pickle local object" in str(e):
-                        return function_by_value_reducer(obj)
+            try:
+                pickle.dumps(obj)
+            except AttributeError as e:
+                if "Can't pickle local object" in str(e):
+                    return function_by_value_reducer(obj)
+            except pickle.PicklingError as e:
+                if "it's not the same object as" in str(e):
+                    return function_by_value_reducer(obj)
         return NotImplemented
