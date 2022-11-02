@@ -145,23 +145,13 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
   }
 
   TYPE_SWITCH(expr.GetTypeId(), type2id, Out_t, ARITHMETIC_ALLOWED_TYPES, (
-    if (is_tensor[0] && is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, true, true>());
-    } else if (is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, true, false>());
-    } else if (is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, false, true>());
-    } else if (is_tensor[0] && !is_tensor[1] && !is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, true, false, false>());
-    } else if (!is_tensor[0] && is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, false, true, true>());
-    } else if (!is_tensor[0] && is_tensor[1] && !is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, false, true, false>());
-    } else if (!is_tensor[0] && !is_tensor[1] && is_tensor[2]) {
-      result.reset(new ImplsAll<op, Out_t, false, false, true>());
-    } else {
-      DALI_FAIL("Expression cannot have three scalar operands");
-    }
+    BOOL_SWITCH(is_tensor[0], IsFirstTensor, (
+      BOOL_SWITCH(is_tensor[1], IsSecondTensor, (
+        BOOL_SWITCH(is_tensor[2], IsThirdTensor, (
+          result.reset(new ImplsAll<op, Out_t, IsFirstTensor, IsSecondTensor, IsThirdTensor>());
+        ));  // NOLINT
+      ));  // NOLINT
+    ));  // NOLINT
   ), DALI_FAIL("No suitable type found"););  // NOLINT(whitespace/parens)
   return result;
 }
@@ -181,8 +171,8 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
 #define IMPLEMENT_OP_FACTORY_GPU_BINARY(OP)                                                 \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend>,        \
                                           const ExprFunc &expr) {                           \
-    return ExprImplFactoryBinOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTT, ExprImplGpuTC, \
-                                ExprImplGpuCT>(expr);                                       \
+    return ExprImplFactoryBinOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTT, ExprImplGpuTT, \
+                                ExprImplGpuTT>(expr);                                       \
   }
 
 #define IMPLEMENT_OP_FACTORY_CPU_BINARY(OP)                                                 \

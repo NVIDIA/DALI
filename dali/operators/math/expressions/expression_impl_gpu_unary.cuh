@@ -41,7 +41,7 @@ __device__ void ExecuteUnOp(Result *result, const Input *in, int64_t offset, int
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
  */
 template <ArithmeticOp op, typename Result, typename Input>
-__global__ void ExecuteTiledUnOp(const SampleDescGPU<1, 1> *samples, const TileDesc *tiles) {
+__global__ void ExecuteTiledUnOp(const SampleDescGPU<1> *samples, const TileDesc *tiles) {
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
   auto *output = static_cast<Result *>(sample.output.data) + tile.offset;
@@ -51,7 +51,7 @@ __global__ void ExecuteTiledUnOp(const SampleDescGPU<1, 1> *samples, const TileD
 
 template <ArithmeticOp op, typename Result, typename Input>
 struct InvokerUnOp {
-  static void Invoke(const SampleDescGPU<1, 1> *samples, const TileDesc *tiles, dim3 grid,
+  static void Invoke(const SampleDescGPU<1> *samples, const TileDesc *tiles, dim3 grid,
                      dim3 block, cudaStream_t stream) {
     ExecuteTiledUnOp<op, Result, Input><<<grid, block, 0, stream>>>(samples, tiles);
   }
@@ -62,35 +62,9 @@ class ExprImplGPUInvokeUnary : public ExprImplBase {
  public:
   void Execute(ExprImplContext &ctx, span<const SampleDesc> samples,
                span<const TileDesc> tiles) override {
-    kernels::DynamicScratchpad s({}, ctx.stream);
-    TileDesc *tiles_gpu = nullptr;
-    SampleDescGPU<1, 1> *samples_gpu = nullptr;
-
-    assert(samples.size() > 0);
-    int ndim = samples[0].output.shape.sample_dim();
-    for (int i = 0; i < samples.size(); i++) {
-      assert(ndim == samples[i].output.shape.sample_dim());
-      assert(kNumArgs == samples[i].args.size());
-    }
-    auto grid = GetGridLayout(kBlocksX, tiles.size());
-    auto block = dim3(kThreadNum, 1, 1);
-
-    assert(ndim <= 1);  // should have been collapsed by now
-    auto sample_descs =
-        make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<kNumArgs, 1>>(samples.size()),
-                  samples.size());
-    FillSampleDesc(sample_descs, samples);
-    std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, sample_descs, tiles);
-    Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream);
+    ExecuteImpl<Invoker, 1>(ctx, samples, tiles);
   }
-
- private:
-  // Use BinaryArithmeticOpGpuPerfTest for tuning
-  static constexpr int kNumArgs = 1;
-  static constexpr int kThreadNum = 256;
-  static constexpr int kBlocksX = 64;
 };
-
 
 template <ArithmeticOp op, typename Result, typename Input>
 using ExprImplGpuT = ExprImplGPUInvokeUnary<InvokerUnOp<op, Result, Input>>;

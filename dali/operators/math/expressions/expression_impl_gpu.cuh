@@ -25,6 +25,10 @@
 
 namespace dali {
 
+// Use BinaryArithmeticOpGpuPerfTest for tuning
+static constexpr int kThreadNum = 256;
+static constexpr int kBlocksX = 64;
+
 template <int nargs>
 struct SampleDescGPU {
   struct {
@@ -44,23 +48,38 @@ struct SampleDescGPU {
   int ndim;
 };
 
+inline dim3 GetGridLayout(int extent, int tiles) {
+  return dim3(extent, tiles, 1);
+}
+
+template <typename Invoker, int NumArgs>
+void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
+                 span<const TileDesc> tiles) {
+  kernels::DynamicScratchpad s({}, ctx.stream);
+
+  assert(samples.size() > 0);
+  int ndim = samples[0].output.shape.sample_dim();
+  assert(ndim < ARITHM_OPS_MAX_DIM);  // should be checked earlier
+  for (int i = 0; i < samples.size(); i++) {
+    assert(ndim == samples[i].output.shape.sample_dim());
+    assert(NumArgs == samples[i].args.size());
+  }
+
+  auto samples_cpu =
+      make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<NumArgs>>(samples.size()),
+                samples.size());
+  FillSampleDesc(samples_cpu, samples);
+
+  SampleDescGPU<NumArgs>* samples_gpu;
+  TileDesc *tiles_gpu;
+  std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);
+  auto grid = GetGridLayout(kBlocksX, tiles.size());
+  auto block = dim3(kThreadNum, 1, 1);
+  Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream);
+}
+
 template <int nargs>
-struct SampleDesc1DGPU {
-  struct {
-    void *data;
-    DALIDataType dtype;
-    int64_t extent;
-  } output;
-
-  struct {
-    const void *data;
-    DALIDataType dtype;
-    int64_t extent;
-  } args[nargs];
-};
-
-template <int nargs, int ndim>
-void FillSampleDesc(span<SampleDescGPU<nargs, ndim>> sample_descs, span<const SampleDesc> samples) {
+void FillSampleDesc(span<SampleDescGPU<nargs>> sample_descs, span<const SampleDesc> samples) {
   assert(sample_descs.size() == samples.size());
   for (int i = 0; i < samples.size(); i++) {
     auto &sample_desc = sample_descs[i];
@@ -87,9 +106,6 @@ void FillSampleDesc(span<SampleDescGPU<nargs, ndim>> sample_descs, span<const Sa
   }
 }
 
-inline dim3 GetGridLayout(int extent, int tiles) {
-  return dim3(extent, tiles, 1);
-}
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_GPU_CUH_
