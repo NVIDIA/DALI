@@ -27,12 +27,29 @@ const int kBlockDim2 = 32;
 
 template <typename T>
 struct BlockDesc {
-  const T *in_frame;
-  T *out_frame;
-  struct {
-    int64_t start_window;
-    int64_t frame_nwindows;
+  BlockDesc() = default;
+  BlockDesc(intptr_t out_offset, intptr_t in_offset, int64_t start_window, int64_t nwindows) {
+    this->out_offset = out_offset;
+    this->in_offset = in_offset;
+    this->start_window = start_window;
+    this->frame_nwindows = nwindows;
+  }
+
+  void SetBasePointers(T *out, const T *in) {
+    out_frame = out + out_offset;
+    in_frame = in + in_offset;
+  }
+
+  union {
+    T *out_frame;
+    intptr_t out_offset;
   };
+  union {
+    const T *in_frame;
+    intptr_t in_offset;
+  };
+  int64_t start_window;
+  int64_t frame_nwindows;
 };
 
 template <typename T>
@@ -146,7 +163,7 @@ struct MelFilterBankInnerFft {
 
     bool first = true;
 
-    for (int64_t start_window = block_desc.start_window;
+    for (int64_t start_window = 0;
          start_window < block_desc.frame_nwindows;
          start_window += shm_height) {
       if (first)
@@ -297,7 +314,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     if (inner_fft_) {
       se.add<mm::memory_kind::device, int>(fft2mel_.size());
       se.add<mm::memory_kind::device, T>(weights_down_norm_.size());
-       se.add<mm::memory_kind::device, T>(weights_up_norm_.size());
+      se.add<mm::memory_kind::device, T>(weights_up_norm_.size());
 
       SetupBlockDescsInnerFft(se, in_shape);
     } else {
@@ -369,8 +386,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       for (int64_t s = 0; s < nframes_.back(); ++s) {
         auto nblocks = div_ceil(nwindows_.back(), kBlockDim2);
         for (int64_t b = 0; b < nblocks; ++b) {
-          block_descs_.push_back(BlockDesc<T>{nullptr, nullptr,
-                                              {b * kBlockDim2, nwindows_.back()}});
+          block_descs_.push_back(BlockDesc<T>{0, 0, b * kBlockDim2, nwindows_.back()});
         }
       }
     }
@@ -405,7 +421,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       for (int b = 0; b < nblocks; ++b) {
         int64_t start = b * windows_per_block;
         int64_t count = std::min<int64_t>(nwindows - start, windows_per_block);
-        block_descs_.push_back(BlockDesc<T>{nullptr, nullptr, {start, count}});
+        block_descs_.push_back(BlockDesc<T>{start, 0, {0, count}});
       }
     }
     se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
@@ -432,8 +448,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   void FillBlockDescsInnerFft(const T* const* in_list, T **out_list) {
     for (size_t block_id = 0; block_id < block_descs_.size(); block_id++) {
       int sample = block2sample_[block_id];
-      block_descs_[block_id].in_frame = in_list[sample];
-      block_descs_[block_id].out_frame = out_list[sample];
+      block_descs_[block_id].SetBasePointers(out_list[sample], in_list[sample]);
     }
   }
 
