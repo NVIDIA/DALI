@@ -267,7 +267,6 @@ struct MelFilterBankInnerFft {
     for (int fft = fft_start + threadIdx.y * cols_per_warp + threadIdx.x / shm_height;
          fft < fft_end;
          fft += bh) {
-
       int bin0 = bin_down[fft];
       int bin1 = bin0 + 1;
       T value = shm_in(wnd, fft - fft_start);
