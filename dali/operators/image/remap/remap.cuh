@@ -32,10 +32,10 @@ __global__
 shift_pixel_origin_per_batch(T **data, const size_t *sample_sizes, size_t n_samples,
                              T shift_value) {
   for (int sample_id = blockIdx.y;
-       sample_id < n_samples;
+       sample_id < static_cast<int>(n_samples);
        sample_id += gridDim.y) {
     for (int component_id = blockIdx.x * blockDim.x + threadIdx.x;
-         component_id < sample_sizes[sample_id];
+         component_id < static_cast<int>(sample_sizes[sample_id]);
          component_id += blockDim.x * gridDim.x) {
       data[sample_id][component_id] += shift_value;
     }
