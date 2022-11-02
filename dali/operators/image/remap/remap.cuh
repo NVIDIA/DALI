@@ -52,8 +52,7 @@ invoke_kernel_per_batch(T **data_buffers, const size_t *sample_sizes, int n_samp
   auto max_sample_size = *std::max_element(sample_sizes, sample_sizes + n_samples);
   auto max_blocks = static_cast<int>((max_sample_size + kBlockSize - 1) * kOneOverBlockSize);
   dim3 block_size(kBlockSize);
-  dim3 grid_size(32,32);
-//  dim3 grid_size(std::min(max_blocks, 32), std::min(n_samples, 32));
+  dim3 grid_size(std::min(max_blocks, 32), std::min(n_samples, 32));
   shift_pixel_origin_per_batch<<<grid_size, block_size, 0, stream>>>
           (data_buffers, sample_sizes, n_samples, shift_value);
 }
