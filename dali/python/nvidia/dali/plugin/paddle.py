@@ -153,8 +153,6 @@ class DALIGenericIterator(_DaliBaseIterator):
                 samples that iterator needs to deal with. It automatically sets `last_batch_policy`
                 to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
-    data_layout : str, optional, default = 'NCHW'
-                Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be
                 called explicitly.
@@ -417,8 +415,6 @@ class DALIClassificationIterator(DALIGenericIterator):
                 samples that iterator needs to deal with. It automatically sets `last_batch_policy`
                 to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
                 the reader's configuration
-    data_layout : str, optional, default = 'NCHW'
-                Either 'NHWC' or 'NCHW' - layout of the pipeline outputs.
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be
                 called explicitly.
