@@ -112,8 +112,6 @@ class RemapTest(unittest.TestCase):
             "batch_size": self.batch_size,
             "num_threads": 1,
             "device_id": 0,
-            # "exec_async": False,
-            # "exec_pipelined": False,
         }
 
     @params('identity', 'xflip', 'yflip', 'xyflip', 'random')
