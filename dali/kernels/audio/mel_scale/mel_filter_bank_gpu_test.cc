@@ -152,26 +152,29 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   TestTensorList<float> out;
   out.reshape(out_shape);
 
+  ConstantFill(out.cpu(), -1);
   auto out_view = out.gpu();
+  out.invalidate_cpu();
   kmgr.Run<Kernel>(0, ctx, out_view, in_view);
   auto out_view_cpu = out.cpu();
   CUDA_CALL(cudaStreamSynchronize(0));
   for (int b = 0; b < batch_size; ++b) {
     for (int idx = 0; idx < out_sizes[b]; idx++) {
-      ASSERT_NEAR(expected_out[b][idx], out_view_cpu.tensor_data(b)[idx], 1e-5) <<
+      double eps = 1e-5;
+      ASSERT_NEAR(expected_out[b][idx], out_view_cpu.tensor_data(b)[idx], eps) <<
         "Output data doesn't match in sample " << b << " reference (idx=" << idx << ")";
     }
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(MelScaleGpuTest, MelScaleGpuTest, testing::Combine(
-    testing::Values(std::vector<TensorShape<>>{TensorShape<>{10, 4, 6, 12}},
-                    std::vector<TensorShape<>>{TensorShape<>{4, 5, 6, 5},
-                                               TensorShape<>{4, 8, 6, 5}}),  // shape
+    testing::Values(std::vector<TensorShape<>>{TensorShape<>{10, 4, 6, 65}},
+                    std::vector<TensorShape<>>{TensorShape<>{4, 5, 6, 17},
+                                               TensorShape<>{4, 8, 6, 17}}),  // shape
     testing::Values(4, 8),  // nfilter
     testing::Values(16000.0f),  // sample rate
     testing::Values(0.0f, 1000.0f),  // fmin
-    testing::Values(5000.0f, 8000.0f),  // fmax
+    testing::Values(8000.0f, 5000.0f),  // fmax
     testing::Values(0, 2, 3)));  // axis
 
 using BenchBase = ::testing::TestWithParam<std::tuple<

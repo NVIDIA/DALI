@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class MelFilterBankCpu<T>::Impl: public MelFilterImplBase<T> {
     double mel = mel_low_ + mel_delta_;
     for (int interval = 0; interval < nfilter + 1; interval++, mel += mel_delta_) {
       double freq = mel_scale.mel_to_hz(interval == nfilter ? mel_high_ : mel);
-      for (; fftbin <= fftbin_end_ && f < freq; fftbin++, f = fftbin * hz_step_) {
+      for (; fftbin < fftbin_end_ && f < freq; fftbin++, f = fftbin * hz_step_) {
         intervals_[fftbin] = interval;
       }
     }
@@ -62,7 +62,7 @@ class MelFilterBankCpu<T>::Impl: public MelFilterImplBase<T> {
     mel = mel_low_ + mel_delta_;
     interval_ends_.resize(nfilter + 2);
     interval_ends_[0] = fftbin_start_;
-    interval_ends_[nfilter + 1] = fftbin_end_ + 1;
+    interval_ends_[nfilter + 1] = fftbin_end_;
     for (int interval = 1; interval < nfilter + 1; interval++, mel += mel_delta_) {
       double freq = mel_scale.mel_to_hz(mel);
       interval_ends_[interval] = std::ceil(freq / hz_step_);
@@ -71,8 +71,8 @@ class MelFilterBankCpu<T>::Impl: public MelFilterImplBase<T> {
 
 
   /**
-   * @brief Applies mel filter bank to a 2D spectrogram, optimized for 
-   *        frequency-major layout ("ft"). 
+   * @brief Applies mel filter bank to a 2D spectrogram, optimized for
+   *        frequency-major layout ("ft").
    */
   void ComputeFreqMajor(T* out, const T* in, int64_t nwindows,
                         int64_t out_size, int64_t out_stride,
@@ -84,7 +84,7 @@ class MelFilterBankCpu<T>::Impl: public MelFilterImplBase<T> {
     }
 
     const T *in_row = in + fftbin_start_ * in_stride;
-    for (int64_t fftbin = fftbin_start_; fftbin <= fftbin_end_; fftbin++, in_row += in_stride) {
+    for (int64_t fftbin = fftbin_start_; fftbin < fftbin_end_; fftbin++, in_row += in_stride) {
       auto filter_up = intervals_[fftbin];
       auto weight_up = T(1) - weights_down_[fftbin];
       auto filter_down = filter_up - 1;
