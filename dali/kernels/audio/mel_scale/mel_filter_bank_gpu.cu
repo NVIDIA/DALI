@@ -105,6 +105,50 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
                  nwindows, window, norm_factor);
 }
 
+/**
+ * Mel filter bank for inner FFT
+ *
+ * The algorithm processes the data in shared memory.
+ * Shared memory layout:
+ *
+ * ```
+ * input:
+ * win[0]:  f0 f1 f2 ... fF <pad>
+ * win[1]:  f0 f1 f2 ... fF <pad>
+ * ...
+ * win[H]:  f0 f1 f2 ... fF <pad>
+ * output:
+ * win[0]:  m0 m1 ... mM <pad>
+ * win[1]:  m0 m1 ... mM <pad>
+ * ...
+ * win[H]:  m0 m1 ... mM <pad>
+ * ```
+ *
+ * where:
+ * F = max. number of frequencies; fixed to 48
+ * M = number of Mel filters
+ * H = height of shared memory block
+ *
+ * Each CUDA block processes H windows and all frequencies.
+ * The value H is a power of two from 1 to 32, depending on the number of Mel filter banks.
+ * The maximum number of Mel filters is around 10000 for fp32 and about half of that for fp64.
+ * For common numbers of Mel filters (40-100), the H is at its maximum value (32).
+ *
+ * The kernel traverses the data vertically with stride H and processes blocks of windows.
+ * Each block is subdivided into horizontal blocks of frequencies, which are loaded from
+ * global to shared memory.
+ * After a block is loaded, the thread indexing is tranposed and now each thread in a warp
+ * processes a single frequency. There's a mapping from FFT bins to Mel bins, which determines
+ * to which Mel bins given frequency will contribute. Because multiple frequencies can contribute
+ * to one Mel bin, it's possible that multiple warps will try to accumulate the value to the
+ * same Mel bin. To avoid race conditions, shared memory atomicAdd is used.
+ *
+ * The maximum number of frequencies is set to 48 to avoid a situation where we have, for example,
+ * 257 FFT bins and the last horizontal block would be very thin. Now it's done so that if the
+ * number of remaining FFT bins is <= 48, it's processed at once. Otherise, 32 bins are taken and
+ * the reaminder is processed in the next iteration.
+ *
+ */
 namespace mel_inner_fft {
 
 static constexpr int kMaxInnerFftFreqs = 48;
@@ -173,17 +217,22 @@ struct MelFilterBankInnerFft {
         __syncthreads();
 
       int fft_end;
+      // The inner loop accumulates Mel coefficients from FFT spectrum
       ClearMel();
       for (int fft_start = fft_lo; fft_start < fft_hi; fft_start = fft_end) {
+        // avoid last thin slice - use up to max_freqs witdth, if it fits
         if (fft_hi - fft_start <= max_freqs)
           fft_end = fft_hi;
         else
           fft_end = fft_start + 32;
+        // Load a block of FFT coefficients into shared memory
         LoadFrequencyBlock(start_window, fft_start, fft_end);
         __syncthreads();
+        // Go over FFT coefficients and accumulate Mel values in shared memory
         ProcessFrequencyBlock(fft_start, fft_end);
         __syncthreads();
       }
+      // Store the final Mel values in global memory
       StoreMel(start_window);
     }
   }
@@ -191,6 +240,7 @@ struct MelFilterBankInnerFft {
   __device__ void LoadFrequencyBlock(int start_window, int fft_start, int fft_end) {
     int bh = blockDim.y;
     const T *in = block_desc.in_frame;
+    // block height might be smaller than shm_height, so we need to iterate
     for (int y = threadIdx.y; y < shm_height; y += bh) {
       int window = start_window + y;
       if (window < block_desc.frame_nwindows) {
@@ -217,13 +267,19 @@ struct MelFilterBankInnerFft {
     for (int fft = fft_start + threadIdx.y * cols_per_warp + threadIdx.x / shm_height;
          fft < fft_end;
          fft += bh) {
+
       int bin0 = bin_down[fft];
       int bin1 = bin0 + 1;
       T value = shm_in(wnd, fft - fft_start);
-      T w0 = weights_down[fft];
-      T w1 = weights_up[fft];
+
+      // bin0 is accumulated along the downward slope, bin1 along the upward slope.
+      // Because of that, the very first bin starts with invalid bin0 (-1), because we start
+      // with upward slope.
       if (bin0 >= 0)
         atomicAdd(&shm_out(wnd, bin0), value * weights_down[fft]);
+
+      // Analogously, the last value of bin1 is invalid (nmel), because we will accumulate with
+      // the downward slop only.
       if (bin1 < nmel)
         atomicAdd(&shm_out(wnd, bin1), value * weights_up[fft]);
     }
@@ -233,9 +289,12 @@ struct MelFilterBankInnerFft {
     int end_window = cuda_min<int>(start_window + shm_height, block_desc.frame_nwindows);
     int n = (end_window - start_window) * nmel;
     T *out = block_desc.out_frame;
+    // Use flattened indices to have contiguous stores - there can be very few Mel bins, so
+    // we can't affort to waste a significant part of warp's bandwidth.
     for (int idx = blockDim.x * threadIdx.y + threadIdx.x;
          idx < n;
          idx += blockDim.x * blockDim.y) {
+      // idx is 32-bit, so div/mod isn't that bad - no need for fast_div
       int w = idx / nmel;
       int m = idx % nmel;
       out[start_window * nmel + idx] = shm_out(w, m);
