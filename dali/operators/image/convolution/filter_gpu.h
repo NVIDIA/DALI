@@ -50,7 +50,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     filter_dev_.set_type(type2id<W>::value);
   }
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<GPUBackend>& ws) override {
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     ctx_.gpu.stream = ws.stream();
     const auto& input = ws.template Input<GPUBackend>(0);
     int num_samples = input.num_samples();
@@ -62,7 +62,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     return true;
   }
 
-  void RunImpl(workspace_t<GPUBackend>& ws) override {
+  void RunImpl(Workspace& ws) override {
     const auto& input = ws.template Input<GPUBackend>(0);
     auto& output = ws.template Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
@@ -85,8 +85,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   }
 
  private:
-  TensorListView<StorageGPU, const W, filter_ndim> GetFilterViews(
-      const workspace_t<GPUBackend>& ws) {
+  TensorListView<StorageGPU, const W, filter_ndim> GetFilterViews(const Workspace& ws) {
     if (ws.template InputIsType<GPUBackend>(1)) {
       return view<const W, filter_ndim>(ws.template Input<GPUBackend>(1));
     } else {
@@ -97,8 +96,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     }
   }
 
-  TensorListView<StorageGPU, const In, 0> GetFillValueViews(const workspace_t<GPUBackend>& ws,
-                                                            int num_samples) {
+  TensorListView<StorageGPU, const In, 0> GetFillValueViews(const Workspace& ws, int num_samples) {
     if (ws.NumInput() < 3) {
       return {};
     }

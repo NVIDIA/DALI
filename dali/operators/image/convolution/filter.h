@@ -144,9 +144,9 @@ class Filter : public SequenceOperator<Backend> {
     return true;
   }
 
-  bool ShouldExpand(const workspace_t<Backend>& ws) override;
+  bool ShouldExpand(const Workspace& ws) override;
 
-  void ValidateLayouts(const workspace_t<Backend>& ws) {
+  void ValidateLayouts(const Workspace& ws) {
     auto filter_dim = ws.GetInputDim(1);
     if (filter_dim == 2) {
       return;
@@ -169,7 +169,7 @@ class Filter : public SequenceOperator<Backend> {
   std::unique_ptr<OpImplBase<Backend>> GetFilterImpl(const OpSpec& spec_,
                                                      const filter::InputLayoutDesc& input_desc);
 
-  bool SetupImpl(std::vector<OutputDesc>& output_desc, const workspace_t<Backend>& ws) override {
+  bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     if (!impl_) {
       auto input_type = ws.GetInputDataType(0);
       auto filter_type = ws.GetInputDataType(1);
@@ -191,17 +191,17 @@ class Filter : public SequenceOperator<Backend> {
     return impl_->SetupImpl(output_desc, ws);
   }
 
-  void RunImpl(workspace_t<Backend>& ws) override {
+  void RunImpl(Workspace& ws) override {
     impl_->RunImpl(ws);
   }
 
-  bool HasPerFrameFilters(const workspace_t<Backend>& ws) {
+  bool HasPerFrameFilters(const Workspace& ws) {
     auto filter_dim = ws.GetInputDim(1);
     const auto& filter_layout = GetInputLayout(ws, 1);
     return filter_dim == 3 && filter_layout.size() == 3 && filter_layout[0] == 'F';
   }
 
-  bool HasPerFrameFillValues(const workspace_t<Backend>& ws) {
+  bool HasPerFrameFillValues(const Workspace& ws) {
     if (ws.NumInput() < 3) {
       return false;
     }
@@ -209,7 +209,7 @@ class Filter : public SequenceOperator<Backend> {
     return layout.size() == 1 && layout[0] == 'F';
   }
 
-  bool HasPerFramePositionalArgs(const workspace_t<Backend>& ws) {
+  bool HasPerFramePositionalArgs(const Workspace& ws) {
     return HasPerFrameFilters(ws) || HasPerFrameFillValues(ws);
   }
 
