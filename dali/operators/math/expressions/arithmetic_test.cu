@@ -21,7 +21,7 @@
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
-#include "dali/operators/math/expressions/expression_impl_gpu.cuh"
+#include "dali/operators/math/expressions/expression_impl_gpu_binary.cuh"
 #include "dali/test/dali_operator_test.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
