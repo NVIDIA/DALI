@@ -62,7 +62,6 @@ inline BoundaryType parse_filter_border_type(const std::string& border_type_str)
       case BoundaryType::REFLECT_1001:
       case BoundaryType::REFLECT_101:
       case BoundaryType::WRAP:
-      case BoundaryType::ISOLATED:
         return border_type;
       default:
         DALI_FAIL(

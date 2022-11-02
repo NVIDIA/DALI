@@ -83,14 +83,15 @@ inline std::string to_string(const BoundaryType& type) {
   }
 }
 
-inline BoundaryType parse(const std::string& type) {
+inline BoundaryType parse(std::string type) {
+  std::transform(type.begin(), type.end(), type.begin(), [](auto c) { return std::tolower(c); });
   if (type == "constant")
     return BoundaryType::CONSTANT;
   if (type == "clamp")
     return BoundaryType::CLAMP;
-  if (type == "reflect_1001")
+  if (type == "reflect_1001" || type == "reflect1001" || type == "1001")
     return BoundaryType::REFLECT_1001;
-  if (type == "reflect_101")
+  if (type == "reflect_101" || type == "reflect101" || type == "101")
     return BoundaryType::REFLECT_101;
   if (type == "wrap")
     return BoundaryType::WRAP;
