@@ -418,11 +418,6 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
                 args_.nfilter, nfft_);
         ), (DALI_FAIL(make_string("Unreachable code: invalid value of shm_height_: ", shm_height_)  // NOLINT
       )));  // NOLINT
-
-      /*MelFilterBankKernelInnerFft
-          <<<block_descs_.size(), kBlockDim1, 0, stream>>>
-            (block_descs, weights_down, interval_ends, args_.normalize,
-             norm_factors, args_.nfilter, nfft_);*/
     } else {
       FillBlockDescsOuterFft(out_list, in_list);
       BlockDesc<T> *block_descs = nullptr;
