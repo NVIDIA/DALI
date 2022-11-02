@@ -105,27 +105,7 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
                  nwindows, window, norm_factor);
 }
 
-// For layouts with the innermost frequency dimension, data is flattened
-// to two dimensions - time, frequency
-/*template <typename T>
-__global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_desc,
-                                            const T *weights_down, const int *interval_ends,
-                                            bool normalize, const T *norm_factors,
-                                            int nmel, int64_t nfft) {
-  auto block_id = blockIdx.x;
-  auto idx = block_desc[block_id].block_start + threadIdx.x;
-
-  if (idx >= block_desc[block_id].out_frame_size)
-    return;
-
-  auto window = idx / nmel;
-  auto mel_bin = idx % nmel;
-  const T *in = block_desc[block_id].in_frame;
-  T *out =  block_desc[block_id].out_frame;
-  T norm_factor = (normalize) ? norm_factors[mel_bin] : 1;
-  *(out + idx) = calcMel(in + window * nfft, mel_bin,
-                         weights_down, interval_ends, 1, 0, norm_factor);
-}*/
+namespace mel_inner_fft {
 
 static constexpr int kMaxInnerFftFreqs = 48;
 
@@ -263,6 +243,8 @@ struct MelFilterBankInnerFft {
   }
 };
 
+}  // namespace mel_inner_fft
+
 template <int shm_height, typename T>
 __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_descs,
                                             const T *__restrict__ weights_down,
@@ -271,7 +253,7 @@ __global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_descs,
                                             int fft_lo, int fft_hi,
                                             int nmel, int nfft) {
   extern __shared__ char shm_arena[];
-  MelFilterBankInnerFft<shm_height, T> fb = {
+  mel_inner_fft::MelFilterBankInnerFft<shm_height, T> fb = {
     block_descs[blockIdx.x],
     weights_down,
     weights_up,
@@ -432,8 +414,8 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
 
     int max_shm_size = GetSharedMemPerBlock();
     for (shm_height_ = 32; ; shm_height_ >>= 1) {
-      int shm_in = shm_in_size<T>(shm_height_);
-      int shm_out = shm_out_size<T>(shm_height_, args_.nfilter);
+      int shm_in = mel_inner_fft::shm_in_size<T>(shm_height_);
+      int shm_out = mel_inner_fft::shm_out_size<T>(shm_height_, args_.nfilter);
       shm_size_ = shm_in + shm_out;
       if (shm_size_ <= max_shm_size)
         break;
