@@ -90,8 +90,7 @@ struct BorderHelper<BoundaryType::CONSTANT> {
   }
 };
 
-template <>
-struct BorderHelper<BoundaryType::ISOLATED> {
+struct BorderHelperAssertValid {
   int remap(int idx, int len) const {
     return idx;
   }
@@ -104,57 +103,42 @@ struct BorderHelper<BoundaryType::ISOLATED> {
   }
 };
 
-struct BaselineROI {
-  int h_begin, h_end, w_begin, w_end;
-
-  static BaselineROI create(BoundaryType border_type, int H, int W, int R, int S, int anchor_r,
-                            int anchor_s) {
-    if (border_type != BoundaryType::ISOLATED) {
-      return {0, H, 0, W};
-    }
-    return {-anchor_r, H - (R - 1 + anchor_r), -anchor_s, W - (S - 1 + anchor_s)};
-  }
-};
-
-template <bool is_sequence, bool has_channels, typename InT, typename OutT, typename WT,
-          BoundaryType border_type, int ndim,
+template <bool is_sequence, bool has_channels, typename InT, typename OutT, typename WT, int ndim,
+          int filter_ndim, typename Border,
           typename Intermediate = decltype(std::declval<InT>() * std::declval<WT>())>
 void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
                    const TensorView<StorageCPU, OutT, ndim> &out_view,
-                   const TensorView<StorageCPU, WT, 2> &filter_view,
-                   const TensorView<StorageCPU, int, 1> &anchor_view,
-                   const BorderHelper<border_type> &border_helper) {
+                   const TensorView<StorageCPU, WT, filter_ndim> &filter_view,
+                   const ivec<filter_ndim> anchor, const filter::InputROI<filter_ndim> input_roi,
+                   const Border &border_helper) {
   int F = is_sequence ? in_view.shape[0] : 1;
   int H = in_view.shape[is_sequence];
   int W = in_view.shape[is_sequence + 1];
   int C = has_channels ? in_view.shape[is_sequence + 2] : 1;
   int R = filter_view.shape[0];
   int S = filter_view.shape[1];
-  int anchor_r = anchor_view.data[0] == -1 ? -R / 2 : -anchor_view.data[0];
-  int anchor_s = anchor_view.data[1] == -1 ? -S / 2 : -anchor_view.data[1];
-  auto roi = BaselineROI::create(border_type, H, W, R, S, anchor_r, anchor_s);
   int H_out = out_view.shape[is_sequence];
   int W_out = out_view.shape[is_sequence + 1];
-  ASSERT_EQ(H_out, roi.h_end - roi.h_begin);
-  ASSERT_EQ(W_out, roi.w_end - roi.w_begin);
+  ASSERT_EQ(H_out, input_roi.end[0] - input_roi.begin[0]);
+  ASSERT_EQ(W_out, input_roi.end[1] - input_roi.begin[1]);
   auto *filter_data = filter_view.data;
   for (int f = 0; f < F; f++) {
     const auto *in_data = in_view.data + f * H * W * C;
     auto *out_data = out_view.data + f * H_out * W_out * C;
-    for (int y = roi.h_begin; y < roi.h_end; y++) {
-      for (int x = roi.w_begin; x < roi.w_end; x++) {
+    for (int y = input_roi.begin[0]; y < input_roi.end[0]; y++) {
+      for (int x = input_roi.begin[1]; x < input_roi.end[1]; x++) {
         for (int c = 0; c < C; c++) {
           Intermediate acc = 0;
           for (int r = 0; r < R; r++) {
-            int y_idx = border_helper.remap(y + r + anchor_r, H);
+            int y_idx = border_helper.remap(y + r - anchor[0], H);
             for (int s = 0; s < S; s++) {
-              int x_idx = border_helper.remap(x + s + anchor_s, W);
+              int x_idx = border_helper.remap(x + s - anchor[1], W);
               InT value;
               border_helper.load(value, in_data, y_idx, x_idx, c, H, W, C, static_cast<InT>(0));
               acc += value * filter_data[r * S + s];
             }
           }
-          out_data[(y - roi.h_begin) * W_out * C + (x - roi.w_begin) * C + c] =
+          out_data[(y - input_roi.begin[0]) * W_out * C + (x - input_roi.begin[1]) * C + c] =
               ConvertSat<OutT>(acc);
         }
       }
@@ -163,25 +147,25 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
 }
 
 template <bool has_channels_, bool is_sequence_, typename OutType_, typename InType_,
-          int filters_shift_, BoundaryType border_type_,
+          int filters_shift_, BoundaryType border_type_, bool valid_only_mode_,
           // For isolated border type filters_shift does not apply
-          typename Dummy =
-              std::enable_if_t<filters_shift_ == 0 || border_type_ != BoundaryType::ISOLATED>>
+          typename Dummy = std::enable_if_t<!valid_only_mode_ || filters_shift_ == 0>>
 struct FilterParams {
   static constexpr int axes = 2;
-  static constexpr int filter_dim = axes;
+  static constexpr int filter_ndim = axes;
   static constexpr bool has_channels = has_channels_;
   static constexpr bool is_sequence = is_sequence_;
   static constexpr int ndim = static_cast<int>(is_sequence) + axes + static_cast<int>(has_channels);
   static constexpr int filters_shift = filters_shift_;
   static constexpr BoundaryType border_type = border_type_;
+  static constexpr bool valid_only_mode = valid_only_mode_;
   using OutType = OutType_;
   using InType = InType_;
   using WinType = float;
 };
 
 /// @brief Provides initial shapes of inputs for the test casa based on border type.
-template <BoundaryType border_type>
+template <bool valid_only_mode>
 struct InputShapes {
   const TensorListShape<> shape_ch = {{29, 145, 128, 3}, {64, 64, 64, 3},   {12, 12, 12, 3},
                                       {16, 512, 512, 1}, {8, 1, 32, 3},     {8, 32, 1, 3},
@@ -197,10 +181,10 @@ struct InputShapes {
 
 
 /// @brief Usually it is desireble to include cases when the filter window size exceeds
-/// the input sample shape. However in istolated border mode it is forbidden and would result
+/// the input sample shape. However in volid only mode it is forbidden and would result
 /// in validation error.
 template <>
-struct InputShapes<BoundaryType::ISOLATED> {
+struct InputShapes<true> {
   const TensorListShape<> shape_ch = {{29, 145, 128, 3}, {64, 64, 64, 3},    {12, 12, 12, 3},
                                       {16, 512, 512, 1}, {8, 2, 32, 3},      {8, 32, 2, 3},
                                       {1, 111, 57, 129}, {1, 256, 256, 256}, {1, 255, 255, 255},
@@ -231,20 +215,43 @@ struct FilterGPUTest : public ::testing::Test {
     }
   }
 
-  void FillAnchors(int num_samples) {
-    anchors_.reshape(uniform_list_shape<1>(num_samples, {T::filter_dim}));
-    anchors_view_ = anchors_.cpu();
+  void FillAnchors(const TensorListShape<T::filter_ndim> &filter_shapes) {
+    int num_samples = filter_shapes.num_samples();
+    anchors_.resize(num_samples);
     int num_base_anchors = input_shapes_.anchors_base.num_samples();
     ASSERT_TRUE(num_base_anchors == input_shapes_.filter_shape_base.num_samples());
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       int idx = (sample_idx + T::filters_shift) % num_base_anchors;
-      anchors_view_[sample_idx].data[0] = input_shapes_.anchors_base[idx][0];
-      anchors_view_[sample_idx].data[1] = input_shapes_.anchors_base[idx][1];
+      for (int dim = 0; dim < T::filter_ndim; dim++) {
+        auto anchor = input_shapes_.anchors_base[idx][dim];
+        if (anchor == -1) {
+          anchor = filter_shapes[sample_idx][dim] / 2;
+        }
+        anchors_[sample_idx][dim] = anchor;
+      }
     }
   }
 
-  TensorListShape<T::filter_dim> GetFilterShape(int num_samples) {
-    TensorListShape<T::filter_dim> filter_shapes(num_samples);
+  void FillROIs(const TensorListShape<T::ndim> &in_shapes,
+                const TensorListShape<T::filter_ndim> &filter_shapes) {
+    int num_samples = in_shapes.num_samples();
+    rois_.resize(num_samples);
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      const auto &in_shape = in_shapes[sample_idx];
+      const auto &filter_shape = filter_shapes[sample_idx];
+      const auto &anchor = anchors_[sample_idx];
+      for (int dim = 0; dim < T::filter_ndim; dim++) {
+        rois_[sample_idx].begin[dim] = !T::valid_only_mode ? 0 : anchor[dim];
+        rois_[sample_idx].end[dim] =
+            !T::valid_only_mode ?
+                in_shape[T::is_sequence + dim] :
+                (anchor[dim] + 1 + in_shape[T::is_sequence + dim] - filter_shape[dim]);
+      }
+    }
+  }
+
+  TensorListShape<T::filter_ndim> GetFilterShape(int num_samples) {
+    TensorListShape<T::filter_ndim> filter_shapes(num_samples);
     int num_base_filters = input_shapes_.filter_shape_base.num_samples();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       int idx = (sample_idx + T::filters_shift) % num_base_filters;
@@ -255,15 +262,15 @@ struct FilterGPUTest : public ::testing::Test {
   }
 
   TensorListShape<T::ndim> GetOutputShape(TensorListShape<T::ndim> shapes,
-                                          const TensorListShape<T::filter_dim> &filter_shapes) {
-    if (T::border_type == BoundaryType::ISOLATED) {
+                                          const TensorListShape<T::filter_ndim> &filter_shapes) {
+    if (T::valid_only_mode) {
       for (int sample_idx = 0; sample_idx < shapes.num_samples(); sample_idx++) {
         auto shape = shapes[sample_idx];
         const auto &filter_shape = filter_shapes[sample_idx];
-        for (int dim_idx = 0; dim_idx < T::filter_dim; dim_idx++) {
+        for (int dim_idx = 0; dim_idx < T::filter_ndim; dim_idx++) {
           shape[T::is_sequence + dim_idx] -= filter_shape[dim_idx] - 1;
           if (shape[T::is_sequence + dim_idx] <= 0) {
-            throw std::logic_error("incorrect test shapes for isolated border mode");
+            throw std::logic_error("incorrect test shapes for valid only mode for sample");
           }
         }
         shapes.set_tensor_shape(sample_idx, shape);
@@ -272,7 +279,7 @@ struct FilterGPUTest : public ::testing::Test {
     return shapes;
   }
 
-  void FillFilters(const TensorListShape<T::filter_dim> &filter_shapes) {
+  void FillFilters(const TensorListShape<T::filter_ndim> &filter_shapes) {
     filters_.reshape(filter_shapes);
     filters_view_cpu_ = filters_.cpu();
     for (int sample_idx = 0; sample_idx < filter_shapes.num_samples(); sample_idx++) {
@@ -300,8 +307,9 @@ struct FilterGPUTest : public ::testing::Test {
     UniformRandomFill(in_view_cpu_, rng, 0, 64);
     in_view_ = input_.gpu();
     auto filter_shapes = GetFilterShape(num_samples);
-    FillAnchors(num_samples);
     FillFilters(filter_shapes);
+    FillAnchors(filter_shapes);
+    FillROIs(in_shapes, filter_shapes);
     auto output_shape = GetOutputShape(in_shapes, filter_shapes);
     output_.reshape(output_shape);
     baseline_output_.reshape(output_shape);
@@ -319,8 +327,15 @@ struct FilterGPUTest : public ::testing::Test {
 
     baseline_out_ = baseline_output_.cpu();
     out_view_ = output_.gpu();
-    kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, anchors_view_, T::border_type);
-    FillBaseline(BorderHelper<T::border_type>{});
+    if (!T::valid_only_mode) {
+      kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
+                     T::border_type);
+      FillBaseline(BorderHelper<T::border_type>{});
+    } else {
+      kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
+                     T::border_type, make_cspan(rois_));
+      FillBaseline(BorderHelperAssertValid{});
+    }
     auto out_cpu = output_.cpu();
 
     if (std::is_integral<OutType>::value) {
@@ -337,23 +352,23 @@ struct FilterGPUTest : public ::testing::Test {
       auto in_view = in_view_cpu_[sample_idx];
       auto out_view = baseline_out_[sample_idx];
       auto filter_view = filters_view_cpu_[sample_idx];
-      auto anchor_view = anchors_view_[sample_idx];
-      baseline_conv<T::is_sequence, T::has_channels>(in_view, out_view, filter_view, anchor_view,
-                                                     border_helper);
+      baseline_conv<T::is_sequence, T::has_channels>(
+          in_view, out_view, filter_view, anchors_[sample_idx], rois_[sample_idx], border_helper);
     }
   }
 
-  InputShapes<T::border_type> input_shapes_;
+  InputShapes<T::valid_only_mode> input_shapes_;
 
-  TestTensorList<WinType, T::filter_dim> filters_;
-  TestTensorList<int, 1> anchors_;
+  TestTensorList<WinType, T::filter_ndim> filters_;
   TestTensorList<InType, T::ndim> input_;
   TestTensorList<OutType, T::ndim> output_;
   TestTensorList<OutType, T::ndim> baseline_output_;
 
-  TensorListView<StorageCPU, WinType, T::filter_dim> filters_view_cpu_;
-  TensorListView<StorageGPU, WinType, T::filter_dim> filters_view_;
-  TensorListView<StorageCPU, int, 1> anchors_view_;
+  std::vector<ivec<T::filter_ndim>> anchors_;
+  std::vector<filter::InputROI<T::filter_ndim>> rois_;
+
+  TensorListView<StorageCPU, WinType, T::filter_ndim> filters_view_cpu_;
+  TensorListView<StorageGPU, WinType, T::filter_ndim> filters_view_;
   TensorListView<StorageCPU, InType, T::ndim> in_view_cpu_;
   TensorListView<StorageGPU, InType, T::ndim> in_view_;
   TensorListView<StorageGPU, OutType, T::ndim> out_view_;
@@ -362,27 +377,27 @@ struct FilterGPUTest : public ::testing::Test {
 
 TYPED_TEST_SUITE_P(FilterGPUTest);
 
-using TestValues =
-    ::testing::Types<FilterParams<true, true, float, float, 0, BoundaryType::REFLECT_101>,
-                     FilterParams<false, true, float, float, 1, BoundaryType::REFLECT_1001>,
-                     FilterParams<true, false, float, float, 2, BoundaryType::CLAMP>,
-                     FilterParams<false, false, float, float, 3, BoundaryType::WRAP>,
-                     FilterParams<true, false, uint8_t, uint8_t, 4, BoundaryType::CONSTANT>,
-                     FilterParams<false, false, uint8_t, uint8_t, 0, BoundaryType::ISOLATED>,
-                     FilterParams<true, false, uint8_t, uint8_t, 0, BoundaryType::ISOLATED>,
-                     FilterParams<true, false, float, uint8_t, 5, BoundaryType::REFLECT_101>,
-                     FilterParams<false, false, float, uint8_t, 6, BoundaryType::REFLECT_1001>,
-                     FilterParams<true, true, int32_t, int32_t, 7, BoundaryType::CLAMP>,
-                     FilterParams<false, true, int32_t, int32_t, 8, BoundaryType::WRAP>,
-                     FilterParams<true, true, float, int32_t, 9, BoundaryType::CONSTANT>,
-                     FilterParams<false, true, float, int32_t, 0, BoundaryType::ISOLATED>,
-                     FilterParams<true, true, float, int32_t, 0, BoundaryType::ISOLATED>>;
+using TestValues = ::testing::Types<
+    FilterParams<true, true, float, float, 0, BoundaryType::REFLECT_101, false>,
+    FilterParams<false, true, float, float, 1, BoundaryType::REFLECT_1001, false>,
+    FilterParams<true, false, float, float, 2, BoundaryType::CLAMP, false>,
+    FilterParams<false, false, float, float, 3, BoundaryType::WRAP, false>,
+    FilterParams<true, false, uint8_t, uint8_t, 4, BoundaryType::CONSTANT, false>,
+    FilterParams<false, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_101, true>,
+    FilterParams<true, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_1001, true>,
+    FilterParams<true, false, float, uint8_t, 5, BoundaryType::REFLECT_101, false>,
+    FilterParams<false, false, float, uint8_t, 6, BoundaryType::REFLECT_1001, false>,
+    FilterParams<true, true, int32_t, int32_t, 7, BoundaryType::CLAMP, false>,
+    FilterParams<false, true, int32_t, int32_t, 8, BoundaryType::WRAP, false>,
+    FilterParams<true, true, float, int32_t, 9, BoundaryType::CONSTANT, false>,
+    FilterParams<false, true, float, int32_t, 0, BoundaryType::CLAMP, true>,
+    FilterParams<true, true, float, int32_t, 0, BoundaryType::CONSTANT, true>>;
 
-TYPED_TEST_P(FilterGPUTest, DoConvolution) {
+TYPED_TEST_P(FilterGPUTest, ApplyConvolution) {
   this->RunTest();
 }
 
-REGISTER_TYPED_TEST_SUITE_P(FilterGPUTest, DoConvolution);
+REGISTER_TYPED_TEST_SUITE_P(FilterGPUTest, ApplyConvolution);
 INSTANTIATE_TYPED_TEST_SUITE_P(Convolution, FilterGPUTest, TestValues);
 
 }  // namespace kernels

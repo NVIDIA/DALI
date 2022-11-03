@@ -72,10 +72,22 @@ inline BoundaryType parse_filter_border_type(const std::string& border_type_str)
   }
 }
 
+inline bool parse_is_valid_mode(std::string mode) {
+  std::transform(mode.begin(), mode.end(), mode.begin(), [](auto c) { return std::tolower(c); });
+  if (mode == "full") {
+    return false;
+  }
+  if (mode == "valid") {
+    return true;
+  }
+  DALI_FAIL(make_string("Unknown ``mode`` was provided: ``", mode,
+                        "``. Supported modes are ``full`` and ``valid``."));
+}
+
 template <typename InputShapes, typename FilterShapes>
 InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShapes& filter_shapes,
-                               boundary::BoundaryType border_type, int spatial_dim_start) {
-  if (border_type != boundary::BoundaryType::ISOLATED) {
+                               int spatial_dim_start, bool is_valid_only_mode) {
+  if (!is_valid_only_mode) {
     return input_shapes;
   }
   auto num_samples = input_shapes.num_samples();
@@ -92,11 +104,10 @@ InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShap
               sample_idx, "."));
       shape[spatial_dim_start + dim_idx] -= filter_shape[dim_idx] - 1;
       DALI_ENFORCE(
-          shape[spatial_dim_start + dim_idx] >= 0,
+          shape[spatial_dim_start + dim_idx] > 0,
           make_string(
               "Filter for sample of idx ", sample_idx,
-              " is bigger than the sample. This is not allowed when ``border_type`` is set to ",
-              to_string(BoundaryType::ISOLATED), "."));
+              " is bigger than the sample. This is not allowed if ``mode`` is set to ``valid``."));
     }
     output_shapes.set_tensor_shape(sample_idx, shape);
   }
