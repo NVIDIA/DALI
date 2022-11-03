@@ -1387,7 +1387,7 @@ def _discriminate_args(func, **func_kwargs):
             fn_args[farg[0]] = farg[1]
             if is_ctor_arg:
                 print(
-                    "Warning: the argument `{farg[0]}` shadows a Pipeline constructor "
+                    f"Warning: the argument `{farg[0]}` shadows a Pipeline constructor "
                     "argument of the same name.")
         elif is_ctor_arg:
             ctor_args[farg[0]] = farg[1]
