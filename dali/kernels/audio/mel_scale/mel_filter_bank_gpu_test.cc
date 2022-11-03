@@ -160,7 +160,7 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
   CUDA_CALL(cudaStreamSynchronize(0));
   for (int b = 0; b < batch_size; ++b) {
     for (int idx = 0; idx < out_sizes[b]; idx++) {
-      double eps = 1e-5;
+      double eps = 2e-5;
       ASSERT_NEAR(expected_out[b][idx], out_view_cpu.tensor_data(b)[idx], eps) <<
         "Output data doesn't match in sample " << b << " reference (idx=" << idx << ")";
     }

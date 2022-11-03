@@ -18,6 +18,7 @@
 #include "dali/core/tensor_shape_print.h"
 #include "dali/core/cuda_rt_utils.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/fast_div.h"
 
 namespace dali {
 namespace kernels {
@@ -26,11 +27,9 @@ namespace audio {
 const int kBlockDim2 = 32;
 
 template <typename T>
-struct BlockDesc {
-  BlockDesc() = default;
-  BlockDesc(int64_t out_offset, int64_t in_offset, int64_t start_window, int64_t nwindows) {
-    this->out_offset = out_offset;
-    this->in_offset  = in_offset;
+struct BlockDescOuter {
+  BlockDescOuter() = default;
+  BlockDescOuter(int64_t start_window, int64_t nwindows) {
     this->out_frame  = nullptr;
     this->in_frame   = nullptr;
 
@@ -39,17 +38,39 @@ struct BlockDesc {
   }
 
   void SetBasePointers(T *out, const T *in) {
-    out_frame = out + out_offset;
-    in_frame  = in  + in_offset;
+    out_frame = out;
+    in_frame  = in;
   }
 
-  int64_t   out_offset;
-  int64_t   in_offset;
   T        *out_frame;
   const T  *in_frame;
 
   int64_t start_window;
   int64_t frame_nwindows;
+};
+
+template <typename T>
+struct BlockDescInner {
+  BlockDescInner() = default;
+
+  BlockDescInner(int64_t start_window, int64_t end_window) {
+    this->out_frame  = nullptr;
+    this->in_frame   = nullptr;
+
+    this->start_window = start_window;
+    this->end_window = end_window;
+  }
+
+  void SetBasePointers(T *out, const T *in) {
+    out_frame = out;
+    in_frame  = in;
+  }
+
+  T        *out_frame;
+  const T  *in_frame;
+
+  int64_t start_window;
+  int64_t end_window;
 };
 
 template <typename T>
@@ -80,7 +101,7 @@ __device__ T calcMel(const T* in_frame, int mel_bin,
 // 3 dimensions - frame, frequency, time
 // Every frame is treated as independent two-dimensional sample
 template <typename T>
-__global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
+__global__ void MelFilterBankKernel(const BlockDescOuter<T> *block_desc,
                                     const T *weights_down, const int *interval_ends,
                                     bool normalize, const T *norm_factors,
                                     int nmel) {
@@ -106,223 +127,138 @@ __global__ void MelFilterBankKernel(const BlockDesc<T> *block_desc,
 }
 
 /**
- * Mel filter bank for inner FFT
+ * @brief Mel filter bank for used when FFT / Mel coefficients are in the innermost dimension
  *
- * The algorithm processes the data in shared memory.
- * Shared memory layout:
+ * The algorithm:
+ * A block processes a range of windows. Each range is futher subdivided into segments
+ * that fit into shared memory.
+ * First, the range of input values is estimated and then it is flattened (as much as possible)
+ * and loaded into shared memory. When not all FFT coefficients the unused ones are skipped and
+ * the used ones are densely packed in shared memory.
+ * After the data has been loaded, it is flattened and each thread processes a single Mel bin,
+ * loading the data from shared memory. The result is accumulated in a register and stored
+ * directly to global memory.
  *
- * ```
- * input:
- * win[0]:  f0 f1 f2 ... fF <pad>
- * win[1]:  f0 f1 f2 ... fF <pad>
- * ...
- * win[H]:  f0 f1 f2 ... fF <pad>
- * output:
- * win[0]:  m0 m1 ... mM <pad>
- * win[1]:  m0 m1 ... mM <pad>
- * ...
- * win[H]:  m0 m1 ... mM <pad>
- * ```
- *
- * where:
- * F = max. number of frequencies; fixed to 48
- * M = number of Mel filters
- * H = height of shared memory block
- *
- * Each CUDA block processes H windows and all frequencies.
- * The value H is a power of two from 1 to 32, depending on the number of Mel filter banks.
- * The maximum number of Mel filters is around 10000 for fp32 and about half of that for fp64.
- * For common numbers of Mel filters (40-100), the H is at its maximum value (32).
- *
- * The kernel traverses the data vertically with stride H and processes blocks of windows.
- * Each block is subdivided into horizontal blocks of frequencies, which are loaded from
- * global to shared memory.
- * After a block is loaded, the thread indexing is tranposed and now each thread in a warp
- * processes a single frequency. There's a mapping from FFT bins to Mel bins, which determines
- * to which Mel bins given frequency will contribute. Because multiple frequencies can contribute
- * to one Mel bin, it's possible that multiple warps will try to accumulate the value to the
- * same Mel bin. To avoid race conditions, shared memory atomicAdd is used.
- *
- * The maximum number of frequencies is set to 48 to avoid a situation where we have, for example,
- * 257 FFT bins and the last horizontal block would be very thin. Now it's done so that if the
- * number of remaining FFT bins is <= 48, it's processed at once. Otherise, 32 bins are taken and
- * the reaminder is processed in the next iteration.
- *
+ * Because each block starts at the beginning of a window, we know that the offset from the
+ * beginning of the block is a multiple of a window size. This fact is utilized to allow
+ * the use of floating point multiplication instead of the expensive integer division.
+ * The necessary reciprocals are calculated on host.
  */
 namespace mel_inner_fft {
 
-static constexpr int kMaxInnerFftFreqs = 48;
-
 template <typename T>
-DALI_HOST_DEV
-constexpr int shm_in_size(int shm_height) {
-  const int alignment = 32 / sizeof(T);
-  const int sh_in_stride = kMaxInnerFftFreqs + 1;
-  return align_up(sh_in_stride * shm_height, alignment) * sizeof(T);
-}
-
-template <typename T>
-DALI_HOST_DEV
-constexpr int shm_out_stride(int mel) {
-  const int alignment = 32 / sizeof(T);
-  return align_up(mel, alignment) + 1;
-}
-
-template <typename T>
-DALI_HOST_DEV
-constexpr int shm_out_size(int shm_height, int mel) {
-  return shm_out_stride<T>(mel) * shm_height * sizeof(T);
-}
-
-/**
- * @brief Implements MelFilterbank with inner FFT
- *
- * @tparam shm_height the number of data rows stored in shared memory; must be 1, 2, 4, 8, 16 or 32
- * @tparam T the data type (float or double)
- */
-template <int shm_height, typename T>
 struct MelFilterBankInnerFft {
-  BlockDesc<T> block_desc;
+  BlockDescInner<T> block;
   const T *__restrict__ weights_down;
   const T *__restrict__ weights_up;
-  const int *__restrict__ bin_down;
-  int fft_lo, fft_hi;
-  int nmel, nfft;
-  char *shm;
-
-  static const int max_freqs = kMaxInnerFftFreqs;
-  static const int sh_in_stride = max_freqs + 1;
-  int sh_out_stride = 0;
-
-  __device__ T &shm_in(int window, int freq) const {
-    return reinterpret_cast<T*>(shm)[sh_in_stride * window + freq];
-  }
-
-  __device__ T &shm_out(int window, int mel) const {
-    const int shm_out_offset = shm_in_size<T>(shm_height);
-    return reinterpret_cast<T*>(shm + shm_out_offset)[window * sh_out_stride + mel];
-  }
+  const int *__restrict__ interval_ends;
+  int shm_height;  // number of input rows stored in shared memory
+  int fft_lo, fft_hi, fft_used, fft_total;
+  int nmel;
+  float rnfft_used;  // 1/fft_used, rounded up
+  float rnmel;       // 1/nmel, rounded up
+  T *shm;
 
   __device__ void Run() {
-    sh_out_stride = shm_out_stride<T>(nmel);
-
-    bool first = true;
-
-    for (int start_window = 0;
-         start_window < block_desc.frame_nwindows;
-         start_window += shm_height) {
-      if (first)
-        first = false;
-      else
+    for (int64_t w = block.start_window; w < block.end_window; w += shm_height) {
+      if (w != block.start_window)
         __syncthreads();
-
-      int fft_end;
-      // The inner loop accumulates Mel coefficients from FFT spectrum
-      ClearMel();
-      for (int fft_start = fft_lo; fft_start < fft_hi; fft_start = fft_end) {
-        // avoid last thin slice - use up to max_freqs witdth, if it fits
-        if (fft_hi - fft_start <= max_freqs)
-          fft_end = fft_hi;
-        else
-          fft_end = fft_start + 32;
-        // Load a block of FFT coefficients into shared memory
-        LoadFrequencyBlock(start_window, fft_start, fft_end);
-        __syncthreads();
-        // Go over FFT coefficients and accumulate Mel values in shared memory
-        ProcessFrequencyBlock(fft_start, fft_end);
-        __syncthreads();
-      }
-      // Store the final Mel values in global memory
-      StoreMel(start_window);
+      int64_t end_w = cuda_min(w + shm_height, block.end_window);
+      Load(w, end_w);
+      __syncthreads();
+      Process(w, end_w);
     }
   }
 
-  __device__ void LoadFrequencyBlock(int start_window, int fft_start, int fft_end) {
-    int bh = blockDim.y;
-    const T *in = block_desc.in_frame;
-    // block height might be smaller than shm_height, so we need to iterate
-    for (int y = threadIdx.y; y < shm_height; y += bh) {
-      int window = start_window + y;
-      if (window < block_desc.frame_nwindows) {
-        for (int x = threadIdx.x; x < fft_end - fft_start; x += 32)
-          shm_in(y, x) = in[window * nfft + x + fft_start];
-      } else {
-        for (int x = threadIdx.x; x < fft_end - fft_start; x += 32)
-          shm_in(y, x) = 0;
+  __device__ void Load(int begin_w, int end_w) {
+    assert(end_w - begin_w <= shm_height);
+    if (fft_used != fft_total) {
+      // If the number of used FFT coefficients is different than the total number of FFTs
+      // we reindex, to save bandwidth (and shared memory)
+      const T *in = block.in_frame;
+      for (int x = threadIdx.x; x < (end_w - begin_w) * fft_used; x += blockDim.x) {
+        // Compute the window within this sub-range.
+        //
+        // The reciprocal is rounded up, so we never end up with a number that's too small
+        // - this is helpful, because we can just round down the result.
+        int w = __float2int_rd(x * rnfft_used);
+        // Compute the fft bin (again, within this block) - only relevant frequencies count.
+        int f = x - w * fft_used;
+        // The actual FFT needs to be offset by fft_lo, to skip the unused frequencies
+        int fft = f + fft_lo;
+        int window = w + begin_w;
+        // Calculate the offset of the source value and load
+        int64_t offset = static_cast<int64_t>(window) * fft_total + fft;
+        shm[x] = in[offset];
+      }
+    } else {
+      // If we use all coefficients, we can just load the data linearly
+      // - no reindexing is necessary
+      const T *in = &block.in_frame[begin_w * fft_total];
+      for (int x = threadIdx.x; x < (end_w - begin_w) * fft_total; x += blockDim.x) {
+        shm[x] = in[x];
       }
     }
   }
 
-  __device__ void ClearMel() {
-    for (int y = threadIdx.y; y < shm_height; y += blockDim.y) {
-      for (int x = threadIdx.x; x < nmel; x += blockDim.x)
-        shm_out(y, x) = 0;
-    }
-  }
+  __device__ void Process(int begin_w, int end_w) {
+    T *out = &block.out_frame[begin_w * nmel];
+    // Linear loop over output values
+    for (int x = threadIdx.x; x < (end_w - begin_w) * nmel; x += blockDim.x) {
+      // Reconstitute window and mel bin
+      // Use the multiplication by reciprocal to speed up things.
+      int w = __float2int_rd(x * rnmel);
+      assert(w < shm_height);
+      int mel = x - w * nmel;
+      assert(mel >= 0 && mel < nmel);
+      int f0 = interval_ends[mel];
+      int f1 = interval_ends[mel + 1];
+      int f2 = interval_ends[mel + 2];
+      assert(f0 >= fft_lo && f0 <= fft_hi);
+      assert(f1 >= fft_lo && f1 <= fft_hi);
+      assert(f2 >= fft_lo && f2 <= fft_hi);
 
-  __device__ void ProcessFrequencyBlock(int fft_start, int fft_end) {
-    const int cols_per_warp = (32 / shm_height);
-    int bh = blockDim.y * cols_per_warp;
-    int wnd = threadIdx.x % shm_height;
-    for (int fft = fft_start + threadIdx.y * cols_per_warp + threadIdx.x / shm_height;
-         fft < fft_end;
-         fft += bh) {
-      int bin0 = bin_down[fft];
-      int bin1 = bin0 + 1;
-      T value = shm_in(wnd, fft - fft_start);
+      //  this pointer is out of range by -fft_lo, but the indices will compensate
+      T *shm_in = &shm[w * fft_used - fft_lo];
 
-      // bin0 is accumulated along the downward slope, bin1 along the upward slope.
-      // Because of that, the very first bin starts with invalid bin0 (-1), because we start
-      // with upward slope.
-      if (bin0 >= 0)
-        atomicAdd(&shm_out(wnd, bin0), value * weights_down[fft]);
-
-      // Analogously, the last value of bin1 is invalid (nmel), because we will accumulate with
-      // the downward slop only.
-      if (bin1 < nmel)
-        atomicAdd(&shm_out(wnd, bin1), value * weights_up[fft]);
-    }
-  }
-
-  __device__ void StoreMel(int start_window) {
-    int end_window = cuda_min<int>(start_window + shm_height, block_desc.frame_nwindows);
-    int n = (end_window - start_window) * nmel;
-    T *out = block_desc.out_frame;
-    // Use flattened indices to have contiguous stores - there can be very few Mel bins, so
-    // we can't affort to waste a significant part of warp's bandwidth.
-    for (int idx = blockDim.x * threadIdx.y + threadIdx.x;
-         idx < n;
-         idx += blockDim.x * blockDim.y) {
-      // idx is 32-bit, so div/mod isn't that bad - no need for fast_div
-      int w = idx / nmel;
-      int m = idx % nmel;
-      out[start_window * nmel + idx] = shm_out(w, m);
+      int f;
+      T result = 0;
+      for (f = f0; f < f1; f++) {
+        result = fma(weights_up[f], shm_in[f], result);
+      }
+      for (; f < f2; f++) {
+        result = fma(weights_down[f], shm_in[f], result);
+      }
+      out[x] = result;
     }
   }
 };
 
 }  // namespace mel_inner_fft
 
-template <int shm_height, typename T>
-__global__ void MelFilterBankKernelInnerFft(const BlockDesc<T> *block_descs,
+template <typename T>
+__global__ void MelFilterBankKernelInnerFft(const BlockDescInner<T> *block_descs,
                                             const T *__restrict__ weights_down,
                                             const T *__restrict__ weights_up,
-                                            const int *__restrict__ bin_down,
-                                            int fft_lo, int fft_hi,
-                                            int nmel, int nfft) {
+                                            const int *__restrict__ interval_ends,
+                                            int shm_height,
+                                            int fft_lo, int fft_hi, int fft_total, float rnfft_used,
+                                            int nmel, float rnmel) {
   extern __shared__ char shm_arena[];
-  mel_inner_fft::MelFilterBankInnerFft<shm_height, T> fb = {
+  mel_inner_fft::MelFilterBankInnerFft<T> fb = {
     block_descs[blockIdx.x],
     weights_down,
     weights_up,
-    bin_down,
-    fft_lo, fft_hi,
-    nmel, nfft,
-    shm_arena,
+    interval_ends,
+    shm_height,
+    fft_lo, fft_hi, fft_hi - fft_lo, fft_total,
+    nmel,
+    rnfft_used,
+    rnmel,
+    reinterpret_cast<T*>(shm_arena)
   };
   fb.Run();
 }
-
 
 template <typename T>
 class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
@@ -344,8 +280,6 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     weights_down_norm_.resize(fftbin_size_);
     weights_up_norm_.clear();
     weights_up_norm_.resize(fftbin_size_);
-    fft2mel_.clear();
-    fft2mel_.resize(fftbin_size_, -1);
 
     for (int f = fftbin_start_, interval = -1; f < fftbin_end_; f++) {
       while (interval + 2 < static_cast<int>(interval_ends_.size()) &&
@@ -354,8 +288,6 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       assert(interval >= -1 && interval <= args.nfilter);
       bool first = interval == -1;
       bool last = interval == args.nfilter;
-
-      fft2mel_[f] = interval;
 
       double w = weights_down_[f];
       if (args.normalize) {
@@ -370,8 +302,6 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
           weights_up_norm_[f] = (1 - w);
       }
     }
-    for (int f = fftbin_end_; f < fftbin_size_; f++)
-      fft2mel_[f] = args_.nfilter;
   }
 
   void Setup(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
@@ -382,17 +312,16 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     }
     nfft_ = in_shape.tensor_shape_span(0)[args_.axis];
     if (inner_fft_) {
-      se.add<mm::memory_kind::device, int>(fft2mel_.size());
+      SetupBlockDescsInnerFft(se, in_shape);
       se.add<mm::memory_kind::device, T>(weights_down_norm_.size());
       se.add<mm::memory_kind::device, T>(weights_up_norm_.size());
-
-      SetupBlockDescsInnerFft(se, in_shape);
+      se.add<mm::memory_kind::device, int>(interval_ends_.size());
     } else {
+      SetupBlockDescsOuterFft(se, in_shape);
       se.add<mm::memory_kind::device, int>(interval_ends_.size());
       se.add<mm::memory_kind::device, T>(weights_down_.size());
       if (args_.normalize)
         se.add<mm::memory_kind::device, T>(norm_factors_.size());
-      SetupBlockDescsOuterFft(se, in_shape);
     }
   }
 
@@ -401,34 +330,57 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     if (inner_fft_) {
       FillBlockDescsInnerFft(out_list, in_list);
 
-      BlockDesc<T> *block_descs = nullptr;
+      BlockDescInner<T> *block_descs = nullptr;
       T *weights_down = nullptr, *weights_up = nullptr;
-      int *fft2mel = nullptr;
-      std::tie(block_descs, weights_down, weights_up, fft2mel) =
-            scratchpad->ToContiguousGPU(stream, block_descs_,
+      int *interval_ends = nullptr;
+      std::tie(block_descs, weights_down, weights_up, interval_ends) =
+            scratchpad->ToContiguousGPU(stream, block_descs_inner_,
                                         weights_down_norm_, weights_up_norm_,
-                                        fft2mel_);
+                                        interval_ends_);
 
-      int blockHeight = std::min(8, shm_height_);
-      VALUE_SWITCH(shm_height_, ShmHeight, (1, 2, 4, 8, 16, 32), (
-          MelFilterBankKernelInnerFft<ShmHeight>
-              <<<block_descs_.size(), dim3(32, blockHeight), shm_size_, stream>>>
-                (block_descs, weights_down, weights_up, fft2mel,
-                fftbin_start_, fftbin_end_,
-                args_.nfilter, nfft_);
-        ), (DALI_FAIL(make_string("Unreachable code: invalid value of shm_height_: ", shm_height_)  // NOLINT
-      )));  // NOLINT
+      int max_block_size = shm_height_ * args_.nfilter;
+      int block_size = std::min(256, max_block_size);
+      if (max_block_size / block_size < 2)
+        block_size = align_up(max_block_size / 2, 32);
+
+      int fft_lo, fft_hi;
+      if (load_full_spectrum_) {
+        fft_lo = 0;
+        fft_hi = nfft_;
+      } else {
+        fft_lo = fftbin_start_;
+        fft_hi = fftbin_end_;
+      }
+
+      // reciprocal, rounded up
+      auto rcp_ru = [](float denom) {
+        assert(denom > 0);
+        float r = 1 / denom;
+        while (r * denom < 1)
+          r = std::nextafter(r, r + 1);
+        return r;
+      };
+
+      float rcp_fft_used = rcp_ru(fft_hi - fft_lo);
+      float rcp_mel = rcp_ru(args_.nfilter);
+
+      MelFilterBankKernelInnerFft
+        <<<block_descs_inner_.size(), dim3(block_size), shm_size_, stream>>>
+              (block_descs, weights_down, weights_up, interval_ends,
+              shm_height_,
+              fft_lo, fft_hi, nfft_, rcp_fft_used,
+              args_.nfilter, rcp_mel);
     } else {
       FillBlockDescsOuterFft(out_list, in_list);
-      BlockDesc<T> *block_descs = nullptr;
+      BlockDescOuter<T> *block_descs = nullptr;
       int *interval_ends = nullptr;
       T *weights_down = nullptr, *norm_factors = nullptr;
       std::tie(block_descs, interval_ends, weights_down, norm_factors) =
-            scratchpad->ToContiguousGPU(stream, block_descs_, interval_ends_,
+            scratchpad->ToContiguousGPU(stream, block_descs_outer_, interval_ends_,
                                         weights_down_, norm_factors_);
 
       dim3 block(kBlockDim2, std::min(args_.nfilter, kBlockDim2));
-      dim3 grid(block_descs_.size(), div_ceil(args_.nfilter, kBlockDim2));
+      dim3 grid(block_descs_outer_.size(), div_ceil(args_.nfilter, kBlockDim2));
       MelFilterBankKernel
         <<<grid, block, 0, stream>>>(block_descs, weights_down, interval_ends,
                                      args_.normalize, norm_factors, args_.nfilter);
@@ -442,7 +394,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   void SetupBlockDescsOuterFft(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
     nframes_.clear();
     nwindows_.clear();
-    block_descs_.clear();
+    block_descs_outer_.clear();
     auto batch_size = in_shape.num_samples();
     for (int64_t ti = 0; ti < batch_size; ++ti) {
       const auto &tshape = in_shape.tensor_shape(ti);
@@ -451,38 +403,54 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       for (int64_t s = 0; s < nframes_.back(); ++s) {
         auto nblocks = div_ceil(nwindows_.back(), kBlockDim2);
         for (int64_t b = 0; b < nblocks; ++b) {
-          block_descs_.emplace_back(0, 0, b * kBlockDim2, nwindows_.back());
+          block_descs_outer_.emplace_back(b * kBlockDim2, nwindows_.back());
         }
       }
     }
-    se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
+    se.add<mm::memory_kind::device, BlockDescOuter<T>>(block_descs_outer_.size());
   }
 
   void SetupBlockDescsInnerFft(ScratchpadEstimator &se, const TensorListShape<> &in_shape) {
     nframes_.clear();
     nwindows_.clear();
-    block_descs_.clear();
+    block_descs_inner_.clear();
     block2sample_.clear();
     auto batch_size = in_shape.num_samples();
 
-    int max_shm_size = GetSharedMemPerBlock();
-    for (shm_height_ = 32; ; shm_height_ >>= 1) {
-      int shm_in = mel_inner_fft::shm_in_size<T>(shm_height_);
-      int shm_out = mel_inner_fft::shm_out_size<T>(shm_height_, args_.nfilter);
-      shm_size_ = shm_in + shm_out;
-      if (shm_size_ <= max_shm_size)
-        break;
+    // Compute the shared memory size
+    if (max_shm_size_ < 0) {
+      cudaFuncAttributes attr = {};
+      CUDA_CALL(cudaFuncGetAttributes(&attr, &MelFilterBankKernelInnerFft<T>));
+      max_shm_size_ = attr.maxDynamicSharedSizeBytes;
     }
 
-    if (shm_height_ < 1)
-      throw std::out_of_range(make_string("Too many Mel filters ", args_.nfilter));
+    int fft_used = fftbin_end_ - fftbin_start_;
+    load_full_spectrum_ = (nfft_ - fft_used) * sizeof(T) < 32;
+    if (load_full_spectrum_)
+      fft_used = nfft_;
+    int max_height = max_shm_size_ / (sizeof(T) * fft_used);
 
+    // Avoid problems with the precision of fake division
+    max_height = std::min<int>(max_height, 1e+6 / fft_used);
+    if (max_height > 8)  // we'll have more active blocks
+      max_height = prev_pow2(max_height / 2);
+
+    shm_height_ = prev_pow2(max_height);
+
+    if (shm_height_ < 1) {
+      // This is a simplification - we only care about the FFTs actually used
+      // but the error message would be rather confusing.
+      throw std::out_of_range(make_string("Too large FFT: ", nfft_));
+    }
+
+    shm_size_ = shm_height_ * fft_used * sizeof(T);
 
     for (int64_t ti = 0; ti < batch_size; ++ti) {
       const auto &tshape = in_shape.tensor_shape(ti);
       auto nwindows = volume(tshape.begin(), tshape.begin() + args_.axis);
 
-      int windows_per_block = 512;  // TODO(michalz): some smarter way of determining this
+      int windows_per_block = std::min(512, prev_pow2((1<<20) / args_.nfilter));
+
       int nblocks = div_ceil(nwindows, windows_per_block);
 
       block2sample_.resize(block2sample_.size() + nblocks, ti);
@@ -492,10 +460,11 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
         int64_t count = std::min<int64_t>(nwindows - start, windows_per_block);
         assert(start >= 0 && start < nwindows);
         assert(count > 0 && count <= windows_per_block);
-        block_descs_.emplace_back(start * args_.nfilter, start * nfft_, 0, count);
+        assert(start + count <= nwindows);
+        block_descs_inner_.emplace_back(start, start + count);
       }
     }
-    se.add<mm::memory_kind::device, BlockDesc<T>>(block_descs_.size());
+    se.add<mm::memory_kind::device, BlockDescInner<T>>(block_descs_inner_.size());
   }
 
   void FillBlockDescsOuterFft(T *const *out_list, const T *const *in_list) {
@@ -506,8 +475,8 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       for (int64_t s = 0; s < nframes_[ti]; ++s) {
         auto nblocks = div_ceil(nwindows_[ti], kBlockDim2);
         for (int b = 0; b < nblocks; ++b) {
-          block_descs_[block_id].in_frame = in;
-          block_descs_[block_id].out_frame = out;
+          block_descs_outer_[block_id].in_frame = in;
+          block_descs_outer_[block_id].out_frame = out;
           ++block_id;
         }
         in += nwindows_[ti] * nfft_;
@@ -517,22 +486,23 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
   }
 
   void FillBlockDescsInnerFft(T *const *out_list, const T *const *in_list) {
-    for (size_t block_id = 0; block_id < block_descs_.size(); block_id++) {
+    for (size_t block_id = 0; block_id < block_descs_inner_.size(); block_id++) {
       int sample = block2sample_[block_id];
-      block_descs_[block_id].SetBasePointers(out_list[sample], in_list[sample]);
+      block_descs_inner_[block_id].SetBasePointers(out_list[sample], in_list[sample]);
     }
   }
 
   std::vector<int> interval_ends_;
-  std::vector<int> fft2mel_;
   std::vector<T> weights_down_norm_, weights_up_norm_;
   std::vector<int64_t> nframes_;
   std::vector<int64_t> nwindows_;
-  std::vector<BlockDesc<T>> block_descs_;
+  std::vector<BlockDescOuter<T>> block_descs_outer_;
+  std::vector<BlockDescInner<T>> block_descs_inner_;
   std::vector<int> block2sample_;
   int64_t nfft_ = 0;
-  int shm_height_ = 32;
-  int shm_size_ = 32 << 10;
+  int shm_height_ = -1;
+  int shm_size_ = -1, max_shm_size_ = -1;
+  bool load_full_spectrum_ = false;
   bool inner_fft_ = false;
   USE_MEL_FILTER_IMPL_MEMBERS(T);
 };
