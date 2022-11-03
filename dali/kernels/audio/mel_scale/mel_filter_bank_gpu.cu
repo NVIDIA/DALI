@@ -417,6 +417,17 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     block2sample_.clear();
     auto batch_size = in_shape.num_samples();
 
+    int total_windows = 0;
+    for (int64_t ti = 0; ti < batch_size; ++ti) {
+      const auto &tshape = in_shape.tensor_shape(ti);
+      int windows = volume(tshape.begin(), tshape.begin() + args_.axis);
+      total_windows += windows;
+    }
+
+    int max_windows_per_block = std::min(512, total_windows / (8 * GetSmCount()));
+    if (max_windows_per_block < 1)
+      max_windows_per_block = 1;
+
     // Compute the shared memory size
     if (max_shm_size_ < 0) {
       cudaFuncAttributes attr = {};
@@ -432,10 +443,17 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
 
     // Avoid problems with the precision of fake division
     max_height = std::min<int>(max_height, 1e+6 / fft_used);
-    if (max_height > 8)  // we'll have more active blocks
+
+    // try to get more active blocks
+    if (max_height > 16)
+      max_height = prev_pow2(max_height / 3);
+    else if (max_height > 8)
       max_height = prev_pow2(max_height / 2);
 
-    shm_height_ = prev_pow2(max_height);
+    if (max_height > max_windows_per_block)
+      max_height = max_windows_per_block;
+
+    shm_height_ = max_height;
 
     if (shm_height_ < 1) {
       // This is a simplification - we only care about the FFTs actually used
@@ -449,9 +467,11 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       const auto &tshape = in_shape.tensor_shape(ti);
       auto nwindows = volume(tshape.begin(), tshape.begin() + args_.axis);
 
-      int windows_per_block = std::min(512, prev_pow2((1<<20) / args_.nfilter));
+      int windows_per_block = std::min(max_windows_per_block, prev_pow2((1<<20) / args_.nfilter));
 
       int nblocks = div_ceil(nwindows, windows_per_block);
+
+      windows_per_block = div_ceil(nwindows, nblocks);
 
       block2sample_.resize(block2sample_.size() + nblocks, ti);
 

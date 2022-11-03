@@ -168,7 +168,7 @@ TEST_P(MelScaleGpuTest, MelScaleGpuTest) {
 }
 
 INSTANTIATE_TEST_SUITE_P(MelScaleGpuTest, MelScaleGpuTest, testing::Combine(
-    testing::Values(std::vector<TensorShape<>>{TensorShape<>{10, 4, 6, 65}},
+    testing::Values(std::vector<TensorShape<>>{TensorShape<>{100, 4, 6, 65}},
                     std::vector<TensorShape<>>{TensorShape<>{4, 5, 6, 17},
                                                TensorShape<>{4, 8, 6, 17}}),  // shape
     testing::Values(4, 8),  // nfilter
@@ -212,7 +212,7 @@ class MelScaleGpuBench : public BenchBase {
     int length_axis = 1 - axis_;
     for (int i = 0; i < batch_size_; i++) {
       auto sh = in_shape_.tensor_shape_span(i);
-      sh[axis_] = nfft_;
+      sh[axis_] = nfft_ / 2 + 1;
       sh[length_axis] = length_dist(rng);
       if (channels_ > 1)
         sh[2] = channels_;
@@ -232,7 +232,7 @@ class MelScaleGpuBench : public BenchBase {
   int batch_size_ = 16;
   int min_length_ = 1000;
   int max_length_ = 10000;
-  int nfft_ = 257;
+  int nfft_ = 512;
   int nfilter_ = 80;
   float sample_rate_ = 16000, freq_low_ = 0, freq_high_ = 8000;
   TensorListShape<> in_shape_, out_shape_;
@@ -298,14 +298,13 @@ TEST_P(MelScaleGpuBench, Benchmark) {
 INSTANTIATE_TEST_SUITE_P(MelScaleGpuBench, MelScaleGpuBench, testing::Combine(
     testing::Values(1, 0),        // axis
     testing::Values(1),           // channels
-    /*testing::Values(std::make_tuple(1, 10000, 10000),  // batch size, min_length, max_length
+    testing::Values(std::make_tuple(1, 10000, 10000),  // batch size, min_length, max_length
                     std::make_tuple(1, 10000, 100000),
                     std::make_tuple(16, 1000, 10000),
                     std::make_tuple(64, 2000, 4000),
                     std::make_tuple(128, 1000, 3000),
-                    std::make_tuple(512, 1000, 1500)),*/
-    testing::Values(std::make_tuple(512, 1601, 1601)),  // batch size, min_length, max_length
-    testing::Values(257, 513),    // nfft
+                    std::make_tuple(512, 1601, 1601)),
+    testing::Values(512, 1024),   // nfft
     testing::Values(80),          // nfilter
     testing::Values(16000.0f),    // sample rate
     testing::Values(0.0f),        // fmin
