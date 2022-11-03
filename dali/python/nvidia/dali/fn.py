@@ -44,7 +44,8 @@ def _to_snake_case(pascal):
             if nupper == 0:
                 out += c
             else:
-                if len(out) > 0:
+                # do not add another leading underscore
+                if len(out) > 0 and out[-1] != '_':
                     out += '_'
                 if nupper > 1:
                     out += pascal[start:i - 1].lower() + '_'
