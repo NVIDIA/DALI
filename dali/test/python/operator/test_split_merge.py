@@ -74,11 +74,17 @@ def check_conditional_split_merge(dev, pred_gen):
         data_false = [data[i] for i in range(bs) if not predicate[i]]
         pipe_sm.feed_input("input", data)
         pipe_sm.feed_input("predicate", predicate)
-        pipe_true.feed_input("input", data_true)
-        pipe_false.feed_input("input", data_false)
+        if data_true:
+            pipe_true.feed_input("input", data_true)
+            out_true, = pipe_true.run()
+        else:
+            out_true = []
+        if data_false:
+            pipe_false.feed_input("input", data_false)
+            out_false, = pipe_false.run()
+        else:
+            out_false = []
         out, = pipe_sm.run()
-        out_true, = pipe_true.run() if data_true else ([], )
-        out_false, = pipe_false.run() if data_false else ([], )
         out_baseline = []
         idx_true = 0
         idx_false = 0
