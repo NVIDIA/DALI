@@ -352,7 +352,8 @@ class DLL_PUBLIC OpGraph {
    * actually originates or passes through.
    *
    * It will be either the same node (if the operator produces/allocates this node), or a set of
-   * nodes that the memory was passed through.
+   * nodes that the memory was passed through - either a chain of such nodes, or a group when the
+   * tensor is merged or split from several batches.
    *
    * Valid only after the information about PassThrough is stable, that is if
    * SetupMakeContiguousPassThrough was called.
@@ -374,23 +375,29 @@ class DLL_PUBLIC OpGraph {
   bool IsAlwaysContiguous(TensorNodeId tensor_id) const;
 
   /**
-   * @brief Find the parent tensor id that was used to produce the `passed_through` tensor by
+   * @brief Find the parent tensor ids that were used to produce the `passed_through` tensor by
    * the op.
    * This is just one step up the graph.
    * @param op Id of op node possibly doing the pass through
    * @param passed_through Id of the tensor node - we search for its parents in pass-through
    * relation
-   * @return -1 is returned if no node can be found.
+   * @param strict_only If we should take into account only bijective pass through and not
+   * samplewise one.
+   * @return empty vector is returned if no node can be found, if strict_only is used, only one
+   * element can be returned
    */
-  TensorNodeId FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through) const;
+  std::vector<TensorNodeId> FollowPassThroughUp(OpNodeId op, TensorNodeId passed_through,
+                                                bool strict_only = true) const;
 
   /**
    * @brief Follow up the graph via the pass through relation of the target nodes
    *
+   * @param strict_only If we should take into account only bijective pass through and not
+   * samplewise one.
    * @param target_nodes group of nodes that we start from the search (upwards).
    */
   std::vector<TensorNodeId> GetPassThroughGroupImpl(
-      const std::vector<TensorNodeId>& target_nodes) const;
+      const std::vector<TensorNodeId>& target_nodes, bool strict_only = false) const;
 
   /**
    * @brief Recalculate OpNodes partitioning

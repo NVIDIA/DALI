@@ -107,7 +107,7 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
     """
     from nvidia.dali._utils import eager_utils
 
-    schema = _b.TryGetSchema(op_class.__name__)
+    schema = _b.TryGetSchema(op_class.schema_name)
     make_hidden = schema.IsDocHidden() if schema else False
     wrapper_name = _to_snake_case(op_class.__name__)
 

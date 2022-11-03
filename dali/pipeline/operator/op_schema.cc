@@ -408,7 +408,15 @@ OpSchema &OpSchema::PassThrough(const std::map<int, int> &inout) {
   DALI_ENFORCE(inout.size() == outputs.size(),
                "Pass through can be defined only as 1-1 mapping between inputs and outputs, "
                "without duplicates.");
+  DALI_ENFORCE(!HasSamplewisePassThrough(), "Two different modes of pass through can't be mixed.");
   passthrough_map_ = inout;
+  return *this;
+}
+
+
+OpSchema &OpSchema::SamplewisePassThrough() {
+  DALI_ENFORCE(!HasStrictPassThrough(), "Two different modes of pass through can't be mixed.");
+  samplewise_any_passthrough_ = true;
   return *this;
 }
 
@@ -598,15 +606,26 @@ bool OpSchema::IsSerializable() const {
 }
 
 
-int OpSchema::GetPassThroughOutputIdx(int input_idx) const {
+std::vector<int> OpSchema::GetPassThroughOutputIdx(int input_idx, const OpSpec &spec,
+                                                   bool strict) const {
+  if (samplewise_any_passthrough_) {
+    // We indicate that we may pass through to any output
+    int num_outputs = CalculateOutputs(spec) + CalculateAdditionalOutputs(spec);
+    std::vector<int> result(num_outputs, 0);
+    std::iota(result.begin(), result.end(), 0);
+    return result;
+  }
   auto it = passthrough_map_.find(input_idx);
   if (it == passthrough_map_.end())
-    return -1;
-  return it->second;
+    return {};
+  return {it->second};
 }
 
 
-bool OpSchema::IsPassThrough(int input_idx, int output_idx) const {
+bool OpSchema::IsPassThrough(int input_idx, int output_idx, bool strict) const {
+  if (!strict && HasSamplewisePassThrough()) {
+    return true;
+  }
   auto it = passthrough_map_.find(input_idx);
   if (it == passthrough_map_.end())
     return false;
@@ -615,7 +634,17 @@ bool OpSchema::IsPassThrough(int input_idx, int output_idx) const {
 
 
 bool OpSchema::HasPassThrough() const {
+  return HasStrictPassThrough() || HasSamplewisePassThrough();
+}
+
+
+bool OpSchema::HasStrictPassThrough() const {
   return !passthrough_map_.empty();
+}
+
+
+bool OpSchema::HasSamplewisePassThrough() const {
+  return samplewise_any_passthrough_;
 }
 
 

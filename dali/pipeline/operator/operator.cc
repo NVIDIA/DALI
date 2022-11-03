@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/pipeline/operator/builtin/split_merge.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
 void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
+  // Builtin operators have relaxed checks for the purpose of conditional execution
+  if (IsSplitOrMerge(spec_.GetSchema())) {
+    return;
+  }
   auto curr_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumInput(); i++) {
     DALI_ENFORCE(curr_batch_size == ws.GetInputBatchSize(i),
@@ -34,6 +39,10 @@ void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
 
 template <typename Backend>
 void OperatorBase::EnforceUniformOutputBatchSize(const Workspace &ws) const {
+  // Builtin operators have relaxed checks for the purpose of conditional execution
+  if (IsSplitOrMerge(spec_.GetSchema())) {
+    return;
+  }
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumOutput(); i++) {
     auto output_batch_size = ws.Output<Backend>(i).shape().num_samples();
