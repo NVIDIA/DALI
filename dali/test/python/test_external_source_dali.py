@@ -16,7 +16,6 @@ import random
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
-import nvidia.dali.tensors as tensors
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
