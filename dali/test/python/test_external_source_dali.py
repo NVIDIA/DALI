@@ -578,4 +578,3 @@ def test_empty_es():
         pipe = pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         pipe.build()
         pipe.run()
-
