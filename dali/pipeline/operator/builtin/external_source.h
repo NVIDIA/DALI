@@ -491,6 +491,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         make_string("Data list provided to ExternalSource needs to have batch_size <= ",
                     OperatorBase::max_batch_size_, ", found ", batch.num_samples(), " samples."));
 
+    DALI_ENFORCE(batch.num_samples() > 0,
+                 "ExternalSource expects non-empty batches to be provided as the input. Got batch "
+                 "with 0 samples.");
+
     DALI_ENFORCE(
         dtype_ == DALI_NO_TYPE || dtype_ == batch.type(),
         make_string("ExternalSource expected data of type ", TypeTable::GetTypeInfo(dtype_).name(),
