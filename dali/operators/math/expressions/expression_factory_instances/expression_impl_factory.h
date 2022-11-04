@@ -171,8 +171,8 @@ std::unique_ptr<ExprImplBase> ExprImplFactoryTernaryOp(const ExprFunc &expr) {
 #define IMPLEMENT_OP_FACTORY_GPU_BINARY(OP)                                                 \
   std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::OP, GPUBackend>,        \
                                           const ExprFunc &expr) {                           \
-    return ExprImplFactoryBinOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTT, ExprImplGpuTT, \
-                                ExprImplGpuTT>(expr);                                       \
+    return ExprImplFactoryBinOp<ArithmeticOp::OP, GPUBackend, ExprImplGpuTT, ExprImplGpuTC, \
+                                ExprImplGpuCT>(expr);                                       \
   }
 
 #define IMPLEMENT_OP_FACTORY_CPU_BINARY(OP)                                                 \

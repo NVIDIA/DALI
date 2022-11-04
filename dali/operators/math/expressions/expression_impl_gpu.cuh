@@ -48,17 +48,30 @@ struct SampleDescGPU {
   int ndim;
 };
 
+template <int NumArgs>
+bool CanUseFlatIdx(span<SampleDescGPU<NumArgs>> samples) {
+  for (int i = 0; i < samples.size(); i++) {
+    if (samples[i].ndim > 1)
+      return false;
+    for (int a = 0; a < NumArgs; a++) {
+      if (samples[i].args[a].strides[0] > 1)
+        return false;
+    }
+  }
+  return true;
+}
+
 inline dim3 GetGridLayout(int extent, int tiles) {
   return dim3(extent, tiles, 1);
 }
 
-template <typename Invoker, int NumArgs>
-void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
-                 span<const TileDesc> tiles) {
-  kernels::DynamicScratchpad s({}, ctx.stream);
-
+template <int NumArgs>
+span<SampleDescGPU<NumArgs>> SetupSamplesImpl(kernels::DynamicScratchpad &s,
+                                              ExprImplContext &ctx,
+                                              span<const SampleDesc> samples) {
   assert(samples.size() > 0);
   int ndim = samples[0].output.shape.sample_dim();
+
   assert(ndim < ARITHM_OPS_MAX_DIM);  // should be checked earlier
   for (int i = 0; i < samples.size(); i++) {
     assert(ndim == samples[i].output.shape.sample_dim());
@@ -69,7 +82,14 @@ void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
       make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<NumArgs>>(samples.size()),
                 samples.size());
   FillSampleDesc(samples_cpu, samples);
+  return samples_cpu;
+}
 
+template <typename Invoker, int NumArgs>
+void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
+                 span<const TileDesc> tiles) {
+  kernels::DynamicScratchpad s({}, ctx.stream);
+  auto samples_cpu = SetupSamplesImpl<NumArgs>(s, ctx, samples);
   SampleDescGPU<NumArgs>* samples_gpu;
   TileDesc *tiles_gpu;
   std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);

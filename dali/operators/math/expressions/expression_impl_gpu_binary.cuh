@@ -54,12 +54,43 @@ __global__ void ExecuteTiledBinOpND(const SampleDescGPU<2> *samples, const TileD
   }
 }
 
-template <ArithmeticOp op, typename Result, typename Left, typename Right>
+/**
+ * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
+ */
+template <ArithmeticOp op, typename Result, typename Left, typename Right,
+          bool IsLeftTensor = false, bool IsRightTensor = false>
+__global__ void ExecuteTiledBinOp1D(const SampleDescGPU<2> *samples, const TileDesc *tiles) {
+  using meta_t = arithm_meta<op, GPUBackend>;
+
+  const auto &tile = tiles[blockIdx.y];
+  const auto &sample = samples[tile.sample_idx];
+  auto output = static_cast<Result *>(sample.output.data);
+  auto left = static_cast<const Left *>(sample.args[0].data);
+  auto &left_strides = sample.args[0].strides;
+  auto right = static_cast<const Right *>(sample.args[1].data);
+  auto &right_strides = sample.args[1].strides;
+
+  int64_t block_start = tile.offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t block_end = tile.offset + tile.size;
+  int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
+
+  for (int64_t idx = block_start; idx < block_end; idx += block_step) {
+    output[idx] = meta_t::impl(left[IsLeftTensor ? idx : 0], right[IsRightTensor ? idx : 0]);
+  }
+}
+
+template <ArithmeticOp op, typename Result, typename Left, typename Right,
+          bool IsLeftTensor, bool IsRightTensor>
 struct InvokerBinOp {
   static void Invoke(const SampleDescGPU<2> *samples, const TileDesc *tiles, dim3 grid,
-                     dim3 block, cudaStream_t stream) {
-    ExecuteTiledBinOpND<op, Result, Left, Right>
+                     dim3 block, cudaStream_t stream, bool is_flat_idx) {
+    if (IsLeftTensor || IsRightTensor || is_flat_idx) {
+      ExecuteTiledBinOp1D<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
         <<<grid, block, 0, stream>>>(samples, tiles);
+    } else {
+      ExecuteTiledBinOpND<op, Result, Left, Right>
+        <<<grid, block, 0, stream>>>(samples, tiles);
+    }
   }
 };
 
@@ -68,12 +99,29 @@ class ExprImplGPUInvokeBinary : public ExprImplBase {
  public:
   void Execute(ExprImplContext &ctx, span<const SampleDesc> samples,
                span<const TileDesc> tiles) override {
-    ExecuteImpl<Invoker, 2>(ctx, samples, tiles);
+    kernels::DynamicScratchpad s({}, ctx.stream);
+    auto samples_cpu = SetupSamplesImpl<2>(s, ctx, samples);
+    bool can_use_flat_idx = CanUseFlatIdx(samples_cpu);
+
+    SampleDescGPU<2>* samples_gpu;
+    TileDesc *tiles_gpu;
+
+    std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);
+    auto grid = GetGridLayout(kBlocksX, tiles.size());
+    auto block = dim3(kThreadNum, 1, 1);
+
+    Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream, can_use_flat_idx);
   }
 };
 
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
-using ExprImplGpuTT = ExprImplGPUInvokeBinary<InvokerBinOp<op, Result, Left, Right>>;
+using ExprImplGpuTT = ExprImplGPUInvokeBinary<InvokerBinOp<op, Result, Left, Right, true, true>>;
+
+template <ArithmeticOp op, typename Result, typename Left, typename Right>
+using ExprImplGpuCT = ExprImplGPUInvokeBinary<InvokerBinOp<op, Result, Left, Right, false, true>>;
+
+template <ArithmeticOp op, typename Result, typename Left, typename Right>
+using ExprImplGpuTC = ExprImplGPUInvokeBinary<InvokerBinOp<op, Result, Left, Right, true, false>>;
 
 }  // namespace dali
 
