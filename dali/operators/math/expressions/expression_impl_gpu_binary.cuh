@@ -66,9 +66,7 @@ __global__ void ExecuteTiledBinOp1D(const SampleDescGPU<2> *samples, const TileD
   const auto &sample = samples[tile.sample_idx];
   auto output = static_cast<Result *>(sample.output.data);
   auto left = static_cast<const Left *>(sample.args[0].data);
-  auto &left_strides = sample.args[0].strides;
   auto right = static_cast<const Right *>(sample.args[1].data);
-  auto &right_strides = sample.args[1].strides;
 
   int64_t block_start = tile.offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   int64_t block_end = tile.offset + tile.size;
@@ -99,18 +97,7 @@ class ExprImplGPUInvokeBinary : public ExprImplBase {
  public:
   void Execute(ExprImplContext &ctx, span<const SampleDesc> samples,
                span<const TileDesc> tiles) override {
-    kernels::DynamicScratchpad s({}, ctx.stream);
-    auto samples_cpu = SetupSamplesImpl<2>(s, ctx, samples);
-    bool can_use_flat_idx = CanUseFlatIdx(samples_cpu);
-
-    SampleDescGPU<2>* samples_gpu;
-    TileDesc *tiles_gpu;
-
-    std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);
-    auto grid = GetGridLayout(kBlocksX, tiles.size());
-    auto block = dim3(kThreadNum, 1, 1);
-
-    Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream, can_use_flat_idx);
+    ExecuteImpl<Invoker, 2>(ctx, samples, tiles);
   }
 };
 

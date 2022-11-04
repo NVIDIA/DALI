@@ -55,12 +55,41 @@ __global__ void ExecuteTiledTernaryOpND(const SampleDescGPU<3> *samples, const T
   }
 }
 
-template <ArithmeticOp op, typename Result>
+template <ArithmeticOp op, typename Result,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+__global__ void ExecuteTiledTernaryOp1D(const SampleDescGPU<3> *samples, const TileDesc *tiles) {
+  using meta_t = arithm_meta<op, GPUBackend>;
+
+  const auto &tile = tiles[blockIdx.y];
+  const auto &sample = samples[tile.sample_idx];
+  auto output = static_cast<Result *>(sample.output.data);
+  auto &out_strides = sample.output.strides;
+  auto &arg0 = sample.args[0];
+  auto &arg1 = sample.args[1];
+  auto &arg2 = sample.args[2];
+  int64_t block_start = tile.offset + static_cast<int64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  int64_t block_step  = static_cast<int64_t>(blockDim.x) * gridDim.x;
+  int64_t block_end = tile.offset + tile.size;
+  for (int64_t idx = block_start; idx < block_end; idx += block_step) {
+    output[idx] = meta_t::impl(
+      expression_detail::Access<Result>(arg0.data, IsFirstTensor ? idx : 0, arg0.dtype),
+      expression_detail::Access<Result>(arg1.data, IsSecondTensor ? idx : 0, arg1.dtype),
+      expression_detail::Access<Result>(arg2.data, IsThirdTensor ? idx : 0, arg2.dtype));
+  }
+}
+
+template <ArithmeticOp op, typename Result,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
 struct InvokerTernaryOp {
   static void Invoke(const SampleDescGPU<3> *samples, const TileDesc *tiles, dim3 grid,
-                     dim3 block, cudaStream_t stream) {
-    ExecuteTiledTernaryOpND<op, Result>
-        <<<grid, block, 0, stream>>>(samples, tiles);
+                     dim3 block, cudaStream_t stream, bool is_flat_idx) {
+    if ((IsFirstTensor + IsSecondTensor + IsThirdTensor) >= 2 || is_flat_idx) {
+      ExecuteTiledTernaryOp1D<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>
+          <<<grid, block, 0, stream>>>(samples, tiles);
+    } else {
+      ExecuteTiledTernaryOpND<op, Result>
+          <<<grid, block, 0, stream>>>(samples, tiles);
+    }
   }
 };
 
@@ -73,9 +102,10 @@ class ExprImplGPUInvokeTernary : public ExprImplBase {
   }
 };
 
-template <ArithmeticOp op, typename Result, bool IsFirstTensor, bool IsSecondTensor,
-          bool IsThirdTensor>
-using ExprImplGpuTernary = ExprImplGPUInvokeTernary<InvokerTernaryOp<op, Result>>;
+template <ArithmeticOp op, typename Result,
+          bool IsFirstTensor, bool IsSecondTensor, bool IsThirdTensor>
+using ExprImplGpuTernary = ExprImplGPUInvokeTernary<
+    InvokerTernaryOp<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>>;
 
 }  // namespace dali
 

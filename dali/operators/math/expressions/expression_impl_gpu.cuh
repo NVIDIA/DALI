@@ -89,13 +89,28 @@ template <typename Invoker, int NumArgs>
 void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
                  span<const TileDesc> tiles) {
   kernels::DynamicScratchpad s({}, ctx.stream);
-  auto samples_cpu = SetupSamplesImpl<NumArgs>(s, ctx, samples);
+
+  assert(samples.size() > 0);
+  int ndim = samples[0].output.shape.sample_dim();
+
+  assert(ndim < ARITHM_OPS_MAX_DIM);  // should be checked earlier
+  for (int i = 0; i < samples.size(); i++) {
+    assert(ndim == samples[i].output.shape.sample_dim());
+    assert(NumArgs == samples[i].args.size());
+  }
+
+  auto samples_cpu =
+      make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<NumArgs>>(samples.size()),
+                samples.size());
+  FillSampleDesc(samples_cpu, samples);
+  bool can_use_flat_idx = CanUseFlatIdx(samples_cpu);
+
   SampleDescGPU<NumArgs>* samples_gpu;
   TileDesc *tiles_gpu;
   std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);
   auto grid = GetGridLayout(kBlocksX, tiles.size());
   auto block = dim3(kThreadNum, 1, 1);
-  Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream);
+  Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream, can_use_flat_idx);
 }
 
 template <int nargs>

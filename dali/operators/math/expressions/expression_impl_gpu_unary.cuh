@@ -52,7 +52,8 @@ __global__ void ExecuteTiledUnOp(const SampleDescGPU<1> *samples, const TileDesc
 template <ArithmeticOp op, typename Result, typename Input>
 struct InvokerUnOp {
   static void Invoke(const SampleDescGPU<1> *samples, const TileDesc *tiles, dim3 grid,
-                     dim3 block, cudaStream_t stream) {
+                     dim3 block, cudaStream_t stream, bool is_flat_idx) {
+    assert(is_flat_idx);  // should always be for unary ops
     ExecuteTiledUnOp<op, Result, Input><<<grid, block, 0, stream>>>(samples, tiles);
   }
 };
