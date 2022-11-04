@@ -23,8 +23,9 @@
 #include "include/dali/core/boundary.h"
 #include "include/dali/core/geom/box.h"
 
-namespace dali::kernels::remap {
-
+namespace dali {
+namespace kernels {
+namespace remap {
 
 /**
  * API for Remap operation. Remap applies a generic geometrical transformation to an image.
@@ -86,6 +87,8 @@ struct RemapKernel {
                    DALIInterpType interpolation = DALI_INTERP_LINEAR, Border border = {}) = 0;
 };
 
-}  // namespace dali::kernels::remap
+}  // namespace remap
+}  // namespace kernels
+}  // namespace dali
 
 #endif  // DALI_KERNELS_IMGPROC_GEOM_REMAP_H_
