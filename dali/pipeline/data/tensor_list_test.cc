@@ -1294,6 +1294,24 @@ TYPED_TEST(TensorListSuite, ContiguousResize) {
   EXPECT_THROW(tv.CopySample(2, tv, 1), std::runtime_error);
 }
 
+TYPED_TEST(TensorListSuite, IsContiguous) {
+  constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
+  const auto order = is_device ? AccessOrder(cuda_stream) : AccessOrder::host();
+  TensorList<TypeParam> tl;
+  tl.set_order(order);
+  tl.SetContiguity(BatchContiguity::Noncontiguous);
+  auto new_shape = TensorListShape<>{{1, 2, 3}};
+  tl.Resize(new_shape, DALI_FLOAT);
+  EXPECT_FALSE(tl.IsContiguous());
+
+  auto another_shape = TensorListShape<>{{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+
+  tl.Resize(another_shape, DALI_FLOAT);
+  EXPECT_FALSE(tl.IsContiguous());
+
+  tl.MakeContiguous();
+  EXPECT_TRUE(tl.IsContiguous());
+}
 
 TYPED_TEST(TensorListSuite, NoncontiguousResize) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;

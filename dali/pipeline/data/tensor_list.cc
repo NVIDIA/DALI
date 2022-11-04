@@ -791,11 +791,16 @@ void TensorList<Backend>::SetContiguity(BatchContiguity state) {
 
 
 template <typename Backend>
-void TensorList<Backend>::MakeContiguous(std::weak_ptr<void> owner) {
+void TensorList<Backend>::MakeContiguous(AccessOrder copy_order) {
   if (state_.IsContiguous()) {
     return;
   }
-  DALI_FAIL("Coalescing the buffer to Contiguous state is not yet implemented.");
+  auto contiguous_tmp = TensorList<Backend>(shape().num_samples());
+  contiguous_tmp.SetContiguity(BatchContiguity::Contiguous);
+  contiguous_tmp.SetupLike(*this);
+  contiguous_tmp.Copy(*this, order());
+  copy_order.wait(order());
+  *this = std::move(contiguous_tmp);
 }
 
 
@@ -1014,6 +1019,7 @@ Tensor<Backend> TensorList<Backend>::AsTensor() {
                  "To convert empty batch to a Tensor, valid dimensionality must be set");
     return AsReshapedTensor(TensorShape<>::empty_shape(sample_dim()));
   }
+  MakeContiguous();
   return AsReshapedTensor(shape_cat(shape().num_samples(), shape()[0]));
 }
 

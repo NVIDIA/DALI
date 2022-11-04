@@ -290,6 +290,7 @@ class DLL_PUBLIC TensorList {
    * @param sample_idx index of sample to be set
    * @param src sample owner
    * @param src_sample_idx index of source sample in owner.
+   * @param order AccessOrder used to perform the copy operation
    */
   DLL_PUBLIC void CopySample(int sample_idx, const TensorList<Backend> &src, int src_sample_idx,
                              AccessOrder order = {});
@@ -439,9 +440,10 @@ class DLL_PUBLIC TensorList {
 
   /**
    * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.
-   * TODO(klecki): NOT YET IMPLEMENTED.
+   *
+   * @param copy_order AccessOrder used to perform the copy operation
    */
-  void MakeContiguous(std::weak_ptr<void> owner = {});
+  void MakeContiguous(AccessOrder copy_order = {});
 
   /**
    * @brief Transform from contiguous allocation to individual samples without adjusting

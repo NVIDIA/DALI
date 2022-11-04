@@ -341,7 +341,7 @@ auto FromPythonTrampoline(const char *python_module, const char *attr_name) {
  * associated access order with the provided stream; otherwise, the function will wait until the
  * copy completes.
  *
- * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList, TensorList)
+ * @tparam SourceObject  a data store on GPUBackend (Tensor, TensorList)
  * @param src             Source batch
  * @param dst_ptr         Destination pointer, wrapped in a C void_ptr Python type
  * @param cuda_stream     CUDA stream, wrapped in a C void_ptr type
@@ -722,23 +722,17 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     throw std::runtime_error("Cannot create TensorList from an empty list.");
   }
 
-  auto contiguous_out = std::make_shared<TensorList<Backend>>();
-  contiguous_out->SetContiguity(BatchContiguity::Contiguous);
-  TensorList<Backend> non_contiguous_tmp(list_of_tensors.size());
+  auto out_tl = std::make_shared<TensorList<Backend>>(list_of_tensors.size());
   int expected_type = -2;
-
-  AccessOrder wait_order = AccessOrder::host();
-  AccessOrder copy_order = AccessOrder::host();
 
   for (size_t i = 0; i < list_of_tensors.size(); ++i) {
     try {
       auto &t = list_of_tensors[i].cast<Tensor<Backend> &>();
       if (i == 0) {
-        non_contiguous_tmp.SetupLike(t);
+        out_tl->SetupLike(t);
         if (std::is_same<Backend, GPUBackend>::value) {
            // it is safe due to above if
            Tensor<GPUBackend> *t_gpu = reinterpret_cast<Tensor<GPUBackend>*>(&t);
-           copy_order = AccessOrder(UserStream::Get()->GetStream(*t_gpu));
         }
       }
       DALIDataType cur_type = t.type();
@@ -750,7 +744,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
             "Tensors cannot have different data types. Tensor at position ", i, " has type '",
             cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
-      non_contiguous_tmp.SetSample(i, t);
+      out_tl->SetSample(i, t);
     } catch (const py::type_error &) {
       throw;
     } catch (const std::runtime_error &) {
@@ -759,12 +753,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(py::list &list_
     }
   }
 
-  contiguous_out->set_pinned(non_contiguous_tmp.is_pinned());
-  contiguous_out->Copy(non_contiguous_tmp, copy_order);
-  contiguous_out->SetLayout(layout);
-  copy_order.wait(wait_order);
-
-  return contiguous_out;
+  return out_tl;
 }
 
 #if 0  // TODO(spanev): figure out which return_value_policy to choose
@@ -887,7 +876,7 @@ void ExposeTensorList(py::module &m) {
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
         t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
-                     bytes, false, i_shape, type.id(), device_id);
+                     bytes, is_pinned, i_shape, type.id(), device_id);
         t->SetLayout(layout);
         return t;
       }),
@@ -916,7 +905,8 @@ void ExposeTensorList(py::module &m) {
             Python list of TensorCPU objects
       layout : str
             Layout of the data
-      )code")
+      )code",
+      py::keep_alive<0, 1>())
     .def("_as_gpu", [](TensorList<CPUBackend> &t) {
           auto ret = std::make_shared<TensorList<GPUBackend>>();
           int dev = -1;
@@ -996,6 +986,7 @@ void ExposeTensorList(py::module &m) {
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),
                         "Tensors in the list must have the same shape");
+            tl.MakeContiguous();
             raw_mutable_data = unsafe_raw_mutable_data(tl);
           }
 
@@ -1060,13 +1051,14 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("as_reshaped_tensor",
         [](TensorList<CPUBackend> &tl, const vector<Index> &new_shape) {
+          tl.MakeContiguous();
           return tl.AsReshapedTensor(new_shape);
         },
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is contiguous in memory and
-      the volumes of requested `Tensor` and `TensorList` matches.
+      This function can only be called if `TensorList` the volumes of requested `Tensor` and
+      `TensorList` matches. The call makes the TensorList continuous.
       )code")
     .def("as_tensor", &TensorList<CPUBackend>::AsTensor,
       R"code(
@@ -1076,6 +1068,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("data_ptr",
         [](TensorList<CPUBackend> &tl) {
+          tl.MakeContiguous();
           return py::reinterpret_borrow<py::object>(
               PyLong_FromVoidPtr(unsafe_raw_mutable_data(tl)));
         },
@@ -1143,7 +1136,8 @@ void ExposeTensorList(py::module &m) {
             Python list of TensorGPU objects
       layout : str
             Layout of the data
-      )code")
+      )code",
+      py::keep_alive<0, 1>())
     .def(py::init([](const py::object object, string layout = "", int device_id = -1) {
           auto t = std::make_shared<TensorList<GPUBackend>>();
           FillTensorFromCudaArray(object, t.get(), device_id, layout);
@@ -1169,15 +1163,15 @@ void ExposeTensorList(py::module &m) {
       R"code(
       List of tensors residing in the GPU memory.
       )code")
-    .def("as_cpu", [](TensorList<GPUBackend> &t) {
+    .def("as_cpu", [](TensorList<GPUBackend> &tl) {
           auto ret = std::make_shared<TensorList<CPUBackend>>();
           ret->set_pinned(false);
           ret->SetContiguity(BatchContiguity::Contiguous);
           UserStream * us = UserStream::Get();
-          cudaStream_t s = us->GetStream(t);
-          DeviceGuard g(t.device_id());
-          ret->Copy(t, s);
-          us->Wait(t);
+          cudaStream_t s = us->GetStream(tl);
+          DeviceGuard g(tl.device_id());
+          ret->Copy(tl, s);
+          us->Wait(tl);
           return ret;
         },
       R"code(
@@ -1188,8 +1182,8 @@ void ExposeTensorList(py::module &m) {
       R"code(
       Shape of the tensor list.
       )code")
-    .def("__len__", [](TensorList<GPUBackend> &t) {
-          return t.num_samples();
+    .def("__len__", [](TensorList<GPUBackend> &tl) {
+          return tl.num_samples();
         })
     .def("is_dense_tensor", &TensorList<GPUBackend>::IsDenseTensor,
       R"code(
@@ -1201,9 +1195,19 @@ void ExposeTensorList(py::module &m) {
       may be viewed as a tensor of shape `(N, H, W, C)`.
       )code")
     .def("copy_to_external",
-        [](TensorList<GPUBackend> &t, py::object p, py::object cuda_stream,
+        [](TensorList<GPUBackend> &tl, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
-          CopyToExternalImplGPU(t, p, cuda_stream, non_blocking, use_copy_kernel);
+          CUDAStreamLease lease;
+          AccessOrder copy_order;
+          int device = tl.device_id();
+          if (!cuda_stream.is_none()) {
+            cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+            copy_order = AccessOrder(stream, device);
+          } else {
+            lease = CUDAStreamPool::instance().Get(device);
+            copy_order = AccessOrder(lease, device);
+          }
+          CopyToExternalImplGPU(tl, p, cuda_stream, non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
@@ -1259,13 +1263,14 @@ void ExposeTensorList(py::module &m) {
     })
     .def("as_reshaped_tensor",
         [](TensorList<GPUBackend> &tl, const vector<Index> &new_shape) {
+          tl.MakeContiguous(UserStream::Get()->GetStream(tl));
           return tl.AsReshapedTensor(new_shape);
         },
       R"code(
       Returns a tensor that is a view of this `TensorList` cast to the given shape.
 
-      This function can only be called if `TensorList` is contiguous in memory and
-      the volumes of requested `Tensor` and `TensorList` matches.
+      This function can only be called if `TensorList` the volumes of requested `Tensor` and
+      `TensorList` matches. The call makes the TensorList continuous.
       )code")
     .def("as_tensor", &TensorList<GPUBackend>::AsTensor,
       R"code(
@@ -1275,6 +1280,7 @@ void ExposeTensorList(py::module &m) {
       )code")
     .def("data_ptr",
         [](TensorList<GPUBackend> &tl) {
+          tl.MakeContiguous(UserStream::Get()->GetStream(tl));
           return py::reinterpret_borrow<py::object>(
               PyLong_FromVoidPtr(unsafe_raw_mutable_data(tl)));
         },
