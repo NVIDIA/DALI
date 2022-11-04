@@ -40,12 +40,6 @@ struct InputROI {
   ivec<axes> begin, end;
 };
 
-struct InputROIDesc {
-  int h_begin, h_end, wc_begin, wc_end;
-  int h, wc;
-  int64_t hwc;
-};
-
 struct ShapeDesc {
   int64_t hwc;
   int wc, f, h, w, c;
@@ -66,49 +60,33 @@ struct SampleDesc {
   const In* __restrict__ in;
   const W* __restrict__ filter;
   ShapeDesc shape;
-  InputROIDesc roi;
 };
 
-// /** @defgroup ConvolutionROI Internal representation of input ROI for cuda kernel.
-//  * @{
-//  */
+// Internal representation of input ROI for cuda kernel.
+struct InputROIDesc {
+  int h_begin, h_end, wc_begin, wc_end;
+  int h, wc;
+  int64_t hwc;
 
-// struct InputROIDesc {
-//   int h_begin, h_end, wc_begin, wc_end;
-//   int h, wc;
-//   int64_t hwc;
-// };
+  template <int axes>
+  DALI_HOST_DEV DALI_FORCEINLINE static InputROIDesc create(const ShapeDesc& sample_desc,
+                                                            InputROI<axes> roi) {
+    roi.begin[axes - 1] *= sample_desc.c;
+    roi.end[axes - 1] *= sample_desc.c;
+    auto size = roi.end - roi.begin;
+    return {roi.begin[0], roi.end[0], roi.begin[1],     roi.end[1],
+            size[0],      size[1],    size[0] * size[1]};
+  }
 
-// /**
-//  * @brief Creates ROI description for input and output of the same shape.
-//  */
-// struct ROIFull {
-//   DALI_DEVICE DALI_FORCEINLINE ROI operator()(const ShapeDesc& shape_desc) {
-//     return {0, shape_desc.h, 0, shape_desc.wc, shape_desc.h, shape_desc.wc, shape_desc.hwc};
-//   }
-// };
+  DALI_HOST_DEV DALI_FORCEINLINE static InputROIDesc full(const ShapeDesc& sample_desc) {
+    return {0, sample_desc.h, 0, sample_desc.wc, sample_desc.h, sample_desc.wc, sample_desc.hwc};
+  }
+};
 
-// /**
-//  * @brief Creates (maximal) ROI shrunk so that all filter positions lie fully within the image.
-//  */
-// struct ROIOnlyValid {
-//   DALI_DEVICE DALI_FORCEINLINE ROI operator()(const ShapeDesc& shape_desc) {
-//     int h_begin = -shape_desc.filter_top_anchor;
-//     int h_end = shape_desc.h - (shape_desc.r - 1 + shape_desc.filter_top_anchor);
-//     int wc_begin = (-shape_desc.filter_left_anchor) * shape_desc.c;
-//     int wc_end = shape_desc.wc - (shape_desc.s - 1 + shape_desc.filter_left_anchor) * shape_desc.c;
-//     int h = h_end - h_begin;
-//     int wc = wc_end - wc_begin;
-//     return {h_begin, h_end, wc_begin, wc_end, h, wc, h * wc};
-//   }
-// };
-
-// /** @} */  // end of ConvolutionROI
-
-// /** @defgroup InputLoader InputLoader is meant to specialize loading of the sample from global
-//  * memory. This is how different border modes (apart from BORDER_VALID) are handled.
-//  * @{
-//  */
+/** @defgroup InputLoader InputLoader is meant to specialize loading of the sample from global
+ * memory. This is how different border modes (apart from BORDER_VALID) are handled.
+ * @{
+ */
 
 template <bool degenerated_extents>
 struct Reflect101 {
@@ -346,9 +324,9 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
 }
 
 template <typename SampleDescT, typename Conv>
-DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc, const Conv& conv) {
+DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc,
+                                              const InputROIDesc& roi, const Conv& conv) {
   constexpr int lanes = SampleDescT::lanes;
-  const auto& roi = sample_desc.roi;
   const auto* in = sample_desc.in;
   auto* out = sample_desc.out;
   for (int f = 0; f < sample_desc.shape.f; f++, in += sample_desc.shape.hwc, out += roi.hwc) {
@@ -365,19 +343,22 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc, co
 }
 
 template <typename SampleDescT, typename InLoaderFactory>
-__global__ void filter2d(const SampleDescT* __restrict__ descs, InLoaderFactory in_loader_factory) {
+__global__ void filter2d(const SampleDescT* __restrict__ descs,
+                         const InputROI<2>* __restrict__ rois, InLoaderFactory in_loader_factory) {
   using In = typename SampleDescT::In;
   using InLoader = typename InLoaderFactory::T;
   extern __shared__ char shm[];
   auto sample_desc = descs[blockIdx.z];
   auto&& in_loader = in_loader_factory(blockIdx.z);
+  auto roi = rois == nullptr ? InputROIDesc::full(sample_desc.shape) :
+                               InputROIDesc::create(sample_desc.shape, rois[blockIdx.z]);
   if (sample_desc.shape.in_workspace_width) {
     In* in_workspace = reinterpret_cast<In*>(shm);
     ShmInputConv<SampleDescT, InLoader> conv{sample_desc, in_loader, in_workspace};
-    stride_grid(sample_desc, conv);
+    stride_grid(sample_desc, roi, conv);
   } else {
     DirectInputConv<SampleDescT, InLoader> conv{sample_desc, in_loader};
-    stride_grid(sample_desc, conv);
+    stride_grid(sample_desc, roi, conv);
   }
 }
 }  // namespace filter
@@ -427,29 +408,41 @@ struct Filter2dGpu {
 
     int shared_mem_limit = GetSharedMemPerBlock();
     int max_total_workspace = 0;
-    int max_width = 0, max_height = 0;
     bool any_has_degenerated_extents = false;
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto& in_shape = in_shapes[sample_idx];
       const auto& out_shape = out_shapes[sample_idx];
+      const auto& in_shape = in_shapes[sample_idx];
       const auto& filter_shape = filter_shapes[sample_idx];
       int required_workspace;
       bool has_degenerated_extents;
       auto shape_desc =
           SetupSampleShapeDesc(required_workspace, has_degenerated_extents, sample_idx, in_shape,
                                filter_shape, anchors[sample_idx], shared_mem_limit);
-      auto roi_desc = input_rois.size() ?
-                          SetupROI(out_shape, in_shape, shape_desc, input_rois[sample_idx]) :
-                          SetupROI(out_shape, shape_desc);
       any_has_degenerated_extents |= has_degenerated_extents;
       max_total_workspace = std::max(max_total_workspace, required_workspace);
-      max_height = std::max(max_height, roi_desc.h);
-      max_width = std::max(max_width, roi_desc.wc);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
-                               filters.tensor_data(sample_idx), shape_desc, roi_desc});
+                               filters.tensor_data(sample_idx), shape_desc});
+    }
+    const filter::InputROI<axes>* input_rois_dev = nullptr;
+    if (input_rois.size()) {
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        const auto& out_shape = out_shapes[sample_idx];
+        const auto& in_shape = in_shapes[sample_idx];
+        ValidateROI(out_shape, in_shape, samples_desc_[sample_idx].shape, input_rois[sample_idx]);
+      }
+      std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, input_rois);
     }
     SampleDescT* descs_dev;
     std::tie(descs_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
+    int max_width = 0, max_height = 0;
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      const auto& out_shape = out_shapes[sample_idx];
+      int h = out_shape[num_sequence_dim];
+      int w = out_shape[num_sequence_dim + 1];
+      int c = has_channel_dim ? out_shape[num_sequence_dim + 2] : 1;
+      max_height = std::max(max_height, h);
+      max_width = std::max(max_width, w * c);
+    }
     int num_blocks_h = div_ceil(max_height, lanes);
     int num_blocks_w = div_ceil(max_width, block_width);
     num_blocks_h = std::min(num_blocks_h, max_grid_height);
@@ -458,7 +451,8 @@ struct Filter2dGpu {
     dim3 block(block_width, 1, 1);
     RunKernelWithBorderMode(
         ctx, border_type, fill_values, any_has_degenerated_extents, [&](auto&& loader) {
-          filter::filter2d<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(descs_dev, loader);
+          filter::filter2d<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(
+              descs_dev, input_rois_dev, loader);
           CUDA_CALL(cudaGetLastError());
         });
   }
@@ -575,14 +569,8 @@ struct Filter2dGpu {
   }
 
   template <typename OutShape>
-  filter::InputROIDesc SetupROI(const OutShape& out_shape, const filter::ShapeDesc& shape_desc) {
-    return {0, shape_desc.h, 0, shape_desc.wc, shape_desc.h, shape_desc.wc, shape_desc.hwc};
-  }
-
-  template <typename OutShape>
-  filter::InputROIDesc SetupROI(const OutShape& out_shape, const OutShape& in_shape,
-                                const filter::ShapeDesc& shape_desc,
-                                const filter::InputROI<axes>& roi) {
+  void ValidateROI(const OutShape& out_shape, const OutShape& in_shape,
+                   const filter::ShapeDesc& shape_desc, const filter::InputROI<axes>& roi) {
     auto roi_size = roi.end - roi.begin;
     ivec2 out_size{out_shape[num_sequence_dim], out_shape[num_sequence_dim + 1]};
     ivec2 in_size{in_shape[num_sequence_dim], in_shape[num_sequence_dim + 1]};
@@ -593,11 +581,6 @@ struct Filter2dGpu {
         all_coords(0 <= roi.begin) && all_coords(roi.end <= in_size),
         make_string("ROI must lie within the input sample. Got roi that starts at: ", roi.begin,
                     " and ends at ", roi.end, " for a sample of shape ", in_size, "."));
-    int h = roi_size[0];
-    int wc_begin = roi.begin[1] * shape_desc.c;
-    int wc_end = roi.end[1] * shape_desc.c;
-    int wc = wc_end - wc_begin;
-    return {roi.begin[0], roi.end[0], wc_begin, wc_end, h, wc, static_cast<int64_t>(h) * wc};
   }
 
   void ValidateSampleNumericLimits(int sample_idx, int64_t r, int64_t s, int64_t filter_vol,
