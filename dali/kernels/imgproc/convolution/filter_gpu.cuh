@@ -67,20 +67,29 @@ struct InputROIDesc {
   int h_begin, h_end, wc_begin, wc_end;
   int h, wc;
   int64_t hwc;
+};
 
-  template <int axes>
-  DALI_HOST_DEV DALI_FORCEINLINE static InputROIDesc create(const ShapeDesc& sample_desc,
-                                                            InputROI<axes> roi) {
-    roi.begin[axes - 1] *= sample_desc.c;
-    roi.end[axes - 1] *= sample_desc.c;
+struct InputRoiFull {
+  DALI_DEVICE DALI_FORCEINLINE InputROIDesc operator()(const ShapeDesc& shape_desc,
+                                                       int sample_idx) {
+    (void)sample_idx;
+    return {0, shape_desc.h, 0, shape_desc.wc, shape_desc.h, shape_desc.wc, shape_desc.hwc};
+  }
+};
+
+template <int axes>
+struct CustomInputROI {
+  DALI_DEVICE DALI_FORCEINLINE InputROIDesc operator()(const ShapeDesc& shape_desc,
+                                                       int sample_idx) {
+    auto roi = rois[sample_idx];
+    roi.begin[axes - 1] *= shape_desc.c;
+    roi.end[axes - 1] *= shape_desc.c;
     auto size = roi.end - roi.begin;
     return {roi.begin[0], roi.end[0], roi.begin[1],     roi.end[1],
             size[0],      size[1],    size[0] * size[1]};
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE static InputROIDesc full(const ShapeDesc& sample_desc) {
-    return {0, sample_desc.h, 0, sample_desc.wc, sample_desc.h, sample_desc.wc, sample_desc.hwc};
-  }
+  const InputROI<axes>* rois;
 };
 
 /** @defgroup InputLoader InputLoader is meant to specialize loading of the sample from global
@@ -342,16 +351,15 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc,
   }
 }
 
-template <typename SampleDescT, typename InLoaderFactory>
-__global__ void filter2d(const SampleDescT* __restrict__ descs,
-                         const InputROI<2>* __restrict__ rois, InLoaderFactory in_loader_factory) {
+template <typename SampleDescT, typename InputROIFactory, typename InLoaderFactory>
+__global__ void filter2d(const SampleDescT* __restrict__ descs, InputROIFactory in_roi_factory,
+                         InLoaderFactory in_loader_factory) {
   using In = typename SampleDescT::In;
   using InLoader = typename InLoaderFactory::T;
   extern __shared__ char shm[];
   auto sample_desc = descs[blockIdx.z];
+  auto&& roi = in_roi_factory(sample_desc.shape, blockIdx.z);
   auto&& in_loader = in_loader_factory(blockIdx.z);
-  auto roi = rois == nullptr ? InputROIDesc::full(sample_desc.shape) :
-                               InputROIDesc::create(sample_desc.shape, rois[blockIdx.z]);
   if (sample_desc.shape.in_workspace_width) {
     In* in_workspace = reinterpret_cast<In*>(shm);
     ShmInputConv<SampleDescT, InLoader> conv{sample_desc, in_loader, in_workspace};
@@ -390,9 +398,9 @@ struct Filter2dGpu {
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
-           const TensorListView<StorageGPU, const W, axes>& filters,
-           const span<const ivec<axes>> anchors, boundary::BoundaryType border_type,
-           const span<const filter::InputROI<axes>> input_rois = {},
+           const TensorListView<StorageGPU, const W, filter_ndim>& filters,
+           const span<const ivec<filter_ndim>> anchors, boundary::BoundaryType border_type,
+           const span<const filter::InputROI<filter_ndim>> input_rois = {},
            const TensorListView<StorageGPU, const In, 0>& fill_values = {}) {
     auto num_samples = in.shape.num_samples();
     assert(out.num_samples() == num_samples && filters.num_samples() == num_samples &&
@@ -410,7 +418,6 @@ struct Filter2dGpu {
     int max_total_workspace = 0;
     bool any_has_degenerated_extents = false;
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto& out_shape = out_shapes[sample_idx];
       const auto& in_shape = in_shapes[sample_idx];
       const auto& filter_shape = filter_shapes[sample_idx];
       int required_workspace;
@@ -422,15 +429,6 @@ struct Filter2dGpu {
       max_total_workspace = std::max(max_total_workspace, required_workspace);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
                                filters.tensor_data(sample_idx), shape_desc});
-    }
-    const filter::InputROI<axes>* input_rois_dev = nullptr;
-    if (input_rois.size()) {
-      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-        const auto& out_shape = out_shapes[sample_idx];
-        const auto& in_shape = in_shapes[sample_idx];
-        ValidateROI(out_shape, in_shape, samples_desc_[sample_idx].shape, input_rois[sample_idx]);
-      }
-      std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, input_rois);
     }
     SampleDescT* descs_dev;
     std::tie(descs_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
@@ -449,15 +447,41 @@ struct Filter2dGpu {
     num_blocks_w = std::min(num_blocks_w, max_grid_width);
     dim3 grid(num_blocks_w, num_blocks_h, num_samples);
     dim3 block(block_width, 1, 1);
-    RunKernelWithBorderMode(
-        ctx, border_type, fill_values, any_has_degenerated_extents, [&](auto&& loader) {
-          filter::filter2d<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(
-              descs_dev, input_rois_dev, loader);
-          CUDA_CALL(cudaGetLastError());
-        });
+    RunKernel(ctx, out_shapes, in_shapes, input_rois, border_type, fill_values,
+              any_has_degenerated_extents, [&](auto&& roi, auto&& loader) {
+                filter::filter2d<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(descs_dev,
+                                                                                       roi, loader);
+                CUDA_CALL(cudaGetLastError());
+              });
   }
 
  protected:
+  template <typename InShapes, typename OutShapes, typename KernelLauncher>
+  void RunKernel(KernelContext& ctx, const OutShapes& out_shapes, const InShapes& in_shapes,
+                 const span<const filter::InputROI<filter_ndim>> input_rois,
+                 boundary::BoundaryType border_type,
+                 const TensorListView<StorageGPU, const In, 0>& fill_values,
+                 bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
+    if (input_rois.size() == 0) {
+      filter::InputRoiFull roi_handler{};
+      RunKernelWithBorderMode(
+          ctx, border_type, fill_values, has_degenerated_extents,
+          [&](auto&& loader) { launch_kernel(std::move(roi_handler), std::move(loader)); });
+    } else {
+      for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
+        const auto& out_shape = out_shapes[sample_idx];
+        const auto& in_shape = in_shapes[sample_idx];
+        ValidateROI(out_shape, in_shape, samples_desc_[sample_idx].shape, input_rois[sample_idx]);
+      }
+      filter::InputROI<filter_ndim>* input_rois_dev;
+      std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, input_rois);
+      filter::CustomInputROI<filter_ndim> roi_handler{input_rois_dev};
+      RunKernelWithBorderMode(
+          ctx, border_type, fill_values, has_degenerated_extents,
+          [&](auto&& loader) { launch_kernel(std::move(roi_handler), std::move(loader)); });
+    }
+  }
+
   template <typename KernelLauncher>
   void RunKernelWithBorderMode(KernelContext& ctx, boundary::BoundaryType border_type,
                                const TensorListView<StorageGPU, const In, 0>& fill_values,
@@ -528,8 +552,8 @@ struct Filter2dGpu {
   template <typename InShape, typename FilterShape>
   filter::ShapeDesc SetupSampleShapeDesc(int& required_workspace, bool& has_degenerated_extents,
                                          int sample_idx, const InShape& in_shape,
-                                         const FilterShape& filter_shape, const ivec<axes>& anchor,
-                                         int shared_mem_limit) {
+                                         const FilterShape& filter_shape,
+                                         const ivec<filter_ndim>& anchor, int shared_mem_limit) {
     auto filter_vol = volume(filter_shape);
     auto r = filter_shape[0];
     auto s = filter_shape[1];
@@ -570,7 +594,7 @@ struct Filter2dGpu {
 
   template <typename OutShape>
   void ValidateROI(const OutShape& out_shape, const OutShape& in_shape,
-                   const filter::ShapeDesc& shape_desc, const filter::InputROI<axes>& roi) {
+                   const filter::ShapeDesc& shape_desc, const filter::InputROI<filter_ndim>& roi) {
     auto roi_size = roi.end - roi.begin;
     ivec2 out_size{out_shape[num_sequence_dim], out_shape[num_sequence_dim + 1]};
     ivec2 in_size{in_shape[num_sequence_dim], in_shape[num_sequence_dim + 1]};
