@@ -53,7 +53,7 @@ template <typename T>
 struct BlockDescInner {
   BlockDescInner() = default;
 
-  BlockDescInner(int64_t start_window, int64_t end_window) {
+  BlockDescInner(int start_window, int end_window) {
     this->out_frame  = nullptr;
     this->in_frame   = nullptr;
 
@@ -69,8 +69,8 @@ struct BlockDescInner {
   T        *out_frame;
   const T  *in_frame;
 
-  int64_t start_window;
-  int64_t end_window;
+  int start_window;
+  int end_window;
 };
 
 template <typename T>
@@ -146,7 +146,7 @@ __global__ void MelFilterBankKernel(const BlockDescOuter<T> *block_desc,
  */
 namespace mel_inner_fft {
 
-template <typename T>
+template <bool use_full_spectrum, typename T>
 struct MelFilterBankInnerFft {
   BlockDescInner<T> block;
   const T *__restrict__ weights_down;
@@ -160,10 +160,10 @@ struct MelFilterBankInnerFft {
   T *shm;
 
   __device__ void Run() {
-    for (int64_t w = block.start_window; w < block.end_window; w += shm_height) {
+    for (int w = block.start_window; w < block.end_window; w += shm_height) {
       if (w != block.start_window)
         __syncthreads();
-      int64_t end_w = cuda_min(w + shm_height, block.end_window);
+      int end_w = cuda_min(w + shm_height, block.end_window);
       Load(w, end_w);
       __syncthreads();
       Process(w, end_w);
@@ -172,7 +172,7 @@ struct MelFilterBankInnerFft {
 
   __device__ void Load(int begin_w, int end_w) {
     assert(end_w - begin_w <= shm_height);
-    if (fft_used != fft_total) {
+    if (!use_full_spectrum) {
       // If the number of used FFT coefficients is different than the total number of FFTs
       // we reindex, to save bandwidth (and shared memory)
       const T *in = block.in_frame;
@@ -194,7 +194,7 @@ struct MelFilterBankInnerFft {
     } else {
       // If we use all coefficients, we can just load the data linearly
       // - no reindexing is necessary
-      const T *in = &block.in_frame[begin_w * fft_total];
+      const T *in = &block.in_frame[static_cast<int64_t>(begin_w) * fft_total];
       for (int x = threadIdx.x; x < (end_w - begin_w) * fft_total; x += blockDim.x) {
         shm[x] = in[x];
       }
@@ -236,7 +236,7 @@ struct MelFilterBankInnerFft {
 
 }  // namespace mel_inner_fft
 
-template <typename T>
+template <bool use_full_spectrum, typename T>
 __global__ void MelFilterBankKernelInnerFft(const BlockDescInner<T> *block_descs,
                                             const T *__restrict__ weights_down,
                                             const T *__restrict__ weights_up,
@@ -245,7 +245,7 @@ __global__ void MelFilterBankKernelInnerFft(const BlockDescInner<T> *block_descs
                                             int fft_lo, int fft_hi, int fft_total, float rnfft_used,
                                             int nmel, float rnmel) {
   extern __shared__ char shm_arena[];
-  mel_inner_fft::MelFilterBankInnerFft<T> fb = {
+  mel_inner_fft::MelFilterBankInnerFft<use_full_spectrum, T> fb = {
     block_descs[blockIdx.x],
     weights_down,
     weights_up,
@@ -339,7 +339,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
                                         interval_ends_);
 
       int max_block_size = shm_height_ * args_.nfilter;
-      int block_size = std::min(256, max_block_size);
+      int block_size = std::min(128, max_block_size);
       if (max_block_size / block_size < 2)
         block_size = align_up(max_block_size / 2, 32);
 
@@ -364,12 +364,13 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       float rcp_fft_used = rcp_ru(fft_hi - fft_lo);
       float rcp_mel = rcp_ru(args_.nfilter);
 
-      MelFilterBankKernelInnerFft
-        <<<block_descs_inner_.size(), dim3(block_size), shm_size_, stream>>>
-              (block_descs, weights_down, weights_up, interval_ends,
-              shm_height_,
-              fft_lo, fft_hi, nfft_, rcp_fft_used,
-              args_.nfilter, rcp_mel);
+      BOOL_SWITCH(load_full_spectrum_, UseFullSpectrum, (
+        MelFilterBankKernelInnerFft<UseFullSpectrum>
+          <<<block_descs_inner_.size(), dim3(block_size), shm_size_, stream>>>
+                (block_descs, weights_down, weights_up, interval_ends,
+                shm_height_,
+                fft_lo, fft_hi, nfft_, rcp_fft_used,
+                args_.nfilter, rcp_mel)));
     } else {
       FillBlockDescsOuterFft(out_list, in_list);
       BlockDescOuter<T> *block_descs = nullptr;
@@ -431,7 +432,7 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
     // Compute the shared memory size
     if (max_shm_size_ < 0) {
       cudaFuncAttributes attr = {};
-      CUDA_CALL(cudaFuncGetAttributes(&attr, &MelFilterBankKernelInnerFft<T>));
+      CUDA_CALL(cudaFuncGetAttributes(&attr, &MelFilterBankKernelInnerFft<false, T>));
       max_shm_size_ = attr.maxDynamicSharedSizeBytes;
     }
 
