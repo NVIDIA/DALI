@@ -24,7 +24,9 @@
 #include "include/dali/core/backend_tags.h"
 #include "include/dali/core/tensor_view.h"
 
-namespace dali::kernels::remap {
+namespace dali {
+namespace kernels {
+namespace remap {
 
 namespace detail {
 
@@ -225,6 +227,8 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
   NppStreamContext npp_ctx_{};
 };
 
-}  // namespace dali::kernels::remap
+}  // namespace remap
+}  // namespace kernels
+}  // namespace dali
 
 #endif  // DALI_KERNELS_IMGPROC_GEOM_REMAP_NPP_H_

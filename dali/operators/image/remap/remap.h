@@ -29,7 +29,8 @@
 #include "include/dali/core/static_switch.h"
 
 
-namespace dali::remap {
+namespace dali {
+namespace remap {
 
 #define REMAP_SUPPORTED_TYPES (uint8_t, int16_t, uint16_t, float)
 
@@ -88,7 +89,7 @@ class Remap : public SequenceOperator<Backend> {
   }
 };
 
-}  // namespace dali::remap
-
+}  // namespace remap
+}  // namespace dali
 
 #endif  // DALI_OPERATORS_IMAGE_REMAP_REMAP_H_

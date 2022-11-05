@@ -18,7 +18,10 @@
 #include <vector>
 #include "dali/test/tensor_test_utils.h"
 
-namespace dali::remap::test {
+namespace dali {
+namespace remap {
+namespace test {
+
 using namespace dali::remap::detail;  // NOLINT
 using namespace std;  // NOLINT
 
@@ -70,4 +73,6 @@ TYPED_TEST(RemapTest, ShiftPixelOriginTest) {
   }
 }
 
-}  // namespace dali::remap::test
+}  // namespace test
+}  // namespace remap
+}  // namespace dali

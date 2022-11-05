@@ -15,7 +15,8 @@
 #include "dali/operators/image/remap/remap.h"
 #include "dali/operators/image/remap/remap.cuh"
 
-namespace dali::remap {
+namespace dali {
+namespace remap {
 
 class RemapGpu : public Remap<GPUBackend> {
   using B = GPUBackend;
@@ -65,4 +66,5 @@ class RemapGpu : public Remap<GPUBackend> {
 
 DALI_REGISTER_OPERATOR(experimental__Remap, RemapGpu, GPU);
 
-}  // namespace dali::remap
+}  // namespace remap
+}  // namespace dali

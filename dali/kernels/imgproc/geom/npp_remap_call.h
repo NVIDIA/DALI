@@ -17,7 +17,10 @@
 
 #include "dali/npp/npp.h"
 
-namespace dali::kernels::remap::detail {
+namespace dali {
+namespace kernels {
+namespace remap {
+namespace detail {
 
 /*
  * Faking type specializations for NPP C-API.
@@ -144,6 +147,9 @@ npp_remap_call<1>(const double *pSrc, NppiSize oSrcSize, int nSrcStep, NppiRect 
                                nppStreamCtx);
 }
 
-}  // namespace dali::kernels::remap::detail
+}  // namespace detail
+}  // namespace remap
+}  // namespace kernels
+}  // namespace dali
 
 #endif  // DALI_KERNELS_IMGPROC_GEOM_NPP_REMAP_CALL_H_
