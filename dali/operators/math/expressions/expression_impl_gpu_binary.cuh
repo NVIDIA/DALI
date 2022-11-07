@@ -82,7 +82,7 @@ template <ArithmeticOp op, typename Result, typename Left, typename Right,
 struct InvokerBinOp {
   static void Invoke(const SampleDescGPU<2> *samples, const TileDesc *tiles, dim3 grid,
                      dim3 block, cudaStream_t stream, bool is_flat_idx) {
-    if (IsLeftTensor || IsRightTensor || is_flat_idx) {
+    if (!IsLeftTensor || !IsRightTensor || is_flat_idx) {
       ExecuteTiledBinOp1D<op, Result, Left, Right, IsLeftTensor, IsRightTensor>
         <<<grid, block, 0, stream>>>(samples, tiles);
     } else {

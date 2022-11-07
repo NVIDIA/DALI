@@ -83,7 +83,7 @@ template <ArithmeticOp op, typename Result,
 struct InvokerTernaryOp {
   static void Invoke(const SampleDescGPU<3> *samples, const TileDesc *tiles, dim3 grid,
                      dim3 block, cudaStream_t stream, bool is_flat_idx) {
-    if ((IsFirstTensor + IsSecondTensor + IsThirdTensor) >= 2 || is_flat_idx) {
+    if ((!IsFirstTensor + !IsSecondTensor + !IsThirdTensor) >= 2 || is_flat_idx) {
       ExecuteTiledTernaryOp1D<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>
           <<<grid, block, 0, stream>>>(samples, tiles);
     } else {
