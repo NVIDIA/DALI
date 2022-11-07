@@ -48,7 +48,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.template Input<GPUBackend>(0);
     auto &output = ws.template Output<GPUBackend>(0);
-    auto total_chunks_num = params_.GetTotalChunksNum();
+    auto total_chunks_num = params_.GetTotalChunkNum();
     output.SetLayout(params_.GetOutputLayout());
     SetupInChunks(input);
     SetupOutChunks(output);
@@ -57,11 +57,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     kernels::DynamicScratchpad scratchpad({}, stream);
     size_t *actual_out_sizes = scratchpad.AllocateGPU<size_t>(total_chunks_num);
 
-    size_t *in_sizes;
-    void const **in;
-    size_t *out_sizes;
-    void **out;
-    std::tie(in_sizes, in, out_sizes, out) = scratchpad.ToContiguousGPU(
+    auto [in_sizes, in, out_sizes, out] = scratchpad.ToContiguousGPU(
         stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
 
     size_t tempSize;
@@ -86,7 +82,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     auto in_view = view<const uint8_t>(input);
     auto batch_size = in_view.shape.num_samples();
     const auto &num_chunks_per_sample = params_.GetChunksNumPerSample();
-    auto total_chunks_num = params_.GetTotalChunksNum();
+    auto total_chunks_num = params_.GetTotalChunkNum();
     const auto &offsets = params_.GetInChunkOffsets();
     input_ptrs_.clear();
     input_ptrs_.reserve(total_chunks_num);
@@ -110,17 +106,18 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
                   output.type(), "`.")));
   }
 
-  template <int sequence_dim, typename Out, typename TL>
+  template <bool has_chunks, typename Out, typename TL>
   void SetupOutChunksTyped(TL &output) {
     auto out_view = view<Out>(output);
     auto batch_size = out_view.shape.num_samples();
-    auto total_chunks_num = params_.GetTotalChunksNum();
+    auto total_chunks_num = params_.GetTotalChunkNum();
     inflated_ptrs_.clear();
     inflated_ptrs_.reserve(total_chunks_num);
     inflated_sizes_.clear();
     inflated_sizes_.reserve(total_chunks_num);
     for (int64_t sample_idx = 0; sample_idx < batch_size; sample_idx++) {
-      auto sample_range = sequence_utils::unfolded_view_range<sequence_dim>(out_view[sample_idx]);
+      const int dims_to_unfold = has_chunks ? 1 : 0;
+      auto sample_range = sequence_utils::unfolded_view_range<dims_to_unfold>(out_view[sample_idx]);
       auto chunk_size = sample_range.SliceSize() * sizeof(Out);
       for (auto &&chunk : sample_range) {
         inflated_sizes_.push_back(chunk_size);

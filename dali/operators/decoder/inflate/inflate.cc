@@ -46,40 +46,41 @@ concatenating compressed frames from the corresponding sequences.::
         chunks_sizes=compressed_chunks_sizes,  # refers to sizes in ``compressed_seq``
         shape=uncompressed_hwc_shape,
         layout="HWC",
-        sequence_extent="F")
+        sequence_axis_name="F")
     return sequences
 
 )code")
     .NumInput(1)
     .NumOutput(1)
     .AddArg(inflate::shapeArgName, "The shape of the output (inflated) chunk.", DALI_INT_VEC, true)
-    .AddOptionalTypeArg(inflate::dTypeArgName, "The output (inflated) data type.", DALI_NO_TYPE)
-    .AddOptionalArg(inflate::offsetArgName, R"code("A list of offsets within the input sample
+    .AddOptionalTypeArg(inflate::dTypeArgName, "The output (inflated) data type.", DALI_UINT8)
+    .AddOptionalArg<std::vector<int>>(inflate::offsetArgName,
+                                      R"code("A list of offsets within the input sample
 describing where the consecutive chunks begin.
 
 If the ``chunks_sizes`` is not specified, it is assumed that the chunks are densely packed
 in the input tensor and the last chunk ends with the sample's end.)code",
-                    std::vector<int>{}, true)
-    .AddOptionalArg(inflate::sizeArgName,
-                    R"code("A list of sizes of corresponding input chunks.
+                                      nullptr, true)
+    .AddOptionalArg<std::vector<int>>(inflate::sizeArgName,
+                                      R"code("A list of sizes of corresponding input chunks.
 
 If the ``chunks_offsets`` is not specified, it is assumed that the chunks are densely packed
 in the input tensor and the first chunk starts at the beginning of the sample.)code",
-                    std::vector<int>{}, true)
+                                      nullptr, true)
     .AddOptionalArg(inflate::algArgName, R"code(Algorithm to be used to decode the data.
 
 Currently only ``LZ4`` is supported.)code",
                     "LZ4")
-    .AddOptionalArg(inflate::layoutArgName, R"code(Layout of the output (inflated) chunk.
+    .AddOptionalArg(inflate::layoutArgName,
+                    R"code(Layout of the output (inflated) chunk.
 
-If the samples consist of multiple chunks, additionally, the ``sequence_extent`` extent
+If the samples consist of multiple chunks, additionally, the ``sequence_axis_name`` extent
 will be added to the beginning of the specified layout.)code",
                     TensorLayout(""))
-    .AddOptionalArg(inflate::sequenceLayoutArgName, R"code(The name for the sequence extent.
+    .AddOptionalArg(inflate::sequenceLayoutArgName, R"code(The name for the sequence axis.
 
-If the samples consist of multiple chunks, the extra sequence extent will be added as the leftmost
-extent to the output tensor. By default it is assumed to be video frames,
-hence the default ``F`` extent.
+If the samples consist of multiple chunks, an extra outer dimension will be added to
+the output tensor. By default, it is assumed to be video frames, hence the default label 'F'
 
 The value is ignored if the ``layout`` is not specified or the input is not a sequence
 ( neither ``chunks_offsets`` nor ``chunks_sizes`` is specified).

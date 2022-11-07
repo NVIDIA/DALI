@@ -33,8 +33,7 @@ template <typename Backend>
 class InflateOpImplBase : public OpImplBase<Backend> {
  public:
   explicit InflateOpImplBase(const OpSpec &spec) : params_{spec} {
-    auto dtype = spec.GetArgument<DALIDataType>(inflate::dTypeArgName);
-    dtype_ = dtype == DALI_NO_TYPE ? DALI_UINT8 : dtype;
+    dtype_ = spec.GetArgument<DALIDataType>(inflate::dTypeArgName);
     DALI_ENFORCE(
         IsFloatingPoint(dtype_) || IsIntegral(dtype_),
         make_string("The inflate output type must have floating point or integral type, got `",
@@ -45,7 +44,7 @@ class InflateOpImplBase : public OpImplBase<Backend> {
     auto input_type = ws.GetInputDataType(0);
     auto input_shape = ws.GetInputShape(0);
     DALI_ENFORCE(
-        input_type == type2id<uint8_t>::value,
+        input_type == DALI_UINT8,
         make_string("Input must be a buffer with compressed data/data chunks represented as a 1D "
                     "tensor of bytes (uint8). Got tensor of type `",
                     input_type, "` instead."));
