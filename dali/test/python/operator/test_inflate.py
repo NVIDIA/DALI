@@ -16,7 +16,7 @@ import numpy as np
 import lz4.block
 
 from nvidia.dali import pipeline_def, fn, types
-from test_utils import np_type_to_dali, has_operator
+from test_utils import np_type_to_dali, has_operator, restrict_platform
 from nose_utils import assert_raises
 
 
@@ -94,6 +94,7 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
 
 
 @has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
 def test_sample_inflate():
     seed = 42
     for batch_size in [1, 8, 64, 256, 348]:
@@ -131,6 +132,7 @@ def _test_scalar_shape(dtype, shape, layout):
 
 
 @has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
 def test_scalar_shape():
     largest_prime_smaller_than_2_to_16 = 65521
     prime_larger_than_2_to_16 = 262147
@@ -221,6 +223,7 @@ def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute, oversized
 
 
 @has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
 def test_chunks():
     seed = 42
     batch_sizes = [1, 9, 31]
@@ -243,6 +246,7 @@ def _test_validation(pipeline, error_glob, kwargs=None):
 
 
 @has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
 def test_validation():
 
     @pipeline_def

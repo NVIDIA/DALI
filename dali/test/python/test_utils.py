@@ -26,6 +26,19 @@ import sys
 import tempfile
 
 
+def get_arch(device_id=0):
+    compute_cap = 0
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+        compute_cap = compute_cap[0] + compute_cap[1] / 10.
+    except ModuleNotFoundError:
+        print("NVML not found")
+    return compute_cap
+
+
 def get_dali_extra_path():
     try:
         dali_extra_path = os.environ['DALI_EXTRA_PATH']
@@ -687,4 +700,26 @@ def has_operator(operator):
             return dummy_case
         else:
             return fun
+    return decorator
+
+
+def restrict_platform(min_compute_cap=None, platforms=None):
+    spec = []
+    if min_compute_cap is not None:
+        compute_cap = get_arch()
+        cond = f"compute cap ({compute_cap}) >= {min_compute_cap}"
+        spec.append((cond, compute_cap >= min_compute_cap))
+    if platforms is not None:
+        import platform
+        cond = f"platform.machine() ({platform.machine()}) in {platforms}"
+        spec.append((cond, platform.machine() in platforms))
+
+    def decorator(fun):
+        if all(val for _, val in spec):
+            return fun
+        else:
+            @functools.wraps(fun)
+            def dummy_case(*args, **kwargs):
+                print(f"Omitting test case in unsupported env: `{spec}`")
+            return dummy_case
     return decorator
