@@ -20,16 +20,13 @@
 #include "dali/core/util.h"
 
 namespace dali {
+namespace one_hot {
 
-namespace detail {
-
-namespace {
 struct SampleDesc {
   uint64_t inner_vol, output_vol, inner_vol_classes;
   void *out = nullptr;
   const void *in = nullptr;
 };
-}  // namespace
 
 template <typename OutputType, typename InputType>
 __global__ void PopulateOneHot(OutputType on_value, OutputType off_value,
@@ -55,8 +52,7 @@ dim3 gridHelper(uint64_t output_vol, int batch_size, int block = 256,
   return dim3(block_size, batch_size);
 }
 
-}  // namespace detail
-
+}  // namespace one_hot
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_GENERIC_ONE_HOT_CUH_
