@@ -197,7 +197,9 @@ class NppRemapTest : public ::testing::Test {
    */
   template<bool unified>
   void DoTest() {
-    Kernel kernel;
+    int device_id = -1;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    Kernel kernel(device_id);
     invoke_kernel<unified>(kernel);
     CUDA_CALL(cudaStreamSynchronize(this->ctx_.gpu.stream));
 

@@ -61,8 +61,8 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
   static_assert(contains_v<T, SupportedInputTypes>, "Unsupported input type.");
 
 
-  NppRemapKernel() {
-    CUDA_CALL(cudaGetDevice(&npp_ctx_.nCudaDeviceId));
+  explicit NppRemapKernel(int device_id) {
+    npp_ctx_.nCudaDeviceId = device_id;
     CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx_.nCudaDevAttrComputeCapabilityMajor,
                                      cudaDevAttrComputeCapabilityMajor, npp_ctx_.nCudaDeviceId));
     CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx_.nCudaDevAttrComputeCapabilityMinor,
