@@ -128,9 +128,9 @@ class RemapTest(unittest.TestCase):
         nvtx.range_push("Benchmark against OpenCV")
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
         dpipe = remap_pipe('dali', maps, self.img_size, exec_async=False, exec_pipelined=False,
-                           **self.common_dali_pipe_params,prefetch_queue_depth=1)
+                           **self.common_dali_pipe_params, prefetch_queue_depth=1)
         cpipe = remap_pipe('cv', maps, self.img_size, exec_async=False, exec_pipelined=False,
-                           **self.common_dali_pipe_params,prefetch_queue_depth=1)
+                           **self.common_dali_pipe_params, prefetch_queue_depth=1)
         dpipe.build()
         cpipe.build()
         dtime = self._measure_time(dpipe.run)
@@ -142,7 +142,8 @@ class RemapTest(unittest.TestCase):
     def test_benchmark_remap_isolated(self, map_mode):
         nvtx.range_push("Benchmark isolated")
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
-        dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params, prefetch_queue_depth=1)
+        dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params,
+                           prefetch_queue_depth=1)
         dpipe.build()
         avg_time = self._measure_time(dpipe.run)
         nvtx.range_pop()
