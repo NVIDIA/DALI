@@ -369,8 +369,7 @@ def test_validation():
         "The inflate output type must have floating point or integral type"
     yield _test_validation, pipeline_input_float, "Got tensor of type `float` instead"
     yield _test_validation, pipeline_input_scalar, "Got input with 0 dimensions instead"
-    yield _test_validation, pipeline_input_algorithm, \
-        "Unknown inflate algorithm was specified for `algorithm` argument"
+    yield _test_validation, pipeline_input_algorithm, "Unknown inflate algorithm"
     yield _test_validation, pipeline_too_big_chunk, "Input chunk size cannot exceed the sample size"
     yield _test_validation, pipeline_too_big_chunks, \
         "The sum of chunk sizes for sample of idx 0 exceeds the total size of the sample."

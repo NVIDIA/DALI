@@ -55,8 +55,7 @@ inline InflateAlg parse_inflate_alg(std::string str) {
   if (str == "lz4") {
     return InflateAlg::LZ4;
   }
-  DALI_FAIL(make_string("Unknown inflate algorithm was specified for `", algArgName,
-                        "` argument: `", str, "`."));
+  DALI_FAIL(make_string("Unknown inflate algorithm \"", str, "\"."));
 }
 
 template <typename Backend>
