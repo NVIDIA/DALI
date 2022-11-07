@@ -132,8 +132,6 @@ endif()
 # nvcomp
 ##################################################################
 if(BUILD_NVCOMP)
-  message(WARNING "Building DALI with nvCOMP. Note nvCOMP IS NOT an open source software. "
-          "See more at https://developer.nvidia.com/nvcomp")
   find_library(
     nvcomp_LIBS
     NAMES nvcomp
