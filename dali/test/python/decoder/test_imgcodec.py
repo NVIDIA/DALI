@@ -58,7 +58,7 @@ test_data_root = get_dali_extra_path()
 good_path = 'db/single'
 missnamed_path = 'db/single/missnamed'
 test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k', 'webp'}
-test_missnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
+test_misnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
 
 def run_decode(data_path, batch, device, threads):
@@ -66,26 +66,22 @@ def run_decode(data_path, batch, device, threads):
                         device=device, prefetch_queue_depth=1)
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
-    for _ in range(iters):
+    for iter in range(iters):
+        print("Iteration", iter + 1, "/", iters)
         pipe.run()
 
 
 def test_image_decoder():
-    def log(img_type, size, device, threads):
-        pass
-
     for device in {'cpu', 'mixed'}:
         for batch_size in {1, 10}:
             for img_type in test_good_path:
                 for threads in {1, random.choice([2, 3, 4])}:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    run_decode(data_path, batch_size, device, threads)
-                    yield log, img_type, batch_size, device, threads
-            for img_type in test_missnamed_path:
+                    yield run_decode, data_path, batch_size, device, threads
+            for img_type in test_misnamed_path:
                 for threads in {1, random.choice([2, 3, 4])}:
-                    data_path = os.path.join(test_data_root, missnamed_path, img_type)
-                    run_decode(data_path, batch_size, device, threads)
-                    yield log, img_type, batch_size, device, threads
+                    data_path = os.path.join(test_data_root, misnamed_path, img_type)
+                    yield run_decode, data_path, batch_size, device, threads
 
 
 @pipeline_def
@@ -234,11 +230,8 @@ def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir='*'
 def test_image_decoder_consistency():
     for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
         for file_fmt in test_good_path:
-            if (file_fmt == 'jpeg' or file_fmt == 'mixed') and out_img_type != types.RGB:
-                # TODO(staniewzki) Implement color conversion in nvJPEG
-                continue
             if (file_fmt == 'jpeg2k' or file_fmt == 'mixed') and out_img_type == types.ANY_DATA:
-                # TODO(staniewzki) Fix ANY_DATA support in JPEG2K
+                # TODO(staniewzki, michalz) Fix ANY_DATA support in OpenCV
                 continue
             path = os.path.join(good_path, file_fmt)
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path
@@ -247,6 +240,11 @@ def test_image_decoder_consistency():
                                     ("jpeg2k", "db/single/multichannel/with_alpha", 'jp2'),
                                     ("png", "db/single/multichannel/with_alpha", 'png')]:
             subdir = None  # In those paths the images are not organized in subdirs
+
+            if (file_fmt == 'jpeg2k' or file_fmt == 'mixed') and out_img_type == types.ANY_DATA:
+                # TODO(michalz) Fix ANY_DATA support in OpenCV
+                continue
+
             yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
 
 
