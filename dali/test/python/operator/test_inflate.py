@@ -192,7 +192,8 @@ def seq_source(rng, ndim, dtype, mode, permute, oversized_shape):
     return inner
 
 
-def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape):
+def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape,
+                 sequence_axis_name):
     rng = np.random.default_rng(seed=seed)
     source = seq_source(rng, ndim, dtype, mode, permute, oversized_shape)
 
@@ -210,13 +211,14 @@ def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute, oversized
             offsets, sizes = rest
         inflated = fn.experimental.inflate(deflated.gpu(), shape=reported_shape,
                                            dtype=np_type_to_dali(dtype), chunk_offsets=offsets,
-                                           chunk_sizes=sizes, layout=layout)
+                                           chunk_sizes=sizes, layout=layout,
+                                           sequence_axis_name=sequence_axis_name)
         return inflated, baseline
 
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     pipe.build()
     if layout:
-        layout = "F" + layout
+        layout = (sequence_axis_name or "F") + layout
     for _ in range(4):
         inflated, baseline = pipe.run()
         check_batch(inflated, baseline, batch_size, layout, oversized_shape=oversized_shape)
@@ -228,13 +230,14 @@ def test_chunks():
     seed = 42
     batch_sizes = [1, 9, 31]
     for dtype in [np.uint8, np.int16, np.float32]:
-        for ndim, layout in [(0, None), (1, None), (2, "XY"), (2, None), (3, "ABC"), (3, "")]:
+        for ndim, layout, sequence_axis_name in [(0, None, None), (1, None, "F"), (2, "XY", "Q"),
+                                                 (2, None, None), (3, "ABC", None), (3, "", "W")]:
             for mode, permute in [("offset_only", False), ("size_only", False),
                                   ("offset_and_size", False), ("offset_and_size", True)]:
                 batch_size = batch_sizes[seed % len(batch_sizes)]
                 oversized_shape = ndim > 0 and seed % 2 == 1
                 yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, \
-                    permute, oversized_shape
+                    permute, oversized_shape, sequence_axis_name
                 seed += 1
 
 
@@ -344,8 +347,21 @@ def test_validation():
     def pipeline_chunk_exceeding_sample():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[2],
-                                           chunk_sizes=[4])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[2], chunk_sizes=[4])
+        return inflated
+
+    @pipeline_def
+    def pipeline_sequence_axis_no_name():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=5, sequence_axis_name="")
+        return inflated
+
+    @pipeline_def
+    def pipeline_sequence_axis_too_long_name():
+        inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
+                                 batch=False)
+        inflated = fn.experimental.inflate(inp.gpu(), shape=5, sequence_axis_name="AB")
         return inflated
 
     yield _test_validation, pipeline_2d_shape, "The shape argument must be a scalar or a 1D tensor"
@@ -370,3 +386,7 @@ def test_validation():
         "Input chunks offsets must be non-negative"
     yield _test_validation, pipeline_chunk_exceeding_sample, \
         "Input chunk cannot exceed the sample size"
+    yield _test_validation, pipeline_sequence_axis_no_name, \
+        "The `sequence_axis_name` must be a single character, got \"\""
+    yield _test_validation, pipeline_sequence_axis_too_long_name, \
+        "The `sequence_axis_name` must be a single character, got \"AB\""

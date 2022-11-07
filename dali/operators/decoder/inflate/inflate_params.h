@@ -70,8 +70,8 @@ class ShapeParams {
         layout_{spec.GetArgument<TensorLayout>(layoutArgName)},
         sequence_axis_name_{spec.GetArgument<TensorLayout>(sequenceLayoutArgName)} {
     DALI_ENFORCE(sequence_axis_name_.size() == 1,
-                 make_string("The `", sequenceLayoutArgName, "` must be a single character, got `",
-                             sequence_axis_name_, "`."));
+                 make_string("The `", sequenceLayoutArgName, "` must be a single character, got \"",
+                             sequence_axis_name_, "\"."));
   }
 
   void ProcessInputArgs(const Workspace &ws, int batch_size) {
