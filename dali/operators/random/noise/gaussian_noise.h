@@ -51,9 +51,9 @@ struct GaussianNoiseImpl {
 };
 
 template <typename Backend>
-class GaussianNoise : public RNGBase<Backend, GaussianNoise<Backend>, true> {
+class GaussianNoise : public rng::RNGBase<Backend, GaussianNoise<Backend>, true> {
  public:
-  using BaseImpl = RNGBase<Backend, GaussianNoise<Backend>, true>;
+  using BaseImpl = rng::RNGBase<Backend, GaussianNoise<Backend>, true>;
 
   template <typename T>
   using Impl = GaussianNoiseImpl<Backend, T>;

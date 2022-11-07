@@ -73,9 +73,9 @@ class SaltAndPepperNoiseImpl {
 };
 
 template <typename Backend>
-class SaltAndPepperNoise : public RNGBase<Backend, SaltAndPepperNoise<Backend>, true> {
+class SaltAndPepperNoise : public rng::RNGBase<Backend, SaltAndPepperNoise<Backend>, true> {
  public:
-  using BaseImpl = RNGBase<Backend, SaltAndPepperNoise<Backend>, true>;
+  using BaseImpl = rng::RNGBase<Backend, SaltAndPepperNoise<Backend>, true>;
 
   template <typename T>
   using Impl = SaltAndPepperNoiseImpl<Backend, T>;
