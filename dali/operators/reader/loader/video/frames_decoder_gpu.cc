@@ -20,6 +20,8 @@
 #include <string>
 #include <memory>
 #include <iomanip>
+#include <unordered_map>
+#include <mutex>
 
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
@@ -28,8 +30,177 @@
 #include "dali/operators/reader/loader/video/nvdecode/color_space.h"
 
 namespace dali {
+
 namespace detail {
+
+class NVDECCache {
+ public:
+    static NVDECCache &GetCache() {
+      static NVDECCache cache_inst;
+      return cache_inst;
+    }
+
+    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format) {
+      std::unique_lock lock(access_lock);
+
+      auto codec_type = video_format->codec;
+      unsigned height = video_format->display_area.bottom - video_format->display_area.top;
+      unsigned width = video_format->display_area.right - video_format->display_area.left;
+      auto num_decode_surfaces = video_format->min_num_decode_surfaces;
+
+      if (num_decode_surfaces == 0)
+        num_decode_surfaces = 20;
+
+      auto range = dec_cache.equal_range(codec_type);
+
+      std::unordered_map<cudaVideoCodec, DecInstance>::iterator best_match = range.second;
+      for (auto it = range.first; it != range.second; ++it) {
+        if (best_match == range.second && it->second.used == false) {
+          best_match = it;
+        }
+        if (it->second.used == false && it->second.height == height &&
+            it->second.width == width && it->second.num_decode_surfaces == num_decode_surfaces) {
+          it->second.used = true;
+          return NVDECLease(it->second);
+        }
+      }
+      // reconfigure needs ulTargetHeight and ulTargetWidth set to the upper bound of the video
+      // resolution. Hard to know them ahead of time and setting too much slow things down
+#ifdef ENABLE_NVDEC_RECONFIGURE
+      if (best_match != range.second && cuvidIsSymbolAvailable("cuvidReconfigureDecoder") &&
+          best_match->second.max_width <= width && best_match->second.max_height <= height) {
+        best_match->second.used = true;
+        lock.unlock();
+        CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
+
+        reconfigParams.ulTargetWidth = reconfigParams.ulWidth = width;
+        reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
+        reconfigParams.ulNumDecodeSurfaces = num_decode_surfaces;
+        best_match->second.height = height;
+        best_match->second.width = width;
+        best_match->second.num_decode_surfaces = num_decode_surfaces;
+
+        CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
+        return NVDECLease(best_match->second);
+      }
+#endif
+      lock.unlock();
+
+      auto caps = CUVIDDECODECAPS{};
+      caps.eCodecType = codec_type;
+      caps.eChromaFormat = cudaVideoChromaFormat_420;
+      caps.nBitDepthMinus8 = 0;
+      CUDA_CALL(cuvidGetDecoderCaps(&caps));
+
+      DALI_ENFORCE(width >= caps.nMinWidth  && height >= caps.nMinHeight,
+                   "Video is too small in at least one dimension.");
+
+      DALI_ENFORCE(width <= caps.nMaxWidth && height <= caps.nMaxHeight,
+                   "Video is too large in at least one dimension.");
+
+      DALI_ENFORCE(width * height / 256 <= caps.nMaxMBCount,
+                   "Video is too large (too many macroblocks).");
+
+      CUVIDDECODECREATEINFO decoder_info;
+      memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
+
+      decoder_info.bitDepthMinus8 = video_format->bit_depth_luma_minus8;;
+      decoder_info.ChromaFormat = video_format->chroma_format;;
+      decoder_info.CodecType = codec_type;
+      decoder_info.ulHeight = height;
+      decoder_info.ulWidth = width;
+      // creating the decoder with ulTargetHeight and ulTargetWidth that are above what is really
+      // needed slow things down
+#ifdef ENABLE_NVDEC_RECONFIGURE
+      // assume max width and calculate ulMaxHeight
+      unsigned max_height = caps.nMaxHeight;
+      unsigned max_width = caps.nMaxMBCount / caps.nMaxHeight * 256;
+      if (max_height < height || max_width < width) {
+        max_height = height;
+        max_width = caps.nMaxMBCount / height * 256;
+      }
+#else
+      unsigned max_height = height;
+      unsigned max_width = width;
+#endif
+      decoder_info.ulMaxHeight = max_height;
+      decoder_info.ulMaxWidth = max_width;
+      decoder_info.ulTargetHeight = height;
+      decoder_info.ulTargetWidth = width;
+      decoder_info.ulNumDecodeSurfaces = num_decode_surfaces;
+      decoder_info.ulNumOutputSurfaces = 2;
+
+      auto& area = decoder_info.display_area;
+      area.left   = video_format->display_area.left;
+      area.right  = video_format->display_area.right;
+      area.top    = video_format->display_area.top;
+      area.bottom = video_format->display_area.bottom;
+      DecInstance decoder_inst = {};
+
+      CUDA_CALL(cuvidCreateDecoder(&(decoder_inst.decoder), &decoder_info));
+      decoder_inst.height = decoder_info.ulTargetHeight;
+      decoder_inst.width = decoder_info.ulTargetWidth;
+      decoder_inst.max_height = decoder_info.ulMaxHeight;
+      decoder_inst.max_width = decoder_info.ulMaxWidth;
+      decoder_inst.num_decode_surfaces = num_decode_surfaces;
+      decoder_inst.used = true;
+      decoder_inst.codec_type = codec_type;
+
+      lock.lock();
+      dec_cache.insert({codec_type, decoder_inst});
+      if (dec_cache.size() > CACHE_SIZE_LIMIT) {
+        for (auto it = dec_cache.begin(); it != dec_cache.end(); ++it) {
+          if (it->second.used == false) {
+            auto decoder = it->second.decoder;
+            dec_cache.erase(it);
+            lock.unlock();
+            cuvidDestroyDecoder(decoder);
+            break;
+          }
+        }
+      }
+      return NVDECLease(decoder_inst);
+    }
+
+    void ReturnDecoder(DecInstance &decoder) {
+      std::unique_lock lock(access_lock);
+      auto range = dec_cache.equal_range(decoder.codec_type);
+      for (auto it = range.first; it != range.second; ++it) {
+        if (it->second.decoder == decoder.decoder) {
+          it->second.used = false;
+          return;
+        }
+      }
+      DALI_FAIL("Cannot return decoder that is not from the cache");
+    }
+
+ private:
+    NVDECCache() {}
+
+    ~NVDECCache() {
+      std::scoped_lock lock(access_lock);
+      for (auto &it : dec_cache) {
+        cuvidDestroyDecoder(it.second.decoder);
+      }
+    }
+
+    std::unordered_multimap<cudaVideoCodec, DecInstance> dec_cache;
+
+    std::mutex access_lock;
+
+    static constexpr int CACHE_SIZE_LIMIT = 100;
+};
+
+NVDECLease::~NVDECLease() {
+  if (decoder.used) {
+    detail::NVDECCache::GetCache().ReturnDecoder(decoder);
+  }
+}
+
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
+  FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+  frames_decoder->InitGpuDecoder(video_format);
+
   return video_format->min_num_decode_surfaces;
 }
 
@@ -38,8 +209,8 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 
   return frames_decoder->ProcessPictureDecode(user_data, picture_params);
 }
-}  // namespace detail
 
+}  // namespace detail
 
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
@@ -93,7 +264,14 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType() {
     }
   }
 }
-void FramesDecoderGpu::InitGpuDecoder() {
+
+void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
+  if (!nvdecode_state_->decoder) {
+    nvdecode_state_->decoder = detail::NVDECCache::GetCache().GetDecoder(video_format);
+  }
+}
+
+void FramesDecoderGpu::InitGpuParser() {
   nvdecode_state_ = std::make_unique<NvDecodeState>();
 
   InitBitStreamFilter();
@@ -102,24 +280,6 @@ void FramesDecoderGpu::InitGpuDecoder() {
   DALI_ENFORCE(filtered_packet_, "Could not allocate av packet");
 
   auto codec_type = GetCodecType();
-
-  // Create nv decoder
-  CUVIDDECODECREATEINFO decoder_info;
-  memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
-
-  decoder_info.bitDepthMinus8 = 0;
-  decoder_info.ChromaFormat = cudaVideoChromaFormat_420;
-  decoder_info.CodecType = codec_type;
-  decoder_info.ulHeight = Height();
-  decoder_info.ulWidth = Width();
-  decoder_info.ulMaxHeight = Height();
-  decoder_info.ulMaxWidth = Width();
-  decoder_info.ulTargetHeight = Height();
-  decoder_info.ulTargetWidth = Width();
-  decoder_info.ulNumDecodeSurfaces = num_decode_surfaces_;
-  decoder_info.ulNumOutputSurfaces = 2;
-
-  CUDA_CALL(cuvidCreateDecoder(&nvdecode_state_->decoder, &decoder_info));
 
   // Create nv parser
   CUVIDPARSERPARAMS parser_info;
@@ -145,7 +305,7 @@ void FramesDecoderGpu::InitGpuDecoder() {
     memcpy(parser_extinfo.raw_seqhdr_data, extradata, hdr_size);
   }
 
-  CUDA_CALL(cuvidCreateVideoParser(&nvdecode_state_->parser, &parser_info));
+  nvdecode_state_->parser = detail::CUvideoparserHandle(parser_info);
 
   // Init internal frame buffer
   // TODO(awolant): Check, if continuous buffer would be faster
@@ -159,7 +319,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
     FramesDecoder(filename),
     frame_buffer_(num_decode_surfaces_),
     stream_(stream) {
-    InitGpuDecoder();
+  InitGpuParser();
 }
 
 FramesDecoderGpu::FramesDecoderGpu(
@@ -167,7 +327,7 @@ FramesDecoderGpu::FramesDecoderGpu(
   FramesDecoder(memory_file, memory_file_size, build_index, build_index),
   frame_buffer_(num_decode_surfaces_),
   stream_(stream) {
-  InitGpuDecoder();
+  InitGpuParser();
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params) {
@@ -446,11 +606,6 @@ void FramesDecoderGpu::Reset() {
   SendLastPacket(true);
   more_frames_to_decode_ = true;
   FramesDecoder::Reset();
-}
-
-NvDecodeState::~NvDecodeState() {
-  cuvidDestroyVideoParser(parser);
-  cuvidDestroyDecoder(decoder);
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
