@@ -29,7 +29,7 @@ compressed chunks that have the same shape and type when inflated, so that they 
 be merged into a single tensor where the leftmost extent of the tensor corresponds
 to the number of the chunks.
 
-If the sample is comprised of multiple chunks, the ``chunks_offsets`` or ``chunks_sizes``
+If the sample is comprised of multiple chunks, the ``chunk_offsets`` or ``chunk_sizes``
 must be specified. In that case, the ``shape`` must describe the shape of a single inflated
 (output) chunk. The number of the chunks will automatically be added as the leftmost extent
 to the output tensors.
@@ -40,10 +40,10 @@ concatenating compressed frames from the corresponding sequences.::
 
   @pipeline_def
   def inflate_sequence_pipeline():
-    compressed_seq, uncompressed_hwc_shape, compressed_chunks_sizes = fn.external_source(...)
+    compressed_seq, uncompressed_hwc_shape, compressed_chunk_sizes = fn.external_source(...)
     sequences = fn.experimental.inflate(
         compressed_seq.gpu(),
-        chunks_sizes=compressed_chunks_sizes,  # refers to sizes in ``compressed_seq``
+        chunk_sizes=compressed_chunk_sizes,  # refers to sizes in ``compressed_seq``
         shape=uncompressed_hwc_shape,
         layout="HWC",
         sequence_axis_name="F")
@@ -58,13 +58,13 @@ concatenating compressed frames from the corresponding sequences.::
                                       R"code("A list of offsets within the input sample
 describing where the consecutive chunks begin.
 
-If the ``chunks_sizes`` is not specified, it is assumed that the chunks are densely packed
+If the ``chunk_sizes`` is not specified, it is assumed that the chunks are densely packed
 in the input tensor and the last chunk ends with the sample's end.)code",
                                       nullptr, true)
     .AddOptionalArg<std::vector<int>>(inflate::sizeArgName,
                                       R"code("A list of sizes of corresponding input chunks.
 
-If the ``chunks_offsets`` is not specified, it is assumed that the chunks are densely packed
+If the ``chunk_offsets`` is not specified, it is assumed that the chunks are densely packed
 in the input tensor and the first chunk starts at the beginning of the sample.)code",
                                       nullptr, true)
     .AddOptionalArg(inflate::algArgName, R"code(Algorithm to be used to decode the data.
@@ -83,7 +83,7 @@ If the samples consist of multiple chunks, an extra outer dimension will be adde
 the output tensor. By default, it is assumed to be video frames, hence the default label 'F'
 
 The value is ignored if the ``layout`` is not specified or the input is not a sequence
-( neither ``chunks_offsets`` nor ``chunks_sizes`` is specified).
+( neither ``chunk_offsets`` nor ``chunk_sizes`` is specified).
 )code",
                     TensorLayout("F"));
 

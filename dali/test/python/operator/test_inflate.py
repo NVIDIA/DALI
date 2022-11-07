@@ -209,8 +209,8 @@ def _test_chunks(seed, batch_size, ndim, dtype, layout, mode, permute, oversized
         else:
             offsets, sizes = rest
         inflated = fn.experimental.inflate(deflated.gpu(), shape=reported_shape,
-                                           dtype=np_type_to_dali(dtype), chunks_offsets=offsets,
-                                           chunks_sizes=sizes, layout=layout)
+                                           dtype=np_type_to_dali(dtype), chunk_offsets=offsets,
+                                           chunk_sizes=sizes, layout=layout)
         return inflated, baseline
 
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
@@ -286,66 +286,66 @@ def test_validation():
     def pipeline_too_big_chunk():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[6])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[6])
         return inflated
 
     @pipeline_def
     def pipeline_too_big_chunks():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[3, 3])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[3, 3])
         return inflated
 
     @pipeline_def
     def pipeline_empty_chunk():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[0])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[0])
         return inflated
 
     @pipeline_def
     def pipeline_neg_chunk():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_sizes=[3, -1])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[3, -1])
         return inflated
 
     @pipeline_def
     def pipeline_too_big_offsets():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[0, 5])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[0, 5])
         return inflated
 
     @pipeline_def
     def pipeline_too_zero_size_inferred():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[1, 1])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[1, 1])
         return inflated
 
     @pipeline_def
     def pipeline_sizes_offsets_mismatched():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[1, 1],
-                                           chunks_sizes=[1, 1, 1])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[1, 1],
+                                           chunk_sizes=[1, 1, 1])
         return inflated
 
     @pipeline_def
     def pipeline_negative_offset():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[-5, 0],
-                                           chunks_sizes=[5, 5])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[-5, 0],
+                                           chunk_sizes=[5, 5])
         return inflated
 
     @pipeline_def
     def pipeline_chunk_exceeding_sample():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8),
                                  batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunks_offsets=[2],
-                                           chunks_sizes=[4])
+        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[2],
+                                           chunk_sizes=[4])
         return inflated
 
     yield _test_validation, pipeline_2d_shape, "The shape argument must be a scalar or a 1D tensor"

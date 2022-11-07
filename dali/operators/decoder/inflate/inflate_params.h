@@ -32,8 +32,8 @@ namespace inflate {
 constexpr static const char *dTypeArgName = "dtype";
 constexpr static const char *algArgName = "algorithm";
 constexpr static const char *shapeArgName = "shape";
-constexpr static const char *offsetArgName = "chunks_offsets";
-constexpr static const char *sizeArgName = "chunks_sizes";
+constexpr static const char *offsetArgName = "chunk_offsets";
+constexpr static const char *sizeArgName = "chunk_sizes";
 constexpr static const char *layoutArgName = "layout";
 constexpr static const char *sequenceLayoutArgName = "sequence_axis_name";
 
