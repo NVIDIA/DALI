@@ -26,12 +26,12 @@ decompressed samples is required.
 
 Each input sample can either be a single compressed chunk or consist of multiple
 compressed chunks that have the same shape and type when inflated, so that they can be
-be merged into a single tensor where the leftmost extent of the tensor corresponds
+be merged into a single tensor where the outermost extent of the tensor corresponds
 to the number of the chunks.
 
 If the sample is comprised of multiple chunks, the ``chunk_offsets`` or ``chunk_sizes``
 must be specified. In that case, the ``shape`` must describe the shape of a single inflated
-(output) chunk. The number of the chunks will automatically be added as the leftmost extent
+(output) chunk. The number of the chunks will automatically be added as the outermost extent
 to the output tensors.
 
 For example, the following snippet presents decompression of a video-like sequences.
