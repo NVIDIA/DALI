@@ -27,7 +27,6 @@ unset SUBDIR
     --disable-os2threads \
     --disable-dct \
     --disable-dwt \
-    --disable-error-resilience \
     --disable-lsp \
     --disable-mdct \
     --disable-rdft \
@@ -51,7 +50,7 @@ unset SUBDIR
     --disable-filters \
     --disable-bsfs \
     --disable-decoder=ipu \
-    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes
+    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes,null
 # adds | sed 's/\(.*{\)/DALI_\1/' | to the version file generation command - it prepends "DALI_" to the symbol version
 sed -i 's/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | sed '\''s\/\\(\.*{\\)\/DALI_\\1\/'\'' | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/' ffbuild/library.mak
 make -j"$(nproc --all)"
