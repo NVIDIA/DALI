@@ -348,7 +348,7 @@ void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b, TensorSha
 }
 
 void CheckBroadcastingSimplifiedDim(int ndim) {
-  if (ndim > 6) {
+  if (ndim > ARITHM_OPS_MAX_DIM) {
     DALI_FAIL(make_string(
           "Broadcasting pattern too complex. Can't operate with simplified shapes with "
           "more than 6 groups of dimensions. Got ", ndim, " groups. For more details "

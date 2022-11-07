@@ -204,28 +204,25 @@ void ExtractSampleDescs(std::vector<SampleDesc> &out_samples,
 
   // Making sure all samples have same dimensionality and
   // at least 1D (the implementation requires it)
-  int out_max_ndim = 1;
-  SmallVector<int, kMaxArity> args_max_ndim;
-  args_max_ndim.resize(out_samples[0].args.size(), 1);
-
+  int max_ndim = 1;
   for (int s = 0; s < nsamples; s++) {
-    out_max_ndim = std::max(out_max_ndim, out_samples[s].output.shape.sample_dim());
+    max_ndim = std::max(max_ndim, out_samples[s].output.shape.sample_dim());
     for (size_t a = 0; a < out_samples[s].args.size(); a++)
-      args_max_ndim[a] = std::max(args_max_ndim[a], out_samples[s].args[a].shape.sample_dim());
+      max_ndim = std::max(max_ndim, out_samples[s].args[a].shape.sample_dim());
   }
   for (auto &out_sample : out_samples) {
-    ExpandToNDims(out_sample.output.shape, out_max_ndim);
+    ExpandToNDims(out_sample.output.shape, max_ndim);
     kernels::CalcStrides(out_sample.output.strides, out_sample.output.shape);
     for (size_t a = 0; a < out_sample.args.size(); a++) {
       auto &arg = out_sample.args[a];
-      ExpandToNDims(arg.shape, args_max_ndim[a]);
+      ExpandToNDims(arg.shape, max_ndim);
       kernels::CalcStrides(arg.strides, arg.shape);
       arg.strides = StridesForBroadcasting(out_sample.output.shape, arg.shape, arg.strides);
     }
   }
 
   // Throws an error if more than 6 dims
-  CheckBroadcastingSimplifiedDim(out_max_ndim);
+  CheckBroadcastingSimplifiedDim(max_ndim);
 }
 
 /**

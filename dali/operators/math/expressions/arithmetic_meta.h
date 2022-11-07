@@ -30,6 +30,7 @@
 #include "dali/operators/math/expressions/math_overloads.h"
 
 #define ARITHM_OPS_ALLOWED_DIMS (1, 2, 3, 4, 5, 6)
+#define ARITHM_OPS_MAX_DIM 6
 
 namespace dali {
 

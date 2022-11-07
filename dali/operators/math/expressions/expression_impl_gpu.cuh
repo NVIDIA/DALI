@@ -25,49 +25,100 @@
 
 namespace dali {
 
-template <int nargs, int ndim>
+// Use BinaryArithmeticOpGpuPerfTest for tuning
+static constexpr int kThreadNum = 256;
+static constexpr int kBlocksX = 64;
+
+template <int nargs>
 struct SampleDescGPU {
   struct {
     void *data;
     DALIDataType dtype;
-    fast_div<uint64_t> strides[ndim];
-    int64_t shape[ndim];  // NOLINT[runtime/arrays]
+    fast_div<uint64_t> strides[ARITHM_OPS_MAX_DIM];
+    int64_t shape[ARITHM_OPS_MAX_DIM];  // NOLINT[runtime/arrays]
   } output;
 
   struct {
     const void *data;
     DALIDataType dtype;
-    int64_t shape[ndim];  // NOLINT[runtime/arrays]
-    int64_t strides[ndim];  // NOLINT[runtime/arrays]
+    int64_t shape[ARITHM_OPS_MAX_DIM];  // NOLINT[runtime/arrays]
+    int64_t strides[ARITHM_OPS_MAX_DIM];  // NOLINT[runtime/arrays]
   } args[nargs];
+
+  int ndim;
 };
 
-template <int nargs, int ndim>
-void FillSampleDesc(span<SampleDescGPU<nargs, ndim>> sample_descs, span<const SampleDesc> samples) {
+template <int NumArgs>
+bool CanUseFlatIdx(span<SampleDescGPU<NumArgs>> samples) {
+  for (int i = 0; i < samples.size(); i++) {
+    if (samples[i].ndim > 1)
+      return false;
+    for (int a = 0; a < NumArgs; a++) {
+      if (samples[i].args[a].strides[0] > 1)
+        return false;
+    }
+  }
+  return true;
+}
+
+inline dim3 GetGridLayout(int extent, int tiles) {
+  return dim3(extent, tiles, 1);
+}
+
+template <typename Invoker, int NumArgs>
+void ExecuteImpl(ExprImplContext &ctx, span<const SampleDesc> samples,
+                 span<const TileDesc> tiles) {
+  kernels::DynamicScratchpad s({}, ctx.stream);
+
+  assert(samples.size() > 0);
+  int ndim = samples[0].output.shape.sample_dim();
+
+  assert(ndim < ARITHM_OPS_MAX_DIM);  // should be checked earlier
+  for (int i = 0; i < samples.size(); i++) {
+    assert(ndim == samples[i].output.shape.sample_dim());
+    assert(NumArgs == samples[i].args.size());
+  }
+
+  auto samples_cpu =
+      make_span(s.Allocate<mm::memory_kind::host, SampleDescGPU<NumArgs>>(samples.size()),
+                samples.size());
+  FillSampleDesc(samples_cpu, samples);
+  bool can_use_flat_idx = CanUseFlatIdx(samples_cpu);
+
+  SampleDescGPU<NumArgs>* samples_gpu;
+  TileDesc *tiles_gpu;
+  std::tie(samples_gpu, tiles_gpu) = s.ToContiguousGPU(ctx.stream, samples_cpu, tiles);
+  auto grid = GetGridLayout(kBlocksX, tiles.size());
+  auto block = dim3(kThreadNum, 1, 1);
+  Invoker::Invoke(samples_gpu, tiles_gpu, grid, block, ctx.stream, can_use_flat_idx);
+}
+
+template <int nargs>
+void FillSampleDesc(span<SampleDescGPU<nargs>> sample_descs, span<const SampleDesc> samples) {
   assert(sample_descs.size() == samples.size());
   for (int i = 0; i < samples.size(); i++) {
     auto &sample_desc = sample_descs[i];
     auto &sample = samples[i];
+    sample_desc.ndim = sample.output.shape.sample_dim();
     sample_desc.output.data = sample.output.data;
     sample_desc.output.dtype = sample.output.dtype;
-    for (int d = 0; d < ndim; d++) {
+    for (int d = 0; d < sample_desc.ndim; d++) {
       sample_desc.output.shape[d] = sample.output.shape[d];
       sample_desc.output.strides[d] = sample.output.strides[d];
     }
 
     for (int operand_idx = 0; operand_idx < nargs; operand_idx++) {
-      sample_desc.args[operand_idx].data = sample.args[operand_idx].data;
-      sample_desc.args[operand_idx].dtype = sample.args[operand_idx].dtype;
-      for (int d = 0; d < ndim; d++) {
-        sample_desc.args[operand_idx].shape[d] = sample.args[operand_idx].shape[d];
-        sample_desc.args[operand_idx].strides[d] = sample.args[operand_idx].strides[d];
+      auto &operand_desc = sample_desc.args[operand_idx];
+      auto &operand = sample.args[operand_idx];
+      operand_desc.data = operand.data;
+      operand_desc.dtype = operand.dtype;
+      assert(sample_desc.ndim == operand.shape.sample_dim());
+      for (int d = 0; d < sample_desc.ndim; d++) {
+        operand_desc.shape[d] = operand.shape[d];
+        operand_desc.strides[d] = operand.strides[d];
       }
     }
   }
-}
-
-inline dim3 GetGridLayout(int extent, int tiles) {
-  return dim3(extent, tiles, 1);
 }
 
 }  // namespace dali

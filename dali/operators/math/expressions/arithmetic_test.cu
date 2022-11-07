@@ -94,41 +94,33 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     auto samples_cpu = samples_data.cpu()[0];
     auto tiles_cpu = tiles_data.cpu()[0];
     // TestTensorList just allocates memory, this can leave SmallVector in weird state
-    memset(samples_cpu.data, 0, TestConfig::batch_size * sizeof(SampleDescGPU<2, 1>));
+    memset(samples_cpu.data, 0, TestConfig::batch_size * sizeof(SampleDescGPU<2>));
     memset(tiles_cpu.data, 0, TestConfig::num_tiles * sizeof(TileDesc));
 
     for (int sample_idx = 0; sample_idx < TestConfig::batch_size; sample_idx++) {
       auto &sample = samples_cpu.data[sample_idx];
+      sample.ndim = 1;
 
       auto out_tv = left.gpu()[sample_idx];
       TensorShape<> out_strides;
       kernels::CalcStrides(out_strides, out_tv.shape);
       sample.output.data = out_tv.data;
       sample.output.dtype = type2id<Result>::value;
-      for (int d = 0; d < out_tv.shape.sample_dim(); d++) {
-        sample.output.shape[d] = out_tv.shape[d];
-        sample.output.strides[d] = out_strides[d];
-      }
+      sample.output.shape[0] = out_tv.shape[0];
 
       auto left_tv = left.gpu()[sample_idx];
       TensorShape<> left_strides;
       kernels::CalcStrides(left_strides, left_tv.shape);
       sample.args[0].data = left_tv.data;
       sample.args[0].dtype = type2id<Result>::value;
-      for (int d = 0; d < left_tv.shape.sample_dim(); d++) {
-        sample.args[0].shape[d] = left_tv.shape[d];
-        sample.args[0].strides[d] = left_strides[d];
-      }
+      sample.args[0].shape[0] = volume(left_tv.shape);
 
       auto right_tv = right.gpu()[sample_idx];
       TensorShape<> right_strides;
       kernels::CalcStrides(right_strides, right_tv.shape);
       sample.args[1].data = right_tv.data;
       sample.args[1].dtype = type2id<Result>::value;
-      for (int d = 0; d < right_tv.shape.sample_dim(); d++) {
-        sample.args[1].shape[d] = right_tv.shape[d];
-        sample.args[1].strides[d] = right_strides[d];
-      }
+      sample.args[1].shape[0] =  volume(right_tv.shape);
 
       for (int extent_idx = 0; extent_idx < TestConfig::tiles_per_sample; extent_idx++) {
         int tile_idx = sample_idx * TestConfig::tiles_per_sample + extent_idx;
@@ -141,8 +133,7 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
   }
 
   void MeasurePerf() {
-    ExecuteTiledBinOp1D<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
-                        TestConfig::IsRightTensor>
+    ExecuteTiledBinOpND<TestConfig::op, Result, Left, Right>
         <<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
 
     CUDAEvent start = CUDAEvent::CreateWithFlags(0);
@@ -151,8 +142,7 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
     CUDA_CALL(cudaEventRecord(start, stream));
     constexpr int kIters = 100;
     for (int i = 0; i < kIters; i++) {
-      ExecuteTiledBinOp1D<TestConfig::op, Result, Left, Right, TestConfig::IsLeftTensor,
-                          TestConfig::IsRightTensor>
+      ExecuteTiledBinOpND<TestConfig::op, Result, Left, Right>
           <<<grid, block, 0, stream>>>(samples_gpu, tiles_gpu);
     }
     CUDA_CALL(cudaEventRecord(end, stream));
@@ -184,14 +174,14 @@ struct BinaryArithmeticOpGpuPerfTest : public ::testing::Test {
   // Samples, tiles and data
   std::vector<TileDesc> tile_descs;
   kernels::TestTensorList<TileDesc, 1> tiles_data;
-  kernels::TestTensorList<SampleDescGPU<2, 1>, 1> samples_data;
+  kernels::TestTensorList<SampleDescGPU<2>, 1> samples_data;
 
   kernels::TestTensorList<Result, 1> result;
   kernels::TestTensorList<Left, 1> left;
   kernels::TestTensorList<Right, 1> right;
 
   CUDAStream stream;
-  const SampleDescGPU<2, 1> *samples_gpu;
+  const SampleDescGPU<2> *samples_gpu;
   const TileDesc *tiles_gpu;
 };
 
