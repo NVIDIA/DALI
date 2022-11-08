@@ -122,6 +122,7 @@ void FillSampleDesc(span<SampleDescGPU<nargs>> sample_descs, span<const SampleDe
   }
 }
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_GPU_CUH_
