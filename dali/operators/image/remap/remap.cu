@@ -15,7 +15,6 @@
 #include "dali/operators/image/remap/remap.h"
 #include "dali/operators/image/remap/remap.cuh"
 #include "dali/kernels/kernel_manager.h"
-#include <unordered_map>
 
 namespace dali {
 namespace remap {
