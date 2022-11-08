@@ -22,7 +22,6 @@ import time
 from nose2.tools import params
 from nvidia.dali.pipeline.experimental import pipeline_def
 from nvidia.dali.types import DALIInterpType
-import torch.cuda.nvtx as nvtx
 
 test_data_root = os.environ['DALI_EXTRA_PATH']
 data_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
@@ -124,6 +123,7 @@ class RemapTest(unittest.TestCase):
         self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
 
     def benchmark_remap_against_cv(self, map_mode):
+        import torch.cuda.nvtx as nvtx
         nvtx.range_push("Benchmark against OpenCV")
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
         dpipe = remap_pipe('dali', maps, self.img_size, exec_async=False, exec_pipelined=False,
@@ -138,6 +138,7 @@ class RemapTest(unittest.TestCase):
         print(f"DALI Pipeline average time: {dtime}. OpenCV Pipeline average time: {ctime}.")
 
     def benchmark_remap_isolated(self, map_mode):
+        import torch.cuda.nvtx as nvtx
         nvtx.range_push("Benchmark isolated")
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
         dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params,
