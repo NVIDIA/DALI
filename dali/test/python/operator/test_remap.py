@@ -180,7 +180,7 @@ class RemapTest(unittest.TestCase):
             start = time.perf_counter()
             func()
             stop = time.perf_counter()
-        times.append(stop - start)
+            times.append(stop - start)
         return np.mean(np.array(times))
 
     @staticmethod
