@@ -154,7 +154,7 @@ void FramesDecoder::FindVideoStream(bool init_codecs) {
 
     av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
 
-    if (Height() == 0 || Width() == 0 || NumFrames() == 0) {
+    if (Height() == 0 || Width() == 0) {
       DALI_ENFORCE(avformat_find_stream_info(av_state_->ctx_, nullptr) >= 0);
       DALI_ENFORCE(Height() != 0 && Width() != 0, "Couldn't load video size info.");
     }
@@ -228,12 +228,33 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
       ". Supported codecs: h264, HEVC."));
   InitAvState(init_codecs || build_index);
 
+  // Number of frames is unknown and we do not plan to build the index
+  if (NumFrames() == 0 && !build_index) {
+    ParseNumFrames();
+  }
+
   if (!build_index) {
     return;
   }
 
   BuildIndex();
   DetectVfr();
+}
+
+void FramesDecoder::ParseNumFrames() {
+  int curr_num_frames = 0;
+  while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+    // We want to make sure that we call av_packet_unref in every iteration
+    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+
+    if (packet->stream_index != av_state_->stream_id_) {
+      continue;
+    }
+    curr_num_frames++;
+  }
+
+  num_frames_ = curr_num_frames;
+  Reset();
 }
 
 void FramesDecoder::BuildIndex() {

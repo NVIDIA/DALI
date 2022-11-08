@@ -245,6 +245,8 @@ class DLL_PUBLIC FramesDecoder {
 
   void DetectVfr();
 
+  void ParseNumFrames();
+
   std::string Filename() {
     return filename_.has_value() ? filename_.value() : "memory file";
   }

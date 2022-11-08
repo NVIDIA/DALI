@@ -385,4 +385,11 @@ TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4Mkv) {
   RunSequentialTest(decoder, cfr_videos_[0], 3.0);
 }
 
+TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
+  auto memory_video = MemoryVideo(cfr_mpeg4_mkv_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, cfr_videos_[0], 3.0);
+}
+
 }  // namespace dali
