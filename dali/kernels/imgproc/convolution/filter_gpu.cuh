@@ -40,12 +40,31 @@ struct InputROI {
   ivec<axes> begin, end;
 };
 
+struct LogicalBlock {
+  // must be power of 2
+  ivec<3> extents_log2;
+  ivec<3> strides_log2;
+
+  DALI_HOST_DEV DALI_FORCEINLINE ivec<3> lBlockDim() const {
+    return (1 << extents_log2);
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE ivec<3> lThreadIdx(int flat_idx) const {
+    return (flat_idx >> strides_log2) & (lBlockDim() - 1);
+  }
+
+  static LogicalBlock create(int x_log2, int y_log2, int z_log2) {
+    return {{x_log2, y_log2, z_log2}, {0, x_log2, x_log2 + y_log2}};
+  }
+};
+
 struct ShapeDesc {
   int64_t hwc;
   int wc, f, h, w, c;
   int filter_vol, r, s;
   int filter_top_anchor, filter_left_anchor;
   int in_workspace_width;
+  LogicalBlock logical_block;
 };
 
 template <typename Out_, typename In_, typename W_, typename Acc_, int lanes_>
@@ -223,12 +242,15 @@ struct ShmInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             int y_start, int x_start) const {
+    const auto& logBlock = sample_desc.shape.logical_block;
+    const auto lBlockDim = logBlock.lBlockDim();
+    const auto lThreadIdx = logBlock.lThreadIdx(threadIdx.x);
     __syncthreads();
-    load_input_to_shm(in, y_start, x_start);
+    load_input_to_shm(in, y_start, x_start, lBlockDim, lThreadIdx);
     __syncthreads();
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.s; s++) {
-      int x = threadIdx.x + s * sample_desc.shape.c;
+      int x = lThreadIdx.x + s * sample_desc.shape.c;
       for (int r = 0; r < sample_desc.shape.r; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.s + s);
 #pragma unroll
@@ -242,8 +264,9 @@ struct ShmInputConv {
   }
 
   DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in, int y_start,
-                                                      int x_start) const {
-    for (int x = threadIdx.x; x < sample_desc.shape.in_workspace_width; x += blockDim.x) {
+                                                      int x_start, const ivec<3>& lBlockDim,
+                                                      const ivec<3>& lThreadIdx) const {
+    for (int x = lThreadIdx.x; x < sample_desc.shape.in_workspace_width; x += lBlockDim.x) {
       auto global_x = in_loader.remap_width(
           x_start + x - sample_desc.shape.filter_left_anchor * sample_desc.shape.c,
           sample_desc.shape);
@@ -284,10 +307,13 @@ struct DirectInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             int y_start, int x_start) const {
+    const auto& logBlock = sample_desc.shape.logical_block;
+    const auto lBlockDim = logBlock.lBlockDim();
+    const auto lThreadIdx = logBlock.lThreadIdx(threadIdx.x);
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.s; s++) {
       auto global_x = in_loader.remap_width(
-          x_start + threadIdx.x + (s - sample_desc.shape.filter_left_anchor) * sample_desc.shape.c,
+          x_start + lThreadIdx.x + (s - sample_desc.shape.filter_left_anchor) * sample_desc.shape.c,
           sample_desc.shape);
       for (int r = 0; r < sample_desc.shape.r; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.s + s);
@@ -314,12 +340,12 @@ template <int lanes, typename Out, typename Acc>
 DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ out,
                                                              const Acc* __restrict__ acc,
                                                              const InputROIDesc& roi, int y_start,
-                                                             int x_start) {
+                                                             int x_start, const ivec<3>& lThreadIdx) {
   // The x, y indices describe the input, they are mapped into, output space by shifting
   // by roi.h_begin/wc_begin. Moreover the size of input roi is assumed to be equal to
   // the output size, so its extents are used to prevent OOB accesses
   // (due to grid/lanes protruding at the boundary).
-  int x = x_start + threadIdx.x;
+  int x = x_start + lThreadIdx.x;
   if (x < roi.wc_end) {
 #pragma unroll
     for (int lane = 0; lane < lanes; lane++) {
@@ -338,14 +364,17 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc,
   constexpr int lanes = SampleDescT::lanes;
   const auto* in = sample_desc.in;
   auto* out = sample_desc.out;
+  const auto& logBlock = sample_desc.shape.logical_block;
+  const auto lBlockDim = logBlock.lBlockDim();
   for (int f = 0; f < sample_desc.shape.f; f++, in += sample_desc.shape.hwc, out += roi.hwc) {
-    for (int y_start = lanes * blockIdx.y + roi.h_begin; y_start < roi.h_end;
-         y_start += gridDim.y * lanes) {
-      for (int x_start = blockDim.x * blockIdx.x + roi.wc_begin; x_start < roi.wc_end;
-           x_start += gridDim.x * blockDim.x) {
+    for (int y_start = lanes * lBlockDim.y * blockIdx.y + roi.h_begin; y_start < roi.h_end;
+         y_start += lanes * lBlockDim.y * gridDim.y) {
+      for (int x_start = lBlockDim.x * blockIdx.x + roi.wc_begin; x_start < roi.wc_end;
+           x_start += gridDim.x * lBlockDim.x) {
         typename SampleDescT::Acc acc[lanes] = {};
         conv.compute(acc, in, y_start, x_start);
-        store_acc_in_global_output<lanes>(out, acc, roi, y_start, x_start);
+        store_acc_in_global_output<lanes>(out, acc, roi, y_start, x_start,
+                                          logBlock.lThreadIdx(threadIdx.x));
       }
     }
   }
@@ -578,6 +607,7 @@ struct Filter2dGpu {
     if (c > block_width || required_workspace > shared_mem_limit) {
       required_workspace = in_workspace_width = 0;
     }
+    auto log_block = filter::LogicalBlock::create(7, 0, 0);
     return {hwc,
             static_cast<int>(wc),
             static_cast<int>(f),
@@ -589,7 +619,8 @@ struct Filter2dGpu {
             static_cast<int>(s),
             static_cast<int>(filter_top_anchor),
             static_cast<int>(filter_left_anchor),
-            static_cast<int>(in_workspace_width)};
+            static_cast<int>(in_workspace_width),
+            log_block};
   }
 
   template <typename OutShape>
