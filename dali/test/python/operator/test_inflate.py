@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-import lz4.block
 
 from nvidia.dali import pipeline_def, fn, types
 from test_utils import np_type_to_dali, has_operator, restrict_platform
@@ -21,6 +20,7 @@ from nose_utils import assert_raises
 
 
 def sample_to_lz4(sample):
+    import lz4.block
     deflated_buf = lz4.block.compress(sample, store_size=False)
     return np.frombuffer(deflated_buf, dtype=np.uint8)
 
