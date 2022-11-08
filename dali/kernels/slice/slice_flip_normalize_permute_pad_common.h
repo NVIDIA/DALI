@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ struct SliceFlipNormalizePermutePadArgs {
   int channel_dim = -1;
 };
 
-namespace detail {
+namespace slice_impl {
 
 template <int Dims>
 struct SliceFlipNormalizePermutePadProcessedArgs {
@@ -132,7 +132,7 @@ SliceFlipNormalizePermutePadProcessedArgs<Dims> ProcessArgs(
     "The number of per-channel arguments should match the number of channels in the output slice");
   return processed_args;
 }
-}  // namespace detail
+}  // namespace slice_impl
 
 }  // namespace kernels
 }  // namespace dali

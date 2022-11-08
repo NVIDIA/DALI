@@ -27,6 +27,7 @@
 #include "dali/test/tensor_test_utils.h"
 
 namespace dali {
+namespace expr {
 
 TEST(ArithmeticOpsTest, TreePropagation) {
   std::string expr_str = "div(sub(&0 &1) $2:int32)";
@@ -774,4 +775,5 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   }
 }
 
+}  // namespace expr
 }  // namespace dali

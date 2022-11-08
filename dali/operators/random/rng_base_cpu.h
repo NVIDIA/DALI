@@ -25,6 +25,7 @@
 #include "dali/core/static_switch.h"
 
 namespace dali {
+namespace rng {
 
 template <bool IsNoiseGen>
 struct RNGBaseFields<CPUBackend, IsNoiseGen> {
@@ -198,6 +199,7 @@ void RNGBase<Backend, Impl, IsNoiseGen>::RunImplTyped(Workspace &ws, CPUBackend)
   tp.RunAll();
 }
 
+}  // namespace rng
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_RANDOM_RNG_BASE_CPU_H_

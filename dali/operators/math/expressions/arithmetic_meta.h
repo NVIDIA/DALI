@@ -33,6 +33,7 @@
 #define ARITHM_OPS_MAX_DIM 6
 
 namespace dali {
+namespace expr {
 
 constexpr int kMaxArity = 3;
 
@@ -1062,6 +1063,7 @@ inline bool IsScalarLike(const TensorShape<> &shape) {
   return volume(shape) == 1;
 }
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_ARITHMETIC_META_H_

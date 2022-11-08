@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
+namespace expr {
 
 class ConstantStorageTest : public ::testing::Test {
  protected:
@@ -103,4 +104,5 @@ TEST_F(ConstantStorageTest, Invalid) {
   ASSERT_THROW(gpu_st.Initialize(bad_spec_, {}, constant_ptrs_), std::runtime_error);
 }
 
+}  // namespace expr
 }  // namespace dali

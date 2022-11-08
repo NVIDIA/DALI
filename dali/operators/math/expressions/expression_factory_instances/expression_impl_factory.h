@@ -23,6 +23,7 @@
 #include "dali/core/static_switch.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Inspect `expr` to transform runtime information to static information, obtain the
@@ -936,6 +937,7 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, GPUBa
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::clamp, GPUBackend>,
                                         const ExprFunc &expr);
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_FACTORY_INSTANCES_EXPRESSION_IMPL_FACTORY_H_

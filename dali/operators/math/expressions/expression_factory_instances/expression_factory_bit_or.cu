@@ -18,7 +18,9 @@
 #include "dali/operators/math/expressions/expression_factory_instances/expression_impl_factory.h"
 
 namespace dali {
+namespace expr {
 
 IMPLEMENT_OP_FACTORY_GPU_BINARY(bit_or);
 
+}  // namespace expr
 }  // namespace dali

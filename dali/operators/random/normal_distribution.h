@@ -48,15 +48,15 @@ struct NormalDistImpl {
 };
 
 template <typename Backend>
-class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>, false> {
+class NormalDistribution : public rng::RNGBase<Backend, NormalDistribution<Backend>, false> {
  public:
-  using BaseImpl = RNGBase<Backend, NormalDistribution<Backend>, false>;
+  using BaseImpl = rng::RNGBase<Backend, NormalDistribution<Backend>, false>;
 
   template <typename T>
   using Impl = NormalDistImpl<Backend, T>;
 
   explicit NormalDistribution(const OpSpec &spec)
-      : RNGBase<Backend, NormalDistribution<Backend>, false>(spec),
+      : BaseImpl(spec),
         mean_("mean", spec),
         stddev_("stddev", spec) {
   }
@@ -81,7 +81,7 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>, 
     return true;
   }
 
-  using RNGBase<Backend, NormalDistribution<Backend>, false>::RunImpl;
+  using BaseImpl::RunImpl;
   void RunImpl(Workspace &ws) override {
     TYPE_SWITCH(dtype_, type2id, T, (DALI_NORMDIST_TYPES), (
       using ImplT = Impl<T>;
@@ -94,8 +94,8 @@ class NormalDistribution : public RNGBase<Backend, NormalDistribution<Backend>, 
 
  protected:
   using Operator<Backend>::max_batch_size_;
-  using RNGBase<Backend, NormalDistribution<Backend>, false>::dtype_;
-  using RNGBase<Backend, NormalDistribution<Backend>, false>::backend_data_;
+  using BaseImpl::dtype_;
+  using BaseImpl::backend_data_;
 
   ArgValue<float> mean_;
   ArgValue<float> stddev_;

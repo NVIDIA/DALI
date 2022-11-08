@@ -22,6 +22,7 @@
 #include "dali/operators/math/expressions/expression_tree.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Inspect `expr` to transform runtime information to static information, do the static
@@ -81,4 +82,5 @@ std::unique_ptr<ExprImplBase> ExprImplFactory(const ExprNode &expr, CPUBackend) 
   }
 }
 
+}  // namespace expr
 }  // namespace dali

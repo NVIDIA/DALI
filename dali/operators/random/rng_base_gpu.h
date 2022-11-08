@@ -26,6 +26,7 @@
 #include "dali/core/static_switch.h"
 
 namespace dali {
+namespace rng {
 
 struct SampleDesc {
   void *output;
@@ -155,6 +156,7 @@ void SetupSampleDescs(SampleDesc *samples,
   }
 }
 
+}  // namespace rng
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_RANDOM_RNG_BASE_GPU_H_

@@ -24,6 +24,7 @@
 #include "dali/operators/util/randomizer.cuh"
 
 namespace dali {
+namespace rng {
 
 template <typename Backend, bool IsNoiseGen>
 struct RNGBaseFields;
@@ -116,6 +117,7 @@ class RNGBase : public Operator<Backend> {
   RNGBaseFields<Backend, IsNoiseGen> backend_data_;
 };
 
+}  // namespace rng
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_RANDOM_RNG_BASE_H_

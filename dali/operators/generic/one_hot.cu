@@ -36,7 +36,7 @@ class OneHotGPU : public OneHot<GPUBackend> {
   void RunImplTyped(Workspace &ws, int placement_axis);
 
  private:
-  std::vector<detail::SampleDesc> sample_descs_;
+  std::vector<one_hot::SampleDesc> sample_descs_;
   Tensor<GPUBackend> scratch_mem_;
   int recent_n_samples_ = 0;
 };
@@ -46,7 +46,7 @@ bool OneHotGPU::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace 
   int num_samples = input.shape().num_samples();
   if (num_samples != recent_n_samples_) {
     recent_n_samples_ = num_samples;
-    int64_t samples_size = num_samples * sizeof(detail::SampleDesc);
+    int64_t samples_size = num_samples * sizeof(one_hot::SampleDesc);
     scratch_mem_.Resize({samples_size});
   }
   sample_descs_.clear();
@@ -76,7 +76,7 @@ void OneHotGPU::RunImplTyped(Workspace &ws, int axis) {
   uint64_t max_out_vol = 1;
   const auto &shape = output.shape();
   for (int sample_id = 0; sample_id < num_samples; ++sample_id) {
-    detail::SampleDesc sample;
+    one_hot::SampleDesc sample;
     auto output_shape = shape.tensor_shape_span(sample_id);
     auto outer_vol = volume(output_shape.begin(), output_shape.begin() + axis);
     sample.inner_vol = volume(output_shape.begin() + axis + 1, output_shape.end());
@@ -91,12 +91,12 @@ void OneHotGPU::RunImplTyped(Workspace &ws, int axis) {
   auto stream = ws.stream();
 
   scratch_mem_.Copy(sample_descs_, stream);
-  const auto *scratch_mem_gpu = scratch_mem_.data<detail::SampleDesc>();
+  const auto *scratch_mem_gpu = scratch_mem_.data<one_hot::SampleDesc>();
 
   const int block = 256;
-  auto grid = detail::gridHelper(max_out_vol, num_samples, block);
+  auto grid = one_hot::gridHelper(max_out_vol, num_samples, block);
 
-  detail::PopulateOneHot<OutputType, InputType><<<grid, block, 0, stream>>>(
+  one_hot::PopulateOneHot<OutputType, InputType><<<grid, block, 0, stream>>>(
     on_value_, off_value_, scratch_mem_gpu);
 }
 

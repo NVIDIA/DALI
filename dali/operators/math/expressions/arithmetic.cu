@@ -17,6 +17,7 @@
 #include "dali/kernels/type_tag.h"
 
 namespace dali {
+namespace expr {
 
 template <>
 void ArithmeticGenericOp<GPUBackend>::RunImpl(Workspace &ws) {
@@ -31,7 +32,8 @@ void ArithmeticGenericOp<GPUBackend>::RunImpl(Workspace &ws) {
   }
 }
 
-DALI_REGISTER_OPERATOR(ArithmeticGenericOp, ArithmeticGenericOp<GPUBackend>, GPU);
+}  // namespace expr
 
+DALI_REGISTER_OPERATOR(ArithmeticGenericOp, expr::ArithmeticGenericOp<GPUBackend>, GPU);
 
 }  // namespace dali

@@ -22,6 +22,7 @@
 #include "dali/core/tensor_shape_print.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Returns the number of dimensions of the broadcast shape
@@ -137,6 +138,7 @@ DLL_PUBLIC void SimplifyShapesForBroadcasting(TensorShape<> &a, TensorShape<> &b
  */
 DLL_PUBLIC void CheckBroadcastingSimplifiedDim(int ndim);
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_BROADCASTING_H_

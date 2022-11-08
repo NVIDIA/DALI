@@ -18,6 +18,7 @@
 #include "dali/operators/math/expressions/expression_impl_gpu.cuh"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
@@ -110,6 +111,7 @@ using ExprImplGpuCT = ExprImplGPUInvokeBinary<InvokerBinOp<op, Result, Left, Rig
 template <ArithmeticOp op, typename Result, typename Left, typename Right>
 using ExprImplGpuTC = ExprImplGPUInvokeBinary<InvokerBinOp<op, Result, Left, Right, true, false>>;
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_GPU_BINARY_CUH_

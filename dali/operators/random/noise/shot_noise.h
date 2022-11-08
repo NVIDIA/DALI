@@ -55,9 +55,9 @@ class ShotNoiseImpl {
 };
 
 template <typename Backend>
-class ShotNoise : public RNGBase<Backend, ShotNoise<Backend>, true> {
+class ShotNoise : public rng::RNGBase<Backend, ShotNoise<Backend>, true> {
  public:
-  using BaseImpl = RNGBase<Backend, ShotNoise<Backend>, true>;
+  using BaseImpl = rng::RNGBase<Backend, ShotNoise<Backend>, true>;
 
   template <typename T>
   using Impl = ShotNoiseImpl<Backend, T>;

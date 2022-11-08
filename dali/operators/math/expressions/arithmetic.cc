@@ -18,6 +18,7 @@
 #include "dali/operators/math/expressions/arithmetic.h"
 
 namespace dali {
+namespace expr {
 
 template <>
 void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
@@ -58,6 +59,8 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
   pool.RunAll();
 }
 
+}  // namespace expr
+
 DALI_SCHEMA(ArithmeticGenericOp)
     .DocStr(R"code(Arithmetic operator capable of executing expression tree of element-wise
 arithmetic operations.)code")
@@ -90,6 +93,6 @@ Examples::
     .NumOutput(1)
     .MakeDocHidden();
 
-DALI_REGISTER_OPERATOR(ArithmeticGenericOp, ArithmeticGenericOp<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(ArithmeticGenericOp, expr::ArithmeticGenericOp<CPUBackend>, CPU);
 
 }  // namespace dali

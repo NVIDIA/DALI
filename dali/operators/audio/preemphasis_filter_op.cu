@@ -19,7 +19,7 @@
 
 namespace dali {
 
-namespace detail {
+namespace {
 
 template <typename OutputType, typename InputType>
 struct SampleDescriptor {
@@ -57,13 +57,13 @@ void __global__ PreemphasisFilterKernel(const SampleDescriptor<OutputType, Input
     sample.out[k] = sample.in[k] - sample.coeff * sample.in[k-1];
 }
 
-}  // namespace detail
+}  // namespace
 
 class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
  public:
   explicit PreemphasisFilterGPU(const OpSpec &spec) : PreemphasisFilter<GPUBackend>(spec) {
     // void is OK here, pointer sizes are the same size
-    int64_t sz = max_batch_size_ * sizeof(detail::SampleDescriptor<void, void>);
+    int64_t sz = max_batch_size_ * sizeof(SampleDescriptor<void, void>);
     scratch_mem_.Resize({sz}, DALI_UINT8);
   }
   void RunImpl(Workspace &ws) override;
@@ -77,7 +77,7 @@ class PreemphasisFilterGPU : public PreemphasisFilter<GPUBackend> {
 
 template <typename OutputType, typename InputType>
 void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
-  using SampleDesc = detail::SampleDescriptor<OutputType, InputType>;
+  using SampleDesc = SampleDescriptor<OutputType, InputType>;
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
   auto curr_batch_size = ws.GetInputBatchSize(0);
@@ -103,7 +103,7 @@ void PreemphasisFilterGPU::RunImplTyped(Workspace &ws) {
   int block = 256;
   auto blocks_per_sample = std::max(32, 1024 / curr_batch_size);
   dim3 grid(blocks_per_sample, curr_batch_size);
-  detail::PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu, border_type_);
+  PreemphasisFilterKernel<<<grid, block, 0, stream>>>(sample_descs_gpu, border_type_);
 }
 
 void PreemphasisFilterGPU::RunImpl(Workspace &ws) {

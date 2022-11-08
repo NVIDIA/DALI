@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ class TestBlockDistribution : public ::testing::Test{
  protected:
   std::vector<int> distribute(const std::vector<int> &sizes) {
     std::vector<int> blocks_per_sample(sizes.size());
-    DistributeBlocksPerSample(make_span(blocks_per_sample), make_cspan(sizes), block_size_,
-                              max_blocks_);
+    rng::DistributeBlocksPerSample(make_span(blocks_per_sample), make_cspan(sizes), block_size_,
+                                   max_blocks_);
     return blocks_per_sample;
   }
 
@@ -67,8 +67,10 @@ TEST(DistributeBlocks, RandomTests) {
       sizes[s] = size_dist(rnd);
       blocks[s] = 0;
     }
-    int sum =
-        DistributeBlocksPerSample(make_span(blocks), make_cspan(sizes), block_size, max_blocks);
+
+    int sum = rng::DistributeBlocksPerSample(
+      make_span(blocks), make_cspan(sizes), block_size, max_blocks);
+
     EXPECT_EQ(std::accumulate(blocks.begin(), blocks.end(), 0), sum);
     EXPECT_EQ(sum, max_blocks);
   }

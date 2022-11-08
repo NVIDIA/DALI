@@ -24,6 +24,7 @@
 #include "dali/core/fast_div.h"
 
 namespace dali {
+namespace expr {
 
 // Use BinaryArithmeticOpGpuPerfTest for tuning
 static constexpr int kThreadNum = 256;
@@ -121,6 +122,7 @@ void FillSampleDesc(span<SampleDescGPU<nargs>> sample_descs, span<const SampleDe
   }
 }
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_GPU_CUH_
