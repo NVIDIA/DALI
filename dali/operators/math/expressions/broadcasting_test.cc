@@ -19,6 +19,7 @@
 #include "dali/kernels/common/utils.h"
 
 namespace dali {
+namespace expr {
 namespace test {
 
 void PrintShapesImpl(std::stringstream& ss) {}
@@ -419,4 +420,5 @@ TEST(ArithmeticOpsBroadcastingTest, NeedBroadcastTensorListShape) {
 
 
 }  // namespace test
+}  // namespace expr
 }  // namespace dali

@@ -34,6 +34,7 @@
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief The first element contains vector of tiles, the second groups the tiles into task ranges
@@ -390,6 +391,7 @@ class ArithmeticGenericOp : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 };
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_ARITHMETIC_H_

@@ -40,7 +40,7 @@ class SliceFlipNormalizePermutePadGpu {
   size_t block_size_ = 32 * kBlockDim;
   size_t block_count_ = 0;
 
-  using ProcessedArgs = detail::SliceFlipNormalizePermutePadProcessedArgs<Dims>;
+  using ProcessedArgs = slice_impl::SliceFlipNormalizePermutePadProcessedArgs<Dims>;
   std::vector<ProcessedArgs> processed_args_;
   int norm_args_size_ = -1;
   bool has_channels_ = false;
@@ -67,7 +67,7 @@ class SliceFlipNormalizePermutePadGpu {
     processed_args_.reserve(args.size());
     for (size_t i = 0; i < num_samples; i++) {
       auto in_shape = in.tensor_shape(i);
-      processed_args_.emplace_back(detail::ProcessArgs(args[i], in_shape));
+      processed_args_.emplace_back(slice_impl::ProcessArgs(args[i], in_shape));
       auto &sample_args = processed_args_.back();
       if (i == 0) {
         norm_args_size_ = sample_args.mean.size();
@@ -99,12 +99,14 @@ class SliceFlipNormalizePermutePadGpu {
     se.add<mm::memory_kind::pinned, OutputType>(num_samples * nfill_values_);
     se.add<mm::memory_kind::device, OutputType>(num_samples * nfill_values_);
 
-    se.add<mm::memory_kind::pinned, detail::SampleDesc<Dims>>(num_samples);
-    se.add<mm::memory_kind::device, detail::SampleDesc<Dims>>(num_samples);
+    se.add<mm::memory_kind::pinned, slice_impl::SampleDesc<Dims>>(num_samples);
+    se.add<mm::memory_kind::device, slice_impl::SampleDesc<Dims>>(num_samples);
 
     int blocks_per_sm_;
-    CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_,
-      detail::SliceFlipNormalizePermutePadKernel<false, false, false, OutputType, InputType, Dims>,
+    CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+      &blocks_per_sm_,
+      slice_impl::SliceFlipNormalizePermutePadKernel<
+          false, false, false, OutputType, InputType, Dims>,
       kBlockDim,
       0));
 
@@ -131,8 +133,8 @@ class SliceFlipNormalizePermutePadGpu {
         sample_size / static_cast<float>(block_size_)));
     }
 
-    se.add<mm::memory_kind::pinned, detail::BlockDesc>(block_count_);
-    se.add<mm::memory_kind::device, detail::BlockDesc>(block_count_);
+    se.add<mm::memory_kind::pinned, slice_impl::BlockDesc>(block_count_);
+    se.add<mm::memory_kind::device, slice_impl::BlockDesc>(block_count_);
     req.scratch_sizes = se.sizes;
 
     auto in_shapes = in.shape;
@@ -147,7 +149,7 @@ class SliceFlipNormalizePermutePadGpu {
     return req;
   }
 
-  bool CanCollapseLastDim(detail::SampleDesc<Dims> &sample_desc, int last_dim) {
+  bool CanCollapseLastDim(slice_impl::SampleDesc<Dims> &sample_desc, int last_dim) {
     // We fuse the last dimension with the previous IF:
     // There are at least 2 dimensions
     bool at_least_2_dims = last_dim > 0;
@@ -215,9 +217,9 @@ class SliceFlipNormalizePermutePadGpu {
       make_span(fill_values_cpu, num_samples * nfill_values_));
 
     auto *sample_descs_cpu =
-        context.scratchpad->AllocatePinned<detail::SampleDesc<Dims>>(num_samples);
+        context.scratchpad->AllocatePinned<slice_impl::SampleDesc<Dims>>(num_samples);
     auto *block_descs_cpu =
-        context.scratchpad->AllocatePinned<detail::BlockDesc>(block_count_);
+        context.scratchpad->AllocatePinned<slice_impl::BlockDesc>(block_count_);
 
     bool need_pad = false, need_flip = false;
     for (int i = 0; i < in.size(); i++) {
@@ -272,8 +274,8 @@ class SliceFlipNormalizePermutePadGpu {
       }
     }
 
-    detail::SampleDesc<Dims> *sample_descs_gpu = nullptr;
-    detail::BlockDesc *block_descs_gpu = nullptr;
+    slice_impl::SampleDesc<Dims> *sample_descs_gpu = nullptr;
+    slice_impl::BlockDesc *block_descs_gpu = nullptr;
     std::tie(sample_descs_gpu, block_descs_gpu) = context.scratchpad->ToContiguousGPU(
         context.gpu.stream,
         make_span(sample_descs_cpu, num_samples),
@@ -284,7 +286,7 @@ class SliceFlipNormalizePermutePadGpu {
         BOOL_SWITCH(need_normalize_, NeedNormalize, (
           auto grid = block_count_;
           // need to handle __half due to compilation differences
-          detail::SliceFlipNormalizePermutePadKernel
+          slice_impl::SliceFlipNormalizePermutePadKernel
             <NeedPad, NeedFlip, NeedNormalize,
             OutputType, InputType, Dims>
             <<<grid, kBlockDim, 0, context.gpu.stream>>>(sample_descs_gpu, block_descs_gpu);

@@ -18,6 +18,7 @@
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 
 namespace dali {
+namespace expr {
 
 void CheckNumSamples(span<const TensorListShape<>*> shapes) {
   if (shapes.size() <= 1)
@@ -356,5 +357,5 @@ void CheckBroadcastingSimplifiedDim(int ndim) {
   }
 }
 
-
+}  // namespace expr
 }  // namespace dali

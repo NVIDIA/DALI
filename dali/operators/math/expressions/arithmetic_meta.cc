@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 
 namespace dali {
+namespace expr {
 
 DALIDataType BinaryTypePromotion(DALIDataType left, DALIDataType right) {
   DALIDataType result = DALIDataType::DALI_NO_TYPE;
@@ -54,4 +55,5 @@ DALIDataType TypePromotion(ArithmeticOp op, span<DALIDataType> types) {
   return result;
 }
 
+}  // namespace expr
 }  // namespace dali

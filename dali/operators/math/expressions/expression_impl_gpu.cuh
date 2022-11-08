@@ -24,6 +24,7 @@
 #include "dali/core/fast_div.h"
 
 namespace dali {
+namespace expr {
 
 // Use BinaryArithmeticOpGpuPerfTest for tuning
 static constexpr int kThreadNum = 256;

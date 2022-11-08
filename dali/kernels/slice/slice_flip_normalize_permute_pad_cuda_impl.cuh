@@ -32,8 +32,7 @@
 namespace dali {
 namespace kernels {
 
-
-namespace detail {
+namespace slice_impl {
 
 template <int Dims>
 struct SampleDesc {
@@ -165,7 +164,7 @@ __global__ void SliceFlipNormalizePermutePadKernel(const SampleDesc<Dims> *sampl
   ), ());  // NOLINT
 }
 
-}  // namespace detail
+}  // namespace slice_impl
 
 }  // namespace kernels
 }  // namespace dali

@@ -27,6 +27,7 @@
 #include "dali/test/test_tensors.h"
 
 namespace dali {
+namespace expr {
 
 template <ArithmeticOp op_ = ArithmeticOp::add, typename Result_ = float, typename Left_ = float,
           typename Right_ = float, int IsLeftTensor_ = true, int IsRightTensor_ = false,
@@ -262,4 +263,5 @@ using TestConfigs = ::testing::Types<
 
 INSTANTIATE_TYPED_TEST_SUITE_P(BinaryArithmeticOpGpu, BinaryArithmeticOpGpuPerfTest, TestConfigs);
 
+}  // namespace expr
 }  // namespace dali

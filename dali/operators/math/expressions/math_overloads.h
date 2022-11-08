@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@
 #endif
 
 namespace dali {
+namespace expr {
 
 DALI_NO_EXEC_CHECK
 template <typename T>
@@ -305,7 +306,7 @@ DALI_HOST_DEV inline auto math_atan2(X x, Y y) {
 #endif
 }
 
-
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_MATH_OVERLOADS_H_

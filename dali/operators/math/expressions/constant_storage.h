@@ -30,6 +30,7 @@
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
+namespace expr {
 
 #define CONSTANT_STORAGE_ALLOWED_TYPES   \
   (bool,                                 \
@@ -132,6 +133,7 @@ class ConstantStorage {
   constexpr static int kPaddingSize = 8;  // max(sizeof(int64_t), sizeof(double))
 };
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_CONSTANT_STORAGE_H_

@@ -33,6 +33,7 @@
 #include "dali/kernels/common/utils.h"
 
 namespace dali {
+namespace expr {
 
 #define ALLOWED_UN_OPS                                                               \
   (ArithmeticOp::plus, ArithmeticOp::minus, ArithmeticOp::exp, ArithmeticOp::sqrt,   \
@@ -275,6 +276,7 @@ struct ExprImplCache {
   std::map<std::string, std::shared_ptr<ExprImplBase>> cache_;
 };
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_FACTORY_H_

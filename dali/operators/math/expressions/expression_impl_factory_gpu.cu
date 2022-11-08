@@ -22,6 +22,7 @@
 #include "dali/operators/math/expressions/expression_tree.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Inspect `expr` to transform runtime information to static information, do the static
@@ -82,4 +83,5 @@ ExprImplFactory(const ExprNode &expr, GPUBackend) {
   }
 }
 
+}  // namespace expr
 }  // namespace dali

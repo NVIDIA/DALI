@@ -25,6 +25,7 @@
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Describe a tile of data to be processed in expression evaluation.
@@ -90,6 +91,7 @@ struct SampleDesc {
   ArgPack args;
 };
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_TILE_H_

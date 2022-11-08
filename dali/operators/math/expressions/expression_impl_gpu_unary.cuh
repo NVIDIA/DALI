@@ -18,7 +18,7 @@
 #include "dali/operators/math/expressions/expression_impl_gpu.cuh"
 
 namespace dali {
-
+namespace expr {
 /**
  * @brief Loop over tile of `extent` length
  */
@@ -70,6 +70,7 @@ class ExprImplGPUInvokeUnary : public ExprImplBase {
 template <ArithmeticOp op, typename Result, typename Input>
 using ExprImplGpuT = ExprImplGPUInvokeUnary<InvokerUnOp<op, Result, Input>>;
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_GPU_UNARY_CUH_

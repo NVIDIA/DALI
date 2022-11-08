@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include "dali/test/dali_operator_test.h"
 
 namespace dali {
+namespace expr {
 
 TEST(ExpressionTreeTest, ExpressionTreeNonParsable) {
   ASSERT_THROW(ParseExpressionString("mul"), std::runtime_error);
@@ -71,4 +72,5 @@ TEST(ExpressionTreeTest, ExpressionTreeComplex) {
   EXPECT_EQ(dynamic_cast<ExprTensor &>(func_ref[1]).GetInputIndex(), 1);
 }
 
+}  // namespace expr
 }  // namespace dali

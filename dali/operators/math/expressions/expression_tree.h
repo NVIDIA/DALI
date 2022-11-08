@@ -26,6 +26,7 @@
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
+namespace expr {
 
 class ExprNode;
 
@@ -233,6 +234,7 @@ inline bool IsScalarLike(const ExprNode &node) {
          (node.GetNodeType() == NodeType::Tensor && IsScalarLike(node.GetShape()));
 }
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_TREE_H_

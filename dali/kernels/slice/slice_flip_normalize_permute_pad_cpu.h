@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ namespace kernels {
 
 static constexpr int kSliceFlipNormPermCost = 8;  // compared to memcpy (heuristic)
 
-namespace detail {
+namespace slice_impl {
 
 template <bool NeedNormalize, typename OutputType, typename InputType>
 inline void Fill(OutputType &destination, InputType element,
@@ -213,7 +213,7 @@ void SliceFlipNormalizePermutePadKernelImpl(
   }
 }
 
-}  // namespace detail
+}  // namespace slice_impl
 
 template <int Dims, typename OutputType, typename InputType>
 void SliceFlipNormalizePermutePadKernel(
@@ -231,12 +231,12 @@ void SliceFlipNormalizePermutePadKernel(
     BOOL_SWITCH(has_channels, HasChannels, (
       if (need_pad) {
         constexpr bool OutOfBounds = false;
-        detail::SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, HasChannels, OutOfBounds>(
+        slice_impl::SliceFlipNormalizePermutePadKernelImpl<NeedNormalize, HasChannels, OutOfBounds>(
             output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),
             out_shape.data(), fill_values, mean, inv_stddev, channel_dim,
             std::integral_constant<int, Dims>());
       } else {
-        detail::SliceFlipNormalizePermuteKernelImpl<NeedNormalize, HasChannels>(
+        slice_impl::SliceFlipNormalizePermuteKernelImpl<NeedNormalize, HasChannels>(
             output, input, in_strides.data(), out_strides.data(), anchor.data(), in_shape.data(),
             out_shape.data(), mean, inv_stddev, channel_dim,
             std::integral_constant<int, Dims>());
@@ -250,7 +250,7 @@ template <typename ExecutionEngine, int Dims, typename OutputType, typename Inpu
 DLL_LOCAL  // workaround for GCC bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80947
 void SliceFlipNormalizePermutePadKernel(
         ExecutionEngine &exec_engine, OutputType *output, const InputType *input,
-        const detail::SliceFlipNormalizePermutePadProcessedArgs<Dims> &args,
+        const slice_impl::SliceFlipNormalizePermutePadProcessedArgs<Dims> &args,
         const SmallVector<OutputType, 8> &fill_values, int min_blk_sz = kSliceMinBlockSize,
         int req_nblocks = -1) {
   // Parallelize
@@ -303,7 +303,7 @@ template <int Dims, typename OutputType, typename InputType>
 void SliceFlipNormalizePermutePadKernel(
         SequentialExecutionEngine &exec_engine,
         OutputType *output, const InputType *input,
-        const detail::SliceFlipNormalizePermutePadProcessedArgs<Dims> &args,
+        const slice_impl::SliceFlipNormalizePermutePadProcessedArgs<Dims> &args,
         const SmallVector<OutputType, 8> &fill_values,
         int /* min_blk_sz */ = -1, int /* req_nblocks */ = -1) {
   (void)exec_engine;
@@ -341,7 +341,7 @@ class SliceFlipNormalizePermutePadCpu {
                 const Args &orig_args,
                 ExecutionEngine &exec_engine,
                 int min_blk_sz = 16000, int req_nblocks = -1) {
-    auto args = detail::ProcessArgs(orig_args, in.shape);
+    auto args = slice_impl::ProcessArgs(orig_args, in.shape);
     SmallVector<OutputType, 8> fill_values;
     for (auto value : args.fill_values)
       fill_values.push_back(static_cast<OutputType>(value));

@@ -18,6 +18,7 @@
 #include "dali/operators/math/expressions/expression_impl_gpu.cuh"
 
 namespace dali {
+namespace expr {
 
 /**
  * @brief Go over all tiles, unpacking them, casting to proper types and invoking loop over tile
@@ -107,6 +108,7 @@ template <ArithmeticOp op, typename Result,
 using ExprImplGpuTernary = ExprImplGPUInvokeTernary<
     InvokerTernaryOp<op, Result, IsFirstTensor, IsSecondTensor, IsThirdTensor>>;
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_GPU_TERNARY_CUH_

@@ -26,6 +26,7 @@
 #include "dali/pipeline/workspace/workspace.h"
 
 namespace dali {
+namespace expr {
 
 template <ArithmeticOp op, typename Result, typename Input>
 class ExprImplCpuT : public ExprImplBase {
@@ -317,6 +318,7 @@ class ExprImplCpuTernary : public ExprImplBase {
   }
 };
 
+}  // namespace expr
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_MATH_EXPRESSIONS_EXPRESSION_IMPL_CPU_H_
