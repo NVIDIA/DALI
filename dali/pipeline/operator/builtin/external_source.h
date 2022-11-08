@@ -227,7 +227,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     spec.TryGetArgument(layout_, "layout");
     InferNdim();
     output_name_ = spec.Output(0);
-    if (std::is_same<Backend, CPUBackend>::value) {
+    if (std::is_same<Backend, GPUBackend>::value) {
       internal_copy_stream_ = CUDAStreamPool::instance().Get(device_id_);
       internal_copy_order_ = internal_copy_stream_;
     }
