@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -98,9 +98,9 @@ class MelFilterImplBase {
     double inv_hz_step = 1.0 / hz_step_;
     fftbin_start_ = std::ceil(args.freq_low * inv_hz_step);
     assert(fftbin_start_ >= 0);
-    fftbin_end_ = std::floor(args.freq_high * inv_hz_step);
-    if (fftbin_end_ > fftbin_size_ - 1)
-      fftbin_end_ = fftbin_size_ - 1;
+    fftbin_end_ = std::ceil(args.freq_high * inv_hz_step);
+    if (fftbin_end_ > fftbin_size_)
+      fftbin_end_ = fftbin_size_;
 
     weights_down_.resize(fftbin_size_);
     norm_factors_.resize(nfilter, T(1));
@@ -123,7 +123,7 @@ class MelFilterImplBase {
       }
 
       double slope = 1. / (f1 - f0);
-      for (; fftbin <= fftbin_end_ && f < f1; fftbin++, f = fftbin * hz_step_) {
+      for (; fftbin < fftbin_end_ && f < f1; fftbin++, f = fftbin * hz_step_) {
         weights_down_[fftbin] = (f1 - f) * slope;
       }
     }
