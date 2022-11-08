@@ -121,6 +121,7 @@ class VideoTestBase : public ::testing::Test {
   static std::vector<std::string> vfr_mpeg4_videos_paths_;
 
   static std::vector<std::string> cfr_mpeg4_mkv_videos_paths_;
+  static std::vector<std::string> vfr_mpeg4_mkv_videos_paths_;
 
   static std::vector<TestVideo> cfr_videos_;
   static std::vector<TestVideo> vfr_videos_;
