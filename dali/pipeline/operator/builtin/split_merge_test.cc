@@ -131,21 +131,20 @@ class SplitMergeTest : public ::testing::Test {
     EXPECT_EQ(out_pinned, out_pinned_expected) << "[Merge]: " << node_name;
   }
 
+  void AddExternalInput(Pipeline &pipe, const string &input_name = "input") {
+    pipe.AddOperator(OpSpec("ExternalSource")
+                         .AddArg("device", "cpu")
+                         .AddArg("name", input_name)
+                         .AddOutput(input_name, "cpu"),
+                     input_name);
+  }
+
   /**
    * @brief Boilerplate code for defining inputs to the graph (input and pred nodes).
    */
   void AddExternalInputs(Pipeline &pipe) {
-    pipe.AddOperator(OpSpec("ExternalSource")
-                         .AddArg("device", "cpu")
-                         .AddArg("name", "input")
-                         .AddOutput("input", "cpu"),
-                     "input");
-
-    pipe.AddOperator(OpSpec("ExternalSource")
-                         .AddArg("device", "cpu")
-                         .AddArg("name", "pred")
-                         .AddOutput("pred", "cpu"),
-                     "pred");
+    AddExternalInput(pipe, "input");
+    AddExternalInput(pipe, "pred");
   }
 
   void AddSplit(Pipeline &pipe, const std::string &name, const std::string &dev,
@@ -489,26 +488,26 @@ TEST_F(SplitMergeNegativeTest, MismatchedSplit) {
 
 TEST_F(SplitMergeNegativeTest, MismatchedTypes) {
   Pipeline pipe(kBatchSize, 4, 0);
-  AddExternalInputs(pipe);
+  AddExternalInput(pipe, "input_i32");
+  AddExternalInput(pipe, "input_f32");
+  AddExternalInput(pipe, "pred");
 
-  AddSplit(pipe, "split_input", "cpu", "input", "pred", "split_0", "split_1");
+  AddSplit(pipe, "split_input_i32", "cpu", "input_i32", "pred", "split_i32_0", "split_i32_1");
+  AddSplit(pipe, "split_input_f32", "cpu", "input_f32", "pred", "split_f32_0", "split_f32_1");
 
-  pipe.AddOperator(OpSpec("Cast")
-                       .AddArg("device", "cpu")
-                       .AddInput("split_1", "cpu")
-                       .AddArg("dtype", DALI_FLOAT)
-                       .AddOutput("split_1_cast", "cpu"),
-                   "copy_1");
-
-  AddMerge(pipe, "merge", "cpu", "split_0", "split_1_cast", "pred", "merge");
+  AddMerge(pipe, "merge", "cpu", "split_i32_0", "split_f32_1", "pred", "merge");
 
   vector<std::pair<string, string>> outputs = {{"merge", "cpu"}};
   pipe.Build(outputs);
 
   for (int iter_idx = 0; iter_idx < GetIterCount(); iter_idx++) {
-    auto input = GetInput(iter_idx);
+    auto input_i32 = GetInput(iter_idx);
+    auto input_f32 = GetInput(iter_idx);
+    // just change the type for, we care only about metadata
+    input_f32.Resize(input_f32.shape(), DALI_FLOAT);
     auto predicate = GetPredicate(iter_idx);
-    pipe.SetExternalInput("input", input);
+    pipe.SetExternalInput("input_i32", input_i32);
+    pipe.SetExternalInput("input_f32", input_f32);
     pipe.SetExternalInput("pred", predicate);
 
     try {
