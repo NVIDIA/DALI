@@ -123,8 +123,7 @@ class RemapTest(unittest.TestCase):
                            **self.common_dali_pipe_params)
         self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
 
-    @params('random')
-    def test_benchmark_remap_against_cv(self, map_mode):
+    def benchmark_remap_against_cv(self, map_mode):
         nvtx.range_push("Benchmark against OpenCV")
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
         dpipe = remap_pipe('dali', maps, self.img_size, exec_async=False, exec_pipelined=False,
@@ -138,8 +137,7 @@ class RemapTest(unittest.TestCase):
         nvtx.range_pop()
         print(f"DALI Pipeline average time: {dtime}. OpenCV Pipeline average time: {ctime}.")
 
-    @params('random')
-    def test_benchmark_remap_isolated(self, map_mode):
+    def benchmark_remap_isolated(self, map_mode):
         nvtx.range_push("Benchmark isolated")
         maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
         dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params,
