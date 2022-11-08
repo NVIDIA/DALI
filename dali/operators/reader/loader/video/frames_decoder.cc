@@ -86,6 +86,10 @@ const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
 };
 
 int64 FramesDecoder::NumFrames() const {
+    if (num_frames_.has_value()) {
+      return num_frames_.value();
+    }
+
     if (index_.has_value()) {
       return index_->size();
     }
@@ -149,6 +153,11 @@ void FramesDecoder::FindVideoStream(bool init_codecs) {
                  make_string("Could not find video stream in ", Filename()));
 
     av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
+
+    if (Height() == 0 || Width() == 0 || NumFrames() == 0) {
+      DALI_ENFORCE(avformat_find_stream_info(av_state_->ctx_, nullptr) >= 0);
+      DALI_ENFORCE(Height() != 0 && Width() != 0, "Couldn't load video size info.");
+    }
   }
 }
 
@@ -179,12 +188,16 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
 
 FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
-                             bool init_codecs)
+                             bool init_codecs, int num_frames)
   : av_state_(std::make_unique<AvState>()),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
   DALI_ENFORCE(init_codecs || !build_index,
                "FramesDecoder doesn't support index without CPU codecs");
   av_log_set_level(AV_LOG_ERROR);
+
+  if (num_frames != -1) {
+    num_frames_ = num_frames;
+  }
 
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");

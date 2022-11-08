@@ -142,7 +142,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
     const char *memory_file,
     int memory_file_size,
     cudaStream_t stream = 0,
-    bool build_index = true);
+    bool build_index = true,
+    int num_frames = -1);
 
   bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
 
