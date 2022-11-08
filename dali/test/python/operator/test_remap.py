@@ -41,31 +41,20 @@ def update_map(mode, shape, nimages=1):
     mapsx = []
     mapsy = []
     for _ in range(nimages):
-        map_x = np.zeros(shape, dtype=np.float32)
-        map_y = np.zeros(shape, dtype=np.float32)
+        map_x = np.tile(np.arange(shape[1]), [shape[0], 1])
+        map_y = np.tile(np.arange(shape[0])[:, np.newaxis], [1, shape[1]])
         if mode == 'identity':
-            for i in range(map_x.shape[0]):
-                map_x[i, :] = [x for x in range(map_x.shape[1])]
-            for j in range(map_y.shape[1]):
-                map_y[:, j] = [y for y in range(map_y.shape[0])]
+            pass
         elif mode == 'xflip':
-            for i in range(map_x.shape[0]):
-                map_x[i, :] = [x for x in range(map_x.shape[1])]
-            for j in range(map_y.shape[1]):
-                map_y[:, j] = [map_y.shape[0] - y for y in range(map_y.shape[0])]
+            map_x = shape[1] - map_x
         elif mode == 'yflip':
-            for i in range(map_x.shape[0]):
-                map_x[i, :] = [map_x.shape[1] - x for x in range(map_x.shape[1])]
-            for j in range(map_y.shape[1]):
-                map_y[:, j] = [y for y in range(map_y.shape[0])]
+            map_y = shape[0] - map_y
         elif mode == 'xyflip':
-            for i in range(map_x.shape[0]):
-                map_x[i, :] = [map_x.shape[1] - x for x in range(map_x.shape[1])]
-            for j in range(map_y.shape[1]):
-                map_y[:, j] = [map_y.shape[0] - y for y in range(map_y.shape[0])]
+            map_x = shape[1] - map_x
+            map_y = shape[0] - map_y
         elif mode == 'random':
-            map_x = rng.uniform(low=0, high=map_x.shape[1] + 0, size=map_x.shape)
-            map_y = rng.uniform(low=0, high=map_y.shape[0] + 0, size=map_y.shape)
+            map_x = rng.uniform(low=0, high=map_x.shape[1] + 0, size=shape)
+            map_y = rng.uniform(low=0, high=map_y.shape[0] + 0, size=shape)
         else:
             raise ValueError("Unknown map mode.")
         mapsx.append(map_x)
@@ -157,10 +146,5 @@ class RemapTest(unittest.TestCase):
 
     @staticmethod
     def _count_outlying_pixels(sample1, sample2):
-        diff = sample1 - sample2
-        diff = diff.reshape(-1, diff.shape[-1])
-        sum = 0
-        for px in diff:
-            if not np.all(px == np.zeros(3)):
-                sum += 1
-        return sum
+        eq = sample1 != sample2
+        return np.count_nonzero(np.sum(eq, axis=2))
