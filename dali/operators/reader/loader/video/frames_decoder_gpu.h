@@ -134,6 +134,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
  * @param memory_file Pointer to memory with video file data.
  * @param memory_file_size Size of memory_file in bytes.
  * @param build_index If set to false index will not be build and some features are unavailable.
+ * @param num_frames If set, number of frames in the video.
  *
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.

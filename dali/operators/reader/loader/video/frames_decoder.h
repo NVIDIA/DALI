@@ -109,6 +109,7 @@ class DLL_PUBLIC FramesDecoder {
    * @param memory_file_size Size of memory_file in bytes.
    * @param build_index If set to false index will not be build and some features are unavailable.
    * @param init_codecs If set to false CPU codec part is not initalized, only parser
+   * @param num_frames If set, number of frames in the video.
    *
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
