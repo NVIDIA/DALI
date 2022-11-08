@@ -1197,16 +1197,6 @@ void ExposeTensorList(py::module &m) {
     .def("copy_to_external",
         [](TensorList<GPUBackend> &tl, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
-          CUDAStreamLease lease;
-          AccessOrder copy_order;
-          int device = tl.device_id();
-          if (!cuda_stream.is_none()) {
-            cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
-            copy_order = AccessOrder(stream, device);
-          } else {
-            lease = CUDAStreamPool::instance().Get(device);
-            copy_order = AccessOrder(lease, device);
-          }
           CopyToExternalImplGPU(tl, p, cuda_stream, non_blocking, use_copy_kernel);
         },
       "ptr"_a,
