@@ -94,15 +94,12 @@ CropAttr::CropAttr(const OpSpec& spec) {
       DALI_ENFORCE(crop.size() >= 2 && crop.size() <= 3,
                    "`crop` argument should have 2 or 3 elements depending on the input data shape");
       int i = 0;
-      has_crop_d_ = crop.size() == 3;
-      if (has_crop_d_) {
+      if (crop.size() == 3) {
         crop_d = crop[i++];
       }
       crop_h = crop[i++];
       crop_w = crop[i++];
     }
-  } else {
-    has_crop_d_ = has_crop_d_arg;
   }
   crop_height_.resize(max_batch_size, crop_h);
   crop_width_.resize(max_batch_size, crop_w);
@@ -122,18 +119,13 @@ void CropAttr::ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws,
     DALI_ENFORCE(crop_arg_len >= 2 && crop_arg_len <= 3,
                  "`crop` argument should have 2 or 3 elements depending on the input data shape");
     int idx = 0;
-    has_crop_d_ = crop_arg_len == 3;
-    if (has_crop_d_) {
+    if (crop_arg_len == 3) {
       crop_depth_[data_idx] = static_cast<int>(crop_arg.data[idx++]);
     }
     crop_height_[data_idx] = static_cast<int>(crop_arg.data[idx++]);
     crop_width_[data_idx] = static_cast<int>(crop_arg.data[idx++]);
   }
 
-  crop_x_norm_[data_idx] = spec.GetArgument<float>("crop_pos_x", ws, data_idx);
-  crop_y_norm_[data_idx] = spec.GetArgument<float>("crop_pos_y", ws, data_idx);
-  if (has_crop_d_)
-    crop_z_norm_[data_idx] = spec.GetArgument<float>("crop_pos_z", ws, data_idx);
   if (spec.ArgumentDefined("crop_w")) {
     crop_width_[data_idx] = static_cast<int>(spec.GetArgument<float>("crop_w", ws, data_idx));
   }
@@ -142,6 +134,12 @@ void CropAttr::ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws,
   }
   if (spec.ArgumentDefined("crop_d")) {
     crop_depth_[data_idx] = static_cast<int>(spec.GetArgument<float>("crop_d", ws, data_idx));
+  }
+
+  crop_x_norm_[data_idx] = spec.GetArgument<float>("crop_pos_x", ws, data_idx);
+  crop_y_norm_[data_idx] = spec.GetArgument<float>("crop_pos_y", ws, data_idx);
+  if (spec.ArgumentDefined("crop_d")) {
+    crop_z_norm_[data_idx] = spec.GetArgument<float>("crop_pos_z", ws, data_idx);
   }
 
   crop_window_generators_[data_idx] = [this, data_idx](const TensorShape<>& input_shape,
@@ -172,11 +170,11 @@ void CropAttr::ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws,
       anchor_norm[w_dim] = crop_x_norm_[data_idx];
     }
 
-    if (has_crop_d_) {
-      if (d_dim >= 0 && crop_depth_[data_idx] > 0) {
+    if (crop_depth_[data_idx] > 0) {
+      if (d_dim >= 0) {
         crop_shape[d_dim] = crop_depth_[data_idx];
         anchor_norm[d_dim] = crop_z_norm_[data_idx];
-      } else if (d_dim < 0 && f_dim >= 0 && crop_depth_[data_idx] > 0) {
+      } else if (d_dim < 0 && f_dim >= 0) {
         // Special case.
         // This allows using crop_d to crop on the sequence dimension,
         // by treating video inputs as a volume instead of a sequence

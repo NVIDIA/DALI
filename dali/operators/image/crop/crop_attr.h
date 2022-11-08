@@ -58,7 +58,6 @@ class CropAttr {
   std::vector<float> crop_z_norm_;
   std::vector<CropWindowGenerator> crop_window_generators_;
   bool is_whole_image_ = false;
-  bool has_crop_d_ = false;
 };
 
 }  // namespace dali
