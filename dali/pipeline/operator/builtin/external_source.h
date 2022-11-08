@@ -218,13 +218,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),
         layout_(),
-        sync_worker_(device_id_, false, "ExternalSource syncworker"),
-        internal_copy_stream_(std::is_same<Backend, CPUBackend>::value ?
-                                  CUDAStreamLease{} :
-                                  CUDAStreamPool::instance().Get(device_id_)),
-        internal_copy_order_(std::is_same<Backend, CPUBackend>::value ?
-                                 AccessOrder::host() :
-                                 AccessOrder(internal_copy_stream_)) {
+        sync_worker_(device_id_, false, "ExternalSource syncworker") {
     spec.TryGetArgument(dtype_, "dtype");
     if (spec.TryGetArgument(ndim_, "ndim")) {
       DALI_ENFORCE(ndim_ >= 0, make_string("Incorrect number of dimensions (", ndim_,
@@ -233,6 +227,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     spec.TryGetArgument(layout_, "layout");
     InferNdim();
     output_name_ = spec.Output(0);
+    if (std::is_same<Backend, CPUBackend>::value) {
+      internal_copy_stream_ = CUDAStreamPool::instance().Get(device_id_);
+      internal_copy_order_ = internal_copy_stream_;
+    }
     sync_worker_.WaitForInit();
   }
 
@@ -470,12 +468,11 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tl_elm = GetEmptyOutputBatch();
       copy_to_storage_event = copy_to_storage_events_.GetEmpty();
     }
-    // If we got a host order, this means that means, we most probably got it via FeedPipeline,
-    // and we are trying to pass the data from CPU to GPU.
-    // As we keep the order in tl_data_ as internal_copy_stream_, we will use an actual stream
-    // for running and synchronizing with the copy. Note that the Copy can be truly asynchronous
-    // if it comes from pinned memory or happens on a device with integrated memory (like Xavier)
-    // where CPU and GPU share the same memory.
+    // If we got a host order we most probably got it via FeedPipeline and we are trying to pass the
+    // data from CPU to GPU. As we keep the order in tl_data_ as internal_copy_stream_, we will use
+    // an actual stream for running and synchronizing with the copy. Note that the Copy can be truly
+    // asynchronous if it comes from pinned memory or happens on a device with integrated memory
+    // (like Xavier) where CPU and GPU share the same memory.
     if (!order.is_device()) {
       order = tl_elm.front()->order();
     }
@@ -631,8 +628,8 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   bool zero_copy_noncontiguous_gpu_input_ = false;
 
   WorkerThread sync_worker_;
-  CUDAStreamLease internal_copy_stream_;
-  AccessOrder internal_copy_order_;
+  CUDAStreamLease internal_copy_stream_ = {};
+  AccessOrder internal_copy_order_ = {};
 };
 
 }  // namespace dali
