@@ -153,11 +153,6 @@ void FramesDecoder::FindVideoStream(bool init_codecs) {
                  make_string("Could not find video stream in ", Filename()));
 
     av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
-
-    if (Height() == 0 || Width() == 0) {
-      DALI_ENFORCE(avformat_find_stream_info(av_state_->ctx_, nullptr) >= 0);
-      DALI_ENFORCE(Height() != 0 && Width() != 0, "Couldn't load video size info.");
-    }
   }
 }
 
