@@ -629,7 +629,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   WorkerThread sync_worker_;
   CUDAStreamLease internal_copy_stream_ = {};
-  AccessOrder internal_copy_order_ = {};
+  AccessOrder internal_copy_order_ = AccessOrder::host();
 };
 
 }  // namespace dali
