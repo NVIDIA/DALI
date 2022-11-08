@@ -62,7 +62,8 @@ TEST(MMDefaultResource, GetResource_Pinned) {
   stream = CUDAStream();  // destroy the stream, it should still complete just fine
   char back_copy[1000] = {};
   CUDA_CALL(cudaEventSynchronize(event));
-  CUDA_CALL(cudaMemcpy(back_copy, dev, 1000, cudaMemcpyDeviceToHost));
+  CUDA_CALL(cudaMemcpyAsync(back_copy, dev, 1000, cudaMemcpyDeviceToHost, 0));
+  CUDA_CALL(cudaStreamSynchronize(0));
 
   for (int i = 0; i < 1000; i++)
     EXPECT_EQ(back_copy[i], static_cast<char>(i + 42));
