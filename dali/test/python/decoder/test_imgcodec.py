@@ -56,7 +56,7 @@ def decoder_pipe(data_path, device, use_fast_idct=False):
 
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
-missnamed_path = 'db/single/missnamed'
+misnamed_path = 'db/single/missnamed'
 test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k', 'webp'}
 test_misnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
 
