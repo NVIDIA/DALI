@@ -267,6 +267,7 @@ def test_noise_shot_cpu():
 def test_noise_salt_and_pepper_cpu():
     check_single_input(fn.noise.salt_and_pepper)
 
+
 @nottest
 def _test_image_decoder_args_cpu(decoder_type, **args):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=None)
@@ -277,20 +278,26 @@ def _test_image_decoder_args_cpu(decoder_type, **args):
     for _ in range(3):
         pipe.run()
 
+
 def test_image_decoder_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image)
+
 
 def test_experimental_image_decoder_cpu():
     _test_image_decoder_args_cpu(fn.experimental.decoders.image)
 
+
 def test_image_decoder_crop_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image_crop, crop=(10, 10))
+
 
 def test_experimental_image_decoder_crop_cpu():
     _test_image_decoder_args_cpu(fn.experimental.decoders.image_crop, crop=(10, 10))
 
+
 def test_image_decoder_random_crop_cpu():
     _test_image_decoder_args_cpu(fn.decoders.image_random_crop)
+
 
 def test_experimental_image_decoder_random_crop_cpu():
     _test_image_decoder_args_cpu(fn.experimental.decoders.image_random_crop)
@@ -615,8 +622,10 @@ def _test_image_decoder_slice_cpu(decoder_type):
     for _ in range(3):
         pipe.run()
 
+
 def test_image_decoder_slice_cpu():
     _test_image_decoder_slice_cpu(fn.decoders.image_slice)
+
 
 def test_experimental_image_decoder_slice_cpu():
     _test_image_decoder_slice_cpu(fn.experimental.decoders.image_slice)
@@ -1040,8 +1049,10 @@ def _test_peek_image_shape_cpu(op):
     for _ in range(3):
         pipe.run()
 
+
 def test_peek_image_shape_cpu():
     _test_peek_image_shape_cpu(fn.peek_image_shape)
+
 
 def test_experimental_peek_image_shape_cpu():
     _test_peek_image_shape_cpu(fn.experimental.peek_image_shape)
