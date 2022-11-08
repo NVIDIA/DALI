@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
 #include "dali/operators/image/crop/crop_attr.h"
 
 namespace dali {
 
 DALI_SCHEMA(CropAttr)
     .DocStr(R"code(Crops attributes placeholder)code")
-    .AddOptionalArg(
+    .AddOptionalArg<std::vector<float>>(
         "crop", R"code(Shape of the cropped image, specified as a list of values (for example,
 ``(crop_H, crop_W)`` for the 2D crop and ``(crop_D, crop_H, crop_W)`` for the volumetric crop).
 
 Providing crop argument is incompatible with providing separate arguments such as ``crop_d``,
 ``crop_h``, and ``crop_w``.)code",
-        std::vector<float>{0.f, 0.f})
+        nullptr, true)
     .AddOptionalArg(
         "crop_pos_x", R"code(Normalized (0.0 - 1.0) horizontal position of the cropping window
 (upper left corner).
@@ -72,8 +71,7 @@ window dimensions (argument `crop`).)code",
 
 CropAttr::CropAttr(const OpSpec& spec) {
   auto max_batch_size = spec.GetArgument<int>("max_batch_size");
-  int crop_h = kNoCrop, crop_w = kNoCrop, crop_d = kNoCrop;
-  bool has_crop_arg = spec.HasArgument("crop");
+  bool has_crop_arg = spec.ArgumentDefined("crop");
   bool has_crop_w_arg = spec.ArgumentDefined("crop_w");
   bool has_crop_h_arg = spec.ArgumentDefined("crop_h");
   bool has_crop_d_arg = spec.ArgumentDefined("crop_d");
@@ -87,37 +85,51 @@ CropAttr::CropAttr(const OpSpec& spec) {
                  "`crop_d` argument must be provided together with `crop_w` and `crop_h`");
   }
 
-  size_t crop_arg_ndims = 0;
+  int crop_d = kNoCrop, crop_h = kNoCrop, crop_w = kNoCrop;
   if (has_crop_arg) {
     DALI_ENFORCE(!has_crop_h_arg && !has_crop_w_arg && !has_crop_d_arg,
                  "`crop` argument is not compatible with `crop_h`, `crop_w`, `crop_d`");
-
-    auto cropArg = spec.GetRepeatedArgument<float>("crop");
-    crop_arg_ndims = cropArg.size();
-    DALI_ENFORCE(crop_arg_ndims >= 2 && crop_arg_ndims <= 3,
-                 "`crop` argument should have 2 or 3 elements depending on the input data shape");
-
-    size_t idx = 0;
-    if (crop_arg_ndims == 3) {
-      crop_d = static_cast<int>(cropArg[idx++]);
+    if (spec.HasArgument("crop")) {
+      auto crop = spec.GetRepeatedArgument<float>("crop");
+      DALI_ENFORCE(crop.size() >= 2 && crop.size() <= 3,
+                   "`crop` argument should have 2 or 3 elements depending on the input data shape");
+      int i = 0;
+      has_crop_d_ = crop.size() == 3;
+      if (has_crop_d_) {
+        crop_d = crop[i++];
+      }
+      crop_h = crop[i++];
+      crop_w = crop[i++];
     }
-    crop_h = static_cast<int>(cropArg[idx++]);
-    crop_w = static_cast<int>(cropArg[idx++]);
+  } else {
+    has_crop_d_ = has_crop_d_arg;
   }
-  has_crop_d_ = has_crop_d_arg || crop_arg_ndims == 3;
-
   crop_height_.resize(max_batch_size, crop_h);
   crop_width_.resize(max_batch_size, crop_w);
-  if (has_crop_d_)
-    crop_depth_.resize(max_batch_size, crop_d);
+  crop_depth_.resize(max_batch_size, crop_d);
   crop_x_norm_.resize(max_batch_size, 0.0f);
   crop_y_norm_.resize(max_batch_size, 0.0f);
-  if (has_crop_d_)
-    crop_z_norm_.resize(max_batch_size, 0.0f);
+  crop_z_norm_.resize(max_batch_size, 0.0f);
   crop_window_generators_.resize(max_batch_size, {});
 }
 
-void CropAttr::ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws, std::size_t data_idx) {
+void CropAttr::ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws,
+                                std::size_t data_idx) {
+  int crop_arg_len = 0;
+  if (spec.HasTensorArgument("crop")) {
+    auto crop_arg = view<const float, 1>(ws->ArgumentInput("crop"))[data_idx];
+    crop_arg_len = crop_arg.shape[0];
+    DALI_ENFORCE(crop_arg_len >= 2 && crop_arg_len <= 3,
+                 "`crop` argument should have 2 or 3 elements depending on the input data shape");
+    int idx = 0;
+    has_crop_d_ = crop_arg_len == 3;
+    if (has_crop_d_) {
+      crop_depth_[data_idx] = static_cast<int>(crop_arg.data[idx++]);
+    }
+    crop_height_[data_idx] = static_cast<int>(crop_arg.data[idx++]);
+    crop_width_[data_idx] = static_cast<int>(crop_arg.data[idx++]);
+  }
+
   crop_x_norm_[data_idx] = spec.GetArgument<float>("crop_pos_x", ws, data_idx);
   crop_y_norm_[data_idx] = spec.GetArgument<float>("crop_pos_y", ws, data_idx);
   if (has_crop_d_)

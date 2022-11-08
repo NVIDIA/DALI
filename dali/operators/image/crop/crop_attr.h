@@ -15,13 +15,13 @@
 #ifndef DALI_OPERATORS_IMAGE_CROP_CROP_ATTR_H_
 #define DALI_OPERATORS_IMAGE_CROP_CROP_ATTR_H_
 
-#include <cmath>
-#include <utility>
 #include <vector>
 #include "dali/core/common.h"
-#include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/workspace/workspace.h"
+#include "dali/pipeline/workspace/sample_workspace.h"
+#include "dali/core/span.h"
+#include "dali/core/tensor_shape.h"
 #include "dali/util/crop_window.h"
 
 namespace dali {
@@ -36,15 +36,13 @@ class CropAttr {
   static constexpr int kNoCrop = -1;
   explicit CropAttr(const OpSpec& spec);
 
-  void ProcessArguments(const OpSpec &spec, const ArgumentWorkspace *ws, std::size_t data_idx);
+  void ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws, std::size_t data_idx);
 
-  TensorShape<> CalculateAnchor(const span<float>& anchor_norm,
-                                const TensorShape<>& crop_shape,
+  TensorShape<> CalculateAnchor(const span<float>& anchor_norm, const TensorShape<>& crop_shape,
                                 const TensorShape<>& input_shape);
 
-  void ProcessArguments(const OpSpec& spec, const Workspace &ws);
-
-  void ProcessArguments(const OpSpec &spec, const SampleWorkspace &ws);
+  void ProcessArguments(const OpSpec& spec, const Workspace& ws);
+  void ProcessArguments(const OpSpec& spec, const SampleWorkspace& ws);
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const;
 
