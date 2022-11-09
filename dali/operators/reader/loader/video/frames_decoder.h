@@ -109,12 +109,13 @@ class DLL_PUBLIC FramesDecoder {
    * @param memory_file_size Size of memory_file in bytes.
    * @param build_index If set to false index will not be build and some features are unavailable.
    * @param init_codecs If set to false CPU codec part is not initalized, only parser
+   * @param num_frames If set, number of frames in the video.
    *
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
   FramesDecoder(const char *memory_file, int memory_file_size, bool build_index = true,
-                bool init_codecs = true);
+                bool init_codecs = true, int num_frames = -1);
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -244,6 +245,8 @@ class DLL_PUBLIC FramesDecoder {
 
   void DetectVfr();
 
+  void ParseNumFrames();
+
   std::string Filename() {
     return filename_.has_value() ? filename_.value() : "memory file";
   }
@@ -259,6 +262,8 @@ class DLL_PUBLIC FramesDecoder {
 
   std::optional<const std::string> filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
+
+  std::optional<int> num_frames_ = {};
 
   // Default size of the buffer used to load video files from memory to FFMPEG
   const int default_av_buffer_size = (1 << 15);

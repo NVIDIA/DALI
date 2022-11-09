@@ -86,6 +86,10 @@ const std::vector<AVCodecID> FramesDecoder::SupportedCodecs = {
 };
 
 int64 FramesDecoder::NumFrames() const {
+    if (num_frames_.has_value()) {
+      return num_frames_.value();
+    }
+
     if (index_.has_value()) {
       return index_->size();
     }
@@ -179,12 +183,16 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 
 
 FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
-                             bool init_codecs)
+                             bool init_codecs, int num_frames)
   : av_state_(std::make_unique<AvState>()),
     memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
   DALI_ENFORCE(init_codecs || !build_index,
                "FramesDecoder doesn't support index without CPU codecs");
   av_log_set_level(AV_LOG_ERROR);
+
+  if (num_frames != -1) {
+    num_frames_ = num_frames;
+  }
 
   av_state_->ctx_ = avformat_alloc_context();
   DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
@@ -215,12 +223,33 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
       ". Supported codecs: h264, HEVC."));
   InitAvState(init_codecs || build_index);
 
+  // Number of frames is unknown and we do not plan to build the index
+  if (NumFrames() == 0 && !build_index) {
+    ParseNumFrames();
+  }
+
   if (!build_index) {
     return;
   }
 
   BuildIndex();
   DetectVfr();
+}
+
+void FramesDecoder::ParseNumFrames() {
+  int curr_num_frames = 0;
+  while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+    // We want to make sure that we call av_packet_unref in every iteration
+    auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+
+    if (packet->stream_index != av_state_->stream_id_) {
+      continue;
+    }
+    curr_num_frames++;
+  }
+
+  num_frames_ = curr_num_frames;
+  Reset();
 }
 
 void FramesDecoder::BuildIndex() {

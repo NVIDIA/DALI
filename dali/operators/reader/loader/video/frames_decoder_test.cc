@@ -370,4 +370,34 @@ TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4NoIndex) {
   RunSequentialTest(decoder, vfr_videos_[0], 3.0);
 }
 
+TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4MkvNoIndex) {
+  auto memory_video = MemoryVideo(cfr_mpeg4_mkv_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(
+    memory_video.data(), memory_video.size(), 0, false, cfr_videos_[0].NumFrames());
+  RunSequentialTest(decoder, cfr_videos_[0], 3.0);
+}
+
+TEST_F(FramesDecoderGpuTest, CfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
+  auto memory_video = MemoryVideo(cfr_mpeg4_mkv_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, cfr_videos_[0], 3.0);
+}
+
+TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndex) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_mkv_videos_paths_[1]);
+
+  FramesDecoderGpu decoder(
+    memory_video.data(), memory_video.size(), 0, false, vfr_videos_[1].NumFrames());
+  RunSequentialTest(decoder, vfr_videos_[1], 3.0);
+}
+
+TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
+  auto memory_video = MemoryVideo(vfr_mpeg4_mkv_videos_paths_[1]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+  RunSequentialTest(decoder, vfr_videos_[1], 3.0);
+}
+
 }  // namespace dali
