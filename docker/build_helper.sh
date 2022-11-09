@@ -44,6 +44,7 @@ export BUILD_LIBTAR=${BUILD_LIBTAR:-ON}
 export BUILD_NVML=${BUILD_NVML:-ON}
 export BUILD_FFTS=${BUILD_FFTS:-ON}
 export BUILD_CUFILE=${BUILD_CUFILE-OFF}
+export BUILD_NVCOMP=${BUILD_NVCOMP-OFF}
 export LINK_LIBCUDA=${LINK_LIBCUDA:-OFF}
 export LINK_CUDA_DYNAMICALLY=${LINK_CUDA_DYNAMICALLY:-OFF}
 export WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-OFF}
@@ -89,6 +90,7 @@ cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DBUILD_NVML=${BUILD_NVML}                   \
       -DBUILD_FFTS=${BUILD_FFTS}                   \
       -DBUILD_CUFILE=${BUILD_CUFILE}               \
+      -DBUILD_NVCOMP=${BUILD_NVCOMP}               \
       -DLINK_LIBCUDA=${LINK_LIBCUDA}               \
       -DLINK_CUDA_DYNAMICALLY=${LINK_CUDA_DYNAMICALLY} \
       -DWITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT} \
@@ -105,6 +107,11 @@ if [ "${WERROR}" = "ON" ]; then
 fi
 make -j"$(grep ^processor /proc/cpuinfo | wc -l)"
 
+if [ "$BUILD_NVCOMP" = "ON" ]; then
+    export BUNDLE_NVCOMP=YES
+else
+    export BUNDLE_NVCOMP=NO
+fi
 
 bundle_wheel() {
     INPUT=$1
@@ -112,7 +119,7 @@ bundle_wheel() {
     TEST_BUNDLED_LIBS=$3
     OUT_WHL_NAME=$4
     BUNDLE_PATH_PREFIX=$5
-    ../dali/python/bundle-wheel.sh ${INPUT} ${STRIP} ${TEST_BUNDLED_LIBS} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}" ${WHL_OUTDIR} ${WHL_COMPRESSION}
+    ../dali/python/bundle-wheel.sh ${INPUT} ${STRIP} ${TEST_BUNDLED_LIBS} ${OUT_WHL_NAME} "${BUNDLE_PATH_PREFIX}" ${WHL_OUTDIR} ${WHL_COMPRESSION} ${BUNDLE_NVCOMP}
 }
 
 

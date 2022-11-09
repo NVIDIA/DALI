@@ -119,6 +119,7 @@ CMD WERROR=ON           \
     BUILD_LIBSND=ON     \
     BUILD_LIBTAR=ON     \
     BUILD_FFTS=ON       \
+    BUILD_NVCOMP=OFF    \
     BUILD_NVJPEG=OFF    \
     BUILD_NVJPEG2K=OFF  \
     BUILD_NVOF=OFF      \

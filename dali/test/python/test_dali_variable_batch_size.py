@@ -30,7 +30,7 @@ import test_utils
 from segmentation_test_utils import make_batch_select_masks
 from test_detection_pipeline import coco_anchors
 from test_optical_flow import load_frames, is_of_supported
-from test_utils import module_functions
+from test_utils import module_functions, has_operator, restrict_platform
 
 """
 How to test variable (iter-to-iter) batch size for a given op?
@@ -1150,6 +1150,46 @@ def test_video_decoder():
     check_pipeline(batches, video_decoder_pipe, devices=['cpu', 'mixed'])
 
 
+@has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
+def test_inflate():
+    import lz4.block
+
+    def sample_to_lz4(sample):
+        deflated_buf = lz4.block.compress(sample, store_size=False)
+        return np.frombuffer(deflated_buf, dtype=np.uint8)
+
+    def inflate_pipline(max_batch_size, inputs, device):
+        input_data = [
+            [sample_to_lz4(sample) for sample in batch]
+            for batch in inputs]
+        input_shape = [
+            [np.array(sample.shape, dtype=np.int32) for sample in batch]
+            for batch in inputs]
+
+        @pipeline_def
+        def piepline():
+            defalted = fn.external_source(source=input_data)
+            shape = fn.external_source(source=input_shape)
+            return fn.experimental.inflate(defalted.gpu(), shape=shape)
+
+        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
+
+    def sample_gen():
+        j = 42
+        while True:
+            yield np.full((13, 7), j)
+            j += 1
+
+    sample = sample_gen()
+    batches = [
+        [next(sample) for _ in range(5)],
+        [next(sample) for _ in range(13)],
+        [next(sample) for _ in range(2)]]
+
+    check_pipeline(batches, inflate_pipline, devices=['gpu'])
+
+
 tested_methods = [
     "arithmetic_generic_op",
     "audio_decoder",
@@ -1186,6 +1226,7 @@ tested_methods = [
     "erase",
     "erase",
     "expand_dims",
+    "experimental.inflate",
     "experimental.decoders.video",
     "experimental.remap",
     "external_source",

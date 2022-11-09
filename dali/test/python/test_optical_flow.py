@@ -19,26 +19,13 @@ import random
 import cv2
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import fn, types
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, get_arch
 from nose_utils import raises, assert_raises
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, 'db', 'imgproc')
 
 is_of_supported_var = None
-
-
-def get_arch(device_id=0):
-    compute_cap = 0
-    try:
-        import pynvml
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
-        compute_cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-        compute_cap = compute_cap[0] + compute_cap[1] / 10.
-    except ModuleNotFoundError:
-        print("NVML not found")
-    return compute_cap
 
 
 def is_of_supported(device_id=0):
