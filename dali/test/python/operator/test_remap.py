@@ -111,6 +111,32 @@ class RemapTest(unittest.TestCase):
                            **self.common_dali_pipe_params)
         self._compare_pipelines_pixelwise(dpipe, cpipe, N_iterations=2, eps=.01)
 
+    def benchmark_remap_against_cv(self, map_mode):
+        import torch.cuda.nvtx as nvtx
+        nvtx.range_push("Benchmark against OpenCV")
+        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
+        dpipe = remap_pipe('dali', maps, self.img_size, exec_async=False, exec_pipelined=False,
+                           **self.common_dali_pipe_params, prefetch_queue_depth=1)
+        cpipe = remap_pipe('cv', maps, self.img_size, exec_async=False, exec_pipelined=False,
+                           **self.common_dali_pipe_params, prefetch_queue_depth=1)
+        dpipe.build()
+        cpipe.build()
+        dtime = self._measure_time(dpipe.run)
+        ctime = self._measure_time(cpipe.run)
+        nvtx.range_pop()
+        print(f"DALI Pipeline average time: {dtime}. OpenCV Pipeline average time: {ctime}.")
+
+    def benchmark_remap_isolated(self, map_mode):
+        import torch.cuda.nvtx as nvtx
+        nvtx.range_push("Benchmark isolated")
+        maps = [update_map(mode=map_mode, shape=self.img_size, nimages=self.batch_size)]
+        dpipe = remap_pipe('dali', maps, self.img_size, **self.common_dali_pipe_params,
+                           prefetch_queue_depth=1)
+        dpipe.build()
+        avg_time = self._measure_time(dpipe.run)
+        nvtx.range_pop()
+        print(f"DALI Pipeline average execution time: {avg_time} seconds.")
+
     def _compare_pipelines_pixelwise(self, pipe1, pipe2, N_iterations, eps=.01):
         pipe1.build()
         pipe2.build()
@@ -137,12 +163,14 @@ class RemapTest(unittest.TestCase):
                         f"Test failed. Actual error: {noutliers / size}, expected: {eps}.")
 
     @staticmethod
-    def _measure_time(func, n_iterations=1000):
-        start = time.time()
+    def _measure_time(func, n_iterations=30):
+        times = []
         for _ in range(n_iterations):
+            start = time.perf_counter()
             func()
-        stop = time.time()
-        return stop - start
+            stop = time.perf_counter()
+            times.append(stop - start)
+        return np.mean(np.array(times))
 
     @staticmethod
     def _count_outlying_pixels(sample1, sample2):

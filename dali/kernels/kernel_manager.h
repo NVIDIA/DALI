@@ -163,6 +163,9 @@ class DLL_PUBLIC KernelManager {
    *                         * should contain valid CUDA stream for GPU kernels;
    * @param in_args        - pack of arguments (inputs, arguments) used in Kernel::Setup
    * @return Reference to internally maintained copy of the kernel requirements.
+   *
+   * @remark You can't pass the brace initialization to the InArgs,
+   *         since compiler won't be able to deduce the type
    */
   template <typename Kernel, typename... InArgs>
   KernelRequirements &Setup(int instance_idx, KernelContext &context, InArgs &&...in_args) {
@@ -181,6 +184,9 @@ class DLL_PUBLIC KernelManager {
    *                         * if scratchpad pointer is null, a temporary dynamic scratchpad is
    *                           created
    * @param out_in_args    - pack of arguments (outputs, inputs, arguments) used in Kernel::Run
+   *
+   * @remark You can't pass the brace initialization to the OutInArgs,
+   *         since compiler won't be able to deduce the type
    */
   template <typename Kernel, typename... OutInArgs>
   void Run(int instance_idx, KernelContext &context, OutInArgs &&...out_in_args) {

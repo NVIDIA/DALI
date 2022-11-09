@@ -14,6 +14,7 @@
 
 #include "dali/operators/image/remap/remap.h"
 #include "dali/operators/image/remap/remap.cuh"
+#include "dali/kernels/kernel_manager.h"
 
 namespace dali {
 namespace remap {
@@ -38,11 +39,12 @@ class RemapGpu : public Remap<GPUBackend> {
  private:
   template<typename InputType>
   void RunImplTyped(Workspace &ws) {
+    using Kernel = kernels::remap::NppRemapKernel<StorageGPU, InputType>;
     const auto &input = ws.template Input<B>(0);
     const auto &mapx = ws.template Input<B>(1);
     const auto &mapy = ws.template Input<B>(2);
     auto &output = ws.template Output<B>(0);
-    kernels::remap::NppRemapKernel<StorageGPU, InputType> kernel;
+    km_.Resize<Kernel>(1, spec_.template GetArgument<int>("device_id"));
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
 
@@ -55,12 +57,15 @@ class RemapGpu : public Remap<GPUBackend> {
       detail::ShiftPixelOrigin(view<float>(mapx_shifted), shift_value_, scratchpad_, ws.stream());
       detail::ShiftPixelOrigin(view<float>(mapy_shifted), shift_value_, scratchpad_, ws.stream());
     }
-    kernel.Run(ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
-               view<const float, 2>(shift_pixels_ ? mapx_shifted : mapx),
-               view<const float, 2>(shift_pixels_ ? mapy_shifted : mapy),
-               {}, {}, make_span(interps_), {});
+    km_.Run<Kernel>(0, ctx, view<InputType, 3>(output), view<const InputType, 3>(input),
+                    view<const float, 2>(shift_pixels_ ? mapx_shifted : mapx),
+                    view<const float, 2>(shift_pixels_ ? mapy_shifted : mapy),
+                    span<const kernels::Roi<2>>{}, span<const kernels::Roi<2>>{},
+                    make_span(interps_));
   }
 
+
+  kernels::KernelManager km_;
   dali::kernels::DynamicScratchpad scratchpad_{};
 };
 
