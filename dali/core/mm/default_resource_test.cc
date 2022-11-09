@@ -44,12 +44,12 @@ TEST(MMDefaultResource, GetResource_Host) {
 TEST(MMDefaultResource, GetResource_Pinned) {
   DeviceBuffer<char> dev;
   dev.resize(1000);
-  CUDA_CALL(cudaMemset(dev, 0, 1000));
 
   auto *rsrc = GetDefaultResource<memory_kind::pinned>();
   ASSERT_NE(rsrc, nullptr);
 
   CUDAStream stream = CUDAStream::Create(true);
+  CUDA_CALL(cudaMemsetAsync(dev, 0, 1000, stream));
   char *mem = static_cast<char*>(rsrc->allocate(1000, 32));
   ASSERT_NE(mem, nullptr);
   EXPECT_TRUE(mm::detail::is_aligned(mem, 32));
