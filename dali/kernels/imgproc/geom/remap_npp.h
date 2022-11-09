@@ -77,6 +77,9 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
     npp_ctx_.nSharedMemPerBlock = device_properties.sharedMemPerBlock;
   }
 
+  
+  virtual ~NppRemapKernel() = default;
+
 
   void Run(KernelContext &context,
            TensorListView<Backend, T> output,
