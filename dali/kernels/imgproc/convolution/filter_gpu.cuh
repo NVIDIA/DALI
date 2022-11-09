@@ -46,7 +46,7 @@ struct LogicalBlock {
   ivec<3> strides_log2;
 
   DALI_HOST_DEV DALI_FORCEINLINE ivec<3> lBlockDim() const {
-    return (1 << extents_log2);
+    return 1 << extents_log2;
   }
 
   DALI_HOST_DEV DALI_FORCEINLINE ivec<3> lThreadIdx(int flat_idx) const {
@@ -64,6 +64,7 @@ struct ShapeDesc {
   int filter_vol, r, s;
   int filter_top_anchor, filter_left_anchor;
   int in_workspace_width;
+  int in_workspace_height;
   LogicalBlock logical_block;
 };
 
@@ -254,8 +255,9 @@ struct ShmInputConv {
       for (int r = 0; r < sample_desc.shape.r; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.s + s);
 #pragma unroll
-        for (int lane = 0; lane < SampleDescT::lanes; lane++) {
-          int y = lane + r;
+        for (int lane = 0, lanes_offset = 0; lane < SampleDescT::lanes;
+             lane++, lanes_offset += lBlockDim.y) {
+          int y = lThreadIdx.y + r + lanes_offset;
           auto in_val = in_workspace[y * sample_desc.shape.in_workspace_width + x];
           acc[lane] += in_val * filter_coef;
         }
@@ -266,22 +268,15 @@ struct ShmInputConv {
   DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in, int y_start,
                                                       int x_start, const ivec<3>& lBlockDim,
                                                       const ivec<3>& lThreadIdx) const {
+    x_start -= sample_desc.shape.filter_left_anchor * sample_desc.shape.c;
+    y_start -= sample_desc.shape.filter_top_anchor;
     for (int x = lThreadIdx.x; x < sample_desc.shape.in_workspace_width; x += lBlockDim.x) {
-      auto global_x = in_loader.remap_width(
-          x_start + x - sample_desc.shape.filter_left_anchor * sample_desc.shape.c,
-          sample_desc.shape);
-      auto load_row = [&](int y) {
-        int global_y = in_loader.remap_height(y_start + y - sample_desc.shape.filter_top_anchor,
-                                              sample_desc.shape);
+      int global_x = in_loader.remap_width(x_start + x, sample_desc.shape);
+#pragma unroll SampleDescT::lanes
+      for (int y = lThreadIdx.y; y < sample_desc.shape.in_workspace_height; y += lBlockDim.y) {
+        int global_y = in_loader.remap_height(y_start + y, sample_desc.shape);
         in_workspace[y * sample_desc.shape.in_workspace_width + x] =
             in_loader.load(in, global_y, global_x, sample_desc.shape);
-      };
-#pragma unroll
-      for (int y = 0; y < SampleDescT::lanes; y++) {
-        load_row(y);
-      }
-      for (int y = SampleDescT::lanes; y < SampleDescT::lanes + sample_desc.shape.r - 1; y++) {
-        load_row(y);
       }
     }
   }
@@ -322,7 +317,8 @@ struct DirectInputConv {
 #pragma unroll
         for (int lane = 0; lane < SampleDescT::lanes; lane++) {
           auto global_y = in_loader.remap_height(
-              y_start + lane + r - sample_desc.shape.filter_top_anchor, sample_desc.shape);
+              y_start + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.filter_top_anchor,
+              sample_desc.shape);
           auto in_val = in_loader.load(in, global_y, global_x, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
         }
@@ -340,7 +336,8 @@ template <int lanes, typename Out, typename Acc>
 DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ out,
                                                              const Acc* __restrict__ acc,
                                                              const InputROIDesc& roi, int y_start,
-                                                             int x_start, const ivec<3>& lThreadIdx) {
+                                                             int x_start, const ivec<3>& lBlockDim,
+                                                             const ivec<3>& lThreadIdx) {
   // The x, y indices describe the input, they are mapped into, output space by shifting
   // by roi.h_begin/wc_begin. Moreover the size of input roi is assumed to be equal to
   // the output size, so its extents are used to prevent OOB accesses
@@ -349,7 +346,7 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
   if (x < roi.wc_end) {
 #pragma unroll
     for (int lane = 0; lane < lanes; lane++) {
-      int y = y_start + lane;
+      int y = y_start + lThreadIdx.y + lane * lBlockDim.y;
       if (y < roi.h_end) {
         out[(y - roi.h_begin) * static_cast<int64_t>(roi.wc) + (x - roi.wc_begin)] =
             ConvertSat<Out>(acc[lane]);
@@ -373,7 +370,7 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc,
            x_start += gridDim.x * lBlockDim.x) {
         typename SampleDescT::Acc acc[lanes] = {};
         conv.compute(acc, in, y_start, x_start);
-        store_acc_in_global_output<lanes>(out, acc, roi, y_start, x_start,
+        store_acc_in_global_output<lanes>(out, acc, roi, y_start, x_start, lBlockDim,
                                           logBlock.lThreadIdx(threadIdx.x));
       }
     }
@@ -597,17 +594,27 @@ struct Filter2dGpu {
     has_degenerated_extents = h == 1 || w == 1;
     ValidateSampleNumericLimits(sample_idx, r, s, filter_vol, filter_top_anchor, filter_left_anchor,
                                 f, h, wc, c);
-    auto in_workspace_width = block_width + (s - 1) * c;
-    auto in_workspace_num_elements = in_workspace_width * (lanes + r - 1);
+    auto log_block = filter::LogicalBlock::create(7, 0, 0);
+    auto lblockDim = log_block.lBlockDim();
+    auto in_workspace_width = lblockDim.x + (s - 1) * c;
+    auto in_workspace_height = lblockDim.y * lanes + r - 1;
+    auto in_workspace_num_elements = in_workspace_width * in_workspace_height;
     if (in_workspace_width > std::numeric_limits<int>::max() ||
         in_workspace_num_elements > std::numeric_limits<int>::max()) {
       in_workspace_width = in_workspace_num_elements = 0;
     }
     required_workspace = in_workspace_num_elements * sizeof(In);
-    if (c > block_width || required_workspace > shared_mem_limit) {
+    if (c > lblockDim.x || required_workspace > shared_mem_limit) {
       required_workspace = in_workspace_width = 0;
     }
-    auto log_block = filter::LogicalBlock::create(7, 0, 0);
+    // std::cerr << log_block.lBlockDim() << std::endl
+    //           << log_block.lThreadIdx(0) << std::endl
+    //           << log_block.lThreadIdx(1) << std::endl
+    //           << log_block.lThreadIdx(57) << std::endl
+    //           << log_block.lThreadIdx(127) << std::endl
+    //           << log_block.lThreadIdx(128) << std::endl
+    //           << log_block.lThreadIdx(201) << std::endl
+    //           << log_block.lThreadIdx(255) << std::endl;
     return {hwc,
             static_cast<int>(wc),
             static_cast<int>(f),
@@ -620,6 +627,7 @@ struct Filter2dGpu {
             static_cast<int>(filter_top_anchor),
             static_cast<int>(filter_left_anchor),
             static_cast<int>(in_workspace_width),
+            static_cast<int>(in_workspace_height),
             log_block};
   }
 
