@@ -547,30 +547,38 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
         volume(tl.tensor_shape(i+batch_size)));
   }
 
-  // Run twice without getting the results
-  src_op->SetDataSource(tl1);
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
-
-  src_op->SetDataSource(tl2);
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
 
   Workspace ws;
-  exe->Outputs(&ws);
-  ASSERT_EQ(ws.NumOutput(), 1);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
-  test::CheckResults(ws, batch_size, 0, tl);
 
-  exe->Outputs(&ws);
-  ASSERT_EQ(ws.NumOutput(), 1);
-  ASSERT_EQ(ws.NumInput(), 0);
-  ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
 
-  test::CheckResults(ws, batch_size, 1, tl);
+  auto run = [&src_op, &exe] (TensorList<CPUBackend> &input) {
+    src_op->SetDataSource(input);
+    exe->RunCPU();
+    exe->RunMixed();
+    exe->RunGPU();
+  };
+
+  auto check = [&exe, &ws, &tl, batch_size] (int batch_idx) {
+    exe->Outputs(&ws);
+    ASSERT_EQ(ws.NumOutput(), 1);
+    ASSERT_EQ(ws.NumInput(), 0);
+    ASSERT_TRUE(ws.OutputIsType<GPUBackend>(0));
+    test::CheckResults(ws, batch_size, batch_idx, tl);
+  };
+
+  // Run twice without getting the results if we are not SimpleExecutor which will overwrite data
+  // due to prefetch queue = 1.
+  if (std::is_same_v<SimpleExecutor, TypeParam>) {
+    run(tl1);
+    check(0);
+    run(tl2);
+    check(1);
+  } else {
+    run(tl1);
+    run(tl2);
+    check(0);
+    check(1);
+  }
 }
 
 
