@@ -256,14 +256,15 @@ def test_total_no_chunks(ex_kwargs):
     @pipeline_def
     def pipeline():
         inflate = fn.external_source(source=lambda _: deflated, batch=False)
-        return fn.experimental.inflate(inflate.gpu(), shape=(128, 128, 3), **ex_kwargs)
+        return fn.experimental.inflate(inflate.gpu(), shape=(128, 128, 3), layout="HWC",
+                                       **ex_kwargs)
 
     batch_size = 8
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     pipe.build()
     for _ in range(2):
         (inflated, ) = pipe.run()
-        check_batch(inflated, [baseline] * batch_size, batch_size)
+        check_batch(inflated, [baseline] * batch_size, batch_size, layout="FHWC")
 
 
 def _test_validation(pipeline, error_glob, kwargs=None):
