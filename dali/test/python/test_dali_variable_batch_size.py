@@ -994,9 +994,9 @@ def test_image_decoders():
         pipe.set_outputs(shape)
         return pipe
 
-    image_decoder_extensions = ['.jp2'] * 1000
+    image_decoder_extensions = ['.jpg', '.bmp', '.png', '.pnm', '.jp2']
     image_decoder_pipes = [
-        #image_decoder_pipe,
+        image_decoder_pipe,
         image_decoder_crop_pipe,
         image_decoder_slice_pipe,
     ]
@@ -1004,17 +1004,19 @@ def test_image_decoders():
     data_path = os.path.join(test_utils.get_dali_extra_path(), 'db', 'single')
     for ext in image_decoder_extensions:
         for pipe_template in image_decoder_pipes:
+            pipe = partial(pipe_template, fn.decoders)
+            yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed']
             pipe = partial(pipe_template, fn.experimental.decoders)
-            yield test_decoders_check, pipe, data_path + '/jpeg2k/2', ext, ['mixed']
-        #pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
-        #yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
-        #pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
-        #yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
+            yield test_decoders_check, pipe, data_path, ext, ['cpu', 'mixed']
+        pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
+        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
+        pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
+        yield test_decoders_run, pipe, data_path, ext, ['cpu', 'mixed']
 
-    #pipe = partial(peek_image_shape_pipe, fn)
-    #yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
-    #pipe = partial(peek_image_shape_pipe, fn.experimental)
-    #yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
+    pipe = partial(peek_image_shape_pipe, fn)
+    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
+    pipe = partial(peek_image_shape_pipe, fn.experimental)
+    yield test_decoders_check, pipe, data_path, '.jpg', ['cpu']
 
 
 def test_python_function():

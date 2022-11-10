@@ -81,14 +81,13 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     CUDAEvent decode_event;
     NvJpeg2kDecodeParams params;
 
-    explicit TileDecodingResources(const NvJpeg2kHandle &nvjpeg2k_handle, int device_id,
-                                   cudaStream_t cuda_stream)
+    explicit TileDecodingResources(const NvJpeg2kHandle &nvjpeg2k_handle, int device_id)
         : state(nvjpeg2k_handle), decode_event(CUDAEvent::Create(device_id)) {
-      CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
     }
   };
 
-  static constexpr int kNumParallelTiles = 10;
+  static constexpr int kNumParallelTiles = 1;   // TODO(michalz): Use a different memory resource
+  // to allow parallel processing of tiles - existing one isn't stream-safe
   struct PerThreadResources {
     PerThreadResources() = default;
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
@@ -99,11 +98,10 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     , decode_event(CUDAEvent::Create(device_id))
     , cuda_stream(CUDAStreamPool::instance().Get(device_id)) {
       intermediate_buffer.resize(device_memory_padding / 8);
-      CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
 
       tile_dec_res.reserve(kNumParallelTiles);
       for (int i = 0; i < kNumParallelTiles; i++) {
-        tile_dec_res.emplace_back(nvjpeg2k_handle, device_id, cuda_stream);
+        tile_dec_res.emplace_back(nvjpeg2k_handle, device_id);
       }
     }
 
