@@ -157,8 +157,22 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
                               ctx.nvjpeg2k_stream, &output_image, ctx.cuda_stream);
     return check_status(ret, in);
   } else {
-    // Decode tile by tile: nvjpeg2kDecodeImage seems to be bugged
     auto &image_info = ctx.image_info;
+    int num_tiles = image_info.num_tiles_y * image_info.num_tiles_x;
+    int tile_res_used = std::min<int>(ctx.tile_dec_res.size(), num_tiles);
+    SmallVector<nvjpeg2kStream_t, kNumParallelTiles> tile_jp2_stream;
+    SmallVector<NvJpeg2kStream, kNumParallelTiles> tile_stream_storage;
+    tile_jp2_stream.resize(tile_res_used);
+    tile_stream_storage.resize(tile_res_used);
+    tile_jp2_stream[0] = ctx.nvjpeg2k_stream;
+    for (int i = 1; i < tile_res_used; i++) {
+      tile_stream_storage[i] = NvJpeg2kStream::Create();
+      tile_jp2_stream[i] = tile_stream_storage[i];
+      CUDA_CALL(nvjpeg2kStreamParse(nvjpeg2k_handle_, in->RawData<uint8_t>(), in->Size(),
+                                    0, 0, tile_jp2_stream[i]));
+    }
+
+    // Decode tile by tile: nvjpeg2kDecodeImage seems to be bugged
     auto &roi = ctx.roi;
     std::array tile_shape = {image_info.tile_height, image_info.tile_width};
 
@@ -185,11 +199,11 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
 
         if (begin_x < end_x && begin_y < end_y) {
           const TileDecodingResources &per_tile_ctx = ctx.tile_dec_res[state_idx];
-          state_idx = (state_idx + 1) % ctx.tile_dec_res.size();
 
           CUDA_CALL(cudaEventSynchronize(per_tile_ctx.decode_event));
+          //cudaStreamSynchronize(ctx.cuda_stream);
 
-          NvJpeg2kDecodeParams params;
+          auto &params = per_tile_ctx.params;
           CUDA_CALL(nvjpeg2kDecodeParamsSetDecodeArea(params, begin_x, end_x, begin_y, end_y));
 
           auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, output_offset_x,
@@ -197,7 +211,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
 
           auto ret = nvjpeg2kDecodeTile(nvjpeg2k_handle_,
                                         per_tile_ctx.state,
-                                        ctx.nvjpeg2k_stream,
+                                        tile_jp2_stream[state_idx],
                                         params,
                                         tile_x + tile_y * image_info.num_tiles_x,
                                         0,
@@ -208,6 +222,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
             return check_status(ret, in);
 
           CUDA_CALL(cudaEventRecord(per_tile_ctx.decode_event, ctx.cuda_stream));
+          state_idx = (state_idx + 1) % ctx.tile_dec_res.size();
         }
       }
     }
@@ -225,10 +240,10 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   Context ctx(opts, roi, res);
   DecodeResult result = {false, nullptr};
 
+  CUDA_CALL(cudaEventSynchronize(ctx.decode_event));
+
   if (!ParseJpeg2000Info(in, ctx))
     return result;
-
-  CUDA_CALL(cudaEventSynchronize(ctx.decode_event));
 
   const int64_t channels = ctx.shape[0];
   DALIImageType format = channels == 1 ? DALI_GRAY : DALI_RGB;
@@ -241,6 +256,10 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   auto decode_out = out;
   if (is_processing_needed) {
     int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+    size_t new_size = volume(ctx.shape) * type_size;
+    if (new_size > res.intermediate_buffer.capacity()) {
+      CUDA_CALL(cudaStreamSynchronize(ctx.cuda_stream));
+    }
     res.intermediate_buffer.resize(volume(ctx.shape) * type_size);
     decode_out = {res.intermediate_buffer.data(), ctx.shape, ctx.pixel_type};
   }

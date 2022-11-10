@@ -79,6 +79,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
   struct TileDecodingResources {
     NvJpeg2kDecodeState state;
     CUDAEvent decode_event;
+    NvJpeg2kDecodeParams params;
 
     explicit TileDecodingResources(const NvJpeg2kHandle &nvjpeg2k_handle, int device_id,
                                    cudaStream_t cuda_stream)
@@ -87,6 +88,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
   };
 
+  static constexpr int kNumParallelTiles = 10;
   struct PerThreadResources {
     PerThreadResources() = default;
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
@@ -99,7 +101,6 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
       intermediate_buffer.resize(device_memory_padding / 8);
       CUDA_CALL(cudaEventRecord(decode_event, cuda_stream));
 
-      constexpr int kNumParallelTiles = 10;
       tile_dec_res.reserve(kNumParallelTiles);
       for (int i = 0; i < kNumParallelTiles; i++) {
         tile_dec_res.emplace_back(nvjpeg2k_handle, device_id, cuda_stream);

@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include "dali/imgcodec/decoders/memory_pool.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/pipeline/data/buffer.h"
 
@@ -233,6 +234,11 @@ int DeviceNew(void **ptr, size_t size) {
   // this function should not throw, but return a proper result
   try {
     *ptr = GetBuffer<mm::memory_kind::device>(std::this_thread::get_id(), size);
+    if (*ptr) {
+      auto s = CUDAStreamPool::instance().Get();
+      CUDA_CALL(cudaMemsetAsync(*ptr, 0xcc, size, s));
+      CUDA_CALL(cudaStreamSynchronize(s));
+    }
     return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
