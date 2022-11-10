@@ -887,7 +887,7 @@ void ExposeTensorList(py::module &m) {
         // Keep a copy of the input buffer ref in the deleter, so its refcount is increased
         // while this shared_ptr is alive (and the data should be kept alive)
         t->ShareData(shared_ptr<void>(info.ptr, [buf_ref = b](void *){}),
-                     bytes, false, i_shape, type.id(), device_id);
+                     bytes, is_pinned, i_shape, type.id(), device_id);
         t->SetLayout(layout);
         return t;
       }),
