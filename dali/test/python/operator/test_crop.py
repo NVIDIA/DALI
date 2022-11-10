@@ -25,7 +25,8 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
 from test_slice import check_slice_output, abs_slice_start_and_end
-
+import itertools
+from nose2.tools import params
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, 'db', 'lmdb')
@@ -493,6 +494,7 @@ def test_crop_with_out_of_bounds_policy_support():
                     yield check_crop_with_out_of_bounds_policy_support, \
                         device, batch_size, in_shape, out_of_bounds_policy, fill_values
 
+
 def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3)):
     # This test case is written with HWC layout in mind and "HW" axes in slice arguments
     layout = "HWC"
@@ -569,9 +571,10 @@ def test_crop_empty_layout():
         yield check_crop_empty_layout, device, batch_size, in_shape
 
 
-def test_crop_arg_input():
+@params(*itertools.product(('cpu', 'gpu'), ('HWC', 'FHWC', 'CHW')))
+def test_crop_arg_input(device, layout):
     @pipeline_def
-    def pipe(device, layout):
+    def pipe():
         assert 'C' in layout
         spatial_ndim = len(layout) - 1
         shape = [100 if layout[i] != 'C' else 3 for i in range(len(layout))]
@@ -583,18 +586,13 @@ def test_crop_arg_input():
         out = fn.crop(data, crop=crop_arg)
         return out, crop_arg
 
-    def check(device, layout):
-        p = pipe(device, layout, batch_size=3, num_threads=1, device_id=0)
-        p.build()
-        out, shape = p.run()
-        ndim = len(layout)
-        channel_dim = layout.find('C')
-        spatial_dims = [k for k in range(ndim) if k != channel_dim]
-        for i in range(len(out)):
-            expected = list(np.array(shape[i], dtype=np.int32))
-            actual = [np.array(out[i].shape())[k] for k in spatial_dims]
-            assert expected == actual, f"{expected} != {actual}"
-
-    for device in ['cpu', 'gpu']:
-        for layout in ['HWC', 'FHWC', 'CHW']:
-            yield check, device, layout
+    p = pipe(batch_size=3, num_threads=1, device_id=0)
+    p.build()
+    out, shape = p.run()
+    ndim = len(layout)
+    channel_dim = layout.find('C')
+    spatial_dims = [k for k in range(ndim) if k != channel_dim]
+    for i in range(len(out)):
+        expected = list(np.array(shape[i], dtype=np.int32))
+        actual = [np.array(out[i].shape())[k] for k in spatial_dims]
+        assert expected == actual, f"{expected} != {actual}"
