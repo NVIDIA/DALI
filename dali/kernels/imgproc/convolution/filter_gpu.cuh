@@ -610,7 +610,11 @@ struct Filter2dGpu {
     has_degenerated_extents = h == 1 || w == 1;
     ValidateSampleNumericLimits(sample_idx, r, s, filter_vol, filter_top_anchor, filter_left_anchor,
                                 f, h, wc, c);
-    auto log_block = filter::create_log_block({7, 0});
+    int max_block_width_log2 = dali::ilog2(block_width);
+    int sample_wc_log2 = dali::ilog2(wc);
+    int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
+    auto log_block =
+        filter::create_log_block({block_width_log2, max_block_width_log2 - block_width_log2});
     auto lblockDim = log_block.lBlockDim();
     auto in_workspace_width = lblockDim.x + (s - 1) * c;
     auto in_workspace_height = lblockDim.y * lanes + r - 1;
@@ -623,14 +627,6 @@ struct Filter2dGpu {
     if (c > lblockDim.x || required_workspace > shared_mem_limit) {
       required_workspace = in_workspace_width = 0;
     }
-    // std::cerr << log_block.lBlockDim() << std::endl
-    //           << log_block.lThreadIdx(0) << std::endl
-    //           << log_block.lThreadIdx(1) << std::endl
-    //           << log_block.lThreadIdx(57) << std::endl
-    //           << log_block.lThreadIdx(127) << std::endl
-    //           << log_block.lThreadIdx(128) << std::endl
-    //           << log_block.lThreadIdx(201) << std::endl
-    //           << log_block.lThreadIdx(255) << std::endl;
     return {hwc,
             static_cast<int>(wc),
             static_cast<int>(f),
