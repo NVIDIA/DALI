@@ -31,7 +31,8 @@
 namespace dali {
 
 #define FILTER_INPUT_SUPPORTED_TYPES \
-  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float16, float)
+  (uint8_t, float)
+  // (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float16, float)
 
 #define FILTER_KERNEL_SUPPORTED_TYPES (float)
 

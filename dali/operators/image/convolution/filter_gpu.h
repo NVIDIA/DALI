@@ -38,7 +38,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   static constexpr bool is_sequence = num_seq_dims > 0;
   using Kernel = kernels::Filter2dGpu<Out, In, W, has_channels_last, is_sequence>;
   static constexpr int ndim = Kernel::ndim;
-  static constexpr int filter_ndim = Kernel::filter_ndim;
+  static constexpr int axes = Kernel::axes;
 
   /**
    * @param spec  Pointer to a persistent OpSpec object,
@@ -57,7 +57,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     ctx_.gpu.stream = ws.stream();
     const auto& input = ws.template Input<GPUBackend>(0);
     int num_samples = input.num_samples();
-    anchor_arg_.Acquire(spec_, ws, num_samples, TensorShape<1>{filter_ndim});
+    anchor_arg_.Acquire(spec_, ws, num_samples, TensorShape<1>{axes});
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
     output_desc[0].shape =
@@ -89,18 +89,18 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   }
 
  private:
-  TensorListView<StorageGPU, const W, filter_ndim> GetFilterViews(const Workspace& ws) {
+  TensorListView<StorageGPU, const W, axes> GetFilterViews(const Workspace& ws) {
     if (ws.template InputIsType<GPUBackend>(1)) {
-      return view<const W, filter_ndim>(ws.template Input<GPUBackend>(1));
+      return view<const W, axes>(ws.template Input<GPUBackend>(1));
     } else {
       const auto& filters = ws.template Input<CPUBackend>(1);
       filter_dev_.set_order(ws.stream());
       filter_dev_.Copy(filters);
-      return view<const W, filter_ndim>(filter_dev_);
+      return view<const W, axes>(filter_dev_);
     }
   }
 
-  span<const ivec<filter_ndim>> GetAnchors(const TensorListShape<filter_ndim>& filter_shapes,
+  span<const ivec<axes>> GetAnchors(const TensorListShape<axes>& filter_shapes,
                                            int num_samples) {
     auto anchor_views = anchor_arg_.get();
     anchors_.clear();
@@ -108,19 +108,19 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto& anchor_view = anchor_views[sample_idx];
       const auto& filter_shape = filter_shapes[sample_idx];
-      assert(anchor_view.num_elements() == filter_ndim);  // relying on arg.Acquire validation here
+      assert(anchor_view.num_elements() == axes);  // relying on arg.Acquire validation here
       const auto* anchor_data = anchor_view.data;
-      ivec<filter_ndim> anchor;
-      for (int dim = 0; dim < filter_ndim; dim++) {
+      ivec<axes> anchor;
+      for (int dim = 0; dim < axes; dim++) {
         anchor[dim] = anchor_data[dim];
       }
-      for (int dim = 0; dim < filter_ndim; dim++) {
+      for (int dim = 0; dim < axes; dim++) {
         DALI_ENFORCE(-1 <= anchor[dim] && anchor[dim] < filter_shape[dim],
                      make_string("Anchor must lie within the filter. Got anchor ", anchor,
                                  " with a filter of shape ", filter_shape, " for sample of idx ",
                                  sample_idx, "."));
       }
-      for (int dim = 0; dim < filter_ndim; dim++) {
+      for (int dim = 0; dim < axes; dim++) {
         anchor[dim] = anchor[dim] == -1 ? filter_shape[dim] / 2 : anchor[dim];
       }
       anchors_.push_back(anchor);
@@ -143,9 +143,9 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   }
 
   template <typename InputShapes>
-  span<const kernels::filter::InputROI<filter_ndim>> GetInputROIs(
-      const InputShapes& input_shapes, const TensorListShape<filter_ndim>& filter_shapes,
-      const span<const ivec<filter_ndim>>& anchors) {
+  span<const kernels::filter::InputROI<axes>> GetInputROIs(
+      const InputShapes& input_shapes, const TensorListShape<axes>& filter_shapes,
+      const span<const ivec<axes>>& anchors) {
     if (!is_valid_only_) {
       return {};
     }
@@ -156,8 +156,8 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
       const auto& input_shape = input_shapes[sample_idx];
       const auto& filter_shape = filter_shapes[sample_idx];
       const auto& anchor = anchors[sample_idx];
-      kernels::filter::InputROI<filter_ndim> roi;
-      for (int dim = 0; dim < filter_ndim; dim++) {
+      kernels::filter::InputROI<axes> roi;
+      for (int dim = 0; dim < axes; dim++) {
         assert(0 <= anchor[dim] < filter_shape[dim]);                 // by GetAnchors
         assert(input_shape[is_sequence + dim] >= filter_shape[dim]);  // by infer_output_shape
         roi.begin[dim] = anchor[dim];
@@ -178,12 +178,12 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   TensorList<GPUBackend> filter_dev_;
   TensorList<GPUBackend> fill_values_dev_;
 
-  std::vector<kernels::filter::InputROI<filter_ndim>> rois_;
-  std::vector<ivec<filter_ndim>> anchors_;
+  std::vector<kernels::filter::InputROI<axes>> rois_;
+  std::vector<ivec<axes>> anchors_;
 };
 
 template <typename Out, typename In, typename W, int num_seq_dims, bool has_channels_last>
-constexpr int FilterOpGpu<Out, In, W, num_seq_dims, has_channels_last>::filter_ndim;
+constexpr int FilterOpGpu<Out, In, W, num_seq_dims, has_channels_last>::axes;
 
 template <typename Out, typename In, typename W>
 typename std::enable_if<!std::is_integral<In>::value || !std::is_integral<W>::value ||

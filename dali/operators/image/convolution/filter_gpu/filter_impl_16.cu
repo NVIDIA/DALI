@@ -19,14 +19,14 @@
 namespace dali {
 namespace filter {
 
-template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<uint16_t, uint16_t, float>(
-    const OpSpec&, const InputLayoutDesc&);
-template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, uint16_t, float>(
-    const OpSpec&, const InputLayoutDesc&);
-template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<int16_t, int16_t, float>(
-    const OpSpec&, const InputLayoutDesc&);
-template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, int16_t, float>(
-    const OpSpec&, const InputLayoutDesc&);
+// template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<uint16_t, uint16_t, float>(
+//     const OpSpec&, const InputLayoutDesc&);
+// template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, uint16_t, float>(
+//     const OpSpec&, const InputLayoutDesc&);
+// template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<int16_t, int16_t, float>(
+//     const OpSpec&, const InputLayoutDesc&);
+// template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, int16_t, float>(
+//     const OpSpec&, const InputLayoutDesc&);
 
 }  // namespace filter
 }  // namespace dali
