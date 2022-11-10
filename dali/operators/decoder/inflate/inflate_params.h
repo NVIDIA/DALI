@@ -87,7 +87,7 @@ class ShapeParams {
   auto GetTotalChunkNum() const {
     auto total_chunks_num = sizes_.size();
     assert(total_chunks_num == offsets_.size());
-    assert(total_chunks_num == chunks_per_sample_.num_elements());
+    assert(total_chunks_num == static_cast<size_t>(chunks_per_sample_.num_elements()));
     return total_chunks_num;
   }
 
@@ -272,7 +272,7 @@ class ShapeParams {
 
   template <int ndim>
   void InferSizesFromOffsets(const TensorListShape<ndim> &in_shape) {
-    assert(offsets_.size() == chunks_per_sample_.num_elements());
+    assert(offsets_.size() == static_cast<size_t>(chunks_per_sample_.num_elements()));
     auto non_monotone_error = [](auto sample_idx) {
       return make_string("If the `", offsetArgName, "` argument is specified and the `",
                          sizeArgName, "` is not, the offsets must be strictly increasing. ",
@@ -302,7 +302,7 @@ class ShapeParams {
 
   template <int ndim>
   void InferOffsetsFromSizes(const TensorListShape<ndim> &in_shape) {
-    assert(sizes_.size() == chunks_per_sample_.num_elements());
+    assert(sizes_.size() == static_cast<size_t>(chunks_per_sample_.num_elements()));
     auto batch_size = in_shape.num_samples();
     offsets_.clear();
     offsets_.reserve(chunks_per_sample_.num_elements());
