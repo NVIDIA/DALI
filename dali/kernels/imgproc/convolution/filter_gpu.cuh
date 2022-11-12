@@ -37,7 +37,7 @@ namespace filter {
 // Descrption of the input ROI passed to the kernel
 template <int axes>
 struct InputROI {
-  ivec<axes> begin, end;
+  ivec<axes> start, end;
 };
 
 template <int axes>
@@ -89,32 +89,55 @@ struct SampleDesc {
   ShapeDesc<axes> shape;
 };
 
-// Internal representation of input ROI for cuda kernel.
-template <int axes>
-struct InputROIDesc {
-  ivec<axes> begin, end;
-  ivec<axes> size;
-  int64_t frame_stride;
-};
-
 template <int axes>
 struct InputRoiFull {
-  DALI_DEVICE DALI_FORCEINLINE InputROIDesc<axes> operator()(const ShapeDesc<axes>& shape_desc,
-                                                             int sample_idx) {
+  struct ROI {
+    DALI_HOST_DEV ivec<axes> start() const {
+      return 0;
+    }
+
+    DALI_HOST_DEV ivec<axes> size() const {
+      return shape_desc_.in_extents;
+    }
+
+    DALI_HOST_DEV int64_t frame_stride() const {
+      return shape_desc_.frame_stride;
+    }
+
+    const ShapeDesc<axes>& shape_desc_;
+  };
+
+  DALI_DEVICE DALI_FORCEINLINE ROI operator()(const ShapeDesc<axes>& shape_desc, int sample_idx) {
     (void)sample_idx;
-    return {0, shape_desc.in_extents, shape_desc.in_extents, volume(shape_desc.in_extents)};
+    return {shape_desc};
   }
 };
 
 template <int axes>
 struct CustomInputROI {
-  DALI_DEVICE DALI_FORCEINLINE InputROIDesc<axes> operator()(const ShapeDesc<axes>& shape_desc,
-                                                             int sample_idx) {
+  struct ROI {
+    DALI_HOST_DEV ivec<axes> start() const {
+      return start_;
+    }
+
+    DALI_HOST_DEV ivec<axes> size() const {
+      return size_;
+    }
+
+    DALI_HOST_DEV int64_t frame_stride() const {
+      return frame_stride_;
+    }
+
+    ivec<axes> start_, size_;
+    int64_t frame_stride_;
+  };
+
+  DALI_DEVICE DALI_FORCEINLINE ROI operator()(const ShapeDesc<axes>& shape_desc, int sample_idx) {
     auto roi = rois[sample_idx];
-    roi.begin[axes - 1] *= shape_desc.num_channels;
+    roi.start[axes - 1] *= shape_desc.num_channels;
     roi.end[axes - 1] *= shape_desc.num_channels;
-    auto size = roi.end - roi.begin;
-    return {roi.begin, roi.end, size, volume(size)};
+    auto size = roi.end - roi.start;
+    return {roi.start, size, volume(size)};
   }
 
   const InputROI<axes>* rois;
@@ -347,48 +370,49 @@ struct DirectInputConv {
 
 /** @} */  // end of InputConv
 
-template <int lanes, typename Out, typename Acc, int axes>
+template <int lanes, typename Out, typename Acc, typename ROI, int axes>
 DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ out,
                                                              const Acc* __restrict__ acc,
-                                                             const InputROIDesc<axes>& roi,
+                                                             const ROI& roi,
                                                              const ivec<axes>& start,
                                                              const LogicalBlock<axes>& log_block) {
   // The x, y indices describe the input, they are mapped into, output space by shifting
-  // by roi.h_begin/wc_begin. Moreover the size of input roi is assumed to be equal to
+  // by roi.h_start/wc_start. Moreover the size of input roi is assumed to be equal to
   // the output size, so its extents are used to prevent OOB accesses
   // (due to grid/lanes protruding at the boundary).
   const auto& lBlockDim = log_block.lBlockDim();
   const auto& lThreadIdx = log_block.lThreadIdx();
+  const auto& roi_size = roi.size();
   int x = start[1] + lThreadIdx.x;
-  if (x < roi.end[1]) {
+  if (x < roi_size[1]) {
 #pragma unroll
     for (int lane = 0; lane < lanes; lane++) {
       int y = start[0] + lThreadIdx.y + lane * lBlockDim.y;
-      if (y < roi.end[0]) {
-        out[(y - roi.begin[0]) * static_cast<int64_t>(roi.size[1]) + (x - roi.begin[1])] =
-            ConvertSat<Out>(acc[lane]);
+      if (y < roi_size[0]) {
+        out[y * static_cast<int64_t>(roi_size[1]) + x] = ConvertSat<Out>(acc[lane]);
       }
     }
   }
 }
 
-template <typename SampleDescT, typename Conv>
-DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc,
-                                              const InputROIDesc<2>& roi, const Conv& conv) {
+template <typename SampleDescT, typename Conv, typename ROI>
+DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc, const ROI& roi,
+                                              const Conv& conv) {
   constexpr int lanes = SampleDescT::lanes;
   const auto* in = sample_desc.in;
   auto* out = sample_desc.out;
   const auto& log_block = sample_desc.shape.log_block;
   const auto& lBlockDim = log_block.lBlockDim();
+  const auto roi_size = roi.size();
   for (int f = 0; f < sample_desc.shape.num_frames;
-       f++, in += sample_desc.shape.frame_stride, out += roi.frame_stride) {
-    for (int y_start = lanes * lBlockDim.y * blockIdx.y + roi.begin[0]; y_start < roi.end[0];
+       f++, in += sample_desc.shape.frame_stride, out += roi.frame_stride()) {
+    for (int y_start = lanes * lBlockDim.y * blockIdx.y; y_start < roi_size[0];
          y_start += lanes * lBlockDim.y * gridDim.y) {
-      for (int x_start = lBlockDim.x * blockIdx.x + roi.begin[1]; x_start < roi.end[1];
+      for (int x_start = lBlockDim.x * blockIdx.x; x_start < roi_size[1];
            x_start += gridDim.x * lBlockDim.x) {
         typename SampleDescT::Acc acc[lanes] = {};
         ivec2 start{y_start, x_start};
-        conv.compute(acc, in, start);
+        conv.compute(acc, in, start + roi.start());
         store_acc_in_global_output<lanes>(out, acc, roi, start, log_block);
       }
     }
@@ -643,15 +667,15 @@ struct Filter2dGpu {
   template <typename OutShape>
   void ValidateROI(const OutShape& out_shape, const OutShape& in_shape,
                    const filter::ShapeDesc<axes>& shape_desc, const filter::InputROI<axes>& roi) {
-    auto roi_size = roi.end - roi.begin;
+    auto roi_size = roi.end - roi.start;
     ivec2 out_size{out_shape[num_sequence_dim], out_shape[num_sequence_dim + 1]};
     ivec2 in_size{in_shape[num_sequence_dim], in_shape[num_sequence_dim + 1]};
     DALI_ENFORCE(roi_size == out_size,
                  make_string("The output size must match the input roi size. Got output of size: ",
                              out_size, " and roi of size ", roi_size, "."));
     DALI_ENFORCE(
-        all_coords(0 <= roi.begin) && all_coords(roi.end <= in_size),
-        make_string("ROI must lie within the input sample. Got roi that starts at: ", roi.begin,
+        all_coords(0 <= roi.start) && all_coords(roi.end <= in_size),
+        make_string("ROI must lie within the input sample. Got roi that starts at: ", roi.start,
                     " and ends at ", roi.end, " for a sample of shape ", in_size, "."));
   }
 

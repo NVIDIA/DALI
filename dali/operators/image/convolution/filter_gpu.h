@@ -160,7 +160,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
       for (int dim = 0; dim < axes; dim++) {
         assert(0 <= anchor[dim] < filter_shape[dim]);                 // by GetAnchors
         assert(input_shape[is_sequence + dim] >= filter_shape[dim]);  // by infer_output_shape
-        roi.begin[dim] = anchor[dim];
+        roi.start[dim] = anchor[dim];
         roi.end[dim] = anchor[dim] + 1 + input_shape[is_sequence + dim] - filter_shape[dim];
       }
       rois_.push_back(roi);
