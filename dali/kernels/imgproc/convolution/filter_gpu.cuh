@@ -72,6 +72,12 @@ struct ShapeDesc {
   ivec<axes> anchor_shift;
   ivec<axes> workspace_extents;
   LogicalBlock<axes> log_block;
+
+  template <int axes_ = axes>
+  DALI_HOST_DEV std::enable_if_t<axes_ == 2, ivec2> get_workspace_strides() const {
+    // xy
+    return {1, workspace_extents[1]};
+  }
 };
 
 template <typename Out_, typename In_, typename W_, typename Acc_, int axes_, int lanes_>
@@ -275,7 +281,10 @@ struct ShmInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE ShmInputConv(const SampleDescT& sample_desc,
                                             const Inloader& in_loader, In* in_workspace)
-      : sample_desc{sample_desc}, in_loader{in_loader}, in_workspace{in_workspace} {}
+      : sample_desc{sample_desc},
+        in_loader{in_loader},
+        in_workspace{in_workspace},
+        workspace_strides{sample_desc.shape.get_workspace_strides()} {}
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
@@ -286,15 +295,14 @@ struct ShmInputConv {
     load_input_to_shm(in, start);
     __syncthreads();
     const auto* filter = sample_desc.filter;
-    for (int s = 0; s < sample_desc.shape.filter_extents[1]; s++) {
-      int x = lThreadIdx.x + s * sample_desc.shape.num_channels;
-      for (int r = 0; r < sample_desc.shape.filter_extents[0]; r++) {
-        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[1] + s);
+    for (int r = 0; r < sample_desc.shape.filter_extents[0]; r++) {
+      for (int s = 0; s < sample_desc.shape.filter_extents[1]; s++) {
+        auto filter_coef = __ldg(filter++);
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < SampleDescT::lanes;
              lane++, lanes_offset += lBlockDim.y) {
-          int y = lThreadIdx.y + r + lanes_offset;
-          auto in_val = in_workspace[y * sample_desc.shape.workspace_extents[1] + x];
+          ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
+          auto in_val = in_workspace[dot(lThreadIdx + filter_offset, workspace_strides)];
           acc[lane] += in_val * filter_coef;
         }
       }
@@ -321,6 +329,7 @@ struct ShmInputConv {
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
   In* in_workspace;
+  ivec<SampleDescT::axes> workspace_strides;
 };
 
 /**
