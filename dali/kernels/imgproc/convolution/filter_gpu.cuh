@@ -253,12 +253,12 @@ struct ShmInputConv {
       : sample_desc{sample_desc}, in_loader{in_loader}, in_workspace{in_workspace} {}
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
-                                            int y_start, int x_start) const {
+                                            const ivec2& start) const {
     const auto& log_block = sample_desc.shape.log_block;
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     __syncthreads();
-    load_input_to_shm(in, y_start, x_start);
+    load_input_to_shm(in, start);
     __syncthreads();
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.filter_extents[1]; s++) {
@@ -276,18 +276,17 @@ struct ShmInputConv {
     }
   }
 
-  DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in, int y_start,
-                                                      int x_start) const {
+  DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
+                                                      const ivec2& start) const {
     const auto& log_block = sample_desc.shape.log_block;
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
-    x_start -= sample_desc.shape.anchor_shift[1];
-    y_start -= sample_desc.shape.anchor_shift[0];
+    auto start_shifted = start - sample_desc.shape.anchor_shift;
     for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[1]; x += lBlockDim.x) {
-      int global_x = in_loader.remap_width(x_start + x, sample_desc.shape);
+      int global_x = in_loader.remap_width(start_shifted[1] + x, sample_desc.shape);
 #pragma unroll SampleDescT::lanes
       for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[0]; y += lBlockDim.y) {
-        int global_y = in_loader.remap_height(y_start + y, sample_desc.shape);
+        int global_y = in_loader.remap_height(start_shifted[0] + y, sample_desc.shape);
         in_workspace[y * sample_desc.shape.workspace_extents[1] + x] =
             in_loader.load(in, global_y, global_x, sample_desc.shape);
       }
@@ -314,14 +313,14 @@ struct DirectInputConv {
       : sample_desc{sample_desc}, in_loader{in_loader} {}
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
-                                            int y_start, int x_start) const {
+                                            const ivec2& start) const {
     const auto& log_block = sample_desc.shape.log_block;
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.filter_extents[1]; s++) {
       auto global_x = in_loader.remap_width(
-          x_start + lThreadIdx.x + s * sample_desc.shape.c - sample_desc.shape.anchor_shift[1],
+          start[1] + lThreadIdx.x + s * sample_desc.shape.c - sample_desc.shape.anchor_shift[1],
           sample_desc.shape);
       for (int r = 0; r < sample_desc.shape.filter_extents[0]; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[1] + s);
@@ -330,7 +329,7 @@ struct DirectInputConv {
 #pragma unroll
         for (int lane = 0; lane < SampleDescT::lanes; lane++) {
           auto global_y = in_loader.remap_height(
-              y_start + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.anchor_shift[0],
+              start[0] + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.anchor_shift[0],
               sample_desc.shape);
           auto in_val = in_loader.load(in, global_y, global_x, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
@@ -348,8 +347,8 @@ struct DirectInputConv {
 template <int lanes, typename Out, typename Acc, int axes>
 DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ out,
                                                              const Acc* __restrict__ acc,
-                                                             const InputROIDesc& roi, int y_start,
-                                                             int x_start,
+                                                             const InputROIDesc& roi,
+                                                             const ivec<axes>& start,
                                                              const LogicalBlock<axes>& log_block) {
   // The x, y indices describe the input, they are mapped into, output space by shifting
   // by roi.h_begin/wc_begin. Moreover the size of input roi is assumed to be equal to
@@ -357,11 +356,11 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
   // (due to grid/lanes protruding at the boundary).
   const auto& lBlockDim = log_block.lBlockDim();
   const auto& lThreadIdx = log_block.lThreadIdx();
-  int x = x_start + lThreadIdx.x;
+  int x = start[1] + lThreadIdx.x;
   if (x < roi.wc_end) {
 #pragma unroll
     for (int lane = 0; lane < lanes; lane++) {
-      int y = y_start + lThreadIdx.y + lane * lBlockDim.y;
+      int y = start[0] + lThreadIdx.y + lane * lBlockDim.y;
       if (y < roi.h_end) {
         out[(y - roi.h_begin) * static_cast<int64_t>(roi.wc) + (x - roi.wc_begin)] =
             ConvertSat<Out>(acc[lane]);
@@ -384,8 +383,9 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc,
       for (int x_start = lBlockDim.x * blockIdx.x + roi.wc_begin; x_start < roi.wc_end;
            x_start += gridDim.x * lBlockDim.x) {
         typename SampleDescT::Acc acc[lanes] = {};
-        conv.compute(acc, in, y_start, x_start);
-        store_acc_in_global_output<lanes>(out, acc, roi, y_start, x_start, log_block);
+        ivec2 start{y_start, x_start};
+        conv.compute(acc, in, start);
+        store_acc_in_global_output<lanes>(out, acc, roi, start, log_block);
       }
     }
   }
