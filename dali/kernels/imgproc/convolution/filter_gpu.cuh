@@ -329,7 +329,7 @@ struct ShmInputConv {
 #pragma unroll SampleDescT::lanes
       for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
         int global_y = in_loader.remap_height(start_shifted[1] + y, sample_desc.shape);
-        in_workspace[y * sample_desc.shape.workspace_extents[0] + x] =
+        in_workspace[dot(ivec2{x, y}, workspace_strides)] =
             in_loader.load(in, global_y, global_x, sample_desc.shape);
       }
     }
