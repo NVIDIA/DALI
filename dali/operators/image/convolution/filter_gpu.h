@@ -100,8 +100,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     }
   }
 
-  span<const ivec<axes>> GetAnchors(const TensorListShape<axes>& filter_shapes,
-                                           int num_samples) {
+  span<const ivec<axes>> GetAnchors(const TensorListShape<axes>& filter_shapes, int num_samples) {
     auto anchor_views = anchor_arg_.get();
     anchors_.clear();
     anchors_.reserve(num_samples);
@@ -121,7 +120,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
                                  sample_idx, "."));
       }
       for (int dim = 0; dim < axes; dim++) {
-        anchor[dim] = anchor[dim] == -1 ? filter_shape[dim] / 2 : anchor[dim];
+        anchor[axes - 1 - dim] = anchor[dim] == -1 ? filter_shape[dim] / 2 : anchor[dim];
       }
       anchors_.push_back(anchor);
     }
@@ -158,10 +157,11 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
       const auto& anchor = anchors[sample_idx];
       kernels::filter::InputROI<axes> roi;
       for (int dim = 0; dim < axes; dim++) {
-        assert(0 <= anchor[dim] < filter_shape[dim]);                 // by GetAnchors
+        assert(0 <= anchor[axes - 1 - dim] < filter_shape[dim]);      // by GetAnchors
         assert(input_shape[is_sequence + dim] >= filter_shape[dim]);  // by infer_output_shape
-        roi.start[dim] = anchor[dim];
-        roi.end[dim] = anchor[dim] + 1 + input_shape[is_sequence + dim] - filter_shape[dim];
+        roi.start[axes - 1 - dim] = anchor[axes - 1 - dim];
+        roi.end[axes - 1 - dim] =
+            anchor[axes - 1 - dim] + 1 + input_shape[is_sequence + dim] - filter_shape[dim];
       }
       rois_.push_back(roi);
     }

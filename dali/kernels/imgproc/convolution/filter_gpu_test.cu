@@ -119,26 +119,26 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
   int S = filter_view.shape[1];
   int H_out = out_view.shape[is_sequence];
   int W_out = out_view.shape[is_sequence + 1];
-  ASSERT_EQ(H_out, input_roi.end[0] - input_roi.start[0]);
-  ASSERT_EQ(W_out, input_roi.end[1] - input_roi.start[1]);
+  ASSERT_EQ(H_out, input_roi.end[1] - input_roi.start[1]);
+  ASSERT_EQ(W_out, input_roi.end[0] - input_roi.start[0]);
   auto *filter_data = filter_view.data;
   for (int f = 0; f < F; f++) {
     const auto *in_data = in_view.data + f * H * W * C;
     auto *out_data = out_view.data + f * H_out * W_out * C;
-    for (int y = input_roi.start[0]; y < input_roi.end[0]; y++) {
-      for (int x = input_roi.start[1]; x < input_roi.end[1]; x++) {
+    for (int y = input_roi.start[1]; y < input_roi.end[1]; y++) {
+      for (int x = input_roi.start[0]; x < input_roi.end[0]; x++) {
         for (int c = 0; c < C; c++) {
           Intermediate acc = 0;
           for (int r = 0; r < R; r++) {
-            int y_idx = border_helper.remap(y + r - anchor[0], H);
+            int y_idx = border_helper.remap(y + r - anchor[1], H);
             for (int s = 0; s < S; s++) {
-              int x_idx = border_helper.remap(x + s - anchor[1], W);
+              int x_idx = border_helper.remap(x + s - anchor[0], W);
               InT value;
               border_helper.load(value, in_data, y_idx, x_idx, c, H, W, C, static_cast<InT>(0));
               acc += value * filter_data[r * S + s];
             }
           }
-          out_data[(y - input_roi.start[0]) * W_out * C + (x - input_roi.start[1]) * C + c] =
+          out_data[(y - input_roi.start[1]) * W_out * C + (x - input_roi.start[0]) * C + c] =
               ConvertSat<OutT>(acc);
         }
       }
@@ -227,7 +227,7 @@ struct FilterGPUTest : public ::testing::Test {
         if (anchor == -1) {
           anchor = filter_shapes[sample_idx][dim] / 2;
         }
-        anchors_[sample_idx][dim] = anchor;
+        anchors_[sample_idx][T::filter_ndim - 1 - dim] = anchor;
       }
     }
   }
@@ -241,11 +241,12 @@ struct FilterGPUTest : public ::testing::Test {
       const auto &filter_shape = filter_shapes[sample_idx];
       const auto &anchor = anchors_[sample_idx];
       for (int dim = 0; dim < T::filter_ndim; dim++) {
-        rois_[sample_idx].start[dim] = !T::valid_only_mode ? 0 : anchor[dim];
-        rois_[sample_idx].end[dim] =
-            !T::valid_only_mode ?
-                in_shape[T::is_sequence + dim] :
-                (anchor[dim] + 1 + in_shape[T::is_sequence + dim] - filter_shape[dim]);
+        rois_[sample_idx].start[T::filter_ndim - 1 - dim] =
+            !T::valid_only_mode ? 0 : anchor[T::filter_ndim - 1 - dim];
+        rois_[sample_idx].end[T::filter_ndim - 1 - dim] =
+            !T::valid_only_mode ? in_shape[T::is_sequence + dim] :
+                                  (anchor[T::filter_ndim - 1 - dim] + 1 +
+                                   in_shape[T::is_sequence + dim] - filter_shape[dim]);
       }
     }
   }

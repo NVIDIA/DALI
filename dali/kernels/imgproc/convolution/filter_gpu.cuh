@@ -34,6 +34,15 @@ namespace kernels {
 
 namespace filter {
 
+template <int N, typename T>
+vec<N, T> rev(const vec<N, T>& v) {
+  vec<N, T> out;
+  for (int d = 0; d < N; d++) {
+    out[N - d - 1] = v[d];
+  }
+  return out;
+}
+
 // Descrption of the input ROI passed to the kernel
 template <int axes>
 struct InputROI {
@@ -76,7 +85,7 @@ struct ShapeDesc {
   template <int axes_ = axes>
   DALI_HOST_DEV std::enable_if_t<axes_ == 2, ivec2> get_workspace_strides() const {
     // xy
-    return {1, workspace_extents[1]};
+    return {1, workspace_extents[0]};
   }
 };
 
@@ -140,8 +149,8 @@ struct CustomInputROI {
 
   DALI_DEVICE DALI_FORCEINLINE ROI operator()(const ShapeDesc<axes>& shape_desc, int sample_idx) {
     auto roi = rois[sample_idx];
-    roi.start[axes - 1] *= shape_desc.num_channels;
-    roi.end[axes - 1] *= shape_desc.num_channels;
+    roi.start[0] *= shape_desc.num_channels;
+    roi.end[0] *= shape_desc.num_channels;
     auto size = roi.end - roi.start;
     return {roi.start, size, volume(size)};
   }
@@ -187,18 +196,18 @@ template <typename Remap, typename In, int axes>
 struct InLoaderBorderRemap : protected Remap {
   DALI_HOST_DEV DALI_FORCEINLINE int remap_height(int idx,
                                                   const ShapeDesc<axes>& sample_shape) const {
-    return this->border_remap(idx, sample_shape.in_extents[0]);
+    return this->border_remap(idx, sample_shape.in_extents[1]);
   }
 
   DALI_HOST_DEV DALI_FORCEINLINE int remap_width(int idx,
                                                  const ShapeDesc<axes>& sample_shape) const {
     return border_remap_strided(idx, sample_shape.width, sample_shape.num_channels,
-                                sample_shape.in_extents[1]);
+                                sample_shape.in_extents[0]);
   }
 
   DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, int y, int x,
                                          const ShapeDesc<axes>& sample_shape) const {
-    return in[y * static_cast<int64_t>(sample_shape.in_extents[1]) + x];
+    return in[y * static_cast<int64_t>(sample_shape.in_extents[0]) + x];
   }
 
  protected:
@@ -232,10 +241,10 @@ struct InLoaderPad {
 
   DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, int y, int x,
                                          const ShapeDesc<axes>& sample_shape) const {
-    if (y < 0 || x < 0 || x >= sample_shape.in_extents[1] || y >= sample_shape.in_extents[0]) {
+    if (y < 0 || x < 0 || x >= sample_shape.in_extents[0] || y >= sample_shape.in_extents[1]) {
       return fill_value;
     }
-    return in[y * static_cast<int64_t>(sample_shape.in_extents[1]) + x];
+    return in[y * static_cast<int64_t>(sample_shape.in_extents[0]) + x];
   }
 
   In fill_value;
@@ -295,8 +304,8 @@ struct ShmInputConv {
     load_input_to_shm(in, start);
     __syncthreads();
     const auto* filter = sample_desc.filter;
-    for (int r = 0; r < sample_desc.shape.filter_extents[0]; r++) {
-      for (int s = 0; s < sample_desc.shape.filter_extents[1]; s++) {
+    for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
+      for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < SampleDescT::lanes;
@@ -315,12 +324,12 @@ struct ShmInputConv {
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
-    for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[1]; x += lBlockDim.x) {
-      int global_x = in_loader.remap_width(start_shifted[1] + x, sample_desc.shape);
+    for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[0]; x += lBlockDim.x) {
+      int global_x = in_loader.remap_width(start_shifted[0] + x, sample_desc.shape);
 #pragma unroll SampleDescT::lanes
-      for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[0]; y += lBlockDim.y) {
-        int global_y = in_loader.remap_height(start_shifted[0] + y, sample_desc.shape);
-        in_workspace[y * sample_desc.shape.workspace_extents[1] + x] =
+      for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
+        int global_y = in_loader.remap_height(start_shifted[1] + y, sample_desc.shape);
+        in_workspace[y * sample_desc.shape.workspace_extents[0] + x] =
             in_loader.load(in, global_y, global_x, sample_desc.shape);
       }
     }
@@ -352,19 +361,19 @@ struct DirectInputConv {
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     const auto* filter = sample_desc.filter;
-    for (int s = 0; s < sample_desc.shape.filter_extents[1]; s++) {
+    for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
       auto global_x =
-          in_loader.remap_width(start[1] + lThreadIdx.x + s * sample_desc.shape.num_channels -
-                                    sample_desc.shape.anchor_shift[1],
+          in_loader.remap_width(start[0] + lThreadIdx.x + s * sample_desc.shape.num_channels -
+                                    sample_desc.shape.anchor_shift[0],
                                 sample_desc.shape);
-      for (int r = 0; r < sample_desc.shape.filter_extents[0]; r++) {
-        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[1] + s);
+      for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
+        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[0] + s);
         // Even without shm, using `lanes` speeds up the kernel by reducing
         // the cost of nested loops arithmetic per single output value
 #pragma unroll
         for (int lane = 0; lane < SampleDescT::lanes; lane++) {
           auto global_y = in_loader.remap_height(
-              start[0] + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.anchor_shift[0],
+              start[1] + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.anchor_shift[1],
               sample_desc.shape);
           auto in_val = in_loader.load(in, global_y, global_x, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
@@ -392,13 +401,13 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
   const auto& lBlockDim = log_block.lBlockDim();
   const auto& lThreadIdx = log_block.lThreadIdx();
   const auto& roi_size = roi.size();
-  int x = start[1] + lThreadIdx.x;
-  if (x < roi_size[1]) {
+  int x = start[0] + lThreadIdx.x;
+  if (x < roi_size[0]) {
 #pragma unroll
     for (int lane = 0; lane < lanes; lane++) {
-      int y = start[0] + lThreadIdx.y + lane * lBlockDim.y;
-      if (y < roi_size[0]) {
-        out[y * static_cast<int64_t>(roi_size[1]) + x] = ConvertSat<Out>(acc[lane]);
+      int y = start[1] + lThreadIdx.y + lane * lBlockDim.y;
+      if (y < roi_size[1]) {
+        out[y * static_cast<int64_t>(roi_size[0]) + x] = ConvertSat<Out>(acc[lane]);
       }
     }
   }
@@ -415,12 +424,12 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc, co
   const auto roi_size = roi.size();
   for (int f = 0; f < sample_desc.shape.num_frames;
        f++, in += sample_desc.shape.frame_stride, out += roi.frame_stride()) {
-    for (int y_start = lanes * lBlockDim.y * blockIdx.y; y_start < roi_size[0];
+    for (int y_start = lanes * lBlockDim.y * blockIdx.y; y_start < roi_size[1];
          y_start += lanes * lBlockDim.y * gridDim.y) {
-      for (int x_start = lBlockDim.x * blockIdx.x; x_start < roi_size[1];
+      for (int x_start = lBlockDim.x * blockIdx.x; x_start < roi_size[0];
            x_start += gridDim.x * lBlockDim.x) {
         typename SampleDescT::Acc acc[lanes] = {};
-        ivec2 start{y_start, x_start};
+        ivec2 start{x_start, y_start};
         conv.compute(acc, in, start + roi.start());
         store_acc_in_global_output<lanes>(out, acc, roi, start, log_block);
       }
@@ -437,7 +446,7 @@ __global__ void filter2d(const SampleDescT* __restrict__ descs, InputROIFactory 
   auto sample_desc = descs[blockIdx.z];
   auto&& roi = in_roi_factory(sample_desc.shape, blockIdx.z);
   auto&& in_loader = in_loader_factory(blockIdx.z);
-  if (sample_desc.shape.workspace_extents[1]) {
+  if (sample_desc.shape.workspace_extents[0]) {
     In* in_workspace = reinterpret_cast<In*>(shm);
     ShmInputConv<SampleDescT, InLoader> conv{sample_desc, in_loader, in_workspace};
     stride_grid(sample_desc, roi, conv);
@@ -634,7 +643,7 @@ struct Filter2dGpu {
                                                int shared_mem_limit) {
     auto r = filter_shape[0];
     auto s = filter_shape[1];
-    ivec<axes> filter_extents{r, s};
+    ivec<axes> filter_extents{s, r};
     auto f = has_sequence_dim ? in_shape[0] : 1;
     auto h = in_shape[num_sequence_dim];
     auto w = in_shape[num_sequence_dim + 1];
@@ -642,9 +651,9 @@ struct Filter2dGpu {
     auto wc = w * c;
     auto frame_stride = h * wc;
     has_degenerated_extents = h == 1 || w == 1;
-    ValidateSampleNumericLimits(sample_idx, r, s, volume(filter_shape), anchor[0], anchor[1], f, h,
+    ValidateSampleNumericLimits(sample_idx, r, s, volume(filter_shape), anchor[1], anchor[0], f, h,
                                 wc, c);
-    anchor[1] *= c;
+    anchor[0] *= c;
     int max_block_width_log2 = dali::ilog2(block_width);
     int sample_wc_log2 = dali::ilog2(wc);
     int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
@@ -666,10 +675,10 @@ struct Filter2dGpu {
             static_cast<int>(f),
             static_cast<int>(w),
             static_cast<int>(c),
-            {h, wc},
+            {wc, h},
             filter_extents,
             anchor,
-            ivec<axes>{in_workspace_height, in_workspace_width},
+            ivec<axes>{in_workspace_width, in_workspace_height},
             log_block};
   }
 
@@ -677,15 +686,16 @@ struct Filter2dGpu {
   void ValidateROI(const OutShape& out_shape, const OutShape& in_shape,
                    const filter::ShapeDesc<axes>& shape_desc, const filter::InputROI<axes>& roi) {
     auto roi_size = roi.end - roi.start;
-    ivec2 out_size{out_shape[num_sequence_dim], out_shape[num_sequence_dim + 1]};
-    ivec2 in_size{in_shape[num_sequence_dim], in_shape[num_sequence_dim + 1]};
-    DALI_ENFORCE(roi_size == out_size,
-                 make_string("The output size must match the input roi size. Got output of size: ",
-                             out_size, " and roi of size ", roi_size, "."));
+    ivec2 out_size{out_shape[num_sequence_dim + 1], out_shape[num_sequence_dim]};
+    ivec2 in_size{in_shape[num_sequence_dim + 1], in_shape[num_sequence_dim]};
     DALI_ENFORCE(
-        all_coords(0 <= roi.start) && all_coords(roi.end <= in_size),
-        make_string("ROI must lie within the input sample. Got roi that starts at: ", roi.start,
-                    " and ends at ", roi.end, " for a sample of shape ", in_size, "."));
+        roi_size == out_size,
+        make_string("The output size must match the input roi size. Got output of size: ",
+                    filter::rev(out_size), " and roi of size ", filter::rev(roi_size), "."));
+    DALI_ENFORCE(all_coords(0 <= roi.start) && all_coords(roi.end <= in_size),
+                 make_string("ROI must lie within the input sample. Got roi that starts at: ",
+                             roi.start, " and ends at ", filter::rev(roi.end),
+                             " for a sample of shape ", filter::rev(in_size), "."));
   }
 
   void ValidateSampleNumericLimits(int sample_idx, int64_t r, int64_t s, int64_t filter_vol,
