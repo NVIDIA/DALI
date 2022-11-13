@@ -194,48 +194,46 @@ struct Wrap {
 
 template <typename Remap, typename In, int axes>
 struct InLoaderBorderRemap : protected Remap {
-  DALI_HOST_DEV DALI_FORCEINLINE int remap_height(int idx,
-                                                  const ShapeDesc<axes>& sample_shape) const {
-    return this->border_remap(idx, sample_shape.in_extents[1]);
+  using Remap::border_remap;
+
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, const ShapeDesc<axes>& sample_shape,
+                                                  int axis) const {
+    return border_remap(idx, sample_shape.in_extents[axis]);
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE int remap_width(int idx,
-                                                 const ShapeDesc<axes>& sample_shape) const {
-    return border_remap_strided(idx, sample_shape.width, sample_shape.num_channels,
-                                sample_shape.in_extents[0]);
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(
+      int idx, const ShapeDesc<axes>& sample_shape) const {
+    int num_channels = sample_shape.num_channels;
+    if (idx < 0) {
+      int reflect_dim_idx = (idx + 1) / num_channels - 1;
+      int inner_dim_idx = (idx + 1) % num_channels + num_channels - 1;
+      return border_remap(reflect_dim_idx, sample_shape.width) * num_channels + inner_dim_idx;
+    }
+    if (idx >= sample_shape.in_extents[0]) {
+      return border_remap(idx / num_channels, sample_shape.width) * num_channels +
+             idx % num_channels;
+    }
+    return idx;
   }
 
   DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, int y, int x,
                                          const ShapeDesc<axes>& sample_shape) const {
     return in[y * static_cast<int64_t>(sample_shape.in_extents[0]) + x];
   }
-
- protected:
-  DALI_HOST_DEV DALI_FORCEINLINE int border_remap_strided(int idx, int reflect_dim_size,
-                                                          int inner_stride,
-                                                          int total_stride) const {
-    if (idx < 0) {
-      int reflect_dim_idx = (idx + 1) / inner_stride - 1;
-      int inner_dim_idx = (idx + 1) % inner_stride + inner_stride - 1;
-      return this->border_remap(reflect_dim_idx, reflect_dim_size) * inner_stride + inner_dim_idx;
-    }
-    if (idx >= total_stride) {
-      return this->border_remap(idx / inner_stride, reflect_dim_size) * inner_stride +
-             idx % inner_stride;
-    }
-    return idx;
-  }
 };
 
 template <typename In, int axes>
 struct InLoaderPad {
-  DALI_HOST_DEV DALI_FORCEINLINE int remap_height(int idx,
-                                                  const ShapeDesc<axes>& sample_shape) const {
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, const ShapeDesc<axes>& sample_shape,
+                                                  int axis) const {
+    (void)sample_shape;
+    (void)axis;
     return idx;
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE int remap_width(int idx,
-                                                 const ShapeDesc<axes>& sample_shape) const {
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(
+      int idx, const ShapeDesc<axes>& sample_shape) const {
+    (void)sample_shape;
     return idx;
   }
 
@@ -325,10 +323,10 @@ struct ShmInputConv {
     const auto& lThreadIdx = log_block.lThreadIdx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
     for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[0]; x += lBlockDim.x) {
-      int global_x = in_loader.remap_width(start_shifted[0] + x, sample_desc.shape);
+      int global_x = in_loader.border_remap_innermost(start_shifted[0] + x, sample_desc.shape);
 #pragma unroll SampleDescT::lanes
       for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
-        int global_y = in_loader.remap_height(start_shifted[1] + y, sample_desc.shape);
+        int global_y = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
         in_workspace[dot(ivec2{x, y}, workspace_strides)] =
             in_loader.load(in, global_y, global_x, sample_desc.shape);
       }
@@ -362,19 +360,19 @@ struct DirectInputConv {
     const auto& lThreadIdx = log_block.lThreadIdx();
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
-      auto global_x =
-          in_loader.remap_width(start[0] + lThreadIdx.x + s * sample_desc.shape.num_channels -
-                                    sample_desc.shape.anchor_shift[0],
-                                sample_desc.shape);
+      auto global_x = in_loader.border_remap_innermost(start[0] + lThreadIdx.x +
+                                                           s * sample_desc.shape.num_channels -
+                                                           sample_desc.shape.anchor_shift[0],
+                                                       sample_desc.shape);
       for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[0] + s);
         // Even without shm, using `lanes` speeds up the kernel by reducing
         // the cost of nested loops arithmetic per single output value
 #pragma unroll
         for (int lane = 0; lane < SampleDescT::lanes; lane++) {
-          auto global_y = in_loader.remap_height(
+          auto global_y = in_loader.border_remap(
               start[1] + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.anchor_shift[1],
-              sample_desc.shape);
+              sample_desc.shape, 1);
           auto in_val = in_loader.load(in, global_y, global_x, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
         }
@@ -394,10 +392,6 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
                                                              const ROI& roi,
                                                              const ivec<axes>& start,
                                                              const LogicalBlock<axes>& log_block) {
-  // The x, y indices describe the input, they are mapped into, output space by shifting
-  // by roi.h_start/wc_start. Moreover the size of input roi is assumed to be equal to
-  // the output size, so its extents are used to prevent OOB accesses
-  // (due to grid/lanes protruding at the boundary).
   const auto& lBlockDim = log_block.lBlockDim();
   const auto& lThreadIdx = log_block.lThreadIdx();
   const auto& roi_size = roi.size();
