@@ -427,6 +427,8 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
             nv_time_base_));
       if (stop_) break;
       convert_frame(frame, sequence, i);
+      // synchronize before MappedFrame is destroyed and cuvidUnmapVideoFrame is called
+      CUDA_CALL(cudaStreamSynchronize(stream_));
   }
   if (captured_exception_)
     std::rethrow_exception(captured_exception_);
