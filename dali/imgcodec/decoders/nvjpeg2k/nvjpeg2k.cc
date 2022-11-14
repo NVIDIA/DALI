@@ -159,7 +159,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
   } else {
     auto &image_info = ctx.image_info;
 
-    // Decode tile by tile: nvjpeg2kDecodeImage seems to be bugged
+    // Decode tile by tile: nvjpeg2kDecodeImage doesn't work properly with ROI
     auto &roi = ctx.roi;
     std::array tile_shape = {image_info.tile_height, image_info.tile_width};
 

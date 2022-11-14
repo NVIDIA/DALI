@@ -234,11 +234,6 @@ int DeviceNew(void **ptr, size_t size) {
   // this function should not throw, but return a proper result
   try {
     *ptr = GetBuffer<mm::memory_kind::device>(std::this_thread::get_id(), size);
-    if (*ptr) {
-      auto s = CUDAStreamPool::instance().Get();
-      CUDA_CALL(cudaMemsetAsync(*ptr, 0xcc, size, s));
-      CUDA_CALL(cudaStreamSynchronize(s));
-    }
     return *ptr != nullptr ? cudaSuccess : cudaErrorMemoryAllocation;
   } catch (const std::bad_alloc &) {
     *ptr = nullptr;
