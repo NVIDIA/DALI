@@ -143,25 +143,22 @@ struct CustomInputROI {
       return frame_stride_;
     }
 
-    // todo make it a member?
-    template <int axes_ = axes>
-    DALI_HOST_DEV std::enable_if_t<axes_ == 2, i64vec2> get_strides() const {
-      return {1, size_[0]};
+    DALI_HOST_DEV i64vec<axes> get_strides() const {
+      return strides_;
     }
 
     ivec<axes> start_, size_;
+    i64vec<axes> strides_;
     int64_t frame_stride_;
   };
 
-  DALI_DEVICE DALI_FORCEINLINE ROI operator()(const ShapeDesc<axes>& shape_desc, int sample_idx) {
-    auto roi = rois[sample_idx];
-    roi.start[0] *= shape_desc.num_channels;
-    roi.end[0] *= shape_desc.num_channels;
-    auto size = roi.end - roi.start;
-    return {roi.start, size, volume(size)};
+  DALI_DEVICE DALI_FORCEINLINE const ROI& operator()(const ShapeDesc<axes>& shape_desc,
+                                                     int sample_idx) {
+    (void)shape_desc;
+    return rois[sample_idx];
   }
 
-  const InputROI<axes>* rois;
+  const ROI* rois;
 };
 
 /** @defgroup InputLoader InputLoader is meant to specialize loading of the sample from global
@@ -456,7 +453,7 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
                        InLoaderFactory in_loader_factory) {
   extern __shared__ char shm[];
   auto sample_desc = descs[blockIdx.z];
-  auto&& roi = in_roi_factory(sample_desc.shape, blockIdx.z);
+  const auto& roi = in_roi_factory(sample_desc.shape, blockIdx.z);
   auto block_start = get_start_block(sample_desc);
   if (any_coord(block_start >= roi.size())) {
     return;
@@ -570,13 +567,16 @@ struct Filter2dGpu {
           ctx, border_type, fill_values, has_degenerated_extents,
           [&](auto&& loader) { launch_kernel(std::move(roi_handler), std::move(loader)); });
     } else {
+      custom_rois_.clear();
+      custom_rois_.reserve(in_shapes.num_samples());
       for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
         const auto& out_shape = out_shapes[sample_idx];
         const auto& in_shape = in_shapes[sample_idx];
-        ValidateROI(out_shape, in_shape, samples_desc_[sample_idx].shape, input_rois[sample_idx]);
+        custom_rois_.push_back(SetupValidateROI(
+            out_shape, in_shape, samples_desc_[sample_idx].shape, input_rois[sample_idx]));
       }
-      filter::InputROI<axes>* input_rois_dev;
-      std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, input_rois);
+      filter::CustomInputROI<axes>::ROI* input_rois_dev;
+      std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, custom_rois_);
       filter::CustomInputROI<axes> roi_handler{input_rois_dev};
       RunKernelWithBorderMode(
           ctx, border_type, fill_values, has_degenerated_extents,
@@ -702,8 +702,10 @@ struct Filter2dGpu {
   }
 
   template <typename OutShape>
-  void ValidateROI(const OutShape& out_shape, const OutShape& in_shape,
-                   const filter::ShapeDesc<axes>& shape_desc, const filter::InputROI<axes>& roi) {
+  filter::CustomInputROI<axes>::ROI SetupValidateROI(const OutShape& out_shape,
+                                                     const OutShape& in_shape,
+                                                     const filter::ShapeDesc<axes>& shape_desc,
+                                                     const filter::InputROI<axes>& roi) {
     auto roi_size = roi.end - roi.start;
     ivec2 out_size{out_shape[num_sequence_dim + 1], out_shape[num_sequence_dim]};
     ivec2 in_size{in_shape[num_sequence_dim + 1], in_shape[num_sequence_dim]};
@@ -715,6 +717,10 @@ struct Filter2dGpu {
                  make_string("ROI must lie within the input sample. Got roi that starts at: ",
                              roi.start, " and ends at ", filter::rev(roi.end),
                              " for a sample of shape ", filter::rev(in_size), "."));
+    auto roi_start = roi.start;
+    roi_start[0] *= shape_desc.num_channels;
+    roi_size[0] *= shape_desc.num_channels;
+    return {roi_start, roi_size, {1, roi_size[0]}, volume(roi_size)};
   }
 
   void ValidateSampleNumericLimits(int sample_idx, int64_t r, int64_t s, int64_t filter_vol,
@@ -750,6 +756,7 @@ struct Filter2dGpu {
 
   std::vector<SampleDescT> samples_desc_;
   std::vector<const In*> fill_values_;
+  std::vector<filter::CustomInputROI<axes>::ROI> custom_rois_;
 };
 
 
