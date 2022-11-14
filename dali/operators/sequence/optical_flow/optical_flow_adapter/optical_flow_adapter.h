@@ -25,11 +25,12 @@ namespace dali {
 namespace optical_flow {
 
 struct OpticalFlowParams {
-  OpticalFlowParams(float arg_perf_quality_factor, int arg_out_grid_size,
-                    bool arg_enable_temporal_hints, bool arg_enable_external_hints):
-                      perf_quality_factor(arg_perf_quality_factor),
-                      out_grid_size(arg_out_grid_size),
-                      enable_temporal_hints(arg_enable_temporal_hints),
+  OpticalFlowParams(float perf_quality_factor = 0, int out_grid_size = -1, int hint_grid_size = -1,
+                    bool enable_temporal_hints = false, bool enable_external_hints = false):
+                      perf_quality_factor(perf_quality_factor),
+                      out_grid_size(out_grid_size),
+                      hint_grid_size(hint_grid_size),
+                      enable_temporal_hints(enable_temporal_hints),
                       enable_external_hints(enable_external_hints) {
     // use default hint value when the hint is not used
     if (!enable_temporal_hints) hint_grid_size = -1;
