@@ -36,7 +36,7 @@ template <typename Out, typename In, typename W, int num_seq_dims, bool has_chan
 class FilterOpGpu : public OpImplBase<GPUBackend> {
  public:
   static constexpr bool is_sequence = num_seq_dims > 0;
-  using Kernel = kernels::Filter2dGpu<Out, In, W, has_channels_last, is_sequence>;
+  using Kernel = kernels::FilterGpu<Out, In, W, has_channels_last, is_sequence, 2>;
   static constexpr int ndim = Kernel::ndim;
   static constexpr int axes = Kernel::axes;
 

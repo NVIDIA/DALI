@@ -205,7 +205,7 @@ struct FilterGPUTest : public ::testing::Test {
   using InType = typename T::InType;
   using WinType = typename T::WinType;
   using OutType = typename T::OutType;
-  using Kernel = Filter2dGpu<OutType, InType, WinType, T::has_channels, T::is_sequence>;
+  using Kernel = FilterGpu<OutType, InType, WinType, T::has_channels, T::is_sequence, 2>;
 
   TensorListShape<T::ndim> GetInputShape() {
     if (T::has_channels) {

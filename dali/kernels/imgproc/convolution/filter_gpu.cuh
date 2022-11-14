@@ -498,12 +498,13 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
 }
 }  // namespace filter
 
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-struct Filter2dGpu {
+template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
+          int axes_>
+struct FilterGpu {
   /* It computes a corellation of the input and the filter.
   Flip filter in both dimensions for a convolution. */
 
-  static constexpr int axes = 2;
+  static constexpr int axes = axes_;
   static constexpr int num_sequence_dim = static_cast<int>(has_sequence_dim);
   static constexpr int num_channels_dim = static_cast<int>(has_channel_dim);
   static constexpr int ndim = num_sequence_dim + axes + num_channels_dim;
@@ -521,7 +522,10 @@ struct Filter2dGpu {
       std::numeric_limits<int>::max() / max_grid_cols * max_grid_cols;
 
   using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
-  using LogBlockT = filter::AdaptiveBlock<axes, lanes>;
+  using LogBlockFactoryT = filter::AdaptiveBlock<axes, lanes>;
+  using LogBlockT = typename LogBlockFactoryT::LogicalBlock;
+  using CustomROIFactoryT = typename filter::CustomInputROI<axes>;
+  using CustomROIT = typename CustomROIFactoryT::ROI;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
@@ -552,7 +556,7 @@ struct Filter2dGpu {
       int required_workspace;
       bool has_degenerated_extents;
       // todo split validation and log_block creation and sample creation?
-      LogBlockT::LogicalBlock log_block;
+      LogBlockT log_block;
       auto shape_desc =
           SetupSampleShapeDesc(required_workspace, has_degenerated_extents, log_block, sample_idx,
                                in_shape, filter_shape, anchors[sample_idx], shared_mem_limit);
@@ -611,9 +615,9 @@ struct Filter2dGpu {
         custom_rois_.push_back(SetupValidateROI(
             out_shape, in_shape, samples_desc_[sample_idx].shape, input_rois[sample_idx]));
       }
-      filter::CustomInputROI<axes>::ROI* input_rois_dev;
+      CustomROIT* input_rois_dev;
       std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, custom_rois_);
-      filter::CustomInputROI<axes> roi_handler{input_rois_dev};
+      CustomROIFactoryT roi_handler{input_rois_dev};
       RunKernelWithLogicalBlock(ctx, border_type, fill_values, has_degenerated_extents,
                                 launch_kernel(std::move(roi_handler)));
     }
@@ -628,9 +632,9 @@ struct Filter2dGpu {
       RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
                               launch_kernel(filter::StaticBlock<axes, lanes, block_width>{}));
     } else {
-      LogBlockT::LogicalBlock* log_blocks_dev;
+      LogBlockT* log_blocks_dev;
       std::tie(log_blocks_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, log_blocks_);
-      LogBlockT log_block{log_blocks_dev};
+      LogBlockFactoryT log_block{log_blocks_dev};
       RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
                               launch_kernel(std::move(log_block)));
     }
@@ -706,9 +710,8 @@ struct Filter2dGpu {
 
   template <typename InShape, typename FilterShape>
   filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace,
-                                               bool& has_degenerated_extents,
-                                               LogBlockT::LogicalBlock& log_block, int sample_idx,
-                                               const InShape& in_shape,
+                                               bool& has_degenerated_extents, LogBlockT& log_block,
+                                               int sample_idx, const InShape& in_shape,
                                                const FilterShape& filter_shape, ivec<axes> anchor,
                                                int shared_mem_limit) {
     auto r = filter_shape[0];
@@ -749,7 +752,7 @@ struct Filter2dGpu {
             {1, in_workspace_width}};
   }
 
-  LogBlockT::LogicalBlock SetupLogicalBlock(ivec<axes> in_extents) {
+  LogBlockT SetupLogicalBlock(ivec<axes> in_extents) {
     int max_block_width_log2 = dali::ilog2(block_width);
     int sample_wc_log2 = dali::ilog2(in_extents[0]);
     int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
@@ -758,10 +761,9 @@ struct Filter2dGpu {
   }
 
   template <typename OutShape>
-  filter::CustomInputROI<axes>::ROI SetupValidateROI(const OutShape& out_shape,
-                                                     const OutShape& in_shape,
-                                                     const filter::ShapeDesc<axes>& shape_desc,
-                                                     const filter::InputROI<axes>& roi) {
+  CustomROIT SetupValidateROI(const OutShape& out_shape, const OutShape& in_shape,
+                              const filter::ShapeDesc<axes>& shape_desc,
+                              const filter::InputROI<axes>& roi) {
     auto roi_size = roi.end - roi.start;
     ivec2 out_size{out_shape[num_sequence_dim + 1], out_shape[num_sequence_dim]};
     ivec2 in_size{in_shape[num_sequence_dim + 1], in_shape[num_sequence_dim]};
@@ -812,24 +814,28 @@ struct Filter2dGpu {
 
   std::vector<SampleDescT> samples_desc_;
   std::vector<const In*> fill_values_;
-  std::vector<filter::CustomInputROI<axes>::ROI> custom_rois_;
-  std::vector<LogBlockT::LogicalBlock> log_blocks_;
+  std::vector<CustomROIT> custom_rois_;
+  std::vector<LogBlockT> log_blocks_;
 };
 
 
 // WAR c++14 odr usage issue (make_string in error message takes them as l-values)
 // it should be unnecessary in c++17
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_sample_height;
+template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
+          int axes>
+constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_sample_height;
 
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_sample_width;
+template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
+          int axes>
+constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_sample_width;
 
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_grid_height;
+template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
+          int axes>
+constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_grid_height;
 
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim>
-constexpr int Filter2dGpu<Out, In, W, has_channel_dim, has_sequence_dim>::max_grid_width;
+template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
+          int axes>
+constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_grid_width;
 
 }  // namespace kernels
 }  // namespace dali
