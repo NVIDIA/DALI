@@ -81,13 +81,28 @@ struct ShapeDesc {
   ivec<axes> filter_extents;
   ivec<axes> anchor_shift;
   ivec<axes> workspace_extents;
+  ivec<axes> workspace_strides;
   LogicalBlock<axes> log_block;
-
-  template <int axes_ = axes>
-  DALI_HOST_DEV std::enable_if_t<axes_ == 2, ivec2> get_workspace_strides() const {
-    return {1, workspace_extents[0]};
-  }
 };
+
+template <int axes, int num_channels_>
+struct SamplePlanes {
+  DALI_HOST_DEV int num_frames() const {
+    return shape_desc_.num_frames;
+  }
+
+  DALI_HOST_DEV int num_channels() const {
+    return num_channels_ == -1 ? shape_desc_.num_channels : num_channels_;
+  }
+
+  const ShapeDesc<axes>& shape_desc_;
+};
+
+template <int num_channels>
+DALI_HOST_DEV DALI_FORCEINLINE SamplePlanes<2, num_channels> create_planes_helper(
+    const ShapeDesc<2>& shape_desc) {
+  return {shape_desc};
+}
 
 template <typename Out_, typename In_, typename W_, typename Acc_, int axes_, int lanes_>
 struct SampleDesc {
@@ -147,6 +162,7 @@ struct CustomInputROI {
       return frame_stride_;
     }
 
+    // todo make it a member?
     template <int axes_ = axes>
     DALI_HOST_DEV std::enable_if_t<axes_ == 2, i64vec2> get_strides() const {
       return {1, size_[0]};
@@ -210,9 +226,10 @@ struct InLoaderBorderRemap : protected Remap {
     return border_remap(idx, sample_shape.in_extents[axis]);
   }
 
+  template <typename SamplePlanesT>
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(
-      int idx, const ShapeDesc<axes>& sample_shape) const {
-    int num_channels = sample_shape.num_channels;
+      int idx, const ShapeDesc<axes>& sample_shape, const SamplePlanesT& sample_planes) const {
+    int num_channels = sample_planes.num_channels();
     if (idx < 0) {
       int reflect_dim_idx = (idx + 1) / num_channels - 1;
       int inner_dim_idx = (idx + 1) % num_channels + num_channels - 1;
@@ -240,9 +257,11 @@ struct InLoaderPad {
     return idx;
   }
 
+  template <typename SamplePlanesT>
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(
-      int idx, const ShapeDesc<axes>& sample_shape) const {
+      int idx, const ShapeDesc<axes>& sample_shape, const SamplePlanesT& sample_planes) const {
     (void)sample_shape;
+    (void)sample_planes;
     return idx;
   }
 
@@ -290,17 +309,18 @@ struct InLoaderFactory<InLoaderPad<In, axes>> {
  * @brief First loads the input roi neceesary to compute the output of shape ``block_width x
  * lanes`` into shared memory (including filter's halo/apron), then computes the convolution.
  */
-template <typename SampleDescT, typename Inloader>
+template <typename SampleDescT, typename Inloader, typename SamplePlanesT>
 struct ShmInputConv {
   using In = typename SampleDescT::In;
   using Acc = typename SampleDescT::Acc;
 
   DALI_DEVICE DALI_FORCEINLINE ShmInputConv(const SampleDescT& sample_desc,
-                                            const Inloader& in_loader, In* in_workspace)
+                                            const Inloader& in_loader,
+                                            const SamplePlanesT& sample_planes, In* in_workspace)
       : sample_desc{sample_desc},
         in_loader{in_loader},
         in_workspace{in_workspace},
-        workspace_strides{sample_desc.shape.get_workspace_strides()} {}
+        sample_planes{sample_planes} {}
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
@@ -317,8 +337,9 @@ struct ShmInputConv {
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < SampleDescT::lanes;
              lane++, lanes_offset += lBlockDim.y) {
-          ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
-          auto in_val = in_workspace[dot(lThreadIdx + filter_offset, workspace_strides)];
+          ivec2 filter_offset{s * sample_planes.num_channels(), r + lanes_offset};
+          auto in_val =
+              in_workspace[dot(lThreadIdx + filter_offset, sample_desc.shape.workspace_strides)];
           acc[lane] += in_val * filter_coef;
         }
       }
@@ -332,11 +353,12 @@ struct ShmInputConv {
     const auto& lThreadIdx = log_block.lThreadIdx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
     for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[0]; x += lBlockDim.x) {
-      int global_x = in_loader.border_remap_innermost(start_shifted[0] + x, sample_desc.shape);
+      int global_x =
+          in_loader.border_remap_innermost(start_shifted[0] + x, sample_desc.shape, sample_planes);
 #pragma unroll SampleDescT::lanes
       for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
         int global_y = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
-        in_workspace[dot(ivec2{x, y}, workspace_strides)] =
+        in_workspace[dot(ivec2{x, y}, sample_desc.shape.workspace_strides)] =
             in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
       }
     }
@@ -344,23 +366,26 @@ struct ShmInputConv {
 
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
+  const SamplePlanesT& sample_planes;
   In* in_workspace;
-  ivec<SampleDescT::axes> workspace_strides;
 };
+
+template <typename SampleDescT, typename Inloader, typename SamplePlanesT, typename In>
+DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, SamplePlanesT> create_shm_conv(
+    const SampleDescT& sample_desc, const Inloader& in_loader, const SamplePlanesT& sample_planes,
+    In* in_workspace) {
+  return {sample_desc, in_loader, sample_planes, in_workspace};
+}
 
 /**
  * @brief Computes the convolution of size ``block_width x lanes`` accessing the input directly in
  * global memory. Used as a fallback when the filter size of number of channels in the input makes
  * it impossible to use ``ShmInputConv``.
  */
-template <typename SampleDescT, typename Inloader>
+template <typename SampleDescT, typename Inloader, typename SamplePlanesT>
 struct DirectInputConv {
   using Acc = typename SampleDescT::Acc;
   using In = typename SampleDescT::In;
-
-  DALI_DEVICE DALI_FORCEINLINE DirectInputConv(const SampleDescT& sample_desc,
-                                               const Inloader& in_loader)
-      : sample_desc{sample_desc}, in_loader{in_loader} {}
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
@@ -371,7 +396,8 @@ struct DirectInputConv {
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
       auto global_x = in_loader.border_remap_innermost(
-          start_shifted[0] + lThreadIdx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
+          start_shifted[0] + lThreadIdx.x + s * sample_planes.num_channels(), sample_desc.shape,
+          sample_planes);
       for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[0] + s);
         // Even without shm, using `lanes` speeds up the kernel by reducing
@@ -389,7 +415,17 @@ struct DirectInputConv {
 
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
+  const SamplePlanesT& sample_planes;
 };
+
+
+template <typename SampleDescT, typename Inloader, typename SamplePlanesT>
+DALI_DEVICE DALI_FORCEINLINE DirectInputConv<SampleDescT, Inloader, SamplePlanesT>
+create_direct_conv(const SampleDescT& sample_desc, const Inloader& in_loader,
+                   const SamplePlanesT& sample_planes) {
+  return {sample_desc, in_loader, sample_planes};
+}
+
 
 /** @} */  // end of InputConv
 
@@ -439,23 +475,52 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc, co
   }
 }
 
+template <typename SampleDescT, typename ROI, typename InLoader, typename SamplePlanesT>
+DALI_DEVICE DALI_FORCEINLINE void filter_channels(const SampleDescT& sample_desc, const ROI& roi,
+                                                  const InLoader& in_loader,
+                                                  const SamplePlanesT& sample_planes,
+                                                  char* __restrict__ shm) {
+  if (sample_desc.shape.workspace_extents[0]) {
+    using In = typename SampleDescT::In;
+    In* in_workspace = reinterpret_cast<In*>(shm);
+    auto conv = create_shm_conv(sample_desc, in_loader, sample_planes, in_workspace);
+    stride_grid(sample_desc, roi, conv);
+  } else {
+    auto conv = create_direct_conv(sample_desc, in_loader, sample_planes);
+    stride_grid(sample_desc, roi, conv);
+  }
+}
+
 template <typename SampleDescT, typename InputROIFactory, typename InLoaderFactory>
-__global__ void filter2d(const SampleDescT* __restrict__ descs, InputROIFactory in_roi_factory,
-                         InLoaderFactory in_loader_factory) {
-  using In = typename SampleDescT::In;
-  using InLoader = typename InLoaderFactory::T;
+__global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in_roi_factory,
+                       InLoaderFactory in_loader_factory) {
   extern __shared__ char shm[];
   auto sample_desc = descs[blockIdx.z];
   auto&& roi = in_roi_factory(sample_desc.shape, blockIdx.z);
-  auto&& in_loader = in_loader_factory(blockIdx.z);
-  if (sample_desc.shape.workspace_extents[0]) {
-    In* in_workspace = reinterpret_cast<In*>(shm);
-    ShmInputConv<SampleDescT, InLoader> conv{sample_desc, in_loader, in_workspace};
-    stride_grid(sample_desc, roi, conv);
-  } else {
-    DirectInputConv<SampleDescT, InLoader> conv{sample_desc, in_loader};
-    stride_grid(sample_desc, roi, conv);
+  {
+    constexpr int lanes = SampleDescT::lanes;
+    const auto& log_block = sample_desc.shape.log_block;
+    const auto& lBlockDim = log_block.lBlockDim();
+    ivec2 block_start{lBlockDim.x * blockIdx.x, lanes * lBlockDim.y * blockIdx.y};
+    if (any_coord(block_start >= roi.size())) {
+      return;
+    }
   }
+  auto&& in_loader = in_loader_factory(blockIdx.z);
+  // todo add early exit here
+  VALUE_SWITCH(sample_desc.shape.num_channels, static_channels, (1, 2, 3, 4),
+  (
+    auto sample_planes = create_planes_helper<static_channels>(sample_desc.shape);
+    filter_channels(
+      sample_desc, roi, in_loader,
+      sample_planes, shm);
+  ),  // NOLINT
+  (
+    auto sample_planes = create_planes_helper<-1>(sample_desc.shape);
+    filter_channels(
+      sample_desc, roi, in_loader,
+      sample_planes, shm);
+  ));  // NOLINT
 }
 }  // namespace filter
 
@@ -536,8 +601,8 @@ struct Filter2dGpu {
     dim3 block(block_width, 1, 1);
     RunKernel(ctx, out_shapes, in_shapes, input_rois, border_type, fill_values,
               any_has_degenerated_extents, [&](auto&& roi, auto&& loader) {
-                filter::filter2d<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(descs_dev,
-                                                                                       roi, loader);
+                filter::filter<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(descs_dev, roi,
+                                                                                     loader);
                 CUDA_CALL(cudaGetLastError());
               });
   }
@@ -682,6 +747,7 @@ struct Filter2dGpu {
             filter_extents,
             anchor,
             ivec<axes>{in_workspace_width, in_workspace_height},
+            {1, in_workspace_width},
             log_block};
   }
 
