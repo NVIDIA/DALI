@@ -281,17 +281,14 @@ struct InLoaderPad {
 
 template <typename InLoader>
 struct InLoaderFactory {
-  using T = InLoader;
-  DALI_DEVICE DALI_FORCEINLINE T& operator()(int sample_idx) {
-    return in_loader;
+  DALI_DEVICE DALI_FORCEINLINE InLoader operator()(int sample_idx) {
+    return {};
   }
-  T in_loader;
 };
 
 template <typename In, int axes>
 struct InLoaderFactory<InLoaderPad<In, axes>> {
-  using T = InLoaderPad<In, axes>;
-  DALI_DEVICE DALI_FORCEINLINE T operator()(int sample_idx) {
+  DALI_DEVICE DALI_FORCEINLINE InLoaderPad<In, axes> operator()(int sample_idx) {
     if (fill_values == nullptr) {
       return {0};
     }
@@ -350,7 +347,6 @@ struct ShmInputConv {
     auto start_shifted = start - sample_desc.shape.anchor_shift;
     for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[0]; x += lBlockDim.x) {
       int global_x = in_loader.border_remap_innermost(start_shifted[0] + x, sample_desc.shape);
-#pragma unroll LogBlockT::lanes
       for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
         int global_y = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
         in_workspace[dot(ivec2{x, y}, sample_desc.shape.workspace_strides)] =
@@ -489,7 +485,7 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
   if (any_coord(block_start >= roi.size())) {
     return;  // early exit to avoid all the setup only to do nothing in the stride loop
   }
-  auto&& in_loader = in_loader_factory(blockIdx.z);
+  const auto& in_loader = in_loader_factory(blockIdx.z);
   if (sample_desc.shape.workspace_extents[0]) {
     using In = typename SampleDescT::In;
     In* in_workspace = reinterpret_cast<In*>(shm);
@@ -670,7 +666,7 @@ struct Filter2dGpu {
   template <typename Remap, typename KernelLauncher>
   void RunKernelBorderRemap(KernelContext& ctx, KernelLauncher&& launch_kernel) {
     using Loader = filter::InLoaderBorderRemap<Remap, In, axes>;
-    filter::InLoaderFactory<Loader> loader_factory{Loader{}};
+    filter::InLoaderFactory<Loader> loader_factory{};
     launch_kernel(std::move(loader_factory));
   }
 
@@ -684,7 +680,7 @@ struct Filter2dGpu {
         has_degenerated_extents, HasDegeneratedExtents,
         (using Loader =
              filter::InLoaderBorderRemap<filter::Reflect101<HasDegeneratedExtents>, In, axes>;
-         filter::InLoaderFactory<Loader> loader_factory{Loader{}};
+         filter::InLoaderFactory<Loader> loader_factory{};
          launch_kernel(std::move(loader_factory));));  // NOLINT
   }
 
