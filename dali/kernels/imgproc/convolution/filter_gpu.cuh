@@ -367,12 +367,11 @@ struct DirectInputConv {
     const auto& log_block = sample_desc.shape.log_block;
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
+    auto start_shifted = start - sample_desc.shape.anchor_shift;
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
-      auto global_x = in_loader.border_remap_innermost(start[0] + lThreadIdx.x +
-                                                           s * sample_desc.shape.num_channels -
-                                                           sample_desc.shape.anchor_shift[0],
-                                                       sample_desc.shape);
+      auto global_x = in_loader.border_remap_innermost(
+          start_shifted[0] + lThreadIdx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
       for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[0] + s);
         // Even without shm, using `lanes` speeds up the kernel by reducing
@@ -380,8 +379,7 @@ struct DirectInputConv {
 #pragma unroll
         for (int lane = 0; lane < SampleDescT::lanes; lane++) {
           auto global_y = in_loader.border_remap(
-              start[1] + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.anchor_shift[1],
-              sample_desc.shape, 1);
+              start_shifted[1] + lThreadIdx.y + lane * lBlockDim.y + r, sample_desc.shape, 1);
           auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
         }
