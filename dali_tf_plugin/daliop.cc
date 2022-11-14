@@ -84,7 +84,7 @@ REGISTER_OP("Dali")
         c->set_output(i, passed_shape);
       }
     }
-    return tf::Status::OK();
+    return tf::Status();
   })
   .Doc(R"doc(
 DALI TensorFlow plugin

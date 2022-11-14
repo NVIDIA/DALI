@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ class Batch {
     for (int sample_idx = 0; sample_idx < batch_size(); sample_idx++) {
       ptrs[sample_idx] = GetTensorData(storage[sample_idx]);
     }
-    return tensorflow::Status::OK();
+    return tensorflow::Status();
   }
 
 
@@ -189,7 +189,7 @@ class Batch {
       return tensorflow::errors::Internal("Internal mismatch of batch and per-sample mode.");
     }
     ptr = GetTensorData(storage[0]);
-    return tensorflow::Status::OK();
+    return tensorflow::Status();
   }
 
 
@@ -207,7 +207,7 @@ class Batch {
       return tensorflow::errors::InvalidArgument("Empty batch for input: ", input_idx, ".");
     }
     if (!is_per_sample) {
-      return tensorflow::Status::OK();
+      return tensorflow::Status();
     }
     int ndim = storage[0].dims();
     auto dtype = storage[0].dtype();
@@ -225,7 +225,7 @@ class Batch {
             " dtype.");
       }
     }
-    return tensorflow::Status::OK();
+    return tensorflow::Status();
   }
 
   void clear() {
