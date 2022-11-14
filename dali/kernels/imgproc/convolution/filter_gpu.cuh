@@ -75,6 +75,7 @@ inline LogicalBlock<2> create_log_block(ivec2 xy_log2) {
 template <int axes>
 struct ShapeDesc {
   int64_t frame_stride;
+  i64vec<axes> in_strides;
   int num_frames, width, num_channels;
   ivec<axes> in_extents;
   ivec<axes> filter_extents;
@@ -84,7 +85,6 @@ struct ShapeDesc {
 
   template <int axes_ = axes>
   DALI_HOST_DEV std::enable_if_t<axes_ == 2, ivec2> get_workspace_strides() const {
-    // xy
     return {1, workspace_extents[0]};
   }
 };
@@ -119,6 +119,10 @@ struct InputRoiFull {
       return shape_desc_.frame_stride;
     }
 
+    DALI_HOST_DEV i64vec<axes> get_strides() const {
+      return shape_desc_.in_strides;
+    }
+
     const ShapeDesc<axes>& shape_desc_;
   };
 
@@ -141,6 +145,11 @@ struct CustomInputROI {
 
     DALI_HOST_DEV int64_t frame_stride() const {
       return frame_stride_;
+    }
+
+    template <int axes_ = axes>
+    DALI_HOST_DEV std::enable_if_t<axes_ == 2, i64vec2> get_strides() const {
+      return {1, size_[0]};
     }
 
     ivec<axes> start_, size_;
@@ -216,9 +225,9 @@ struct InLoaderBorderRemap : protected Remap {
     return idx;
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, int y, int x,
+  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, const ivec<axes>& coords,
                                          const ShapeDesc<axes>& sample_shape) const {
-    return in[y * static_cast<int64_t>(sample_shape.in_extents[0]) + x];
+    return in[dot(coords, sample_shape.in_strides)];
   }
 };
 
@@ -237,12 +246,12 @@ struct InLoaderPad {
     return idx;
   }
 
-  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, int y, int x,
+  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, const ivec<axes>& coords,
                                          const ShapeDesc<axes>& sample_shape) const {
-    if (y < 0 || x < 0 || x >= sample_shape.in_extents[0] || y >= sample_shape.in_extents[1]) {
+    if (any_coord(coords < 0) || any_coord(coords >= sample_shape.in_extents)) {
       return fill_value;
     }
-    return in[y * static_cast<int64_t>(sample_shape.in_extents[0]) + x];
+    return in[dot(coords, sample_shape.in_strides)];
   }
 
   In fill_value;
@@ -328,7 +337,7 @@ struct ShmInputConv {
       for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
         int global_y = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
         in_workspace[dot(ivec2{x, y}, workspace_strides)] =
-            in_loader.load(in, global_y, global_x, sample_desc.shape);
+            in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
       }
     }
   }
@@ -373,7 +382,7 @@ struct DirectInputConv {
           auto global_y = in_loader.border_remap(
               start[1] + lThreadIdx.y + lane * lBlockDim.y + r - sample_desc.shape.anchor_shift[1],
               sample_desc.shape, 1);
-          auto in_val = in_loader.load(in, global_y, global_x, sample_desc.shape);
+          auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
         }
       }
@@ -395,13 +404,14 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
   const auto& lBlockDim = log_block.lBlockDim();
   const auto& lThreadIdx = log_block.lThreadIdx();
   const auto& roi_size = roi.size();
+  const auto& roi_strides = roi.get_strides();
   int x = start[0] + lThreadIdx.x;
   if (x < roi_size[0]) {
 #pragma unroll
     for (int lane = 0; lane < lanes; lane++) {
       int y = start[1] + lThreadIdx.y + lane * lBlockDim.y;
       if (y < roi_size[1]) {
-        out[y * static_cast<int64_t>(roi_size[0]) + x] = ConvertSat<Out>(acc[lane]);
+        out[dot(ivec2{x, y}, roi_strides)] = ConvertSat<Out>(acc[lane]);
       }
     }
   }
@@ -415,7 +425,7 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const SampleDescT& sample_desc, co
   auto* out = sample_desc.out;
   const auto& log_block = sample_desc.shape.log_block;
   const auto& lBlockDim = log_block.lBlockDim();
-  const auto roi_size = roi.size();
+  const auto& roi_size = roi.size();
   for (int f = 0; f < sample_desc.shape.num_frames;
        f++, in += sample_desc.shape.frame_stride, out += roi.frame_stride()) {
     for (int y_start = lanes * lBlockDim.y * blockIdx.y; y_start < roi_size[1];
@@ -666,6 +676,7 @@ struct Filter2dGpu {
       required_workspace = in_workspace_width = 0;
     }
     return {frame_stride,
+            {1, wc},
             static_cast<int>(f),
             static_cast<int>(w),
             static_cast<int>(c),
