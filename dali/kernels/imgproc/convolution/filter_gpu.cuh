@@ -49,26 +49,56 @@ struct InputROI {
   ivec<axes> start, end;
 };
 
-template <int axes>
-struct LogicalBlock {
-  // must be power of 2
-  ivec<axes> extents_log2;
-  ivec<axes> strides_log2;
+template <int axes_, int lanes_, int block_size>
+struct StaticBlock {
+  struct LogicalBlock {
+    static constexpr int axes = axes_;
+    static constexpr int lanes = lanes_;
 
-  DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> lBlockDim() const {
-    auto block = 1 << extents_log2;
-    assert(blockDim.x * blockDim.y * blockDim.z == volume(block));
-    return block;
-  }
+    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> lBlockDim() const {
+      return cat(ivec<1>{block_size}, ivec<axes - 1>{1});
+    }
 
-  DALI_DEVICE DALI_FORCEINLINE ivec<axes> lThreadIdx() const {
-    assert(threadIdx.y == 0);
-    assert(threadIdx.z == 0);
-    return (int(threadIdx.x) >> strides_log2) & (lBlockDim() - 1);
+    DALI_DEVICE DALI_FORCEINLINE ivec<axes> lThreadIdx() const {
+      return cat(ivec<1>{threadIdx.x}, ivec<axes - 1>{0});
+    }
+  };
+
+  DALI_DEVICE DALI_FORCEINLINE LogicalBlock operator()(int sample_idx) {
+    (void)sample_idx;
+    return {};
   }
 };
 
-inline LogicalBlock<2> create_log_block(ivec2 xy_log2) {
+template <int axes_, int lanes_>
+struct AdaptiveBlock {
+  struct LogicalBlock {
+    static constexpr int axes = axes_;
+    static constexpr int lanes = lanes_;
+
+    ivec<axes> extents_log2;
+    ivec<axes> strides_log2;
+
+    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> lBlockDim() const {
+      return 1 << extents_log2;
+    }
+
+    DALI_DEVICE DALI_FORCEINLINE ivec<axes> lThreadIdx() const {
+      assert(threadIdx.y == 0);
+      assert(threadIdx.z == 0);
+      return (int(threadIdx.x) >> strides_log2) & (lBlockDim() - 1);
+    }
+  };
+
+  DALI_DEVICE DALI_FORCEINLINE const LogicalBlock& operator()(int sample_idx) {
+    return blocks[sample_idx];
+  }
+
+  const LogicalBlock* blocks;
+};
+
+template <int lanes>
+typename AdaptiveBlock<2, lanes>::LogicalBlock create_adaptive_block(ivec2 xy_log2) {
   return {xy_log2, {0, xy_log2.x}};
 }
 
@@ -82,16 +112,14 @@ struct ShapeDesc {
   ivec<axes> anchor_shift;
   ivec<axes> workspace_extents;
   ivec<axes> workspace_strides;
-  LogicalBlock<axes> log_block;
 };
 
-template <typename Out_, typename In_, typename W_, typename Acc_, int axes_, int lanes_>
+template <typename Out_, typename In_, typename W_, typename Acc_, int axes_>
 struct SampleDesc {
   using Acc = Acc_;
   using Out = Out_;
   using In = In_;
   using W = W_;
-  static constexpr int lanes = lanes_;
   static constexpr int axes = axes_;
 
   Out* __restrict__ out;
@@ -284,18 +312,16 @@ struct InLoaderFactory<InLoaderPad<In, axes>> {
  * @brief First loads the input roi neceesary to compute the output of shape ``block_width x
  * lanes`` into shared memory (including filter's halo/apron), then computes the convolution.
  */
-template <typename SampleDescT, typename Inloader>
+template <typename SampleDescT_, typename Inloader_, typename LogBlockT_>
 struct ShmInputConv {
+  using SampleDescT = SampleDescT_;
+  using Inloader = Inloader_;
+  using LogBlockT = LogBlockT_;
   using In = typename SampleDescT::In;
   using Acc = typename SampleDescT::Acc;
 
-  DALI_DEVICE DALI_FORCEINLINE ShmInputConv(const SampleDescT& sample_desc,
-                                            const Inloader& in_loader, In* in_workspace)
-      : sample_desc{sample_desc}, in_loader{in_loader}, in_workspace{in_workspace} {}
-
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
-    const auto& log_block = sample_desc.shape.log_block;
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     __syncthreads();
@@ -306,7 +332,7 @@ struct ShmInputConv {
       for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
-        for (int lane = 0, lanes_offset = 0; lane < SampleDescT::lanes;
+        for (int lane = 0, lanes_offset = 0; lane < LogBlockT::lanes;
              lane++, lanes_offset += lBlockDim.y) {
           ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
           auto in_val =
@@ -319,13 +345,12 @@ struct ShmInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
                                                       const ivec2& start) const {
-    const auto& log_block = sample_desc.shape.log_block;
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
     for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[0]; x += lBlockDim.x) {
       int global_x = in_loader.border_remap_innermost(start_shifted[0] + x, sample_desc.shape);
-#pragma unroll SampleDescT::lanes
+#pragma unroll LogBlockT::lanes
       for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
         int global_y = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
         in_workspace[dot(ivec2{x, y}, sample_desc.shape.workspace_strides)] =
@@ -336,13 +361,15 @@ struct ShmInputConv {
 
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
+  const LogBlockT& log_block;
   In* in_workspace;
 };
 
-template <typename SampleDescT, typename Inloader, typename In>
-DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader> create_shm_conv(
-    const SampleDescT& sample_desc, const Inloader& in_loader, In* in_workspace) {
-  return {sample_desc, in_loader, in_workspace};
+template <typename SampleDescT, typename Inloader, typename LogBlockT, typename In>
+DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, LogBlockT> create_shm_conv(
+    const SampleDescT& sample_desc, const Inloader& in_loader, const LogBlockT& log_block,
+    In* in_workspace) {
+  return {sample_desc, in_loader, log_block, in_workspace};
 }
 
 /**
@@ -350,14 +377,16 @@ DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader> create_shm_conv
  * global memory. Used as a fallback when the filter size of number of channels in the input makes
  * it impossible to use ``ShmInputConv``.
  */
-template <typename SampleDescT, typename Inloader>
+template <typename SampleDescT_, typename Inloader_, typename LogBlockT_>
 struct DirectInputConv {
+  using SampleDescT = SampleDescT_;
+  using Inloader = Inloader_;
+  using LogBlockT = LogBlockT_;
   using Acc = typename SampleDescT::Acc;
   using In = typename SampleDescT::In;
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
-    const auto& log_block = sample_desc.shape.log_block;
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
@@ -370,7 +399,7 @@ struct DirectInputConv {
         // Even without shm, using `lanes` speeds up the kernel by reducing
         // the cost of nested loops arithmetic per single output value
 #pragma unroll
-        for (int lane = 0; lane < SampleDescT::lanes; lane++) {
+        for (int lane = 0; lane < LogBlockT::lanes; lane++) {
           auto global_y = in_loader.border_remap(
               start_shifted[1] + lThreadIdx.y + lane * lBlockDim.y + r, sample_desc.shape, 1);
           auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
@@ -382,24 +411,25 @@ struct DirectInputConv {
 
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
+  const LogBlockT& log_block;
 };
 
 
-template <typename SampleDescT, typename Inloader>
-DALI_DEVICE DALI_FORCEINLINE DirectInputConv<SampleDescT, Inloader> create_direct_conv(
-    const SampleDescT& sample_desc, const Inloader& in_loader) {
-  return {sample_desc, in_loader};
+template <typename SampleDescT, typename Inloader, typename LogBlockT>
+DALI_DEVICE DALI_FORCEINLINE DirectInputConv<SampleDescT, Inloader, LogBlockT> create_direct_conv(
+    const SampleDescT& sample_desc, const Inloader& in_loader, const LogBlockT& log_block) {
+  return {sample_desc, in_loader, log_block};
 }
 
 
 /** @} */  // end of InputConv
 
-template <int lanes, typename Out, typename Acc, typename ROI, int axes>
+template <typename Out, typename Acc, typename ROI, typename LogBlockT, int axes>
 DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ out,
                                                              const Acc* __restrict__ acc,
                                                              const ROI& roi,
                                                              const ivec<axes>& start,
-                                                             const LogicalBlock<axes>& log_block) {
+                                                             const LogBlockT& log_block) {
   const auto& lBlockDim = log_block.lBlockDim();
   const auto& lThreadIdx = log_block.lThreadIdx();
   const auto& roi_size = roi.size();
@@ -407,7 +437,7 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
   int x = start[0] + lThreadIdx.x;
   if (x < roi_size[0]) {
 #pragma unroll
-    for (int lane = 0; lane < lanes; lane++) {
+    for (int lane = 0; lane < LogBlockT::lanes; lane++) {
       int y = start[1] + lThreadIdx.y + lane * lBlockDim.y;
       if (y < roi_size[1]) {
         out[dot(ivec2{x, y}, roi_strides)] = ConvertSat<Out>(acc[lane]);
@@ -416,57 +446,58 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
   }
 }
 
-template <typename SampleDescT, typename Conv, typename ROI>
-DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec2& block_start,
-                                              const SampleDescT& sample_desc, const ROI& roi,
+template <typename ROI, typename Conv>
+DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec2& block_start, const ROI& roi,
                                               const Conv& conv) {
-  constexpr int lanes = SampleDescT::lanes;
-  const auto* in = sample_desc.in;
-  auto* out = sample_desc.out;
-  const auto& log_block = sample_desc.shape.log_block;
-  const auto& lBlockDim = log_block.lBlockDim();
+  using LogBlockT = typename Conv::LogBlockT;
+  using SampleDescT = typename Conv::SampleDescT;
+  constexpr int lanes = LogBlockT::lanes;
+  const auto* in = conv.sample_desc.in;
+  auto* out = conv.sample_desc.out;
+  const auto& lBlockDim = conv.log_block.lBlockDim();
   const auto& roi_size = roi.size();
-  for (int f = 0; f < sample_desc.shape.num_frames;
-       f++, in += sample_desc.shape.frame_stride, out += roi.frame_stride()) {
+  for (int f = 0; f < conv.sample_desc.shape.num_frames;
+       f++, in += conv.sample_desc.shape.frame_stride, out += roi.frame_stride()) {
     for (int y_start = block_start.y; y_start < roi_size[1];
          y_start += lanes * lBlockDim.y * gridDim.y) {
       for (int x_start = block_start.x; x_start < roi_size[0]; x_start += gridDim.x * lBlockDim.x) {
         typename SampleDescT::Acc acc[lanes] = {};
         ivec2 start{x_start, y_start};
         conv.compute(acc, in, start + roi.start());
-        store_acc_in_global_output<lanes>(out, acc, roi, start, log_block);
+        store_acc_in_global_output(out, acc, roi, start, conv.log_block);
       }
     }
   }
 }
 
-template <typename SampleDescT>
-DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 2, ivec2> get_start_block(
-    const SampleDescT& sample_desc) {
-  constexpr int lanes = SampleDescT::lanes;
-  const auto& lBlockDim = sample_desc.shape.log_block.lBlockDim();
-  return {lBlockDim.x * blockIdx.x, lanes * lBlockDim.y * blockIdx.y};
+template <typename LogBlockT>
+DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<LogBlockT::axes == 2, ivec2> get_block_start(
+    const LogBlockT& log_block) {
+  const auto& lBlockDim = log_block.lBlockDim();
+  return {lBlockDim.x * blockIdx.x, LogBlockT::lanes * lBlockDim.y * blockIdx.y};
 }
 
-template <typename SampleDescT, typename InputROIFactory, typename InLoaderFactory>
+template <typename SampleDescT, typename InputROIFactory, typename LogicalBlockFactory,
+          typename InLoaderFactory>
 __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in_roi_factory,
-                       InLoaderFactory in_loader_factory) {
+                       LogicalBlockFactory log_block_factory, InLoaderFactory in_loader_factory) {
   extern __shared__ char shm[];
   auto sample_desc = descs[blockIdx.z];
   const auto& roi = in_roi_factory(sample_desc.shape, blockIdx.z);
-  auto block_start = get_start_block(sample_desc);
+  const auto& log_block = log_block_factory(blockIdx.z);
+  auto block_start = get_block_start(log_block);
   if (any_coord(block_start >= roi.size())) {
-    return;
+    return;  // early exit to avoid all the setup only to do nothing in the stride loop
   }
   auto&& in_loader = in_loader_factory(blockIdx.z);
   if (sample_desc.shape.workspace_extents[0]) {
     using In = typename SampleDescT::In;
     In* in_workspace = reinterpret_cast<In*>(shm);
-    auto conv = create_shm_conv(sample_desc, in_loader, in_workspace);
-    stride_grid(block_start, sample_desc, roi, conv);
+    auto conv = create_shm_conv(sample_desc, in_loader, log_block, in_workspace);
+    stride_grid(block_start, roi, conv);
   } else {
-    auto conv = create_direct_conv(sample_desc, in_loader);
-    stride_grid(block_start, sample_desc, roi, conv);
+    auto conv = create_direct_conv(sample_desc, in_loader, log_block);
+    stride_grid(block_start, roi, conv);
   }
 }
 }  // namespace filter
@@ -493,7 +524,8 @@ struct Filter2dGpu {
   static constexpr int max_sample_width =
       std::numeric_limits<int>::max() / max_grid_cols * max_grid_cols;
 
-  using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes, lanes>;
+  using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
+  using LogBlockT = filter::AdaptiveBlock<axes, lanes>;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
@@ -516,16 +548,21 @@ struct Filter2dGpu {
     int shared_mem_limit = GetSharedMemPerBlock();
     int max_total_workspace = 0;
     bool any_has_degenerated_extents = false;
+    log_blocks_.clear();
+    log_blocks_.reserve(num_samples);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto& in_shape = in_shapes[sample_idx];
       const auto& filter_shape = filter_shapes[sample_idx];
       int required_workspace;
       bool has_degenerated_extents;
+      // todo split validation and log_block creation and sample creation?
+      LogBlockT::LogicalBlock log_block;
       auto shape_desc =
-          SetupSampleShapeDesc(required_workspace, has_degenerated_extents, sample_idx, in_shape,
-                               filter_shape, anchors[sample_idx], shared_mem_limit);
+          SetupSampleShapeDesc(required_workspace, has_degenerated_extents, log_block, sample_idx,
+                               in_shape, filter_shape, anchors[sample_idx], shared_mem_limit);
       any_has_degenerated_extents |= has_degenerated_extents;
       max_total_workspace = std::max(max_total_workspace, required_workspace);
+      log_blocks_.push_back(log_block);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
                                filters.tensor_data(sample_idx), shape_desc});
     }
@@ -547,10 +584,14 @@ struct Filter2dGpu {
     dim3 grid(num_blocks_w, num_blocks_h, num_samples);
     dim3 block(block_width, 1, 1);
     RunKernel(ctx, out_shapes, in_shapes, input_rois, border_type, fill_values,
-              any_has_degenerated_extents, [&](auto&& roi, auto&& loader) {
-                filter::filter<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(descs_dev, roi,
-                                                                                     loader);
-                CUDA_CALL(cudaGetLastError());
+              any_has_degenerated_extents, [&](auto&& roi) {
+                return [&](auto&& log_block) {
+                  return [&](auto&& loader) {
+                    filter::filter<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(
+                        descs_dev, roi, log_block, loader);
+                    CUDA_CALL(cudaGetLastError());
+                  };
+                };
               });
   }
 
@@ -563,9 +604,8 @@ struct Filter2dGpu {
                  bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
     if (input_rois.size() == 0) {
       filter::InputRoiFull<axes> roi_handler{};
-      RunKernelWithBorderMode(
-          ctx, border_type, fill_values, has_degenerated_extents,
-          [&](auto&& loader) { launch_kernel(std::move(roi_handler), std::move(loader)); });
+      RunKernelWithLogicalBlock(ctx, border_type, fill_values, has_degenerated_extents,
+                                launch_kernel(std::move(roi_handler)));
     } else {
       custom_rois_.clear();
       custom_rois_.reserve(in_shapes.num_samples());
@@ -578,9 +618,25 @@ struct Filter2dGpu {
       filter::CustomInputROI<axes>::ROI* input_rois_dev;
       std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, custom_rois_);
       filter::CustomInputROI<axes> roi_handler{input_rois_dev};
-      RunKernelWithBorderMode(
-          ctx, border_type, fill_values, has_degenerated_extents,
-          [&](auto&& loader) { launch_kernel(std::move(roi_handler), std::move(loader)); });
+      RunKernelWithLogicalBlock(ctx, border_type, fill_values, has_degenerated_extents,
+                                launch_kernel(std::move(roi_handler)));
+    }
+  }
+
+  template <typename KernelLauncher>
+  void RunKernelWithLogicalBlock(KernelContext& ctx, boundary::BoundaryType border_type,
+                                 const TensorListView<StorageGPU, const In, 0>& fill_values,
+                                 bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
+    if (std::all_of(log_blocks_.begin(), log_blocks_.end(),
+                    [](const auto& log_block) { return log_block.lBlockDim().x == block_width; })) {
+      RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
+                              launch_kernel(filter::StaticBlock<axes, lanes, block_width>{}));
+    } else {
+      LogBlockT::LogicalBlock* log_blocks_dev;
+      std::tie(log_blocks_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, log_blocks_);
+      LogBlockT log_block{log_blocks_dev};
+      RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
+                              launch_kernel(std::move(log_block)));
     }
   }
 
@@ -654,7 +710,8 @@ struct Filter2dGpu {
 
   template <typename InShape, typename FilterShape>
   filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace,
-                                               bool& has_degenerated_extents, int sample_idx,
+                                               bool& has_degenerated_extents,
+                                               LogBlockT::LogicalBlock& log_block, int sample_idx,
                                                const InShape& in_shape,
                                                const FilterShape& filter_shape, ivec<axes> anchor,
                                                int shared_mem_limit) {
@@ -671,11 +728,7 @@ struct Filter2dGpu {
     ValidateSampleNumericLimits(sample_idx, r, s, volume(filter_shape), anchor[1], anchor[0], f, h,
                                 wc, c);
     anchor[0] *= c;
-    int max_block_width_log2 = dali::ilog2(block_width);
-    int sample_wc_log2 = dali::ilog2(wc);
-    int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
-    auto log_block =
-        filter::create_log_block({block_width_log2, max_block_width_log2 - block_width_log2});
+    log_block = SetupLogicalBlock(ivec2{wc, h});
     auto lblockDim = log_block.lBlockDim();
     auto in_workspace_width = lblockDim.x + (s - 1) * c;
     auto in_workspace_height = lblockDim.y * lanes + r - 1;
@@ -697,8 +750,15 @@ struct Filter2dGpu {
             filter_extents,
             anchor,
             ivec<axes>{in_workspace_width, in_workspace_height},
-            {1, in_workspace_width},
-            log_block};
+            {1, in_workspace_width}};
+  }
+
+  LogBlockT::LogicalBlock SetupLogicalBlock(ivec<axes> in_extents) {
+    int max_block_width_log2 = dali::ilog2(block_width);
+    int sample_wc_log2 = dali::ilog2(in_extents[0]);
+    int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
+    return filter::create_adaptive_block<lanes>(
+        {block_width_log2, max_block_width_log2 - block_width_log2});
   }
 
   template <typename OutShape>
@@ -757,6 +817,7 @@ struct Filter2dGpu {
   std::vector<SampleDescT> samples_desc_;
   std::vector<const In*> fill_values_;
   std::vector<filter::CustomInputROI<axes>::ROI> custom_rois_;
+  std::vector<LogBlockT::LogicalBlock> log_blocks_;
 };
 
 
