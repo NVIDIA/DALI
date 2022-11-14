@@ -181,7 +181,7 @@ void OpticalFlowImpl::CreateOf() {
 
 void OpticalFlowImpl::DestroyOf() {
   if (of_handle_) {
-    // it is not possible to release all driver allocated data strucutres by calling nvOFDestroy
+    // it is not possible to release all driver allocated data structures by calling nvOFDestroy
     // if nvOFInit was not successfully called before, so run init with the default args just
     // to successfully call nvOFDestroy
     if (!is_initialized_) {
@@ -293,7 +293,14 @@ void OpticalFlowImpl::SetInitParams(dali::optical_flow::OpticalFlowParams api_pa
   init_params_.height = static_cast<uint32_t>(height_);
 
   init_params_.outGridSize = OutGridSizeToEnum(api_params.out_grid_size);
-  init_params_.hintGridSize = HintGridSizeToEnum(api_params.hint_grid_size);
+  init_params_.enableExternalHints = of_params_.enable_external_hints ? NV_OF_TRUE : NV_OF_FALSE;
+  // in driver 520.x.y only NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED can be provided if the hint
+  // is not used
+  if (of_params_.enable_external_hints) {
+    init_params_.hintGridSize = HintGridSizeToEnum(api_params.hint_grid_size);
+  } else {
+    init_params_.hintGridSize = HintGridSizeToEnum(-1);
+  }
 
   default_init_params_.hintGridSize = NV_OF_HINT_VECTOR_GRID_SIZE_UNDEFINED;
 
@@ -311,7 +318,6 @@ void OpticalFlowImpl::SetInitParams(dali::optical_flow::OpticalFlowParams api_pa
   }
   default_init_params_.perfLevel = NV_OF_PERF_LEVEL_SLOW;
 
-  init_params_.enableExternalHints = of_params_.enable_external_hints ? NV_OF_TRUE : NV_OF_FALSE;
   init_params_.enableOutputCost = NV_OF_FALSE;
   init_params_.hPrivData = NULL;
   init_params_.disparityRange = NV_OF_STEREO_DISPARITY_RANGE_UNDEFINED;
