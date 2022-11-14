@@ -183,7 +183,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
     // (that is gtl::ArraySlice<Node*>), returning view directly from the helper is not an option
     TF_RETURN_IF_ERROR(b->AddDataset(this, {}, {std::make_pair(0, inputs)}, attrs, output));
 
-    return Status::OK();
+    return Status();
   }
 
 #if TF_MAJOR_VERSION > 2 || (TF_MAJOR_VERSION == 2 && TF_MINOR_VERSION >= 3)
@@ -237,7 +237,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
       TF_RETURN_IF_ERROR(b->AddInputDataset(context, input, &input_node));
       input_graph_nodes.emplace_back(input_node);
     }
-    return Status::OK();
+    return Status();
   }
 
   Status InitPipeline(daliPipelineHandle *pipeline_handle) const {
@@ -247,7 +247,7 @@ class DALIDatasetOp::Dataset : public DatasetBase {
         pipeline_def_.exec_separated, pipeline_def_.prefetch_queue_depth,
         pipeline_def_.cpu_prefetch_queue_depth, pipeline_def_.gpu_prefetch_queue_depth,
         pipeline_def_.enable_memory_stats));
-    return Status::OK();
+    return Status();
   }
 
   class Iterator;
@@ -314,7 +314,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         }
       }
     }
-    return Status::OK();
+    return Status();
   }
 
   Status GetNextInternal(IteratorContext *context, std::vector<Tensor> *out_tensors,
@@ -327,7 +327,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       // TODO(klecki): we should raise a warning that reinitializing DALI Pipeline is not efficient
       if (iterator_state_ == InputState::stop_signaled) {
         *end_of_sequence = true;
-        return Status::OK();
+        return Status();
       }
 
       // Obtain the inputs and if end wasn't reached feed it.
@@ -349,7 +349,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         for (auto &input : input_impls_) {
           input.reset();
         }
-        return Status::OK();
+        return Status();
       }
     }
 
@@ -365,7 +365,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     if (!dataset()->HasInputs() || iterator_state_ == InputState::in_progress) {
       TF_DALI_CALL(daliRun(&pipeline_handle_));
     }
-    return Status::OK();
+    return Status();
   }
 
   ~Iterator() {
@@ -439,7 +439,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
                                         dataset()->pipeline_def_.cpu_prefetch_queue_depth,
                                         dataset()->pipeline_def_.gpu_prefetch_queue_depth));
     }
-    return Status::OK();
+    return Status();
   }
 
   /**
@@ -455,7 +455,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     // Desync of input datasets is not desired, we just report the problem fast
     TF_RETURN_IF_ERROR(input->GetNext(context, &input_example, &end_of_sequence));
     if (end_of_sequence) {
-      return Status::OK();
+      return Status();
     }
 
     // Repack the single Tensor from TfExample to Batch
@@ -466,7 +466,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     }
     // Extract the obtained example
     example = input_example[0];
-    return Status::OK();
+    return Status();
   }
 
   /**
@@ -482,11 +482,11 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     Tensor example;
     TF_RETURN_IF_ERROR(GetExampleFromInput(context, input_idx, example, end_of_sequence));
     if (end_of_sequence) {
-      return Status::OK();
+      return Status();
     }
     // Batch mode, only one tensor for whole batch
     out_batch = Batch{example};
-    return Status::OK();
+    return Status();
   }
 
   /**
@@ -508,11 +508,11 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       TF_RETURN_IF_ERROR(
           GetExampleFromInput(context, input_idx, in_batch[sample_idx], end_of_sequence));
       if (end_of_sequence) {
-        return Status::OK();
+        return Status();
       }
     }
     out_batch = Batch{std::move(in_batch)};
-    return Status::OK();
+    return Status();
   }
 
 
@@ -540,12 +540,12 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
                                                     end_of_sequence));
       }
       if (end_of_sequence) {
-        return Status::OK();
+        return Status();
       }
       TF_RETURN_IF_ERROR(input_batches[input_idx].VerifyUniform(input_idx));
     }
     out_batches = std::move(input_batches);
-    return Status::OK();
+    return Status();
   }
 
   /**
@@ -588,7 +588,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       auto dali_shape = DaliToShape(dali_batch_shape);
       auto status = GetCompatibleShape(output_shape, dataset()->shapes_[out_id], dali_shape,
                                        dataset()->pipeline_def_.batch_size, out_id);
-      if (status != Status::OK()) {
+      if (status != Status()) {
         return status;
       }
 
@@ -667,7 +667,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
     end_of_sequence = false;
 
     TF_DALI_CALL(daliOutputRelease(&pipeline_handle_));
-    return Status::OK();
+    return Status();
   }
 
   /**
@@ -731,7 +731,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
         input_batch.clear();
       }
     }
-    return Status::OK();
+    return Status();
   }
 
   void ReleaseInputs() {
@@ -749,13 +749,13 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
    *        rank of TF shape.
    *        If there is not unambiguous matching return error status.
    *
-   * @param result the matching shape if the function returned Status::OK()
+   * @param result the matching shape if the function returned valid Status()
    */
   Status GetCompatibleShape(TensorShape &result, const PartialTensorShape &required_shape,
                             const TensorShape &dali_shape, int batch_size, int output_idx) {
     if (required_shape.IsCompatibleWith(dali_shape)) {
       result = dali_shape;
-      return Status::OK();
+      return Status();
     }
 
     // both ranks should be known at this points (otherwise shapes are compatible)
@@ -798,7 +798,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
       TensorShape regular_shape;
       if (required_shape.AsTensorShape(&regular_shape) && regular_shape.num_elements() == 1) {
         result = regular_shape;
-        return Status::OK();
+        return Status();
       }
     }
     int matches = CountShapeMatches(result, required_shape, dali_shape);
@@ -809,7 +809,7 @@ class DALIDatasetOp::Dataset::Iterator : public DatasetIterator<Dataset> {
          << output_idx << "]): " << required_shape << ", got from Pipeline: " << dali_shape << ".";
       return errors::InvalidArgument(ss.str());
     }
-    return Status::OK();
+    return Status();
   }
 
   /**
@@ -963,13 +963,13 @@ Status MakeSplitProvidersImpl() {
 Status DALIDatasetOp::Dataset::InputDatasets(std::vector<const DatasetBase *> *inputs) const {
   if (!HasInputs()) {
     inputs->clear();
-    return Status::OK();
+    return Status();
   }
   inputs->resize(NumInputs());
   for (int i = 0; i < NumInputs(); i++) {
     inputs->operator[](i) = input_desc_.inputs[i];
   }
-  return Status::OK();
+  return Status();
 }
 
 #endif
