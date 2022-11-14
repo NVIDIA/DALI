@@ -67,7 +67,6 @@ def run_decode(data_path, batch, device, threads):
     pipe.build()
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for iter in range(iters):
-        print("Iteration", iter + 1, "/", iters)
         pipe.run()
 
 
