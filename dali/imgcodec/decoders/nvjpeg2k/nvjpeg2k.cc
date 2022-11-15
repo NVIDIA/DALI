@@ -22,6 +22,7 @@
 #include "dali/imgcodec/util/convert_gpu.h"
 #include "dali/core/static_switch.h"
 #include "dali/imgcodec/registry.h"
+#include "dali/pipeline/util/for_each_thread.h"
 
 namespace dali {
 namespace imgcodec {
@@ -63,8 +64,12 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
 
-  for (auto &res : per_thread_resources_)
-    res = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+  ForEachThread(*tp_, [&](int tid) noexcept {
+    CUDA_CALL(cudaSetDevice(device_id));
+    per_thread_resources_[tid] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+    AccessOrder s = per_thread_resources_[tid].cuda_stream;
+    AccessOrder h = AccessOrder::host();
+  });
 
   for (const auto &thread_id : tp_->GetThreadIds()) {
     if (device_memory_padding > 0) {
@@ -81,9 +86,18 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
 }
 
 NvJpeg2000DecoderInstance::~NvJpeg2000DecoderInstance() {
+  tp_->WaitForWork();
   for (const auto &res : per_thread_resources_)
     CUDA_CALL(cudaStreamSynchronize(res.cuda_stream));
-  for (const auto &thread_id : tp_->GetThreadIds())
+
+  ForEachThread(*tp_, [&](int tid) {
+      auto &res = per_thread_resources_[tid];
+      res.tile_dec_res.clear();
+      res.nvjpeg2k_decode_state.reset();
+      res.intermediate_buffer.free();
+    });
+
+  for (auto thread_id : tp_->GetThreadIds())
     nvjpeg_memory::DeleteAllBuffers(thread_id);
 }
 

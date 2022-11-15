@@ -46,7 +46,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
                               const ROI &roi) override;
 
   FutureDecodeResults ScheduleDecode(DecodeContext ctx,
-                                     span<SampleView<CPUBackend>> out,
+                                     span<SampleView<GPUBackend>> out,
                                      cspan<ImageSource *> in,
                                      DecodeParams opts,
                                      cspan<ROI> rois = {}) override {
@@ -86,7 +86,7 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
   };
 
-  static constexpr int kNumParallelTiles = 1;   // TODO(michalz): Use a different memory resource
+  static constexpr int kNumParallelTiles = 2;   // TODO(michalz): Use a different memory resource
   // to allow parallel processing of tiles - existing one isn't stream-safe
   struct PerThreadResources {
     PerThreadResources() = default;
