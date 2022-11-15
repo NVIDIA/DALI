@@ -67,8 +67,6 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
   ForEachThread(*tp_, [&](int tid) noexcept {
     CUDA_CALL(cudaSetDevice(device_id));
     per_thread_resources_[tid] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
-    AccessOrder s = per_thread_resources_[tid].cuda_stream;
-    AccessOrder h = AccessOrder::host();
   });
 
   for (const auto &thread_id : tp_->GetThreadIds()) {
