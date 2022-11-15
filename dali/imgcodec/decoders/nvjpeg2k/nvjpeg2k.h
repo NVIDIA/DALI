@@ -86,9 +86,9 @@ class DLL_PUBLIC NvJpeg2000DecoderInstance : public BatchParallelDecoderImpl {
     }
   };
 
-  static constexpr int kNumParallelTiles = 2;   // TODO(michalz): Use a different memory resource
-  // to allow parallel processing of tiles - existing one isn't stream-safe
   struct PerThreadResources {
+    static constexpr int kNumParallelTiles = 2;
+
     PerThreadResources() = default;
     PerThreadResources(const NvJpeg2kHandle &nvjpeg2k_handle,
                        size_t device_memory_padding, int device_id)
