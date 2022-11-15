@@ -26,24 +26,47 @@ __constant__ float mat_yuv_to_rgb[3][3] = {
     1.164383f,  2.017232f,  0.0f
 };
 
+__constant__ float mat_yuv_to_rgb_full_range[3][3] = {
+    1,  0.0f,   1.402f,
+    1, -0.344, -0.714f,
+    1,  1.772f, 0.0f
+};
+
 __device__ static uint8_t clamp(float x, float lower, float upper) {
     return fminf(fmaxf(x, lower), upper);
 }
 
+template<bool FullRange = false>
 __device__ inline Rgb pixel_yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v) {
     const int low = 1 << (sizeof(uint8_t) * 8 - 4);
     const int mid = 1 << (sizeof(uint8_t) * 8 - 1);
-    float fy = (int)y - low;
+    float fy = (int)y;
+    if (!FullRange)
+        fy -= low;
     float fu = (int)u - mid;
     float fv = (int)v - mid;
     const float maxf = (1 << sizeof(uint8_t) * 8) - 1.0f;
 
-    return Rgb { 
-        clamp(mat_yuv_to_rgb[0][0] * fy + mat_yuv_to_rgb[0][1] * fu + mat_yuv_to_rgb[0][2] * fv, 0.0f, maxf),
-        clamp(mat_yuv_to_rgb[1][0] * fy + mat_yuv_to_rgb[1][1] * fu + mat_yuv_to_rgb[1][2] * fv, 0.0f, maxf),
-        clamp(mat_yuv_to_rgb[2][0] * fy + mat_yuv_to_rgb[2][1] * fu + mat_yuv_to_rgb[2][2] * fv, 0.0f, maxf)};
+    if (FullRange) {
+        return Rgb {
+            clamp(mat_yuv_to_rgb_full_range[0][0] * fy + mat_yuv_to_rgb_full_range[0][1] * fu +
+                  mat_yuv_to_rgb_full_range[0][2] * fv, 0.0f, maxf),
+            clamp(mat_yuv_to_rgb_full_range[1][0] * fy + mat_yuv_to_rgb_full_range[1][1] * fu +
+                  mat_yuv_to_rgb_full_range[1][2] * fv, 0.0f, maxf),
+            clamp(mat_yuv_to_rgb_full_range[2][0] * fy + mat_yuv_to_rgb_full_range[2][1] * fu +
+                  mat_yuv_to_rgb_full_range[2][2] * fv, 0.0f, maxf)};
+    } else {
+        return Rgb {
+            clamp(mat_yuv_to_rgb[0][0] * fy + mat_yuv_to_rgb[0][1] * fu +
+                  mat_yuv_to_rgb[0][2] * fv, 0.0f, maxf),
+            clamp(mat_yuv_to_rgb[1][0] * fy + mat_yuv_to_rgb[1][1] * fu +
+                  mat_yuv_to_rgb[1][2] * fv, 0.0f, maxf),
+            clamp(mat_yuv_to_rgb[2][0] * fy + mat_yuv_to_rgb[2][1] * fu +
+                  mat_yuv_to_rgb[2][2] * fv, 0.0f, maxf)};
+    }
 }
 
+template<bool FullRange = false>
 __global__ static void yuv_to_rgb_kernel(
     uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int width, int height) {
     int x = (threadIdx.x + blockIdx.x * blockDim.x) * 2;
@@ -61,8 +84,8 @@ __global__ static void yuv_to_rgb_kernel(
     uint8_t luma_2 = *(src + yuv_pitch);
     uint8_t *chroma = (src + (height - y / 2) * yuv_pitch);
 
-    Rgb pixel_1 = pixel_yuv_to_rgb(luma_1, chroma[0], chroma[1]);
-    Rgb pixel_2 = pixel_yuv_to_rgb(luma_2, chroma[0], chroma[1]);
+    Rgb pixel_1 = pixel_yuv_to_rgb<FullRange>(luma_1, chroma[0], chroma[1]);
+    Rgb pixel_2 = pixel_yuv_to_rgb<FullRange>(luma_2, chroma[0], chroma[1]);
 
     dst_1[0] = pixel_1.r;
     dst_1[1] = pixel_1.g;
@@ -82,11 +105,18 @@ __global__ static void yuv_to_rgb_kernel(
 
 }
 
-void yuv_to_rgb(uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int width, int height, cudaStream_t stream) {
-    auto grid_layout = dim3((width + 63) / 32 / 2, (height + 3)); 
+void yuv_to_rgb(uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int width, int height,
+                bool full_range, cudaStream_t stream) {
+    auto grid_layout = dim3((width + 63) / 32 / 2, (height + 3));
     auto block_layout = dim3(32, 2);
 
-    yuv_to_rgb_kernel
-        <<<grid_layout, block_layout, 0, stream>>>
-        (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
+    if (full_range) {
+        yuv_to_rgb_kernel<true>
+            <<<grid_layout, block_layout, 0, stream>>>
+            (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
+    } else {
+        yuv_to_rgb_kernel<false>
+            <<<grid_layout, block_layout, 0, stream>>>
+            (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
+    }
 }

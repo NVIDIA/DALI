@@ -122,15 +122,14 @@ def test_full_range_video():
     assert np.mean(absdiff) < 1
 
 
-@params('cpu', 'gpu')
+@params('cpu', 'mixed')
 def test_full_range_video_in_memory(device):
     @pipeline_def
     def test_pipeline():
-        videos = fn.experimental.readers.video(
-            device=device,
-            filenames=[get_dali_extra_path() + '/db/video/full_dynamic_range/video.mp4'],
-            sequence_length=1)
-        return videos
+        data = fn.external_source(source=[[np.fromfile(
+                                get_dali_extra_path() + '/db/video/full_dynamic_range/video.mp4',
+                                dtype=np.uint8)]], dtype=types.UINT8, ndim=1)
+        return fn.experimental.decoders.video(data, device=device)
 
     video_pipeline = test_pipeline(
         batch_size = 1,
@@ -140,7 +139,8 @@ def test_full_range_video_in_memory(device):
     video_pipeline.build()
     o = video_pipeline.run()
     out = o[0]
-    if device == "gpu":
+    print(out)
+    if device == "mixed":
         out = out.as_cpu()
     out = out.as_array()
     ref = cv2.imread(get_dali_extra_path() + '/db/video/full_dynamic_range/0001.png')
