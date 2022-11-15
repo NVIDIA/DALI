@@ -55,8 +55,16 @@ struct StaticBlock {
     static constexpr int axes = axes_;
     static constexpr int lanes = lanes_;
 
+    DALI_HOST_DEV DALI_FORCEINLINE int flat_size() const {
+      return block_size;
+    }
+
     DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> lBlockDim() const {
       return cat(ivec<1>{block_size}, ivec<axes - 1>{1});
+    }
+
+    DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
+      return threadIdx.x;
     }
 
     DALI_DEVICE DALI_FORCEINLINE ivec<axes> lThreadIdx() const {
@@ -79,8 +87,18 @@ struct AdaptiveBlock {
     ivec<axes> extents_log2;
     ivec<axes> strides_log2;
 
+    DALI_DEVICE DALI_FORCEINLINE int flat_size() const {
+      assert(blockDim.y == 1);
+      assert(blockDim.z == 1);
+      return blockDim.x;
+    }
+
     DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> lBlockDim() const {
       return 1 << extents_log2;
+    }
+
+    DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
+      return threadIdx.x;
     }
 
     DALI_DEVICE DALI_FORCEINLINE ivec<axes> lThreadIdx() const {
@@ -110,8 +128,9 @@ struct ShapeDesc {
   ivec<axes> in_extents;
   ivec<axes> filter_extents;
   ivec<axes> anchor_shift;
-  ivec<axes> workspace_extents;
-  ivec<axes> workspace_strides;
+  ivec<axes> in_workspace_extents;
+  ivec<axes> in_workspace_strides;
+  int in_workspace_offset;
 };
 
 template <typename Out_, typename In_, typename W_, typename Acc_, int axes_>
@@ -321,9 +340,7 @@ struct ShmInputConv {
                                             const ivec2& start) const {
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
-    __syncthreads();
     load_input_to_shm(in, start);
-    __syncthreads();
     const auto* filter = sample_desc.filter;
     for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
       for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
@@ -333,7 +350,7 @@ struct ShmInputConv {
              lane++, lanes_offset += lBlockDim.y) {
           ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
           auto in_val =
-              in_workspace[dot(lThreadIdx + filter_offset, sample_desc.shape.workspace_strides)];
+              in_workspace[dot(lThreadIdx + filter_offset, sample_desc.shape.in_workspace_strides)];
           acc[lane] += in_val * filter_coef;
         }
       }
@@ -345,27 +362,35 @@ struct ShmInputConv {
     const auto& lBlockDim = log_block.lBlockDim();
     const auto& lThreadIdx = log_block.lThreadIdx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
-    for (int x = lThreadIdx.x; x < sample_desc.shape.workspace_extents[0]; x += lBlockDim.x) {
+    __syncthreads();
+    for (int y = log_block.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
+         y += log_block.flat_size()) {
+      idx_cache[y] = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
+    }
+    __syncthreads();
+    for (int x = lThreadIdx.x; x < sample_desc.shape.in_workspace_extents[0]; x += lBlockDim.x) {
       int global_x = in_loader.border_remap_innermost(start_shifted[0] + x, sample_desc.shape);
-      for (int y = lThreadIdx.y; y < sample_desc.shape.workspace_extents[1]; y += lBlockDim.y) {
-        int global_y = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
-        in_workspace[dot(ivec2{x, y}, sample_desc.shape.workspace_strides)] =
+      for (int y = lThreadIdx.y; y < sample_desc.shape.in_workspace_extents[1]; y += lBlockDim.y) {
+        int global_y = idx_cache[y];
+        in_workspace[dot(ivec2{x, y}, sample_desc.shape.in_workspace_strides)] =
             in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
       }
     }
+    __syncthreads();
   }
 
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
   const LogBlockT& log_block;
   In* in_workspace;
+  int* idx_cache;
 };
 
 template <typename SampleDescT, typename Inloader, typename LogBlockT, typename In>
 DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, LogBlockT> create_shm_conv(
     const SampleDescT& sample_desc, const Inloader& in_loader, const LogBlockT& log_block,
-    In* in_workspace) {
-  return {sample_desc, in_loader, log_block, in_workspace};
+    In* in_workspace, int* idx_cache) {
+  return {sample_desc, in_loader, log_block, in_workspace, idx_cache};
 }
 
 /**
@@ -502,10 +527,11 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
   }
   auto grid_size = get_grid_size(log_block);
   const auto& in_loader = in_loader_factory(blockIdx.z);
-  if (sample_desc.shape.workspace_extents[0]) {
+  if (sample_desc.shape.in_workspace_extents[0]) {
     using In = typename SampleDescT::In;
-    In* in_workspace = reinterpret_cast<In*>(shm);
-    auto conv = create_shm_conv(sample_desc, in_loader, log_block, in_workspace);
+    int* idx_cache = reinterpret_cast<int*>(shm);
+    In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
+    auto conv = create_shm_conv(sample_desc, in_loader, log_block, in_workspace, idx_cache);
     stride_grid(block_start, grid_size, roi, conv);
   } else {
     auto conv = create_direct_conv(sample_desc, in_loader, log_block);
@@ -755,7 +781,9 @@ struct FilterGpu {
         in_workspace_num_elements > std::numeric_limits<int>::max()) {
       in_workspace_width = in_workspace_num_elements = 0;
     }
-    required_workspace = in_workspace_num_elements * sizeof(In);
+    int idx_workspace_size = in_workspace_height;
+    int in_workspace_offset = align_up((idx_workspace_size) * sizeof(int), sizeof(In));
+    required_workspace = in_workspace_offset + in_workspace_num_elements * sizeof(In);
     if (c > lblockDim.x || required_workspace > shared_mem_limit) {
       required_workspace = in_workspace_width = 0;
     }
@@ -768,7 +796,8 @@ struct FilterGpu {
             filter_extents,
             anchor,
             ivec<axes>{in_workspace_width, in_workspace_height},
-            {1, in_workspace_width}};
+            {1, in_workspace_width},
+            in_workspace_offset};
   }
 
   LogBlockT SetupLogicalBlock(ivec<axes> in_extents) {
