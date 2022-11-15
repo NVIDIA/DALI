@@ -142,12 +142,9 @@ class NvJpeg2000DecoderTest : public NumpyDecoderTestBase<GPUBackend, OutputType
       AssertEqualSatNorm(img, ref);
   }
 
-  void RunTest(const ImageTestingData &data, std::optional<float> eps = std::nullopt,
-               DALIImageType format = DALI_RGB) {
+  void RunTest(const ImageTestingData &data, std::optional<float> eps = std::nullopt) {
     ImageBuffer image(data.img_path);
-    auto params = this->GetParams();
-    params.format = format;
-    auto decoded = this->Decode(&image.src, params, data.roi);
+    auto decoded = this->Decode(&image.src, this->GetParams(), data.roi);
     auto ref = this->ReadReferenceFrom(data.ref_path);
     AssertEqual(decoded, ref, eps);
   }
@@ -185,13 +182,6 @@ TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingle) {
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingleRoi) {
   for (const auto &[name, roi] : roi_images)
     this->RunTest(from_regular_file(name, roi));
-}
-
-TYPED_TEST(NvJpeg2000DecoderTest, DecodeSingleAnyData) {
-  for (const auto &name : images) {
-    SCOPED_TRACE(name);
-    this->RunTest(from_regular_file(name), {}, DALI_ANY_DATA);
-  }
 }
 
 TYPED_TEST(NvJpeg2000DecoderTest, DecodeBatchSingleThread) {

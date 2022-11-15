@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include "dali/imgcodec/decoders/memory_pool.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/pipeline/data/buffer.h"
 

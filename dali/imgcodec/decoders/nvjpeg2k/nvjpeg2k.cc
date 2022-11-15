@@ -22,6 +22,7 @@
 #include "dali/imgcodec/util/convert_gpu.h"
 #include "dali/core/static_switch.h"
 #include "dali/imgcodec/registry.h"
+#include "dali/pipeline/util/for_each_thread.h"
 
 namespace dali {
 namespace imgcodec {
@@ -63,8 +64,10 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
   nvjpeg2k_handle_ = NvJpeg2kHandle(&nvjpeg2k_dev_alloc_, &nvjpeg2k_pin_alloc_);
   DALI_ENFORCE(nvjpeg2k_handle_, "NvJpeg2kHandle initalization failed");
 
-  for (auto &res : per_thread_resources_)
-    res = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+  ForEachThread(*tp_, [&](int tid) noexcept {
+    CUDA_CALL(cudaSetDevice(device_id));
+    per_thread_resources_[tid] = {nvjpeg2k_handle_, device_memory_padding, device_id_};
+  });
 
   for (const auto &thread_id : tp_->GetThreadIds()) {
     if (device_memory_padding > 0) {
@@ -81,9 +84,18 @@ NvJpeg2000DecoderInstance::NvJpeg2000DecoderInstance(
 }
 
 NvJpeg2000DecoderInstance::~NvJpeg2000DecoderInstance() {
+  tp_->WaitForWork();
   for (const auto &res : per_thread_resources_)
     CUDA_CALL(cudaStreamSynchronize(res.cuda_stream));
-  for (const auto &thread_id : tp_->GetThreadIds())
+
+  ForEachThread(*tp_, [&](int tid) {
+      auto &res = per_thread_resources_[tid];
+      res.tile_dec_res.clear();
+      res.nvjpeg2k_decode_state.reset();
+      res.intermediate_buffer.free();
+    });
+
+  for (auto thread_id : tp_->GetThreadIds())
     nvjpeg_memory::DeleteAllBuffers(thread_id);
 }
 
@@ -157,8 +169,9 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
                               ctx.nvjpeg2k_stream, &output_image, ctx.cuda_stream);
     return check_status(ret, in);
   } else {
-    // Decode tile by tile: nvjpeg2kDecodeImage seems to be bugged
     auto &image_info = ctx.image_info;
+
+    // Decode tile by tile: nvjpeg2kDecodeImage doesn't work properly with ROI
     auto &roi = ctx.roi;
     std::array tile_shape = {image_info.tile_height, image_info.tile_width};
 
@@ -185,11 +198,10 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
 
         if (begin_x < end_x && begin_y < end_y) {
           const TileDecodingResources &per_tile_ctx = ctx.tile_dec_res[state_idx];
-          state_idx = (state_idx + 1) % ctx.tile_dec_res.size();
 
           CUDA_CALL(cudaEventSynchronize(per_tile_ctx.decode_event));
 
-          NvJpeg2kDecodeParams params;
+          auto &params = per_tile_ctx.params;
           CUDA_CALL(nvjpeg2kDecodeParamsSetDecodeArea(params, begin_x, end_x, begin_y, end_y));
 
           auto output_image = PrepareOutputArea(out, pixel_data, pitch_in_bytes, output_offset_x,
@@ -208,6 +220,7 @@ bool NvJpeg2000DecoderInstance::DecodeJpeg2000(ImageSource *in, void *out, const
             return check_status(ret, in);
 
           CUDA_CALL(cudaEventRecord(per_tile_ctx.decode_event, ctx.cuda_stream));
+          state_idx = (state_idx + 1) % ctx.tile_dec_res.size();
         }
       }
     }
@@ -225,10 +238,10 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   Context ctx(opts, roi, res);
   DecodeResult result = {false, nullptr};
 
+  CUDA_CALL(cudaEventSynchronize(ctx.decode_event));
+
   if (!ParseJpeg2000Info(in, ctx))
     return result;
-
-  CUDA_CALL(cudaEventSynchronize(ctx.decode_event));
 
   const int64_t channels = ctx.shape[0];
   DALIImageType format = channels == 1 ? DALI_GRAY : DALI_RGB;
@@ -241,6 +254,10 @@ DecodeResult NvJpeg2000DecoderInstance::DecodeImplTask(int thread_idx,
   auto decode_out = out;
   if (is_processing_needed) {
     int64_t type_size = dali::TypeTable::GetTypeInfo(ctx.pixel_type).size();
+    size_t new_size = volume(ctx.shape) * type_size;
+    if (new_size > res.intermediate_buffer.capacity()) {
+      CUDA_CALL(cudaStreamSynchronize(ctx.cuda_stream));
+    }
     res.intermediate_buffer.resize(volume(ctx.shape) * type_size);
     decode_out = {res.intermediate_buffer.data(), ctx.shape, ctx.pixel_type};
   }
