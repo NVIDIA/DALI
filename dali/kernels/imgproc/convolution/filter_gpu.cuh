@@ -338,45 +338,59 @@ struct ShmInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
-    const auto& lBlockDim = log_block.lBlockDim();
+    auto anchored_start = start - sample_desc.shape.anchor_shift;
+    __syncthreads();
+    precompute_indices(in, anchored_start);
+    __syncthreads();
+    load_input_to_shm(in, anchored_start);
+    __syncthreads();
     const auto& lThreadIdx = log_block.lThreadIdx();
-    load_input_to_shm(in, start);
+    stride_filter(sample_desc.shape.filter_extents, [&](auto filter_coef, const auto& filter_offset,
+                                                        int lane) {
+      auto in_val =
+          in_workspace[dot(lThreadIdx + filter_offset, sample_desc.shape.in_workspace_strides)];
+      acc[lane] += in_val * filter_coef;
+    });
+  }
+
+  template <typename MulAddCoef>
+  DALI_DEVICE DALI_FORCEINLINE void stride_filter(const ivec2& filter_extents,
+                                                  MulAddCoef&& mul_add_coef) const {
+    const auto& lBlockDim = log_block.lBlockDim();
     const auto* filter = sample_desc.filter;
-    for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
-      for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
+    for (int r = 0; r < filter_extents[1]; r++) {
+      for (int s = 0; s < filter_extents[0]; s++) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < LogBlockT::lanes;
              lane++, lanes_offset += lBlockDim.y) {
           ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
-          auto in_val =
-              in_workspace[dot(lThreadIdx + filter_offset, sample_desc.shape.in_workspace_strides)];
-          acc[lane] += in_val * filter_coef;
+          mul_add_coef(filter_coef, filter_offset, lane);
         }
       }
     }
   }
 
-  DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
-                                                      const ivec2& start) const {
-    const auto& lBlockDim = log_block.lBlockDim();
-    const auto& lThreadIdx = log_block.lThreadIdx();
-    auto start_shifted = start - sample_desc.shape.anchor_shift;
-    __syncthreads();
+  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(const In* __restrict__ in,
+                                                       const ivec2& anchored_start) const {
     for (int y = log_block.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
          y += log_block.flat_size()) {
-      idx_cache[y] = in_loader.border_remap(start_shifted[1] + y, sample_desc.shape, 1);
+      idx_cache[y] = in_loader.border_remap(anchored_start[1] + y, sample_desc.shape, 1);
     }
-    __syncthreads();
+  }
+
+  DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
+                                                      const ivec2& anchored_start) const {
+    const auto& lBlockDim = log_block.lBlockDim();
+    const auto& lThreadIdx = log_block.lThreadIdx();
     for (int x = lThreadIdx.x; x < sample_desc.shape.in_workspace_extents[0]; x += lBlockDim.x) {
-      int global_x = in_loader.border_remap_innermost(start_shifted[0] + x, sample_desc.shape);
+      int global_x = in_loader.border_remap_innermost(anchored_start[0] + x, sample_desc.shape);
       for (int y = lThreadIdx.y; y < sample_desc.shape.in_workspace_extents[1]; y += lBlockDim.y) {
         int global_y = idx_cache[y];
         in_workspace[dot(ivec2{x, y}, sample_desc.shape.in_workspace_strides)] =
             in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
       }
     }
-    __syncthreads();
   }
 
   const SampleDescT& sample_desc;
@@ -452,16 +466,15 @@ DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ o
                                                              const ivec<axes>& start,
                                                              const LogBlockT& log_block) {
   const auto& lBlockDim = log_block.lBlockDim();
-  const auto& lThreadIdx = log_block.lThreadIdx();
   const auto& roi_size = roi.size();
   const auto& roi_strides = roi.get_strides();
-  int x = start[0] + lThreadIdx.x;
-  if (x < roi_size[0]) {
+  auto coords = start + log_block.lThreadIdx();
+  if (coords.x < roi_size.x) {
 #pragma unroll
     for (int lane = 0; lane < LogBlockT::lanes; lane++) {
-      int y = start[1] + lThreadIdx.y + lane * lBlockDim.y;
-      if (y < roi_size[1]) {
-        out[dot(ivec2{x, y}, roi_strides)] = ConvertSat<Out>(acc[lane]);
+      int y = coords.y + lane * lBlockDim.y;
+      if (y < roi_size.y) {
+        out[dot(ivec2{coords.x, y}, roi_strides)] = ConvertSat<Out>(acc[lane]);
       }
     }
   }
