@@ -94,6 +94,7 @@ def test_video_decoder(device):
         assert seq.shape == ref_seq.shape
         assert np.array_equal(seq, ref_seq)
 
+
 def test_full_range_video():
     @pipeline_def
     def test_pipeline():
@@ -106,10 +107,7 @@ def test_full_range_video():
             dtype=types.UINT8)
         return videos
 
-    video_pipeline = test_pipeline(
-        batch_size = 1,
-        num_threads = 1,
-        device_id = 0)
+    video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=0)
 
     video_pipeline.build()
     o = video_pipeline.run()
@@ -132,10 +130,7 @@ def test_full_range_video_in_memory(device):
             sequence_length=1)
         return videos
 
-    video_pipeline = test_pipeline(
-        batch_size = 1,
-        num_threads = 1,
-        device_id = 0)
+    video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=0)
 
     video_pipeline.build()
     o = video_pipeline.run()
