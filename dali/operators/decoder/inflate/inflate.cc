@@ -55,14 +55,14 @@ concatenating compressed frames from the corresponding sequences.::
     .AddArg(inflate::shapeArgName, "The shape of the output (inflated) chunk.", DALI_INT_VEC, true)
     .AddOptionalTypeArg(inflate::dTypeArgName, "The output (inflated) data type.", DALI_UINT8)
     .AddOptionalArg<std::vector<int>>(inflate::offsetArgName,
-                                      R"code("A list of offsets within the input sample
+                                      R"code(A list of offsets within the input sample
 describing where the consecutive chunks begin.
 
 If the ``chunk_sizes`` is not specified, it is assumed that the chunks are densely packed
 in the input tensor and the last chunk ends with the sample's end.)code",
                                       nullptr, true)
     .AddOptionalArg<std::vector<int>>(inflate::sizeArgName,
-                                      R"code("A list of sizes of corresponding input chunks.
+                                      R"code(A list of sizes of corresponding input chunks.
 
 If the ``chunk_offsets`` is not specified, it is assumed that the chunks are densely packed
 in the input tensor and the first chunk starts at the beginning of the sample.)code",
