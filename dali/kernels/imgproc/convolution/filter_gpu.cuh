@@ -51,7 +51,7 @@ vec<N, T> rev(const vec<N, T>& v) {
 
 template <int axes_, int lanes_, int block_size>
 struct StaticBlock {
-  struct LogicalBlock {
+  struct BlockSetup {
     static constexpr int axes = axes_;
     static constexpr int lanes = lanes_;
 
@@ -59,7 +59,7 @@ struct StaticBlock {
       return block_size;
     }
 
-    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> lBlockDim() const {
+    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
       return cat(ivec<1>{block_size}, ivec<axes - 1>{1});
     }
 
@@ -67,12 +67,12 @@ struct StaticBlock {
       return threadIdx.x;
     }
 
-    DALI_DEVICE DALI_FORCEINLINE ivec<axes> lThreadIdx() const {
+    DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
       return cat(ivec<1>{threadIdx.x}, ivec<axes - 1>{0});
     }
   };
 
-  DALI_DEVICE DALI_FORCEINLINE LogicalBlock operator()(int sample_idx) {
+  DALI_DEVICE DALI_FORCEINLINE BlockSetup operator()(int sample_idx) {
     (void)sample_idx;
     return {};
   }
@@ -80,7 +80,7 @@ struct StaticBlock {
 
 template <int axes_, int lanes_>
 struct AdaptiveBlock {
-  struct LogicalBlock {
+  struct BlockSetup {
     static constexpr int axes = axes_;
     static constexpr int lanes = lanes_;
 
@@ -93,7 +93,7 @@ struct AdaptiveBlock {
       return blockDim.x;
     }
 
-    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> lBlockDim() const {
+    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
       return 1 << extents_log2;
     }
 
@@ -101,35 +101,35 @@ struct AdaptiveBlock {
       return threadIdx.x;
     }
 
-    DALI_DEVICE DALI_FORCEINLINE ivec<axes> lThreadIdx() const {
+    DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
       assert(threadIdx.y == 0);
       assert(threadIdx.z == 0);
-      return (int(threadIdx.x) >> strides_log2) & (lBlockDim() - 1);
+      return (int(threadIdx.x) >> strides_log2) & (block_dim() - 1);
     }
   };
 
-  DALI_DEVICE DALI_FORCEINLINE const LogicalBlock& operator()(int sample_idx) {
+  DALI_DEVICE DALI_FORCEINLINE const BlockSetup& operator()(int sample_idx) {
     return blocks[sample_idx];
   }
 
-  const LogicalBlock* blocks;
+  const BlockSetup* blocks;
 };
 
 template <int lanes>
-typename AdaptiveBlock<2, lanes>::LogicalBlock create_adaptive_block(ivec2 xy_log2) {
+typename AdaptiveBlock<2, lanes>::BlockSetup create_adaptive_block(ivec2 xy_log2) {
   return {xy_log2, {0, xy_log2.x}};
 }
 
 template <int axes>
-struct LogGrid {};
+struct GridSetup {};
 
 template <>
-struct LogGrid<2> {
-  DALI_HOST_DEV ivec<2> lGridDim() const {
+struct GridSetup<2> {
+  DALI_HOST_DEV ivec<2> grid_dim() const {
     return num_blocks_;
   }
 
-  DALI_DEVICE ivec<2> lBlockIdx() const {
+  DALI_DEVICE ivec<2> block_idx() const {
     return {blockIdx.x, blockIdx.y};
   }
 
@@ -141,25 +141,25 @@ struct LogGrid<2> {
     return blockIdx.z;
   }
 
-  template <typename LogBlockT>
-  DALI_DEVICE ivec2 block_position(const LogBlockT& log_block) const {
-    static_assert(LogBlockT::axes == 2);
-    auto block_dim = log_block.lBlockDim();
-    auto block_idx = lBlockIdx();
-    return {block_dim.x * block_idx.x, LogBlockT::lanes * block_dim.y * block_idx.y};
+  template <typename BlockSetupT>
+  DALI_DEVICE ivec2 block_position(const BlockSetupT& block_setup) const {
+    static_assert(BlockSetupT::axes == 2);
+    auto block_dim = block_setup.block_dim();
+    auto block_idx = this->block_idx();
+    return {block_dim.x * block_idx.x, BlockSetupT::lanes * block_dim.y * block_idx.y};
   }
 
-  template <typename LogBlockT>
-  DALI_HOST_DEV ivec2 grid_size(const LogBlockT& log_block) const {
-    static_assert(LogBlockT::axes == 2);
-    auto grid_dim = lGridDim();
-    auto block_dim = log_block.lBlockDim();
-    return {grid_dim.x * block_dim.x, LogBlockT::lanes * block_dim.y * grid_dim.y};
+  template <typename BlockSetupT>
+  DALI_HOST_DEV ivec2 grid_size(const BlockSetupT& block_setup) const {
+    static_assert(BlockSetupT::axes == 2);
+    auto grid_dim = this->grid_dim();
+    auto block_dim = block_setup.block_dim();
+    return {grid_dim.x * block_dim.x, BlockSetupT::lanes * block_dim.y * grid_dim.y};
   }
 
-  dim3 gird_setup() const {
-    auto grid = lGridDim();
-    return {static_cast<unsigned int>(grid.x), static_cast<unsigned int>(grid.y),
+  dim3 kernel_setup() const {
+    auto grid_dim = this->grid_dim();
+    return {static_cast<unsigned int>(grid_dim.x), static_cast<unsigned int>(grid_dim.y),
             static_cast<unsigned int>(num_samples())};
   }
 
@@ -167,7 +167,7 @@ struct LogGrid<2> {
   int num_samples_;
 };
 
-inline LogGrid<2> create_log_grid(ivec2 num_blocks, int num_samples) {
+inline GridSetup<2> create_grid_setup(ivec2 num_blocks, int num_samples) {
   return {num_blocks, num_samples};
 }
 
@@ -380,11 +380,11 @@ struct InLoaderFactory<InLoaderPad<In, axes>> {
  * @brief First loads the input roi neceesary to compute the output of shape ``block_width x
  * lanes`` into shared memory (including filter's halo/apron), then computes the convolution.
  */
-template <typename SampleDescT_, typename Inloader_, typename LogBlockT_>
+template <typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct ShmInputConv {
   using SampleDescT = SampleDescT_;
   using Inloader = Inloader_;
-  using LogBlockT = LogBlockT_;
+  using BlockSetupT = BlockSetupT_;
   using In = typename SampleDescT::In;
   using Acc = typename SampleDescT::Acc;
 
@@ -396,11 +396,11 @@ struct ShmInputConv {
     __syncthreads();
     load_input_to_shm(in, anchored_start);
     __syncthreads();
-    const auto& lThreadIdx = log_block.lThreadIdx();
+    const auto& thread_idx = block_setup.thread_idx();
     stride_filter(sample_desc.shape.filter_extents, [&](auto filter_coef, const auto& filter_offset,
                                                         int lane) {
       auto in_val =
-          in_workspace[dot(lThreadIdx + filter_offset, sample_desc.shape.in_workspace_strides)];
+          in_workspace[dot(thread_idx + filter_offset, sample_desc.shape.in_workspace_strides)];
       acc[lane] += in_val * filter_coef;
     });
   }
@@ -408,14 +408,14 @@ struct ShmInputConv {
   template <typename MulAddCoef>
   DALI_DEVICE DALI_FORCEINLINE void stride_filter(const ivec2& filter_extents,
                                                   MulAddCoef&& mul_add_coef) const {
-    const auto& lBlockDim = log_block.lBlockDim();
+    const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int r = 0; r < filter_extents[1]; r++) {
       for (int s = 0; s < filter_extents[0]; s++) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
-        for (int lane = 0, lanes_offset = 0; lane < LogBlockT::lanes;
-             lane++, lanes_offset += lBlockDim.y) {
+        for (int lane = 0, lanes_offset = 0; lane < BlockSetupT::lanes;
+             lane++, lanes_offset += block_dim.y) {
           ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
           mul_add_coef(filter_coef, filter_offset, lane);
         }
@@ -425,19 +425,19 @@ struct ShmInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void precompute_indices(const In* __restrict__ in,
                                                        const ivec2& anchored_start) const {
-    for (int y = log_block.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
-         y += log_block.flat_size()) {
+    for (int y = block_setup.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
+         y += block_setup.flat_size()) {
       idx_cache[y] = in_loader.border_remap(anchored_start[1] + y, sample_desc.shape, 1);
     }
   }
 
   DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
                                                       const ivec2& anchored_start) const {
-    const auto& lBlockDim = log_block.lBlockDim();
-    const auto& lThreadIdx = log_block.lThreadIdx();
-    for (int x = lThreadIdx.x; x < sample_desc.shape.in_workspace_extents[0]; x += lBlockDim.x) {
+    const auto& block_dim = block_setup.block_dim();
+    const auto& thread_idx = block_setup.thread_idx();
+    for (int x = thread_idx.x; x < sample_desc.shape.in_workspace_extents[0]; x += block_dim.x) {
       int global_x = in_loader.border_remap_innermost(anchored_start[0] + x, sample_desc.shape);
-      for (int y = lThreadIdx.y; y < sample_desc.shape.in_workspace_extents[1]; y += lBlockDim.y) {
+      for (int y = thread_idx.y; y < sample_desc.shape.in_workspace_extents[1]; y += block_dim.y) {
         int global_y = idx_cache[y];
         in_workspace[dot(ivec2{x, y}, sample_desc.shape.in_workspace_strides)] =
             in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
@@ -447,16 +447,16 @@ struct ShmInputConv {
 
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
-  const LogBlockT& log_block;
+  const BlockSetupT& block_setup;
   In* in_workspace;
   int* idx_cache;
 };
 
-template <typename SampleDescT, typename Inloader, typename LogBlockT, typename In>
-DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, LogBlockT> create_shm_conv(
-    const SampleDescT& sample_desc, const Inloader& in_loader, const LogBlockT& log_block,
+template <typename SampleDescT, typename Inloader, typename BlockSetupT, typename In>
+DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, BlockSetupT> create_shm_conv(
+    const SampleDescT& sample_desc, const Inloader& in_loader, const BlockSetupT& block_setup,
     In* in_workspace, int* idx_cache) {
-  return {sample_desc, in_loader, log_block, in_workspace, idx_cache};
+  return {sample_desc, in_loader, block_setup, in_workspace, idx_cache};
 }
 
 /**
@@ -464,31 +464,31 @@ DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, LogBlockT> crea
  * global memory. Used as a fallback when the filter size of number of channels in the input makes
  * it impossible to use ``ShmInputConv``.
  */
-template <typename SampleDescT_, typename Inloader_, typename LogBlockT_>
+template <typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct DirectInputConv {
   using SampleDescT = SampleDescT_;
   using Inloader = Inloader_;
-  using LogBlockT = LogBlockT_;
+  using BlockSetupT = BlockSetupT_;
   using Acc = typename SampleDescT::Acc;
   using In = typename SampleDescT::In;
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
-    const auto& lBlockDim = log_block.lBlockDim();
-    const auto& lThreadIdx = log_block.lThreadIdx();
+    const auto& block_dim = block_setup.block_dim();
+    const auto& thread_idx = block_setup.thread_idx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
       auto global_x = in_loader.border_remap_innermost(
-          start_shifted[0] + lThreadIdx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
+          start_shifted[0] + thread_idx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
       for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
         auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[0] + s);
         // Even without shm, using `lanes` speeds up the kernel by reducing
         // the cost of nested loops arithmetic per single output value
 #pragma unroll
-        for (int lane = 0; lane < LogBlockT::lanes; lane++) {
+        for (int lane = 0; lane < BlockSetupT::lanes; lane++) {
           auto global_y = in_loader.border_remap(
-              start_shifted[1] + lThreadIdx.y + lane * lBlockDim.y + r, sample_desc.shape, 1);
+              start_shifted[1] + thread_idx.y + lane * block_dim.y + r, sample_desc.shape, 1);
           auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
         }
@@ -498,33 +498,33 @@ struct DirectInputConv {
 
   const SampleDescT& sample_desc;
   const Inloader& in_loader;
-  const LogBlockT& log_block;
+  const BlockSetupT& block_setup;
 };
 
 
-template <typename SampleDescT, typename Inloader, typename LogBlockT>
-DALI_DEVICE DALI_FORCEINLINE DirectInputConv<SampleDescT, Inloader, LogBlockT> create_direct_conv(
-    const SampleDescT& sample_desc, const Inloader& in_loader, const LogBlockT& log_block) {
-  return {sample_desc, in_loader, log_block};
+template <typename SampleDescT, typename Inloader, typename BlockSetupT>
+DALI_DEVICE DALI_FORCEINLINE DirectInputConv<SampleDescT, Inloader, BlockSetupT> create_direct_conv(
+    const SampleDescT& sample_desc, const Inloader& in_loader, const BlockSetupT& block_setup) {
+  return {sample_desc, in_loader, block_setup};
 }
 
 
 /** @} */  // end of InputConv
 
-template <typename LogBlockT, typename Cb>
-DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_block(const ivec2& block_start,
-                                                                 const ivec2& roi_size,
-                                                                 const LogBlockT& log_block,
-                                                                 const Cb&& cb) {
-  const auto& lBlockDim = log_block.lBlockDim();
-  auto coords = block_start + log_block.lThreadIdx();
+template <typename BlockSetupT, typename Cb>
+DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(const ivec2& block_start,
+                                                                     const ivec2& roi_size,
+                                                                     const BlockSetupT& block_setup,
+                                                                     const Cb&& cb) {
+  const auto& block_dim = block_setup.block_dim();
+  auto coords = block_start + block_setup.thread_idx();
   if (coords.x < roi_size.x) {
 #pragma unroll
-    for (int lane = 0; lane < LogBlockT::lanes; lane++) {
+    for (int lane = 0; lane < BlockSetupT::lanes; lane++) {
       if (coords.y < roi_size.y) {
         cb(coords, lane);
       }
-      coords.y += lBlockDim.y;
+      coords.y += block_dim.y;
     }
   }
 }
@@ -545,11 +545,11 @@ template <typename ROI, typename Conv, int axes>
 DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_start,
                                               const ivec<axes>& grid_extents, const ROI& roi,
                                               const Conv& conv) {
-  using LogBlockT = typename Conv::LogBlockT;
+  using BlockSetupT = typename Conv::BlockSetupT;
   using SampleDescT = typename Conv::SampleDescT;
   using Acc = typename SampleDescT::Acc;
   using Out = typename SampleDescT::Out;
-  constexpr int lanes = LogBlockT::lanes;
+  constexpr int lanes = BlockSetupT::lanes;
   const auto* in = conv.sample_desc.in;
   auto* out = conv.sample_desc.out;
   const auto roi_strides = roi.get_strides();
@@ -560,38 +560,38 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_st
         [&](const ivec<axes>& block_start, const auto* __restrict__ in, auto* __restrict__ out) {
           Acc acc[lanes]{};
           conv.compute(acc, in, block_start + roi.start());
-          for_each_output_point_in_block(
-              block_start, roi.size(), conv.log_block, [&](const auto& coords, int lane) {
+          for_each_output_point_in_log_block(
+              block_start, roi.size(), conv.block_setup, [&](const auto& coords, int lane) {
                 out[dot(coords, roi_strides)] = ConvertSat<Out>(acc[lane]);
               });
         });
   }
 }
 
-template <typename SampleDescT, typename InputROIFactory, typename LogicalBlockFactory,
-          typename InLoaderFactory, typename LogGridT>
+template <typename SampleDescT, typename InputROIFactory, typename BlockSetupFactory,
+          typename InLoaderFactory, typename GridSetupT>
 __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in_roi_factory,
-                       LogicalBlockFactory log_block_factory, InLoaderFactory in_loader_factory,
-                       LogGridT log_grid) {
+                       BlockSetupFactory block_setup_factory, InLoaderFactory in_loader_factory,
+                       GridSetupT grid_setup) {
   extern __shared__ char shm[];
-  int sample_idx = log_grid.sample_idx();
+  int sample_idx = grid_setup.sample_idx();
   auto sample_desc = descs[sample_idx];
   const auto& roi = in_roi_factory(sample_desc.shape, sample_idx);
-  const auto& log_block = log_block_factory(sample_idx);
-  auto block_start = log_grid.block_position(log_block);
+  const auto& block_setup = block_setup_factory(sample_idx);
+  auto block_start = grid_setup.block_position(block_setup);
   if (any_coord(block_start >= roi.size())) {
     return;  // early exit to avoid all the setup only to do nothing in the stride loop
   }
-  auto grid_size = log_grid.grid_size(log_block);
+  auto grid_size = grid_setup.grid_size(block_setup);
   const auto& in_loader = in_loader_factory(sample_idx);
   if (sample_desc.shape.in_workspace_extents[0]) {
     using In = typename SampleDescT::In;
     int* idx_cache = reinterpret_cast<int*>(shm);
     In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
-    auto conv = create_shm_conv(sample_desc, in_loader, log_block, in_workspace, idx_cache);
+    auto conv = create_shm_conv(sample_desc, in_loader, block_setup, in_workspace, idx_cache);
     stride_grid(block_start, grid_size, roi, conv);
   } else {
-    auto conv = create_direct_conv(sample_desc, in_loader, log_block);
+    auto conv = create_direct_conv(sample_desc, in_loader, block_setup);
     stride_grid(block_start, grid_size, roi, conv);
   }
 }
@@ -621,13 +621,13 @@ struct FilterGpu {
       std::numeric_limits<int>::max() / max_grid_cols * max_grid_cols;
 
   using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
-  using LogBlockFactoryT = filter::AdaptiveBlock<axes, lanes>;
-  using LogBlockT = typename LogBlockFactoryT::LogicalBlock;
+  using BlockSetupFactoryT = filter::AdaptiveBlock<axes, lanes>;
+  using BlockSetupT = typename BlockSetupFactoryT::BlockSetup;
   using StaticBlockFactoryT = filter::StaticBlock<axes, lanes, block_width>;
-  using StaticBlockT = typename StaticBlockFactoryT::LogicalBlock;
+  using StaticBlockT = typename StaticBlockFactoryT::BlockSetup;
   using CustomROIFactoryT = typename filter::CustomInputROI<axes>;
   using CustomROIT = typename CustomROIFactoryT::ROI;
-  using LogGridT = filter::LogGrid<axes>;
+  using GridSetupT = filter::GridSetup<axes>;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
@@ -650,21 +650,21 @@ struct FilterGpu {
     int shared_mem_limit = GetSharedMemPerBlock();
     int max_total_workspace = 0;
     bool any_has_degenerated_extents = false;
-    log_blocks_.clear();
-    log_blocks_.reserve(num_samples);
+    block_setups_.clear();
+    block_setups_.reserve(num_samples);
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto& in_shape = in_shapes[sample_idx];
       const auto& filter_shape = filter_shapes[sample_idx];
       int required_workspace;
       bool has_degenerated_extents;
-      // todo split validation and log_block creation and sample creation?
-      LogBlockT log_block;
+      // todo split validation and block_setup creation and sample creation?
+      BlockSetupT block_setup;
       auto shape_desc =
-          SetupSampleShapeDesc(required_workspace, has_degenerated_extents, log_block, sample_idx,
+          SetupSampleShapeDesc(required_workspace, has_degenerated_extents, block_setup, sample_idx,
                                in_shape, filter_shape, anchors[sample_idx], shared_mem_limit);
       any_has_degenerated_extents |= has_degenerated_extents;
       max_total_workspace = std::max(max_total_workspace, required_workspace);
-      log_blocks_.push_back(log_block);
+      block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
                                filters.tensor_data(sample_idx), shape_desc});
     }
@@ -683,13 +683,14 @@ struct FilterGpu {
     int num_blocks_w = div_ceil(max_width, block_width);
     num_blocks_h = std::min(num_blocks_h, max_grid_height);
     num_blocks_w = std::min(num_blocks_w, max_grid_width);
-    auto log_grid = filter::create_log_grid(ivec2{num_blocks_w, num_blocks_h}, num_samples);
+    auto grid_setup = filter::create_grid_setup(ivec2{num_blocks_w, num_blocks_h}, num_samples);
     RunKernel(ctx, out_shapes, in_shapes, input_rois, border_type, fill_values,
               any_has_degenerated_extents, [&](auto&& roi) {
-                return [&](auto&& log_block) {
+                return [&](auto&& block_setup) {
                   return [&](auto&& loader) {
-                    filter::filter<<<log_grid.gird_setup(), block_width, max_total_workspace,
-                                     ctx.gpu.stream>>>(descs_dev, roi, log_block, loader, log_grid);
+                    filter::filter<<<grid_setup.kernel_setup(), block_width, max_total_workspace,
+                                     ctx.gpu.stream>>>(descs_dev, roi, block_setup, loader,
+                                                       grid_setup);
                     CUDA_CALL(cudaGetLastError());
                   };
                 };
@@ -705,8 +706,8 @@ struct FilterGpu {
                  bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
     if (input_rois.size() == 0) {
       filter::InputRoiFull<axes> roi_handler{};
-      RunKernelWithLogicalBlock(ctx, border_type, fill_values, has_degenerated_extents,
-                                launch_kernel(std::move(roi_handler)));
+      RunKernelWithBlockSetup(ctx, border_type, fill_values, has_degenerated_extents,
+                              launch_kernel(std::move(roi_handler)));
     } else {
       custom_rois_.clear();
       custom_rois_.reserve(in_shapes.num_samples());
@@ -719,26 +720,26 @@ struct FilterGpu {
       CustomROIT* input_rois_dev;
       std::tie(input_rois_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, custom_rois_);
       CustomROIFactoryT roi_handler{input_rois_dev};
-      RunKernelWithLogicalBlock(ctx, border_type, fill_values, has_degenerated_extents,
-                                launch_kernel(std::move(roi_handler)));
+      RunKernelWithBlockSetup(ctx, border_type, fill_values, has_degenerated_extents,
+                              launch_kernel(std::move(roi_handler)));
     }
   }
 
   template <typename KernelLauncher>
-  void RunKernelWithLogicalBlock(KernelContext& ctx, boundary::BoundaryType border_type,
-                                 const TensorListView<StorageGPU, const In, 0>& fill_values,
-                                 bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
-    if (std::all_of(log_blocks_.begin(), log_blocks_.end(), [](const auto& log_block) {
-          return log_block.lBlockDim() == StaticBlockT{}.lBlockDim();
+  void RunKernelWithBlockSetup(KernelContext& ctx, boundary::BoundaryType border_type,
+                               const TensorListView<StorageGPU, const In, 0>& fill_values,
+                               bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
+    if (std::all_of(block_setups_.begin(), block_setups_.end(), [](const auto& block_setup) {
+          return block_setup.block_dim() == StaticBlockT{}.block_dim();
         })) {
       RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
                               launch_kernel(StaticBlockFactoryT{}));
     } else {
-      LogBlockT* log_blocks_dev;
-      std::tie(log_blocks_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, log_blocks_);
-      LogBlockFactoryT log_block{log_blocks_dev};
+      BlockSetupT* block_setups_dev;
+      std::tie(block_setups_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, block_setups_);
+      BlockSetupFactoryT block_setup{block_setups_dev};
       RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
-                              launch_kernel(std::move(log_block)));
+                              launch_kernel(std::move(block_setup)));
     }
   }
 
@@ -812,8 +813,9 @@ struct FilterGpu {
 
   template <typename InShape, typename FilterShape>
   filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace,
-                                               bool& has_degenerated_extents, LogBlockT& log_block,
-                                               int sample_idx, const InShape& in_shape,
+                                               bool& has_degenerated_extents,
+                                               BlockSetupT& block_setup, int sample_idx,
+                                               const InShape& in_shape,
                                                const FilterShape& filter_shape, ivec<axes> anchor,
                                                int shared_mem_limit) {
     auto r = filter_shape[0];
@@ -829,8 +831,8 @@ struct FilterGpu {
     ValidateSampleNumericLimits(sample_idx, r, s, volume(filter_shape), anchor[1], anchor[0], f, h,
                                 wc, c);
     anchor[0] *= c;
-    log_block = SetupLogicalBlock(ivec2{wc, h});
-    auto lblockDim = log_block.lBlockDim();
+    block_setup = PrepareBlockSetup(ivec2{wc, h});
+    auto lblockDim = block_setup.block_dim();
     auto in_workspace_width = lblockDim.x + (s - 1) * c;
     auto in_workspace_height = lblockDim.y * lanes + r - 1;
     auto in_workspace_num_elements = in_workspace_width * in_workspace_height;
@@ -857,7 +859,7 @@ struct FilterGpu {
             in_workspace_offset};
   }
 
-  LogBlockT SetupLogicalBlock(ivec<axes> in_extents) {
+  BlockSetupT PrepareBlockSetup(ivec<axes> in_extents) {
     int max_block_width_log2 = dali::ilog2(block_width);
     int sample_wc_log2 = in_extents[0] == 0 ? 0 : dali::ilog2(in_extents[0] - 1) + 1;
     int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
@@ -920,7 +922,7 @@ struct FilterGpu {
   std::vector<SampleDescT> samples_desc_;
   std::vector<const In*> fill_values_;
   std::vector<CustomROIT> custom_rois_;
-  std::vector<LogBlockT> log_blocks_;
+  std::vector<BlockSetupT> block_setups_;
 };
 
 
