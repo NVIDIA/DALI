@@ -40,14 +40,9 @@ void MakeContiguousMixed::Run(Workspace &ws) {
     auto &output = ws.Output<CPUBackend>(0);
     DomainTimeRange tr("[DALI][MakeContiguousMixed] H2H non coalesced", DomainTimeRange::kGreen);
     if (IsPassThrough()) {
-      AccessOrder out_order = output.order();
-      // A call to ShareData may synchronize the orders and we don't want that.
-      // TODO(michalz): Find a less hacky solution.
-      output.set_order(input.order(), false);
       output.ShareData(input);
-      output.set_order(out_order, false);
     } else {
-      output.Copy(input, ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder());
+      output.Copy(input);
     }
   } else {
     assert(!IsPassThrough() &&

@@ -23,6 +23,28 @@
 #include "dali/pipeline/data/types.h"
 
 namespace dali {
+
+namespace {
+
+/**
+ * @brief Check if both shared pointers have the same managed pointer (not the one returned by
+ * .get())
+ */
+bool has_same_owner(const std::shared_ptr<void> &x, const std::shared_ptr<void> &y) {
+  if (x.owner_before(y) || y.owner_before(x))
+    return false;
+  return true;
+}
+
+
+bool has_same_owner(const std::weak_ptr<void> &x, const std::shared_ptr<void> &y) {
+  if (x.owner_before(y) || y.owner_before(x))
+    return false;
+  return true;
+}
+
+}  // namespace
+
 namespace copy_impl {
 
 /**
@@ -820,7 +842,7 @@ void TensorList<Backend>::DoMakeNoncontiguous() {
     // This will allow for the individual buffers to be resized.
     // The downside of this is we may keep the big contiguous buffer until all individual
     // samples are replaced.
-    if (same_managed_object(buffer_bkp_, t.data_)) {
+    if (has_same_owner(buffer_bkp_, t.data_)) {
       t.detach();
     }
   }
@@ -880,61 +902,34 @@ void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder or
 
 
 template <typename Backend>
-void TensorList<Backend>::ShareData(const TensorList<Backend> &tl) {
-  if (this == &tl)
-    return;
+void TensorList<Backend>::ShareData(const TensorList<Backend> &tv) {
+  Reset();
 
-  // We need not just the pointer values, but also the underlying managed objects to be the same
-  // to consider this an identity operation.
+  state_ = tv.state_;
+  curr_num_tensors_ = tv.curr_num_tensors_;
+  type_ = tv.type_;
+  sample_dim_ = tv.sample_dim_;
+  shape_ = tv.shape_;
+  layout_ = tv.layout_;
+  pinned_ = tv.pinned_;
+  order_ = tv.order_;
+  device_ = tv.device_;
 
-  bool same_data = same_shared_ptr(contiguous_buffer_.data_, tl.contiguous_buffer_.data_);
-  if (!tl.IsContiguous() && same_data) {
-    if (num_samples() == tl.num_samples()) {
-      for (int i = 0; i < num_samples(); i++) {
-        if (!same_shared_ptr(tensors_[i].data_, tl.tensors_[i].data_)) {
-          same_data = false;
-          break;
-        }
-      }
-    } else {
-      same_data = false;
-    }
-  }
-
-  // if the data is the same, there's no point in resetting the buffer (and possibly synchronizing)
-  if (!same_data)
-    Reset();
-
-  buffer_bkp_.reset();  // TODO(michalz): perhaps we should copy it from the source, too?
-
-  state_ = tl.state_;
-  curr_num_tensors_ = tl.curr_num_tensors_;
-  type_ = tl.type_;
-  sample_dim_ = tl.sample_dim_;
-  shape_ = tl.shape_;
-  layout_ = tl.layout_;
-  pinned_ = tl.pinned_;
-  order_ = tl.order_;
-  device_ = tl.device_;
-
-  if (tl.IsContiguous()) {
-    if (!same_data)
-      contiguous_buffer_.ShareData(tl.contiguous_buffer_);
+  if (tv.IsContiguous()) {
+    contiguous_buffer_.ShareData(tv.contiguous_buffer_);
     tensors_.resize(shape().num_samples());
     recreate_views();
   } else {
-    if (!same_data) {
-      int batch_size = tl.num_samples();
-      tensors_.resize(shape().num_samples());
-      for (int i = 0; i < batch_size; i++) {
-        tensors_[i].ShareData(tl.tensors_[i]);
-      }
+    int batch_size = tv.num_samples();
+    tensors_.resize(shape().num_samples());
+    for (int i = 0; i < batch_size; i++) {
+      tensors_[i].ShareData(tv.tensors_[i]);
     }
   }
 
-  SetLayout(tl.GetLayout());
+  SetLayout(tv.GetLayout());
   for (int i = 0; i < curr_num_tensors_; i++) {
-    SetMeta(i, tl.GetMeta(i));
+    SetMeta(i, tv.GetMeta(i));
   }
 }
 
@@ -1155,7 +1150,7 @@ bool TensorList<Backend>::shares_data() const {
   }
   for (const auto &tensor : tensors_) {
     if (tensor.shares_data() &&
-        !same_managed_object(contiguous_buffer_.get_data_ptr(), tensor.get_data_ptr())) {
+        !has_same_owner(contiguous_buffer_.get_data_ptr(), tensor.get_data_ptr())) {
       return true;
     }
   }
