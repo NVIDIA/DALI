@@ -119,7 +119,7 @@ def test_full_range_video():
     left = ref
     right = out
     absdiff = np.abs(left.astype(int) - right.astype(int))
-    assert np.mean(absdiff) < 1
+    assert np.mean(absdiff) < 2
 
 
 @params('cpu', 'gpu')
@@ -148,5 +148,4 @@ def test_full_range_video_in_memory(device):
     left = ref
     right = out
     absdiff = np.abs(left.astype(int) - right.astype(int))
-    print(np.mean(absdiff))
-    assert np.mean(absdiff) < 1
+    assert np.mean(absdiff) < 2
