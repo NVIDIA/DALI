@@ -48,8 +48,13 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.template Input<GPUBackend>(0);
     auto &output = ws.template Output<GPUBackend>(0);
-    auto total_chunks_num = params_.GetTotalChunkNum();
     output.SetLayout(params_.GetOutputLayout());
+    auto total_chunks_num = params_.GetTotalChunkNum();
+    // nvCOMP does not like being called with no chunks in the input
+    if (total_chunks_num == 0) {
+      assert(params_.GetOutputShape().num_elements() == 0);
+      return;
+    }
     SetupInChunks(input);
     SetupOutChunks(output);
     auto stream = ws.stream();

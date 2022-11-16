@@ -17,6 +17,7 @@ import numpy as np
 from nvidia.dali import pipeline_def, fn, types
 from test_utils import np_type_to_dali, has_operator, restrict_platform
 from nose_utils import assert_raises
+from nose2.tools import params
 
 
 def sample_to_lz4(sample):
@@ -178,9 +179,10 @@ def seq_source(rng, ndim, dtype, mode, permute, oversized_shape):
         if permute:
             assert mode == "offset_and_size"
             perm = rng.permutation(num_chunks)
-            sample = sample[perm]
-            offsets = offsets[perm]
-            sizes = sizes[perm]
+            subset = rng.choice([True, False], num_chunks)
+            sample = sample[perm][subset]
+            offsets = offsets[perm][subset]
+            sizes = sizes[perm][subset]
         if mode == "offset_only":
             return sample, deflated, reported_shape, offsets
         elif mode == "size_only":
@@ -239,6 +241,30 @@ def test_chunks():
                 yield _test_chunks, seed, batch_size, ndim, dtype, layout, mode, \
                     permute, oversized_shape, sequence_axis_name
                 seed += 1
+
+
+@has_operator("experimental.inflate")
+@restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
+@params({"chunk_offsets": []}, {"chunk_sizes": []}, {"chunk_offsets": np.array([], dtype=np.int32)},
+        {"chunk_sizes": np.array([], dtype=np.int32)})
+def test_total_no_chunks(ex_kwargs):
+    frame = np.full((128, 128, 3), 42, dtype=np.uint8)
+    chunks = [sample_to_lz4(frame)] * 7
+    deflated = np.concatenate(chunks)
+    baseline = np.array([], dtype=np.uint8).reshape((0, 128, 128, 3))
+
+    @pipeline_def
+    def pipeline():
+        inflate = fn.external_source(source=lambda _: deflated, batch=False)
+        return fn.experimental.inflate(inflate.gpu(), shape=(128, 128, 3), layout="HWC",
+                                       **ex_kwargs)
+
+    batch_size = 8
+    pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    pipe.build()
+    for _ in range(2):
+        (inflated, ) = pipe.run()
+        check_batch(inflated, [baseline] * batch_size, batch_size, layout="FHWC")
 
 
 def _test_validation(pipeline, error_glob, kwargs=None):
