@@ -156,11 +156,11 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
-  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.) {
+  void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.5) {
     FramesDecoderTestBase::RunSequentialTest(decoder, ground_truth, eps);
   }
 
-  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
+  void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.5) {
     FramesDecoderTestBase::RunTest(decoder, ground_truth, eps);
   }
 

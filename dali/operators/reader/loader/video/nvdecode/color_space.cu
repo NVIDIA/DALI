@@ -81,7 +81,7 @@ void yuv_to_rgb(uint8_t *yuv, int yuv_pitch, uint8_t *rgb, int rgb_pitch, int wi
             <<<grid_layout, block_layout, 0, stream>>>
             (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
     } else {
-        dali::yuv_to_rgb_kernel<true>
+        dali::yuv_to_rgb_kernel<false>
             <<<grid_layout, block_layout, 0, stream>>>
             (yuv, yuv_pitch, rgb, rgb_pitch, width, height);
     }
