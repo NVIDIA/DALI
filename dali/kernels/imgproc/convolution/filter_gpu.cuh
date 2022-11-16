@@ -34,6 +34,12 @@ namespace kernels {
 
 namespace filter {
 
+// Descrption of the input ROI passed to the kernel
+template <int axes>
+struct InputROI {
+  ivec<axes> start, end;
+};
+
 template <int N, typename T>
 vec<N, T> rev(const vec<N, T>& v) {
   vec<N, T> out;
@@ -42,12 +48,6 @@ vec<N, T> rev(const vec<N, T>& v) {
   }
   return out;
 }
-
-// Descrption of the input ROI passed to the kernel
-template <int axes>
-struct InputROI {
-  ivec<axes> start, end;
-};
 
 template <int axes_, int lanes_, int block_size>
 struct StaticBlock {
@@ -119,6 +119,58 @@ template <int lanes>
 typename AdaptiveBlock<2, lanes>::LogicalBlock create_adaptive_block(ivec2 xy_log2) {
   return {xy_log2, {0, xy_log2.x}};
 }
+
+template <int axes>
+struct LogGrid {};
+
+template <>
+struct LogGrid<2> {
+  DALI_HOST_DEV ivec<2> lGridDim() const {
+    return num_blocks_;
+  }
+
+  DALI_DEVICE ivec<2> lBlockIdx() const {
+    return {blockIdx.x, blockIdx.y};
+  }
+
+  DALI_HOST_DEV int num_samples() const {
+    return num_samples_;
+  }
+
+  DALI_DEVICE int sample_idx() const {
+    return blockIdx.z;
+  }
+
+  template <typename LogBlockT>
+  DALI_DEVICE ivec2 block_position(const LogBlockT& log_block) const {
+    static_assert(LogBlockT::axes == 2);
+    auto block_dim = log_block.lBlockDim();
+    auto block_idx = lBlockIdx();
+    return {block_dim.x * block_idx.x, LogBlockT::lanes * block_dim.y * block_idx.y};
+  }
+
+  template <typename LogBlockT>
+  DALI_HOST_DEV ivec2 grid_size(const LogBlockT& log_block) const {
+    static_assert(LogBlockT::axes == 2);
+    auto grid_dim = lGridDim();
+    auto block_dim = log_block.lBlockDim();
+    return {grid_dim.x * block_dim.x, LogBlockT::lanes * block_dim.y * grid_dim.y};
+  }
+
+  dim3 gird_setup() const {
+    auto grid = lGridDim();
+    return {static_cast<unsigned int>(grid.x), static_cast<unsigned int>(grid.y),
+            static_cast<unsigned int>(num_samples())};
+  }
+
+  ivec2 num_blocks_;
+  int num_samples_;
+};
+
+inline LogGrid<2> create_log_grid(ivec2 num_blocks, int num_samples) {
+  return {num_blocks, num_samples};
+}
+
 
 template <int axes>
 struct ShapeDesc {
@@ -459,87 +511,79 @@ DALI_DEVICE DALI_FORCEINLINE DirectInputConv<SampleDescT, Inloader, LogBlockT> c
 
 /** @} */  // end of InputConv
 
-template <typename Out, typename Acc, typename ROI, typename LogBlockT, int axes>
-DALI_DEVICE DALI_FORCEINLINE void store_acc_in_global_output(Out* __restrict__ out,
-                                                             const Acc* __restrict__ acc,
-                                                             const ROI& roi,
-                                                             const ivec<axes>& start,
-                                                             const LogBlockT& log_block) {
+template <typename LogBlockT, typename Cb>
+DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_block(const ivec2& block_start,
+                                                                 const ivec2& roi_size,
+                                                                 const LogBlockT& log_block,
+                                                                 const Cb&& cb) {
   const auto& lBlockDim = log_block.lBlockDim();
-  const auto& roi_size = roi.size();
-  const auto& roi_strides = roi.get_strides();
-  auto coords = start + log_block.lThreadIdx();
+  auto coords = block_start + log_block.lThreadIdx();
   if (coords.x < roi_size.x) {
 #pragma unroll
     for (int lane = 0; lane < LogBlockT::lanes; lane++) {
-      int y = coords.y + lane * lBlockDim.y;
-      if (y < roi_size.y) {
-        out[dot(ivec2{coords.x, y}, roi_strides)] = ConvertSat<Out>(acc[lane]);
+      if (coords.y < roi_size.y) {
+        cb(coords, lane);
       }
+      coords.y += lBlockDim.y;
     }
   }
 }
 
 template <typename ROI, typename DoConv, typename In, typename Out>
-DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec2& block_start, const ivec2& grid_stride,
+DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec2& block_start, const ivec2& grid_extents,
                                               const ROI& roi, const In* __restrict__ in,
                                               Out* __restrict__ out, DoConv&& do_conv) {
   const auto& roi_size = roi.size();
-  for (int y_start = block_start.y; y_start < roi_size[1]; y_start += grid_stride.y) {
-    for (int x_start = block_start.x; x_start < roi_size[0]; x_start += grid_stride.x) {
+  for (int y_start = block_start.y; y_start < roi_size[1]; y_start += grid_extents.y) {
+    for (int x_start = block_start.x; x_start < roi_size[0]; x_start += grid_extents.x) {
       do_conv(ivec2{x_start, y_start}, in, out);
     }
   }
 }
 
 template <typename ROI, typename Conv, int axes>
-DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& block_start,
-                                              const ivec<axes>& grid_stride, const ROI& roi,
+DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_start,
+                                              const ivec<axes>& grid_extents, const ROI& roi,
                                               const Conv& conv) {
   using LogBlockT = typename Conv::LogBlockT;
   using SampleDescT = typename Conv::SampleDescT;
+  using Acc = typename SampleDescT::Acc;
+  using Out = typename SampleDescT::Out;
   constexpr int lanes = LogBlockT::lanes;
   const auto* in = conv.sample_desc.in;
   auto* out = conv.sample_desc.out;
+  const auto roi_strides = roi.get_strides();
   for (int f = 0; f < conv.sample_desc.shape.num_frames;
        f++, in += conv.sample_desc.shape.frame_stride, out += roi.frame_stride()) {
-    stride_grid(block_start, grid_stride, roi, in, out,
-                [&](const ivec<axes>& start, const auto* __restrict__ in, auto* __restrict__ out) {
-                  typename SampleDescT::Acc acc[lanes] = {};
-                  conv.compute(acc, in, start + roi.start());
-                  store_acc_in_global_output(out, acc, roi, start, conv.log_block);
-                });
+    stride_grid(
+        initial_block_start, grid_extents, roi, in, out,
+        [&](const ivec<axes>& block_start, const auto* __restrict__ in, auto* __restrict__ out) {
+          Acc acc[lanes]{};
+          conv.compute(acc, in, block_start + roi.start());
+          for_each_output_point_in_block(
+              block_start, roi.size(), conv.log_block, [&](const auto& coords, int lane) {
+                out[dot(coords, roi_strides)] = ConvertSat<Out>(acc[lane]);
+              });
+        });
   }
-}
-
-template <typename LogBlockT>
-DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<LogBlockT::axes == 2, ivec2> get_block_start(
-    const LogBlockT& log_block) {
-  const auto& lBlockDim = log_block.lBlockDim();
-  return {lBlockDim.x * blockIdx.x, LogBlockT::lanes * lBlockDim.y * blockIdx.y};
-}
-
-template <typename LogBlockT>
-DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<LogBlockT::axes == 2, ivec2> get_grid_size(
-    const LogBlockT& log_block) {
-  const auto& lBlockDim = log_block.lBlockDim();
-  return {gridDim.x * lBlockDim.x, LogBlockT::lanes * lBlockDim.y * gridDim.y};
 }
 
 template <typename SampleDescT, typename InputROIFactory, typename LogicalBlockFactory,
-          typename InLoaderFactory>
+          typename InLoaderFactory, typename LogGridT>
 __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in_roi_factory,
-                       LogicalBlockFactory log_block_factory, InLoaderFactory in_loader_factory) {
+                       LogicalBlockFactory log_block_factory, InLoaderFactory in_loader_factory,
+                       LogGridT log_grid) {
   extern __shared__ char shm[];
-  auto sample_desc = descs[blockIdx.z];
-  const auto& roi = in_roi_factory(sample_desc.shape, blockIdx.z);
-  const auto& log_block = log_block_factory(blockIdx.z);
-  auto block_start = get_block_start(log_block);
+  int sample_idx = log_grid.sample_idx();
+  auto sample_desc = descs[sample_idx];
+  const auto& roi = in_roi_factory(sample_desc.shape, sample_idx);
+  const auto& log_block = log_block_factory(sample_idx);
+  auto block_start = log_grid.block_position(log_block);
   if (any_coord(block_start >= roi.size())) {
     return;  // early exit to avoid all the setup only to do nothing in the stride loop
   }
-  auto grid_size = get_grid_size(log_block);
-  const auto& in_loader = in_loader_factory(blockIdx.z);
+  auto grid_size = log_grid.grid_size(log_block);
+  const auto& in_loader = in_loader_factory(sample_idx);
   if (sample_desc.shape.in_workspace_extents[0]) {
     using In = typename SampleDescT::In;
     int* idx_cache = reinterpret_cast<int*>(shm);
@@ -583,6 +627,7 @@ struct FilterGpu {
   using StaticBlockT = typename StaticBlockFactoryT::LogicalBlock;
   using CustomROIFactoryT = typename filter::CustomInputROI<axes>;
   using CustomROIT = typename CustomROIFactoryT::ROI;
+  using LogGridT = filter::LogGrid<axes>;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
@@ -638,14 +683,13 @@ struct FilterGpu {
     int num_blocks_w = div_ceil(max_width, block_width);
     num_blocks_h = std::min(num_blocks_h, max_grid_height);
     num_blocks_w = std::min(num_blocks_w, max_grid_width);
-    dim3 grid(num_blocks_w, num_blocks_h, num_samples);
-    dim3 block(block_width, 1, 1);
+    auto log_grid = filter::create_log_grid(ivec2{num_blocks_w, num_blocks_h}, num_samples);
     RunKernel(ctx, out_shapes, in_shapes, input_rois, border_type, fill_values,
               any_has_degenerated_extents, [&](auto&& roi) {
                 return [&](auto&& log_block) {
                   return [&](auto&& loader) {
-                    filter::filter<<<grid, block, max_total_workspace, ctx.gpu.stream>>>(
-                        descs_dev, roi, log_block, loader);
+                    filter::filter<<<log_grid.gird_setup(), block_width, max_total_workspace,
+                                     ctx.gpu.stream>>>(descs_dev, roi, log_block, loader, log_grid);
                     CUDA_CALL(cudaGetLastError());
                   };
                 };
