@@ -423,12 +423,13 @@ struct ShmInputConv {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int r = 0; r < filter_extents[1]; r++) {
-      for (int s = 0; s < filter_extents[0]; s++) {
+      for (int s = 0; s < filter_extents[0] * sample_desc.shape.num_channels;
+           s += sample_desc.shape.num_channels) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < StaticConfigT::lanes;
              lane++, lanes_offset += block_dim.y) {
-          ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
+          ivec2 filter_offset{s, r + lanes_offset};
           mul_add_coef(filter_coef, filter_offset, lane);
         }
       }
@@ -781,12 +782,12 @@ struct FilterGpu {
     filter::strides(in_strides, frame_stride, in_extents * channels);
     ivec<axes> workspace_strides;
     filter::strides(workspace_strides, in_workspace_extents);
-    return {frame_stride,      in_strides,
-            num_frames,        width,
-            num_channels,      in_extents * channels,
-            filter_extents,  // todo multiply that by channels too
-            anchor * channels, in_workspace_extents,
-            workspace_strides, in_workspace_offset};
+    return {frame_stride,         in_strides,
+            num_frames,           width,
+            num_channels,         in_extents * channels,
+            filter_extents,       anchor * channels,
+            in_workspace_extents, workspace_strides,
+            in_workspace_offset};
   }
 
   BlockSetupT PrepareBlockSetup(ivec<axes> in_extents) {
