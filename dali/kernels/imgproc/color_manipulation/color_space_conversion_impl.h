@@ -107,14 +107,14 @@ struct itu_r_bt_601 {
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output y_to_gray(Input y) {
     constexpr float scale = 255 * detail::scale_factor<Input, Output>() / 219;
-    constexpr float bias = 0.06275f * detail::bias_scale<Input>();
+    constexpr float bias = 0.0625f * detail::bias_scale<Input>();
     return ConvertSat<Output>(scale * (y - bias));
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output gray_to_y(Input y) {
-    constexpr float bias = 0.06275f * detail::bias_scale<Output>();
+    constexpr float bias = 0.0625f * detail::bias_scale<Output>();
     constexpr float scale = 219 * detail::scale_factor<Input, Output>() / 255;
     return ConvertSat<Output>(y * scale + bias);
   }
@@ -123,7 +123,7 @@ struct itu_r_bt_601 {
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
     constexpr float cbias = 0.5f * detail::bias_scale<Input>();
-    constexpr float ybias = 0.06275f * detail::bias_scale<Input>();
+    constexpr float ybias = 0.0625f * detail::bias_scale<Input>();
     constexpr float s = detail::scale_factor<Input, Output>();
     float ys = (ycbcr[0] - ybias) * (255.0f / 219) * s;
     float tmp_b = ycbcr[1] - cbias;
