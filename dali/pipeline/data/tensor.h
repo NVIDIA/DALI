@@ -111,8 +111,8 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename InBackend>
   inline void Copy(const Tensor<InBackend> &other, AccessOrder order = {}) {
-    bool is_host_to_host = std::is_same<Backend, CPUBackend>::value &&
-                           std::is_same<InBackend, CPUBackend>::value;
+    constexpr bool is_host_to_host = std::is_same<Backend, CPUBackend>::value &&
+                                     std::is_same<InBackend, CPUBackend>::value;
     if (!order) {
       if (is_host_to_host)
         order = AccessOrder::host();
