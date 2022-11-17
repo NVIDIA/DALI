@@ -321,7 +321,7 @@ struct InLoaderBorderRemap : protected Remap {
       int inner_dim_idx = (idx + 1) % num_channels + num_channels - 1;
       return border_remap(reflect_dim_idx, sample_shape.width) * num_channels + inner_dim_idx;
     }
-    if (idx >= sample_shape.in_extents[0]) {
+    if (idx >= sample_shape.in_extents.x) {
       return border_remap(idx / num_channels, sample_shape.width) * num_channels +
              idx % num_channels;
     }
@@ -422,8 +422,8 @@ struct ShmInputConv {
                                                   MulAddCoef&& mul_add_coef) const {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
-    for (int r = 0; r < filter_extents[1]; r++) {
-      for (int s = 0; s < filter_extents[0] * sample_desc.shape.num_channels;
+    for (int r = 0; r < filter_extents.y; r++) {
+      for (int s = 0; s < filter_extents.x * sample_desc.shape.num_channels;
            s += sample_desc.shape.num_channels) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
@@ -440,7 +440,7 @@ struct ShmInputConv {
                                                        const ivec2& anchored_start) const {
     for (int y = block_setup.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
          y += block_setup.flat_size()) {
-      idx_cache[y] = in_loader.border_remap(anchored_start[1] + y, sample_desc.shape, 1);
+      idx_cache[y] = in_loader.border_remap(anchored_start.y + y, sample_desc.shape, 1);
     }
   }
 
@@ -448,9 +448,9 @@ struct ShmInputConv {
                                                       const ivec2& anchored_start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
-    for (int x = thread_idx.x; x < sample_desc.shape.in_workspace_extents[0]; x += block_dim.x) {
-      int global_x = in_loader.border_remap_innermost(anchored_start[0] + x, sample_desc.shape);
-      for (int y = thread_idx.y; y < sample_desc.shape.in_workspace_extents[1]; y += block_dim.y) {
+    for (int x = thread_idx.x; x < sample_desc.shape.in_workspace_extents.x; x += block_dim.x) {
+      int global_x = in_loader.border_remap_innermost(anchored_start.x + x, sample_desc.shape);
+      for (int y = thread_idx.y; y < sample_desc.shape.in_workspace_extents.y; y += block_dim.y) {
         int global_y = idx_cache[y];
         in_workspace[dot(ivec2{x, y}, sample_desc.shape.in_workspace_strides)] =
             in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
@@ -492,17 +492,17 @@ struct DirectInputConv {
     const auto& thread_idx = block_setup.thread_idx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
     const auto* filter = sample_desc.filter;
-    for (int s = 0; s < sample_desc.shape.filter_extents[0]; s++) {
+    for (int s = 0; s < sample_desc.shape.filter_extents.x; s++) {
       auto global_x = in_loader.border_remap_innermost(
-          start_shifted[0] + thread_idx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
-      for (int r = 0; r < sample_desc.shape.filter_extents[1]; r++) {
-        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents[0] + s);
+          start_shifted.x + thread_idx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
+      for (int r = 0; r < sample_desc.shape.filter_extents.y; r++) {
+        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents.x + s);
         // Even without shm, using `lanes` speeds up the kernel by reducing
         // the cost of nested loops arithmetic per single output value
 #pragma unroll
         for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
           auto global_y = in_loader.border_remap(
-              start_shifted[1] + thread_idx.y + lane * block_dim.y + r, sample_desc.shape, 1);
+              start_shifted.y + thread_idx.y + lane * block_dim.y + r, sample_desc.shape, 1);
           auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
         }
@@ -549,8 +549,8 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec2& block_start, const iv
                                               const ROI& roi, const In* __restrict__ in,
                                               Out* __restrict__ out, DoConv&& do_conv) {
   const auto& roi_size = roi.size();
-  for (int y_start = block_start.y; y_start < roi_size[1]; y_start += grid_extents.y) {
-    for (int x_start = block_start.x; x_start < roi_size[0]; x_start += grid_extents.x) {
+  for (int y_start = block_start.y; y_start < roi_size.y; y_start += grid_extents.y) {
+    for (int x_start = block_start.x; x_start < roi_size.x; x_start += grid_extents.x) {
       do_conv(ivec2{x_start, y_start}, in, out);
     }
   }
@@ -600,7 +600,7 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
   }
   auto grid_size = grid_setup.grid_dim() * block_setup.log_block_dim();
   const auto& in_loader = in_loader_factory(sample_idx);
-  if (sample_desc.shape.in_workspace_extents[0]) {
+  if (sample_desc.shape.in_workspace_extents.x) {
     using In = typename SampleDescT::In;
     int* idx_cache = reinterpret_cast<int*>(shm);
     In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
@@ -763,7 +763,7 @@ struct FilterGpu {
     int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
     const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
     auto in_extents = ShapeAsVec<int>(in_shape);
-    int width = in_extents[0];
+    int width = in_extents.x;
     auto filter_extents = shape2vec(filter_shape);
     block_setup = PrepareBlockSetup(in_extents * channels);
     auto log_block_dim = block_setup.log_block_dim();
@@ -792,7 +792,7 @@ struct FilterGpu {
 
   BlockSetupT PrepareBlockSetup(ivec<axes> in_extents) {
     int max_block_width_log2 = dali::ilog2(StaticConfigT::threadblock_size);
-    int sample_wc_log2 = in_extents[0] == 0 ? 0 : dali::ilog2(in_extents[0] - 1) + 1;
+    int sample_wc_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
     int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
     return filter::create_adaptive_block<StaticConfigT>(
         {block_width_log2, max_block_width_log2 - block_width_log2});
