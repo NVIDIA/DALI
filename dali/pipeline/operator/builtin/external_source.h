@@ -449,7 +449,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
       tl_elm.front()->Reset();
       tl_elm.front()->set_pinned(batch.is_pinned());
     }
-    tl_elm.front()->Copy(batch, order);
+    AccessOrder copy_order = std::is_same<SrcBackend, CPUBackend>::value
+        ? AccessOrder::host()  // do not use a device order for a host to host copy
+        : order;
+    tl_elm.front()->Copy(batch, copy_order);
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
       tl_data_.PushBack(tl_elm);
