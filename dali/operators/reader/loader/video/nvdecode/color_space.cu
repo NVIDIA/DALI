@@ -15,7 +15,6 @@
 #include "color_space.h"
 
 #include <cuda_runtime.h>
-#include <stdio.h>
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
