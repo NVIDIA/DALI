@@ -147,42 +147,6 @@ create_adaptive_block(ivec2 xy_log2) {
 }
 
 template <int axes>
-struct GridSetup {};
-
-template <>
-struct GridSetup<2> {
-  DALI_HOST_DEV ivec<2> grid_dim() const {
-    return num_blocks_;
-  }
-
-  DALI_DEVICE ivec<2> block_idx() const {
-    return {blockIdx.x, blockIdx.y};
-  }
-
-  DALI_HOST_DEV int num_samples() const {
-    return num_samples_;
-  }
-
-  DALI_DEVICE int sample_idx() const {
-    return blockIdx.z;
-  }
-
-  dim3 kernel_setup() const {
-    auto grid_dim = this->grid_dim();
-    return {static_cast<unsigned int>(grid_dim.x), static_cast<unsigned int>(grid_dim.y),
-            static_cast<unsigned int>(num_samples())};
-  }
-
-  ivec2 num_blocks_;
-  int num_samples_;
-};
-
-inline GridSetup<2> create_grid_setup(ivec2 num_blocks, int num_samples) {
-  return {num_blocks, num_samples};
-}
-
-
-template <int axes>
 struct ShapeDesc {
   int64_t frame_stride;
   i64vec<axes> in_strides;
@@ -611,7 +575,6 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
     stride_grid(block_start, grid_size, roi, conv);
   }
 }
-}  // namespace filter
 
 template <int axes>
 struct StaticConfig {};
@@ -632,6 +595,38 @@ struct StaticConfig<2> {
   }
 };
 
+template <typename StaticConfigT>
+struct GridSetup {
+  static constexpr int axes = StaticConfigT::axes;
+
+  DALI_HOST_DEV std::enable_if_t<axes == 2, ivec2> grid_dim() const {
+    return num_blocks_;
+  }
+
+  DALI_DEVICE std::enable_if_t<axes == 2, ivec2> block_idx() const {
+    return {blockIdx.x, blockIdx.y};
+  }
+
+  std::enable_if_t<axes == 2, dim3> kernel_setup() const {
+    auto grid_dim = this->grid_dim();
+    return {static_cast<unsigned int>(grid_dim.x), static_cast<unsigned int>(grid_dim.y),
+            static_cast<unsigned int>(num_samples())};
+  }
+
+  DALI_DEVICE int sample_idx() const {
+    return blockIdx.z;
+  }
+
+  DALI_HOST_DEV int num_samples() const {
+    return num_samples_;
+  }
+
+  ivec<axes> num_blocks_;
+  int num_samples_;
+};
+
+}  // namespace filter
+
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
           int axes_>
 struct FilterGpu {
@@ -644,12 +639,12 @@ struct FilterGpu {
   static constexpr int sequence_dim = has_sequence_dim ? 0 : -1;
   static constexpr int channels_dim = has_channel_dim ? ndim - 1 : -1;
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
-  using StaticConfigT = StaticConfig<axes>;
+  using StaticConfigT = filter::StaticConfig<axes>;
   using BlockSetupFactoryT = filter::AdaptiveBlock<StaticConfigT>;
   using BlockSetupT = typename BlockSetupFactoryT::BlockSetup;
   using StaticBlockFactoryT = filter::StaticBlock<StaticConfigT>;
   using StaticBlockT = typename StaticBlockFactoryT::BlockSetup;
-  using GridSetupT = filter::GridSetup<axes>;
+  using GridSetupT = filter::GridSetup<StaticConfigT>;
   using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
   using CustomROIFactoryT = typename filter::CustomInputROI<axes>;
   using CustomROIT = typename CustomROIFactoryT::ROI;
@@ -812,7 +807,7 @@ struct FilterGpu {
       num_blocks = max(num_blocks, sample_num_blocks);
     }
     num_blocks = min(num_blocks, StaticConfigT::max_grid_extents());
-    return filter::create_grid_setup(num_blocks, in_shapes.num_samples());
+    return {num_blocks, in_shapes.num_samples()};
   }
 
   template <typename Shape>
