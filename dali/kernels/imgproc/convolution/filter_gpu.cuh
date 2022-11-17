@@ -27,6 +27,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/kernels/imgproc/roi.h"
 #include "dali/kernels/kernel.h"
 
 namespace dali {
@@ -49,18 +50,38 @@ vec<N, T> rev(const vec<N, T>& v) {
   return out;
 }
 
-template <int axes_, int lanes_, int block_size>
+template <int N, typename T, typename U>
+void strides(vec<N, U>& out, U& total_stride, const vec<N, T>& v) {
+  total_stride = 1;
+  for (int d = 0; d < N; d++) {
+    out[d] = total_stride;
+    total_stride *= v[d];
+  }
+}
+
+template <int N, typename T, typename U>
+void strides(vec<N, U>& out, const vec<N, T>& v) {
+  U total_strides;
+  strides(out, total_strides, v);
+}
+
+template <typename StaticConfigT_>
 struct StaticBlock {
   struct BlockSetup {
-    static constexpr int axes = axes_;
-    static constexpr int lanes = lanes_;
+    using StaticConfigT = StaticConfigT_;
+    static constexpr int threadblock_size = StaticConfigT::threadblock_size;
+    static constexpr int axes = StaticConfigT::axes;
 
     DALI_HOST_DEV DALI_FORCEINLINE int flat_size() const {
-      return block_size;
+      return threadblock_size;
     }
 
     DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
-      return cat(ivec<1>{block_size}, ivec<axes - 1>{1});
+      return cat(ivec<1>{threadblock_size}, ivec<axes - 1>{1});
+    }
+
+    DALI_HOST_DEV ivec<axes> log_block_dim() const {
+      return block_dim() * StaticConfigT::lanes_dim();
     }
 
     DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
@@ -78,11 +99,11 @@ struct StaticBlock {
   }
 };
 
-template <int axes_, int lanes_>
+template <typename StaticConfigT_>
 struct AdaptiveBlock {
   struct BlockSetup {
-    static constexpr int axes = axes_;
-    static constexpr int lanes = lanes_;
+    using StaticConfigT = StaticConfigT_;
+    static constexpr int axes = StaticConfigT::axes;
 
     ivec<axes> extents_log2;
     ivec<axes> strides_log2;
@@ -95,6 +116,10 @@ struct AdaptiveBlock {
 
     DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
       return 1 << extents_log2;
+    }
+
+    DALI_HOST_DEV ivec<axes> log_block_dim() const {
+      return block_dim() * StaticConfigT::lanes_dim();
     }
 
     DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
@@ -115,8 +140,9 @@ struct AdaptiveBlock {
   const BlockSetup* blocks;
 };
 
-template <int lanes>
-typename AdaptiveBlock<2, lanes>::BlockSetup create_adaptive_block(ivec2 xy_log2) {
+template <typename StaticConfigT>
+std::enable_if_t<StaticConfigT::axes == 2, typename AdaptiveBlock<StaticConfigT>::BlockSetup>
+create_adaptive_block(ivec2 xy_log2) {
   return {xy_log2, {0, xy_log2.x}};
 }
 
@@ -139,22 +165,6 @@ struct GridSetup<2> {
 
   DALI_DEVICE int sample_idx() const {
     return blockIdx.z;
-  }
-
-  template <typename BlockSetupT>
-  DALI_DEVICE ivec2 block_position(const BlockSetupT& block_setup) const {
-    static_assert(BlockSetupT::axes == 2);
-    auto block_dim = block_setup.block_dim();
-    auto block_idx = this->block_idx();
-    return {block_dim.x * block_idx.x, BlockSetupT::lanes * block_dim.y * block_idx.y};
-  }
-
-  template <typename BlockSetupT>
-  DALI_HOST_DEV ivec2 grid_size(const BlockSetupT& block_setup) const {
-    static_assert(BlockSetupT::axes == 2);
-    auto grid_dim = this->grid_dim();
-    auto block_dim = block_setup.block_dim();
-    return {grid_dim.x * block_dim.x, BlockSetupT::lanes * block_dim.y * grid_dim.y};
   }
 
   dim3 kernel_setup() const {
@@ -372,19 +382,21 @@ struct InLoaderFactory<InLoaderPad<In, axes>> {
 
 
 /** @defgroup InputConv The specializations provide ``compute`` method that computes convolution
- * for the ``block_width x lanes`` patch and stores it in the provided ``acc``.
+ * for the patch of logical block size (log_block_dim) and stores it in the provided ``acc``.
  * @{
  */
 
 /**
- * @brief First loads the input roi neceesary to compute the output of shape ``block_width x
- * lanes`` into shared memory (including filter's halo/apron), then computes the convolution.
+ * @brief First loads the input patch neceesary to compute the output of logical block size
+ * (log_block_dim) into shared memory (including filter's halo/apron), then computes the
+ * convolution.
  */
 template <typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct ShmInputConv {
   using SampleDescT = SampleDescT_;
   using Inloader = Inloader_;
   using BlockSetupT = BlockSetupT_;
+  using StaticConfigT = typename BlockSetupT::StaticConfigT;
   using In = typename SampleDescT::In;
   using Acc = typename SampleDescT::Acc;
 
@@ -414,7 +426,7 @@ struct ShmInputConv {
       for (int s = 0; s < filter_extents[0]; s++) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
-        for (int lane = 0, lanes_offset = 0; lane < BlockSetupT::lanes;
+        for (int lane = 0, lanes_offset = 0; lane < StaticConfigT::lanes;
              lane++, lanes_offset += block_dim.y) {
           ivec2 filter_offset{s * sample_desc.shape.num_channels, r + lanes_offset};
           mul_add_coef(filter_coef, filter_offset, lane);
@@ -460,15 +472,16 @@ DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, BlockSetupT> cr
 }
 
 /**
- * @brief Computes the convolution of size ``block_width x lanes`` accessing the input directly in
- * global memory. Used as a fallback when the filter size of number of channels in the input makes
- * it impossible to use ``ShmInputConv``.
+ * @brief Computes the convolution of logical block size size (log_block_dim) accessing the input
+ * directly in global memory. Used as a fallback when the filter size of number of channels in the
+ * input makes it impossible to use ``ShmInputConv``.
  */
 template <typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct DirectInputConv {
   using SampleDescT = SampleDescT_;
   using Inloader = Inloader_;
   using BlockSetupT = BlockSetupT_;
+  using StaticConfigT = typename BlockSetupT::StaticConfigT;
   using Acc = typename SampleDescT::Acc;
   using In = typename SampleDescT::In;
 
@@ -486,7 +499,7 @@ struct DirectInputConv {
         // Even without shm, using `lanes` speeds up the kernel by reducing
         // the cost of nested loops arithmetic per single output value
 #pragma unroll
-        for (int lane = 0; lane < BlockSetupT::lanes; lane++) {
+        for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
           auto global_y = in_loader.border_remap(
               start_shifted[1] + thread_idx.y + lane * block_dim.y + r, sample_desc.shape, 1);
           auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
@@ -516,11 +529,12 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(const ivec2
                                                                      const ivec2& roi_size,
                                                                      const BlockSetupT& block_setup,
                                                                      const Cb&& cb) {
+  using StaticConfigT = typename BlockSetupT::StaticConfigT;
   const auto& block_dim = block_setup.block_dim();
   auto coords = block_start + block_setup.thread_idx();
   if (coords.x < roi_size.x) {
 #pragma unroll
-    for (int lane = 0; lane < BlockSetupT::lanes; lane++) {
+    for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
       if (coords.y < roi_size.y) {
         cb(coords, lane);
       }
@@ -546,10 +560,11 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_st
                                               const ivec<axes>& grid_extents, const ROI& roi,
                                               const Conv& conv) {
   using BlockSetupT = typename Conv::BlockSetupT;
+  using StaticConfigT = typename BlockSetupT::StaticConfigT;
   using SampleDescT = typename Conv::SampleDescT;
   using Acc = typename SampleDescT::Acc;
   using Out = typename SampleDescT::Out;
-  constexpr int lanes = BlockSetupT::lanes;
+  constexpr int lanes = StaticConfigT::lanes;
   const auto* in = conv.sample_desc.in;
   auto* out = conv.sample_desc.out;
   const auto roi_strides = roi.get_strides();
@@ -578,11 +593,11 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
   auto sample_desc = descs[sample_idx];
   const auto& roi = in_roi_factory(sample_desc.shape, sample_idx);
   const auto& block_setup = block_setup_factory(sample_idx);
-  auto block_start = grid_setup.block_position(block_setup);
+  auto block_start = grid_setup.block_idx() * block_setup.log_block_dim();
   if (any_coord(block_start >= roi.size())) {
     return;  // early exit to avoid all the setup only to do nothing in the stride loop
   }
-  auto grid_size = grid_setup.grid_size(block_setup);
+  auto grid_size = grid_setup.grid_dim() * block_setup.log_block_dim();
   const auto& in_loader = in_loader_factory(sample_idx);
   if (sample_desc.shape.in_workspace_extents[0]) {
     using In = typename SampleDescT::In;
@@ -597,6 +612,25 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
 }
 }  // namespace filter
 
+template <int axes>
+struct StaticConfig {};
+
+template <>
+struct StaticConfig<2> {
+  static constexpr int threadblock_size = 128;
+  static constexpr int axes = 2;
+  static constexpr int lanes = 8;
+  static constexpr int max_grid_extent = 32;
+
+  static DALI_HOST_DEV ivec2 lanes_dim() {
+    return {1, lanes};
+  }
+
+  static DALI_HOST_DEV ivec2 max_grid_extents() {
+    return {max_grid_extent, max_grid_extent};
+  }
+};
+
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
           int axes_>
 struct FilterGpu {
@@ -604,30 +638,20 @@ struct FilterGpu {
   Flip filter in both dimensions for a convolution. */
 
   static constexpr int axes = axes_;
-  static constexpr int num_sequence_dim = static_cast<int>(has_sequence_dim);
-  static constexpr int num_channels_dim = static_cast<int>(has_channel_dim);
-  static constexpr int ndim = num_sequence_dim + axes + num_channels_dim;
+  static constexpr int ndim =
+      static_cast<int>(has_sequence_dim) + axes + static_cast<int>(has_channel_dim);
+  static constexpr int sequence_dim = has_sequence_dim ? 0 : -1;
+  static constexpr int channels_dim = has_channel_dim ? ndim - 1 : -1;
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
-
-  static constexpr int block_width = 128;
-  static constexpr int lanes = 8;
-  static constexpr int max_grid_height = 32;
-  static constexpr int max_grid_width = 32;
-  static constexpr int max_grid_rows = max_grid_height * lanes;
-  static constexpr int max_grid_cols = max_grid_width * block_width;
-  static constexpr int max_sample_height =
-      std::numeric_limits<int>::max() / max_grid_rows * max_grid_rows;
-  static constexpr int max_sample_width =
-      std::numeric_limits<int>::max() / max_grid_cols * max_grid_cols;
-
-  using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
-  using BlockSetupFactoryT = filter::AdaptiveBlock<axes, lanes>;
+  using StaticConfigT = StaticConfig<axes>;
+  using BlockSetupFactoryT = filter::AdaptiveBlock<StaticConfigT>;
   using BlockSetupT = typename BlockSetupFactoryT::BlockSetup;
-  using StaticBlockFactoryT = filter::StaticBlock<axes, lanes, block_width>;
+  using StaticBlockFactoryT = filter::StaticBlock<StaticConfigT>;
   using StaticBlockT = typename StaticBlockFactoryT::BlockSetup;
+  using GridSetupT = filter::GridSetup<axes>;
+  using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
   using CustomROIFactoryT = typename filter::CustomInputROI<axes>;
   using CustomROIT = typename CustomROIFactoryT::ROI;
-  using GridSetupT = filter::GridSetup<axes>;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
@@ -641,56 +665,19 @@ struct FilterGpu {
     assert(fill_values.num_samples() == num_samples || fill_values.num_samples() == 0);
     assert(input_rois.size() == num_samples || input_rois.size() == 0);
 
-    samples_desc_.clear();
-    samples_desc_.reserve(num_samples);
-    const auto& in_shapes = in.shape;
-    const auto& out_shapes = out.shape;
-    const auto& filter_shapes = filters.shape;
-
-    int shared_mem_limit = GetSharedMemPerBlock();
-    int max_total_workspace = 0;
-    bool any_has_degenerated_extents = false;
-    block_setups_.clear();
-    block_setups_.reserve(num_samples);
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto& in_shape = in_shapes[sample_idx];
-      const auto& filter_shape = filter_shapes[sample_idx];
-      int required_workspace;
-      bool has_degenerated_extents;
-      // todo split validation and block_setup creation and sample creation?
-      BlockSetupT block_setup;
-      auto shape_desc =
-          SetupSampleShapeDesc(required_workspace, has_degenerated_extents, block_setup, sample_idx,
-                               in_shape, filter_shape, anchors[sample_idx], shared_mem_limit);
-      any_has_degenerated_extents |= has_degenerated_extents;
-      max_total_workspace = std::max(max_total_workspace, required_workspace);
-      block_setups_.push_back(block_setup);
-      samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
-                               filters.tensor_data(sample_idx), shape_desc});
-    }
-    SampleDescT* descs_dev;
-    std::tie(descs_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
-    int max_width = 0, max_height = 0;
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto& out_shape = out_shapes[sample_idx];
-      int h = out_shape[num_sequence_dim];
-      int w = out_shape[num_sequence_dim + 1];
-      int c = has_channel_dim ? out_shape[num_sequence_dim + 2] : 1;
-      max_height = std::max(max_height, h);
-      max_width = std::max(max_width, w * c);
-    }
-    int num_blocks_h = div_ceil(max_height, lanes);
-    int num_blocks_w = div_ceil(max_width, block_width);
-    num_blocks_h = std::min(num_blocks_h, max_grid_height);
-    num_blocks_w = std::min(num_blocks_w, max_grid_width);
-    auto grid_setup = filter::create_grid_setup(ivec2{num_blocks_w, num_blocks_h}, num_samples);
-    RunKernel(ctx, out_shapes, in_shapes, input_rois, border_type, fill_values,
+    int max_total_workspace;
+    bool any_has_degenerated_extents;
+    SampleDescT* samples_desc_dev;
+    SetupSampleDescs(max_total_workspace, any_has_degenerated_extents, out, in, filters, anchors);
+    std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
+    auto grid_setup = PrepareGridSetup(out, in);
+    RunKernel(ctx, out.shape, in.shape, input_rois, border_type, fill_values,
               any_has_degenerated_extents, [&](auto&& roi) {
                 return [&](auto&& block_setup) {
                   return [&](auto&& loader) {
-                    filter::filter<<<grid_setup.kernel_setup(), block_width, max_total_workspace,
-                                     ctx.gpu.stream>>>(descs_dev, roi, block_setup, loader,
-                                                       grid_setup);
+                    filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
+                                     max_total_workspace, ctx.gpu.stream>>>(
+                        samples_desc_dev, roi, block_setup, loader, grid_setup);
                     CUDA_CALL(cudaGetLastError());
                   };
                 };
@@ -698,6 +685,160 @@ struct FilterGpu {
   }
 
  protected:
+  template <typename T>
+  vec<axes, T> ShapeAsVec(const TensorShape<ndim>& shape) {
+    return shape2vec<axes, T>(skip_dim<sequence_dim>(skip_dim<channels_dim>(shape)));
+  }
+
+  template <typename Inshapes, typename FilterShapes>
+  void ValidateNumericLimits(const Inshapes& in_shapes, const FilterShapes& filter_shapes,
+                             const span<const ivec<axes>> anchors) {
+    const auto max_grid_logical_extents =
+        StaticConfigT::max_grid_extents() * StaticConfigT::lanes_dim();
+    // so that we can safely use grid extents as a stride in a for loop
+    const auto max_sample_extents = std::numeric_limits<int>::max() - max_grid_logical_extents + 1;
+    for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
+      const auto& in_shape = in_shapes[sample_idx];
+      const auto& filter_shape = filter_shapes[sample_idx];
+      const auto& anchor = anchors[sample_idx];
+      int64_t num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
+      int64_t num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
+      const auto channels = cat(i64vec<1>{num_channels}, i64vec<axes - 1>{1});
+      auto in_extents = ShapeAsVec<int64_t>(in_shape) * channels;
+      auto filter_extents = shape2vec<axes, int64_t>(filter_shape);
+      DALI_ENFORCE(
+          num_frames <= std::numeric_limits<int>::max(),
+          make_string("Number of frames for sample of idx ", sample_idx, " exceeds the limit of ",
+                      std::numeric_limits<int>::max(), ". Got: ", num_frames, "."));
+      DALI_ENFORCE(
+          volume(filter_extents) <= std::numeric_limits<int>::max(),
+          make_string("Volume of filter for sample of idx ", sample_idx, " exceeds the limit of ",
+                      std::numeric_limits<int>::max(), ". Got: ", volume(filter_extents), "."));
+      DALI_ENFORCE(all_coords(in_extents <= static_cast<i64vec<axes>>(max_sample_extents)),
+                   make_string("The size of the sample of idx ", sample_idx, " is ", in_extents,
+                               ", which exceeds the limit of ", max_sample_extents, "."));
+    }
+  }
+
+  void SetupSampleDescs(int& max_total_workspace, bool& any_has_degenerated_extents,
+                        const TensorListView<StorageGPU, Out, ndim>& out,
+                        const TensorListView<StorageGPU, const In, ndim>& in,
+                        const TensorListView<StorageGPU, const W, axes>& filters,
+                        const span<const ivec<axes>> anchors) {
+    const auto& in_shapes = in.shape;
+    const auto& filter_shapes = filters.shape;
+    int num_samples = in_shapes.num_samples();
+    ValidateNumericLimits(in_shapes, filter_shapes, anchors);
+    samples_desc_.clear();
+    samples_desc_.reserve(num_samples);
+    block_setups_.clear();
+    block_setups_.reserve(num_samples);
+    max_total_workspace = 0;
+    any_has_degenerated_extents = false;
+    const int shared_mem_limit = GetSharedMemPerBlock();
+    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+      int required_workspace;
+      bool has_degenerated_extents;
+      BlockSetupT block_setup;
+      auto shape_desc = SetupSampleShapeDesc(
+          required_workspace, has_degenerated_extents, block_setup, sample_idx,
+          in_shapes[sample_idx], filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
+      any_has_degenerated_extents |= has_degenerated_extents;
+      max_total_workspace = std::max(max_total_workspace, required_workspace);
+      block_setups_.push_back(block_setup);
+      samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
+                               filters.tensor_data(sample_idx), shape_desc});
+    }
+  }
+
+  template <typename InShape, typename FilterShape>
+  filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace,
+                                               bool& has_degenerated_extents,
+                                               BlockSetupT& block_setup, int sample_idx,
+                                               const InShape& in_shape,
+                                               const FilterShape& filter_shape, ivec<axes> anchor,
+                                               int shared_mem_limit) {
+    int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
+    int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
+    const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
+    auto in_extents = ShapeAsVec<int>(in_shape);
+    int width = in_extents[0];
+    auto filter_extents = shape2vec(filter_shape);
+    block_setup = PrepareBlockSetup(in_extents * channels);
+    auto log_block_dim = block_setup.log_block_dim();
+    auto in_workspace_extents = (filter_extents - 1) * channels + log_block_dim;
+    auto in_workspace_num_elements = volume(static_cast<i64vec<axes>>(in_workspace_extents));
+    auto idx_workspace_size =
+        std::accumulate(in_workspace_extents.begin() + 1, in_workspace_extents.end(), 0);
+    int in_workspace_offset = align_up(idx_workspace_size * sizeof(int), sizeof(In));
+    required_workspace = in_workspace_offset + in_workspace_num_elements * sizeof(In);
+    if (num_channels > log_block_dim.x || required_workspace > shared_mem_limit) {
+      in_workspace_extents = required_workspace = 0;
+    }
+    has_degenerated_extents = any_coord(in_extents <= 1);
+    int64_t frame_stride;
+    i64vec<axes> in_strides;
+    filter::strides(in_strides, frame_stride, in_extents * channels);
+    ivec<axes> workspace_strides;
+    filter::strides(workspace_strides, in_workspace_extents);
+    return {frame_stride,      in_strides,
+            num_frames,        width,
+            num_channels,      in_extents * channels,
+            filter_extents,  // todo multiply that by channels too
+            anchor * channels, in_workspace_extents,
+            workspace_strides, in_workspace_offset};
+  }
+
+  BlockSetupT PrepareBlockSetup(ivec<axes> in_extents) {
+    int max_block_width_log2 = dali::ilog2(StaticConfigT::threadblock_size);
+    int sample_wc_log2 = in_extents[0] == 0 ? 0 : dali::ilog2(in_extents[0] - 1) + 1;
+    int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
+    return filter::create_adaptive_block<StaticConfigT>(
+        {block_width_log2, max_block_width_log2 - block_width_log2});
+  }
+
+  GridSetupT PrepareGridSetup(const TensorListView<StorageGPU, Out, ndim>& out,
+                              const TensorListView<StorageGPU, const In, ndim>& in) {
+    ivec<axes> num_blocks = 0;
+    const auto& in_shapes = in.shape;
+    const auto& out_shapes = out.shape;
+    for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
+      const auto& out_shape = out_shapes[sample_idx];
+      int64_t num_channels = has_channel_dim ? in_shapes[sample_idx][channels_dim] : 1;
+      const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
+      auto out_extents = ShapeAsVec<int>(out_shape) * channels;
+      auto sample_num_blocks = div_ceil(out_extents, block_setups_[sample_idx].log_block_dim());
+      num_blocks = max(num_blocks, sample_num_blocks);
+    }
+    num_blocks = min(num_blocks, StaticConfigT::max_grid_extents());
+    return filter::create_grid_setup(num_blocks, in_shapes.num_samples());
+  }
+
+  template <typename Shape>
+  CustomROIT SetupValidateROI(const Shape& out_shape, const Shape& in_shape,
+                              const filter::ShapeDesc<axes>& shape_desc,
+                              const filter::InputROI<axes>& roi) {
+    int64_t num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
+    const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
+    const auto out_extents = ShapeAsVec<int>(out_shape);
+    const auto in_extents = ShapeAsVec<int>(in_shape);
+    auto roi_extents = roi.end - roi.start;
+    DALI_ENFORCE(
+        roi_extents == out_extents,
+        make_string("The output size must match the input roi size. Got output of size: ",
+                    filter::rev(out_extents), " and roi of size ", filter::rev(roi_extents), "."));
+    DALI_ENFORCE(all_coords(0 <= roi.start) && all_coords(roi.end <= in_extents),
+                 make_string("ROI must lie within the input sample. Got roi that starts at: ",
+                             roi.start, " and ends at ", filter::rev(roi.end),
+                             " for a sample of shape ", filter::rev(in_extents), "."));
+    auto roi_start = roi.start * channels;
+    roi_extents *= channels;
+    int64_t frame_roi_stride;
+    i64vec<axes> roi_strides;
+    filter::strides(roi_strides, frame_roi_stride, roi_extents);
+    return {roi_start, roi_extents, roi_strides, frame_roi_stride};
+  }
+
   template <typename InShapes, typename OutShapes, typename KernelLauncher>
   void RunKernel(KernelContext& ctx, const OutShapes& out_shapes, const InShapes& in_shapes,
                  const span<const filter::InputROI<axes>> input_rois,
@@ -811,138 +952,11 @@ struct FilterGpu {
     }
   }
 
-  template <typename InShape, typename FilterShape>
-  filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace,
-                                               bool& has_degenerated_extents,
-                                               BlockSetupT& block_setup, int sample_idx,
-                                               const InShape& in_shape,
-                                               const FilterShape& filter_shape, ivec<axes> anchor,
-                                               int shared_mem_limit) {
-    auto r = filter_shape[0];
-    auto s = filter_shape[1];
-    ivec<axes> filter_extents{s, r};
-    auto f = has_sequence_dim ? in_shape[0] : 1;
-    auto h = in_shape[num_sequence_dim];
-    auto w = in_shape[num_sequence_dim + 1];
-    auto c = has_channel_dim ? in_shape[num_sequence_dim + 2] : 1;
-    auto wc = w * c;
-    auto frame_stride = h * wc;
-    has_degenerated_extents = h == 1 || w == 1;
-    ValidateSampleNumericLimits(sample_idx, r, s, volume(filter_shape), anchor[1], anchor[0], f, h,
-                                wc, c);
-    anchor[0] *= c;
-    block_setup = PrepareBlockSetup(ivec2{wc, h});
-    auto lblockDim = block_setup.block_dim();
-    auto in_workspace_width = lblockDim.x + (s - 1) * c;
-    auto in_workspace_height = lblockDim.y * lanes + r - 1;
-    auto in_workspace_num_elements = in_workspace_width * in_workspace_height;
-    if (in_workspace_width > std::numeric_limits<int>::max() ||
-        in_workspace_num_elements > std::numeric_limits<int>::max()) {
-      in_workspace_width = in_workspace_num_elements = 0;
-    }
-    int idx_workspace_size = in_workspace_height;
-    int in_workspace_offset = align_up((idx_workspace_size) * sizeof(int), sizeof(In));
-    required_workspace = in_workspace_offset + in_workspace_num_elements * sizeof(In);
-    if (c > lblockDim.x || required_workspace > shared_mem_limit) {
-      required_workspace = in_workspace_width = 0;
-    }
-    return {frame_stride,
-            {1, wc},
-            static_cast<int>(f),
-            static_cast<int>(w),
-            static_cast<int>(c),
-            {wc, h},
-            filter_extents,
-            anchor,
-            ivec<axes>{in_workspace_width, in_workspace_height},
-            {1, in_workspace_width},
-            in_workspace_offset};
-  }
-
-  BlockSetupT PrepareBlockSetup(ivec<axes> in_extents) {
-    int max_block_width_log2 = dali::ilog2(block_width);
-    int sample_wc_log2 = in_extents[0] == 0 ? 0 : dali::ilog2(in_extents[0] - 1) + 1;
-    int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
-    return filter::create_adaptive_block<lanes>(
-        {block_width_log2, max_block_width_log2 - block_width_log2});
-  }
-
-  template <typename OutShape>
-  CustomROIT SetupValidateROI(const OutShape& out_shape, const OutShape& in_shape,
-                              const filter::ShapeDesc<axes>& shape_desc,
-                              const filter::InputROI<axes>& roi) {
-    auto roi_size = roi.end - roi.start;
-    ivec2 out_size{out_shape[num_sequence_dim + 1], out_shape[num_sequence_dim]};
-    ivec2 in_size{in_shape[num_sequence_dim + 1], in_shape[num_sequence_dim]};
-    DALI_ENFORCE(
-        roi_size == out_size,
-        make_string("The output size must match the input roi size. Got output of size: ",
-                    filter::rev(out_size), " and roi of size ", filter::rev(roi_size), "."));
-    DALI_ENFORCE(all_coords(0 <= roi.start) && all_coords(roi.end <= in_size),
-                 make_string("ROI must lie within the input sample. Got roi that starts at: ",
-                             roi.start, " and ends at ", filter::rev(roi.end),
-                             " for a sample of shape ", filter::rev(in_size), "."));
-    auto roi_start = roi.start;
-    roi_start[0] *= shape_desc.num_channels;
-    roi_size[0] *= shape_desc.num_channels;
-    return {roi_start, roi_size, {1, roi_size[0]}, volume(roi_size)};
-  }
-
-  void ValidateSampleNumericLimits(int sample_idx, int64_t r, int64_t s, int64_t filter_vol,
-                                   int64_t filter_top_anchor, int64_t filter_left_anchor, int64_t f,
-                                   int64_t h, int64_t wc, int64_t c) {
-    DALI_ENFORCE(
-        filter_vol <= std::numeric_limits<int>::max(),
-        make_string("Volume of filter for sample of idx ", sample_idx, " exceeds the limit of ",
-                    std::numeric_limits<int>::max(), ". Got: ", filter_vol, "."));
-    DALI_ENFORCE(
-        f <= std::numeric_limits<int>::max(),
-        make_string("Number of frames for sample of idx ", sample_idx, " exceeds the limit of ",
-                    std::numeric_limits<int>::max(), ". Got: ", f, "."));
-    DALI_ENFORCE(h <= max_sample_height,
-                 make_string("The height of sample of idx ", sample_idx, " exceeds the limit of ",
-                             max_sample_height, ". Got: ", h, "."));
-    DALI_ENFORCE(0 <= wc && wc <= max_sample_width,
-                 make_string("The total width and number of channels in sample of idx ", sample_idx,
-                             " exceeds the limit of ", max_sample_width, ". Got: ", wc, "."));
-    auto height_radious = h + r - filter_top_anchor - 2;
-    DALI_ENFORCE(
-        0 <= height_radious && height_radious <= std::numeric_limits<int>::max(),
-        make_string("The combined height of the sample and filter radious for sample of idx ",
-                    sample_idx, " exceeds the limit of ", std::numeric_limits<int>::max(),
-                    ". Got: ", height_radious, "."));
-    auto width_radious = wc - 1 + (s - 1 - filter_left_anchor) * c;
-    DALI_ENFORCE(
-        0 <= width_radious && width_radious <= std::numeric_limits<int>::max(),
-        make_string("The combined width, number of channels and filter radious for sample of idx ",
-                    sample_idx, " exceeds the limit of ", std::numeric_limits<int>::max(),
-                    ". Got: ", width_radious, "."));
-  }
-
   std::vector<SampleDescT> samples_desc_;
   std::vector<const In*> fill_values_;
   std::vector<CustomROIT> custom_rois_;
   std::vector<BlockSetupT> block_setups_;
 };
-
-
-// WAR c++14 odr usage issue (make_string in error message takes them as l-values)
-// it should be unnecessary in c++17
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
-          int axes>
-constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_sample_height;
-
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
-          int axes>
-constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_sample_width;
-
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
-          int axes>
-constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_grid_height;
-
-template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
-          int axes>
-constexpr int FilterGpu<Out, In, W, has_channel_dim, has_sequence_dim, axes>::max_grid_width;
 
 }  // namespace kernels
 }  // namespace dali
