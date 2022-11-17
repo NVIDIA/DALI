@@ -142,8 +142,14 @@ struct AdaptiveBlock {
 
 template <typename StaticConfigT>
 std::enable_if_t<StaticConfigT::axes == 2, typename AdaptiveBlock<StaticConfigT>::BlockSetup>
-create_adaptive_block(ivec2 xy_log2) {
-  return {xy_log2, {0, xy_log2.x}};
+create_adaptive_block(ivec2 extents_log2) {
+  return {extents_log2, {0, extents_log2.x}};
+}
+
+template <typename StaticConfigT>
+std::enable_if_t<StaticConfigT::axes == 3, typename AdaptiveBlock<StaticConfigT>::BlockSetup>
+create_adaptive_block(ivec3 extents_log2) {
+  return {extents_log2, {0, extents_log2.x, extents_log2.x + extents_log2.y}};
 }
 
 template <int axes>
@@ -595,21 +601,55 @@ struct StaticConfig<2> {
   }
 };
 
+template <>
+struct StaticConfig<3> {
+  static constexpr int threadblock_size = 128;
+  static constexpr int axes = 3;
+  static constexpr int lanes_y = 4;
+  static constexpr int lanes_z = 4;
+  static constexpr int lanes = lanes_y * lanes_z;
+  static constexpr int max_grid_extent = 8;
+
+  static DALI_HOST_DEV ivec3 lanes_dim() {
+    return {1, lanes_y, lanes_z};
+  }
+
+  static DALI_HOST_DEV ivec3 max_grid_extents() {
+    return {max_grid_extent, max_grid_extent, max_grid_extent};
+  }
+};
+
 template <typename StaticConfigT>
 struct GridSetup {
   static constexpr int axes = StaticConfigT::axes;
 
-  DALI_HOST_DEV std::enable_if_t<axes == 2, ivec2> grid_dim() const {
+  DALI_HOST_DEV ivec<axes> grid_dim() const {
     return num_blocks_;
   }
 
-  DALI_DEVICE std::enable_if_t<axes == 2, ivec2> block_idx() const {
+  template <int axes_ = axes>
+  DALI_DEVICE std::enable_if_t<axes_ == 2, ivec2> block_idx() const {
     return {blockIdx.x, blockIdx.y};
   }
 
-  std::enable_if_t<axes == 2, dim3> kernel_setup() const {
+  template <int axes_ = axes>
+  DALI_DEVICE std::enable_if_t<axes_ == 3, ivec3> block_idx() const {
+    return {blockIdx.x, blockIdx.y & (StaticConfigT::max_grid_extent - 1),
+            blockIdx.y / StaticConfigT::max_grid_extent};
+  }
+
+  template <int axes_ = axes>
+  std::enable_if_t<axes_ == 2, dim3> kernel_setup() const {
     auto grid_dim = this->grid_dim();
     return {static_cast<unsigned int>(grid_dim.x), static_cast<unsigned int>(grid_dim.y),
+            static_cast<unsigned int>(num_samples())};
+  }
+
+  template <int axes_ = axes>
+  std::enable_if_t<axes_ == 3, dim3> kernel_setup() const {
+    auto grid_dim = this->grid_dim();
+    return {static_cast<unsigned int>(grid_dim.x),
+            static_cast<unsigned int>(grid_dim.y * StaticConfigT::max_grid_extents + grid_dim.z),
             static_cast<unsigned int>(num_samples())};
   }
 
