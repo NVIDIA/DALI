@@ -47,7 +47,7 @@ void MakeContiguousMixed::Run(Workspace &ws) {
       output.ShareData(input);
       output.set_order(out_order, false);
     } else {
-      output.Copy(input, ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder());
+      output.Copy(input);
     }
   } else {
     assert(!IsPassThrough() &&
