@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ class DLL_PUBLIC ImageCacheBlob : public ImageCache {
 
     bool Read(const ImageKey& image_key,
               void* destination_data,
+              size_t buffer_size,
               cudaStream_t stream) const override;
 
     const ImageShape& GetShape(const ImageKey& image_key) const override;

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,13 +47,13 @@ TEST_F(ImageCacheBlobTest, Add) {
   cache_->Add(kKey1, &kValue1[0], kShape1, 0);
   EXPECT_TRUE(cache_->IsCached(kKey1));
   std::vector<uint8_t> cachedData(kValue1.size());
-  EXPECT_TRUE(cache_->Read(kKey1, &cachedData[0], 0));
+  EXPECT_TRUE(cache_->Read(kKey1, cachedData.data(), cachedData.size(), 0));
   EXPECT_EQ(kValue1, cachedData);
 }
 
 TEST_F(ImageCacheBlobTest, ErrorReadNonExistent) {
   std::vector<uint8_t> cachedData(kValue1.size());
-  EXPECT_FALSE(cache_->Read(kKey1, &cachedData[0], 0));
+  EXPECT_FALSE(cache_->Read(kKey1, cachedData.data(), cachedData.size(), 0));
 }
 
 TEST_F(ImageCacheBlobTest, AddExistingIgnored) {

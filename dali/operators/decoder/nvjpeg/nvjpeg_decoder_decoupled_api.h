@@ -716,9 +716,9 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     auto& output = ws.Output<GPUBackend>(0);
     for (auto *sample : samples_cache_) {
       assert(sample);
-      auto i = sample->sample_idx;
-      auto *output_data = output.mutable_tensor<uint8_t>(i);
-      DALI_ENFORCE(DeferCacheLoad(sample->file_name, output_data));
+      int i = sample->sample_idx;
+      auto out_view = view<uint8_t>(output[i]);
+      DALI_ENFORCE(DeferCacheLoad(sample->file_name, out_view));
     }
     LoadDeferred(ws.stream());
   }

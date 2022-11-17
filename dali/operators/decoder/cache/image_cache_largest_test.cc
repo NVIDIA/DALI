@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ TEST_F(ImageCacheLargestTest, ReadWorks) {
   EXPECT_TRUE(IsCached(4));
 
   std::vector<uint8_t> dst(4, 0x00);
-  cache_->Read("4", &dst[0], 0);
+  cache_->Read("4", dst.data(), dst.size(), 0);
   CUDA_CALL(cudaStreamSynchronize(0));
   EXPECT_EQ(data_[4].second, dst);
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,11 +47,13 @@ class DLL_PUBLIC ImageCache {
      * @brief Try to read from cache
      * @param image_key key representing the image in cache
      * @param destination_data destination buffer
+     * @param buffer_size size, in bytes, of the destination buffer
      * @param stream cuda stream
      * @return true if successful cache read, false otherwise
      */
     DLL_PUBLIC virtual bool Read(const ImageKey& image_key,
                                  void* destination_data,
+                                 size_t buffer_size,
                                  cudaStream_t stream) const = 0;
 
   /**

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,21 +47,25 @@ CachedDecoderImpl::CachedDecoderImpl(const OpSpec& spec)
 }
 
 bool CachedDecoderImpl::CacheLoad(const std::string& file_name,
-                                  uint8_t *output_data,
+                                  const TensorView<StorageGPU, uint8_t> &out,
                                   cudaStream_t stream) {
   if (!cache_ || file_name.empty())
     return false;
-  return cache_->Read(file_name, output_data, stream);
+  return cache_->Read(file_name, out.data, out.num_elements(), stream);
 }
 
 
-bool CachedDecoderImpl::DeferCacheLoad(const std::string& file_name, uint8_t *output_data) {
+bool CachedDecoderImpl::DeferCacheLoad(const std::string& file_name,
+                                       const TensorView<StorageGPU, uint8_t> &out) {
   if (!cache_ || file_name.empty())
     return false;
   auto img = cache_->Get(file_name);
   if (!img.data)
     return false;
-  scatter_gather_->AddCopy(output_data, img.data, img.num_elements());
+  DALI_ENFORCE(img.shape == out.shape, make_string("The shape ouf the output (", out.shape,
+        ") is different than the shape of the image in the cache (", img.shape, ")\n"
+        "Detected while reading cache entry for key: ", file_name));
+  scatter_gather_->AddCopy(out.data, img.data, img.num_elements());
   return true;
 }
 

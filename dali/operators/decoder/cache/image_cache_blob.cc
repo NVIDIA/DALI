@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,18 +65,22 @@ const ImageCache::ImageShape& ImageCacheBlob::GetShape(const ImageKey& image_key
 
 bool ImageCacheBlob::Read(const ImageKey& image_key,
                           void* destination_buffer,
+                          size_t buffer_size,
                           cudaStream_t stream) const {
-  DALI_ENFORCE(!image_key.empty());
-  DALI_ENFORCE(destination_buffer != nullptr);
+  DALI_ENFORCE(!image_key.empty(), "The key cannot be empty");
+  DALI_ENFORCE(destination_buffer != nullptr, "The output pointer must not be null");
   std::lock_guard<std::mutex> lock(mutex_);
   LOG_LINE << "Read: image_key[" << image_key << "]" << std::endl;
   const auto it = cache_.find(image_key);
   if (it == cache_.end())
     return false;
   const auto& data = it->second;
-  DALI_ENFORCE(data.data < tail_);
+  assert(data.data < tail_);
   const auto n = data.num_elements();
-  DALI_ENFORCE(data.data + n <= tail_);
+  assert(data.data + n <= tail_);
+  DALI_ENFORCE(n <= buffer_size, make_string("The buffer is too small (", buffer_size,
+    " bytes) to accommodate the data in the cache (", n, " bytes)\n"
+    "Detected while reading cache entry for key: ", image_key));
 
   SyncToRead(stream);
   MemCopy(destination_buffer, data.data, n, stream);
