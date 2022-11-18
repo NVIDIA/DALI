@@ -592,7 +592,9 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(view<uint8_t>(input_cpu), 42 * i);
     // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-    input.Copy(input_cpu, this->order_);
+    input.Copy(input_cpu, std::is_same_v<DataBackend, CPUBackend>
+                          ? AccessOrder::host()
+                          : this->order_);
     CUDA_CALL(cudaStreamSynchronize(cuda_stream));
     pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
     daliSetExternalInputTensors(&handle, input_name.c_str(),
@@ -614,7 +616,9 @@ TYPED_TEST(CApiTest, ExternalSourceMultipleAllocDifferentBackendsTest) {
 
   SequentialFill(view<uint8_t>(input_cpu), 42 * prefetch_queue_depth);
   // Unnecessary copy in case of CPUBackend, makes the code generic across Backends
-  input.Copy(input_cpu, this->order_);
+  input.Copy(input_cpu, std::is_same_v<DataBackend, CPUBackend>
+                        ? AccessOrder::host()
+                        : this->order_);
   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
   pipe_ptr->SetExternalInput(input_name, input, cuda_stream);
   daliSetExternalInputTensors(&handle, input_name.c_str(),
