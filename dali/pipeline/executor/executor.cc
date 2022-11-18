@@ -296,21 +296,33 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   const auto &schema = spec.GetSchema();
   SmallVector<int, 16> empty_layout_in_idxs;
 
-  cudaStream_t prev_stage_stream = ws.has_stream() && ws.stream() == gpu_op_stream_
-    ? mixed_op_stream_ : gpu_op_stream_;
 
-  auto order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
-  auto set_order = [&](auto &output) {
-    // NOTE: the stage streams are synchronized by the executor
-    bool need_sync = output.order().stream() != prev_stage_stream;
+  auto ws_order = ws.has_stream() ? AccessOrder(ws.stream()) : AccessOrder::host();
+
+  // Try to infer from which stage the buffer comes from
+  auto order_to_stage_index = [&](AccessOrder order) {
+    if (!order || order == AccessOrder::host())
+      return 0;
+    else if (order == mixed_op_stream_)
+      return 1;
+    else if (order == gpu_op_stream_)
+      return 2;
+    else
+      return 3;  // foreign order, comes last
+  };
+
+  auto set_order = [&](auto &output, AccessOrder order) {
+    // Check if this stage (identified by ws_order) is already synchronized with the output's
+    // order. If yes, we're implicitly synchronized and we can skip sync.
+    bool need_sync = order_to_stage_index(output.order()) > order_to_stage_index(ws_order);
     output.set_order(order, need_sync);
   };
 
   for (int i = 0; i < ws.NumOutput(); i++) {
     if (ws.OutputIsType<CPUBackend>(i)) {
-      set_order(ws.Output<CPUBackend>(i));
+      set_order(ws.Output<CPUBackend>(i), AccessOrder::host());
     } else {
-      set_order(ws.Output<GPUBackend>(i));
+      set_order(ws.Output<GPUBackend>(i), ws_order);
     }
   }
 
@@ -394,6 +406,17 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     DomainTimeRange tr("[DALI][Executor] Run");
     op.Run(ws);
   }
+
+  /* TODO(michalz): Find a way to make this valid in presence of passthrough between stages
+  // Set the output order to the stage's stream
+  for (int i = 0; i < ws.NumOutput(); i++) {
+    if (ws.OutputIsType<CPUBackend>(i)) {
+      ws.Output<CPUBackend>(i).set_order(ws_order);
+    } else {
+      ws.Output<GPUBackend>(i).set_order(ws_order);
+    }
+  }
+  */
 
   for (int i : empty_layout_in_idxs) {
     if (ws.InputIsType<CPUBackend>(i)) {

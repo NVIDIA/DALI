@@ -53,18 +53,12 @@ AccessOrder SyncBefore(AccessOrder dst_order, AccessOrder src_order, AccessOrder
   if (!order)
     order = src_order ? src_order : dst_order;
 
-  // Wait on the order on which we will run the copy for the work to finish on the dst
+  // The destination buffer must be ready to be overwritten
   order.wait(dst_order);
+  // The source buffer must be ready to cosume
+  order.wait(src_order);
 
   return order;
-}
-
-
-/**
- * @brief Wait for the reallocation to happen in the copy order, so we can actually proceed.
- */
-void SyncAfterResize(AccessOrder dst_order, AccessOrder copy_order) {
-  copy_order.wait(dst_order);
 }
 
 
@@ -476,6 +470,10 @@ const TensorListShape<> &TensorList<Backend>::shape() const & {
 template <typename Backend>
 void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
   DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
+
+  if (this->order() == order)
+    return;
+
   // Optimization: synchronize only once, if needed.
   if (this->order().is_device() && order && synchronize) {
     bool need_sync = contiguous_buffer_.has_data();
@@ -848,8 +846,6 @@ template <typename Backend>
 template <typename SrcBackend>
 void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder order,
                                bool use_copy_kernel) {
-  auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
-
   if (!IsValidType(src.type())) {
     assert(!src.has_data() && "It is not possible to have data without valid type.");
     Reset();
@@ -857,12 +853,19 @@ void TensorList<Backend>::Copy(const TensorList<SrcBackend> &src, AccessOrder or
     // no copying to do
     return;
   }
+  if (std::is_same_v<Backend, CPUBackend> &&
+      std::is_same_v<SrcBackend, CPUBackend>) {
+    DALI_ENFORCE(!order.is_device(),
+      "Cannot run a host-to-host copy on a device stream.");
+    if (!order)
+      order = AccessOrder::host();
+  }
 
   Resize(src.shape(), src.type());
   // After resize the state_, curr_num_tensors_, type_, sample_dim_, shape_ (and pinned)
   // postconditions are met, as well as the buffers are correctly adjusted.
 
-  copy_impl::SyncAfterResize(this->order(), copy_order);
+  auto copy_order = copy_impl::SyncBefore(this->order(), src.order(), order);
 
   use_copy_kernel &= (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned()) &&
                      (std::is_same<Backend, GPUBackend>::value || this->is_pinned());
