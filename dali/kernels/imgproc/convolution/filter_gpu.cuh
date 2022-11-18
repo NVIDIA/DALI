@@ -582,7 +582,10 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec3& block_start, const iv
 
 template <typename Conv, int axes>
 DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_start,
-                                              const ivec<axes>& grid_extents, const Conv& conv) {
+                                              const ivec<axes>& grid_extents,
+                                              const ivec<axes>& out_extents,
+                                              const i64vec<axes>& out_strides,
+                                              const int64_t& out_frame_stride, const Conv& conv) {
   using BlockSetupT = typename Conv::BlockSetupT;
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
   using SampleDescT = typename Conv::SampleDescT;
@@ -591,11 +594,8 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_st
   constexpr int lanes = StaticConfigT::lanes;
   const auto* in = conv.sample_desc.in;
   auto* out = conv.sample_desc.out;
-  const auto& out_extents = conv.sample_desc.shape.out_extents;
-  const auto& out_strides = conv.sample_desc.shape.out_strides;
-  for (int f = 0; f < conv.sample_desc.shape.num_frames; f++,
-           in += conv.sample_desc.shape.frame_stride,
-           out += conv.sample_desc.shape.out_frame_stride) {
+  for (int f = 0; f < conv.sample_desc.shape.num_frames;
+       f++, in += conv.sample_desc.shape.frame_stride, out += out_frame_stride) {
     stride_grid(
         initial_block_start, grid_extents, out_extents, in, out,
         [&](const ivec<axes>& block_start, const auto* __restrict__ in, auto* __restrict__ out) {
@@ -618,20 +618,31 @@ __global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory 
   auto sample_desc = descs[sample_idx];
   const auto& block_setup = block_setup_factory(sample_idx);
   auto block_start = grid_setup.block_idx() * block_setup.log_block_dim();
-  if (any_coord(block_start >= sample_desc.shape.out_extents)) {
-    return;  // early exit to avoid all the setup only to do nothing in the stride loop
-  }
-  auto grid_size = grid_setup.grid_dim() * block_setup.log_block_dim();
-  const auto& in_loader = in_loader_factory(sample_idx);
-  if (sample_desc.shape.in_workspace_extents.x) {
-    using In = typename SampleDescT::In;
-    int* precomputed_idx = reinterpret_cast<int*>(shm);
-    In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
-    auto conv = create_shm_conv(sample_desc, in_loader, block_setup, in_workspace, precomputed_idx);
-    stride_grid(block_start, grid_size, conv);
+  auto process_sample = [&](const auto& out_extents, const auto& out_strides,
+                            const auto& out_frame_stride) {
+    if (any_coord(block_start >= out_extents)) {
+      return;  // early exit to avoid all the setup only to do nothing in the stride loop
+    }
+    auto grid_size = grid_setup.grid_dim() * block_setup.log_block_dim();
+    const auto& in_loader = in_loader_factory(sample_idx);
+    if (sample_desc.shape.in_workspace_extents.x) {
+      using In = typename SampleDescT::In;
+      int* precomputed_idx = reinterpret_cast<int*>(shm);
+      In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
+      auto conv =
+          create_shm_conv(sample_desc, in_loader, block_setup, in_workspace, precomputed_idx);
+      stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
+    } else {
+      auto conv = create_direct_conv(sample_desc, in_loader, block_setup);
+      stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
+    }
+  };
+  if (sample_desc.shape.out_extents == sample_desc.shape.in_extents) {
+    process_sample(sample_desc.shape.in_extents, sample_desc.shape.in_strides,
+                   sample_desc.shape.frame_stride);
   } else {
-    auto conv = create_direct_conv(sample_desc, in_loader, block_setup);
-    stride_grid(block_start, grid_size, conv);
+    process_sample(sample_desc.shape.out_extents, sample_desc.shape.out_strides,
+                   sample_desc.shape.out_frame_stride);
   }
 }
 
