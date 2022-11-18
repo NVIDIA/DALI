@@ -59,6 +59,7 @@ struct FrameReq {
   int count;
   int stride;
   AVRational frame_base;
+  bool full_range;
 };
 
 enum ScaleMethod {
@@ -194,6 +195,7 @@ class NvDecoder {
   AVRational nv_time_base_ = {1, 10000000};
 
   std::vector<uint8_t> frame_in_use_;
+  std::vector<bool> frame_full_range_;
   ThreadSafeQueue<FrameReq> recv_queue_;
   ThreadSafeQueue<CUVIDPARSERDISPINFO*> frame_queue_;
   FrameReq current_recv_;

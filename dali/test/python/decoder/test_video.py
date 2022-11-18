@@ -22,6 +22,7 @@ from test_utils import get_dali_extra_path
 from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
 
+
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
 # filter out HEVC because some GPUs do not support it
 filenames = filter(lambda filename: 'hevc' not in filename, filenames)
@@ -92,3 +93,54 @@ def test_video_decoder(device):
     for seq, ref_seq in zip(decoder_iter, ref_dec_iter):
         assert seq.shape == ref_seq.shape
         assert np.array_equal(seq, ref_seq)
+
+
+def test_full_range_video():
+    @pipeline_def
+    def test_pipeline():
+        videos = fn.readers.video(
+            device="gpu",
+            filenames=[get_dali_extra_path() + '/db/video/full_dynamic_range/video.mp4'],
+            sequence_length=1,
+            initial_fill=10,
+            normalized=False,
+            dtype=types.UINT8)
+        return videos
+
+    video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=0)
+
+    video_pipeline.build()
+    o = video_pipeline.run()
+    out = o[0].as_cpu().as_array()
+    ref = cv2.imread(get_dali_extra_path() + '/db/video/full_dynamic_range/0001.png')
+    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2RGB)
+    left = ref
+    right = out
+    absdiff = np.abs(left.astype(int) - right.astype(int))
+    assert np.mean(absdiff) < 2
+
+
+@params('cpu', 'gpu')
+def test_full_range_video_in_memory(device):
+    @pipeline_def
+    def test_pipeline():
+        videos = fn.experimental.readers.video(
+            device=device,
+            filenames=[get_dali_extra_path() + '/db/video/full_dynamic_range/video.mp4'],
+            sequence_length=1)
+        return videos
+
+    video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=0)
+
+    video_pipeline.build()
+    o = video_pipeline.run()
+    out = o[0]
+    if device == "gpu":
+        out = out.as_cpu()
+    out = out.as_array()
+    ref = cv2.imread(get_dali_extra_path() + '/db/video/full_dynamic_range/0001.png')
+    ref = cv2.cvtColor(ref, cv2.COLOR_BGR2RGB)
+    left = ref
+    right = out
+    absdiff = np.abs(left.astype(int) - right.astype(int))
+    assert np.mean(absdiff) < 2
