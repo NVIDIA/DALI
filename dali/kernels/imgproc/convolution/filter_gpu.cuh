@@ -357,7 +357,7 @@ struct InLoaderFactory<InLoaderPad<In, axes>> {
  */
 
 /**
- * @brief First loads the input patch neceesary to compute the output of logical block size
+ * @brief First loads the input patch necessary to compute the output of logical block size
  * (log_block_dim) into shared memory (including filter's halo/apron), then computes the
  * convolution.
  */
@@ -387,8 +387,8 @@ struct ShmInputConv {
     });
   }
 
-  template <typename MulAddCoef, int axes_ = StaticConfigT::axes>
-  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 2> stride_filter(
+  template <typename MulAddCoef>
+  DALI_DEVICE DALI_FORCEINLINE void stride_filter(
       const ivec2& filter_extents, MulAddCoef&& mul_add_coef) const {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
@@ -405,8 +405,8 @@ struct ShmInputConv {
     }
   }
 
-  template <typename MulAddCoef, int axes_ = StaticConfigT::axes>
-  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 3> stride_filter(
+  template <typename MulAddCoef>
+  DALI_DEVICE DALI_FORCEINLINE void stride_filter(
       const ivec3& filter_extents, MulAddCoef&& mul_add_coef) const {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
@@ -429,8 +429,7 @@ struct ShmInputConv {
     }
   }
 
-  template <int axes_ = StaticConfigT::axes>
-  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 2> precompute_indices(
+  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(
       const In* __restrict__ in, const ivec2& anchored_start) const {
     for (int y = block_setup.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
          y += block_setup.flat_size()) {
@@ -438,8 +437,7 @@ struct ShmInputConv {
     }
   }
 
-  template <int axes_ = StaticConfigT::axes>
-  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 3> precompute_indices(
+  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(
       const In* __restrict__ in, const ivec3& anchored_start) const {
     int* ys = precomputed_idx;
     for (int y = block_setup.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
@@ -453,8 +451,7 @@ struct ShmInputConv {
     }
   }
 
-  template <int axes_ = StaticConfigT::axes>
-  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 2> load_input_to_shm(
+  DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(
       const In* __restrict__ in, const ivec2& anchored_start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
@@ -468,8 +465,7 @@ struct ShmInputConv {
     }
   }
 
-  template <int axes_ = StaticConfigT::axes>
-  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 3> load_input_to_shm(
+  DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(
       const In* __restrict__ in, const ivec3& anchored_start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
@@ -502,8 +498,8 @@ DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, BlockSetupT> cr
 
 /**
  * @brief Computes the convolution of logical block size size (log_block_dim) accessing the input
- * directly in global memory. Used as a fallback when the filter size of number of channels in the
- * input makes it impossible to use ``ShmInputConv``.
+ * directly in global memory. Used as a fallback when the filter size or number of channels in the
+ * input make it impossible to use ``ShmInputConv``.
  */
 template <typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct DirectInputConv {
@@ -791,7 +787,7 @@ struct GridSetup {
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
           int axes_>
 struct FilterGpu {
-  /* It computes a corellation of the input and the filter.
+  /* It computes a correlation of the input and the filter.
   Flip filter in both dimensions for a convolution. */
 
   static constexpr int axes = axes_;
