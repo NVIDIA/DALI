@@ -16,6 +16,7 @@
 #define DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_H_
 
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -32,8 +33,9 @@
 
 namespace dali {
 namespace kernels {
-
 namespace filter {
+
+using boundary::BoundaryType;
 
 // Descrption of the input ROI passed to the kernel
 template <int axes>
@@ -190,43 +192,38 @@ struct SampleDesc {
  * memory. This is how different border modes (apart from BORDER_VALID) are handled.
  * @{
  */
+template <typename In, int axes, BoundaryType border>
+struct InLoaderBorderRemap {
+  template <BoundaryType border_>
+  using BorderTag = std::integral_constant<BoundaryType, border_>;
 
-template <bool degenerated_extents>
-struct Reflect101 {
-  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len,
+                                                  BorderTag<BoundaryType::REFLECT_101>) const {
     assert(len > 0);
-    return boundary::idx_reflect_101<int, degenerated_extents>(idx, len);
+    return boundary::idx_reflect_101(idx, len);
   }
-};
 
-struct Reflect1001 {
-  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len,
+                                                  BorderTag<BoundaryType::REFLECT_1001>) const {
     assert(len > 0);
     return boundary::idx_reflect_1001(idx, len);
   }
-};
 
-struct Clamp {
-  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len,
+                                                  BorderTag<BoundaryType::CLAMP>) const {
     assert(len > 0);
     return boundary::idx_clamp(idx, 0, len);
   }
-};
 
-struct Wrap {
-  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len) const {
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len,
+                                                  BorderTag<BoundaryType::WRAP>) const {
     assert(len > 0);
     return boundary::idx_wrap(idx, len);
   }
-};
-
-template <typename Remap, typename In, int axes>
-struct InLoaderBorderRemap : protected Remap {
-  using Remap::border_remap;
 
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, const ShapeDesc<axes>& sample_shape,
                                                   int axis) const {
-    return border_remap(idx, sample_shape.in_extents[axis]);
+    return border_remap(idx, sample_shape.in_extents[axis], BorderTag<border>{});
   }
 
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(
@@ -235,10 +232,12 @@ struct InLoaderBorderRemap : protected Remap {
     if (idx < 0) {
       int reflect_dim_idx = (idx + 1) / num_channels - 1;
       int inner_dim_idx = (idx + 1) % num_channels + num_channels - 1;
-      return border_remap(reflect_dim_idx, sample_shape.width) * num_channels + inner_dim_idx;
+      return border_remap(reflect_dim_idx, sample_shape.width, BorderTag<border>{}) * num_channels +
+             inner_dim_idx;
     }
     if (idx >= sample_shape.in_extents.x) {
-      return border_remap(idx / num_channels, sample_shape.width) * num_channels +
+      return border_remap(idx / num_channels, sample_shape.width, BorderTag<border>{}) *
+                 num_channels +
              idx % num_channels;
     }
     return idx;
@@ -650,7 +649,7 @@ struct StaticConfig<2> {
   static constexpr int threadblock_size = 128;
   static constexpr int axes = 2;
   static constexpr int lanes = 8;
-  static constexpr int max_grid_extent = 32;
+  static constexpr int max_grid_extent = 16;
 
   static DALI_HOST_DEV ivec2 lanes_dim() {
     return {1, lanes};
@@ -746,8 +745,6 @@ struct FilterGpu {
   using StaticBlockT = typename StaticBlockFactoryT::BlockSetup;
   using GridSetupT = filter::GridSetup<StaticConfigT>;
   using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
-  // using CustomROIFactoryT = typename filter::CustomInputROI<axes>;
-  // using CustomROIT = typename CustomROIFactoryT::ROI;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
@@ -762,13 +759,11 @@ struct FilterGpu {
     assert(input_rois.size() == num_samples || input_rois.size() == 0);
 
     int max_total_workspace;
-    bool any_has_degenerated_extents;
     SampleDescT* samples_desc_dev;
-    SetupSampleDescs(max_total_workspace, any_has_degenerated_extents, out, in, filters, input_rois,
-                     anchors);
+    SetupSampleDescs(max_total_workspace, out, in, filters, input_rois, anchors);
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
     auto grid_setup = PrepareGridSetup(out, in);
-    RunKernel(ctx, border_type, fill_values, any_has_degenerated_extents, [&](auto&& block_setup) {
+    RunKernel(ctx, border_type, fill_values, [&](auto&& block_setup) {
       return [&](auto&& loader) {
         filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
                          max_total_workspace, ctx.gpu.stream>>>(samples_desc_dev, block_setup,
@@ -814,8 +809,7 @@ struct FilterGpu {
     }
   }
 
-  void SetupSampleDescs(int& max_total_workspace, bool& any_has_degenerated_extents,
-                        const TensorListView<StorageGPU, Out, ndim>& out,
+  void SetupSampleDescs(int& max_total_workspace, const TensorListView<StorageGPU, Out, ndim>& out,
                         const TensorListView<StorageGPU, const In, ndim>& in,
                         const TensorListView<StorageGPU, const W, axes>& filters,
                         const span<const filter::InputROI<axes>> input_rois,
@@ -830,15 +824,13 @@ struct FilterGpu {
     block_setups_.clear();
     block_setups_.reserve(num_samples);
     max_total_workspace = 0;
-    any_has_degenerated_extents = false;
     const int shared_mem_limit = GetSharedMemPerBlock();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       int required_workspace;
-      bool has_degenerated_extents;
       BlockSetupT block_setup;
-      auto shape_desc = SetupSampleShapeDesc(
-          required_workspace, has_degenerated_extents, block_setup, sample_idx,
-          in_shapes[sample_idx], filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
+      auto shape_desc =
+          SetupSampleShapeDesc(required_workspace, block_setup, sample_idx, in_shapes[sample_idx],
+                               filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
       if (input_rois.size()) {
         int num_channels = has_channel_dim ? out_shapes[sample_idx][channels_dim] : 1;
         const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
@@ -848,7 +840,6 @@ struct FilterGpu {
                         shape_desc.out_extents);
         shape_desc.anchor_shift -= input_roi.start * channels;
       }
-      any_has_degenerated_extents |= has_degenerated_extents;
       max_total_workspace = std::max(max_total_workspace, required_workspace);
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
@@ -857,10 +848,8 @@ struct FilterGpu {
   }
 
   template <typename InShape, typename FilterShape>
-  filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace,
-                                               bool& has_degenerated_extents,
-                                               BlockSetupT& block_setup, int sample_idx,
-                                               const InShape& in_shape,
+  filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace, BlockSetupT& block_setup,
+                                               int sample_idx, const InShape& in_shape,
                                                const FilterShape& filter_shape, ivec<axes> anchor,
                                                int shared_mem_limit) {
     int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
@@ -880,7 +869,6 @@ struct FilterGpu {
     if (num_channels > log_block_dim.x || required_workspace > shared_mem_limit) {
       in_workspace_extents = required_workspace = 0;
     }
-    has_degenerated_extents = any_coord(in_extents <= 1);
     int64_t frame_stride;
     i64vec<axes> in_strides;
     filter::strides(in_strides, frame_stride, in_extents * channels);
@@ -930,67 +918,43 @@ struct FilterGpu {
   template <typename KernelLauncher>
   void RunKernel(KernelContext& ctx, boundary::BoundaryType border_type,
                  const TensorListView<StorageGPU, const In, 0>& fill_values,
-                 bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
+                 KernelLauncher&& launch_kernel) {
     if (std::all_of(block_setups_.begin(), block_setups_.end(), [](const auto& block_setup) {
           return block_setup.block_dim() == StaticBlockT{}.block_dim();
         })) {
-      RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
-                              launch_kernel(StaticBlockFactoryT{}));
+      RunKernelWithBorderMode(ctx, border_type, fill_values, launch_kernel(StaticBlockFactoryT{}));
     } else {
       BlockSetupT* block_setups_dev;
       std::tie(block_setups_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, block_setups_);
       BlockSetupFactoryT block_setup{block_setups_dev};
-      RunKernelWithBorderMode(ctx, border_type, fill_values, has_degenerated_extents,
-                              launch_kernel(std::move(block_setup)));
+      RunKernelWithBorderMode(ctx, border_type, fill_values, launch_kernel(std::move(block_setup)));
     }
   }
 
   template <typename KernelLauncher>
   void RunKernelWithBorderMode(KernelContext& ctx, boundary::BoundaryType border_type,
                                const TensorListView<StorageGPU, const In, 0>& fill_values,
-                               bool has_degenerated_extents, KernelLauncher&& launch_kernel) {
+                               KernelLauncher&& launch_kernel) {
     using namespace boundary;  // NOLINT(build/namespaces)
-    switch (border_type) {
-      case BoundaryType::REFLECT_101:
-        RunKernelBorder101(ctx, has_degenerated_extents, std::move(launch_kernel));
-        break;
-      case BoundaryType::REFLECT_1001:
-        RunKernelBorderRemap<filter::Reflect1001>(ctx, std::move(launch_kernel));
-        break;
-      case BoundaryType::CLAMP:
-        RunKernelBorderRemap<filter::Clamp>(ctx, std::move(launch_kernel));
-        break;
-      case BoundaryType::WRAP:
-        RunKernelBorderRemap<filter::Wrap>(ctx, std::move(launch_kernel));
-        break;
-      case BoundaryType::CONSTANT:
-        RunKernelBorderConstant(ctx, fill_values, std::move(launch_kernel));
-        break;
-      default:
-        DALI_FAIL(
+    VALUE_SWITCH(border_type, BT, (
+      BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001,
+      BoundaryType::CLAMP, BoundaryType::WRAP), (
+        RunKernelBorderRemap<BT>(ctx, std::move(launch_kernel));
+      ), (
+        if (border_type == BoundaryType::CONSTANT) {
+          RunKernelBorderConstant(ctx, fill_values, std::move(launch_kernel));
+        } else {
+          DALI_FAIL(
             make_string("Unsupported border type was specified: ", to_string(border_type), "."));
-    }
+        }
+      ));
   }
 
-  template <typename Remap, typename KernelLauncher>
+  template <boundary::BoundaryType border, typename KernelLauncher>
   void RunKernelBorderRemap(KernelContext& ctx, KernelLauncher&& launch_kernel) {
-    using Loader = filter::InLoaderBorderRemap<Remap, In, axes>;
+    using Loader = filter::InLoaderBorderRemap<In, axes, border>;
     filter::InLoaderFactory<Loader> loader_factory{};
     launch_kernel(std::move(loader_factory));
-  }
-
-  template <typename KernelLauncher>
-  void RunKernelBorder101(KernelContext& ctx, bool has_degenerated_extents,
-                          KernelLauncher&& launch_kernel) {
-    // If any of the samples has some extent equal to 1, border handler needs extra
-    // check to prevent infinite loop. Extra check for every single position of the filter
-    // over an image is costly, so try to avoid it.
-    BOOL_SWITCH(
-        has_degenerated_extents, HasDegeneratedExtents,
-        (using Loader =
-             filter::InLoaderBorderRemap<filter::Reflect101<HasDegeneratedExtents>, In, axes>;
-         filter::InLoaderFactory<Loader> loader_factory{};
-         launch_kernel(std::move(loader_factory));));  // NOLINT
   }
 
   template <typename KernelLauncher>
