@@ -393,8 +393,7 @@ struct ShmInputConv {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int r = 0; r < filter_extents.y; r++) {
-      for (int s = 0; s < filter_extents.x * sample_desc.shape.num_channels;
-           s += sample_desc.shape.num_channels) {
+      for (int s = 0; s < filter_extents.x; s += sample_desc.shape.num_channels) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < StaticConfigT::lanes;
@@ -817,11 +816,16 @@ struct FilterGpu {
     filter::strides(in_strides, frame_stride, in_extents * channels);
     ivec<axes> workspace_strides;
     filter::strides(workspace_strides, in_workspace_extents);
-    return {frame_stride,         in_strides,
-            num_frames,           width,
-            num_channels,         in_extents * channels,
-            filter_extents,       anchor * channels,
-            in_workspace_extents, workspace_strides,
+    return {frame_stride,
+            in_strides,
+            num_frames,
+            width,
+            num_channels,
+            in_extents * channels,
+            required_workspace == 0 ? filter_extents : filter_extents * channels,
+            anchor * channels,
+            in_workspace_extents,
+            workspace_strides,
             in_workspace_offset};
   }
 
