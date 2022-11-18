@@ -267,6 +267,7 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType() {
 
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
+    is_full_range_ = video_format->video_signal_description.video_full_range_flag;
     nvdecode_state_->decoder = detail::NVDECCache::GetCache().GetDecoder(video_format);
   }
 }
@@ -402,6 +403,7 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
     Width()* 3,
     Width(),
     Height(),
+    is_full_range_,
     stream_);
   // TODO(awolant): Alterantive is to copy the data to a buffer
   // and then process it on the stream. Check, if this is faster, when

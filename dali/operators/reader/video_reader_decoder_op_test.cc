@@ -209,7 +209,7 @@ class VideoReaderDecoderGpuTest : public VideoReaderDecoderBaseTest {
   void AssertFrame(int frame_id, const uint8_t *frame, TestVideo &ground_truth) override {
     frame_buffer_.clear();
     MemCopy(frame_buffer_.data(), frame, ground_truth.FrameSize());
-    ground_truth.CompareFrameAvgError(frame_id, frame_buffer_.data());
+    ground_truth.CompareFrameAvgError(frame_id, frame_buffer_.data(), 1.5);
   }
 
  private:
@@ -369,7 +369,7 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
       frame_buffer.resize(frame_size);
 
       // ARM implementations of decoding work slightly different, so we need to adjust the eps
-      double eps = 1.2;
+      double eps = 1.5;
 
       for (int i = 0; i < sequence_length; ++i) {
         frame_buffer.clear();

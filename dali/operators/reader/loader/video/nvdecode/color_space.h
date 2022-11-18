@@ -24,6 +24,7 @@ void yuv_to_rgb(
     int rgb_pitch,
     int width,
     int height,
+    bool full_range,
     cudaStream_t stream);
 
 #endif  // DALI_OPERATORS_READER_LOADER_VIDEO_NVDECODE_COLOR_SPACE_GPU_H_

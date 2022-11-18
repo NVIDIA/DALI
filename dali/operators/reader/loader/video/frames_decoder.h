@@ -205,6 +205,8 @@ class DLL_PUBLIC FramesDecoder {
 
   int next_frame_idx_ = 0;
 
+  bool is_full_range_ = false;
+
  private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns
