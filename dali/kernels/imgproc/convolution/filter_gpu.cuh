@@ -154,14 +154,18 @@ create_adaptive_block(ivec3 extents_log2) {
 
 template <int axes>
 struct ShapeDesc {
-  int64_t frame_stride;
-  i64vec<axes> in_strides;
-  int num_frames, width, num_channels;
-  ivec<axes> in_extents;
-  ivec<axes> filter_extents;
-  ivec<axes> anchor_shift;
+  int64_t frame_stride;       // (d)hwc
+  i64vec<axes> in_strides;    // 1, wc(, hwc)
+  int num_frames, width;      // f, w
+  int num_channels;           // c
+  ivec<axes> in_extents;      // wc, h(, d)
+  ivec<axes> filter_extents;  // use workspace? rc, s(, p) : r, s(, p)
+  ivec<axes> anchor_shift;    // anchor_r * c, anchor_s(, anchor_p)
+  // threadblock * lanes + filter_extents - 1
   ivec<axes> in_workspace_extents;
+  // the strides for in_workspace_extents
   ivec<axes> in_workspace_strides;
+  // the sum of all but first in_workspace_extents
   int in_workspace_offset;
 };
 
