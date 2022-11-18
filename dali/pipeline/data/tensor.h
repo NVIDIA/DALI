@@ -81,9 +81,10 @@ class Tensor : public Buffer<Backend> {
   inline void Copy(const vector<T> &data, AccessOrder order = {}) {
     this->Resize({(Index)data.size()}, TypeTable::GetTypeId<T>());
     if (!order)
-      order = order_;
-    else
-      order.wait(order_);
+      order = std::is_same<Backend, CPUBackend>::value ? AccessOrder::host() : order_;
+
+    order.wait(order_);
+
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), order.stream());
     order_.wait(order);
@@ -97,9 +98,9 @@ class Tensor : public Buffer<Backend> {
     using U = remove_const_t<T>;
     this->Resize({(Index)data.size()}, TypeTable::GetTypeId<U>());
     if (!order)
-      order = order_;
-    else
-      order.wait(order_);
+      order = std::is_same<Backend, CPUBackend>::value ? AccessOrder::host() : order_;
+
+    order.wait(order_);
     type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
         data.data(), this->size(), order.stream());
     order_.wait(order);
@@ -110,8 +111,16 @@ class Tensor : public Buffer<Backend> {
    */
   template <typename InBackend>
   inline void Copy(const Tensor<InBackend> &other, AccessOrder order = {}) {
-    if (!order)
-      order = other.order() ? other.order() : order_;
+    constexpr bool is_host_to_host = std::is_same<Backend, CPUBackend>::value &&
+                                     std::is_same<InBackend, CPUBackend>::value;
+    if (!order) {
+      if (is_host_to_host)
+        order = AccessOrder::host();
+      else
+        order = other.order() ? other.order() : order_;
+    }
+    DALI_ENFORCE(!is_host_to_host || !order.is_device(),
+                 "Cannot issue a host-to-host copy on a device stream.");
     this->Resize(other.shape(), other.type());
     order.wait(order_);
     this->SetLayout(other.GetLayout());

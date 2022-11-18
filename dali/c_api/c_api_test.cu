@@ -81,8 +81,8 @@ void TestCopyOutput(Method method) {
   std::vector<std::vector<int>> in_data;
   int sample_size = 400000;
   TensorListShape<> shape = uniform_list_shape(8, {sample_size});
-  in_data.resize(2);
-  for (int i = 0; i < 2; i++) {
+  in_data.resize(3);
+  for (int i = 0; i < 3; i++) {
     in_data[i].resize(batch_size*sample_size);
     for (int j = 0; j < batch_size*sample_size; j++)
       in_data[i][j] = i + j;
@@ -119,7 +119,7 @@ void TestCopyOutput(Method method) {
                         shape.shapes.data(), 1, nullptr, 0);
     daliRun(&handle);
     // ...and prepare for one more
-    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[1].data(), ::DALI_INT32,
+    daliSetExternalInput(&handle, "pipe_in", CPU, in_data[2].data(), ::DALI_INT32,
                         shape.shapes.data(), 1, nullptr, 0);
 
     // get the outputs - this contains some synchronization, so it comes before dispatching the hog
@@ -148,8 +148,9 @@ void TestCopyOutput(Method method) {
     // ...and verify the contents
     for (int i = 0; i < batch_size * sample_size; i++) {
       // check for race condition...
-      ASSERT_NE(out_cpu[i], in_data[1][i])
-        << " synchronization failed - data clobbered by next iteration " << i;
+      ASSERT_TRUE(out_cpu[i] != in_data[1][i] && out_cpu[i] != in_data[2][i])
+        << "Invalid value: " << out_cpu[i] << " - synchronization failed"
+           " - data clobbered by next iteration; detected at index " << i;
 
       // ...and for any other corruption
       ASSERT_EQ(out_cpu[i], in_data[0][i]) << " data corrupted at index " << i;
