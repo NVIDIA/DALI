@@ -387,9 +387,9 @@ struct ShmInputConv {
     });
   }
 
-  template <typename MulAddCoef>
-  DALI_DEVICE DALI_FORCEINLINE void stride_filter(const ivec2& filter_extents,
-                                                  MulAddCoef&& mul_add_coef) const {
+  template <typename MulAddCoef, int axes_ = StaticConfigT::axes>
+  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 2> stride_filter(
+      const ivec2& filter_extents, MulAddCoef&& mul_add_coef) const {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int r = 0; r < filter_extents.y; r++) {
@@ -405,24 +405,83 @@ struct ShmInputConv {
     }
   }
 
-  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(const In* __restrict__ in,
-                                                       const ivec2& anchored_start) const {
-    for (int y = block_setup.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
-         y += block_setup.flat_size()) {
-      idx_cache[y] = in_loader.border_remap(anchored_start.y + y, sample_desc.shape, 1);
+  template <typename MulAddCoef, int axes_ = StaticConfigT::axes>
+  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 3> stride_filter(
+      const ivec3& filter_extents, MulAddCoef&& mul_add_coef) const {
+    const auto& block_dim = block_setup.block_dim();
+    const auto* filter = sample_desc.filter;
+    for (int p = 0; p < filter_extents.z; p++) {
+      for (int r = 0; r < filter_extents.y; r++) {
+        for (int s = 0; s < filter_extents.x; s += sample_desc.shape.num_channels) {
+          auto filter_coef = __ldg(filter++);
+#pragma unroll
+          for (int lane_z = 0, lane_z_offset = 0; lane_z < StaticConfigT::lanes_z;
+               lane_z++, lane_z_offset += block_dim.z) {
+#pragma unroll
+            for (int lane_y = 0, lane_y_offset = 0; lane_y < StaticConfigT::lanes_y;
+                 lane_y++, lane_y_offset += block_dim.y) {
+              ivec3 filter_offset{s, r + lane_y_offset, p + lane_z_offset};
+              mul_add_coef(filter_coef, filter_offset, lane_z * StaticConfigT::lanes_y + lane_y);
+            }
+          }
+        }
+      }
     }
   }
 
-  DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
-                                                      const ivec2& anchored_start) const {
+  template <int axes_ = StaticConfigT::axes>
+  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 2> precompute_indices(
+      const In* __restrict__ in, const ivec2& anchored_start) const {
+    for (int y = block_setup.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
+         y += block_setup.flat_size()) {
+      precomputed_idx[y] = in_loader.border_remap(anchored_start.y + y, sample_desc.shape, 1);
+    }
+  }
+
+  template <int axes_ = StaticConfigT::axes>
+  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 3> precompute_indices(
+      const In* __restrict__ in, const ivec3& anchored_start) const {
+    int* ys = precomputed_idx;
+    for (int y = block_setup.flat_idx(); y < sample_desc.shape.in_workspace_extents.y;
+         y += block_setup.flat_size()) {
+      ys[y] = in_loader.border_remap(anchored_start.y + y, sample_desc.shape, 1);
+    }
+    int* zs = precomputed_idx + sample_desc.shape.in_workspace_extents.y;
+    for (int z = block_setup.flat_idx(); z < sample_desc.shape.in_workspace_extents.z;
+         z += block_setup.flat_size()) {
+      zs[z] = in_loader.border_remap(anchored_start.z + z, sample_desc.shape, 2);
+    }
+  }
+
+  template <int axes_ = StaticConfigT::axes>
+  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 2> load_input_to_shm(
+      const In* __restrict__ in, const ivec2& anchored_start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
     for (int x = thread_idx.x; x < sample_desc.shape.in_workspace_extents.x; x += block_dim.x) {
       int global_x = in_loader.border_remap_innermost(anchored_start.x + x, sample_desc.shape);
       for (int y = thread_idx.y; y < sample_desc.shape.in_workspace_extents.y; y += block_dim.y) {
-        int global_y = idx_cache[y];
+        int global_y = precomputed_idx[y];
         in_workspace[dot(ivec2{x, y}, sample_desc.shape.in_workspace_strides)] =
             in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
+      }
+    }
+  }
+
+  template <int axes_ = StaticConfigT::axes>
+  DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<axes_ == 3> load_input_to_shm(
+      const In* __restrict__ in, const ivec3& anchored_start) const {
+    const auto& block_dim = block_setup.block_dim();
+    const auto& thread_idx = block_setup.thread_idx();
+    for (int x = thread_idx.x; x < sample_desc.shape.in_workspace_extents.x; x += block_dim.x) {
+      int global_x = in_loader.border_remap_innermost(anchored_start.x + x, sample_desc.shape);
+      for (int y = thread_idx.y; y < sample_desc.shape.in_workspace_extents.y; y += block_dim.y) {
+        int global_y = precomputed_idx[y];
+        for (int z = thread_idx.z; z < sample_desc.shape.in_workspace_extents.z; z += block_dim.z) {
+          int global_z = precomputed_idx[z];
+          in_workspace[dot(ivec3{x, y, z}, sample_desc.shape.in_workspace_strides)] =
+              in_loader.load(in, ivec3{global_x, global_y, global_z}, sample_desc.shape);
+        }
       }
     }
   }
@@ -431,14 +490,14 @@ struct ShmInputConv {
   const Inloader& in_loader;
   const BlockSetupT& block_setup;
   In* in_workspace;
-  int* idx_cache;
+  int* precomputed_idx;
 };
 
 template <typename SampleDescT, typename Inloader, typename BlockSetupT, typename In>
 DALI_DEVICE DALI_FORCEINLINE ShmInputConv<SampleDescT, Inloader, BlockSetupT> create_shm_conv(
     const SampleDescT& sample_desc, const Inloader& in_loader, const BlockSetupT& block_setup,
-    In* in_workspace, int* idx_cache) {
-  return {sample_desc, in_loader, block_setup, in_workspace, idx_cache};
+    In* in_workspace, int* precomputed_idx) {
+  return {sample_desc, in_loader, block_setup, in_workspace, precomputed_idx};
 }
 
 /**
@@ -457,6 +516,30 @@ struct DirectInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec2& start) const {
+    const auto& block_dim = block_setup.block_dim();
+    const auto& thread_idx = block_setup.thread_idx();
+    auto start_shifted = start - sample_desc.shape.anchor_shift;
+    const auto* filter = sample_desc.filter;
+    for (int s = 0; s < sample_desc.shape.filter_extents.x; s++) {
+      auto global_x = in_loader.border_remap_innermost(
+          start_shifted.x + thread_idx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
+      for (int r = 0; r < sample_desc.shape.filter_extents.y; r++) {
+        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents.x + s);
+        // Even without shm, using `lanes` speeds up the kernel by reducing
+        // the cost of nested loops arithmetic per single output value
+#pragma unroll
+        for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
+          auto global_y = in_loader.border_remap(
+              start_shifted.y + thread_idx.y + lane * block_dim.y + r, sample_desc.shape, 1);
+          auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
+          acc[lane] += in_val * filter_coef;
+        }
+      }
+    }
+  }
+
+  DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
+                                            const ivec3& start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
     auto start_shifted = start - sample_desc.shape.anchor_shift;
@@ -513,6 +596,31 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(const ivec2
   }
 }
 
+template <typename BlockSetupT, typename Cb>
+DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(const ivec3& block_start,
+                                                                     const ivec3& roi_size,
+                                                                     const BlockSetupT& block_setup,
+                                                                     const Cb&& cb) {
+  using StaticConfigT = typename BlockSetupT::StaticConfigT;
+  const auto& block_dim = block_setup.block_dim();
+  auto coords = block_start + block_setup.thread_idx();
+  if (coords.x < roi_size.x) {
+#pragma unroll
+    for (int lane_z = 0; lane_z < StaticConfigT::lanes_z; lane_z++) {
+      if (coords.z < roi_size.z) {
+#pragma unroll
+        for (int lane_y = 0; lane_y < StaticConfigT::lanes_y; lane_y++) {
+          if (coords.y < roi_size.y) {
+            cb(coords, lane_z * StaticConfigT::lanes_y + lane_y);
+          }
+          coords.z += block_dim.z;
+        }
+      }
+      coords.y += block_dim.y;
+    }
+  }
+}
+
 template <typename ROI, typename DoConv, typename In, typename Out>
 DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec2& block_start, const ivec2& grid_extents,
                                               const ROI& roi, const In* __restrict__ in,
@@ -521,6 +629,20 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec2& block_start, const iv
   for (int y_start = block_start.y; y_start < roi_size.y; y_start += grid_extents.y) {
     for (int x_start = block_start.x; x_start < roi_size.x; x_start += grid_extents.x) {
       do_conv(ivec2{x_start, y_start}, in, out);
+    }
+  }
+}
+
+template <typename ROI, typename DoConv, typename In, typename Out>
+DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec3& block_start, const ivec3& grid_extents,
+                                              const ROI& roi, const In* __restrict__ in,
+                                              Out* __restrict__ out, DoConv&& do_conv) {
+  const auto& roi_size = roi.size();
+  for (int z_start = block_start.z; z_start < roi_size.z; z_start += grid_extents.z) {
+    for (int y_start = block_start.y; y_start < roi_size.y; y_start += grid_extents.y) {
+      for (int x_start = block_start.x; x_start < roi_size.x; x_start += grid_extents.x) {
+        do_conv(ivec3{x_start, y_start, z_start}, in, out);
+      }
     }
   }
 }
@@ -571,9 +693,9 @@ __global__ void filter(const SampleDescT* __restrict__ descs, InputROIFactory in
   const auto& in_loader = in_loader_factory(sample_idx);
   if (sample_desc.shape.in_workspace_extents.x) {
     using In = typename SampleDescT::In;
-    int* idx_cache = reinterpret_cast<int*>(shm);
+    int* precomputed_idx = reinterpret_cast<int*>(shm);
     In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
-    auto conv = create_shm_conv(sample_desc, in_loader, block_setup, in_workspace, idx_cache);
+    auto conv = create_shm_conv(sample_desc, in_loader, block_setup, in_workspace, precomputed_idx);
     stride_grid(block_start, grid_size, roi, conv);
   } else {
     auto conv = create_direct_conv(sample_desc, in_loader, block_setup);
