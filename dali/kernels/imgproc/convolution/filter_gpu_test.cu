@@ -109,8 +109,7 @@ template <bool is_sequence, bool has_channels, typename InT, typename OutT, type
 void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
                    const TensorView<StorageCPU, OutT, ndim> &out_view,
                    const TensorView<StorageCPU, WT, filter_ndim> &filter_view,
-                   const ivec<filter_ndim> anchor, const filter::InputROI<filter_ndim> input_roi,
-                   const Border &border_helper) {
+                   const ivec<filter_ndim> anchor, const Border &border_helper) {
   int F = is_sequence ? in_view.shape[0] : 1;
   int H = in_view.shape[is_sequence];
   int W = in_view.shape[is_sequence + 1];
@@ -119,14 +118,12 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
   int S = filter_view.shape[1];
   int H_out = out_view.shape[is_sequence];
   int W_out = out_view.shape[is_sequence + 1];
-  ASSERT_EQ(H_out, input_roi.end[1] - input_roi.start[1]);
-  ASSERT_EQ(W_out, input_roi.end[0] - input_roi.start[0]);
   auto *filter_data = filter_view.data;
   for (int f = 0; f < F; f++) {
     const auto *in_data = in_view.data + f * H * W * C;
     auto *out_data = out_view.data + f * H_out * W_out * C;
-    for (int y = input_roi.start[1]; y < input_roi.end[1]; y++) {
-      for (int x = input_roi.start[0]; x < input_roi.end[0]; x++) {
+    for (int y = 0; y < H_out; y++) {
+      for (int x = 0; x < W_out; x++) {
         for (int c = 0; c < C; c++) {
           Intermediate acc = 0;
           for (int r = 0; r < R; r++) {
@@ -138,8 +135,7 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
               acc += value * filter_data[r * S + s];
             }
           }
-          out_data[(y - input_roi.start[1]) * W_out * C + (x - input_roi.start[0]) * C + c] =
-              ConvertSat<OutT>(acc);
+          out_data[y * W_out * C + x * C + c] = ConvertSat<OutT>(acc);
         }
       }
     }
@@ -220,33 +216,20 @@ struct FilterGPUTest : public ::testing::Test {
     anchors_.resize(num_samples);
     int num_base_anchors = input_shapes_.anchors_base.num_samples();
     ASSERT_TRUE(num_base_anchors == input_shapes_.filter_shape_base.num_samples());
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      int idx = (sample_idx + T::filters_shift) % num_base_anchors;
-      for (int dim = 0; dim < T::filter_ndim; dim++) {
-        auto anchor = input_shapes_.anchors_base[idx][dim];
-        if (anchor == -1) {
-          anchor = filter_shapes[sample_idx][dim] / 2;
-        }
-        anchors_[sample_idx][T::filter_ndim - 1 - dim] = anchor;
+    if (T::valid_only_mode) {
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        anchors_[sample_idx] = 0;
       }
-    }
-  }
-
-  void FillROIs(const TensorListShape<T::ndim> &in_shapes,
-                const TensorListShape<T::filter_ndim> &filter_shapes) {
-    int num_samples = in_shapes.num_samples();
-    rois_.resize(num_samples);
-    for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      const auto &in_shape = in_shapes[sample_idx];
-      const auto &filter_shape = filter_shapes[sample_idx];
-      const auto &anchor = anchors_[sample_idx];
-      for (int dim = 0; dim < T::filter_ndim; dim++) {
-        rois_[sample_idx].start[T::filter_ndim - 1 - dim] =
-            !T::valid_only_mode ? 0 : anchor[T::filter_ndim - 1 - dim];
-        rois_[sample_idx].end[T::filter_ndim - 1 - dim] =
-            !T::valid_only_mode ? in_shape[T::is_sequence + dim] :
-                                  (anchor[T::filter_ndim - 1 - dim] + 1 +
-                                   in_shape[T::is_sequence + dim] - filter_shape[dim]);
+    } else {
+      for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+        int idx = (sample_idx + T::filters_shift) % num_base_anchors;
+        for (int dim = 0; dim < T::filter_ndim; dim++) {
+          auto anchor = input_shapes_.anchors_base[idx][dim];
+          if (anchor == -1) {
+            anchor = filter_shapes[sample_idx][dim] / 2;
+          }
+          anchors_[sample_idx][T::filter_ndim - 1 - dim] = anchor;
+        }
       }
     }
   }
@@ -310,7 +293,6 @@ struct FilterGPUTest : public ::testing::Test {
     auto filter_shapes = GetFilterShape(num_samples);
     FillFilters(filter_shapes);
     FillAnchors(filter_shapes);
-    FillROIs(in_shapes, filter_shapes);
     auto output_shape = GetOutputShape(in_shapes, filter_shapes);
     output_.reshape(output_shape);
     baseline_output_.reshape(output_shape);
@@ -334,7 +316,7 @@ struct FilterGPUTest : public ::testing::Test {
       FillBaseline(BorderHelper<T::border_type>{});
     } else {
       kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
-                     T::border_type, make_cspan(rois_));
+                     T::border_type);
       FillBaseline(BorderHelperAssertValid{});
     }
     auto out_cpu = output_.cpu();
@@ -353,8 +335,8 @@ struct FilterGPUTest : public ::testing::Test {
       auto in_view = in_view_cpu_[sample_idx];
       auto out_view = baseline_out_[sample_idx];
       auto filter_view = filters_view_cpu_[sample_idx];
-      baseline_conv<T::is_sequence, T::has_channels>(
-          in_view, out_view, filter_view, anchors_[sample_idx], rois_[sample_idx], border_helper);
+      baseline_conv<T::is_sequence, T::has_channels>(in_view, out_view, filter_view,
+                                                     anchors_[sample_idx], border_helper);
     }
   }
 
@@ -366,7 +348,6 @@ struct FilterGPUTest : public ::testing::Test {
   TestTensorList<OutType, T::ndim> baseline_output_;
 
   std::vector<ivec<T::filter_ndim>> anchors_;
-  std::vector<filter::InputROI<T::filter_ndim>> rois_;
 
   TensorListView<StorageCPU, WinType, T::filter_ndim> filters_view_cpu_;
   TensorListView<StorageGPU, WinType, T::filter_ndim> filters_view_;

@@ -37,12 +37,6 @@ namespace filter {
 
 using boundary::BoundaryType;
 
-// Descrption of the input ROI passed to the kernel
-template <int axes>
-struct InputROI {
-  ivec<axes> start, end;
-};
-
 template <int N, typename T>
 vec<N, T> rev(const vec<N, T>& v) {
   vec<N, T> out;
@@ -750,17 +744,15 @@ struct FilterGpu {
            const TensorListView<StorageGPU, const In, ndim>& in,
            const TensorListView<StorageGPU, const W, axes>& filters,
            const span<const ivec<axes>> anchors, boundary::BoundaryType border_type,
-           const span<const filter::InputROI<axes>> input_rois = {},
            const TensorListView<StorageGPU, const In, 0>& fill_values = {}) {
     auto num_samples = in.shape.num_samples();
     assert(out.num_samples() == num_samples && filters.num_samples() == num_samples &&
            anchors.size() == num_samples);
     assert(fill_values.num_samples() == num_samples || fill_values.num_samples() == 0);
-    assert(input_rois.size() == num_samples || input_rois.size() == 0);
 
     int max_total_workspace;
     SampleDescT* samples_desc_dev;
-    SetupSampleDescs(max_total_workspace, out, in, filters, input_rois, anchors);
+    SetupSampleDescs(max_total_workspace, out, in, filters, anchors);
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
     auto grid_setup = PrepareGridSetup(out, in);
     RunKernel(ctx, border_type, fill_values, [&](auto&& block_setup) {
@@ -780,8 +772,7 @@ struct FilterGpu {
   }
 
   template <typename Inshapes, typename FilterShapes>
-  void ValidateNumericLimits(const Inshapes& in_shapes, const FilterShapes& filter_shapes,
-                             const span<const ivec<axes>> anchors) {
+  void ValidateNumericLimits(const Inshapes& in_shapes, const FilterShapes& filter_shapes) {
     const auto max_grid_logical_extents =
         StaticConfigT::max_grid_extents() * StaticConfigT::lanes_dim();
     // so that we can safely use grid extents as a stride in a for loop
@@ -789,7 +780,6 @@ struct FilterGpu {
     for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
       const auto& in_shape = in_shapes[sample_idx];
       const auto& filter_shape = filter_shapes[sample_idx];
-      const auto& anchor = anchors[sample_idx];
       int64_t num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
       int64_t num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
       const auto channels = cat(i64vec<1>{num_channels}, i64vec<axes - 1>{1});
@@ -812,13 +802,12 @@ struct FilterGpu {
   void SetupSampleDescs(int& max_total_workspace, const TensorListView<StorageGPU, Out, ndim>& out,
                         const TensorListView<StorageGPU, const In, ndim>& in,
                         const TensorListView<StorageGPU, const W, axes>& filters,
-                        const span<const filter::InputROI<axes>> input_rois,
                         const span<const ivec<axes>> anchors) {
+    const auto& out_shapes = out.shape;
     const auto& in_shapes = in.shape;
     const auto& filter_shapes = filters.shape;
-    const auto& out_shapes = out.shape;
     int num_samples = in_shapes.num_samples();
-    ValidateNumericLimits(in_shapes, filter_shapes, anchors);
+    ValidateNumericLimits(in_shapes, filter_shapes);
     samples_desc_.clear();
     samples_desc_.reserve(num_samples);
     block_setups_.clear();
@@ -828,18 +817,9 @@ struct FilterGpu {
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       int required_workspace;
       BlockSetupT block_setup;
-      auto shape_desc =
-          SetupSampleShapeDesc(required_workspace, block_setup, sample_idx, in_shapes[sample_idx],
-                               filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
-      if (input_rois.size()) {
-        int num_channels = has_channel_dim ? out_shapes[sample_idx][channels_dim] : 1;
-        const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
-        shape_desc.out_extents = ShapeAsVec<int>(out_shapes[sample_idx]) * channels;
-        const auto& input_roi = input_rois[sample_idx];
-        filter::strides(shape_desc.out_strides, shape_desc.out_frame_stride,
-                        shape_desc.out_extents);
-        shape_desc.anchor_shift -= input_roi.start * channels;
-      }
+      auto shape_desc = SetupSampleShapeDesc(
+          required_workspace, block_setup, sample_idx, out_shapes[sample_idx],
+          in_shapes[sample_idx], filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
       max_total_workspace = std::max(max_total_workspace, required_workspace);
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
@@ -847,9 +827,10 @@ struct FilterGpu {
     }
   }
 
-  template <typename InShape, typename FilterShape>
+  template <typename InOutShape, typename FilterShape>
   filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace, BlockSetupT& block_setup,
-                                               int sample_idx, const InShape& in_shape,
+                                               int sample_idx, const InOutShape& out_shape,
+                                               const InOutShape& in_shape,
                                                const FilterShape& filter_shape, ivec<axes> anchor,
                                                int shared_mem_limit) {
     int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
@@ -874,15 +855,19 @@ struct FilterGpu {
     filter::strides(in_strides, frame_stride, in_extents * channels);
     ivec<axes> workspace_strides;
     filter::strides(workspace_strides, in_workspace_extents);
+    auto out_extents = ShapeAsVec<int>(out_shape);
+    int64_t out_frame_stride;
+    i64vec<axes> out_strides;
+    filter::strides(out_strides, out_frame_stride, out_extents * channels);
     return {frame_stride,
-            frame_stride,
+            out_frame_stride,
             in_strides,
-            in_strides,
+            out_strides,
             num_frames,
             width,
             num_channels,
             in_extents * channels,
-            in_extents * channels,
+            out_extents * channels,
             required_workspace == 0 ? filter_extents : filter_extents * channels,
             anchor * channels,
             in_workspace_extents,
