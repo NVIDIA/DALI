@@ -159,6 +159,7 @@ struct ShapeDesc {
   ivec<axes> in_extents;      // wc, h(, d)
   ivec<axes> out_extents;     // wc, h(, d)
   ivec<axes> filter_extents;  // use workspace? rc, s(, p) : r, s(, p)
+  ivec<axes> filter_strides;  // 1, r(, rs)
   ivec<axes> anchor_shift;    // anchor_r * c, anchor_s(, anchor_p)
   // threadblock * lanes + filter_extents - 1
   ivec<axes> in_workspace_extents;
@@ -310,7 +311,7 @@ struct ShmInputConv {
   using Acc = typename SampleDescT::Acc;
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
-                                            const ivec2& start) const {
+                                            const ivec<SampleDescT::axes>& start) const {
     auto anchored_start = start - sample_desc.shape.anchor_shift;
     __syncthreads();
     precompute_indices(in, anchored_start);
@@ -354,14 +355,10 @@ struct ShmInputConv {
         for (int s = 0; s < filter_extents.x; s += sample_desc.shape.num_channels) {
           auto filter_coef = __ldg(filter++);
 #pragma unroll
-          for (int lane_z = 0, lane_z_offset = 0; lane_z < StaticConfigT::lanes_z;
-               lane_z++, lane_z_offset += block_dim.z) {
-#pragma unroll
-            for (int lane_y = 0, lane_y_offset = 0; lane_y < StaticConfigT::lanes_y;
-                 lane_y++, lane_y_offset += block_dim.y) {
-              ivec3 filter_offset{s, r + lane_y_offset, p + lane_z_offset};
-              mul_add_coef(filter_coef, filter_offset, lane_z * StaticConfigT::lanes_y + lane_y);
-            }
+          for (int lane = 0, lane_offset = 0; lane < StaticConfigT::lanes;
+               lane++, lane_offset += block_dim.z) {
+            ivec3 filter_offset{s, r, p + lane_offset};
+            mul_add_coef(filter_coef, filter_offset, lane);
           }
         }
       }
@@ -406,14 +403,16 @@ struct ShmInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
                                                       const ivec3& anchored_start) const {
+    const int* const __restrict__ ys = precomputed_idx;
+    const int* const __restrict__ zs = precomputed_idx + sample_desc.shape.in_workspace_extents.y;
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
     for (int x = thread_idx.x; x < sample_desc.shape.in_workspace_extents.x; x += block_dim.x) {
       int global_x = in_loader.border_remap_innermost(anchored_start.x + x, sample_desc.shape);
       for (int y = thread_idx.y; y < sample_desc.shape.in_workspace_extents.y; y += block_dim.y) {
-        int global_y = precomputed_idx[y];
+        int global_y = ys[y];
         for (int z = thread_idx.z; z < sample_desc.shape.in_workspace_extents.z; z += block_dim.z) {
-          int global_z = precomputed_idx[z];
+          int global_z = zs[z];
           in_workspace[dot(ivec3{x, y, z}, sample_desc.shape.in_workspace_strides)] =
               in_loader.load(in, ivec3{global_x, global_y, global_z}, sample_desc.shape);
         }
@@ -453,19 +452,19 @@ struct DirectInputConv {
                                             const ivec2& start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
-    auto start_shifted = start - sample_desc.shape.anchor_shift;
+    const auto coords = start - sample_desc.shape.anchor_shift + thread_idx;
     const auto* filter = sample_desc.filter;
     for (int s = 0; s < sample_desc.shape.filter_extents.x; s++) {
       auto global_x = in_loader.border_remap_innermost(
-          start_shifted.x + thread_idx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
+          coords.x + s * sample_desc.shape.num_channels, sample_desc.shape);
       for (int r = 0; r < sample_desc.shape.filter_extents.y; r++) {
-        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents.x + s);
+        auto filter_coef = __ldg(filter + dot(ivec2{s, r}, sample_desc.shape.filter_strides));
         // Even without shm, using `lanes` speeds up the kernel by reducing
         // the cost of nested loops arithmetic per single output value
 #pragma unroll
         for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
-          auto global_y = in_loader.border_remap(
-              start_shifted.y + thread_idx.y + lane * block_dim.y + r, sample_desc.shape, 1);
+          auto global_y =
+              in_loader.border_remap(coords.y + r + lane * block_dim.y, sample_desc.shape, 1);
           auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
           acc[lane] += in_val * filter_coef;
         }
@@ -477,21 +476,26 @@ struct DirectInputConv {
                                             const ivec3& start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
-    auto start_shifted = start - sample_desc.shape.anchor_shift;
+    const auto& filter_extents = sample_desc.shape.filter_extents;
+    const auto coords = start - sample_desc.shape.anchor_shift + thread_idx;
     const auto* filter = sample_desc.filter;
-    for (int s = 0; s < sample_desc.shape.filter_extents.x; s++) {
+    for (int s = 0; s < filter_extents.x; s++) {
       auto global_x = in_loader.border_remap_innermost(
-          start_shifted.x + thread_idx.x + s * sample_desc.shape.num_channels, sample_desc.shape);
-      for (int r = 0; r < sample_desc.shape.filter_extents.y; r++) {
-        auto filter_coef = __ldg(filter + r * sample_desc.shape.filter_extents.x + s);
-        // Even without shm, using `lanes` speeds up the kernel by reducing
-        // the cost of nested loops arithmetic per single output value
+          coords.x + s * sample_desc.shape.num_channels, sample_desc.shape);
+      for (int r = 0; r < filter_extents.y; r++) {
+        auto global_y = in_loader.border_remap(coords.y + r, sample_desc.shape, 1);
+        for (int p = 0; p < filter_extents.z; p++) {
+          auto filter_coef = __ldg(filter + dot(ivec3{s, r, p}, sample_desc.shape.filter_strides));
+          // Even without shm, using `lanes` speeds up the kernel by reducing
+          // the cost of nested loops arithmetic per single output value
 #pragma unroll
-        for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
-          auto global_y = in_loader.border_remap(
-              start_shifted.y + thread_idx.y + lane * block_dim.y + r, sample_desc.shape, 1);
-          auto in_val = in_loader.load(in, ivec2{global_x, global_y}, sample_desc.shape);
-          acc[lane] += in_val * filter_coef;
+          for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
+            auto global_z =
+                in_loader.border_remap(coords.z + p + lane * block_dim.z, sample_desc.shape, 2);
+            auto in_val =
+                in_loader.load(in, ivec3{global_x, global_y, global_z}, sample_desc.shape);
+            acc[lane] += in_val * filter_coef;
+          }
         }
       }
     }
@@ -539,19 +543,13 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(const ivec3
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
   const auto& block_dim = block_setup.block_dim();
   auto coords = block_start + block_setup.thread_idx();
-  if (coords.x < out_extents.x) {
+  if (coords.x < out_extents.x && coords.y < out_extents.y) {
 #pragma unroll
-    for (int lane_z = 0; lane_z < StaticConfigT::lanes_z; lane_z++) {
+    for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
       if (coords.z < out_extents.z) {
-#pragma unroll
-        for (int lane_y = 0; lane_y < StaticConfigT::lanes_y; lane_y++) {
-          if (coords.y < out_extents.y) {
-            cb(coords, lane_z * StaticConfigT::lanes_y + lane_y);
-          }
-          coords.z += block_dim.z;
-        }
+        cb(coords, lane);
       }
-      coords.y += block_dim.y;
+      coords.z += block_dim.z;
     }
   }
 }
@@ -669,13 +667,11 @@ template <>
 struct StaticConfig<3> {
   static constexpr int threadblock_size = 128;
   static constexpr int axes = 3;
-  static constexpr int lanes_y = 4;
-  static constexpr int lanes_z = 4;
-  static constexpr int lanes = lanes_y * lanes_z;
+  static constexpr int lanes = 8;
   static constexpr int max_grid_extent = 8;
 
   static DALI_HOST_DEV ivec3 lanes_dim() {
-    return {1, lanes_y, lanes_z};
+    return {1, 1, lanes};
   }
 
   static DALI_HOST_DEV ivec3 max_grid_extents() {
@@ -698,8 +694,8 @@ struct GridSetup {
 
   template <int axes_ = axes>
   DALI_DEVICE std::enable_if_t<axes_ == 3, ivec3> block_idx() const {
-    return {blockIdx.x, blockIdx.y & (StaticConfigT::max_grid_extent - 1),
-            blockIdx.y / StaticConfigT::max_grid_extent};
+    auto max_extents = StaticConfigT::max_grid_extents();
+    return {blockIdx.x, blockIdx.y & (max_extents.y - 1), blockIdx.y / max_extents.y};
   }
 
   template <int axes_ = axes>
@@ -712,8 +708,9 @@ struct GridSetup {
   template <int axes_ = axes>
   std::enable_if_t<axes_ == 3, dim3> kernel_setup() const {
     auto grid_dim = this->grid_dim();
+    auto max_extents = StaticConfigT::max_grid_extents();
     return {static_cast<unsigned int>(grid_dim.x),
-            static_cast<unsigned int>(grid_dim.y * StaticConfigT::max_grid_extents + grid_dim.z),
+            static_cast<unsigned int>(grid_dim.z * max_extents.y + grid_dim.y),
             static_cast<unsigned int>(num_samples())};
   }
 
@@ -870,6 +867,8 @@ struct FilterGpu {
     int64_t out_frame_stride;
     i64vec<axes> out_strides;
     filter::strides(out_strides, out_frame_stride, out_extents * channels);
+    ivec<axes> filter_strides;
+    filter::strides(filter_strides, filter_extents);
     return {frame_stride,
             out_frame_stride,
             in_strides,
@@ -880,6 +879,7 @@ struct FilterGpu {
             in_extents * channels,
             out_extents * channels,
             required_workspace == 0 ? filter_extents : filter_extents * channels,
+            filter_strides,
             anchor * channels,
             in_workspace_extents,
             workspace_strides,
@@ -890,8 +890,8 @@ struct FilterGpu {
     int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
     int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
     int block_x_log2 = std::min(total_block_log2, sample_x_log2);
-    return filter::create_adaptive_block<StaticConfigT>(
-        {block_x_log2, total_block_log2 - block_x_log2});
+    ivec2 block{block_x_log2, total_block_log2 - block_x_log2};
+    return filter::create_adaptive_block<StaticConfigT>(block);
   }
 
   BlockSetupT PrepareBlockSetup(const ivec3& in_extents) {
@@ -901,8 +901,8 @@ struct FilterGpu {
     int block_x_log2 = std::min(sample_x_log2, total_block_log2);
     int block_y_log2 = std::min(sample_y_log2, total_block_log2 - block_x_log2);
     int block_z_log2 = total_block_log2 - block_x_log2 - block_y_log2;
-    return filter::create_adaptive_block<StaticConfigT>(
-        {block_x_log2, block_y_log2, total_block_log2 - block_y_log2});
+    ivec3 block{block_x_log2, block_y_log2, block_z_log2};
+    return filter::create_adaptive_block<StaticConfigT>(block);
   }
 
   GridSetupT PrepareGridSetup(const TensorListView<StorageGPU, Out, ndim>& out,

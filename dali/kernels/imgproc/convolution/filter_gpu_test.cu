@@ -34,11 +34,12 @@ using namespace boundary;  // NOLINT(build/namespaces)
 
 struct SimpleLoader {
   template <typename In>
-  void load(In &value, const In *in, int y_idx, int x_idx, int c, int H, int W, int C,
-            In fill_value) const {
+  void load(In &value, const In *in, int z_idx, int y_idx, int x_idx, int c, int D, int H, int W,
+            int C, In fill_value) const {
     (void)fill_value;
-    ASSERT_TRUE(y_idx >= 0 && x_idx >= 0 && c >= 0 && y_idx < H && x_idx < W && c < C);
-    value = in[y_idx * W * C + x_idx * C + c];
+    ASSERT_TRUE(z_idx >= 0 && y_idx >= 0 && x_idx >= 0 && c >= 0 && z_idx < D && y_idx < H &&
+                x_idx < W && c < C);
+    value = in[z_idx * H * W * C + y_idx * W * C + x_idx * C + c];
   }
 };
 
@@ -80,12 +81,12 @@ struct BorderHelper<BoundaryType::CONSTANT> {
   }
 
   template <typename In>
-  void load(In &value, const In *in, int y_idx, int x_idx, int c, int H, int W, int C,
-            In fill_value) const {
-    if (y_idx < 0 || y_idx >= H || x_idx < 0 || x_idx >= W) {
+  void load(In &value, const In *in, int z_idx, int y_idx, int x_idx, int c, int D, int H, int W,
+            int C, In fill_value) const {
+    if (z_idx < 0 || z_idx >= D || y_idx < 0 || y_idx >= H || x_idx < 0 || x_idx >= W) {
       value = fill_value;
     } else {
-      value = in[y_idx * W * C + x_idx * C + c];
+      value = in[z_idx * H * W * C + y_idx * W * C + x_idx * C + c];
     }
   }
 };
@@ -96,12 +97,25 @@ struct BorderHelperAssertValid {
   }
 
   template <typename In>
-  void load(In &value, const In *in, int y_idx, int x_idx, int c, int H, int W, int C,
-            In fill_value) const {
-    ASSERT_TRUE(y_idx >= 0 && x_idx >= 0 && c >= 0 && y_idx < H && x_idx < W && c < C);
-    value = in[y_idx * W * C + x_idx * C + c];
+  void load(In &value, const In *in, int z_idx, int y_idx, int x_idx, int c, int D, int H, int W,
+            int C, In fill_value) const {
+    ASSERT_TRUE(z_idx >= 0 && y_idx >= 0 && x_idx >= 0 && c >= 0 && z_idx < D && y_idx < H &&
+                x_idx < W && c < C);
+    value = in[z_idx * H * W * C + y_idx * W * C + x_idx * C + c];
   }
 };
+
+void anchor_prs(int &p, int &r, int &s, const ivec2 &anchor) {
+  p = 0;
+  r = anchor.y;
+  s = anchor.x;
+}
+
+void anchor_prs(int &p, int &r, int &s, const ivec3 &anchor) {
+  p = anchor.z;
+  r = anchor.y;
+  s = anchor.x;
+}
 
 template <bool is_sequence, bool has_channels, typename InT, typename OutT, typename WT, int ndim,
           int axes, typename Border,
@@ -110,32 +124,44 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
                    const TensorView<StorageCPU, OutT, ndim> &out_view,
                    const TensorView<StorageCPU, WT, axes> &filter_view, const ivec<axes> anchor,
                    const Border &border_helper) {
+  static constexpr bool is_vol = axes == 3;
   int F = is_sequence ? in_view.shape[0] : 1;
-  int H = in_view.shape[is_sequence];
-  int W = in_view.shape[is_sequence + 1];
-  int C = has_channels ? in_view.shape[is_sequence + 2] : 1;
-  int R = filter_view.shape[0];
-  int S = filter_view.shape[1];
-  int H_out = out_view.shape[is_sequence];
-  int W_out = out_view.shape[is_sequence + 1];
+  int D = is_vol ? in_view.shape[is_sequence] : 1;
+  int H = in_view.shape[is_vol + is_sequence];
+  int W = in_view.shape[is_vol + is_sequence + 1];
+  int C = has_channels ? in_view.shape[is_vol + is_sequence + 2] : 1;
+  int P = is_vol ? filter_view.shape[0] : 1;
+  int R = filter_view.shape[is_vol];
+  int S = filter_view.shape[is_vol + 1];
+  int D_out = is_vol ? out_view.shape[is_sequence] : 1;
+  int H_out = out_view.shape[is_vol + is_sequence];
+  int W_out = out_view.shape[is_vol + is_sequence + 1];
+  int anchor_p, anchor_r, anchor_s;
+  anchor_prs(anchor_p, anchor_r, anchor_s, anchor);
   auto *filter_data = filter_view.data;
   for (int f = 0; f < F; f++) {
-    const auto *in_data = in_view.data + f * H * W * C;
-    auto *out_data = out_view.data + f * H_out * W_out * C;
-    for (int y = 0; y < H_out; y++) {
-      for (int x = 0; x < W_out; x++) {
-        for (int c = 0; c < C; c++) {
-          Intermediate acc = 0;
-          for (int r = 0; r < R; r++) {
-            int y_idx = border_helper.remap(y + r - anchor[1], H);
-            for (int s = 0; s < S; s++) {
-              int x_idx = border_helper.remap(x + s - anchor[0], W);
-              InT value;
-              border_helper.load(value, in_data, y_idx, x_idx, c, H, W, C, static_cast<InT>(0));
-              acc += value * filter_data[r * S + s];
+    const auto *in_data = in_view.data + f * D * H * W * C;
+    auto *out_data = out_view.data + f * D_out * H_out * W_out * C;
+    for (int z = 0; z < D_out; z++) {
+      for (int y = 0; y < H_out; y++) {
+        for (int x = 0; x < W_out; x++) {
+          for (int c = 0; c < C; c++) {
+            Intermediate acc = 0;
+            for (int p = 0; p < P; p++) {
+              int z_idx = border_helper.remap(z + p - anchor_p, D);
+              for (int r = 0; r < R; r++) {
+                int y_idx = border_helper.remap(y + r - anchor_r, H);
+                for (int s = 0; s < S; s++) {
+                  int x_idx = border_helper.remap(x + s - anchor_s, W);
+                  InT value;
+                  border_helper.load(value, in_data, z_idx, y_idx, x_idx, c, D, H, W, C,
+                                     static_cast<InT>(0));
+                  acc += value * filter_data[p * R * S + r * S + s];
+                }
+              }
             }
+            out_data[y * W_out * C + x * C + c] = ConvertSat<OutT>(acc);
           }
-          out_data[y * W_out * C + x * C + c] = ConvertSat<OutT>(acc);
         }
       }
     }
@@ -164,9 +190,9 @@ struct FilterParams {
 template <bool valid_only_mode>
 struct InputShapes {
   const TensorListShape<> shape_ch = {
-      {1, 29, 145, 128, 3},  {2, 64, 64, 64, 3}, {13, 12, 12, 12, 3}, {3, 16, 512, 512, 1},
-      {7, 8, 1, 32, 3},      {4, 8, 32, 1, 3},   {128, 1, 8, 32, 3},  {7, 1, 111, 57, 129},
-      {1, 1, 256, 256, 256}, {4, 16, 1, 517, 3}, {7, 16, 517, 1, 3}};
+      {1, 29, 145, 128, 3}, {2, 64, 64, 64, 3}, {13, 12, 12, 12, 3}, {3, 16, 512, 512, 1},
+      {7, 8, 1, 32, 3},     {4, 8, 32, 1, 3},   {128, 1, 8, 32, 3},  {7, 1, 111, 57, 129},
+      {1, 1, 64, 4, 256},   {4, 16, 1, 517, 3}, {7, 16, 517, 1, 3},  {3, 517, 16, 1, 3}};
   const TensorListShape<> shape_noch = {
       {2, 29, 145, 128}, {1, 64, 64, 64},  {7, 12, 12, 12}, {1, 4, 200, 180}, {5, 200, 4, 180},
       {1, 75, 75, 75},   {1, 4, 512, 512}, {3, 8, 1, 32},   {2, 8, 32, 1},    {128, 1, 8, 32}};
@@ -183,21 +209,21 @@ struct InputShapes {
 /// in validation error.
 template <>
 struct InputShapes<true> {
-  const TensorListShape<> shape_ch = {
-      {1, 29, 145, 128, 3},  {2, 64, 64, 64, 3}, {3, 12, 12, 12, 3},   {1, 16, 512, 512, 1},
-      {13, 8, 2, 32, 3},     {2, 8, 32, 2, 3},   {3, 1, 111, 57, 129}, {1, 1, 256, 256, 256},
-      {2, 1, 255, 255, 255}, {1, 16, 1, 517, 3}, {1, 16, 517, 1, 3}};
+  const TensorListShape<> shape_ch = {{1, 29, 145, 128, 3}, {2, 64, 64, 64, 3}, {3, 12, 12, 12, 3},
+                                      {1, 16, 512, 512, 1}, {13, 8, 2, 32, 3},  {2, 8, 32, 2, 3},
+                                      {3, 1, 111, 57, 129}, {1, 1, 256, 4, 16}, {1, 256, 1, 4, 16},
+                                      {2, 1, 16, 4, 255},   {1, 16, 1, 517, 3}, {1, 16, 517, 1, 3}};
   const TensorListShape<> shape_noch = {{1, 29, 146, 127}, {2, 64, 63, 65},  {41, 12, 12, 12},
                                         {1, 4, 200, 180},  {2, 50, 14, 180}, {1, 75, 75, 75},
-                                        {2, 4, 512, 512},  {1, 8, 256, 256}, {2, 8, 255, 255},
-                                        {1, 8, 1, 32},     {3, 8, 32, 1}};
+                                        {2, 4, 512, 512},  {1, 1, 256, 4},   {1, 256, 1, 4},
+                                        {2, 1, 16, 4},     {1, 8, 1, 32},    {3, 8, 32, 1}};
 
-  const TensorListShape<> filter_shape_base = {
-      {3, 3, 3}, {7, 7, 7},     {11, 11, 11},  {4, 7, 9}, {1, 1, 2}, {2, 2, 2},
-      {4, 4, 4}, {8, 255, 255}, {7, 255, 255}, {1, 1, 3}, {1, 1, 1}};
-  const TensorListShape<> anchors_base = {{1, 1, 1}, {3, 3, 3},    {4, 4, 4},   {0, 1, 7},
-                                          {0, 0, 0}, {1, 1, 1},    {-1, -1, 1}, {1, 1, -1},
-                                          {2, 3, 2}, {-1, -1, -1}, {-1, -1, -1}};
+  const TensorListShape<> filter_shape_base = {{3, 3, 3},   {7, 7, 7}, {11, 11, 11}, {4, 7, 9},
+                                               {1, 1, 2},   {2, 2, 2}, {4, 4, 4},    {1, 256, 4},
+                                               {255, 1, 4}, {1, 5, 4}, {1, 1, 3},    {1, 1, 1}};
+  const TensorListShape<> anchors_base = {{1, 1, 1},    {3, 3, 3},    {4, 4, 4},    {0, 1, 7},
+                                          {0, 0, 0},    {1, 1, 1},    {-1, -1, 1},  {1, 1, -1},
+                                          {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}};
 };
 
 template <typename T>
@@ -205,7 +231,7 @@ struct FilterGPUTest : public ::testing::Test {
   using InType = typename T::InType;
   using WinType = typename T::WinType;
   using OutType = typename T::OutType;
-  using Kernel = FilterGpu<OutType, InType, WinType, T::has_channels, T::is_sequence, 2>;
+  using Kernel = FilterGpu<OutType, InType, WinType, T::has_channels, T::is_sequence, T::axes>;
 
   TensorListShape<T::ndim> GetInputShape() {
     if (T::has_channels) {
@@ -270,18 +296,22 @@ struct FilterGPUTest : public ::testing::Test {
   }
 
   void FillFilters(const TensorListShape<T::axes> &filter_shapes) {
+    static constexpr bool is_vol = T::axes == 3;
     filters_.reshape(filter_shapes);
     filters_view_cpu_ = filters_.cpu();
     for (int sample_idx = 0; sample_idx < filter_shapes.num_samples(); sample_idx++) {
+      int P = is_vol ? filter_shapes[sample_idx][0] : 1;
       int R = filter_shapes[sample_idx][0];
       int S = filter_shapes[sample_idx][1];
-      int RS = R * S;
+      int PRS = P * R * S;
       WinType w = 1;
-      WinType sum = RS * (RS + 1) / 2;
-      for (int x = 0; x < S; x++) {
+      WinType sum = PRS * (PRS + 1) / 2;
+      for (int z = 0; z < P; z++) {
         for (int y = 0; y < R; y++) {
-          filters_view_cpu_[sample_idx].data[y * S + x] = w / sum;
-          w += 1;
+          for (int x = 0; x < S; x++) {
+            filters_view_cpu_[sample_idx].data[z * P * S + y * S + x] = w / sum;
+            w += 1;
+          }
         }
       }
     }
@@ -366,6 +396,7 @@ struct FilterGPUTest : public ::testing::Test {
 TYPED_TEST_SUITE_P(FilterGPUTest);
 
 using TestValues = ::testing::Types<
+    // FilterParams<3, true, true, float, float, 0, BoundaryType::REFLECT_101, false>>;
     FilterParams<2, true, true, float, float, 0, BoundaryType::REFLECT_101, false>,
     FilterParams<2, false, true, float, float, 1, BoundaryType::REFLECT_1001, false>,
     FilterParams<2, true, false, float, float, 2, BoundaryType::CLAMP, false>,
