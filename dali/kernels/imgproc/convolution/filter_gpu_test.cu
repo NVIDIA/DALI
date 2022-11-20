@@ -104,12 +104,12 @@ struct BorderHelperAssertValid {
 };
 
 template <bool is_sequence, bool has_channels, typename InT, typename OutT, typename WT, int ndim,
-          int filter_ndim, typename Border,
+          int axes, typename Border,
           typename Intermediate = decltype(std::declval<InT>() * std::declval<WT>())>
 void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
                    const TensorView<StorageCPU, OutT, ndim> &out_view,
-                   const TensorView<StorageCPU, WT, filter_ndim> &filter_view,
-                   const ivec<filter_ndim> anchor, const Border &border_helper) {
+                   const TensorView<StorageCPU, WT, axes> &filter_view, const ivec<axes> anchor,
+                   const Border &border_helper) {
   int F = is_sequence ? in_view.shape[0] : 1;
   int H = in_view.shape[is_sequence];
   int W = in_view.shape[is_sequence + 1];
@@ -142,13 +142,12 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
   }
 }
 
-template <bool has_channels_, bool is_sequence_, typename OutType_, typename InType_,
+template <int axes_, bool has_channels_, bool is_sequence_, typename OutType_, typename InType_,
           int filters_shift_, BoundaryType border_type_, bool valid_only_mode_,
           // For isolated border type filters_shift does not apply
           typename Dummy = std::enable_if_t<!valid_only_mode_ || filters_shift_ == 0>>
 struct FilterParams {
-  static constexpr int axes = 2;
-  static constexpr int filter_ndim = axes;
+  static constexpr int axes = axes_;
   static constexpr bool has_channels = has_channels_;
   static constexpr bool is_sequence = is_sequence_;
   static constexpr int ndim = static_cast<int>(is_sequence) + axes + static_cast<int>(has_channels);
@@ -158,21 +157,24 @@ struct FilterParams {
   using OutType = OutType_;
   using InType = InType_;
   using WinType = float;
+  static_assert(axes == 2 || axes == 3);
 };
 
 /// @brief Provides initial shapes of inputs for the test casa based on border type.
 template <bool valid_only_mode>
 struct InputShapes {
-  const TensorListShape<> shape_ch = {{29, 145, 128, 3}, {64, 64, 64, 3},   {12, 12, 12, 3},
-                                      {16, 512, 512, 1}, {8, 1, 32, 3},     {8, 32, 1, 3},
-                                      {1, 8, 32, 3},     {1, 111, 57, 129}, {1, 256, 256, 256},
-                                      {16, 1, 517, 3},   {16, 517, 1, 3}};
-  const TensorListShape<> shape_noch = {{29, 145, 128}, {64, 64, 64}, {12, 12, 12},  {4, 200, 180},
-                                        {200, 4, 180},  {75, 75, 75}, {4, 512, 512}, {8, 1, 32},
-                                        {8, 32, 1},     {1, 8, 32}};
+  const TensorListShape<> shape_ch = {
+      {1, 29, 145, 128, 3},  {2, 64, 64, 64, 3}, {13, 12, 12, 12, 3}, {3, 16, 512, 512, 1},
+      {7, 8, 1, 32, 3},      {4, 8, 32, 1, 3},   {128, 1, 8, 32, 3},  {7, 1, 111, 57, 129},
+      {1, 1, 256, 256, 256}, {4, 16, 1, 517, 3}, {7, 16, 517, 1, 3}};
+  const TensorListShape<> shape_noch = {
+      {2, 29, 145, 128}, {1, 64, 64, 64},  {7, 12, 12, 12}, {1, 4, 200, 180}, {5, 200, 4, 180},
+      {1, 75, 75, 75},   {1, 4, 512, 512}, {3, 8, 1, 32},   {2, 8, 32, 1},    {128, 1, 8, 32}};
 
-  const TensorListShape<> filter_shape_base = {{3, 3}, {7, 7}, {51, 1}, {1, 51}, {7, 9}, {4, 2}};
-  const TensorListShape<> anchors_base = {{1, 1}, {3, 3}, {25, 0}, {0, 25}, {1, 7}, {2, 0}};
+  const TensorListShape<> filter_shape_base = {{3, 3, 3},  {7, 7, 7}, {51, 1, 1}, {1, 51, 1},
+                                               {1, 1, 51}, {3, 7, 9}, {8, 4, 2}};
+  const TensorListShape<> anchors_base = {{1, 1, 1},  {3, 3, 3}, {25, 0, 0}, {0, 25, 0},
+                                          {0, 0, 25}, {2, 1, 7}, {6, 2, 0}};
 };
 
 
@@ -181,19 +183,21 @@ struct InputShapes {
 /// in validation error.
 template <>
 struct InputShapes<true> {
-  const TensorListShape<> shape_ch = {{29, 145, 128, 3}, {64, 64, 64, 3},    {12, 12, 12, 3},
-                                      {16, 512, 512, 1}, {8, 2, 32, 3},      {8, 32, 2, 3},
-                                      {1, 111, 57, 129}, {1, 256, 256, 256}, {1, 255, 255, 255},
-                                      {16, 1, 517, 3},   {16, 517, 1, 3}};
-  const TensorListShape<> shape_noch = {{29, 146, 127}, {64, 63, 65}, {12, 12, 12},  {4, 200, 180},
-                                        {50, 14, 180},  {75, 75, 75}, {4, 512, 512}, {8, 256, 256},
-                                        {8, 255, 255},  {8, 1, 32},   {8, 32, 1}};
+  const TensorListShape<> shape_ch = {
+      {1, 29, 145, 128, 3},  {2, 64, 64, 64, 3}, {3, 12, 12, 12, 3},   {1, 16, 512, 512, 1},
+      {13, 8, 2, 32, 3},     {2, 8, 32, 2, 3},   {3, 1, 111, 57, 129}, {1, 1, 256, 256, 256},
+      {2, 1, 255, 255, 255}, {1, 16, 1, 517, 3}, {1, 16, 517, 1, 3}};
+  const TensorListShape<> shape_noch = {{1, 29, 146, 127}, {2, 64, 63, 65},  {41, 12, 12, 12},
+                                        {1, 4, 200, 180},  {2, 50, 14, 180}, {1, 75, 75, 75},
+                                        {2, 4, 512, 512},  {1, 8, 256, 256}, {2, 8, 255, 255},
+                                        {1, 8, 1, 32},     {3, 8, 32, 1}};
 
-  const TensorListShape<> filter_shape_base = {{3, 3},     {7, 7}, {11, 11}, {7, 9},
-                                               {1, 2},     {2, 2}, {4, 4},   {255, 255},
-                                               {255, 255}, {1, 3}, {1, 1}};
-  const TensorListShape<> anchors_base = {{1, 1},  {3, 3},  {4, 4}, {1, 7},   {0, 0},  {1, 1},
-                                          {-1, 1}, {1, -1}, {3, 2}, {-1, -1}, {-1, -1}};
+  const TensorListShape<> filter_shape_base = {
+      {3, 3, 3}, {7, 7, 7},     {11, 11, 11},  {4, 7, 9}, {1, 1, 2}, {2, 2, 2},
+      {4, 4, 4}, {8, 255, 255}, {7, 255, 255}, {1, 1, 3}, {1, 1, 1}};
+  const TensorListShape<> anchors_base = {{1, 1, 1}, {3, 3, 3},    {4, 4, 4},   {0, 1, 7},
+                                          {0, 0, 0}, {1, 1, 1},    {-1, -1, 1}, {1, 1, -1},
+                                          {2, 3, 2}, {-1, -1, -1}, {-1, -1, -1}};
 };
 
 template <typename T>
@@ -211,10 +215,11 @@ struct FilterGPUTest : public ::testing::Test {
     }
   }
 
-  void FillAnchors(const TensorListShape<T::filter_ndim> &filter_shapes) {
+  void FillAnchors(const TensorListShape<T::axes> &filter_shapes) {
     int num_samples = filter_shapes.num_samples();
     anchors_.resize(num_samples);
-    int num_base_anchors = input_shapes_.anchors_base.num_samples();
+    auto anchors_base = input_shapes_.anchors_base.template last<T::axes>();
+    int num_base_anchors = anchors_base.num_samples();
     ASSERT_TRUE(num_base_anchors == input_shapes_.filter_shape_base.num_samples());
     if (T::valid_only_mode) {
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -223,35 +228,36 @@ struct FilterGPUTest : public ::testing::Test {
     } else {
       for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
         int idx = (sample_idx + T::filters_shift) % num_base_anchors;
-        for (int dim = 0; dim < T::filter_ndim; dim++) {
-          auto anchor = input_shapes_.anchors_base[idx][dim];
+        for (int dim = 0; dim < T::axes; dim++) {
+          auto anchor = anchors_base[idx][dim];
           if (anchor == -1) {
             anchor = filter_shapes[sample_idx][dim] / 2;
           }
-          anchors_[sample_idx][T::filter_ndim - 1 - dim] = anchor;
+          anchors_[sample_idx][T::axes - 1 - dim] = anchor;
         }
       }
     }
   }
 
-  TensorListShape<T::filter_ndim> GetFilterShape(int num_samples) {
-    TensorListShape<T::filter_ndim> filter_shapes(num_samples);
-    int num_base_filters = input_shapes_.filter_shape_base.num_samples();
+  TensorListShape<T::axes> GetFilterShape(int num_samples) {
+    TensorListShape<T::axes> filter_shapes(num_samples);
+    auto filter_shape_base = input_shapes_.filter_shape_base.template last<T::axes>();
+    int num_base_filters = filter_shape_base.num_samples();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       int idx = (sample_idx + T::filters_shift) % num_base_filters;
-      TensorShape<2> shape = input_shapes_.filter_shape_base[idx];
+      auto shape = filter_shape_base[idx];
       filter_shapes.set_tensor_shape(sample_idx, shape);
     }
     return filter_shapes;
   }
 
   TensorListShape<T::ndim> GetOutputShape(TensorListShape<T::ndim> shapes,
-                                          const TensorListShape<T::filter_ndim> &filter_shapes) {
+                                          const TensorListShape<T::axes> &filter_shapes) {
     if (T::valid_only_mode) {
       for (int sample_idx = 0; sample_idx < shapes.num_samples(); sample_idx++) {
         auto shape = shapes[sample_idx];
         const auto &filter_shape = filter_shapes[sample_idx];
-        for (int dim_idx = 0; dim_idx < T::filter_ndim; dim_idx++) {
+        for (int dim_idx = 0; dim_idx < T::axes; dim_idx++) {
           shape[T::is_sequence + dim_idx] -= filter_shape[dim_idx] - 1;
           if (shape[T::is_sequence + dim_idx] <= 0) {
             throw std::logic_error("incorrect test shapes for valid only mode for sample");
@@ -263,7 +269,7 @@ struct FilterGPUTest : public ::testing::Test {
     return shapes;
   }
 
-  void FillFilters(const TensorListShape<T::filter_ndim> &filter_shapes) {
+  void FillFilters(const TensorListShape<T::axes> &filter_shapes) {
     filters_.reshape(filter_shapes);
     filters_view_cpu_ = filters_.cpu();
     for (int sample_idx = 0; sample_idx < filter_shapes.num_samples(); sample_idx++) {
@@ -342,15 +348,15 @@ struct FilterGPUTest : public ::testing::Test {
 
   InputShapes<T::valid_only_mode> input_shapes_;
 
-  TestTensorList<WinType, T::filter_ndim> filters_;
+  TestTensorList<WinType, T::axes> filters_;
   TestTensorList<InType, T::ndim> input_;
   TestTensorList<OutType, T::ndim> output_;
   TestTensorList<OutType, T::ndim> baseline_output_;
 
-  std::vector<ivec<T::filter_ndim>> anchors_;
+  std::vector<ivec<T::axes>> anchors_;
 
-  TensorListView<StorageCPU, WinType, T::filter_ndim> filters_view_cpu_;
-  TensorListView<StorageGPU, WinType, T::filter_ndim> filters_view_;
+  TensorListView<StorageCPU, WinType, T::axes> filters_view_cpu_;
+  TensorListView<StorageGPU, WinType, T::axes> filters_view_;
   TensorListView<StorageCPU, InType, T::ndim> in_view_cpu_;
   TensorListView<StorageGPU, InType, T::ndim> in_view_;
   TensorListView<StorageGPU, OutType, T::ndim> out_view_;
@@ -360,20 +366,20 @@ struct FilterGPUTest : public ::testing::Test {
 TYPED_TEST_SUITE_P(FilterGPUTest);
 
 using TestValues = ::testing::Types<
-    FilterParams<true, true, float, float, 0, BoundaryType::REFLECT_101, false>,
-    FilterParams<false, true, float, float, 1, BoundaryType::REFLECT_1001, false>,
-    FilterParams<true, false, float, float, 2, BoundaryType::CLAMP, false>,
-    FilterParams<false, false, float, float, 3, BoundaryType::WRAP, false>,
-    FilterParams<true, false, uint8_t, uint8_t, 4, BoundaryType::CONSTANT, false>,
-    FilterParams<false, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_101, true>,
-    FilterParams<true, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_1001, true>,
-    FilterParams<true, false, float, uint8_t, 5, BoundaryType::REFLECT_101, false>,
-    FilterParams<false, false, float, uint8_t, 6, BoundaryType::REFLECT_1001, false>,
-    FilterParams<true, true, int32_t, int32_t, 7, BoundaryType::CLAMP, false>,
-    FilterParams<false, true, int32_t, int32_t, 8, BoundaryType::WRAP, false>,
-    FilterParams<true, true, float, int32_t, 9, BoundaryType::CONSTANT, false>,
-    FilterParams<false, true, float, int32_t, 0, BoundaryType::CLAMP, true>,
-    FilterParams<true, true, float, int32_t, 0, BoundaryType::CONSTANT, true>>;
+    FilterParams<2, true, true, float, float, 0, BoundaryType::REFLECT_101, false>,
+    FilterParams<2, false, true, float, float, 1, BoundaryType::REFLECT_1001, false>,
+    FilterParams<2, true, false, float, float, 2, BoundaryType::CLAMP, false>,
+    FilterParams<2, false, false, float, float, 3, BoundaryType::WRAP, false>,
+    FilterParams<2, true, false, uint8_t, uint8_t, 4, BoundaryType::CONSTANT, false>,
+    FilterParams<2, false, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_101, true>,
+    FilterParams<2, true, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_1001, true>,
+    FilterParams<2, true, false, float, uint8_t, 5, BoundaryType::REFLECT_101, false>,
+    FilterParams<2, false, false, float, uint8_t, 6, BoundaryType::REFLECT_1001, false>,
+    FilterParams<2, true, true, int32_t, int32_t, 7, BoundaryType::CLAMP, false>,
+    FilterParams<2, false, true, int32_t, int32_t, 8, BoundaryType::WRAP, false>,
+    FilterParams<2, true, true, float, int32_t, 9, BoundaryType::CONSTANT, false>,
+    FilterParams<2, false, true, float, int32_t, 0, BoundaryType::CLAMP, true>,
+    FilterParams<2, true, true, float, int32_t, 0, BoundaryType::CONSTANT, true>>;
 
 TYPED_TEST_P(FilterGPUTest, ApplyConvolution) {
   this->RunTest();
