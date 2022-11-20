@@ -886,12 +886,23 @@ struct FilterGpu {
             in_workspace_offset};
   }
 
-  BlockSetupT PrepareBlockSetup(ivec<axes> in_extents) {
-    int max_block_width_log2 = dali::ilog2(StaticConfigT::threadblock_size);
-    int sample_wc_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
-    int block_width_log2 = std::min(max_block_width_log2, sample_wc_log2);
+  BlockSetupT PrepareBlockSetup(const ivec2& in_extents) {
+    int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
+    int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
+    int block_x_log2 = std::min(total_block_log2, sample_x_log2);
     return filter::create_adaptive_block<StaticConfigT>(
-        {block_width_log2, max_block_width_log2 - block_width_log2});
+        {block_x_log2, total_block_log2 - block_x_log2});
+  }
+
+  BlockSetupT PrepareBlockSetup(const ivec3& in_extents) {
+    int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
+    int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
+    int sample_y_log2 = in_extents.y == 0 ? 0 : dali::ilog2(in_extents.y - 1) + 1;
+    int block_x_log2 = std::min(sample_x_log2, total_block_log2);
+    int block_y_log2 = std::min(sample_y_log2, total_block_log2 - block_x_log2);
+    int block_z_log2 = total_block_log2 - block_x_log2 - block_y_log2;
+    return filter::create_adaptive_block<StaticConfigT>(
+        {block_x_log2, block_y_log2, total_block_log2 - block_y_log2});
   }
 
   GridSetupT PrepareGridSetup(const TensorListView<StorageGPU, Out, ndim>& out,
