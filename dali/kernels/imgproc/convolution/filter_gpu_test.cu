@@ -160,7 +160,7 @@ void baseline_conv(const TensorView<StorageCPU, InT, ndim> &in_view,
                 }
               }
             }
-            out_data[y * W_out * C + x * C + c] = ConvertSat<OutT>(acc);
+            out_data[z * H_out * W_out * C + y * W_out * C + x * C + c] = ConvertSat<OutT>(acc);
           }
         }
       }
@@ -211,7 +211,7 @@ template <>
 struct InputShapes<true> {
   const TensorListShape<> shape_ch = {{1, 29, 145, 128, 3}, {2, 64, 64, 64, 3}, {3, 12, 12, 12, 3},
                                       {1, 16, 512, 512, 1}, {13, 8, 2, 32, 3},  {2, 8, 32, 2, 3},
-                                      {3, 1, 111, 57, 129}, {1, 1, 256, 4, 16}, {1, 256, 1, 4, 16},
+                                      {3, 4, 111, 57, 129}, {1, 1, 256, 4, 16}, {1, 256, 1, 4, 16},
                                       {2, 1, 16, 4, 255},   {1, 16, 1, 517, 3}, {1, 16, 517, 1, 3}};
   const TensorListShape<> shape_noch = {{1, 29, 146, 127}, {2, 64, 63, 65},  {41, 12, 12, 12},
                                         {1, 4, 200, 180},  {2, 50, 14, 180}, {1, 75, 75, 75},
@@ -301,15 +301,15 @@ struct FilterGPUTest : public ::testing::Test {
     filters_view_cpu_ = filters_.cpu();
     for (int sample_idx = 0; sample_idx < filter_shapes.num_samples(); sample_idx++) {
       int P = is_vol ? filter_shapes[sample_idx][0] : 1;
-      int R = filter_shapes[sample_idx][0];
-      int S = filter_shapes[sample_idx][1];
+      int R = filter_shapes[sample_idx][is_vol];
+      int S = filter_shapes[sample_idx][is_vol + 1];
       int PRS = P * R * S;
       WinType w = 1;
       WinType sum = PRS * (PRS + 1) / 2;
       for (int z = 0; z < P; z++) {
         for (int y = 0; y < R; y++) {
           for (int x = 0; x < S; x++) {
-            filters_view_cpu_[sample_idx].data[z * P * S + y * S + x] = w / sum;
+            filters_view_cpu_[sample_idx].data[z * R * S + y * S + x] = w / sum;
             w += 1;
           }
         }
@@ -396,7 +396,21 @@ struct FilterGPUTest : public ::testing::Test {
 TYPED_TEST_SUITE_P(FilterGPUTest);
 
 using TestValues = ::testing::Types<
-    // FilterParams<3, true, true, float, float, 0, BoundaryType::REFLECT_101, false>>;
+    FilterParams<3, true, true, float, float, 0, BoundaryType::REFLECT_101, false>,
+    FilterParams<3, false, true, float, float, 1, BoundaryType::REFLECT_1001, false>,
+    FilterParams<3, true, false, float, float, 2, BoundaryType::CLAMP, false>,
+    FilterParams<3, false, false, float, float, 3, BoundaryType::WRAP, false>,
+    FilterParams<3, true, false, uint8_t, uint8_t, 4, BoundaryType::CONSTANT, false>,
+    FilterParams<3, false, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_101, true>,
+    FilterParams<3, true, false, uint8_t, uint8_t, 0, BoundaryType::REFLECT_1001, true>,
+    FilterParams<3, true, false, float, uint8_t, 5, BoundaryType::REFLECT_101, false>,
+    FilterParams<3, false, false, float, uint8_t, 6, BoundaryType::REFLECT_1001, false>,
+    FilterParams<3, true, true, int32_t, int32_t, 7, BoundaryType::CLAMP, false>,
+    FilterParams<3, false, true, int32_t, int32_t, 8, BoundaryType::WRAP, false>,
+    FilterParams<3, true, true, float, int32_t, 9, BoundaryType::CONSTANT, false>,
+    FilterParams<3, false, true, float, int32_t, 0, BoundaryType::CLAMP, true>,
+    FilterParams<3, true, true, float, int32_t, 0, BoundaryType::CONSTANT, true>,
+
     FilterParams<2, true, true, float, float, 0, BoundaryType::REFLECT_101, false>,
     FilterParams<2, false, true, float, float, 1, BoundaryType::REFLECT_1001, false>,
     FilterParams<2, true, false, float, float, 2, BoundaryType::CLAMP, false>,
