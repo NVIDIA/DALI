@@ -28,14 +28,16 @@
 #include "dali/operators/decoder/nvjpeg/nvjpeg2k_helper.h"
 #include "dali/operators/decoder/cache/cached_decoder_impl.h"
 #include "dali/core/mm/memory.h"
+#include "dali/core/cuda_stream_pool.h"
+#include "dali/core/cuda_event.h"
+#include "dali/core/dev_buffer.h"
+#include "dali/core/static_switch.h"
 #include "dali/util/image.h"
 #include "dali/util/ocv.h"
 #include "dali/util/nvml.h"
 #include "dali/image/image_factory.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/core/device_guard.h"
-#include "dali/core/dev_buffer.h"
-#include "dali/core/static_switch.h"
 #include "dali/operators/decoder/nvjpeg/permute_layout.h"
 
 #define NVJPEG_FLAT_VERSION(major, minor, patch) ((major)*1000000+(minor)*1000+(patch))
@@ -224,23 +226,19 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       CUDA_CALL(nvjpegBufferDeviceCreate(handle_, device_allocator_ptr, &buffer));
     }
     for (auto &stream : streams_) {
-      CUDA_CALL(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking,
-                                             default_cuda_stream_priority_));
+      stream = CUDAStreamPool::instance().Get();
     }
-    CUDA_CALL(cudaStreamCreateWithPriority(
-      &hw_decode_stream_, cudaStreamNonBlocking, default_cuda_stream_priority_));
+    hw_decode_stream_ = CUDAStreamPool::instance().Get();
 
     if (hw_decoder_images_staging_.is_pinned())
       hw_decoder_images_staging_.set_order(hw_decode_stream_);
 
 
     for (auto &event : decode_events_) {
-      CUDA_CALL(cudaEventCreate(&event));
-      CUDA_CALL(cudaEventRecord(event, streams_[0]));
+      event = CUDAEvent::Create();
     }
 
-    CUDA_CALL(cudaEventCreate(&hw_decode_event_));
-    CUDA_CALL(cudaEventRecord(hw_decode_event_, hw_decode_stream_));
+    hw_decode_event_ = CUDAEvent::Create();
 
 #if NVJPEG2K_ENABLED
     auto nvjpeg2k_thread_id = nvjpeg2k_thread_.GetThreadIds()[0];
@@ -273,10 +271,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     });
     nvjpeg2k_thread_.RunAll();
 
-    CUDA_CALL(cudaStreamCreateWithPriority(&nvjpeg2k_cu_stream_, cudaStreamNonBlocking,
-                                           default_cuda_stream_priority_));
-    CUDA_CALL(cudaEventCreate(&nvjpeg2k_decode_event_));
-    CUDA_CALL(cudaEventRecord(nvjpeg2k_decode_event_, nvjpeg2k_cu_stream_));
+    nvjpeg2k_cu_stream_ = CUDAStreamPool::instance().Get();
+    nvjpeg2k_decode_event_ = CUDAEvent::Create();
 
     for (auto &stream : nvjpeg2k_streams_) {
       stream = NvJPEG2KStream::Create();
@@ -295,6 +291,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
 #if NVML_ENABLED
       nvml::Shutdown();
 #endif
+      if (hw_decode_stream_)
+        CUDA_CALL(cudaStreamSynchronize(hw_decode_stream_));
+
+      hw_decoder_images_staging_.Reset();
 
       sample_data_.clear();
 
@@ -315,15 +315,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       for (auto &buffer : device_buffers_) {
         CUDA_CALL(nvjpegBufferDeviceDestroy(buffer));
       }
-      for (auto &event : decode_events_) {
-        CUDA_CALL(cudaEventDestroy(event));
-      }
-      CUDA_CALL(cudaEventDestroy(hw_decode_event_));
-
-      for (auto &stream : streams_) {
-        CUDA_CALL(cudaStreamDestroy(stream));
-      }
-      CUDA_CALL(cudaStreamDestroy(hw_decode_stream_));
 
       if (state_hw_batched_) {
         CUDA_CALL(nvjpegJpegStateDestroy(state_hw_batched_));
@@ -337,8 +328,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
       }
 
 #if NVJPEG2K_ENABLED
-      CUDA_CALL(cudaEventDestroy(nvjpeg2k_decode_event_));
-      CUDA_CALL(cudaStreamDestroy(nvjpeg2k_cu_stream_));
       for (auto thread_id : nvjpeg2k_thread_.GetThreadIds()) {
         nvjpeg_memory::DeleteAllBuffers(thread_id);
       }
@@ -1089,8 +1078,8 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   NvJPEG2KHandle nvjpeg2k_handle_{};
   NvJPEG2KDecodeState nvjpeg2k_decoder_{};
   DeviceBuffer<uint8_t> nvjpeg2k_intermediate_buffer_;
-  cudaStream_t nvjpeg2k_cu_stream_;
-  cudaEvent_t nvjpeg2k_decode_event_;
+  CUDAStreamLease nvjpeg2k_cu_stream_;
+  CUDAEvent nvjpeg2k_decode_event_;
   nvjpeg2kDeviceAllocator_t nvjpeg2k_dev_alloc_;
   nvjpeg2kPinnedAllocator_t nvjpeg2k_pin_alloc_;
 
@@ -1101,10 +1090,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
   // GPU
   // Per thread
   std::vector<nvjpegBufferDevice_t> device_buffers_;
-  std::vector<cudaStream_t> streams_;
-  cudaStream_t hw_decode_stream_;
-  std::vector<cudaEvent_t> decode_events_;
-  cudaEvent_t hw_decode_event_;
+  std::vector<CUDAStreamLease> streams_;
+  CUDAStreamLease hw_decode_stream_;
+  std::vector<CUDAEvent> decode_events_;
+  CUDAEvent hw_decode_event_;
   std::vector<int> thread_page_ids_;  // page index for double-buffering
 
   int device_id_;
