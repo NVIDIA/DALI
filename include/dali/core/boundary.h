@@ -119,9 +119,8 @@ inline BoundaryType parse(std::string type) {
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
 std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T hi) {
-  if ((hi - lo < 2)) {
+  if (hi - lo < 2)
     return hi - 1;  // make it obviously wrong if hi <= lo
-  }
   for (;;) {
     if (idx < lo)
       idx = 2 * lo - idx;

@@ -584,7 +584,7 @@ struct StaticConfig<2> {
   static constexpr int threadblock_size = 128;
   static constexpr int axes = 2;
   static constexpr int lanes = 8;
-  static constexpr int max_grid_extent = 16;
+  static constexpr int max_grid_extent = 32;
 
   static DALI_HOST_DEV ivec2 lanes_dim() {
     return {1, lanes};
@@ -600,7 +600,7 @@ struct StaticConfig<3> {
   static constexpr int threadblock_size = 128;
   static constexpr int axes = 3;
   static constexpr int lanes = 8;
-  static constexpr int max_grid_extent = 8;
+  static constexpr int max_grid_extent = 16;
 
   static DALI_HOST_DEV ivec3 lanes_dim() {
     return {1, 1, lanes};
