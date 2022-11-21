@@ -230,6 +230,10 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
     CUDA_CALL(cudaStreamCreateWithPriority(
       &hw_decode_stream_, cudaStreamNonBlocking, default_cuda_stream_priority_));
 
+    if (hw_decoder_images_staging_.is_pinned())
+      hw_decoder_images_staging_.set_order(hw_decode_stream_);
+
+
     for (auto &event : decode_events_) {
       CUDA_CALL(cudaEventCreate(&event));
       CUDA_CALL(cudaEventRecord(event, streams_[0]));
@@ -893,8 +897,6 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           in_data_[k] = static_cast<unsigned char*>(tv.raw_mutable_tensor(k));
         }
       } else {
-        // it is H2H copy so the stream doesn't matter much as we don't use cudaMemcpy but
-        // maybe someday...
         hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
         for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
           in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
