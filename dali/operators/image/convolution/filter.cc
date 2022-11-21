@@ -27,12 +27,15 @@ namespace dali {
 DALI_SCHEMA(experimental__Filter)
     .DocStr(R"code(Convolves the image with a provided filter.
 
-The operator requires two positional arguments: the batch of images and the batch of filters.
+The operator requires two positional arguments: the batch of samples and the batch of filters.
 
-Operator supports 2D images and video with both channels-first and channels-last layouts.
+Sample can be a 2D images, video or volumetric (3D) sample.
+Samples can contain channels: channels-first and channels-last layouts are supported.
 
-A filter must be a 2D array of filter coefficients or a sequence of 2D arrays to be applied
-frame-wise to a video input. The coefficients must be floats.
+For images and video, a filter must be a 2D array of filter coefficients or a sequence
+of 2D arrays to be applied frame-wise to a video input. The filters' coefficients must be floats.
+
+For volumetric inputs, the filter must be a 3D array of float coefficients.
 
 The optional third argument should be a batch of scalars (or a sequence of scalars for
 video input). If ``border`` is set to ``"constant"``, the input samples will be padded with
@@ -50,7 +53,7 @@ The scalars must be of the same type as the input samples.
     .NumOutput(1)
     .AllowSequences()
     .AddOptionalArg("anchor",
-                    R"code(2D point lying within the filter specifying the placement of the
+                    R"code(A point lying within the filter specifying the placement of the
 filter over an image. The ordering of extents corresponds to the ordering of filter's extents.
 If -1 (the default) is specified for an extent, the middle of the extent is used.)code",
                     std::vector<int>{-1}, true, true)
@@ -82,6 +85,6 @@ Supported values are: "full" and "valid".
                     "full")
     .AddOptionalTypeArg("dtype", R"code(Output data type.
 Supported type: `FLOAT`. If not set, the input type is used.)code")
-    .InputLayout(0, {"FHWC", "FCHW", "HWC", "CHW", "HW"});
+    .InputLayout(0, {"FHWC", "FCHW", "FHW", "DHWC", "CDHW", "DHW", "HWC", "CHW", "HW"});
 
 }  // namespace dali

@@ -32,20 +32,19 @@ namespace dali {
 
 namespace filter {
 
-template <typename Out, typename In, typename W, int num_seq_dims, bool has_channels_last>
+template <typename Out, typename In, typename W, int axes, bool is_sequence, bool has_channels>
 class FilterOpGpu : public OpImplBase<GPUBackend> {
  public:
-  static constexpr bool is_sequence = num_seq_dims > 0;
-  using Kernel = kernels::FilterGpu<Out, In, W, has_channels_last, is_sequence, 2>;
+  using Kernel = kernels::FilterGpu<Out, In, W, has_channels, is_sequence, axes>;
   static constexpr int ndim = Kernel::ndim;
-  static constexpr int axes = Kernel::axes;
 
   /**
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit FilterOpGpu(const OpSpec* spec)
+  explicit FilterOpGpu(const OpSpec* spec, InputLayoutDesc layout_desc)
       : spec_{*spec},
+        layout_desc_{layout_desc},
         anchor_arg_{"anchor", spec_},
         border_type_{parse_filter_border_type(spec_.GetArgument<std::string>("border"))},
         is_valid_only_{parse_is_valid_mode(spec_.GetArgument<std::string>("mode"))} {
@@ -60,8 +59,8 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     anchor_arg_.Acquire(spec_, ws, num_samples, TensorShape<1>{axes});
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    output_desc[0].shape =
-        infer_output_shape(input.shape(), ws.GetInputShape(1), num_seq_dims, is_valid_only_);
+    output_desc[0].shape = infer_output_shape(input.shape(), ws.GetInputShape(1),
+                                              layout_desc_.num_seq_dims, is_valid_only_);
     return true;
   }
 
@@ -73,8 +72,8 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     auto in_shape = input.shape();
     auto out_shape = output.shape();
     if (is_sequence) {
-      in_shape = collapse_dims(in_shape, {{0, num_seq_dims}});
-      out_shape = collapse_dims(out_shape, {{0, num_seq_dims}});
+      in_shape = collapse_dims(in_shape, {{0, layout_desc_.num_seq_dims}});
+      out_shape = collapse_dims(out_shape, {{0, layout_desc_.num_seq_dims}});
     }
     auto in_views_dyn = view<const In>(input);
     auto out_views_dyn = view<Out>(output);
@@ -145,6 +144,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   }
 
   const OpSpec& spec_;
+  InputLayoutDesc layout_desc_;
   ArgValue<int, 1> anchor_arg_;
   BoundaryType border_type_;
   bool is_valid_only_;
@@ -156,32 +156,22 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   std::vector<ivec<axes>> anchors_;
 };
 
-template <typename Out, typename In, typename W, int num_seq_dims, bool has_channels_last>
-constexpr int FilterOpGpu<Out, In, W, num_seq_dims, has_channels_last>::axes;
-
 template <typename Out, typename In, typename W>
-typename std::enable_if<!std::is_integral<In>::value || !std::is_integral<W>::value ||
-                            std::is_unsigned<In>::value == std::is_unsigned<W>::value,
-                        std::unique_ptr<OpImplBase<GPUBackend>>>::type
-get_filter_gpu_op_impl(const OpSpec& spec_, const InputLayoutDesc& input_desc) {
-  BOOL_SWITCH(
-      input_desc.num_seq_dims > 0, IsSequence,
-      (BOOL_SWITCH(input_desc.has_channels, HasChannels,
-                   (return std::make_unique<FilterOpGpu<Out, In, W, IsSequence, HasChannels>>(
-                               &spec_);));  // NOLINT
-       ));                                  // NOLINT
+std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl(const OpSpec& spec_,
+                                                               const InputLayoutDesc& input_desc) {
+  VALUE_SWITCH(input_desc.axes, Axes, FILTER_INPUT_SUPPORTED_SPATIAL_NDIM, (
+    BOOL_SWITCH(
+      input_desc.num_seq_dims > 0, IsSequence, (
+        BOOL_SWITCH(input_desc.has_channels, HasChannels, (
+          return std::make_unique<FilterOpGpu<Out, In, W, Axes, IsSequence, HasChannels>>(&spec_, input_desc);
+        ));  // NOLINT
+       ));   // NOLINT
+  ), (
+    DALI_FAIL(make_string("Unsupported input data dimensionality. ",
+              "Got input with ", input_desc.axes, "spatial dimensions. ",
+              "Filter operator supports only 2 and 3 dimensional convolutions."));
+  ));
 }
-
-template <typename Out, typename In, typename W>
-typename std::enable_if<std::is_integral<In>::value && std::is_integral<W>::value &&
-                            std::is_unsigned<In>::value != std::is_unsigned<W>::value,
-                        std::unique_ptr<OpImplBase<GPUBackend>>>::type
-get_filter_gpu_op_impl(const OpSpec& spec_, const InputLayoutDesc& input_desc) {
-  DALI_FAIL(
-      make_string("Input and filter types must be of the same signedness. Got input of type: ",
-                  type2id<In>::value, " and filter of type: ", type2id<W>::value, "."));
-}
-
 
 }  // namespace filter
 }  // namespace dali

@@ -65,7 +65,6 @@ extern template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<f
 // the processing, so expand frames dim only if some argument was specified per-frame
 template <>
 bool Filter<GPUBackend>::ShouldExpand(const Workspace& ws) {
-  ValidateLayouts(ws);
   return SequenceOperator<GPUBackend>::ShouldExpand(ws) &&
          (HasPerFramePositionalArgs(ws) || HasPerFrameArgInputs(ws));
 }

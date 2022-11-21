@@ -31,27 +31,51 @@
 namespace dali {
 
 #define FILTER_INPUT_SUPPORTED_TYPES \
-  (uint8_t, float)
-  // (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float16, float)
+  (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, float16, float)
 
 #define FILTER_KERNEL_SUPPORTED_TYPES (float)
+
+#define FILTER_INPUT_SUPPORTED_SPATIAL_NDIM (2, 3)
 
 namespace filter {
 using namespace boundary;  // NOLINT(build/namespaces)
 
 struct InputLayoutDesc {
-  int num_seq_dims = 0;
-  bool has_channels = false;
+  int num_seq_dims, axes;
+  bool has_channels;
 };
 
 inline InputLayoutDesc parse_input_layout(const TensorLayout& layout) {
   InputLayoutDesc input_desc;
   const auto is_seq_like = [](char extent) { return extent == 'C' || extent == 'F'; };
-  while (input_desc.num_seq_dims < layout.size() && is_seq_like(layout[input_desc.num_seq_dims])) {
-    input_desc.num_seq_dims++;
+  int pos = 0;
+  while (pos < layout.size() && is_seq_like(layout[pos])) {
+    pos++;
   }
+  input_desc.num_seq_dims = pos;
+  while (pos < layout.size() && !is_seq_like(layout[pos])) {
+    pos++;
+  }
+  input_desc.axes = pos - input_desc.num_seq_dims;
   input_desc.has_channels = layout.size() && layout[layout.size() - 1] == 'C';
   return input_desc;
+}
+
+inline InputLayoutDesc parse_validate_input_layout(const TensorLayout& layout, int ndim) {
+  if (!layout.size()) {
+    DALI_ENFORCE(
+        ndim == 2 || ndim == 3,
+        make_string("The filter operator got intput with ", ndim,
+                    " dimensions. However, only 2D and 3D convolutions are supported. If the input "
+                    "has non-spatial dimensions, such as channels or frames (for video sequences), "
+                    "please make sure the input batch has a proper layout set."));
+    return {false, ndim, false};
+  }
+  auto layout_desc = parse_input_layout(layout);
+  DALI_ENFORCE(
+      layout_desc.num_seq_dims + layout_desc.axes + layout_desc.has_channels == ndim,
+      make_string("Filter operator encountered input with unsupported layout: `", layout, "`."));
+  return layout_desc;
 }
 
 inline BoundaryType parse_filter_border_type(const std::string& border_type_str) {
@@ -159,25 +183,6 @@ class Filter : public SequenceOperator<Backend> {
 
   bool ShouldExpand(const Workspace& ws) override;
 
-  void ValidateLayouts(const Workspace& ws) {
-    auto filter_dim = ws.GetInputDim(1);
-    if (filter_dim == 2) {
-      return;
-    }
-    DALI_ENFORCE(filter_dim == 3, make_string("Filter must be a 2D array or a sequence of 2D "
-                                              "arrays but got filter of dimensionality: ",
-                                              filter_dim));
-    const auto& filter_layout = GetInputLayout(ws, 1);
-    DALI_ENFORCE(
-        filter_layout.size() == 3 && filter_layout[0] == 'F',
-        make_string(
-            "Filter must be a 2D array or a sequence of 2D arrays. To pass sequence of "
-            "filters "
-            "mark them per-frame with the per_frame operator. Got filters of dimensionality "
-            "3 with layout: `",
-            filter_layout, "`."));
-  }
-
   template <typename Out, typename In, typename W>
   std::unique_ptr<OpImplBase<Backend>> GetFilterImpl(const OpSpec& spec_,
                                                      const filter::InputLayoutDesc& input_desc);
@@ -190,13 +195,22 @@ class Filter : public SequenceOperator<Backend> {
       DALI_ENFORCE(dtype == input_type || dtype == filter_type,
                    "Output data type must be same as input, FLOAT or skipped (defaults to "
                    "input type)");
-      auto input_layout = filter::parse_input_layout(GetInputLayout(ws, 0));
+      const auto& input_layout = GetInputLayout(ws, 0);
+      auto input_sample_dim = ws.GetInputShape(0).sample_dim();
+      auto input_layout_desc = filter::parse_validate_input_layout(input_layout, input_sample_dim);
+      const auto& filter_shape = ws.GetInputShape(1);
+      auto filter_ndim = filter_shape.sample_dim();
+      DALI_ENFORCE(filter_ndim == input_layout_desc.axes,
+                   make_string("Filter dimensionality must match the number of spatial dimensions "
+                               "in the input samples. Got ",
+                               input_layout_desc.axes, " spatial dimensions but the filter is ",
+                               filter_ndim, " dimensional."));
       TYPE_SWITCH(input_type, type2id, In, FILTER_INPUT_SUPPORTED_TYPES, (
         TYPE_SWITCH(filter_type, type2id, W, FILTER_KERNEL_SUPPORTED_TYPES, (
           if (dtype == input_type) {
-            impl_ = GetFilterImpl<In, In, W>(spec_, input_layout);
+            impl_ = GetFilterImpl<In, In, W>(spec_, input_layout_desc);
           } else {
-            impl_ = GetFilterImpl<W, In, W>(spec_, input_layout);
+            impl_ = GetFilterImpl<W, In, W>(spec_, input_layout_desc);
           }
         ), DALI_FAIL(make_string("Unsupported filter type: ", filter_type)));  // NOLINT
       ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT
