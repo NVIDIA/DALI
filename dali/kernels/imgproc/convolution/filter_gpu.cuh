@@ -61,93 +61,6 @@ void strides(vec<N, U>& out, const vec<N, T>& v) {
   strides(out, total_strides, v);
 }
 
-template <typename StaticConfigT_>
-struct StaticBlock {
-  struct BlockSetup {
-    using StaticConfigT = StaticConfigT_;
-    static constexpr int threadblock_size = StaticConfigT::threadblock_size;
-    static constexpr int axes = StaticConfigT::axes;
-
-    DALI_HOST_DEV DALI_FORCEINLINE int flat_size() const {
-      return threadblock_size;
-    }
-
-    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
-      return cat(ivec<1>{threadblock_size}, ivec<axes - 1>{1});
-    }
-
-    DALI_HOST_DEV ivec<axes> log_block_dim() const {
-      return block_dim() * StaticConfigT::lanes_dim();
-    }
-
-    DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
-      return threadIdx.x;
-    }
-
-    DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
-      return cat(ivec<1>{threadIdx.x}, ivec<axes - 1>{0});
-    }
-  };
-
-  DALI_DEVICE DALI_FORCEINLINE BlockSetup operator()(int sample_idx) {
-    (void)sample_idx;
-    return {};
-  }
-};
-
-template <typename StaticConfigT_>
-struct AdaptiveBlock {
-  struct BlockSetup {
-    using StaticConfigT = StaticConfigT_;
-    static constexpr int axes = StaticConfigT::axes;
-
-    ivec<axes> extents_log2;
-    ivec<axes> strides_log2;
-
-    DALI_DEVICE DALI_FORCEINLINE int flat_size() const {
-      assert(blockDim.y == 1);
-      assert(blockDim.z == 1);
-      return blockDim.x;
-    }
-
-    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
-      return 1 << extents_log2;
-    }
-
-    DALI_HOST_DEV ivec<axes> log_block_dim() const {
-      return block_dim() * StaticConfigT::lanes_dim();
-    }
-
-    DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
-      return threadIdx.x;
-    }
-
-    DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
-      assert(threadIdx.y == 0);
-      assert(threadIdx.z == 0);
-      return (int(threadIdx.x) >> strides_log2) & (block_dim() - 1);
-    }
-  };
-
-  DALI_DEVICE DALI_FORCEINLINE const BlockSetup& operator()(int sample_idx) {
-    return blocks[sample_idx];
-  }
-
-  const BlockSetup* blocks;
-};
-
-template <typename StaticConfigT>
-std::enable_if_t<StaticConfigT::axes == 2, typename AdaptiveBlock<StaticConfigT>::BlockSetup>
-create_adaptive_block(ivec2 extents_log2) {
-  return {extents_log2, {0, extents_log2.x}};
-}
-
-template <typename StaticConfigT>
-std::enable_if_t<StaticConfigT::axes == 3, typename AdaptiveBlock<StaticConfigT>::BlockSetup>
-create_adaptive_block(ivec3 extents_log2) {
-  return {extents_log2, {0, extents_log2.x, extents_log2.x + extents_log2.y}};
-}
-
 template <int axes>
 struct ShapeDesc {
   int64_t frame_stride;       // (d)hwc
@@ -225,6 +138,13 @@ struct InLoaderBorderRemap {
       int idx, const ShapeDesc<axes>& sample_shape) const {
     int num_channels = sample_shape.num_channels;
     if (idx < 0) {
+      // First, shift by 1 towards 0 (idx + 1), so that indices belonging to the same pixel
+      // translate to the same number pixel index when dividing by the channels stride
+      // (-6, -5, -4, -3, -2, -1) + 1 -> (-5, -4, -3, -2, -1, 0)
+      // (-5, -4, -3, -2, -1, 0) / 3 -> (-1, -1, -1, 0, 0, 0)
+      // Then shift back away from 0 (-1, -1, -1, 0, 0, 0) - 1 -> (-2, -2, -2, -1, -1, -1)
+      // Finally, with (num_channels - 1) we get the positive channels indecies
+      // (-2, -1, 0, -2, -1, 0) + 3 - 1 -> (0, 1, 2, 0, 1, 2)
       int reflect_dim_idx = (idx + 1) / num_channels - 1;
       int inner_dim_idx = (idx + 1) % num_channels + num_channels - 1;
       return border_remap(reflect_dim_idx, sample_shape.width, BorderTag<border>{}) * num_channels +
@@ -679,6 +599,81 @@ struct StaticConfig<3> {
   }
 };
 
+template <typename StaticConfigT_>
+struct StaticBlock {
+  struct BlockSetup {
+    using StaticConfigT = StaticConfigT_;
+    static constexpr int threadblock_size = StaticConfigT::threadblock_size;
+    static constexpr int axes = StaticConfigT::axes;
+
+    DALI_HOST_DEV DALI_FORCEINLINE int flat_size() const {
+      return threadblock_size;
+    }
+
+    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
+      return cat(ivec<1>{threadblock_size}, ivec<axes - 1>{1});
+    }
+
+    DALI_HOST_DEV ivec<axes> log_block_dim() const {
+      return block_dim() * StaticConfigT::lanes_dim();
+    }
+
+    DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
+      return threadIdx.x;
+    }
+
+    DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
+      return cat(ivec<1>{threadIdx.x}, ivec<axes - 1>{0});
+    }
+  };
+
+  DALI_DEVICE DALI_FORCEINLINE BlockSetup operator()(int sample_idx) {
+    (void)sample_idx;
+    return {};
+  }
+};
+
+template <typename StaticConfigT_>
+struct AdaptiveBlock {
+  struct BlockSetup {
+    using StaticConfigT = StaticConfigT_;
+    static constexpr int axes = StaticConfigT::axes;
+
+    ivec<axes> extents_log2;
+    ivec<axes> strides_log2;
+
+    DALI_DEVICE DALI_FORCEINLINE int flat_size() const {
+      assert(blockDim.y == 1);
+      assert(blockDim.z == 1);
+      return blockDim.x;
+    }
+
+    DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
+      return 1 << extents_log2;
+    }
+
+    DALI_HOST_DEV ivec<axes> log_block_dim() const {
+      return block_dim() * StaticConfigT::lanes_dim();
+    }
+
+    DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
+      return threadIdx.x;
+    }
+
+    DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
+      assert(threadIdx.y == 0);
+      assert(threadIdx.z == 0);
+      return (int(threadIdx.x) >> strides_log2) & (block_dim() - 1);
+    }
+  };
+
+  DALI_DEVICE DALI_FORCEINLINE const BlockSetup& operator()(int sample_idx) {
+    return blocks[sample_idx];
+  }
+
+  const BlockSetup* blocks;
+};
+
 template <typename StaticConfigT>
 struct GridSetup {
   static constexpr int axes = StaticConfigT::axes;
@@ -891,7 +886,7 @@ struct FilterGpu {
     int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
     int block_x_log2 = std::min(total_block_log2, sample_x_log2);
     ivec2 block{block_x_log2, total_block_log2 - block_x_log2};
-    return filter::create_adaptive_block<StaticConfigT>(block);
+    return {block, {0, block.x}};
   }
 
   BlockSetupT PrepareBlockSetup(const ivec3& in_extents) {
@@ -902,7 +897,7 @@ struct FilterGpu {
     int block_y_log2 = std::min(sample_y_log2, total_block_log2 - block_x_log2);
     int block_z_log2 = total_block_log2 - block_x_log2 - block_y_log2;
     ivec3 block{block_x_log2, block_y_log2, block_z_log2};
-    return filter::create_adaptive_block<StaticConfigT>(block);
+    return {block, {0, block.x, block.x + block.y}};
   }
 
   GridSetupT PrepareGridSetup(const TensorListView<StorageGPU, Out, ndim>& out,
