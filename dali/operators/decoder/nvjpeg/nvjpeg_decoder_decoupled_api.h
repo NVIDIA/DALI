@@ -886,7 +886,7 @@ class nvJPEGDecoder : public Operator<MixedBackend>, CachedDecoderImpl {
           in_data_[k] = static_cast<unsigned char*>(tv.raw_mutable_tensor(k));
         }
       } else {
-        hw_decoder_images_staging_.Copy(tv, hw_decode_stream_);
+        hw_decoder_images_staging_.Copy(tv);
         for (size_t k = 0; k < samples_hw_batched_.size(); ++k) {
           in_data_[k] = hw_decoder_images_staging_.mutable_tensor<uint8_t>(k);
         }
