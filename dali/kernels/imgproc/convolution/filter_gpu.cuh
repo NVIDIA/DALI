@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_H_
-#define DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_H_
+#ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_CUH_
+#define DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_CUH_
 
 #include <limits>
 #include <type_traits>
@@ -527,6 +527,18 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_st
   }
 }
 
+
+/*
+Given a HWC image and RS filter, all the necessary products for computing the convolution explicitly
+can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS.
+Now, assuming a standard contiguious memory layout of the HWC image,
+if you look at any given column of the HWC x RS matrix, consecutive rows map
+to consecutive memory addresses (with the exception of positions when we cross
+H, W extents and border remapping takes place). This implementation melds the W and C extents
+to utilize this property. Additionally, the implementation that uses shared memory
+loads the inputs in blocks with extents corresponding to (D, )H, W * C extents
+to account for the fact that spatailly close products will reuse some of the inputs.
+*/
 template <typename SampleDescT, typename BlockSetupFactory, typename InLoaderFactory,
           typename GridSetupT>
 __global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory block_setup_factory,
@@ -663,7 +675,7 @@ struct AdaptiveBlock {
     DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
       assert(threadIdx.y == 0);
       assert(threadIdx.z == 0);
-      return (int(threadIdx.x) >> strides_log2) & (block_dim() - 1);
+      return (static_cast<int>(threadIdx.x) >> strides_log2) & (block_dim() - 1);
     }
   };
 
@@ -942,14 +954,14 @@ struct FilterGpu {
       BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001,
       BoundaryType::CLAMP, BoundaryType::WRAP), (
         RunKernelBorderRemap<BT>(ctx, std::move(launch_kernel));
-      ), (
+      ), (  // NOLINT
         if (border_type == BoundaryType::CONSTANT) {
           RunKernelBorderConstant(ctx, fill_values, std::move(launch_kernel));
         } else {
           DALI_FAIL(
             make_string("Unsupported border type was specified: ", to_string(border_type), "."));
         }
-      ));
+      ));  // NOLINT
   }
 
   template <boundary::BoundaryType border, typename KernelLauncher>
@@ -987,4 +999,4 @@ struct FilterGpu {
 }  // namespace kernels
 }  // namespace dali
 
-#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_H_
+#endif  // DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_CUH_
