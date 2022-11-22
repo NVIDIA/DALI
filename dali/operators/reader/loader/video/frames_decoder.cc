@@ -390,7 +390,8 @@ void FramesDecoder::Reset() {
     flush_state_ = false;
   }
 
-  int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
+  avio_flush(av_state_->ctx_->pb);
+  auto ret = avformat_flush(av_state_->ctx_);
   DALI_ENFORCE(
     ret >= 0,
     make_string(
