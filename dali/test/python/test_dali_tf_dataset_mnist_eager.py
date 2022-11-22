@@ -21,6 +21,7 @@ from nose_utils import raises
 
 tf.compat.v1.enable_eager_execution()
 
+
 def test_keras_single_gpu():
     mnist.run_keras_single_device('gpu', 0)
 
