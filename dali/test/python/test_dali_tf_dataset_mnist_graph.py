@@ -22,14 +22,17 @@ from nose_utils import raises
 mnist.tf.compat.v1.disable_eager_execution()
 
 
+@with_setup(tf.keras.backend.clear_session)
 def test_keras_single_gpu():
     mnist.run_keras_single_device('gpu', 0)
 
 
+@with_setup(tf.keras.backend.clear_session)
 def test_keras_single_other_gpu():
     mnist.run_keras_single_device('gpu', 1)
 
 
+@with_setup(tf.keras.backend.clear_session)
 def test_keras_single_cpu():
     mnist.run_keras_single_device('cpu', 0)
 
