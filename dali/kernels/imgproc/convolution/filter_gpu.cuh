@@ -545,34 +545,37 @@ __global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory 
                        InLoaderFactory in_loader_factory, GridSetupT grid_setup) {
   extern __shared__ char shm[];
   int sample_idx = grid_setup.sample_idx();
-  auto sample_desc = descs[sample_idx];
-  const auto& block_setup = block_setup_factory(sample_idx);
-  auto block_start = grid_setup.block_idx() * block_setup.log_block_dim();
-  auto process_sample = [&](const auto& out_extents, const auto& out_strides,
-                            const auto& out_frame_stride) {
-    if (any_coord(block_start >= out_extents)) {
-      return;  // early exit to avoid all the setup only to do nothing in the stride loop
-    }
-    auto grid_size = grid_setup.grid_dim() * block_setup.log_block_dim();
-    const auto& in_loader = in_loader_factory(sample_idx);
-    if (sample_desc.shape.in_workspace_extents.x) {
-      using In = typename SampleDescT::In;
-      int* precomputed_idx = reinterpret_cast<int*>(shm);
-      In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
-      auto conv =
-          create_shm_conv(sample_desc, in_loader, block_setup, in_workspace, precomputed_idx);
-      stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
+  for (int sample_idx = grid_setup.sample_idx(); sample_idx < grid_setup.num_samples();
+       sample_idx += grid_setup.sample_dim()) {
+    auto sample_desc = descs[sample_idx];
+    const auto& block_setup = block_setup_factory(sample_idx);
+    auto block_start = grid_setup.block_idx() * block_setup.log_block_dim();
+    auto process_sample = [&](const auto& out_extents, const auto& out_strides,
+                              const auto& out_frame_stride) {
+      if (any_coord(block_start >= out_extents)) {
+        return;  // early exit to avoid all the setup only to do nothing in the stride loop
+      }
+      auto grid_size = grid_setup.grid_dim() * block_setup.log_block_dim();
+      const auto& in_loader = in_loader_factory(sample_idx);
+      if (sample_desc.shape.in_workspace_extents.x) {
+        using In = typename SampleDescT::In;
+        int* precomputed_idx = reinterpret_cast<int*>(shm);
+        In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.shape.in_workspace_offset);
+        auto conv =
+            create_shm_conv(sample_desc, in_loader, block_setup, in_workspace, precomputed_idx);
+        stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
+      } else {
+        auto conv = create_direct_conv(sample_desc, in_loader, block_setup);
+        stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
+      }
+    };
+    if (sample_desc.shape.out_extents == sample_desc.shape.in_extents) {
+      process_sample(sample_desc.shape.in_extents, sample_desc.shape.in_strides,
+                     sample_desc.shape.frame_stride);
     } else {
-      auto conv = create_direct_conv(sample_desc, in_loader, block_setup);
-      stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
+      process_sample(sample_desc.shape.out_extents, sample_desc.shape.out_strides,
+                     sample_desc.shape.out_frame_stride);
     }
-  };
-  if (sample_desc.shape.out_extents == sample_desc.shape.in_extents) {
-    process_sample(sample_desc.shape.in_extents, sample_desc.shape.in_strides,
-                   sample_desc.shape.frame_stride);
-  } else {
-    process_sample(sample_desc.shape.out_extents, sample_desc.shape.out_strides,
-                   sample_desc.shape.out_frame_stride);
   }
 }
 
@@ -585,6 +588,7 @@ struct StaticConfig<2> {
   static constexpr int axes = 2;
   static constexpr int lanes = 8;
   static constexpr int max_grid_extent = 32;
+  static constexpr int max_num_samples = 32;
 
   static DALI_HOST_DEV ivec2 lanes_dim() {
     return {1, lanes};
@@ -601,6 +605,7 @@ struct StaticConfig<3> {
   static constexpr int axes = 3;
   static constexpr int lanes = 8;
   static constexpr int max_grid_extent = 16;
+  static constexpr int max_num_samples = 32;
 
   static DALI_HOST_DEV ivec3 lanes_dim() {
     return {1, 1, lanes};
@@ -708,17 +713,19 @@ struct GridSetup {
   template <int axes_ = axes>
   std::enable_if_t<axes_ == 2, dim3> kernel_setup() const {
     auto grid_dim = this->grid_dim();
+    auto grid_sample_extent = std::min(num_samples(), sample_dim());
     return {static_cast<unsigned int>(grid_dim.x), static_cast<unsigned int>(grid_dim.y),
-            static_cast<unsigned int>(num_samples())};
+            static_cast<unsigned int>(grid_sample_extent)};
   }
 
   template <int axes_ = axes>
   std::enable_if_t<axes_ == 3, dim3> kernel_setup() const {
     auto grid_dim = this->grid_dim();
     auto max_extents = StaticConfigT::max_grid_extents();
+    auto grid_sample_extent = std::min(num_samples(), sample_dim());
     return {static_cast<unsigned int>(grid_dim.x),
             static_cast<unsigned int>(grid_dim.z * max_extents.y + grid_dim.y),
-            static_cast<unsigned int>(num_samples())};
+            static_cast<unsigned int>(grid_sample_extent)};
   }
 
   DALI_DEVICE int sample_idx() const {
@@ -727,6 +734,10 @@ struct GridSetup {
 
   DALI_HOST_DEV int num_samples() const {
     return num_samples_;
+  }
+
+  DALI_HOST_DEV int sample_dim() const {
+    return StaticConfigT::max_num_samples;
   }
 
   ivec<axes> num_blocks_;
