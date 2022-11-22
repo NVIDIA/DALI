@@ -75,7 +75,7 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
 
             def sample(sample_size):
                 start = (sample_size - 1) * sample_size // 2
-                sample = np.array([start + i for i in range(sample_size)], dtype=np_dtype)
+                sample = np.arange(start, start + sample_size, dtype=np_dtype)
                 return sample, sample_to_lz4(sample)
 
             samples, deflated = list(zip(*[sample(sample_size) for sample_size in sample_sizes]))
@@ -98,7 +98,7 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
 @restrict_platform(min_compute_cap=6.0, platforms=["x86_64"])
 def test_sample_inflate():
     seed = 42
-    for batch_size in [1, 8, 64, 256, 348]:
+    for batch_size in [1, 64, 348]:
         for dtype in [np.uint8, np.int8, np.uint16, np.int32, np.float32, np.float16]:
             yield _test_sample_inflate, batch_size, dtype, seed
             seed += 1
@@ -109,7 +109,7 @@ def _test_scalar_shape(dtype, shape, layout):
     def sample_source(sample_info):
         sample_size = np.prod(shape)
         x = sample_info.idx_in_epoch + 1
-        sample = np.array([i * x for i in range(sample_size)], dtype=dtype).reshape(shape)
+        sample = np.arange(0, sample_size, dtype=dtype).reshape(shape) * x
         return sample
 
     def deflated_source(sample_info):
