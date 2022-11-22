@@ -21,7 +21,6 @@ from nose_utils import raises
 
 tf.compat.v1.enable_eager_execution()
 
-
 def test_keras_single_gpu():
     mnist.run_keras_single_device('gpu', 0)
 
@@ -41,10 +40,10 @@ def test_keras_wrong_placement_gpu():
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset('gpu', 0)
 
-    model.fit(
-        train_dataset,
-        epochs=mnist.EPOCHS,
-        steps_per_epoch=mnist.ITERATIONS)
+        model.fit(
+            train_dataset,
+            epochs=mnist.EPOCHS,
+            steps_per_epoch=mnist.ITERATIONS)
 
 
 @with_setup(skip_for_incompatible_tf)
@@ -54,10 +53,10 @@ def test_keras_wrong_placement_cpu():
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset('cpu', 0)
 
-    model.fit(
-        train_dataset,
-        epochs=mnist.EPOCHS,
-        steps_per_epoch=mnist.ITERATIONS)
+        model.fit(
+            train_dataset,
+            epochs=mnist.EPOCHS,
+            steps_per_epoch=mnist.ITERATIONS)
 
 
 @with_setup(skip_for_incompatible_tf)
