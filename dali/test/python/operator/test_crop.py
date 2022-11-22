@@ -596,3 +596,31 @@ def test_crop_arg_input(device, layout):
         expected = list(np.array(shape[i], dtype=np.int32))
         actual = [np.array(out[i].shape())[k] for k in spatial_dims]
         assert expected == actual, f"{expected} != {actual}"
+
+
+@params(*itertools.product(('cpu', 'gpu'), ('left', 'right')))
+def test_crop_bias_arg(device, bias):
+    # Checking window placement when the cropping window extent is an odd number
+    input_shape = (20, 8, 3)
+    crop = (11, 9)
+
+    @pipeline_def
+    def pipe():
+        data = fn.random.uniform(range=[0, 255], shape=input_shape, device='cpu')
+        if device == 'gpu':
+            data = data.gpu()
+        data = fn.reshape(data, layout='HWC')
+        cropped = fn.crop(data, crop=crop, out_of_bounds_policy='pad', bias=bias)
+        return data, cropped
+
+    p = pipe(batch_size=1, num_threads=1, device_id=0)
+    p.build()
+    input_data, cropped_data = p.run()
+    data = as_array(input_data[0])
+    cropped = as_array(cropped_data[0])
+    if bias == 'left':
+        # padding happens to the right of the input
+        np.testing.assert_array_equal(data[4:15, :, :], cropped[:, 0:8, :])
+    elif bias == 'right':
+        # padding happens to the left of the input
+        np.testing.assert_array_equal(data[5:16, :, :], cropped[:, 1:9, :])
