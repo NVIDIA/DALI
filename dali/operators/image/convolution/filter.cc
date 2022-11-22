@@ -29,7 +29,7 @@ DALI_SCHEMA(experimental__Filter)
 
 The operator requires two positional arguments: the batch of samples and the batch of filters.
 
-Sample can be a 2D images, video or volumetric (3D) sample.
+Sample can be a 2D image, video or volumetric (3D) sample.
 Samples can contain channels: channels-first and channels-last layouts are supported.
 
 For images and video, a filter must be a 2D array of filter coefficients or a sequence
@@ -84,7 +84,6 @@ Supported values are: "full" and "valid".
 )code",
                     "full")
     .AddOptionalTypeArg("dtype", R"code(Output data type.
-Supported type: `FLOAT`. If not set, the input type is used.)code")
-    .InputLayout(0, {"FHWC", "FCHW", "FHW", "DHWC", "CDHW", "DHW", "HWC", "CHW", "HW"});
+Supported type: `FLOAT`. If not set, the input type is used.)code");
 
 }  // namespace dali

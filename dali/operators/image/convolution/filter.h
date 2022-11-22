@@ -69,7 +69,7 @@ inline InputLayoutDesc parse_validate_input_layout(const TensorLayout& layout, i
                     " dimensions. However, only 2D and 3D convolutions are supported. If the input "
                     "has non-spatial dimensions, such as channels or frames (for video sequences), "
                     "please make sure the input batch has a proper layout set."));
-    return {false, ndim, false};
+    return {0, ndim, false};
   }
   auto layout_desc = parse_input_layout(layout);
   DALI_ENFORCE(
