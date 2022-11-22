@@ -112,7 +112,7 @@ def train_ctl(model_func, params):
     summary_writer = None
 
   if precision == 'fp16':
-    if tf.__version__ >= "2.4.0":
+    if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
       policy = keras.mixed_precision.Policy('mixed_float16')
       keras.mixed_precision.set_global_policy(policy)
     else:
