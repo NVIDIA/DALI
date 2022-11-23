@@ -449,8 +449,8 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(const ivec2
     for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
       if (coords.y < out_extents.y) {
         cb(coords, lane);
+        coords.y += block_dim.y;
       }
-      coords.y += block_dim.y;
     }
   }
 }
@@ -468,8 +468,8 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(const ivec3
     for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
       if (coords.z < out_extents.z) {
         cb(coords, lane);
+        coords.z += block_dim.z;
       }
-      coords.z += block_dim.z;
     }
   }
 }
@@ -529,15 +529,14 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_st
 
 
 /*
-Given a HWC image and RS filter, all the necessary products for computing the convolution explicitly
-can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS.
-Now, assuming a standard contiguious memory layout of the HWC image,
-if you look at any given column of the HWC x RS matrix, consecutive rows map
-to consecutive memory addresses (with the exception of positions when we cross
-H, W extents and border remapping takes place). This implementation melds the W and C extents
-to utilize this property. Additionally, the implementation that uses shared memory
-loads the inputs in blocks with extents corresponding to (D, )H, W * C extents
-to account for the fact that spatailly close products will reuse some of the inputs.
+Given a HWC image and RS filter, all the necessary products for computing the convolution
+explicitly can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS. Now,
+assuming a standard contiguious memory layout of the HWC image, if you look at any given column of
+the HWC x RS matrix, consecutive rows map to consecutive memory addresses (with the exception of
+positions when we cross H, W extents and border remapping takes place). This implementation melds
+the W and C extents to utilize this property. Additionally, the implementation that uses shared
+memory loads the inputs in blocks with extents corresponding to (D, )H, W * C extents to account
+for the fact that spatailly close products will reuse some of the inputs.
 */
 template <typename SampleDescT, typename BlockSetupFactory, typename InLoaderFactory,
           typename GridSetupT>
@@ -579,13 +578,25 @@ __global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory 
   }
 }
 
+/*
+* The ``lanes`` paramter makes impact on the perf in three different ways:
+* 1. It reduces overhead of the for loops arithmetic when iterating over the filter extents:
+*    We do not know the filter extents in compile time so those loops cannot be unrolled.
+     However, using ``lanes`` we can compute multiple (i.e. exactly ``lane``) products
+     in a single pass of the filter loops, which amortises the overhead.
+  2. It increases the logical block size and workspace size in the shm variant,
+     which allows for reusing of input values that lie close to each other (i.e., in given extent
+the distance is less than the corresponding extent of the filter).
+  3. It also can deteriorate the perf: point 1 by increasing the registers
+     pressure, point 2 by increasing the shm consumption.
+*/
 template <int axes>
 struct StaticConfig {};
 
 template <>
 struct StaticConfig<2> {
-  static constexpr int threadblock_size = 128;
   static constexpr int axes = 2;
+  static constexpr int threadblock_size = 128;
   static constexpr int lanes = 8;
   static constexpr int max_grid_extent = 32;
   static constexpr int max_num_samples = 32;
@@ -601,8 +612,8 @@ struct StaticConfig<2> {
 
 template <>
 struct StaticConfig<3> {
-  static constexpr int threadblock_size = 128;
   static constexpr int axes = 3;
+  static constexpr int threadblock_size = 128;
   static constexpr int lanes = 8;
   static constexpr int max_grid_extent = 16;
   static constexpr int max_num_samples = 32;
