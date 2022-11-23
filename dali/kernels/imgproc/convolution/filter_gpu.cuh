@@ -82,7 +82,11 @@ struct ShapeDesc {
   ivec<axes> in_workspace_strides;
   // the sum of all but first in_workspace_extents
   int in_workspace_offset;
+  // the size of a logical block: threablock and lanes
   ivec<axes> log_block_extents;
+  // axis to iterate over with lanes
+  // if axes == 2 then must be 1 (i.e. height),
+  // for volumetric input it may be depth or height
   int lanes_axis;
 };
 
