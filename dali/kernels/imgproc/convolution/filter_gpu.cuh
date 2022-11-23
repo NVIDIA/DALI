@@ -397,32 +397,30 @@ struct DirectInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
                                             const ivec3& start) const {
+    constexpr int non_lanes_axis = lanes_axis == 1 ? 2 : 1;
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
     const auto& filter_extents = sample_desc.shape.filter_extents;
     const auto in_coords = start - sample_desc.shape.anchor_shift + thread_idx;
     const auto* filter = sample_desc.filter;
-    ivec3 coords;
     for (int s = 0; s < filter_extents.x; s++) {
-      coords.x = in_loader.border_remap_innermost(in_coords.x + s * sample_desc.shape.num_channels,
-                                                  sample_desc.shape);
-      for (int r = 0; r < filter_extents.y; r++) {
-        if (lanes_axis != 1) {
-          coords.y = in_loader.border_remap(in_coords.y + r, sample_desc.shape, 1);
-        }
-        for (int p = 0; p < filter_extents.z; p++) {
-          if (lanes_axis != 2) {
-            coords.z = in_loader.border_remap(in_coords.z + p, sample_desc.shape, 2);
-          }
-          ivec3 filter_pos{s, r, p};
+      int global_x = in_loader.border_remap_innermost(
+          in_coords.x + s * sample_desc.shape.num_channels, sample_desc.shape);
+      for (int i = 0; i < filter_extents[non_lanes_axis]; i++) {
+        int global_non_lanes_axis = in_loader.border_remap(in_coords[non_lanes_axis] + i,
+                                                           sample_desc.shape, non_lanes_axis);
+        for (int j = 0; j < filter_extents[lanes_axis]; j++) {
+          ivec3 filter_pos{s, lanes_axis == 1 ? j : i, lanes_axis == 1 ? i : j};
           auto filter_coef = __ldg(filter + dot(filter_pos, sample_desc.shape.filter_strides));
+          int lanes_axis_pos = in_coords[lanes_axis] + j;
           // Even without shm, using `lanes` speeds up the kernel by reducing
           // the cost of nested loops arithmetic per single output value
 #pragma unroll
           for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
-            coords[lanes_axis] = in_loader.border_remap(
-                in_coords[lanes_axis] + filter_pos[lanes_axis] + lane * block_dim[lanes_axis],
-                sample_desc.shape, lanes_axis);
+            int global_lanes_axis = in_loader.border_remap(
+                lanes_axis_pos + lane * block_dim[lanes_axis], sample_desc.shape, lanes_axis);
+            ivec3 coords{global_x, lanes_axis == 1 ? global_lanes_axis : global_non_lanes_axis,
+                         lanes_axis == 1 ? global_non_lanes_axis : global_lanes_axis};
             auto in_val = in_loader.load(in, coords, sample_desc.shape);
             acc[lane] += in_val * filter_coef;
           }
