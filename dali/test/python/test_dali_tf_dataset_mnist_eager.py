@@ -41,10 +41,10 @@ def test_keras_wrong_placement_gpu():
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset('gpu', 0)
 
-    model.fit(
-        train_dataset,
-        epochs=mnist.EPOCHS,
-        steps_per_epoch=mnist.ITERATIONS)
+        model.fit(
+            train_dataset,
+            epochs=mnist.EPOCHS,
+            steps_per_epoch=mnist.ITERATIONS)
 
 
 @with_setup(skip_for_incompatible_tf)
@@ -54,10 +54,10 @@ def test_keras_wrong_placement_cpu():
         model = mnist.keras_model()
         train_dataset = mnist.get_dataset('cpu', 0)
 
-    model.fit(
-        train_dataset,
-        epochs=mnist.EPOCHS,
-        steps_per_epoch=mnist.ITERATIONS)
+        model.fit(
+            train_dataset,
+            epochs=mnist.EPOCHS,
+            steps_per_epoch=mnist.ITERATIONS)
 
 
 @with_setup(skip_for_incompatible_tf)
