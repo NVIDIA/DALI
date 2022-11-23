@@ -163,14 +163,15 @@ std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl(const OpSpec& spe
     BOOL_SWITCH(
       input_desc.num_seq_dims > 0, IsSequence, (
         BOOL_SWITCH(input_desc.has_channels, HasChannels, (
-          return std::make_unique<FilterOpGpu<Out, In, W, Axes, IsSequence, HasChannels>>(&spec_, input_desc);
+          using OpImpl = FilterOpGpu<Out, In, W, Axes, IsSequence, HasChannels>;
+          return std::make_unique<OpImpl>(&spec_, input_desc);
         ));  // NOLINT
        ));   // NOLINT
-  ), (
+  ), (   // NOLINT
     DALI_FAIL(make_string("Unsupported input data dimensionality. ",
               "Got input with ", input_desc.axes, "spatial dimensions. ",
               "Filter operator supports only 2 and 3 dimensional convolutions."));
-  ));
+  ));  // NOLINT
 }
 
 }  // namespace filter
