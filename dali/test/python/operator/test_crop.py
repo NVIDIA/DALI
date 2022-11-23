@@ -598,8 +598,8 @@ def test_crop_arg_input(device, layout):
         assert expected == actual, f"{expected} != {actual}"
 
 
-@params(*itertools.product(('cpu', 'gpu'), ('left', 'right')))
-def test_crop_bias_arg(device, bias):
+@params(*itertools.product(('cpu', 'gpu'), ('round', 'truncate')))
+def test_crop_rounding(device, rounding):
     # Checking window placement when the cropping window extent is an odd number
     input_shape = (20, 8, 3)
     crop = (11, 9)
@@ -610,7 +610,7 @@ def test_crop_bias_arg(device, bias):
         if device == 'gpu':
             data = data.gpu()
         data = fn.reshape(data, layout='HWC')
-        cropped = fn.crop(data, crop=crop, out_of_bounds_policy='pad', bias=bias)
+        cropped = fn.crop(data, crop=crop, out_of_bounds_policy='pad', rounding=rounding)
         return data, cropped
 
     p = pipe(batch_size=1, num_threads=1, device_id=0)
@@ -618,9 +618,9 @@ def test_crop_bias_arg(device, bias):
     input_data, cropped_data = p.run()
     data = as_array(input_data[0])
     cropped = as_array(cropped_data[0])
-    if bias == 'left':
+    if rounding == 'truncate':
         # padding happens to the right of the input
         np.testing.assert_array_equal(data[4:15, :, :], cropped[:, 0:8, :])
-    elif bias == 'right':
+    elif rounding == 'round':
         # padding happens to the left of the input
         np.testing.assert_array_equal(data[5:16, :, :], cropped[:, 1:9, :])

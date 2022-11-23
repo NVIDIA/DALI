@@ -31,28 +31,31 @@ Providing crop argument is incompatible with providing separate arguments such a
         "crop_pos_x", R"code(Normalized (0.0 - 1.0) horizontal position of the cropping window
 (upper left corner).
 
-The actual position is calculated as ``crop_x = crop_x_norm * (W - crop_W)``, where
-``crop_x_norm`` is the normalized position, ``W`` is the width of the image, and ``crop_W`` is the
-width of the cropping window. See ``bias`` argument, for more details on the how ``crop_x`` is
-converted to an integral value.)code",
+The actual position is calculated as ``crop_x = crop_x_norm * (W - crop_W)``, where `crop_x_norm`
+is the normalized position, ``W`` is the width of the image, and ``crop_W`` is the width of the
+cropping window.
+
+See ``rounding`` argument for more details on how ``crop_x`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
          "crop_pos_y", R"code(Normalized (0.0 - 1.0) vertical position of the start of
 the cropping window (typically, the upper left corner).
 
-The actual position is calculated as ``crop_y = round_fn(crop_y_norm * (H - crop_H))``, where
-``crop_y_norm`` is the normalized position, `H` is the height of the image, and ``crop_H`` is the
-height of the cropping window. See ``bias`` argument, for more details on the how ``crop_y`` is
-converted to an integral value.)code",
+The actual position is calculated as ``crop_y = crop_y_norm * (H - crop_H)``, where ``crop_y_norm``
+is the normalized position, `H` is the height of the image, and ``crop_H`` is the height of the
+cropping window.
+
+See ``rounding`` argument for more details on how ``crop_y`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
         "crop_pos_z", R"code(Applies **only** to volumetric inputs.
 
 Normalized (0.0 - 1.0) normal position of the cropping window (front plane).
-The actual position is calculated as ``crop_z = round_fn(crop_z_norm * (D - crop_D))``, where
-``crop_z_norm`` is the normalized position, ``D`` is the depth of the image and ``crop_D`` is the
-depth of the cropping window. See ``bias`` argument, for more details on the how ``crop_z`` is
-converted to an integral value.)code",
+The actual position is calculated as ``crop_z = crop_z_norm * (D - crop_D)``, where ``crop_z_norm``
+is the normalized position, ``D`` is the depth of the image and ``crop_D`` is the depth of the
+cropping window.
+
+See ``rounding`` argument for more details on how ``crop_z`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
         "crop_w", R"code(Cropping window width (in pixels).
@@ -74,17 +77,14 @@ for ``crop_w``, ``crop_h``, and ``crop_d`` is incompatible with providing the fi
 window dimensions (argument `crop`).)code",
         0.0f, true)
     .AddOptionalArg(
-        "bias", R"code(Determines the window placement when an extent is an odd number.
+        "rounding", R"code(Determines the rounding function used to convert the starting coordinate
+of the window to an integral value (see ``crop_pos_x``, ``crop_pos_y``, ``crop_pos_z``).
 
 Possible values are:
 
-* | ``"right"`` - The placement of the cropping window is biased towards the right.
-  | This approach uses both ``round`` for both positive and negative numbers when converting the anchor
-    value to an integral number
-* | ``"left"`` - The placement of the cropping window is biased towards the left.
-  | This approach converts values to an integral number using ``floor`` for positive numbers
-    and ``ceil`` for negative numbers.)code",
-        "right");
+* | ``"round"`` - Rounds to the nearest integer value, with halfway cases rounded away from zero.
+* | ``"truncate"`` - Discards the fractional part of the number (truncates towards zero).)code",
+        "round");
 
 CropAttr::CropAttr(const OpSpec& spec) {
   auto max_batch_size = spec.GetArgument<int>("max_batch_size");
@@ -126,19 +126,18 @@ CropAttr::CropAttr(const OpSpec& spec) {
   crop_z_norm_.resize(max_batch_size, 0.0f);
   crop_window_generators_.resize(max_batch_size, {});
 
-  auto bias = spec.GetArgument<std::string>("bias");
-  if (bias == "right") {
+  auto rounding = spec.GetArgument<std::string>("rounding");
+  if (rounding == "round") {
     round_fn_ = [](float x) {
       return std::roundf(x);
     };
-  } else if (bias == "left") {
+  } else if (rounding == "truncate") {
     round_fn_ = [](float x) {
-      return x < 0 ? ceilf(x) : floorf(x);
+      return static_cast<int>(x);
     };
   } else {
-    DALI_FAIL(
-        make_string("``bias`` value ", bias,
-                    " is not supported. Supported values are \"left\", or \"right\"."));
+    DALI_FAIL(make_string("``rounding`` value ", rounding,
+                          " is not supported. Supported values are \"round\", or \"truncate\"."));
   }
 }
 
