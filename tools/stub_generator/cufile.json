@@ -1,8 +1,6 @@
 {
    "extra_include":[
       "<cufile.h>",
-      "<stdio.h>",
-      "<assert.h>",
       "\"dali/core/dynlink_cufile.inl\""
    ],
    "return_type":"CUfileError_t",
