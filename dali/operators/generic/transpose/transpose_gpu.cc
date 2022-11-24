@@ -40,7 +40,7 @@ class TransposeGPU : public Transpose<GPUBackend> {
   bool SetupImpl(vector<OutputDesc> &descs, const Workspace &ws) override {
     Transpose<GPUBackend>::SetupImpl(descs, ws);
     const auto &input = ws.Input<GPUBackend>(0);
-    const auto& shape = input.shape();
+    const auto &shape = input.shape();
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
     kmgr_.Setup<Kernel>(0, ctx, shape, make_cspan(perm_), input.type_info().size());

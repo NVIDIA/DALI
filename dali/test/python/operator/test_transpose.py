@@ -21,6 +21,7 @@ import itertools
 from nose2.tools import params
 import numpy as np
 
+
 def transpose_func(image, permutation=(1, 0, 2)):
     return image.transpose(permutation)
 
@@ -138,6 +139,7 @@ def test_transpose_layout():
                      ((1, 0, 2), None, None, "ABC")]:
                     yield check_transpose_layout, device, batch_size, shape, \
                         in_layout, permutation, transpose_layout, out_layout_arg
+
 
 @params(*itertools.product(('cpu', 'gpu'), ((10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3))))
 def test_transpose_default(device, shape):

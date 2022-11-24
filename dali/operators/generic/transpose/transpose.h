@@ -84,8 +84,8 @@ class Transpose : public Operator<Backend> {
 
     if (default_perm_ && static_cast<int>(perm_.size()) != ndim) {
       perm_.resize(ndim);
-      std::iota(perm_.begin(), perm_.end(), 0);
-      std::reverse(perm_.begin(), perm_.end());
+      for (int i = 0; i < ndim; i++)
+        perm_[i] = ndim - 1 - i;
     }
 
     SetOutputLayout(input);
