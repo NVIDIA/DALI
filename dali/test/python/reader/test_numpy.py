@@ -31,7 +31,7 @@ if not os.path.isdir(gds_data_root):
     gds_data_root = os.getcwd() + "/scratch/"
     if not os.path.isdir(gds_data_root):
         os.mkdir(gds_data_root)
-        assert(os.path.isdir(gds_data_root))
+        assert os.path.isdir(gds_data_root)
 
 
 # GDS beta is supported only on x86_64 and compute cap 6.0 >=0
