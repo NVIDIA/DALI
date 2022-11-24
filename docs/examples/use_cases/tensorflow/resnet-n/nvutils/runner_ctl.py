@@ -17,6 +17,7 @@
 from builtins import range
 from nvutils import image_processing
 from nvutils import common
+from distutils.version import StrictVersion
 
 import tensorflow as tf
 import tensorflow.keras as keras
@@ -33,8 +34,8 @@ from tensorflow.python.keras.optimizer_v2 import (gradient_descent as
                                                   gradient_descent_v2)
 from tensorflow.python.keras import backend
 print(tf.__version__)
-if tf.__version__ > "2.1.0":
-  if tf.__version__ >= "2.4.0":
+if StrictVersion(tf.__version__) > StrictVersion("2.1.0"):
+  if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
     from tensorflow.python.keras.mixed_precision import device_compatibility_check
   else:
     from tensorflow.python.keras.mixed_precision.experimental import device_compatibility_check
@@ -111,7 +112,7 @@ def train_ctl(model_func, params):
     summary_writer = None
 
   if precision == 'fp16':
-    if tf.__version__ >= "2.4.0":
+    if StrictVersion(tf.__version__) >= StrictVersion("2.4.0"):
       policy = keras.mixed_precision.Policy('mixed_float16')
       keras.mixed_precision.set_global_policy(policy)
     else:
