@@ -17,9 +17,9 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nose.tools import nottest
 from nvidia.dali import pipeline_def
-
 from test_utils import np_type_to_dali
-
+import itertools
+from nose2.tools import params
 
 def ref_cast(x, dtype):
     if np.issubdtype(dtype, np.integer):
@@ -177,3 +177,17 @@ def test_operator_cast_empty_volumes():
                 ]:
                     yield (_test_operator_cast, ndim, batch_size, in_type, out_type, device,
                            empty_volume_policy)
+
+
+@params(*itertools.product(('cpu', 'gpu'), (np.uint8, np.int32, np.float32), (np.uint8, np.int32, np.float32)))
+def test_cast_like(device, dtype_in, dtype_out):
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def cast_pipe():
+        data0 = fn.random.uniform(range=[0, 255], dtype=np_type_to_dali(dtype_in), device=device)
+        data1 = fn.random.uniform(range=[0, 255], dtype=np_type_to_dali(dtype_out), device=device)
+        return fn.cast_like(data0, data1)
+    p = cast_pipe()
+    p.build()
+    out, = p.run()
+    expected_type = np_type_to_dali(dtype_out)
+    assert out.dtype == expected_type, f"{out.dtype} != {expected_type}"

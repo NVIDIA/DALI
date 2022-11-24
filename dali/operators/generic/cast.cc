@@ -44,11 +44,10 @@ void CastCPU::RunImpl(Workspace &ws) {
   output.SetLayout(input.GetLayout());
 
   auto num_samples = input_shape.num_samples();
-  DALIDataType itype = input.type();
 
   auto &tp = ws.GetThreadPool();
-  TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
-    TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
+  TYPE_SWITCH(output.type(), type2id, OType, CAST_ALLOWED_TYPES, (
+    TYPE_SWITCH(input.type(), type2id, IType, CAST_ALLOWED_TYPES, (
 
       for (int sample_id = 0; sample_id < num_samples; sample_id++) {
         auto *out = output.mutable_tensor<OType>(sample_id);
@@ -58,12 +57,13 @@ void CastCPU::RunImpl(Workspace &ws) {
                    size);
       }
 
-    ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
-  ), DALI_FAIL(make_string("Invalid output type", output_type_)););  // NOLINT(whitespace/parens)
+    ), DALI_FAIL(make_string("Invalid input type: ", input.type())););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Invalid output type", output.type())););  // NOLINT(whitespace/parens)
   tp.RunAll();
 }
 
 DALI_REGISTER_OPERATOR(Cast, CastCPU, CPU);
+DALI_REGISTER_OPERATOR(CastLike, CastCPU, CPU);
 
 DALI_SCHEMA(Cast)
     .DocStr("Cast tensor to a different type.")
@@ -72,5 +72,12 @@ DALI_SCHEMA(Cast)
     .AllowSequences()
     .SupportVolumetric()
     .AddTypeArg("dtype", R"code(Output data type.)code");
+
+DALI_SCHEMA(CastLike)
+    .DocStr("Cast tensor to the type of another tensor.")
+    .NumInput(2)
+    .NumOutput(1)
+    .AllowSequences()
+    .SupportVolumetric();
 
 }  // namespace dali
