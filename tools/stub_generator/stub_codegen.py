@@ -1,5 +1,5 @@
 # Copyright 2020 The TensorFlow Runtime Authors
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,12 @@ from __future__ import print_function
 import argparse
 import json
 import clang.cindex
+
+
+def function_header(return_type, name, args):
+    arg_str = ", ".join([f"{arg_type} {arg_name}" for arg_type, arg_name in args])
+    ret = f"{return_type} {name}({arg_str})"
+    return ret
 
 
 def main():
@@ -89,28 +95,29 @@ void *{0}LoadSymbol(const char *name);
         if cursor.kind != clang.cindex.CursorKind.FUNCTION_DECL:
             continue
 
+        function_name = cursor.spelling
+
         # make sure that we deal  only with functions with no definition
-        if cursor.spelling not in config['functions'] or cursor.spelling in all_definition or \
-           cursor.spelling not in all_declaration:
+        if function_name not in config['functions'] or function_name in all_definition or \
+           function_name not in all_declaration:
             continue
 
         # make sure that we deal with every function only once
-        all_declaration.remove(cursor.spelling)
-
-        with open(cursor.location.file.name, 'r', encoding='latin-1') as file:
-            start = cursor.extent.start.offset
-            end = cursor.extent.end.offset
-            declaration = file.read()[start:end]
+        all_declaration.remove(function_name)
 
         arg_types = [arg.type.spelling for arg in cursor.get_arguments()]
         arg_names = [arg.spelling for arg in cursor.get_arguments()]
-        return_type = config['functions'][cursor.spelling].get(
+
+        return_type = config['functions'][function_name].get(
             'return_type', config['return_type'])
-        not_found_error = config['functions'][cursor.spelling].get(
+        not_found_error = config['functions'][function_name].get(
             'not_found_error', config['not_found_error'])
-        implementation = function_impl.format(declaration, cursor.spelling, ', '.join(arg_types),
+
+        header = function_header(return_type, function_name, zip(arg_types, arg_names))
+
+        implementation = function_impl.format(header, function_name, ', '.join(arg_types),
                                               ', '.join(arg_names), return_type=return_type,
-                                              not_found_error=not_found_error,)
+                                              not_found_error=not_found_error)
 
         args.output.write(implementation)
 

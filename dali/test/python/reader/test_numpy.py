@@ -25,9 +25,14 @@ from nose_utils import assert_raises
 from nose2.tools import params
 from test_utils import compare_pipelines, to_array
 
+
 gds_data_root = '/scratch/'
 if not os.path.isdir(gds_data_root):
-    gds_data_root = os.getcwd() + "/"
+    gds_data_root = os.getcwd() + "/scratch/"
+    if not os.path.isdir(gds_data_root):
+        os.mkdir(gds_data_root)
+        assert(os.path.isdir(gds_data_root))
+
 
 # GDS beta is supported only on x86_64 and compute cap 6.0 >=0
 is_gds_supported_var = None
@@ -147,18 +152,20 @@ def _testimpl_types_and_shapes(device, shapes, type, batch_size, num_threads, fo
                                    batch_size=batch_size,
                                    num_threads=num_threads,
                                    device_id=0)
-        pipe.build()
-
-        i = 0
-        while i < nsamples:
-            pipe_out = pipe.run()
-            for s in range(batch_size):
-                if i == nsamples:
-                    break
-                pipe_arr = to_array(pipe_out[0][s])
-                ref_arr = arrays[i]
-                assert_array_equal(pipe_arr, ref_arr)
-                i += 1
+        try:
+            pipe.build()
+            i = 0
+            while i < nsamples:
+                pipe_out = pipe.run()
+                for s in range(batch_size):
+                    if i == nsamples:
+                        break
+                    pipe_arr = to_array(pipe_out[0][s])
+                    ref_arr = arrays[i]
+                    assert_array_equal(pipe_arr, ref_arr)
+                    i += 1
+        finally:
+            del pipe
 
 
 def test_types_and_shapes():
@@ -209,12 +216,14 @@ def test_cache_headers():
 def check_dim_mismatch(device, test_data_root, names):
     pipe = Pipeline(2, 2, 0)
     pipe.set_outputs(fn.readers.numpy(device=device, file_root=test_data_root, files=names))
-    pipe.build()
     err = None
     try:
+        pipe.build()
         pipe.run()
     except RuntimeError as thrown:
         err = thrown
+    finally:
+        del pipe
     # asserts should not be in except block to avoid printing nested exception on failure
     assert err, "Exception not thrown"
     assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
@@ -232,15 +241,17 @@ def test_dim_mismatch():
 
 
 def check_type_mismatch(device, test_data_root, names):
+    err = None
     pipe = Pipeline(2, 2, 0)
     pipe.set_outputs(fn.readers.numpy(device=device, file_root=test_data_root, files=names))
-    pipe.build()
 
-    err = None
     try:
+        pipe.build()
         pipe.run()
     except RuntimeError as thrown:
         err = thrown
+    finally:
+        del pipe
     # asserts should not be in except block to avoid printing nested exception on failure
     assert err, "Exception not thrown"
     assert "Inconsistent data" in str(err), "Unexpected error message: {}".format(err)
@@ -279,7 +290,11 @@ def check_numpy_reader_alias(test_data_root, device):
                                     path=test_data_root,
                                     device=device,
                                     file_filter="test_*.npy")
-    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+    try:
+        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
+    finally:
+        del new_pipe
+        del legacy_pipe
 
 
 def test_numpy_reader_alias():
@@ -351,12 +366,15 @@ def _testimpl_numpy_reader_roi(file_root, batch_size, ndim, dtype, device, fortr
         rel_roi_shape=rel_roi_shape, roi_axes=roi_axes, default_axes=default_axes,
         out_of_bounds_policy=out_of_bounds_policy, fill_value=fill_value, batch_size=batch_size)
 
-    pipe.build()
-    roi_out, sliced_out = pipe.run()
-    for i in range(batch_size):
-        roi_arr = to_array(roi_out[i])
-        sliced_arr = to_array(sliced_out[i])
-        assert_array_equal(roi_arr, sliced_arr)
+    try:
+        pipe.build()
+        roi_out, sliced_out = pipe.run()
+        for i in range(batch_size):
+            roi_arr = to_array(roi_out[i])
+            sliced_arr = to_array(sliced_out[i])
+            assert_array_equal(roi_arr, sliced_arr)
+    finally:
+        del pipe
 
 
 def _testimpl_numpy_reader_roi_empty_axes(testcase_name, file_root, batch_size, ndim, dtype, device,
@@ -386,8 +404,11 @@ def _testimpl_numpy_reader_roi_empty_axes(testcase_name, file_root, batch_size, 
         return data0, data1
 
     p = pipe()
-    p.build()
-    data0, data1 = p.run()
+    try:
+        p.build()
+        data0, data1 = p.run()
+    finally:
+        del p
     for i in range(batch_size):
         arr = to_array(data0[i])
         roi_arr = to_array(data1[i])
@@ -421,16 +442,19 @@ def _testimpl_numpy_reader_roi_empty_range(testcase_name, file_root, batch_size,
         return data0, data1
 
     p = pipe()
-    p.build()
-    data0, data1 = p.run()
-    for i in range(batch_size):
-        arr = to_array(data0[i])
-        roi_arr = to_array(data1[i])
-        for d in range(len(arr.shape)):
-            if d == 1:
-                assert roi_arr.shape[d] == 0
-            else:
-                assert roi_arr.shape[d] == arr.shape[d]
+    try:
+        p.build()
+        data0, data1 = p.run()
+        for i in range(batch_size):
+            arr = to_array(data0[i])
+            roi_arr = to_array(data1[i])
+            for d in range(len(arr.shape)):
+                if d == 1:
+                    assert roi_arr.shape[d] == 0
+                else:
+                    assert roi_arr.shape[d] == arr.shape[d]
+    finally:
+        del p
 
 
 # roi_start, rel_roi_start, roi_end, rel_roi_end, roi_shape,
@@ -630,12 +654,15 @@ def check_pad_last_sample(device):
                                    pad_last_batch=True)
         pipe.build()
 
-        for _ in range(2):
-            pipe_out = pipe.run()
-            for i in range(batch_size):
-                pipe_arr = to_array(pipe_out[0][i])
-                ref_arr = arr_np_list[i]
-                assert_array_equal(pipe_arr, ref_arr)
+        try:
+            for _ in range(2):
+                pipe_out = pipe.run()
+                for i in range(batch_size):
+                    pipe_arr = to_array(pipe_out[0][i])
+                    ref_arr = arr_np_list[i]
+                    assert_array_equal(pipe_arr, ref_arr)
+        finally:
+            del pipe
 
 
 def test_pad_last_sample():

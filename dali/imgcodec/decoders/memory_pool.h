@@ -16,6 +16,7 @@
 #define DALI_IMGCODEC_DECODERS_MEMORY_POOL_H_
 
 #include <atomic>
+#include <array>
 #include <shared_mutex>
 #include <thread>
 #include <map>

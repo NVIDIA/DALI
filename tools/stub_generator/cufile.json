@@ -1,6 +1,9 @@
 {
    "extra_include":[
-      "<cufile.h>"
+      "<cufile.h>",
+      "<stdio.h>",
+      "<assert.h>",
+      "\"dali/core/dynlink_cufile.inl\""
    ],
    "return_type":"CUfileError_t",
    "calling_conv":"",
@@ -18,6 +21,11 @@
          "not_found_error":"-1"
       },
       "cuFileDriverOpen": {},
-      "cuFileDriverClose_v2": {}
+      "cuFileDriverClose": {},
+      "cuFileDriverClose_v2": {},
+      "cuFileUseCount": {
+         "return_type":"long",
+         "not_found_error":"-1"
+      }
    }
 }

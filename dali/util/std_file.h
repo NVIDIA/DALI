@@ -34,9 +34,7 @@ class StdFileStream : public FileStream {
   ptrdiff_t TellRead() const override;
   size_t Size() const override;
 
-  ~StdFileStream() override {
-    Close();
-  }
+  ~StdFileStream() override;
 
  private:
   FILE * fp_;

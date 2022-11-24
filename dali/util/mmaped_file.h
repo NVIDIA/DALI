@@ -36,11 +36,11 @@ class MmapedFileStream : public FileStream {
   int64 TellRead() const override;
   size_t Size() const override;
 
-  ~MmapedFileStream() override {
-    Close();
-  }
+  ~MmapedFileStream() override;
 
  private:
+  MmapedFileStream(const MmapedFileStream &) = delete;
+  MmapedFileStream(MmapedFileStream &&) = delete;
   std::shared_ptr<void> p_;
   size_t length_;
   size_t pos_;

@@ -28,6 +28,7 @@ NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
       thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "NumpyReaderGPU"),
       sg_(1 << 18),
       header_cache_(spec.GetArgument<bool>("cache_header_information")) {
+  InitDriverScope();
   prefetched_batch_tensors_.resize(prefetch_queue_depth_);
   // make the device current
   DeviceGuard g(device_id_);
@@ -41,6 +42,12 @@ NumpyReaderGPU::NumpyReaderGPU(const OpSpec& spec)
   loader_ = InitLoader<NumpyLoaderGPU>(spec, std::vector<string>(), shuffle_after_epoch);
 
   kmgr_transpose_.Resize<TransposeKernel>(1);
+}
+
+NumpyReaderGPU::~NumpyReaderGPU() {
+  // Stop the prefetch thread as it uses the thread pool from this class. So before we can
+  // destroy the thread pool make sure no one is using it anymore.
+  this->StopPrefetchThread();
 }
 
 void NumpyReaderGPU::Prefetch() {
@@ -134,6 +141,7 @@ void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
     ssize_t copy_end = file_offset + chunk_read_length;
     ssize_t chunk_copy_length = copy_end - copy_start;
     thread_pool_.AddWork([=, &load_target](int tid) {
+      assert(chunk_read_length <= static_cast<ssize_t>(staging_.chunk_size()));
       auto buffer = staging_.get_staging_buffer();
       load_target.ReadRawChunk(buffer.at(0), chunk_read_length, 0, file_offset);
       assert(dst_ptr >= base_ptr && dst_ptr + chunk_copy_length <= base_ptr + data_bytes);
