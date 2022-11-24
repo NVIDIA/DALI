@@ -20,7 +20,7 @@
 #include "dali/core/cuda_error.h"
 #include "dali/core/format.h"
 
-DLL_PUBLIC bool cuFileIsSymbolAvailable(const char *symbol);
+bool cuFileIsSymbolAvailable(const char *symbol);
 
 namespace dali {
 
