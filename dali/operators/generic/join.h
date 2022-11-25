@@ -74,7 +74,7 @@ class TensorJoin : public Operator<Backend> {
   void RunTyped(const TensorListView<Storage, T> &out, Workspace &ws, GPUBackend);
 
   void GetInputLayout(const Workspace &ws);
-  void SetupAxis();
+  void SetupAxis(int ndim);
   void SetOutputLayout(const Workspace &ws);
 
   any inputs_;

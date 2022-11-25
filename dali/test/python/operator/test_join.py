@@ -153,7 +153,7 @@ def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
         ndim = len(layout)
 
     ref_axis = layout.find(axis_name) if axis_name is not None else axis if axis is not None else 0
-    assert ref_axis >= 0
+    assert ref_axis >= -ndim and ref_axis < ndim
 
     axis_arg = None if axis_name else axis
 
@@ -181,9 +181,11 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
         ndim = len(layout)
 
     ref_axis = axis if axis is not None else 0
+    assert ref_axis >= -ndim and ref_axis <= ndim
 
     if axis_name:
-        ref_layout = layout[:axis] + axis_name + layout[axis:] if layout else axis_name
+        axis_pos = axis + ndim + 1 if axis < 0 else axis
+        ref_layout = layout[:axis_pos] + axis_name + layout[axis_pos:] if layout else axis_name
     else:
         ref_layout = ""
 
@@ -209,7 +211,7 @@ def test_cat():
         for layout, ndim in [
             (None, 0), (None, 1), ('A', 1), (None, 2), ('HW', 2), (None, 3), ('DHW', 3)
         ]:
-            for axis in range(ndim):
+            for axis in range(-ndim, ndim):
                 axis_name = layout[axis] if layout else None
                 yield _run_test_cat, num_inputs, layout, ndim, axis, axis_name
 
@@ -219,7 +221,7 @@ def test_stack():
         for layout, ndim in [
             (None, 0), (None, 1), ('A', 1), (None, 2), ('HW', 2), (None, 3), ('DHW', 3)
         ]:
-            for axis in range(ndim + 1):
+            for axis in range(-ndim, ndim + 1):
                 axis_names = [None] if layout is None and ndim > 0 else [None, 'C']
                 for axis_name in axis_names:
                     yield _run_test_stack, num_inputs, layout, ndim, axis, axis_name
