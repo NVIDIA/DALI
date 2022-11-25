@@ -128,12 +128,12 @@ CropAttr::CropAttr(const OpSpec& spec) {
 
   auto rounding = spec.GetArgument<std::string>("rounding");
   if (rounding == "round") {
-    round_fn_ = [](float x) {
-      return std::roundf(x);
+    round_fn_ = [](double x) {
+      return static_cast<int64_t>(std::round(x));
     };
   } else if (rounding == "truncate") {
-    round_fn_ = [](float x) {
-      return static_cast<int>(x);
+    round_fn_ = [](double x) {
+      return static_cast<int64_t>(x);
     };
   } else {
     DALI_FAIL(make_string("``rounding`` value ", rounding,
@@ -231,7 +231,7 @@ TensorShape<> CropAttr::CalculateAnchor(const span<float>& anchor_norm,
     DALI_ENFORCE(anchor_norm[dim] >= 0.0f && anchor_norm[dim] <= 1.0f,
                  "Anchor for dimension " + std::to_string(dim) + " (" +
                      std::to_string(anchor_norm[dim]) + ") is out of range [0.0, 1.0]");
-    float anchor_f = anchor_norm[dim] * (input_shape[dim] - crop_shape[dim]);
+    auto anchor_f = static_cast<double>(anchor_norm[dim]) * (input_shape[dim] - crop_shape[dim]);
     anchor[dim] = round_fn_(anchor_f);
   }
 
