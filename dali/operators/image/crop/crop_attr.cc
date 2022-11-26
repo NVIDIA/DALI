@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "dali/operators/image/crop/crop_attr.h"
+#include <cmath>
+#include <string>
 
 namespace dali {
 
@@ -31,23 +33,29 @@ Providing crop argument is incompatible with providing separate arguments such a
 
 The actual position is calculated as ``crop_x = crop_x_norm * (W - crop_W)``, where `crop_x_norm`
 is the normalized position, ``W`` is the width of the image, and ``crop_W`` is the width of the
-cropping window.)code",
+cropping window.
+
+See ``rounding`` argument for more details on how ``crop_x`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
          "crop_pos_y", R"code(Normalized (0.0 - 1.0) vertical position of the start of
 the cropping window (typically, the upper left corner).
 
 The actual position is calculated as ``crop_y = crop_y_norm * (H - crop_H)``, where ``crop_y_norm``
-is the normalized position, `H` is the height of the image, and ``crop_H`` is the
-height of the cropping window.)code",
+is the normalized position, `H` is the height of the image, and ``crop_H`` is the height of the
+cropping window.
+
+See ``rounding`` argument for more details on how ``crop_y`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
         "crop_pos_z", R"code(Applies **only** to volumetric inputs.
 
 Normalized (0.0 - 1.0) normal position of the cropping window (front plane).
 The actual position is calculated as ``crop_z = crop_z_norm * (D - crop_D)``, where ``crop_z_norm``
-is the normalized position, ``D`` is the depth of the image and ``crop_D`` is the depth
-of the cropping window.)code",
+is the normalized position, ``D`` is the depth of the image and ``crop_D`` is the depth of the
+cropping window.
+
+See ``rounding`` argument for more details on how ``crop_z`` is converted to an integral value.)code",
         0.5f, true)
     .AddOptionalArg(
         "crop_w", R"code(Cropping window width (in pixels).
@@ -67,7 +75,16 @@ window dimensions (argument ``crop``).)code",
 ``crop_w``, ``crop_h``, and ``crop_d`` must be specified together. Providing values
 for ``crop_w``, ``crop_h``, and ``crop_d`` is incompatible with providing the fixed crop
 window dimensions (argument `crop`).)code",
-        0.0f, true);
+        0.0f, true)
+    .AddOptionalArg(
+        "rounding", R"code(Determines the rounding function used to convert the starting coordinate
+of the window to an integral value (see ``crop_pos_x``, ``crop_pos_y``, ``crop_pos_z``).
+
+Possible values are:
+
+* | ``"round"`` - Rounds to the nearest integer value, with halfway cases rounded away from zero.
+* | ``"truncate"`` - Discards the fractional part of the number (truncates towards zero).)code",
+        "round");
 
 CropAttr::CropAttr(const OpSpec& spec) {
   auto max_batch_size = spec.GetArgument<int>("max_batch_size");
@@ -108,6 +125,20 @@ CropAttr::CropAttr(const OpSpec& spec) {
   crop_y_norm_.resize(max_batch_size, 0.0f);
   crop_z_norm_.resize(max_batch_size, 0.0f);
   crop_window_generators_.resize(max_batch_size, {});
+
+  auto rounding = spec.GetArgument<std::string>("rounding");
+  if (rounding == "round") {
+    round_fn_ = [](double x) {
+      return static_cast<int64_t>(std::round(x));
+    };
+  } else if (rounding == "truncate") {
+    round_fn_ = [](double x) {
+      return static_cast<int64_t>(x);
+    };
+  } else {
+    DALI_FAIL(make_string("``rounding`` value ", rounding,
+                          " is not supported. Supported values are \"round\", or \"truncate\"."));
+  }
 }
 
 void CropAttr::ProcessArguments(const OpSpec& spec, const ArgumentWorkspace* ws,
@@ -200,7 +231,8 @@ TensorShape<> CropAttr::CalculateAnchor(const span<float>& anchor_norm,
     DALI_ENFORCE(anchor_norm[dim] >= 0.0f && anchor_norm[dim] <= 1.0f,
                  "Anchor for dimension " + std::to_string(dim) + " (" +
                      std::to_string(anchor_norm[dim]) + ") is out of range [0.0, 1.0]");
-    anchor[dim] = std::roundf(anchor_norm[dim] * (input_shape[dim] - crop_shape[dim]));
+    auto anchor_f = static_cast<double>(anchor_norm[dim]) * (input_shape[dim] - crop_shape[dim]);
+    anchor[dim] = round_fn_(anchor_f);
   }
 
   return anchor;
