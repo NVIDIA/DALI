@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <vector>
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/common/utils.h"
+#include "dali/kernels/reduce/reduce_setup_utils.h"
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
@@ -236,13 +237,15 @@ struct ReduceBaseCPU {
 
   void InitAxes(span<const int> _axes) {
     for (int axis : _axes) {
-      if (axis < 0 || axis >= ndim()) {
-        throw std::range_error(make_string("Axis index out of range: ", axis, " not in 0..",
-                               ndim()-1));
+      if (axis < -ndim() || axis >= ndim()) {
+        throw std::range_error(
+            make_string("Axis index out of range: ", axis, " not in ", -ndim(), "..", ndim() - 1));
       }
     }
 
-    axes = _axes;
+    axes.copy_assign(_axes.begin(), _axes.end());
+    reduce_impl::CheckAxes(make_cspan(axes), ndim());
+    reduce_impl::AdjustAxes(make_span(axes), ndim());
     axis_mask = 0;
     for (int axis : axes) {
       axis_mask |= 1_u64 << axis;

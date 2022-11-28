@@ -17,7 +17,8 @@ from nvidia.dali.pipeline import Pipeline
 from nose.tools import nottest
 
 import numpy as np
-
+import random
+import itertools
 from test_utils import np_type_to_dali
 
 
@@ -41,6 +42,21 @@ class Batch:
         self._index = 0
 
 
+def get_valid_axes(ndim, positive_only=True):
+    out = [None]
+    valid_axes = [a for a in range(ndim)]
+    for naxes in range(ndim + 1):
+        candidates = itertools.combinations(valid_axes, naxes)
+        if positive_only:
+            out += candidates
+        else:
+            # Randomly choose positive or negative representation of the axis
+            for axes in candidates:
+                new_axes = tuple(random.choice([a, a - ndim]) for a in axes)
+                out.append(new_axes)
+    return out
+
+
 class Batch1D(Batch):
     def __init__(self, data_type):
         super().__init__(data_type)
@@ -54,7 +70,7 @@ class Batch1D(Batch):
             ]]
 
     def valid_axes(self):
-        return [None, (), 0]
+        return get_valid_axes(1, positive_only=False)
 
 
 class Batch2D(Batch):
@@ -70,7 +86,7 @@ class Batch2D(Batch):
             ]]
 
     def valid_axes(self):
-        return [None, (), 0, 1, (0, 1)]
+        return get_valid_axes(2, positive_only=False)
 
 
 class Batch3D(Batch):
@@ -86,7 +102,7 @@ class Batch3D(Batch):
             ]]
 
     def valid_axes(self):
-        return [None, (), 0, 1, 2, (0, 1), (0, 2), (1, 2), (0, 1, 2)]
+        return get_valid_axes(3, positive_only=False)
 
 
 class Batch3DOverflow(Batch3D):
