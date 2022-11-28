@@ -14,11 +14,12 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+from nvidia.dali import fn, pipeline_def
 import math
-from test_utils import compare_pipelines
-from test_utils import RandomDataIterator
-from test_utils import RandomlyShapedDataIterator
+from test_utils import compare_pipelines, as_array, RandomDataIterator, RandomlyShapedDataIterator
 import itertools
+from nose2.tools import params
+import numpy as np
 
 
 def transpose_func(image, permutation=(1, 0, 2)):
@@ -138,3 +139,19 @@ def test_transpose_layout():
                      ((1, 0, 2), None, None, "ABC")]:
                     yield check_transpose_layout, device, batch_size, shape, \
                         in_layout, permutation, transpose_layout, out_layout_arg
+
+
+@params(*itertools.product(('cpu', 'gpu'), ((10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3))))
+def test_transpose_default(device, shape):
+
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        data = fn.random.uniform(range=[0, 255], shape=shape, device=device)
+        ndim = len(shape) or 0
+        perm = [d-1 for d in range(ndim, 0, -1)]
+        return fn.transpose(data), fn.transpose(data, perm=perm)
+
+    p = pipe()
+    p.build()
+    out_default, out_explicit = [as_array(o[0]) for o in p.run()]
+    np.testing.assert_array_equal(out_explicit, out_default)
