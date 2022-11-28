@@ -66,7 +66,7 @@ DALI_REGISTER_OPERATOR(Cast, CastCPU, CPU);
 DALI_REGISTER_OPERATOR(CastLike, CastCPU, CPU);
 
 DALI_SCHEMA(Cast)
-    .DocStr("Cast tensor to a different type.")
+    .DocStr("Cast a tensor to a different type.")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
@@ -74,7 +74,7 @@ DALI_SCHEMA(Cast)
     .AddTypeArg("dtype", R"code(Output data type.)code");
 
 DALI_SCHEMA(CastLike)
-    .DocStr("Cast tensor to the type of another tensor.")
+    .DocStr("Cast the first tensor to the type of the second tensor.")
     .NumInput(2)
     .NumOutput(1)
     .AllowSequences()
