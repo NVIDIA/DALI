@@ -29,6 +29,11 @@ StdFileStream::StdFileStream(const std::string& path) : FileStream(path) {
   DALI_ENFORCE(fp_ != nullptr, "Could not open file " + path + ": " + std::strerror(errno));
 }
 
+StdFileStream::~StdFileStream() {
+  Close();
+}
+
+
 void StdFileStream::Close() {
   if (fp_ != nullptr) {
     std::fclose(fp_);

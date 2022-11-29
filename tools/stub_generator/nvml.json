@@ -17,8 +17,8 @@
       "nvmlDeviceClearCpuAffinity": {},
       "nvmlDeviceGetCpuAffinity": {},
       "nvmlErrorString": {
-         "return_type":"char*",
-         "not_found_error":"const_cast<char *>(\"\")"
+         "return_type":"const char*",
+         "not_found_error":"\"\""
       },
       "nvmlDeviceGetCpuAffinityWithinScope": {},
       "nvmlDeviceGetBrand": {},

@@ -25,13 +25,31 @@
 
 namespace dali {
 namespace gds {
+namespace test {
 
 struct CUFileDriverScope {
   CUFileDriverScope() {
     CUDA_CALL(cuFileDriverOpen());
   }
   ~CUFileDriverScope() {
-    CUDA_CALL(cuFileDriverClose());  // termination on exception is expected
+    // Here we're the sole owner of cuFile library - we can (and want to) call cuFileDriverClose
+    // regardless of the symbol version - but if we compiled with a newer API, then
+    // cuFileDriverClose will be redirected to cuFileDriverClose_v2, so we need to
+    // punch through that and use the old variant, if the new one is not available.
+#ifdef cuFileDriverClose
+  #pragma push_macro("cuFileDriverClose")
+  #undef cuFileDriverClose
+    if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
+      CUDA_CALL(cuFileDriverClose_v2());  // termination on exception is expected
+    } else {
+      // we've undefined cuFileDriverClose, so it's no longer redirecting to a versioned symbol
+      CUDA_CALL(cuFileDriverClose());  // termination on exception is expected
+    }
+  #pragma pop_macro("cuFileDriverClose")
+#else
+    // Compiled with the old API - just call cuFileDriverClose.
+    CUDA_CALL(cuFileDriverClose());
+#endif
   }
 };
 
@@ -170,6 +188,6 @@ TEST(GDSMem, StagingEngineBigTest) {
   });
 }
 
-
+}  // namespace test
 }  // namespace gds
 }  // namespace dali

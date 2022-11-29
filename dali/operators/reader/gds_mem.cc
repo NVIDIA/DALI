@@ -82,6 +82,8 @@ void UnregisterChunks(void *start, int chunks, size_t chunk_size) {
 // GDSRegisteredResource
 
 class GDSRegisteredResource : public mm::memory_resource<mm::memory_kind::device> {
+  cufile::CUFileDriverScope driver_scope_;
+
   void adjust_params(size_t &size, size_t &alignment) {
     if (alignment < chunk_size_) {
       // Both chunk size and alignment are powers of 2, so if chunk_size_ is larger than
