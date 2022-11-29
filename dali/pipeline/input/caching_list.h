@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_CACHING_LIST_H
-#define DALI_CACHING_LIST_H
+#ifndef DALI_PIPELINE_INPUT_CACHING_LIST_H_
+#define DALI_PIPELINE_INPUT_CACHING_LIST_H_
 
 #include <list>
 #include <memory>
@@ -41,18 +41,21 @@ namespace dali {
  * Use PeekProphet() and AdvanceProphet() to control the prophet.
  * In case there's an illegal access to the list, std::out_of_range will be thrown.
  */
-template <typename T>
+template<typename T>
 class CachingList {
  public:
   CachingList() : prophet_(full_data_.end()) {}
+
 
   bool IsEmpty() const {
     return full_data_.empty();
   }
 
+
   const T &PeekFront() {
     return full_data_.front();
   }
+
 
   std::list<T> PopFront() {
     assert(!full_data_.empty());  // Can't pop from an empty list
@@ -61,9 +64,11 @@ class CachingList {
     return tmp;
   }
 
+
   void Recycle(std::list<T> &elm) {
     empty_data_.splice(empty_data_.end(), elm, elm.begin());
   }
+
 
   std::list<T> GetEmpty() {
     std::list<T> tmp;
@@ -74,6 +79,7 @@ class CachingList {
     }
     return tmp;
   }
+
 
   void PushBack(std::list<T> &elm) {
     full_data_.splice(full_data_.end(), elm, elm.begin());
@@ -95,22 +101,25 @@ class CachingList {
     }
   }
 
+
   const T &PeekProphet() {
     if (prophet_ == full_data_.end())
       throw std::out_of_range(
-              "Attempted to peek element that doesn't exist. Add more elements to CachingList before "
-              "calling PeekProphet. Even the prophet can't see outside the event horizon.");
+              "Attempted to peek element that doesn't exist. Add more elements to CachingList "
+              "before calling PeekProphet. Even the prophet can't see outside the event horizon.");
     return *prophet_;
   }
+
 
   void AdvanceProphet() {
     if (prophet_ == full_data_.end())
       throw std::out_of_range(
-              "Attempted to step over the last element in the list. This operation is forbidden. Add "
-              "more elements to CachingList before calling AdvanceProphet.");
+              "Attempted to step over the last element in the list. This operation is forbidden. "
+              "Add more elements to CachingList before calling AdvanceProphet.");
     apprentice_ = prophet_++;
     resurrect_prophet_ = prophet_ == full_data_.end();
   }
+
 
  private:
   std::list<T> full_data_;
@@ -132,6 +141,6 @@ class CachingList {
   typename std::list<T>::iterator prophet_, apprentice_;
 };
 
-}
+}  // namespace dali
 
-#endif //DALI_CACHING_LIST_H
+#endif  // DALI_PIPELINE_INPUT_CACHING_LIST_H_

@@ -81,4 +81,4 @@ TEST(CachingListTest, ProphetTest) {
   ASSERT_THROW(cl.PeekProphet(), std::out_of_range);
   ASSERT_THROW(cl.AdvanceProphet(), std::out_of_range);
 }
-}
+}  // namespace dali::test

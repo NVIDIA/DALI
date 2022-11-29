@@ -309,7 +309,8 @@ class ExternalSource : public InputOperator<Backend>, virtual public BatchSizePr
     if (actual_no_copy) {
       this->ShareUserData(batch, order, ext_src_setting_mode.use_copy_kernel);
     } else {
-      this->CopyUserData(batch, order, ext_src_setting_mode.sync, ext_src_setting_mode.use_copy_kernel);
+      this->CopyUserData(batch, order, ext_src_setting_mode.sync,
+                         ext_src_setting_mode.use_copy_kernel);
     }
     cv_.notify_one();
   }

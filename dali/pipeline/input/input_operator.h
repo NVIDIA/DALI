@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_INPUT_OPERATOR_H
-#define DALI_INPUT_OPERATOR_H
+#ifndef DALI_PIPELINE_INPUT_INPUT_OPERATOR_H_
+#define DALI_PIPELINE_INPUT_INPUT_OPERATOR_H_
 
+#include <list>
+#include <memory>
 #include "dali/core/common.h"
 #include "dali/core/cuda_event.h"
 #include "dali/pipeline/input/caching_list.h"
@@ -158,9 +160,10 @@ class InputOperator : public Operator<Backend> {
       tl_elm.front()->Reset();
       tl_elm.front()->set_pinned(batch.is_pinned());
     }
-    AccessOrder copy_order = std::is_same<SrcBackend, CPUBackend>::value
-                             ? AccessOrder::host()  // do not use a device order for a host to host copy
-                             : order;
+    AccessOrder copy_order =
+            std::is_same<SrcBackend, CPUBackend>::value
+            ? AccessOrder::host()  // do not use a device order for a host to host copy
+            : order;
     tl_elm.front()->Copy(batch, copy_order);
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -247,10 +250,6 @@ class InputOperator : public Operator<Backend> {
   CachingList<uptr_cuda_event_type> copy_to_storage_events_;
 
 
-
-
-
-
   /**
    * Indicates that user provide noncontiguous GPU input with zero copy option so DALI needs
    * to create an internal copy, it is used to raise a warning when the user mixes contiguous and
@@ -263,6 +262,6 @@ class InputOperator : public Operator<Backend> {
   AccessOrder internal_copy_order_ = AccessOrder::host();
 };
 
-}
+}  // namespace dali
 
-#endif //DALI_INPUT_OPERATOR_H
+#endif  // DALI_PIPELINE_INPUT_INPUT_OPERATOR_H_
