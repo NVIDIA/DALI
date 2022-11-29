@@ -29,7 +29,9 @@ DALI_SCHEMA(Cat)
   .DocStr(R"(Joins the input tensors along an existing axis.
 
 The shapes of the inputs must match in all dimensions except the concatenation axis.)")
-  .AddOptionalArg<int>("axis", "Axis along which the input tensors are concatenated.", 0, false)
+  .AddOptionalArg<int>("axis", R"code(Axis along which the input tensors are concatenated.
+
+Accepted range is [-ndim, ndim-1]. Negative indices are counted from the back.)code", 0, false)
   .AddOptionalArg<string>("axis_name", R"(Name of the axis along which the tensors are concatenated.
 
 This argument is mutually exclusive with ``axis``.
@@ -42,11 +44,13 @@ DALI_SCHEMA(Stack)
   .DocStr(R"(Joins the input tensors along a new axis.
 
 The shapes of respective tensors in the inputs must match.)")
-  .AddOptionalArg<int>("axis", R"(The axis in the output tensor along which the inputs are stacked.
+  .AddOptionalArg<int>("axis", R"code(The axis in the output tensor along which the inputs are stacked.
 
 The axis is inserted before a corresponding axis in the inputs. A value of 0 indicates that whole
 tensors are stacked. Specifying ``axis`` equal to the number of dimensions in the inputs causes
-the values from the inputs to be interleaved)", 0, false)
+the values from the inputs to be interleaved).
+
+Accepted range is [-ndim, ndim]. Negative indices are counted from the back.)code", 0, false)
   .AddOptionalArg<string>("axis_name", R"(Name of the new axis to be inserted.
 
 A one-character string that will denote the new axis in the output layout. The output layout will be
@@ -62,28 +66,33 @@ the output layout "CHW")", nullptr, false)
 template <typename Backend, bool new_axis>
 bool TensorJoin<Backend, new_axis>::SetupImpl(
         vector<OutputDesc> &outputs, const Workspace &ws) {
+  const auto &input0 = ws.Input<Backend>(0);
+  auto dtype = input0.type();
+  int ndim = input0.shape().sample_dim();
   int njoin = this->spec_.NumRegularInput();
-  outputs.resize(1);
-  outputs[0].type = ws.Input<Backend>(0).type();
-  auto &output_shape = outputs[0].shape;
 
-  // Check that all inputs have the same type
-  DALIDataType out_type = outputs[0].type;
+  // Check that all inputs have the same type and number of dimensions
   for (int i = 1; i < njoin; i++) {
-    DALIDataType type_id = ws.Input<Backend>(i).type();
-    DALI_ENFORCE(type_id == out_type, make_string(
-        "All inputs must have the same type.\nType of input #0: ", out_type,
-        "\nType of input #", i, ": ", type_id));
+    const auto& input_i = ws.Input<Backend>(i);
+    DALI_ENFORCE(
+        input_i.type() == dtype && input_i.shape().sample_dim() == ndim,
+        make_string(
+            "All inputs must have the same type and number of dimensions.\ninput #0: ", dtype, ", ",
+            ndim, "-D\n", "\ninput #", i, ": ", input_i.type(), ", ", ndim, "-D."));
   }
 
   GetInputLayout(ws);
-  SetupAxis();
+  SetupAxis(ndim);
   SetOutputLayout(ws);
 
+  outputs.resize(1);
+  outputs[0].type = dtype;
+  auto &output_shape = outputs[0].shape;
+
   // Run over the inputs and store them in a vector
-  TYPE_SWITCH(out_type, type2id, T, TENSOR_JOIN_TYPES, (
+  TYPE_SWITCH(dtype, type2id, T, TENSOR_JOIN_TYPES, (
     SetupTyped<T>(output_shape, ws);
-  ), (DALI_FAIL(make_string("The element type ", out_type, " is not supported."))));  // NOLINT
+  ), (DALI_FAIL(make_string("The element type ", dtype, " is not supported."))));  // NOLINT
   return true;
 }
 
@@ -158,7 +167,7 @@ void TensorJoin<Backend, new_axis>::SetOutputLayout(const Workspace &ws) {
 }
 
 template <typename Backend, bool new_axis>
-void TensorJoin<Backend, new_axis>::SetupAxis() {
+void TensorJoin<Backend, new_axis>::SetupAxis(int ndim) {
   // axis_name indicates the join axis for concatenation only;
   // for stacking, it's the name of the new axis
   if (has_axis_name_ && !new_axis) {
@@ -168,6 +177,16 @@ void TensorJoin<Backend, new_axis>::SetupAxis() {
   } else {
     axis_ = axis_arg_;  // this will be validated by the Setup routine
   }
+
+  int max_axis = new_axis ? ndim : ndim - 1;
+  if (axis_ < -ndim || axis_ > max_axis) {
+    DALI_FAIL(make_string("Invalid axis argument, ", axis_, " for ", ndim,
+                          "-D tensors. Accepted range is [ ", -ndim, ", ", max_axis,
+                          "], with negative indices "
+                          "being counted from the back."));
+  }
+  if (axis_ < 0)
+    axis_ += max_axis + 1;
 }
 
 template <typename Backend, bool new_axis>
