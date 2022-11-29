@@ -1196,6 +1196,29 @@ def test_inflate():
     check_pipeline(batches, inflate_pipline, devices=['gpu'])
 
 
+def test_cast_like():
+    def pipe(max_batch_size, input_data, device):
+        pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        data, data2 = fn.external_source(
+                source=input_data, cycle=False, device=device, num_outputs=2)
+        out = fn.cast_like(data, data2)
+        pipe.set_outputs(out)
+        return pipe
+
+    def get_data(batch_size):
+        test_data_shape = [random.randint(5, 21), random.randint(5, 21), 3]
+        data1 = [
+            np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
+            for _ in range(batch_size)]
+        data2 = [
+            np.random.randint(1, 4, size=test_data_shape, dtype=np.int32)
+            for _ in range(batch_size)]
+        return (data1, data2)
+
+    input_data = [get_data(random.randint(5, 31)) for _ in range(13)]
+    check_pipeline(input_data, pipeline_fn=pipe)
+
+
 tested_methods = [
     "arithmetic_generic_op",
     "audio_decoder",
@@ -1207,6 +1230,7 @@ tested_methods = [
     "brightness",
     "brightness_contrast",
     "cast",
+    "cast_like",
     "cat",
     "coin_flip",
     "color_space_conversion",
