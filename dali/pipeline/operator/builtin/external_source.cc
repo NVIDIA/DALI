@@ -22,7 +22,7 @@ void ExternalSource<CPUBackend>::RunImpl(Workspace &ws) {
   std::list<uptr_tl_type> tensor_list_elm;
   {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
-    tensor_list_elm = tl_data_.PopFront();
+    tensor_list_elm = GetOutputDataQueue().PopFront();
     state_.pop_front();
   }
   auto &output = ws.Output<CPUBackend>(0);
@@ -54,7 +54,43 @@ void ExternalSource<CPUBackend>::RunImpl(Workspace &ws) {
 }
 
 
+template<>
+void ExternalSource<GPUBackend>::RunImpl(Workspace &ws) {
+  std::list<uptr_tl_type> tensor_list_elm;
+  std::list<uptr_cuda_event_type> internal_copy_to_storage;
+  ExternalSourceState state_info;
+  {
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    tensor_list_elm = GetOutputDataQueue().PopFront();
+    state_info = state_.front();
+    state_.pop_front();
+    // even with no_copy we may have copied from TensorList to TensorList and we
+    // need to sync with that
+    if (!state_info.no_copy || state_info.copied_shared_data) {
+      internal_copy_to_storage = copy_to_storage_events_.PopFront();
+    }
+  }
+
+  auto &output = ws.Output<GPUBackend>(0);
+  cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
+  if (!state_info.no_copy || state_info.copied_shared_data) {
+    CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
+  }
+
+  std::swap(output, *tensor_list_elm.front());
+  output.set_order(ws.stream(), false);
+  tensor_list_elm.front()->set_order(internal_copy_order_);
+
+  if (!state_info.no_copy || state_info.copied_shared_data) {
+    RecycleBuffer(tensor_list_elm, &internal_copy_to_storage);
+  } else {
+    RecycleBuffer(tensor_list_elm);
+  }
+}
+
+
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<GPUBackend>, GPU);
 
 
 // This schema is partially internal. We want it to be listed int the supported_ops,

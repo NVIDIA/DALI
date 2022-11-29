@@ -30,133 +30,14 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/nvtx.h"
 #include "dali/pipeline/data/type_traits.h"
+#include "dali/pipeline/input/caching_list.h"
+#include "dali/pipeline/input/input_operator.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
 #include "dali/core/common.h"
 
 namespace dali {
-
-namespace detail {
-
-struct CudaEventWrapper : CUDAEvent {
-  CudaEventWrapper() : CUDAEvent(CUDAEvent::Create()) {}
-};
-
-/**
- * CachingList differs from std::List by the ability to recycle empty elements. When allocating
- * memory is expensive it is better to store already allocated but no longer needed element in the
- * list of the free elements, than to free the memory and allocate it again later. CachingList
- * supports the following operations:
- * - GetEmpty moves an empty element of type T, either allocate it or use one from the free list
- * - PopFront moves the element from the front and removes it from the full list, the behavior
- * is undefined when the list is empty
- * - Recycle moves passed element to the free list
- * - PushBack moves element to the full list
- * - IsEmpty checks if the full list is empty
- * All functions operate on one element list as transferring elements between list is a very low
- * cost operation, which doesn't involve any memory allocation, while adding an element to the list
- * requires allocation of the memory for the storage in the list.
- *
- * Additionally, CachingList has a Prophet feature. This is an unidirectional iterator,
- * that travels over the data (asynchronously w.r.t. current Front and Back). The Prophet
- * allows to peek a list element and maintains the order even when elements are Pushed
- * and Popped in/out.
- * Use PeekProphet() and AdvanceProphet() to control the prophet.
- * In case there's an illegal access to the list, std::out_of_range will be thrown.
- */
-template <typename T>
-class CachingList {
- public:
-  CachingList() : prophet_(full_data_.end()) {}
-
-  bool IsEmpty() const {
-    return full_data_.empty();
-  }
-
-  const T &PeekFront() {
-    return full_data_.front();
-  }
-
-  std::list<T> PopFront() {
-    assert(!full_data_.empty());  // Can't pop from an empty list
-    std::list<T> tmp;
-    tmp.splice(tmp.begin(), full_data_, full_data_.begin());
-    return tmp;
-  }
-
-  void Recycle(std::list<T> &elm) {
-    empty_data_.splice(empty_data_.end(), elm, elm.begin());
-  }
-
-  std::list<T> GetEmpty() {
-    std::list<T> tmp;
-    if (empty_data_.empty()) {
-      tmp.emplace_back(std::make_unique<typename T::element_type>());
-    } else {
-      tmp.splice(tmp.begin(), empty_data_, empty_data_.begin());
-    }
-    return tmp;
-  }
-
-  void PushBack(std::list<T> &elm) {
-    full_data_.splice(full_data_.end(), elm, elm.begin());
-    /*
-     * When the prophet is dead and needs to be resurrected,
-     * he shall be resurrected by the apprentice.
-     * In the special scenario, when prophet is dead and the data list is empty
-     * (hence the apprentice is dead too), the prophet will be resurrected
-     * from scratch, by assigning him to the element that was just added to the data list.
-     * Sic mundus creatus est.
-     */
-    if (resurrect_prophet_) {
-      if (full_data_.size() == 1) {
-        prophet_ = full_data_.begin();
-      } else {
-        prophet_ = std::next(apprentice_);
-      }
-      resurrect_prophet_ = false;
-    }
-  }
-
-  const T &PeekProphet() {
-    if (prophet_ == full_data_.end())
-      throw std::out_of_range(
-          "Attempted to peek element that doesn't exist. Add more elements to CachingList before "
-          "calling PeekProphet. Even the prophet can't see outside the event horizon.");
-    return *prophet_;
-  }
-
-  void AdvanceProphet() {
-    if (prophet_ == full_data_.end())
-      throw std::out_of_range(
-          "Attempted to step over the last element in the list. This operation is forbidden. Add "
-          "more elements to CachingList before calling AdvanceProphet.");
-    apprentice_ = prophet_++;
-    resurrect_prophet_ = prophet_ == full_data_.end();
-  }
-
- private:
-  std::list<T> full_data_;
-  std::list<T> empty_data_;
-
-  /**
-   * Prophet dies when he hits the end() iterator of the list with the data.
-   * Prophet can be resurrected, iff there is a data record for him, i.e.
-   * when user calls PushBack and therefore inserts the data at the end
-   * of the CachingList
-   */
-  bool resurrect_prophet_ = true;
-
-  /**
-   * The apprentice follows the prophet and is always one step behind him.
-   * Apprentice is used to resurrect the prophet, so that the prophet might
-   * again point to the last actual element of the list.
-   */
-  typename std::list<T>::iterator prophet_, apprentice_;
-};
-
-}  // namespace detail
 
 
 /**
@@ -203,15 +84,18 @@ struct ExtSrcSettingMode {
  * may mix the order of inputted data.
  */
 template <typename Backend>
-class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvider {
-  using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
-  using uptr_cuda_event_type = std::unique_ptr<detail::CudaEventWrapper>;
-
-  using Operator<Backend>::spec_;
+class ExternalSource : public InputOperator<Backend>, virtual public BatchSizeProvider {
+  using InputOperator<Backend>::spec_;
+  using InputOperator<Backend>::state_;
+  using InputOperator<Backend>::GetOutputDataQueue;
+  using InputOperator<Backend>::busy_m_;
+  using InputOperator<Backend>::HasData;
+  using InputOperator<Backend>::uptr_tl_type;
+  using InputOperator<Backend>::uptr_cuda_event_type;
 
  public:
   inline explicit ExternalSource(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : InputOperator<Backend>(spec),
         blocking_(spec.GetArgument<bool>("blocking")),
         no_copy_(spec.GetArgument<bool>("no_copy")),
         device_id_(spec.GetArgument<int>("device_id")),
@@ -227,14 +111,10 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     spec.TryGetArgument(layout_, "layout");
     InferNdim();
     output_name_ = spec.Output(0);
-    if (std::is_same<Backend, GPUBackend>::value) {
-      internal_copy_stream_ = CUDAStreamPool::instance().Get(device_id_);
-      internal_copy_order_ = internal_copy_stream_;
-    }
     sync_worker_.WaitForInit();
   }
 
-  inline ~ExternalSource() {
+  virtual ~ExternalSource() {
     sync_worker_.ForceStop();
     sync_worker_.Shutdown();
   }
@@ -285,12 +165,12 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   int NextBatchSize() override {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    return tl_data_.PeekProphet()->num_samples();
+    return GetOutputDataQueue().PeekProphet()->num_samples();
   }
 
   void Advance() override {
     std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tl_data_.AdvanceProphet();
+    GetOutputDataQueue().AdvanceProphet();
   }
 
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
@@ -316,17 +196,17 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     std::unique_lock<std::mutex> busy_lock(busy_m_);
     if (blocking_) {
-      cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
+      cv_.wait(busy_lock, [&]() { return HasData(); });
     } else {
-      if (state_.empty()) {
+      if (!HasData()) {
         DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
       }
     }
     TensorListShape<> shape;
     output_desc.resize(1);
-    output_desc[0].shape = tl_data_.PeekFront()->shape();
-    output_desc[0].type = tl_data_.PeekFront()->type();
-    // unconditionally disabled, still we can provide shape but we don't want to allocate anything
+    output_desc[0].shape = GetOutputDataQueue().PeekFront()->shape();
+    output_desc[0].type = GetOutputDataQueue().PeekFront()->type();
+    // unconditionally disabled, still we can provide shape, but we don't want to allocate anything
     return false;
   }
 
@@ -345,153 +225,6 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
 
   void RunImpl(Workspace &ws) override;
 
-  // pass cuda_event by pointer to allow default, nullptr value, with the
-  // reference it is not that easy
-  template<typename DataType>
-  void RecycleBuffer(DataType &data,
-                     std::list<uptr_cuda_event_type> *cuda_event = nullptr,
-                     std::list<uptr_cuda_event_type> *copy_to_gpu = nullptr) {
-    // No need to synchronize on copy_to_gpu - it was already synchronized before
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    tl_data_.Recycle(data);
-    if (copy_to_gpu) {
-      copy_to_storage_events_.Recycle(*copy_to_gpu);
-    }
-  }
-
-  template<typename SrcBackend>
-  inline std::enable_if_t<!std::is_same<SrcBackend, Backend>::value>
-  ShareUserData(const TensorList<SrcBackend> &t, AccessOrder /* order = {}*/,
-                bool /* use_copy_kernel */) {
-    DALI_FAIL(make_string("no_copy is supported only for the same data source device type "
-                          "as operator. Received: ",
-                          std::is_same<SrcBackend, CPUBackend>::value? "CPU" : "GPU",
-                          " input for ",
-                          std::is_same<Backend, CPUBackend>::value? "CPU" : "GPU",
-                          " operator."));
-  }
-
-  template <typename SrcBackend>
-  inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, CPUBackend>::value>
-  ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder /* order = {}*/,
-                bool /*use_copy_kernel = false*/) {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    state_.push_back({false, true});
-    auto tl_elm = GetEmptyOutputBatch();
-    // set pinned if needed
-    if (batch.is_pinned() != tl_elm.front()->is_pinned()) {
-      tl_elm.front()->Reset();
-      tl_elm.front()->set_pinned(batch.is_pinned());
-    }
-    tl_elm.front()->ShareData(const_cast<TensorList<CPUBackend> &>(batch));
-    tl_data_.PushBack(tl_elm);
-  }
-
-  /**
-   * @brief Attempts to share data from tensor vector to tensor list without
-   *        an additional copy if the batch is contiguous.
-   *        In case of scattered samples, the data is copied to a contiguous
-   *        buffer.
-   * @remarks Mixing contiguous and non-contiguous inputs in subsequents calls
-   *        is not supported and could lead to data corruption.
-   * @param batch source data
-   * @param order CUDA stream use to schedule the copy (or host order to make the copy
-   *              host-syncrhonous)
-   * @param use_copy_kernel If true, a copy kernel will be used to make a
-   *        contiguous buffer instead of cudaMemcpyAsync.
-   */
-  template <typename SrcBackend>
-  inline std::enable_if_t<std::is_same<SrcBackend, Backend>::value &&
-                          std::is_same<SrcBackend, GPUBackend>::value>
-  ShareUserData(const TensorList<SrcBackend> &batch, AccessOrder order = {},
-                bool use_copy_kernel = false) {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    auto tl_elm = GetEmptyOutputBatch();
-    bool copied_shared_data = false;
-
-    if (batch.IsContiguous()) {
-      auto batch_owner = unsafe_sample_owner(const_cast<TensorList<SrcBackend> &>(batch), 0);
-      tl_elm.front()->ShareData(batch_owner, batch.nbytes(), batch.is_pinned(), batch.shape(),
-                                batch.type(), batch.device_id(), batch.order());
-      zero_copy_noncontiguous_gpu_input_ = true;
-    } else {
-      // it is not contiguous so we need to copy
-      tl_elm.front()->Copy(batch, order, use_copy_kernel);
-      std::list<uptr_cuda_event_type> copy_to_storage_event;
-      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
-      CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
-      copy_to_storage_events_.PushBack(copy_to_storage_event);
-
-      if (zero_copy_noncontiguous_gpu_input_) {
-        DALI_WARN("ExternalSource operator should not mix contiguous and noncontiguous inputs. "
-                  "In such a case the internal memory used to gather data in a contiguous chunk "
-                  "of memory would be trashed.");
-      }
-      copied_shared_data = true;
-    }
-    state_.push_back({copied_shared_data, true});
-    tl_data_.PushBack(tl_elm);
-  }
-
-  template<typename SrcBackend, typename B = Backend>
-  inline std::enable_if_t<std::is_same<B, CPUBackend>::value>
-  CopyUserData(const TensorList<SrcBackend> &batch,
-               AccessOrder order, bool /* sync */, bool /* use_copy_kernel */) {
-    std::list<uptr_tl_type> tl_elm;
-    {
-      std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_elm = GetEmptyOutputBatch();
-    }
-    // set pinned if needed
-    tl_elm.front()->set_order(AccessOrder::host());
-    if (batch.is_pinned() !=  tl_elm.front()->is_pinned()) {
-      tl_elm.front()->Reset();
-      tl_elm.front()->set_pinned(batch.is_pinned());
-    }
-    AccessOrder copy_order = std::is_same<SrcBackend, CPUBackend>::value
-        ? AccessOrder::host()  // do not use a device order for a host to host copy
-        : order;
-    tl_elm.front()->Copy(batch, copy_order);
-    {
-      std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_data_.PushBack(tl_elm);
-      state_.push_back({false, false});
-    }
-  }
-
-  template<typename SrcBackend, typename B = Backend>
-  inline std::enable_if_t<std::is_same<B, GPUBackend>::value>
-  CopyUserData(const TensorList<SrcBackend> &batch,
-               AccessOrder order, bool sync, bool use_copy_kernel) {
-    std::list<uptr_cuda_event_type> copy_to_storage_event;
-    std::list<uptr_tl_type> tl_elm;
-    {
-      std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_elm = GetEmptyOutputBatch();
-      copy_to_storage_event = copy_to_storage_events_.GetEmpty();
-    }
-    // If we got a host order we most probably got it via FeedPipeline and we are trying to pass the
-    // data from CPU to GPU. As we keep the order in tl_data_ as internal_copy_stream_, we will use
-    // an actual stream for running and synchronizing with the copy. Note that the Copy can be truly
-    // asynchronous if it comes from pinned memory or happens on a device with integrated memory
-    // (like Xavier) where CPU and GPU share the same memory.
-    if (!order.is_device()) {
-      order = tl_elm.front()->order();
-    }
-    tl_elm.front()->Copy(batch, order, use_copy_kernel);
-    CUDA_CALL(cudaEventRecord(*copy_to_storage_event.front(), order.stream()));
-    if (sync) {
-      CUDA_CALL(cudaEventSynchronize(*copy_to_storage_event.front()));
-    }
-
-    {
-      std::lock_guard<std::mutex> busy_lock(busy_m_);
-      tl_data_.PushBack(tl_elm);
-      copy_to_storage_events_.PushBack(copy_to_storage_event);
-      state_.push_back({false, false});
-    }
-  }
 
   template <typename SrcBackend>
   inline void ValidateInputData(const TensorList<SrcBackend> &batch) {
@@ -550,6 +283,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     layout_ = batch.GetLayout();
   }
 
+
   template<typename SrcBackend>
   inline void SetDataSourceHelper(const TensorList<SrcBackend> &batch, AccessOrder order = {},
                                   ExtSrcSettingMode ext_src_setting_mode = {}) {
@@ -573,28 +307,16 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
     }
 
     if (actual_no_copy) {
-      ShareUserData(batch, order, ext_src_setting_mode.use_copy_kernel);
+      this->ShareUserData(batch, order, ext_src_setting_mode.use_copy_kernel);
     } else {
-      CopyUserData(batch, order, ext_src_setting_mode.sync, ext_src_setting_mode.use_copy_kernel);
+      this->CopyUserData(batch, order, ext_src_setting_mode.sync, ext_src_setting_mode.use_copy_kernel);
     }
     cv_.notify_one();
   }
 
-  /**
-   * @brief Get the empty output batch from tl_data_, first assigning the correct order to it.
-   * @warning User is responsible for holding busy_m_ mutex when calling this function.
-   */
-  std::list<uptr_tl_type> GetEmptyOutputBatch() {
-    auto result = tl_data_.GetEmpty();
-    result.front()->set_order(internal_copy_order_);
-    return result;
-  }
 
   string output_name_;
-  detail::CachingList<uptr_tl_type> tl_data_;
-  detail::CachingList<uptr_cuda_event_type> copy_to_storage_events_;
 
-  std::mutex busy_m_;
   std::condition_variable cv_;
   bool blocking_ = true;
   bool no_copy_ = false;
@@ -604,35 +326,7 @@ class ExternalSource : public Operator<Backend>, virtual public BatchSizeProvide
   int ndim_;
   TensorLayout layout_;
 
-  /*
-   * now it only indicates that there is data in the ExternalSource, in the future
-   * a per sample metadata could be stored here
-   */
-  struct ExternalSourceState {
-    /**
-     * True if the data that was shared as no_copy required copy regardless.
-     * Happens for non-contiguous TensorList with GPU memory.
-     */
-    bool copied_shared_data = false;
-    /**
-     * @brief Actual value of no_copy option used in this call. Always false for CopyUserData(...)
-     * and always true for ShareUserData(...)
-     */
-    bool no_copy = false;
-  };
-
-  std::list<ExternalSourceState> state_;
-
-  /*
-   * indicates that user provide noncontiguous GPU input with zero copy option so DALI needs
-   * to create an internal copy, it is used to raise a warning when the user mixes contiguous and
-   * noncontiguous GPU inputs with zero copy what trashed GPU allocated memory
-   */
-  bool zero_copy_noncontiguous_gpu_input_ = false;
-
   WorkerThread sync_worker_;
-  CUDAStreamLease internal_copy_stream_ = {};
-  AccessOrder internal_copy_order_ = AccessOrder::host();
 };
 
 }  // namespace dali
