@@ -17,8 +17,7 @@ from nvidia.dali.pipeline import Pipeline
 from nose.tools import nottest
 
 import numpy as np
-import random
-import itertools
+
 from test_utils import np_type_to_dali
 
 
@@ -42,21 +41,6 @@ class Batch:
         self._index = 0
 
 
-def get_valid_axes(ndim, positive_only=True):
-    out = [None]
-    valid_axes = [a for a in range(ndim)]
-    for naxes in range(ndim + 1):
-        candidates = itertools.combinations(valid_axes, naxes)
-        if positive_only:
-            out += candidates
-        else:
-            # Randomly choose positive or negative representation of the axis
-            for axes in candidates:
-                new_axes = tuple(random.choice([a, a - ndim]) for a in axes)
-                out.append(new_axes)
-    return out
-
-
 class Batch1D(Batch):
     def __init__(self, data_type):
         super().__init__(data_type)
@@ -70,7 +54,7 @@ class Batch1D(Batch):
             ]]
 
     def valid_axes(self):
-        return get_valid_axes(1, positive_only=False)
+        return [None, (), 0]
 
 
 class Batch2D(Batch):
@@ -86,7 +70,7 @@ class Batch2D(Batch):
             ]]
 
     def valid_axes(self):
-        return get_valid_axes(2, positive_only=False)
+        return [None, (), 0, 1, (0, 1)]
 
 
 class Batch3D(Batch):
@@ -102,7 +86,7 @@ class Batch3D(Batch):
             ]]
 
     def valid_axes(self):
-        return get_valid_axes(3, positive_only=False)
+        return [None, (), 0, 1, 2, (0, 1), (0, 2), (1, 2), (0, 1, 2)]
 
 
 class Batch3DOverflow(Batch3D):
@@ -112,6 +96,10 @@ class Batch3DOverflow(Batch3D):
         for batch in self._data:
             for sample in batch:
                 sample *= 100000
+
+class Batch3DNegativeAxes(Batch3D):
+    def valid_axes(self):
+        return [-3, -2, -1, (-3, 1), (0, -1), (-2, 2), (-3, -2, -1)]
 
 
 def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input=False, ddof=0):
@@ -241,6 +229,14 @@ def test_reduce():
             for batch_gen in batch_gens:
                 for type_id in types:
                     yield run_reduce, keep_dims, reduction_name, batch_gen, type_id
+
+def test_reduce_negative_axes():
+    reductions = ["sum", "max"]
+    type = np.uint8
+
+    for keep_dims in [False, True]:
+        for reduction_name in reductions:
+            yield run_reduce, keep_dims, reduction_name, Batch3DNegativeAxes, type
 
 
 def test_reduce_with_promotion():
