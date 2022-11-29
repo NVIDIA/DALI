@@ -84,14 +84,10 @@ struct ExtSrcSettingMode {
  * may mix the order of inputted data.
  */
 template <typename Backend>
-class ExternalSource : public InputOperator<Backend>, virtual public BatchSizeProvider {
+class ExternalSource : public InputOperator<Backend> {
   using InputOperator<Backend>::spec_;
-  using InputOperator<Backend>::state_;
-  using InputOperator<Backend>::GetOutputDataQueue;
   using InputOperator<Backend>::busy_m_;
   using InputOperator<Backend>::HasData;
-  using InputOperator<Backend>::uptr_tl_type;
-  using InputOperator<Backend>::uptr_cuda_event_type;
 
  public:
   inline explicit ExternalSource(const OpSpec &spec)
@@ -163,16 +159,6 @@ class ExternalSource : public InputOperator<Backend>, virtual public BatchSizePr
     SetDataSourceHelper(tl, order, ext_src_setting_mode);
   }
 
-  int NextBatchSize() override {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    return GetOutputDataQueue().PeekProphet()->num_samples();
-  }
-
-  void Advance() override {
-    std::lock_guard<std::mutex> busy_lock(busy_m_);
-    GetOutputDataQueue().AdvanceProphet();
-  }
-
   DISABLE_COPY_MOVE_ASSIGN(ExternalSource);
 
  protected:
@@ -204,8 +190,8 @@ class ExternalSource : public InputOperator<Backend>, virtual public BatchSizePr
     }
     TensorListShape<> shape;
     output_desc.resize(1);
-    output_desc[0].shape = GetOutputDataQueue().PeekFront()->shape();
-    output_desc[0].type = GetOutputDataQueue().PeekFront()->type();
+    output_desc[0].shape = this->PeekCurrentData().shape();
+    output_desc[0].type = this->PeekCurrentData().type();
     // unconditionally disabled, still we can provide shape, but we don't want to allocate anything
     return false;
   }

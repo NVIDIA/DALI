@@ -19,7 +19,9 @@
 #include <memory>
 #include "dali/core/common.h"
 #include "dali/core/cuda_event.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/input/caching_list.h"
+#include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -32,8 +34,21 @@ struct CudaEventWrapper : CUDAEvent {
 
 }  // namespace detail
 
+struct InputSourceState {
+  /**
+   * True if the data that was shared as no_copy required copy regardless.
+   * Happens for non-contiguous TensorList with GPU memory.
+   */
+  bool copied_shared_data = false;
+  /**
+   * @brief Actual value of no_copy option used in this call. Always false for CopyUserData(...)
+   * and always true for ShareUserData(...)
+   */
+  bool no_copy = false;
+};
+
 template<typename Backend>
-class InputOperator : public Operator<Backend> {
+class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider {
  public:
   explicit InputOperator(const OpSpec &spec) :
           Operator<Backend>(spec),
@@ -45,6 +60,19 @@ class InputOperator : public Operator<Backend> {
   }
 
   DISABLE_COPY_MOVE_ASSIGN(InputOperator);
+
+
+  int NextBatchSize() override {
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    return tl_data_.PeekProphet()->num_samples();
+  }
+
+
+  void Advance() override {
+    std::lock_guard<std::mutex> busy_lock(busy_m_);
+    tl_data_.AdvanceProphet();
+  }
+
 
  protected:
   using Operator<Backend>::spec_;
@@ -207,9 +235,35 @@ class InputOperator : public Operator<Backend> {
   }
 
 
-  CachingList<uptr_tl_type> &GetOutputDataQueue() {
-    return tl_data_;
+  /**
+   * Peeks the data that is next in line.
+   */
+  const TensorList<Backend> &PeekCurrentData() {
+    return *tl_data_.PeekFront();
   }
+
+
+  /**
+   * Returns the state of the data that is next in line.
+   */
+  InputSourceState GetCurrentState() const {
+    return state_.front();
+  }
+
+
+  /**
+   * Injects current data portion into the provided TensorList and recycles
+   * the inner container for the data.
+   *
+   * This function will take a best effort not to copy the data,
+   * however it might not always be possible.
+   *
+   * @param target Where the data shall be injected.
+   * @param tp TheadPool used to copy the data.
+   */
+  void ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
+
+  void ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
 
 
   bool HasData() const {
@@ -219,20 +273,6 @@ class InputOperator : public Operator<Backend> {
 
   std::mutex busy_m_;
 
-  struct InputSourceState {
-    /**
-     * True if the data that was shared as no_copy required copy regardless.
-     * Happens for non-contiguous TensorList with GPU memory.
-     */
-    bool copied_shared_data = false;
-    /**
-     * @brief Actual value of no_copy option used in this call. Always false for CopyUserData(...)
-     * and always true for ShareUserData(...)
-     */
-    bool no_copy = false;
-  };
-
-  std::list<InputSourceState> state_;
 
  private:
   /**
@@ -248,6 +288,7 @@ class InputOperator : public Operator<Backend> {
 
   CachingList<uptr_tl_type> tl_data_;
   CachingList<uptr_cuda_event_type> copy_to_storage_events_;
+  std::list<InputSourceState> state_;
 
 
   /**
