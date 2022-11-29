@@ -400,4 +400,24 @@ TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
   RunSequentialTest(decoder, vfr_videos_[1], 3.0);
 }
 
+TEST_F(FramesDecoderGpuTest, NioTest) {
+  // auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_front_main.h264.mkv");
+  auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_front_main.h264.mkv");
+
+  std::vector<uint8_t> frame_cpu_buffer_;
+  DeviceBuffer<uint8_t> frame_gpu_buffer_;
+
+  frame_cpu_buffer_.resize(3848*2168*3);
+  frame_gpu_buffer_.resize(3848*2168*3);
+
+  // FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, 608);
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
+
+  for (int i = 0; i < 10; ++i) {
+    auto ret = decoder.ReadNextFrame(frame_gpu_buffer_.data(), true);
+    MemCopy(frame_cpu_buffer_.data(), frame_gpu_buffer_.data(), 3848*2168*3);
+    SaveFrame(frame_cpu_buffer_.data(), i, 0, 0, "/home/awolant/Projects/DALI/dev/nio/frames", 3848, 2168);
+  }
+}
+
 }  // namespace dali
