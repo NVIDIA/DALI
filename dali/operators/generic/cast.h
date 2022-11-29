@@ -61,7 +61,7 @@ class Cast : public Operator<Backend> {
   }
 
  private:
-  bool is_cast_like_ = false; 
+  bool is_cast_like_ = false;
   DALIDataType dtype_arg_ = DALI_NO_TYPE;
 };
 

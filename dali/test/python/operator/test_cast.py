@@ -21,6 +21,7 @@ from test_utils import np_type_to_dali
 import itertools
 from nose2.tools import params
 
+
 def ref_cast(x, dtype):
     if np.issubdtype(dtype, np.integer):
         lo = np.iinfo(dtype).min
@@ -179,7 +180,9 @@ def test_operator_cast_empty_volumes():
                            empty_volume_policy)
 
 
-@params(*itertools.product(('cpu', 'gpu'), (np.uint8, np.int32, np.float32), (np.uint8, np.int32, np.float32)))
+@params(*itertools.product(('cpu', 'gpu'),
+                           (np.uint8, np.int32, np.float32),
+                           (np.uint8, np.int32, np.float32)))
 def test_cast_like(device, dtype_in, dtype_out):
     @pipeline_def(batch_size=1, num_threads=4, device_id=0)
     def cast_pipe():
