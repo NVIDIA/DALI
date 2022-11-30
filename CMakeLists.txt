@@ -75,6 +75,7 @@ cmake_dependent_option(BUILD_LIBSND "Build with support for libsnd library" ON
 cmake_dependent_option(BUILD_LIBTAR "Build with support for libtar library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
+option(BUILD_CFITSIO "Build with cfitsio support" ON)  # Built from thirdparty sources
 
 set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
