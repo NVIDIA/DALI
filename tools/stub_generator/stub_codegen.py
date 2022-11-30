@@ -25,7 +25,17 @@ import clang.cindex
 
 
 def function_header(return_type, name, args):
-    arg_str = ", ".join([f"{arg_type} {arg_name}" for arg_type, arg_name in args])
+    args_expr = []
+    for arg_type, arg_name in args:
+        # handle array types differently, put size after the name
+        if "[" in arg_type:
+            pos = arg_type.find("[")
+            type = arg_type[0:pos]
+            args_expr.append(f"{type} {arg_name}{arg_type[pos:]}")
+        else:
+            args_expr.append(f"{arg_type} {arg_name}")
+
+    arg_str = ", ".join(args_expr)
     ret = f"{return_type} {name}({arg_str})"
     return ret
 
