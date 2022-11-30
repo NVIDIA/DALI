@@ -400,27 +400,4 @@ TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
   RunSequentialTest(decoder, vfr_videos_[1], 3.0);
 }
 
-TEST_F(FramesDecoderGpuTest, NioTest) {
-  // auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_front_main.h264.mkv");
-  // auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_front_main.mkv");
-  // auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_side_front_left.mkv"); 
-  auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/desensitized_d5758689-33de-4ecf-b800-188fdb9bed40_Front120_1657200331635455488.h265.mkv");
-  // auto memory_video = MemoryVideo("/home/awolant/Projects/DALI_extra/db/video/vfr/test_1_mpeg4.mkv");
-
-  std::vector<uint8_t> frame_cpu_buffer_;
-  DeviceBuffer<uint8_t> frame_gpu_buffer_;
-
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, 627);
-  // FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
-
-  frame_cpu_buffer_.resize(decoder.Width() * decoder.Height() * 3);
-  frame_gpu_buffer_.resize(decoder.Width() * decoder.Height() * 3);
-
-  for (int i = 0; i < 10; ++i) {
-    auto ret = decoder.ReadNextFrame(frame_gpu_buffer_.data(), true);
-    MemCopy(frame_cpu_buffer_.data(), frame_gpu_buffer_.data(), decoder.Width()*decoder.Height()*3);
-    SaveFrame(frame_cpu_buffer_.data(), i, 0, 0, "/home/awolant/Projects/DALI/dev/nio/frames", decoder.Width(), decoder.Height());
-  }
-}
-
 }  // namespace dali

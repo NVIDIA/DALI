@@ -221,7 +221,6 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
                                      detail::av_error_string(ret)));
 
-  inital_pos_ = avio_tell(av_state_->ctx_->pb);
   FindVideoStream(init_codecs || build_index);
   DALI_ENFORCE(
     CheckCodecSupport(),
@@ -280,7 +279,6 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
 
 void FramesDecoder::ParseNumFrames() {
   int curr_num_frames = 0;
-
   // while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
   //   // We want to make sure that we call av_packet_unref in every iteration
   //   auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
@@ -521,13 +519,7 @@ void FramesDecoder::Reset() {
     flush_state_ = false;
   }
 
-  int ret = 0;
-  if (av_state_->ctx_->iformat->flags & AVFMT_NO_BYTE_SEEK) {
-    ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
-  } else {
-    ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, inital_pos_, AVSEEK_FLAG_BYTE);
-    avio_flush(av_state_->ctx_->pb);
-  }
+  int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
   DALI_ENFORCE(
     ret >= 0,
     make_string(
