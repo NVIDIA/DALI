@@ -49,20 +49,20 @@ __global__ static void yuv_to_rgb_kernel(
         #pragma unroll
         for (int j = 0; j < 2; j++) {
             float cx = halfx + j * 0.5f + 0.25f;
-            u8vec3 yuv;
-            yuv[0] = Y.at(ivec2{x + j, y + i}, 0, kernels::BorderClamp());
+            u8vec3 yuv_val;
+            yuv_val[0] = Y.at(ivec2{x + j, y + i}, 0, kernels::BorderClamp());
 
-            UV(&yuv[1], vec2(cx, cy), kernels::BorderClamp());
+            UV(&yuv_val[1], vec2(cx, cy), kernels::BorderClamp());
 
-            u8vec3 rgb;
+            u8vec3 rgb_val;
             if (full_range)
-                rgb = dali::kernels::color::jpeg::ycbcr_to_rgb<uint8_t>(yuv);
+                rgb_val = dali::kernels::color::jpeg::ycbcr_to_rgb<uint8_t>(yuv_val);
             else
-                rgb = dali::kernels::color::itu_r_bt_601::ycbcr_to_rgb<uint8_t>(yuv);
+                rgb_val = dali::kernels::color::itu_r_bt_601::ycbcr_to_rgb<uint8_t>(yuv_val);
 
-            RGB({x + j, y + i, 0}) = rgb.x;
-            RGB({x + j, y + i, 1}) = rgb.y;
-            RGB({x + j, y + i, 2}) = rgb.z;
+            RGB({x + j, y + i, 0}) = rgb_val.x;
+            RGB({x + j, y + i, 1}) = rgb_val.y;
+            RGB({x + j, y + i, 2}) = rgb_val.z;
         }
     }
 
