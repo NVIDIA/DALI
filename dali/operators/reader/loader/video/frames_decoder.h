@@ -58,8 +58,13 @@ struct AvState {
       av_frame_free(&frame_);
     }
     avcodec_free_context(&codec_ctx_);
-    avformat_close_input(&ctx_);
-    avformat_free_context(ctx_);
+    if (ctx_ != nullptr) {
+      if (ctx_->pb != nullptr) {
+        avio_context_free(&ctx_->pb);
+      }
+      avformat_close_input(&ctx_);
+      avformat_free_context(ctx_);
+    }
 
     ctx_ = nullptr;
     codec_ = nullptr;
@@ -248,6 +253,10 @@ class DLL_PUBLIC FramesDecoder {
   void DetectVfr();
 
   void ParseNumFrames();
+
+  void CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs);
+
+  bool IsFormatSeekable();
 
   std::string Filename() {
     return filename_.has_value() ? filename_.value() : "memory file";
