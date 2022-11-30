@@ -13,44 +13,11 @@
 // limitations under the License.
 
 #include "dali/pipeline/operator/builtin/external_source.h"
-#include <functional>
 
 namespace dali {
 
 template <>
 void ExternalSource<CPUBackend>::RunImpl(Workspace &ws) {
-//  std::list<uptr_tl_type> tensor_list_elm;
-//  {
-//    std::unique_lock<std::mutex> busy_lock(busy_m_);
-//    tensor_list_elm = tl_data_.PopFront();
-//    state_.pop_front();
-//  }
-//  auto &output = ws.Output<CPUBackend>(0);
-//  // if the output is pinned and input not it needs to be copied
-//  if (output.is_pinned() && !tensor_list_elm.front()->is_pinned()) {
-//    auto &thread_pool = ws.GetThreadPool();
-//    const auto &shapes = tensor_list_elm.front()->shape();
-//    auto curr_batch_size = shapes.num_samples();
-//    output.Resize(shapes, tensor_list_elm.front()->type());
-//
-//    // as we copy element by element and the output is contiguous we need to set layout
-//    // for the whole output not each element(view)
-//    auto &output = ws.Output<CPUBackend>(0);
-//    output.SetLayout(tensor_list_elm.front()->GetLayout());
-//
-//    for (int sample_id = 0; sample_id < curr_batch_size; ++sample_id) {
-//      thread_pool.AddWork(
-//          [&output, sample_id, &tensor_list_elm](int tid) {
-//           output.CopySample(sample_id, *tensor_list_elm.front(), sample_id, AccessOrder::host());
-//          },
-//          shapes.tensor_size(sample_id));
-//    }
-//    thread_pool.RunAll();
-//  } else {
-//    // swap output with tensor_list_elm content
-//    std::swap(output, *tensor_list_elm.front());
-//  }
-//  RecycleBuffer(tensor_list_elm);
   auto &output = ws.Output<CPUBackend>(0);
   auto &thread_pool = ws.GetThreadPool();
   ForwardCurrentData(output, thread_pool);
@@ -59,36 +26,6 @@ void ExternalSource<CPUBackend>::RunImpl(Workspace &ws) {
 
 template<>
 void ExternalSource<GPUBackend>::RunImpl(Workspace &ws) {
-//  std::list<uptr_tl_type> tensor_list_elm;
-//  std::list<uptr_cuda_event_type> internal_copy_to_storage;
-//  ExternalSourceState state_info;
-//  {
-//    std::unique_lock<std::mutex> busy_lock(busy_m_);
-//    tensor_list_elm = tl_data_.PopFront();
-//    state_info = state_.front();
-//    state_.pop_front();
-//    // even with no_copy we may have copied from TensorList to TensorList and we
-//    // need to sync with that
-//    if (!state_info.no_copy || state_info.copied_shared_data) {
-//      internal_copy_to_storage = copy_to_storage_events_.PopFront();
-//    }
-//  }
-//
-//  auto &output = ws.Output<GPUBackend>(0);
-//  cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
-//  if (!state_info.no_copy || state_info.copied_shared_data) {
-//    CUDA_CALL(cudaStreamWaitEvent(stream_used, *internal_copy_to_storage.front(), 0));
-//  }
-//
-//  std::swap(output, *tensor_list_elm.front());
-//  output.set_order(ws.stream(), false);
-//  tensor_list_elm.front()->set_order(internal_copy_order_);
-//
-//  if (!state_info.no_copy || state_info.copied_shared_data) {
-//    RecycleBuffer(tensor_list_elm, &internal_copy_to_storage);
-//  } else {
-//    RecycleBuffer(tensor_list_elm);
-//  }
   auto &output = ws.Output<GPUBackend>(0);
   cudaStream_t stream_used = ws.has_stream() ? ws.stream() : 0;
   ForwardCurrentData(output, stream_used);
