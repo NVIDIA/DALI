@@ -264,7 +264,6 @@ class DLL_PUBLIC FramesDecoder {
 
   std::optional<const std::string> filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
-  std::optional<MemoryVideoFile> memory_video_file_2_ = {};
 
   std::optional<int> num_frames_ = {};
 

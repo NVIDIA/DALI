@@ -190,8 +190,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
                              bool init_codecs, int num_frames)
   : av_state_(std::make_unique<AvState>()),
-    memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)),
-    memory_video_file_2_(MemoryVideoFile(memory_file, memory_file_size)) {
+    memory_video_file_(MemoryVideoFile(memory_file, memory_file_size))  {
   DALI_ENFORCE(init_codecs || !build_index,
                "FramesDecoder doesn't support index without CPU codecs");
   av_log_set_level(AV_LOG_ERROR);
@@ -242,12 +241,128 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   DetectVfr();
 }
 
+// void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs) {
+//     av_state->ctx_ = avformat_alloc_context();
+//     DALI_ENFORCE(av_state_->ctx_, "Could not alloc avformat context");
+
+//     uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(default_av_buffer_size));
+
+//     AVIOContext *av_io_context = avio_alloc_context(
+//       av_io_buffer,
+//       default_av_buffer_size,
+//       0,
+//       &memory_video_file_.value(),
+//       detail::read_memory_video_file,
+//       nullptr,
+//       detail::seek_memory_video_file);
+
+//     av_state->ctx_->pb = av_io_context;
+
+//     int ret = avformat_open_input(&av_state->ctx_, "", nullptr, nullptr);
+//     DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ", detail::av_error_string(ret)));
+//     av_state->stream_id_ = av_find_best_stream(av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+//     av_state->codec_params_ = av_state->ctx_->streams[av_state->stream_id_]->codecpar;
+
+//     av_state->codec_ctx_ = avcodec_alloc_context3(av_state->codec_);
+//     DALI_ENFORCE(av_state->codec_ctx_, "Could not alloc av codec context");
+
+//     ret = avcodec_parameters_to_context(av_state->codec_ctx_, av_state->codec_params_);
+//     DALI_ENFORCE(
+//       ret >= 0,
+//       make_string("Could not fill the codec based on parameters: ", detail::av_error_string(ret)));
+
+//     av_state->packet_ = av_packet_alloc();
+//     DALI_ENFORCE(av_state->packet_, "Could not allocate av packet");
+// }
+
 void FramesDecoder::ParseNumFrames() {
   int curr_num_frames = 0;
 
-  int ret = this->av_state_->ctx_->iformat->flags & AVFMT_SEEK_TO_PTS;
-  // ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
-  if (ret >= 0) {
+  // while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+  //   // We want to make sure that we call av_packet_unref in every iteration
+  //   auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+
+  //   if (packet->stream_index != av_state_->stream_id_) {
+  //     continue;
+  //   }
+  //   curr_num_frames++;
+  // }
+
+  // num_frames_ = curr_num_frames;
+  // Reset();
+
+    // Failover for unseekable video
+
+  // ===============================================================================================
+  //   std::unique_ptr<AvState> tmp_av_state = std::make_unique<AvState>();
+  //   CreateAvState(tmp_av_state, false);
+
+  //   while (av_read_frame(tmp_av_state->ctx_, tmp_av_state->packet_) >= 0) {
+  //     // We want to make sure that we call av_packet_unref in every iteration
+  //     auto packet = AVPacketScope(tmp_av_state->packet_, av_packet_unref);
+
+  //     if (packet->stream_index != tmp_av_state->stream_id_) {
+  //       continue;
+  //     }
+  //     curr_num_frames++;
+  //   }
+
+  //   num_frames_ = curr_num_frames;
+
+  // ===============================================================================================
+    auto current_position = memory_video_file_->position_;
+    memory_video_file_->Seek(0, SEEK_SET);
+    std::unique_ptr<AvState> tmp_av_state = std::make_unique<AvState>();
+    tmp_av_state->ctx_ = avformat_alloc_context();
+
+    uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(default_av_buffer_size));
+
+    AVIOContext *av_io_context = avio_alloc_context(
+      av_io_buffer,
+      default_av_buffer_size,
+      0,
+      &memory_video_file_.value(),
+      detail::read_memory_video_file,
+      nullptr,
+      detail::seek_memory_video_file);
+
+    tmp_av_state->ctx_->pb = av_io_context;
+
+    int ret = avformat_open_input(&tmp_av_state->ctx_, "", nullptr, nullptr);
+      DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
+                                      detail::av_error_string(ret)));
+    tmp_av_state->stream_id_ = av_find_best_stream(tmp_av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    tmp_av_state->codec_params_ = tmp_av_state->ctx_->streams[tmp_av_state->stream_id_]->codecpar;
+
+    tmp_av_state->codec_ctx_ = avcodec_alloc_context3(tmp_av_state->codec_);
+    DALI_ENFORCE(tmp_av_state->codec_ctx_, "Could not alloc av codec context");
+
+    ret = avcodec_parameters_to_context(tmp_av_state->codec_ctx_, tmp_av_state->codec_params_);
+    DALI_ENFORCE(
+      ret >= 0,
+      make_string("Could not fill the codec based on parameters: ", detail::av_error_string(ret)));
+
+    tmp_av_state->packet_ = av_packet_alloc();
+    DALI_ENFORCE(tmp_av_state->packet_, "Could not allocate av packet");
+
+    while (av_read_frame(tmp_av_state->ctx_, tmp_av_state->packet_) >= 0) {
+      // We want to make sure that we call av_packet_unref in every iteration
+      auto packet = AVPacketScope(tmp_av_state->packet_, av_packet_unref);
+
+      if (packet->stream_index != tmp_av_state->stream_id_) {
+        continue;
+      }
+      curr_num_frames++;
+    }
+
+    num_frames_ = curr_num_frames;
+    memory_video_file_->Seek(current_position, SEEK_SET);
+    next_frame_idx_ = 0;
+
+    avio_context_free(&av_io_context);
+
+    // ===============================================================================================
+    // auto current_position = memory_video_file_->position_;
     // while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
     //   // We want to make sure that we call av_packet_unref in every iteration
     //   auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
@@ -259,57 +374,10 @@ void FramesDecoder::ParseNumFrames() {
     // }
 
     // num_frames_ = curr_num_frames;
-    // Reset();
-  } else {
-    // Failover for unseekable video
-    // std::unique_ptr<AvState> tmp_av_state = std::make_unique<AvState>();
-    // tmp_av_state->ctx_ = avformat_alloc_context();
 
-    // uint8_t *av_io_buffer = static_cast<uint8_t *>(av_malloc(default_av_buffer_size));
-
-    // AVIOContext *av_io_context = avio_alloc_context(
-    //   av_io_buffer,
-    //   default_av_buffer_size,
-    //   0,
-    //   &memory_video_file_2_.value(),
-    //   detail::read_memory_video_file,
-    //   nullptr,
-    //   detail::seek_memory_video_file);
-
-    // tmp_av_state->ctx_->pb = av_io_context;
-
-    // int ret = avformat_open_input(&tmp_av_state->ctx_, "", nullptr, nullptr);
-    //   DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
-    //                                  detail::av_error_string(ret)));
-    // tmp_av_state->stream_id_ = av_find_best_stream(tmp_av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-    // tmp_av_state->codec_params_ = tmp_av_state->ctx_->streams[tmp_av_state->stream_id_]->codecpar;
-
-    // tmp_av_state->codec_ctx_ = avcodec_alloc_context3(tmp_av_state->codec_);
-    // DALI_ENFORCE(tmp_av_state->codec_ctx_, "Could not alloc av codec context");
-
-    // ret = avcodec_parameters_to_context(tmp_av_state->codec_ctx_, tmp_av_state->codec_params_);
-    // DALI_ENFORCE(
-    //   ret >= 0,
-    //   make_string("Could not fill the codec based on parameters: ", detail::av_error_string(ret)));
-
-    // tmp_av_state->packet_ = av_packet_alloc();
-    // DALI_ENFORCE(tmp_av_state->packet_, "Could not allocate av packet");
-
-    //     while (av_read_frame(tmp_av_state->ctx_, tmp_av_state->packet_) >= 0) {
-    //   // We want to make sure that we call av_packet_unref in every iteration
-    //   auto packet = AVPacketScope(tmp_av_state->packet_, av_packet_unref);
-
-    //   if (packet->stream_index != tmp_av_state->stream_id_) {
-    //     continue;
-    //   }
-    //   curr_num_frames++;
+    // if (av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME) < 0) {
+      // memory_video_file_->Seek(current_position, SEEK_SET);
     // }
-
-    num_frames_ = 608;
-
-  }
-
-  num_frames_ = 608;
 }
 
 void FramesDecoder::BuildIndex() {
