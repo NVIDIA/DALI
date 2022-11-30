@@ -44,8 +44,8 @@ class NVDECCache {
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
-      unsigned height = video_format->display_area.bottom - video_format->display_area.top;
-      unsigned width = video_format->display_area.right - video_format->display_area.left;
+      unsigned height =  video_format->coded_height;
+      unsigned width = video_format->coded_width;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
 
       if (num_decode_surfaces == 0)
@@ -125,16 +125,18 @@ class NVDECCache {
 #endif
       decoder_info.ulMaxHeight = max_height;
       decoder_info.ulMaxWidth = max_width;
-      decoder_info.ulTargetHeight = height;
-      decoder_info.ulTargetWidth = width;
+      decoder_info.ulTargetHeight = video_format->display_area.bottom -
+                                    video_format->display_area.top;
+      decoder_info.ulTargetWidth = video_format->display_area.right -
+                                   video_format->display_area.left;
       decoder_info.ulNumDecodeSurfaces = num_decode_surfaces;
       decoder_info.ulNumOutputSurfaces = 2;
 
-      auto& area = decoder_info.display_area;
-      area.left   = video_format->display_area.left;
-      area.right  = video_format->display_area.right;
-      area.top    = video_format->display_area.top;
-      area.bottom = video_format->display_area.bottom;
+      // auto& area = decoder_info.display_area;
+      // area.left   = video_format->display_area.left;
+      // area.right  = video_format->display_area.right;
+      // area.top    = video_format->display_area.top;
+      // area.bottom = video_format->display_area.bottom;
       DecInstance decoder_inst = {};
 
       CUDA_CALL(cuvidCreateDecoder(&(decoder_inst.decoder), &decoder_info));
@@ -218,10 +220,18 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   const char* filtername = nullptr;
   switch (av_state_->codec_params_->codec_id) {
   case AVCodecID::AV_CODEC_ID_H264:
-    filtername = "h264_mp4toannexb";
+    if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM")) {
+      filtername = "h264_mp4toannexb";
+    }
     break;
   case AVCodecID::AV_CODEC_ID_HEVC:
-    filtername = "hevc_mp4toannexb";
+    if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM")) {
+      filtername = "hevc_mp4toannexb";
+    }
     break;
   case AVCodecID::AV_CODEC_ID_MPEG4:
     if  (!strcmp(av_state_->ctx_->iformat->name, "avi")) {
