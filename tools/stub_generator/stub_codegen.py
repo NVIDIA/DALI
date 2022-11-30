@@ -27,8 +27,15 @@ import clang.cindex
 def function_header(return_type, name, args):
     args_expr = []
     for arg_type, arg_name in args:
+        # handle function (or array of) pointer and reference to an array differently as well
+        # int (*)(), int (*[])(), int (&)[5]
+        if "(" in arg_type:
+            pos = arg_type.find("(") + 2
+            type = arg_type[0:pos]
+            args_expr.append(f"{type}{arg_name}{arg_type[pos:]}")
         # handle array types differently, put size after the name
-        if "[" in arg_type:
+        # int[]
+        elif "[" in arg_type:
             pos = arg_type.find("[")
             type = arg_type[0:pos]
             args_expr.append(f"{type} {arg_name}{arg_type[pos:]}")
