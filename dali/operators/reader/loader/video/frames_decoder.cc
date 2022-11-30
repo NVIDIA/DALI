@@ -129,7 +129,9 @@ bool FramesDecoder::CheckCodecSupport() {
 
 void FramesDecoder::FindVideoStream(bool init_codecs) {
   if (init_codecs) {
-    for (size_t i = 0; i < av_state_->ctx_->nb_streams; ++i) {
+    size_t i = 0;
+
+    for (i = 0; i < av_state_->ctx_->nb_streams; ++i) {
       av_state_->codec_params_ = av_state_->ctx_->streams[i]->codecpar;
       av_state_->codec_ = avcodec_find_decoder(av_state_->codec_params_->codec_id);
 
@@ -139,11 +141,12 @@ void FramesDecoder::FindVideoStream(bool init_codecs) {
 
       if (av_state_->codec_->type == AVMEDIA_TYPE_VIDEO) {
         av_state_->stream_id_ = i;
-        return;
+        break;
       }
     }
 
-    DALI_FAIL(make_string("Could not find a valid video stream in a file ", Filename()));
+    DALI_ENFORCE(i < av_state_->ctx_->nb_streams,
+                 make_string("Could not find a valid video stream in a file ", Filename()));
   } else {
     av_state_->stream_id_ = av_find_best_stream(av_state_->ctx_, AVMEDIA_TYPE_VIDEO,
                                                 -1, -1, nullptr, 0);
@@ -154,7 +157,6 @@ void FramesDecoder::FindVideoStream(bool init_codecs) {
 
     av_state_->codec_params_ = av_state_->ctx_->streams[av_state_->stream_id_]->codecpar;
   }
-
   if (Height() == 0 || Width() == 0) {
     DALI_ENFORCE(avformat_find_stream_info(av_state_->ctx_, nullptr) >= 0);
     DALI_ENFORCE(Height() != 0 && Width() != 0, "Couldn't load video size info.");
@@ -219,6 +221,7 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
   DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ",
                                      detail::av_error_string(ret)));
 
+  inital_pos_ = avio_tell(av_state_->ctx_->pb);
   FindVideoStream(init_codecs || build_index);
   DALI_ENFORCE(
     CheckCodecSupport(),
@@ -518,7 +521,13 @@ void FramesDecoder::Reset() {
     flush_state_ = false;
   }
 
-  int ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
+  int ret = 0;
+  if (av_state_->ctx_->iformat->flags & AVFMT_NO_BYTE_SEEK) {
+    ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
+  } else {
+    ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, inital_pos_, AVSEEK_FLAG_BYTE);
+    avio_flush(av_state_->ctx_->pb);
+  }
   DALI_ENFORCE(
     ret >= 0,
     make_string(

@@ -261,6 +261,7 @@ class DLL_PUBLIC FramesDecoder {
   int channels_ = 3;
   bool flush_state_ = false;
   bool is_vfr_ = false;
+  int inital_pos_;
 
   std::optional<const std::string> filename_ = {};
   std::optional<MemoryVideoFile> memory_video_file_ = {};
