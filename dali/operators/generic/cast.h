@@ -31,8 +31,17 @@ template <typename Backend>
 class Cast : public Operator<Backend> {
  public:
   explicit inline Cast(const OpSpec &spec)
-      : Operator<Backend>(spec), output_type_(spec.GetArgument<DALIDataType>("dtype")) {}
-
+      : Operator<Backend>(spec) {
+    if (spec.name() == "Cast") {
+      dtype_arg_ = spec.GetArgument<DALIDataType>("dtype");
+      if (dtype_arg_ == DALI_NO_TYPE) {
+        DALI_FAIL(make_string("Unexpected data type argument", dtype_arg_));
+      }
+    } else {
+      assert(spec.name() == "CastLike");
+      is_cast_like_ = true;
+    }
+  }
   inline ~Cast() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(Cast);
@@ -43,14 +52,17 @@ class Cast : public Operator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    output_desc.resize(1);
     const auto &input = ws.Input<Backend>(0);
+    DALIDataType out_type = is_cast_like_ ?  ws.Input<Backend>(1).type() : dtype_arg_;
+    output_desc.resize(1);
     output_desc[0].shape = input.shape();
-    output_desc[0].type = output_type_;
+    output_desc[0].type = out_type;
     return true;
   }
 
-  DALIDataType output_type_;
+ private:
+  bool is_cast_like_ = false;
+  DALIDataType dtype_arg_ = DALI_NO_TYPE;
 };
 
 }  // namespace dali
