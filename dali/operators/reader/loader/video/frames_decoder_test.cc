@@ -402,7 +402,8 @@ TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
 
 TEST_F(FramesDecoderGpuTest, NioTest) {
   // auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_front_main.h264.mkv");
-  auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_front_main.h264.mkv");
+  // auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/camera_front_main.h264.mkv");
+  auto memory_video = MemoryVideo("/home/awolant/Projects/DALI_extra/db/video/vfr/test_1.mkv");
 
   std::vector<uint8_t> frame_cpu_buffer_;
   DeviceBuffer<uint8_t> frame_gpu_buffer_;

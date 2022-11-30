@@ -245,23 +245,21 @@ FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool
 void FramesDecoder::ParseNumFrames() {
   int curr_num_frames = 0;
 
-  num_frames_ = 608;
-  return;
-  int ret;
+  int ret = this->av_state_->ctx_->iformat->flags & AVFMT_SEEK_TO_PTS;
   // ret = av_seek_frame(av_state_->ctx_, av_state_->stream_id_, 0, AVSEEK_FLAG_FRAME);
   if (ret >= 0) {
-    while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-      // We want to make sure that we call av_packet_unref in every iteration
-      auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
+    // while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
+    //   // We want to make sure that we call av_packet_unref in every iteration
+    //   auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
 
-      if (packet->stream_index != av_state_->stream_id_) {
-        continue;
-      }
-      curr_num_frames++;
-    }
+    //   if (packet->stream_index != av_state_->stream_id_) {
+    //     continue;
+    //   }
+    //   curr_num_frames++;
+    // }
 
-    num_frames_ = curr_num_frames;
-    Reset();
+    // num_frames_ = curr_num_frames;
+    // Reset();
   } else {
     // Failover for unseekable video
     // std::unique_ptr<AvState> tmp_av_state = std::make_unique<AvState>();
@@ -310,6 +308,8 @@ void FramesDecoder::ParseNumFrames() {
     num_frames_ = 608;
 
   }
+
+  num_frames_ = 608;
 }
 
 void FramesDecoder::BuildIndex() {
