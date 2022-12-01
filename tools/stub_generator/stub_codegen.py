@@ -20,12 +20,26 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import argparse
+import re
 import json
 import clang.cindex
 
 
 def function_header(return_type, name, args):
-    arg_str = ", ".join([f"{arg_type} {arg_name}" for arg_type, arg_name in args])
+    args_expr = []
+    for arg_type, arg_name in args:
+        # handle arrays and function (or array of) pointer and reference to an array differently
+        # as well
+        # int[], int (*)(), int (*[])(), int (&)[5]
+        match = re.search(r'\[|\)', arg_type)
+        if match:
+            pos = match.span()[0]
+            print(arg_type[:pos])
+            args_expr.append(f"{arg_type[:pos]} {arg_name}{arg_type[pos:]}")
+        else:
+            args_expr.append(f"{arg_type} {arg_name}")
+
+    arg_str = ", ".join(args_expr)
     ret = f"{return_type} {name}({arg_str})"
     return ret
 
