@@ -121,6 +121,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libopenjp2.so.7"
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"
+    "${DEPS_PATH}/lib/libcfitsio.so.4"
 )
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
