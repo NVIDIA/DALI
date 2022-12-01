@@ -23,6 +23,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
 #include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/multi_error.h"
@@ -53,7 +55,7 @@ class Job {
   std::enable_if_t<std::is_convertible_v<Runnable, std::function<void(int)>>>
   AddTask(Runnable &&runnable, priority_t priority = {}) {
     if (started_)
-      throw std::logic_error("This has already been started - cannot add more tasks to it");
+      throw std::logic_error("This job has already been started - cannot add more tasks to it");
     auto it = tasks_.emplace(priority, Task());
     try {
       it->second.func = [this, task = &it->second, f = std::move(runnable)](int tid) {
@@ -150,19 +152,21 @@ class ThreadPoolBase {
     Stop();
   }
 
-  void AddTask(TaskFunc f) {
-    {
-      std::lock_guard<std::mutex> g(mtx_);
-      if (stop_requested_)
-        throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
-      tasks_.push(std::move(f));
-    }
-    cv_.notify_one();
+  void AddTask(TaskFunc f);
+
+  static ThreadPoolBase *this_thread_pool() {
+    return this_thread_pool_;
+  }
+
+  static int this_thread_idx() {
+    return thread_idx_;
   }
 
  protected:
-  virtual void OnThreadStart(int thread_idx) {}
-  virtual void OnThreadStop(int thread_idx) {}
+  virtual void OnThreadStart(int thread_idx) noexcept {}
+  virtual void OnThreadStop(int thread_idx) noexcept {}
+
+  friend class Job;
 
   void Stop() {
     {
@@ -176,25 +180,26 @@ class ThreadPoolBase {
 
     {
       std::lock_guard<std::mutex> g(mtx_);
+      for (auto &task : tasks_) {
+      }
       threads_.clear();
     }
   }
 
-  void Run(int index) noexcept {
-    OnThreadStart(index);
-    detail::CallAtExit([&]() { OnThreadStop(index); });
+  template <typename Condition>
+  bool WaitOrRunTasks(std::condition_variable cv, Condition &&condition) {
+    assert(this_thread_pool() == this);
     std::unique_lock lock(mtx_);
-    while (!stop_requested_) {
+    do {
       cv_.wait(lock, [&]() { return stop_requested_ || !tasks_.empty(); });
-      if (stop_requested_)
-        break;
-      TaskFunc t = std::move(tasks_.front());
-      tasks_.pop();
-      lock.unlock();
-      t(index);
-      lock.lock();
     }
+
   }
+
+  static thread_local ThreadPoolBase *this_thread_pool_;
+  static int thread_idx_;
+
+  void Run(int index) noexcept;
 
   std::mutex mtx_;
   std::condition_variable cv_;
@@ -202,6 +207,38 @@ class ThreadPoolBase {
   std::queue<TaskFunc> tasks_;
   std::vector<std::thread> threads_;
 };
+
+
+thread_local ThreadPoolBase *ThreadPoolBase::this_thread_pool_ = nullptr;
+thread_local int ThreadPoolBase::this_thread_index_ = -1;;
+
+inline void ThreadPoolBase::AddTask(TaskFunc f) {
+  {
+    std::lock_guard<std::mutex> g(mtx_);
+    if (stop_requested_)
+    throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
+    tasks_.push(std::move(f));
+  }
+  cv_.notify_one();
+}
+
+inline void ThreadPoolBase::Run(int index) noexcept {
+  ThreadPoolBase *this_thread_pool_ = this;
+  this_thread_idx_ = index;
+  OnThreadStart(index);
+  detail::CallAtExit([&]() { OnThreadStop(index); });
+  std::unique_lock lock(mtx_);
+  while (!stop_requested_) {
+    cv_.wait(lock, [&]() { return stop_requested_ || !tasks_.empty(); });
+    if (stop_requested_)
+      break;
+    TaskFunc t = std::move(tasks_.front());
+    tasks_.pop();
+    lock.unlock();
+    t(index);
+    lock.lock();
+  }
+}
 
 }  // namespace experimental
 }  // namespace dali
