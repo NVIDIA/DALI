@@ -47,6 +47,8 @@ class NVDECCache {
       unsigned height = video_format->display_area.bottom - video_format->display_area.top;
       unsigned width = video_format->display_area.right - video_format->display_area.left;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
+      auto chroma_format = video_format->chroma_format;
+      auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
 
       if (num_decode_surfaces == 0)
         num_decode_surfaces = 20;
@@ -59,7 +61,9 @@ class NVDECCache {
           best_match = it;
         }
         if (it->second.used == false && it->second.height == height &&
-            it->second.width == width && it->second.num_decode_surfaces == num_decode_surfaces) {
+            it->second.width == width && it->second.num_decode_surfaces == num_decode_surfaces &&
+            it->second.chroma_format == chroma_format &&
+            it->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
           it->second.used = true;
           return NVDECLease(it->second);
         }
@@ -68,7 +72,9 @@ class NVDECCache {
       // resolution. Hard to know them ahead of time and setting too much slow things down
 #ifdef ENABLE_NVDEC_RECONFIGURE
       if (best_match != range.second && cuvidIsSymbolAvailable("cuvidReconfigureDecoder") &&
-          best_match->second.max_width <= width && best_match->second.max_height <= height) {
+          best_match->second.max_width <= width && best_match->second.max_height <= height &&
+          best_match->second.chroma_format == chroma_format &&
+          best_match->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
         best_match->second.used = true;
         lock.unlock();
         CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
@@ -88,9 +94,11 @@ class NVDECCache {
 
       auto caps = CUVIDDECODECAPS{};
       caps.eCodecType = codec_type;
-      caps.eChromaFormat = cudaVideoChromaFormat_420;
-      caps.nBitDepthMinus8 = 0;
+      caps.eChromaFormat = chroma_format;
+      caps.nBitDepthMinus8 = bit_depth_luma_minus8;
       CUDA_CALL(cuvidGetDecoderCaps(&caps));
+
+      DALI_ENFORCE(caps.bIsSupported, "Codec not supported on this GPU");
 
       DALI_ENFORCE(width >= caps.nMinWidth  && height >= caps.nMinHeight,
                    "Video is too small in at least one dimension.");
@@ -104,8 +112,8 @@ class NVDECCache {
       CUVIDDECODECREATEINFO decoder_info;
       memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
 
-      decoder_info.bitDepthMinus8 = video_format->bit_depth_luma_minus8;;
-      decoder_info.ChromaFormat = video_format->chroma_format;;
+      decoder_info.bitDepthMinus8 = bit_depth_luma_minus8;
+      decoder_info.ChromaFormat = chroma_format;
       decoder_info.CodecType = codec_type;
       decoder_info.ulHeight = height;
       decoder_info.ulWidth = width;
@@ -143,8 +151,10 @@ class NVDECCache {
       decoder_inst.max_height = decoder_info.ulMaxHeight;
       decoder_inst.max_width = decoder_info.ulMaxWidth;
       decoder_inst.num_decode_surfaces = num_decode_surfaces;
-      decoder_inst.used = true;
       decoder_inst.codec_type = codec_type;
+      decoder_inst.chroma_format = chroma_format;
+      decoder_inst.bit_depth_luma_minus8 = bit_depth_luma_minus8;
+      decoder_inst.used = true;
 
       lock.lock();
       dec_cache.insert({codec_type, decoder_inst});

@@ -57,11 +57,13 @@ struct CUvideoparserHandle : public UniqueHandle<CUvideoparser, CUvideoparserHan
 struct DecInstance {
   CUvideodecoder decoder = {};
   cudaVideoCodec codec_type = {};
+  cudaVideoChromaFormat chroma_format = {};
   unsigned height = 0;
   unsigned width = 0;
   unsigned num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
+  unsigned int bit_depth_luma_minus8 = 0;
   bool used = false;
 };
 
