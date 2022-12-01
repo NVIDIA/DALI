@@ -14,12 +14,12 @@
 # ==============================================================================
 """Canonicalizes continue statements by de-sugaring into a control boolean."""
 
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct import templates
-from tensorflow.python.autograph.pyct.static_analysis import activity
-from tensorflow.python.autograph.pyct.static_analysis.annos import NodeAnno
+from autograph.core import converter
+from autograph.pyct import anno
+from autograph.pyct import qual_names
+from autograph.pyct import templates
+from autograph.pyct.static_analysis import activity
+from autograph.pyct.static_analysis.annos import NodeAnno
 
 
 class _Continue(object):

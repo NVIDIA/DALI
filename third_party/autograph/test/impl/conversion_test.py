@@ -16,23 +16,17 @@
 
 import imp
 import sys
-import types
-import weakref
+import unittest
 
 import six
 
-from tensorflow.python.autograph import utils
-from tensorflow.python.autograph.core import config
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.impl import api
-from tensorflow.python.autograph.impl import conversion
-from tensorflow.python.autograph.impl.testing import pybind_for_testing
-from tensorflow.python.eager import function
-from tensorflow.python.framework import constant_op
-from tensorflow.python.platform import test
+from autograph import utils
+from autograph.core import config
+from autograph.core import converter
+from autograph.impl import api
+from autograph.impl import conversion
 
-
-class ConversionTest(test.TestCase):
+class ConversionTest(unittest.TestCase):
 
   def _simple_program_ctx(self):
     return converter.ProgramContext(
@@ -42,21 +36,9 @@ class ConversionTest(test.TestCase):
   def test_is_allowlisted(self):
 
     def test_fn():
-      return constant_op.constant(1)
+      return 1
 
     self.assertFalse(conversion.is_allowlisted(test_fn))
-    self.assertTrue(conversion.is_allowlisted(utils))
-    self.assertTrue(conversion.is_allowlisted(constant_op.constant))
-
-  def test_is_allowlisted_tensorflow_like(self):
-
-    tf_like = imp.new_module('tensorflow_foo')
-    def test_fn():
-      pass
-    tf_like.test_fn = test_fn
-    test_fn.__module__ = tf_like
-
-    self.assertFalse(conversion.is_allowlisted(tf_like.test_fn))
 
   def test_is_allowlisted_callable_allowlisted_call(self):
 
@@ -93,33 +75,3 @@ class ConversionTest(test.TestCase):
     self.assertFalse(conversion.is_allowlisted(Subclass))
     self.assertFalse(conversion.is_allowlisted(tc.converted_method))
 
-  def test_is_allowlisted_tfmethodwrapper(self):
-
-    class TestClass(object):
-
-      def member_function(self):
-        pass
-
-    TestClass.__module__ = 'test_allowlisted_call'
-    test_obj = TestClass()
-
-    def test_fn(self):
-      del self
-
-    bound_method = types.MethodType(
-        test_fn,
-        function.TfMethodTarget(
-            weakref.ref(test_obj), test_obj.member_function))
-
-    self.assertTrue(conversion.is_allowlisted(bound_method))
-
-  def test_is_allowlisted_pybind(self):
-    test_object = pybind_for_testing.TestClassDef()
-    with test.mock.patch.object(config, 'CONVERSION_RULES', ()):
-      # TODO(mdan): This should return True for functions and methods.
-      # Note: currently, native bindings are allowlisted by a separate check.
-      self.assertFalse(conversion.is_allowlisted(test_object.method))
-
-
-if __name__ == '__main__':
-  test.main()

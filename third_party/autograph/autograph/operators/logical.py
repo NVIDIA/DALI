@@ -14,21 +14,13 @@
 # ==============================================================================
 """Logical boolean operators: not, and, or."""
 
-from tensorflow.python.framework import tensor_util
-from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import gen_math_ops
-
+from autograph.utils import hooks
 
 def not_(a):
   """Functional form of "not"."""
-  if tensor_util.is_tf_type(a):
-    return _tf_not(a)
+  if hooks._DISPATCH.detect_overload_not_(a):
+    return hooks._DISPATCH.not_(a)
   return _py_not(a)
-
-
-def _tf_not(a):
-  """Implementation of the "not_" operator for TensorFlow."""
-  return gen_math_ops.logical_not(a)
 
 
 def _py_not(a):
@@ -39,15 +31,9 @@ def _py_not(a):
 def and_(a, b):
   """Functional form of "and". Uses lazy evaluation semantics."""
   a_val = a()
-  if tensor_util.is_tf_type(a_val):
-    return _tf_lazy_and(a_val, b)
+  if hooks._DISPATCH.detect_overload_lazy_and(a_val):
+    return hooks._DISPATCH.lazy_and(a_val, b)
   return _py_lazy_and(a_val, b)
-
-
-def _tf_lazy_and(cond, b):
-  """Lazy-eval equivalent of "and" for Tensors."""
-  # TODO(mdan): Enforce cond is scalar here?
-  return control_flow_ops.cond(cond, b, lambda: cond)
 
 
 def _py_lazy_and(cond, b):
@@ -58,15 +44,9 @@ def _py_lazy_and(cond, b):
 def or_(a, b):
   """Functional form of "or". Uses lazy evaluation semantics."""
   a_val = a()
-  if tensor_util.is_tf_type(a_val):
-    return _tf_lazy_or(a_val, b)
+  if hooks._DISPATCH.detect_overload_lazy_or(a_val):
+    return hooks._DISPATCH.lazy_or(a_val, b)
   return _py_lazy_or(a_val, b)
-
-
-def _tf_lazy_or(cond, b):
-  """Lazy-eval equivalent of "or" for Tensors."""
-  # TODO(mdan): Enforce cond is scalar here?
-  return control_flow_ops.cond(cond, lambda: cond, b)
 
 
 def _py_lazy_or(cond, b):
@@ -76,14 +56,9 @@ def _py_lazy_or(cond, b):
 
 def eq(a, b):
   """Functional form of "equal"."""
-  if tensor_util.is_tf_type(a) or tensor_util.is_tf_type(b):
-    return _tf_equal(a, b)
+  if hooks._DISPATCH.detect_overload_equal(a) or hooks._DISPATCH.detect_overload_equal(b):
+    return hooks._DISPATCH.equal(a, b)
   return _py_equal(a, b)
-
-
-def _tf_equal(a, b):
-  """Overload of "equal" for Tensors."""
-  return gen_math_ops.equal(a, b)
 
 
 def _py_equal(a, b):

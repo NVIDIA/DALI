@@ -17,18 +17,18 @@
 
 import os
 import textwrap
+import unittest
 
 import gast
 
-from tensorflow.python.autograph.pyct import ast_util
-from tensorflow.python.autograph.pyct import loader
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.platform import test
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import ast_util
+from autograph.pyct import loader
+from autograph.pyct import parser
+from autograph.pyct import pretty_printer
+import inspect as tf_inspect
 
 
-class LoaderTest(test.TestCase):
+class LoaderTest(unittest.TestCase):
 
   def assertAstMatches(self, actual_node, expected_node_src):
     expected_node = gast.parse(expected_node_src).body[0]
@@ -118,6 +118,3 @@ class LoaderTest(test.TestCase):
     # Clean up the file before loader.py tries to remove it, to check that the
     # latter can deal with that situation.
     os.unlink(filename)
-
-if __name__ == '__main__':
-  test.main()

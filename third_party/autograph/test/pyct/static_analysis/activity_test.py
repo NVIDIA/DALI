@@ -14,16 +14,17 @@
 # ==============================================================================
 """Tests for activity module."""
 
+import unittest
+
 import gast
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import naming
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.autograph.pyct.static_analysis import activity
-from tensorflow.python.autograph.pyct.static_analysis import annos
-from tensorflow.python.platform import test
+from autograph.pyct import anno
+from autograph.pyct import naming
+from autograph.pyct import parser
+from autograph.pyct import qual_names
+from autograph.pyct import transformer
+from autograph.pyct.static_analysis import activity
+from autograph.pyct.static_analysis import annos
 
 
 QN = qual_names.QN
@@ -33,7 +34,7 @@ global_a = 7
 global_b = 17
 
 
-class ScopeTest(test.TestCase):
+class ScopeTest(unittest.TestCase):
 
   def assertMissing(self, qn, scope):
     self.assertNotIn(qn, scope.read)
@@ -120,7 +121,7 @@ class ScopeTest(test.TestCase):
     self.assertIn(QN('a'), child.referenced)
 
 
-class ActivityAnalyzerTestBase(test.TestCase):
+class ActivityAnalyzerTestBase(unittest.TestCase):
 
   def _parse_and_analyze(self, test_fn):
     # TODO(mdan): Use a custom FunctionTransformer here.
@@ -862,7 +863,3 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
     fn_node = node
     body_scope = anno.getanno(fn_node, NodeAnno.BODY_SCOPE)
     self.assertScopeIs(body_scope, ('a', 'b', 'C', 'c'), ('C',))
-
-
-if __name__ == '__main__':
-  test.main()

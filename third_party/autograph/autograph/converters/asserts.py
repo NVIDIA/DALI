@@ -16,8 +16,8 @@
 
 import gast
 
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.pyct import templates
+from autograph.core import converter
+from autograph.pyct import templates
 
 
 class AssertTransformer(converter.Base):

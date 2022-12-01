@@ -16,17 +16,17 @@
 
 import re
 import textwrap
+import unittest
 
 import gast
 
-from tensorflow.python.autograph.pyct import ast_util
-from tensorflow.python.autograph.pyct import errors
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.platform import test
+from autograph.pyct import ast_util
+from autograph.pyct import errors
+from autograph.pyct import parser
+from autograph.pyct import pretty_printer
 
 
-class ParserTest(test.TestCase):
+class ParserTest(unittest.TestCase):
 
   def assertAstMatches(self, actual_node, expected_node_src, expr=True):
     if expr:
@@ -380,6 +380,3 @@ string""")
     node, _ = parser.parse_entity(ext_slice, future_features=())
     source = parser.unparse(node)
     self.assertAstMatches(node, source, expr=False)
-
-if __name__ == '__main__':
-  test.main()

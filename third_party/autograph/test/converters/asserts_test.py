@@ -14,13 +14,10 @@
 # ==============================================================================
 """Tests for asserts module."""
 
-from tensorflow.python.autograph.converters import asserts
-from tensorflow.python.autograph.converters import functions
-from tensorflow.python.autograph.converters import return_statements
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.framework import constant_op
-from tensorflow.python.framework import errors_impl
-from tensorflow.python.platform import test
+from autograph.converters import asserts
+from autograph.converters import functions
+from autograph.converters import return_statements
+from autograph.core import converter_testing
 
 
 class AssertsTest(converter_testing.TestCase):
@@ -33,10 +30,5 @@ class AssertsTest(converter_testing.TestCase):
 
     tr = self.transform(f, (functions, asserts, return_statements))
 
-    op = tr(constant_op.constant(False))
-    with self.assertRaisesRegex(errors_impl.InvalidArgumentError, 'testmsg'):
-      self.evaluate(op)
-
-
-if __name__ == '__main__':
-  test.main()
+    with self.assertRaisesRegex(AssertionError, 'testmsg'):
+      _ = tr(False)

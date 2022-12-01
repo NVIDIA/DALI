@@ -29,9 +29,9 @@ import astunparse
 import gast
 import six
 
-from tensorflow.python.autograph.pyct import errors
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import errors
+from autograph.pyct import inspect_utils
+import inspect as tf_inspect
 
 
 PY2_PREAMBLE = textwrap.dedent("""

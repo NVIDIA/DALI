@@ -14,17 +14,18 @@
 # ==============================================================================
 """Tests for type_inference module."""
 
+import unittest
+
 from typing import Any, Callable, List
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import cfg
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct import transpiler
-from tensorflow.python.autograph.pyct.static_analysis import activity
-from tensorflow.python.autograph.pyct.static_analysis import reaching_definitions
-from tensorflow.python.autograph.pyct.static_analysis import reaching_fndefs
-from tensorflow.python.autograph.pyct.static_analysis import type_inference
-from tensorflow.python.platform import test
+from autograph.pyct import anno
+from autograph.pyct import cfg
+from autograph.pyct import qual_names
+from autograph.pyct import transpiler
+from autograph.pyct.static_analysis import activity
+from autograph.pyct.static_analysis import reaching_definitions
+from autograph.pyct.static_analysis import reaching_fndefs
+from autograph.pyct.static_analysis import type_inference
 
 
 class BasicTestResolver(type_inference.Resolver):
@@ -64,7 +65,7 @@ class TestTranspiler(transpiler.GenericTranspiler):
     return node
 
 
-class TypeInferenceAnalyzerTest(test.TestCase):
+class TypeInferenceAnalyzerTest(unittest.TestCase):
 
   def assertTypes(self, node, expected):
     if not isinstance(expected, tuple):
@@ -936,7 +937,3 @@ class TypeInferenceAnalyzerTest(test.TestCase):
     self.assertTypes(fn_body[1].value, ((int, float),))
     self.assertTypes(fn_body[1].value.elts[0], int)
     self.assertTypes(fn_body[1].value.elts[1], float)
-
-
-if __name__ == '__main__':
-  test.main()

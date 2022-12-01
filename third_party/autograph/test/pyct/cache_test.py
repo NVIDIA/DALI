@@ -14,11 +14,12 @@
 # ==============================================================================
 """Tests for cache module."""
 
-from tensorflow.python.autograph.pyct import cache
-from tensorflow.python.platform import test
+import unittest
+
+from autograph.pyct import cache
 
 
-class CacheTest(test.TestCase):
+class CacheTest(unittest.TestCase):
 
   def test_code_object_cache(self):
 
@@ -69,7 +70,3 @@ class CacheTest(test.TestCase):
     self.assertTrue(c.has(o2.method, 1))
     self.assertIs(c[o2.method][1], dummy)
     self.assertEqual(len(c), 1)
-
-
-if __name__ == '__main__':
-  test.main()

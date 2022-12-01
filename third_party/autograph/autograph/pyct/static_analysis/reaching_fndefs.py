@@ -20,9 +20,9 @@ A function definition is said to reach a statement if that function may exist
 
 import gast
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import cfg
-from tensorflow.python.autograph.pyct import transformer
+from autograph.pyct import anno
+from autograph.pyct import cfg
+from autograph.pyct import transformer
 
 
 class Definition(object):

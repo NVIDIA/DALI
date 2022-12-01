@@ -26,7 +26,7 @@ import types
 
 import six
 
-from tensorflow.python.util import tf_inspect
+import inspect as tf_inspect
 
 # This lock seems to help avoid linecache concurrency errors.
 _linecache_lock = threading.Lock()

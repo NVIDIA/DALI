@@ -16,13 +16,12 @@
 
 import imp
 
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import loader
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import templates
-from tensorflow.python.platform import test
+from autograph.core import converter
+from autograph.core import converter_testing
+from autograph.pyct import anno
+from autograph.pyct import loader
+from autograph.pyct import parser
+from autograph.pyct import templates
 
 
 class TestConverter(converter.Base):
@@ -146,7 +145,3 @@ class ConverterBaseTest(converter_testing.TestCase):
     c = TestConverter(ctx)
     with self.assertRaises(ValueError):
       c.get_definition_directive(symbol_a, directive_key, 'test_arg', None)
-
-
-if __name__ == '__main__':
-  test.main()

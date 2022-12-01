@@ -24,8 +24,8 @@ import os
 import sys
 import tempfile
 
-from tensorflow.python.autograph.pyct import origin_info
-from tensorflow.python.autograph.pyct import parser
+from autograph.pyct import origin_info
+from autograph.pyct import parser
 
 
 def _remove_file(file_name):

@@ -17,17 +17,17 @@
 import inspect
 import sys
 import textwrap
+import unittest
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.autograph.pyct import origin_info
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct.testing import basic_definitions
-from tensorflow.python.platform import test
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import anno
+from autograph.pyct import inspect_utils
+from autograph.pyct import origin_info
+from autograph.pyct import parser
+from autograph.pyct.testing import basic_definitions
+import inspect as tf_inspect
 
 
-class OriginInfoTest(test.TestCase):
+class OriginInfoTest(unittest.TestCase):
 
   def test_create_source_map(self):
 
@@ -108,7 +108,7 @@ class OriginInfoTest(test.TestCase):
     source_map = origin_info.create_source_map(node, '\n'.join(test_fn_lines),
                                                test_fn)
 
-    self.assertEmpty(source_map)
+    self.assertEqual(source_map, {})
 
   def test_resolve(self):
 
@@ -262,7 +262,3 @@ class OriginInfoTest(test.TestCase):
     self.assertEqual(ret2_origin.loc.col_offset, 2)
     self.assertEqual(ret2_origin.source_code_line, '  return 2')
     self.assertIsNone(ret2_origin.comment)
-
-
-if __name__ == '__main__':
-  test.main()

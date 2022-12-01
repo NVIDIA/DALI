@@ -14,14 +14,9 @@
 # ==============================================================================
 """Tests for slices module."""
 
-from tensorflow.python.autograph.converters import directives as directives_converter
-from tensorflow.python.autograph.converters import slices
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.autograph.lang import directives
-from tensorflow.python.framework import constant_op
-from tensorflow.python.framework import dtypes
-from tensorflow.python.ops import list_ops
-from tensorflow.python.platform import test
+from autograph.converters import directives as directives_converter
+from autograph.converters import slices
+from autograph.core import converter_testing
 
 
 class SliceTest(converter_testing.TestCase):
@@ -29,26 +24,20 @@ class SliceTest(converter_testing.TestCase):
   def test_index_access(self):
 
     def f(l):
-      directives.set_element_type(l, dtypes.int32)
       return l[1]
 
     tr = self.transform(f, (directives_converter, slices))
 
-    tl = list_ops.tensor_list_from_tensor(
-        [1, 2], element_shape=constant_op.constant([], dtype=dtypes.int32))
+    tl = [1, 2]
     y = tr(tl)
-    self.assertEqual(2, self.evaluate(y))
+    self.assertEqual(2, y)
 
   def test_index_access_multiple_definitions(self):
 
     def f(l):
-      directives.set_element_type(l, dtypes.int32)
       if l:
         l = []
       return l[1]
 
     self.transform(f, (directives_converter, slices))
 
-
-if __name__ == '__main__':
-  test.main()

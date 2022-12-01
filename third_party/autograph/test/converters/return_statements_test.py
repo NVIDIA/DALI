@@ -14,11 +14,9 @@
 # ==============================================================================
 """Tests for return_statements module."""
 
-from tensorflow.python.autograph.converters import functions
-from tensorflow.python.autograph.converters import return_statements
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.framework import ops
-from tensorflow.python.platform import test
+from autograph.converters import functions
+from autograph.converters import return_statements
+from autograph.core import converter_testing
 
 
 class SingleReturnTest(converter_testing.TestCase):
@@ -112,8 +110,7 @@ class SingleReturnTest(converter_testing.TestCase):
   def test_context_manager(self):
 
     def f(x):
-      with ops.name_scope(''):
-        return x * x
+      return x * x
 
     self.assertTransformedEquivalent(f, 2)
     self.assertTransformedEquivalent(f, -2)
@@ -122,8 +119,7 @@ class SingleReturnTest(converter_testing.TestCase):
 
     def f(x):
       if x > 0:
-        with ops.name_scope(''):
-          return x * x
+        return x * x
       else:
         return x
 
@@ -133,11 +129,10 @@ class SingleReturnTest(converter_testing.TestCase):
   def text_conditional_in_context_manager(self):
 
     def f(x):
-      with ops.name_scope(''):
-        if x > 0:
-          return x * x
-        else:
-          return x
+      if x > 0:
+        return x * x
+      else:
+        return x
 
     self.assertTransformedEquivalent(f, 2)
     self.assertTransformedEquivalent(f, -2)
@@ -217,11 +212,9 @@ class SingleReturnTest(converter_testing.TestCase):
       v = []
       while x > 0:
         x -= 1
-        with ops.name_scope(''):
-          if x % 2 == 0:
-            return v
-        with ops.name_scope(''):
-          v.append(x)
+        if x % 2 == 0:
+          return v
+        v.append(x)
         v.append(x)
       return v
 
@@ -249,6 +242,3 @@ class SingleReturnTest(converter_testing.TestCase):
     self.assertTransformedEquivalent(f, [1])
     self.assertTransformedEquivalent(f, [2])
     self.assertTransformedEquivalent(f, [1, 2, 3])
-
-if __name__ == '__main__':
-  test.main()

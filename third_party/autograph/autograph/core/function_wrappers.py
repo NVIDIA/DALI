@@ -14,13 +14,9 @@
 # ==============================================================================
 """Support for wrapping converted functions bodies with auxiliary logic."""
 
-from tensorflow.python.autograph.core import ag_ctx
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.operators import variables
-from tensorflow.python.framework import auto_control_deps
-from tensorflow.python.framework import ops
-from tensorflow.python.framework import tensor_util
-from tensorflow.python.util import nest
+from autograph.core import ag_ctx
+from autograph.core import converter
+from autograph.operators import variables
 
 
 # TODO(mdan): Move this into operators - it represents a function definition.
@@ -37,7 +33,7 @@ class FunctionScope(object):
         for control dependencies that is used by `@tf.function`; it can be
         optionally enabled when using `tf.autograph.to_graph`;
     * tracking of autograph conversion state (whether it's enabled by the user,
-        conversion options;
+        conversion options);
   """
 
   def __init__(self, function_name, scope_name, options):
@@ -49,16 +45,6 @@ class FunctionScope(object):
                                                    options)
     self.callopts = options.call_options()
 
-    use_name_scope = options.uses(converter.Feature.NAME_SCOPES)
-    self.use_name_scope = use_name_scope
-    if use_name_scope:
-      self.name_scope = ops.name_scope(self._sanitize(function_name))
-
-    use_auto_deps = self.options.uses(converter.Feature.AUTO_CONTROL_DEPS)
-    self.use_auto_deps = use_auto_deps
-    if use_auto_deps:
-      self.autodeps_scope = auto_control_deps.AutomaticControlDependencies()
-      self._return_value_marked = False
 
   def _sanitize(self, name):
     """See https://www.tensorflow.org/api_docs/python/tf/Graph#name_scope."""
@@ -70,19 +56,11 @@ class FunctionScope(object):
   def __enter__(self):
     if self.options.user_requested:
       self.autograph_ctx.__enter__()
-    if self.use_name_scope:
-      self.name_scope.__enter__()
-    if self.use_auto_deps:
-      self.autodeps_scope.__enter__()
     return self
 
   def __exit__(self, exc_type, exc_val, exc_tb):
     if self.options.user_requested:
       self.autograph_ctx.__exit__(exc_type, exc_val, exc_tb)
-    if self.use_name_scope:
-      self.name_scope.__exit__(exc_type, exc_val, exc_tb)
-    if self.use_auto_deps:
-      self.autodeps_scope.__exit__(exc_type, exc_val, exc_tb)
 
   def ret(self, value, did_return):
     """Marks a value as returned from the function guarded by the scope."""
@@ -91,19 +69,6 @@ class FunctionScope(object):
     if isinstance(value, variables.UndefinedReturnValue):
       return None
 
-    if self.use_auto_deps:
-      self._return_value_marked = True
-      if value is None:
-        # We don't create dummy returns, to preserve Python semantics. The user
-        # is responsible for adding a return value to the top-level function.
-        return None
-
-      def _mark_return_if_tensor(t):
-        if tensor_util.is_tf_type(t):
-          return self.autodeps_scope.mark_as_return(t)
-        return t
-
-      value = nest.map_structure(_mark_return_if_tensor, value)
     return value
 
 

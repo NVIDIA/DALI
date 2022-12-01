@@ -33,12 +33,12 @@ from typing import Any, Callable, Dict, Set
 
 import gast
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import cfg
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.autograph.pyct.static_analysis import activity
-from tensorflow.python.autograph.pyct.static_analysis import annos
+from autograph.pyct import anno
+from autograph.pyct import cfg
+from autograph.pyct import qual_names
+from autograph.pyct import transformer
+from autograph.pyct.static_analysis import activity
+from autograph.pyct.static_analysis import annos
 
 
 class Resolver(object):

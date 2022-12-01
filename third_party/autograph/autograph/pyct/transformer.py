@@ -19,10 +19,10 @@ import enum
 
 import gast
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.autograph.pyct import templates
+from autograph.pyct import anno
+from autograph.pyct import parser
+from autograph.pyct import pretty_printer
+from autograph.pyct import templates
 
 
 class AnalysisLevel(enum.IntEnum):

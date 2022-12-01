@@ -16,13 +16,7 @@
 
 import collections
 
-from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import tensor_util
-from tensorflow.python.ops import gen_array_ops
-from tensorflow.python.ops import gen_string_ops
-from tensorflow.python.ops import list_ops
-from tensorflow.python.ops import tensor_array_ops
-
+from autograph.utils import hooks
 
 # TODO(mdan): Support extended slices.
 
@@ -50,42 +44,10 @@ def get_item(target, i, opts):
   """
   assert isinstance(opts, GetItemOpts)
 
-  if isinstance(target, tensor_array_ops.TensorArray):
-    return _tf_tensorarray_get_item(target, i)
-  elif tensor_util.is_tf_type(target):
-    if target.dtype == dtypes.variant:
-      return _tf_tensor_list_get_item(target, i, opts)
-    elif target.dtype == dtypes.string and target.shape.ndims == 0:
-      return _tf_tensor_string_get_item(target, i)
-    else:
-      return _tf_tensor_get_item(target, i)
+  if hooks._DISPATCH.detect_overload_get_item(target):
+    return hooks._DISPATCH.get_item(target, i)
   else:
     return _py_get_item(target, i)
-
-
-def _tf_tensorarray_get_item(target, i):
-  """Overload of get_item that stages a TensorArray read."""
-  return target.read(i)
-
-
-def _tf_tensor_list_get_item(target, i, opts):
-  """Overload of get_item that stages a Tensor list read."""
-  if opts.element_dtype is None:
-    raise ValueError('cannot retrieve from a list without knowing its '
-                     'element type; use set_element_type to annotate it')
-  x = list_ops.tensor_list_get_item(target, i, element_dtype=opts.element_dtype)
-  return x
-
-
-def _tf_tensor_get_item(target, i):
-  """Overload of get_item that stages a Tensor (not Tensor list) read."""
-  return target[i]
-
-
-def _tf_tensor_string_get_item(target, i):
-  """Overload of get_item that stages a Tensor string read."""
-  x = gen_string_ops.substr(target, i, 1)
-  return x
 
 
 def _py_get_item(target, i):
@@ -110,30 +72,11 @@ def set_item(target, i, x):
   Raises:
     ValueError: if target is not of a supported type.
   """
-  if isinstance(target, tensor_array_ops.TensorArray):
-    return _tf_tensorarray_set_item(target, i, x)
-  elif tensor_util.is_tf_type(target):
-    if target.dtype == dtypes.variant:
-      return _tf_tensor_list_set_item(target, i, x)
-    else:
-      return _tf_tensor_set_item(target, i, x)
+
+  if hooks._DISPATCH.detect_overload_set_item(target):
+    return hooks._DISPATCH.set_item(target, i, x)
   else:
     return _py_set_item(target, i, x)
-
-
-def _tf_tensorarray_set_item(target, i, x):
-  """Overload of set_item that stages a TensorArray write."""
-  return target.write(i, x)
-
-
-def _tf_tensor_list_set_item(target, i, x):
-  """Overload of set_item that stages a Tensor list update."""
-  return list_ops.tensor_list_set_item(target, i, x)
-
-
-def _tf_tensor_set_item(target, i, x):
-  """Overload of set_item that stages a Tensor scatter update."""
-  return gen_array_ops.tensor_scatter_update(target, ((i,),), (x,))
 
 
 def _py_set_item(target, i, x):

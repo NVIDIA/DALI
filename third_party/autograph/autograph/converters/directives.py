@@ -31,10 +31,10 @@ import inspect
 
 import gast
 
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.lang import directives
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.util import tf_inspect
+from autograph.core import converter
+from autograph.lang import directives
+from autograph.pyct import anno
+import inspect as tf_inspect
 
 
 STATIC_VALUE = 'static_value'

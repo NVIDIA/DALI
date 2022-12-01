@@ -14,11 +14,8 @@
 # ==============================================================================
 """Tests for logical_expressions module."""
 
-from tensorflow.python.autograph.converters import logical_expressions
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.framework import constant_op
-from tensorflow.python.framework import test_util
-from tensorflow.python.platform import test
+from autograph.converters import logical_expressions
+from autograph.core import converter_testing
 
 
 class LogicalExpressionTest(converter_testing.TestCase):
@@ -30,10 +27,9 @@ class LogicalExpressionTest(converter_testing.TestCase):
 
     tr = self.transform(f, logical_expressions)
 
-    self.assertTrue(self.evaluate(tr(constant_op.constant(1), 1)))
-    self.assertFalse(self.evaluate(tr(constant_op.constant(1), 2)))
+    self.assertTrue(tr(1, 1))
+    self.assertFalse(tr(1, 2))
 
-  @test_util.run_deprecated_v1
   def test_bool_ops(self):
 
     def f(a, b, c):
@@ -41,8 +37,8 @@ class LogicalExpressionTest(converter_testing.TestCase):
 
     tr = self.transform(f, logical_expressions)
 
-    self.assertTrue(self.evaluate(tr(constant_op.constant(True), False, False)))
-    self.assertFalse(self.evaluate(tr(constant_op.constant(True), False, True)))
+    self.assertTrue(tr(True, False, False))
+    self.assertFalse(tr(True, False, True))
 
   def test_comparison(self):
 
@@ -56,8 +52,8 @@ class LogicalExpressionTest(converter_testing.TestCase):
     # a < b executed first, the result would be a Python scalar and not a
     # Tensor. This is valid as long as the dispat is automatic based on
     # type.
-    self.assertTrue(self.evaluate(tr(constant_op.constant(1), 2, 2, 1)))
-    self.assertFalse(self.evaluate(tr(constant_op.constant(1), 2, 2, 3)))
+    self.assertTrue(tr(1, 2, 2, 1))
+    self.assertFalse(tr(1, 2, 2, 3))
 
   def test_default_ops(self):
 
@@ -77,6 +73,3 @@ class LogicalExpressionTest(converter_testing.TestCase):
 
     self.assertEqual(tr(1), (-2, -1, 1))
 
-
-if __name__ == '__main__':
-  test.main()

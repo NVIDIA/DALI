@@ -30,22 +30,23 @@ and the [tf.function guide](https://www.tensorflow.org/guide/function#autograph_
 """
 
 # TODO(mdan): Bring only the relevant symbols to the top level.
-from tensorflow.python.autograph import operators
-from tensorflow.python.autograph import utils
-from tensorflow.python.autograph.core.converter import ConversionOptions
-from tensorflow.python.autograph.core.converter import Feature
-from tensorflow.python.autograph.impl.api import AutoGraphError
-from tensorflow.python.autograph.impl.api import convert
-from tensorflow.python.autograph.impl.api import converted_call
-from tensorflow.python.autograph.impl.api import do_not_convert
-from tensorflow.python.autograph.impl.api import StackTraceMapper
-from tensorflow.python.autograph.impl.api import to_code
-from tensorflow.python.autograph.impl.api import to_graph
-from tensorflow.python.autograph.lang.directives import set_element_type
-from tensorflow.python.autograph.lang.directives import set_loop_options
-from tensorflow.python.autograph.lang.special_functions import stack
-from tensorflow.python.autograph.utils import ag_logging
-from tensorflow.python.util.all_util import remove_undocumented
+from autograph import operators
+from autograph import utils
+from autograph.core.converter import ConversionOptions
+from autograph.core.converter import Feature
+from autograph.impl.api import initialize_autograph
+from autograph.impl.api import AutoGraphError
+from autograph.impl.api import convert
+from autograph.impl.api import converted_call
+from autograph.impl.api import do_not_convert
+# from autograph.impl.api import StackTraceMapper
+from autograph.impl.api import to_code
+from autograph.impl.api import to_graph
+from autograph.lang.directives import set_element_type
+from autograph.lang.directives import set_loop_options
+from autograph.utils import ag_logging
+from autograph.utils.all_utils import _remove_undocumented
+from autograph.utils.hooks import OperatorBase
 
 # TODO(mdan): Revisit this list once we finalize the generated code mechanism.
 _allowed_symbols = [
@@ -53,7 +54,7 @@ _allowed_symbols = [
     'AutoGraphError',
     'ConversionOptions',
     'Feature',
-    'StackTraceMapper',
+    # 'StackTraceMapper',
     'convert',
     'converted_call',
     'do_not_convert',
@@ -70,4 +71,5 @@ _allowed_symbols = [
     'utils',
 ]
 
-remove_undocumented(__name__, _allowed_symbols)
+
+_remove_undocumented(__name__, _allowed_symbols)

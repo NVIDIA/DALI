@@ -14,9 +14,8 @@
 # ==============================================================================
 """Tests for list_comprehensions module."""
 
-from tensorflow.python.autograph.converters import list_comprehensions
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.platform import test
+from autograph.converters import list_comprehensions
+from autograph.core import converter_testing
 
 
 class ListCompTest(converter_testing.TestCase):
@@ -51,7 +50,3 @@ class ListCompTest(converter_testing.TestCase):
 
     self.assertTransformedEquivalent(f, [])
     self.assertTransformedEquivalent(f, [1, 2, 3])
-
-
-if __name__ == '__main__':
-  test.main()

@@ -16,9 +16,9 @@
 
 import gast
 
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.lang import directives
-from tensorflow.python.autograph.pyct import templates
+from autograph.core import converter
+from autograph.lang import directives
+from autograph.pyct import templates
 
 
 class SliceTransformer(converter.Base):

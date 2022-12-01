@@ -43,7 +43,7 @@ import weakref
 import astunparse
 import gast
 
-from tensorflow.python.autograph.pyct import anno
+from autograph.pyct import anno
 
 
 class Node(object):

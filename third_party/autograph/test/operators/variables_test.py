@@ -14,11 +14,12 @@
 # ==============================================================================
 """Tests for python_lang_utils module."""
 
-from tensorflow.python.autograph.operators import variables
-from tensorflow.python.platform import test
+import unittest
+
+from autograph.operators import variables
 
 
-class SpecialValuesTest(test.TestCase):
+class SpecialValuesTest(unittest.TestCase):
 
   def test_undefined(self):
     undefined_symbol = variables.Undefined('name')
@@ -45,7 +46,3 @@ class SpecialValuesTest(test.TestCase):
   def test_read_undefined(self):
     with self.assertRaisesRegex(UnboundLocalError, 'used before assignment'):
       variables.ld(variables.Undefined('a'))
-
-
-if __name__ == '__main__':
-  test.main()

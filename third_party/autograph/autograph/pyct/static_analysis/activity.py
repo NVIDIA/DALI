@@ -22,10 +22,10 @@ import weakref
 
 import gast
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.autograph.pyct.static_analysis.annos import NodeAnno
+from autograph.pyct import anno
+from autograph.pyct import qual_names
+from autograph.pyct import transformer
+from autograph.pyct.static_analysis.annos import NodeAnno
 
 
 class Scope(object):

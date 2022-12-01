@@ -21,11 +21,11 @@ import tokenize
 import gast
 import six
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import ast_util
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import anno
+from autograph.pyct import ast_util
+from autograph.pyct import parser
+from autograph.pyct import pretty_printer
+import inspect as tf_inspect
 
 
 class LineLocation(

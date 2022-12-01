@@ -19,12 +19,11 @@ import inspect
 import sys
 import unittest
 
-from tensorflow.python.autograph.core import config
-from tensorflow.python.autograph.pyct import cache
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.autograph.utils import ag_logging as logging
-from tensorflow.python.eager import function
-from tensorflow.python.util import tf_inspect
+from autograph.core import config
+from autograph.pyct import cache
+from autograph.pyct import inspect_utils
+from autograph.utils import ag_logging as logging
+import inspect as tf_inspect
 
 
 _ALLOWLIST_CACHE = cache.UnboundInstanceCache()
@@ -179,8 +178,6 @@ def is_allowlisted(
     # longer be allowed.
 
     owner_class = inspect_utils.getmethodclass(o)
-    if owner_class is function.TfMethodTarget:
-      owner_class = o.__self__.target_class
     if owner_class is not None:
       if issubclass(owner_class, unittest.TestCase):
         logging.log(2, 'Allowlisted: %s: method of TestCase subclass', o)

@@ -18,8 +18,8 @@ import enum
 import inspect
 import threading
 
-from tensorflow.python.autograph.utils import ag_logging
-from tensorflow.python.util.tf_export import tf_export
+from autograph.utils import ag_logging
+from autograph.utils.all_utils import export_symbol
 
 
 stacks = threading.local()
@@ -31,7 +31,7 @@ def _control_ctx():
   return stacks.control_status
 
 
-@tf_export('__internal__.autograph.control_status_ctx', v1=[])
+@export_symbol('__internal__.autograph.control_status_ctx', v1=[])
 def control_status_ctx():
   """Returns the current control context for autograph.
 
