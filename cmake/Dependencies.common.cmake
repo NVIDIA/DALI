@@ -256,7 +256,7 @@ if(BUILD_CFITSIO)
           PATHS ${CFITSIO_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
           PATH_SUFFIXES lib lib64)
   if(${cfitsio_LIBS} STREQUAL cfitsio_LIBS-NOTFOUND)
-    message(FATAL_ERROR "cfitsio (sndfile) could not be found. Try to specify it's location with `-DCFITSIO_ROOT_DIR`.")
+    message(FATAL_ERROR "cfitsio could not be found. Try to specify it's location with `-DCFITSIO_ROOT_DIR`.")
   endif()
   message(STATUS "Found cfitsio: ${cfitsio_LIBS}")
   list(APPEND DALI_LIBS ${cfitsio_LIBS})
