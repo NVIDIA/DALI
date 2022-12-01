@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -112,6 +112,16 @@ enum DALIImageType {
   DALI_ANY_DATA     = 4
 };
 
+/**
+ * @brief Supported Color Filter Arrays for demosaicing
+ */
+enum class DALIColorFilter {
+  DALI_BAYER_BG = 0,
+  DALI_BAYER_GB = 1,
+  DALI_BAYER_GR = 2,
+  DALI_BAYER_RG = 3
+};
+
 inline bool IsColor(DALIImageType type) {
   return type == DALI_RGB || type == DALI_BGR || type == DALI_YCbCr;
 }
@@ -189,6 +199,21 @@ inline std::string to_string(const DALIImageType& im_type) {
       return "GRAY";
     case DALI_YCbCr:
       return "YCbCr";
+    default:
+      return "<unknown>";
+  }
+}
+
+inline std::string to_string(DALIColorFilter bayer_pattern) {
+  switch (bayer_pattern) {
+    case DALIColorFilter::DALI_BAYER_BG:
+      return "BG(GR)";
+    case DALIColorFilter::DALI_BAYER_GB:
+      return "GB(RG)";
+    case DALIColorFilter::DALI_BAYER_GR:
+      return "GR(BG)";
+    case DALIColorFilter::DALI_BAYER_RG:
+      return "RG(GB)";
     default:
       return "<unknown>";
   }

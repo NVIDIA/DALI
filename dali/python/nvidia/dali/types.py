@@ -16,7 +16,7 @@
 from enum import Enum, unique
 import re
 
-from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, DALIInterpType
+from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, DALIInterpType, DALIColorFilter
 
 # TODO: Handle forwarding imports from backend_impl
 from nvidia.dali.backend_impl.types import *        # noqa: F401, F403
@@ -63,6 +63,8 @@ _known_types = {
     DALIDataType.DATA_TYPE: ("nvidia.dali.types.DALIDataType", lambda x: DALIDataType(int(x))),
     DALIDataType.INTERP_TYPE:
     ("nvidia.dali.types.DALIInterpType", lambda x: DALIInterpType(int(x))),
+    DALIDataType.COLOR_FILTER:
+    ("nvidia.dali.types.DALIColorFilter", lambda x: DALIColorFilter(int(x))),
     DALIDataType.TENSOR_LAYOUT: (":ref:`layout str<layout_str_doc>`", lambda x: str(x)),
     DALIDataType.PYTHON_OBJECT: ("object", lambda x: x),
     DALIDataType._TENSOR_LAYOUT_VEC:
@@ -188,7 +190,10 @@ _float_types = [DALIDataType.FLOAT16, DALIDataType.FLOAT, DALIDataType.FLOAT64]
 _int_like_types = _bool_types + _int_types
 _all_types = _bool_types + _int_types + _float_types
 
-_enum_types = [DALIDataType.IMAGE_TYPE, DALIDataType.DATA_TYPE, DALIDataType.INTERP_TYPE]
+_enum_types = [
+    DALIDataType.IMAGE_TYPE, DALIDataType.DATA_TYPE,
+    DALIDataType.INTERP_TYPE, DALIDataType.COLOR_FILTER
+]
 
 
 class ScalarConstant(object):
