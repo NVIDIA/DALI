@@ -36,7 +36,7 @@ extern "C" {
 
 namespace dali {
 
-namespace detail {
+namespace frame_dec_gpu_impl {
 
 struct CUvideoparserHandle : public UniqueHandle<CUvideoparser, CUvideoparserHandle> {
   DALI_INHERIT_UNIQUE_HANDLE(CUvideoparser, CUvideoparserHandle);
@@ -104,11 +104,11 @@ class NVDECLease {
     DecInstance decoder;
 };
 
-}  // namespace detail
+}  // namespace frame_dec_gpu_impl
 
 struct NvDecodeState {
-  detail::NVDECLease decoder = {};
-  detail::CUvideoparserHandle parser = {};
+  frame_dec_gpu_impl::NVDECLease decoder = {};
+  frame_dec_gpu_impl::CUvideoparserHandle parser = {};
 
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
