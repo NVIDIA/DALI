@@ -69,27 +69,28 @@ def check_cuda_runtime():
             deprecation_warning("GPU is not available. Only CPU operators are available.")
 
         if GetCufftVersion() == -1:
-            deprecation_warning(
-                "nvidia-dali-cuda120 no longer ships with CUDA runtime. You need to install "
-                "it separately. Please check cuda installation and/or if an appropriate wheel "
-                "that provides cuFFT is installed. Please check "
-                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/"
-                "index.html#pip-wheels-installation-linux "
-                "for the reference")
+            deprecation_warning("nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
+                                "You need to install it separately. cuFFT is typically "
+                                "provided with CUDA Toolkit installation or an appropriate wheel. "
+                                "Please check "
+                                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
+                                "#pip-wheels-installation-linux "
+                                "for the reference.")
 
         if GetNppVersion() == -1:
-            deprecation_warning(
-                "nvidia-dali-cuda120 no longer ships with CUDA runtime. You need to install "
-                "it separately. Please check CUDA installation and/or if an appropriate wheel "
-                "that provides NPP is installed. Please check "
-                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/"
-                "index.html#pip-wheels-installation-linux "
-                "for the reference")
+            deprecation_warning("nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
+                                "You need to install it separately. NPP is typically "
+                                "provided with CUDA Toolkit installation or an appropriate wheel. "
+                                "Please check "
+                                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
+                                "#pip-wheels-installation-linux "
+                                "for the reference.")
+
         if GetNvjpegVersion() == -1:
-            deprecation_warning(
-                "nvidia-dali-cuda120 no longer ships with CUDA runtime. You need to install "
-                "it separately. Please check CUDA installation and/or if an appropriate wheel "
-                "that provides nvJPEG is installed. Please check "
-                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/"
-                "index.html#pip-wheels-installation-linux "
-                "for the reference")
+            deprecation_warning("nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
+                                "You need to install it separately. nvJPEG is typically "
+                                "provided with CUDA Toolkit installation or an appropriate wheel. "
+                                "Please check "
+                                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
+                                "#pip-wheels-installation-linux "
+                                "for the reference.")
