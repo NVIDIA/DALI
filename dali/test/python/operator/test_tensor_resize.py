@@ -18,7 +18,7 @@ from nvidia.dali import pipeline_def, fn
 
 def tensor_resize_last_dim_unchanged():
     ndim = 2
-    batch_size = 1
+    batch_size = 3
     shape = (4, 4, 3)
     out_shape = (3, 5, 3)
     in_dtype = types.UINT8
@@ -38,7 +38,7 @@ def tensor_resize_last_dim_unchanged():
 
 def tensor_resize_last_dim_resized():
     ndim = 2
-    batch_size = 1
+    batch_size = 3
     shape = (4, 4, 3)
     out_shape = (3, 5, 2)
     in_dtype = types.UINT8
@@ -56,5 +56,46 @@ def tensor_resize_last_dim_resized():
     print(input_data)
     print(output_data)
 
+def tensor_resize_scales_last_dim_unchanged():
+    ndim = 2
+    batch_size = 3
+    shape = (4, 4, 3)
+    scales = (0.7, 2.0, 1.0)
+    in_dtype = types.UINT8
+    out_dtype = types.FLOAT
+    device = 'cpu'
 
-tensor_resize_last_dim_resized()
+    @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
+    def pipe():
+        data = fn.random.uniform(range=(0, 255), shape=shape, dtype=in_dtype)
+        return data, fn.experimental.tensor_resize(data, dtype=out_dtype, scales=scales, scales_rounding='round')
+
+    p = pipe()
+    p.build()
+    input_data, output_data = p.run()
+    print(input_data)
+    print(output_data)
+
+
+def tensor_resize_scales_axes_last_dim_unchanged():
+    ndim = 2
+    batch_size = 1
+    shape = (4, 4, 3)
+    scales = (2.0, 0.7)
+    axes = (1, 0)
+    in_dtype = types.UINT8
+    out_dtype = types.FLOAT
+    device = 'cpu'
+
+    @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
+    def pipe():
+        data = fn.random.uniform(range=(0, 255), shape=shape, dtype=in_dtype)
+        return data, fn.experimental.tensor_resize(data, dtype=out_dtype, axes=axes, scales=scales, scales_rounding='round')
+
+    p = pipe()
+    p.build()
+    input_data, output_data = p.run()
+    print(input_data)
+    print(output_data)
+
+tensor_resize_scales_axes_last_dim_unchanged()

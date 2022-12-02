@@ -17,8 +17,7 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/generic/resize/tensor_resize.h"
-#include "dali/operators/generic/resize/tensor_resize_impl.h"
-#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/data/view_as_higher_ndim.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
@@ -60,7 +59,7 @@ bool TensorResizeCPUImpl<Out, In, spatial_ndim>::SetupImpl(std::vector<OutputDes
 
   TensorListView<StorageCPU, const In, ndim> in_view;
   if (orig_ndim == spatial_ndim) {
-    in_view = view_w_extra_ch_dim<const In, ndim>(input);
+    in_view = view_as_higher_ndim<const In, ndim>(input, false);
   } else {
     if (orig_ndim != ndim)
       throw std::logic_error(
@@ -112,8 +111,8 @@ void TensorResizeCPUImpl<Out, In, spatial_ndim>::RunImpl(Workspace &ws) {
   TensorListView<StorageCPU, const In, ndim> in_view;
   TensorListView<StorageCPU, Out, ndim> out_view;
   if (input.sample_dim() == spatial_ndim) {
-    in_view = view_w_extra_ch_dim<const In, ndim>(input);
-    out_view = view_w_extra_ch_dim<Out, ndim>(output);
+    in_view = view_as_higher_ndim<const In, ndim>(input, false);
+    out_view = view_as_higher_ndim<Out, ndim>(output, false);
   } else {
     assert(input.sample_dim() == ndim);
     in_view = view<const In, ndim>(input);
@@ -145,13 +144,24 @@ class TensorResizeCPU : public TensorResize<CPUBackend, TensorResizeCPUImpl> {
 
 
 DALI_SCHEMA(experimental__TensorResize)
-  .DocStr(R"code(Resize tensors.)code")
-  .AddOptionalTypeArg("dtype", R"code(Output data type.)code")
-  .AddOptionalArg<std::vector<int>>("sizes", R"code(The desired output size.)code", {}, true)
-  .NumInput(1)
-  .NumOutput(1)
-  .SupportVolumetric()
-  .AllowSequences();
+    .DocStr(R"code(Resize tensors.)code")
+    .AddOptionalTypeArg("dtype", R"code(Output data type.)code")
+    .AddOptionalArg<std::string>("scales_rounding",
+                                 R"code(Determines the rounding policy when using scales.
+
+Possible values are:
+* | ``"round"`` - Rounds to the nearest integer value, with halfway cases rounded away from zero.
+* | ``"truncate"`` - Discards the fractional part of the number.)code",
+                                 "truncate")
+    .AddOptionalArg("sizes", R"code(Output size.)code", std::vector<int>{}, true)
+    .AddOptionalArg("scales", R"code(Scale factors.)code", std::vector<float>{}, true)
+    .AddOptionalArg("axes", R"code(Indices of dimensions that `sizes` and `scales` refer to.
+
+By default, all dimensions are assumed.)code", std::vector<int>{})
+    .NumInput(1)
+    .NumOutput(1)
+    .SupportVolumetric()
+    .AllowSequences();
 
 
 DALI_REGISTER_OPERATOR(experimental__TensorResize, tensor_resize::TensorResizeCPU, CPU);
