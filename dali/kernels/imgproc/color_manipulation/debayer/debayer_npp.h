@@ -90,7 +90,7 @@ struct NppDebayerKernel : public DebayerKernelGpu<InOutT> {
 
 
  protected:
-  NppStreamContext npp_ctx_;
+  NppStreamContext npp_ctx_{cudaStream_t(-1), 0};
 };
 
 }  // namespace debayer

@@ -213,7 +213,7 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
   }
 
 
-  NppStreamContext npp_ctx_;
+  NppStreamContext npp_ctx_{cudaStream_t(-1), 0};
 };
 
 }  // namespace remap
