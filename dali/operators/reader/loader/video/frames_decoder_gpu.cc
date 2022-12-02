@@ -36,7 +36,7 @@ namespace frame_dec_gpu_impl {
 const char *chroma_to_string(cudaVideoChromaFormat in) {
   switch (in) {
     case cudaVideoChromaFormat_Monochrome:
-      return "MonoChrome";
+      return "Monochrome";
     case cudaVideoChromaFormat_420:
       return "YUV 4:2:0";
     case cudaVideoChromaFormat_422:
@@ -51,21 +51,21 @@ const char *chroma_to_string(cudaVideoChromaFormat in) {
 const char *codec_to_string(cudaVideoCodec in) {
   switch (in) {
     case cudaVideoCodec_MPEG1:
-      return "MPEG1";
+      return "MPEG-1";
     case cudaVideoCodec_MPEG2:
-      return "MPEG2";
+      return "MPEG-2";
     case cudaVideoCodec_MPEG4:
-      return "MPEG4";
+      return "MPEG-4";
     case cudaVideoCodec_VC1:
       return "VC1";
     case cudaVideoCodec_H264:
-      return "H264";
+      return "H.264";
     case cudaVideoCodec_JPEG:
       return "JPEG";
     case cudaVideoCodec_H264_SVC:
-      return "H264-SVC";
+      return "H.264-SVC";
     case cudaVideoCodec_H264_MVC:
-      return "H264-MVC";
+      return "H.264-MVC";
     case cudaVideoCodec_HEVC:
       return "HEVC";
     case cudaVideoCodec_VP8:
