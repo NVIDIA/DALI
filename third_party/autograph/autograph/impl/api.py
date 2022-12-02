@@ -172,10 +172,10 @@ def _attach_error_metadata(e, f):
 class PyToLib(transpiler.PyToPy):
   """The TensorFlow AutoGraph transformer."""
 
-  def __init__(self, name, hooks):
+  def __init__(self, name, operator_overload):
     super(PyToLib, self).__init__()
     self._name = name
-    self._hooks = hooks
+    self._operator_overload = operator_overload
     self._extra_locals = None
 
   def get_transformed_name(self, node):
@@ -186,7 +186,7 @@ class PyToLib(transpiler.PyToPy):
       # TODO(mdan): Move into core or replace with an actual importable module.
       # Craft a module that exposes the external API as well as certain
       # internal modules.
-      module_spec = importlib.machinery.ModuleSpec('autograph', None)
+      module_spec = importlib.machinery.ModuleSpec(self._name, None)
       ag_internal = importlib.util.module_from_spec(module_spec)
       ag_internal.__dict__.update(inspect.getmodule(PyToLib).__dict__)
       ag_internal.ConversionOptions = converter.ConversionOptions
@@ -200,7 +200,7 @@ class PyToLib(transpiler.PyToPy):
       # accessible as ag__.<operator>
       ag_internal.__dict__.update(operators.__dict__)
       ag_internal.hooks = hooks
-      ag_internal.hooks._DISPATCH = self._hooks
+      ag_internal.hooks._DISPATCH = self._operator_overload
 
       self._extra_locals = {'ag__': ag_internal}
     return self._extra_locals
@@ -252,8 +252,7 @@ def _convert_actual(entity, program_ctx):
   # TODO(mdan): Put these extra fields inside __autograph_info__.
   if not hasattr(entity, '__code__'):
     raise ValueError('Cannot apply autograph to a function that doesn\'t '
-                     'expose a __code__ object. If this is a @tf.function,'
-                     ' try passing f.python_function instead.')
+                     'expose a __code__ object.')
 
   transformed, module, source_map = _TRANSPILER.transform(entity, program_ctx)
 
@@ -420,6 +419,7 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
       raise
     return _fall_back_unconverted(f, args, kwargs, options, e)
 
+  # TODO(klecki): Revert the stack trace mapping functionality
   # with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
   try:
     if kwargs is not None:
@@ -449,9 +449,10 @@ def _fall_back_unconverted(f, args, kwargs, options, exc):
   warning_template = (
       'AutoGraph could not transform %s and will run it as-is.\n'
       '%s'
-      'Cause: %s\n'
-      'To silence this warning, decorate the function with'
-      ' @tf.autograph.experimental.do_not_convert')
+      'Cause: %s\n')
+    # TODO(klecki): Expose the do_not_convert in DALI
+    #   'To silence this warning, decorate the function with'
+    #   ' @tf.autograph.experimental.do_not_convert')
   if isinstance(exc, errors.InaccessibleSourceCodeError):
     if ag_ctx.INSPECT_SOURCE_SUPPORTED:
       logging.warning(warning_template, f, '', exc)
@@ -459,11 +460,12 @@ def _fall_back_unconverted(f, args, kwargs, options, exc):
     if not conversion.is_in_allowlist_cache(f, options):
       logging.warning(warning_template, f, '', exc)
   else:
-    file_bug_message = (
-        'Please report this to the TensorFlow team. When filing the bug, set'
-        ' the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and'
-        ' attach the full output.\n')
-    logging.warning(warning_template, f, file_bug_message, exc)
+    # TODO(klecki): Do we want to report such errors?
+    # file_bug_message = (
+    #     'Please report this to the TensorFlow team. When filing the bug, set'
+    #     ' the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and'
+    #     ' attach the full output.\n')
+    logging.warning(warning_template, f, '', exc)
 
   return _call_unconverted(f, args, kwargs, options)
 
@@ -926,11 +928,31 @@ def to_code(entity, recursive=True, experimental_optional_features=None):
 
 _TRANSPILER = None
 
-def initialize_autograph(name="autograph", hooks=hooks.OperatorBase()):
+def initialize_autograph(operator_overload=hooks.OperatorBase(), converter_name="autograph",
+                         filtered_library_modules=["autograph"]):
+  """Initialize the AutoGraph with custom operator overloads.
+
+  Parameters
+  ----------
+  operator_overload : subclass of autograph.OperatorBase(), optional
+      Customization point for detection of user-defined objects that trigger
+      the user-defined overload to be called by AutoGraph instead of falling
+      back to regular Python semantics, by default autograph.OperatorBase().
+  converter_name : str, optional
+      Name that is used to generated converted function names and as a fake module under which
+      the AutoGraph is inserted into them, by default "autograph".
+  filtered_library_modules : list, optional
+      AutoGraph needs to filter the module that should not be converted. By default it will
+      only filter out its own functions, provide the list of module that should be ignored.
+      If the autograph is used under different name (for example included in the source as
+      some_library._ag), this parameter should be adjusted , by default ["autograph"]
+  """
   global _TRANSPILER
   if _TRANSPILER is not None:
     raise RuntimeError("AutoGraph already initialized")
-  _TRANSPILER = PyToLib(name, hooks)
+  _TRANSPILER = PyToLib(converter_name, operator_overload)
   # Add the name of the initialized library to know libraries to stop recursive conversion
-  config.CONVERSION_RULES = (config.DoNotConvert(name),) + config.CONVERSION_RULES
+  do_not_convert_rules = tuple(config.DoNotConvert(name) for name in filtered_library_modules)
+  config.CONVERSION_RULES = ((config.DoNotConvert(converter_name),) + do_not_convert_rules
+                             + config.CONVERSION_RULES)
 

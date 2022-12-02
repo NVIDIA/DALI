@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Conversion of eager-style Python into TensorFlow graph code.
+"""Conversion of eager-style Python into user-customized graph code based on
+TensorFlow conversion.
 
-NOTE: In TensorFlow 2.0, AutoGraph is automatically applied when using
-`tf.function`. This module contains lower-level APIs for advanced use.
-
-AutoGraph transforms a subset of Python which operates on TensorFlow objects
-into equivalent TensorFlow graph code. When executing the graph, it has the same
-effect as if you ran the original code in eager mode.
-Python code which doesn't operate on TensorFlow objects remains functionally
-unchanged, but keep in mind that `tf.function` only executes such code at trace
+AutoGraph transforms a subset of Python which operates on user-defined objects
+into equivalent user-defined graph code. When executing the graph, it has the same
+effect as if you ran the original code in eager mode. This AutoGraph fork introduces
+customization points for the detection of user-defined objects and operator overloads.
+The customization point can be controlled by inheriting from OperatorBase and passing
+it to the initialize_autograph function.
+Python code which doesn't operate on user-defined objects remains functionally
+unchanged, but keep in mind that AutoGraph only executes such code at trace
 time, and generally will not be consistent with eager execution.
 
 For more information, see the

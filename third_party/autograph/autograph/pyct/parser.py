@@ -152,8 +152,8 @@ def parse_entity(entity, future_features):
         ' defined in certain environments, like the interactive Python shell,'
         ' do not expose their source code. If that is the case, you should'
         ' define them in a .py source file. If you are certain the code is'
-        ' graph-compatible, wrap the call using'
-        f' @tf.autograph.experimental.do_not_convert. Original error: {e}')
+        ' graph-compatible, wrap the call in the do_not_convert decorator.'
+        f' Original error: {e}')
 
   source = dedent_block(original_source)
 

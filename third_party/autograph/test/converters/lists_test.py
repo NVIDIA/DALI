@@ -59,7 +59,7 @@ class ListTest(converter_testing.TestCase):
     def f():
       return []
 
-    tr = self.transform(f, lists, hooks_impl=OperatorList())
+    tr = self.transform(f, lists, operator_overload=OperatorList())
 
     tl = tr()
     # Empty tensor lists cannot be evaluated or stacked.
@@ -70,7 +70,7 @@ class ListTest(converter_testing.TestCase):
     def f():
       return [1, 2, 3]
 
-    tr = self.transform(f, lists, hooks_impl=OperatorList())
+    tr = self.transform(f, lists, operator_overload=OperatorList())
     tl = tr()
 
     self.assertIsInstance(tl, TestList)
@@ -84,7 +84,7 @@ class ListTest(converter_testing.TestCase):
       l.append(3)
       return l
 
-    tr = self.transform(f, lists, hooks_impl=OperatorList())
+    tr = self.transform(f, lists, operator_overload=OperatorList())
 
     tl = tr()
 
@@ -98,7 +98,7 @@ class ListTest(converter_testing.TestCase):
       s = l.pop()
       return s, l
 
-    tr = self.transform(f, (directives_converter, lists), hooks_impl=OperatorList())
+    tr = self.transform(f, (directives_converter, lists), operator_overload=OperatorList())
 
     ts, tl = tr()
 
@@ -112,7 +112,7 @@ class ListTest(converter_testing.TestCase):
       s = l.pop().pop()
       return s, l
 
-    tr = self.transform(f, lists, hooks_impl=OperatorList())
+    tr = self.transform(f, lists, operator_overload=OperatorList())
 
     test_input = [1, 2, [1, 2, 3]]
     # TODO(mdan): Pass a list of lists of tensor when we fully support that.
@@ -130,7 +130,7 @@ class ListTest(converter_testing.TestCase):
   #     l = [1, 2, 3]
   #     return array_ops.stack(l)
 
-  #   tr = self.transform(f, lists, hooks_impl=OperatorList())
+  #   tr = self.transform(f, lists, operator_overload=OperatorList())
 
   #   self.assertAllEqual(self.evaluate(tr()), [1, 2, 3])
 

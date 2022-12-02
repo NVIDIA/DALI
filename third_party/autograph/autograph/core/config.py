@@ -26,7 +26,7 @@ DoNotConvert = config_lib.DoNotConvert
 # The name under which autograph is used is registered in init_autograph.
 CONVERSION_RULES = (
     # Known packages
-    Convert('tensorflow.python.training.experimental'),
+    # <List of packages that we force-convert>
 
     # Builtin modules
     DoNotConvert('collections'),
@@ -50,12 +50,4 @@ CONVERSION_RULES = (
     DoNotConvert('pandas'),
     DoNotConvert('PIL'),
     DoNotConvert('absl.logging'),
-
-    # TODO(b/133417201): Remove.
-    DoNotConvert('tensorflow_probability'),
-
-    # TODO(b/133842282): Remove.
-    DoNotConvert('tensorflow_datasets.core'),
-
-    DoNotConvert('keras'),
 )

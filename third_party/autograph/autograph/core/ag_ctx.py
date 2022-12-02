@@ -100,6 +100,6 @@ except OSError:
   ag_logging.warning(
       'AutoGraph is not available in this environment: functions lack code'
       ' information. This is typical of some environments like the interactive'
-      ' Python shell. See'
-      ' https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/limitations.md#access-to-source-code'
-      ' for more information.')
+      ' Python shell, functions with native bindings or functions created'
+      ' dynamically using `exec` or `eval`. Use `inspect.findsource` to check'
+      ' if the source code is available for the function you are trying to convert.')

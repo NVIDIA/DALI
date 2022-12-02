@@ -62,8 +62,8 @@ def is_inside_generated_code():
 class TestingTranspiler(api.PyToLib):
   """Testing version that only applies given transformations."""
 
-  def __init__(self, converters, ag_overrides, hooks_impl=hooks.OperatorBase()):
-    super(TestingTranspiler, self).__init__("autograph", hooks_impl)
+  def __init__(self, converters, ag_overrides, operator_overload=hooks.OperatorBase()):
+    super(TestingTranspiler, self).__init__(operator_overload=operator_overload)
     if isinstance(converters, (list, tuple)):
       self._converters = converters
     else:
@@ -105,12 +105,12 @@ class TestCase(unittest.TestCase):
       sys.stdout = sys.__stdout__
 
   def transform(self, f, converter_module, include_ast=False, ag_overrides=None,
-                hooks_impl=hooks.OperatorBase()):
+                operator_overload=hooks.OperatorBase()):
     program_ctx = converter.ProgramContext(
         options=converter.ConversionOptions(recursive=True),
         autograph_module=api)
 
-    tr = TestingTranspiler(converter_module, ag_overrides, hooks_impl=hooks_impl)
+    tr = TestingTranspiler(converter_module, ag_overrides, operator_overload=operator_overload)
     transformed, _, _ = tr.transform_function(f, program_ctx)
 
     if include_ast:
