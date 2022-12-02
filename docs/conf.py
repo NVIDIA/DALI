@@ -262,10 +262,7 @@ from typing import (
 from typing import get_type_hints
 
 
-_dali_enums = [
-    "DALIDataType", "DALIIterpType", "DALIImageType",
-    "DALIColorFilter", "PipelineAPIType"
-]
+_dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
 
 count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
 

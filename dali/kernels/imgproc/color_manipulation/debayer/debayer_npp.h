@@ -36,20 +36,20 @@ namespace debayer {
  *  GR]
  * tile. Imagine covering a single-channel image with a given tile. Now, the letter at
  * any given position specifies which color channel's intensity is described by
- * a corresponding value. The OpenCV convention used by the `DALIColorFilter` names the
+ * a corresponding value. The OpenCV convention used by the `DALIBayerPattern` names the
  * pattern by looking at the image's ((1, 1), (3, 3)) rectangle, while NPP looks at
  * positions ((0, 0), (2, 2)). Thus, the quite surprising mapping below, which
  * seemingly permutes the patterns.
  */
-inline NppiBayerGridPosition to_npp(DALIColorFilter bayer_pattern) {
+inline NppiBayerGridPosition to_npp(DALIBayerPattern bayer_pattern) {
   switch (bayer_pattern) {
-    case DALIColorFilter::DALI_BAYER_BG:  // bg(gr)
+    case DALIBayerPattern::DALI_BAYER_BG:  // bg(gr)
       return NPPI_BAYER_RGGB;
-    case DALIColorFilter::DALI_BAYER_GB:  // gb(rg)
+    case DALIBayerPattern::DALI_BAYER_GB:  // gb(rg)
       return NPPI_BAYER_GRBG;
-    case DALIColorFilter::DALI_BAYER_GR:  // gr(bg)
+    case DALIBayerPattern::DALI_BAYER_GR:  // gr(bg)
       return NPPI_BAYER_GBRG;
-    case DALIColorFilter::DALI_BAYER_RG:  // rg(gb)
+    case DALIBayerPattern::DALI_BAYER_RG:  // rg(gb)
       return NPPI_BAYER_BGGR;
     default:
       throw std::runtime_error(
@@ -69,7 +69,7 @@ struct NppDebayerKernel : public DebayerKernelGpu<InOutT> {
 
   void Run(KernelContext &context, TensorListView<StorageGPU, InOutT, out_ndim> output,
            TensorListView<StorageGPU, const InOutT, in_ndim> input,
-           span<const DALIColorFilter> patterns) override {
+           span<const DALIBayerPattern> patterns) override {
     constexpr int num_out_chanels = 3;
     int batch_size = input.num_samples();
     assert(output.num_samples() == batch_size);

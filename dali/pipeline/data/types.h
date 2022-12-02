@@ -123,7 +123,6 @@ enum DALIDataType : int {
   DALI_PYTHON_OBJECT     = 24,
   DALI_TENSOR_LAYOUT_VEC = 25,
   DALI_DATA_TYPE_VEC     = 26,
-  DALI_COLOR_FILTER      = 27,
   DALI_DATATYPE_END      = 1000
 };
 
@@ -202,9 +201,6 @@ inline const char *GetBuiltinTypeName(DALIDataType t) {
       break;
     case DALI_INTERP_TYPE:
       return "DALIInterpType";
-      break;
-    case DALI_COLOR_FILTER:
-      return "DALIColorFilter";
       break;
     case DALI_TENSOR_LAYOUT:
       return "TensorLayout";
@@ -578,7 +574,6 @@ DALI_REGISTER_TYPE(string,         DALI_STRING);
 DALI_REGISTER_TYPE(DALIImageType,  DALI_IMAGE_TYPE);
 DALI_REGISTER_TYPE(DALIDataType,   DALI_DATA_TYPE);
 DALI_REGISTER_TYPE(DALIInterpType, DALI_INTERP_TYPE);
-DALI_REGISTER_TYPE(DALIColorFilter, DALI_COLOR_FILTER);
 DALI_REGISTER_TYPE(TensorLayout,   DALI_TENSOR_LAYOUT);
 
 

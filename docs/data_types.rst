@@ -112,12 +112,6 @@ DALIImageType
    :undoc-members:
    :exclude-members: name
 
-DALIColorFilter
-^^^^^^^^^^^^^
-.. autoenum:: DALIColorFilter
-   :members:
-   :undoc-members:
-   :exclude-members: name
 
 SampleInfo
 ^^^^^^^^^^

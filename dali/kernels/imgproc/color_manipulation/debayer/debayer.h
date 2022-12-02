@@ -25,9 +25,31 @@ namespace dali {
 namespace kernels {
 namespace debayer {
 
+enum class DALIBayerPattern {
+  DALI_BAYER_BG = 0,
+  DALI_BAYER_GB = 1,
+  DALI_BAYER_GR = 2,
+  DALI_BAYER_RG = 3
+};
+
 enum class DALIDebayerAlgorithm {
   DALI_DEBAYER_BILINEAR_NPP = 0
 };
+
+inline std::string to_string(DALIBayerPattern bayer_pattern) {
+  switch (bayer_pattern) {
+    case DALIBayerPattern::DALI_BAYER_BG:
+      return "BG(GR)";
+    case DALIBayerPattern::DALI_BAYER_GB:
+      return "GB(RG)";
+    case DALIBayerPattern::DALI_BAYER_GR:
+      return "GR(BG)";
+    case DALIBayerPattern::DALI_BAYER_RG:
+      return "RG(GB)";
+    default:
+      return "<unknown>";
+  }
+}
 
 inline std::string to_string(DALIDebayerAlgorithm alg) {
   switch (alg) {
@@ -55,7 +77,7 @@ struct DebayerKernelGpu {
   static constexpr int out_ndim = 3;
   virtual void Run(KernelContext &context, TensorListView<StorageGPU, InOutT, out_ndim> output,
                    TensorListView<StorageGPU, const InOutT, in_ndim> input,
-                   span<const DALIColorFilter> patterns) = 0;
+                   span<const debayer::DALIBayerPattern> patterns) = 0;
 
   virtual ~DebayerKernelGpu() = default;
 };
