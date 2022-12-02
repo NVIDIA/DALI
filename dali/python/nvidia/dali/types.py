@@ -16,7 +16,8 @@
 from enum import Enum, unique
 import re
 
-from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, DALIInterpType, DALIColorFilter
+from nvidia.dali.backend_impl.types import DALIDataType, DALIImageType, \
+    DALIInterpType, DALIColorFilter
 
 # TODO: Handle forwarding imports from backend_impl
 from nvidia.dali.backend_impl.types import *        # noqa: F401, F403
