@@ -25,23 +25,23 @@ namespace dali {
 namespace kernels {
 namespace debayer {
 
-enum class DALIBayerAlgorithm {
-  DALI_BAYER_BILINEAR_NPP = 0
+enum class DALIDebayerAlgorithm {
+  DALI_DEBAYER_BILINEAR_NPP = 0
 };
 
-inline std::string to_string(DALIBayerAlgorithm alg) {
+inline std::string to_string(DALIDebayerAlgorithm alg) {
   switch (alg) {
-    case DALIBayerAlgorithm::DALI_BAYER_BILINEAR_NPP:
+    case DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP:
       return "bilinear_npp";
     default:
       return "<unknown>";
   }
 }
 
-inline DALIBayerAlgorithm parse_algorithm_name(std::string alg) {
+inline DALIDebayerAlgorithm parse_algorithm_name(std::string alg) {
   std::transform(alg.begin(), alg.end(), alg.begin(), [](auto c) { return std::tolower(c); });
   if (alg == "bilinear_npp") {
-    return DALIBayerAlgorithm::DALI_BAYER_BILINEAR_NPP;
+    return DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP;
   }
   throw std::runtime_error(
       make_string("Unsupported debayer algorithm was specified: `", alg, "`."));
