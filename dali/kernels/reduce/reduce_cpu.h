@@ -238,8 +238,8 @@ struct ReduceBaseCPU {
   void InitAxes(span<const int> _axes) {
     for (int axis : _axes) {
       if (axis < -ndim() || axis >= ndim()) {
-        throw std::range_error(
-            make_string("Axis index out of range: ", axis, " not in ", -ndim(), "..", ndim() - 1));
+        throw std::range_error(make_string("Axis index out of range: ", axis, " not in range [",
+                                           -ndim(), "..", ndim() - 1, "]"));
       }
     }
 

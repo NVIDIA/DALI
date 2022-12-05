@@ -149,7 +149,8 @@ inline void CheckAxes(span<const int> axes, int ndim) {
   uint64_t mask = 0;
   for (auto a : axes) {
     if (a < -ndim || a >= ndim)
-      throw std::out_of_range(make_string("Axis index out of range: ", a, " not in ", -ndim, "..", ndim-1));
+      throw std::out_of_range(make_string("Axis index out of range: ", a, " not in range [", -ndim,
+                                          "..", ndim - 1, "]"));
     if (a < 0)
       a += ndim;
     uint64_t amask = 1_u64 << a;
