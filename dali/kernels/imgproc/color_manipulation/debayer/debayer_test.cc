@@ -100,15 +100,13 @@ class DebayerGpuTest : public ::testing::Test {
       auto bayer_sample = bayer_batch[sample_idx];
       ASSERT_EQ(height % 2, 0);
       ASSERT_EQ(width % 2, 0);
-      for (int h = 0; h < height; h += 2) {
-        for (int w = 0; w < width; w += 2) {
-          for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 2; j++) {
-              bayer_sample.data[(h + i) * width + w + j] =
-                  rgb_sample.data[(h + i) * width * num_channels + (w + j) * num_channels +
-                                  pattern2channel[static_cast<int>(pattern)][i][j]];
-            }
-          }
+      for (int h = 0; h < height; h++) {
+        for (int w = 0; w < width; w++) {
+          int i = h & 1;
+          int j = w & 1;
+          int c = pattern2channel[static_cast<int>(pattern)][i][j];
+          bayer_sample.data[h * width + w] =
+              rgb_sample.data[h * width * num_channels + w * num_channels + c];
         }
       }
     }
