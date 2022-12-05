@@ -244,15 +244,15 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
 
     int nfft = std::min(out.shape[0][1], in.shape[0][1]);
 
-    auto launch_kernel = [&](Out *out, int64_t out_stride, const In *in, int64_t in_stride,
+    auto launch_kernel = [&](Out *out_ptr, int64_t out_stride, const In *in_ptr, int64_t in_stride,
                              int64_t nwindows, int nfft) {
       dim3 blocks(div_ceil(nwindows, 8));
       dim3 threads(32, 8);
 
-      if (static_cast<const void*>(out) == static_cast<const void *>(in) &&
+      if (static_cast<const void*>(out_ptr) == static_cast<const void *>(in_ptr) &&
           sizeof(Out) != sizeof(In)) {
         ConvertTimeMajorSpectrogram_InPlaceDiffTypeSize<<<blocks, threads, 0, ctx.gpu.stream>>>(
-            out, out_stride, in, in_stride, nfft, nwindows, convert_);
+            out_ptr, out_stride, in_ptr, in_stride, nfft, nwindows, convert_);
       } else if (out_stride == in_stride) {
         int64_t n = nfft * nwindows;
         int block, grid;
@@ -263,10 +263,10 @@ class ConvertTimeMajorSpectrum : public FFTPostprocess<Out, In> {
             256));
         grid = std::min(static_cast<int>(div_ceil(n, block)), grid);
         ConvertTimeMajorSpectrogram_Flat<<<grid, block, 0, ctx.gpu.stream>>>(
-            out, in, n, convert_);
+            out_ptr, in_ptr, n, convert_);
       } else {
         ConvertTimeMajorSpectrogram<<<blocks, threads, 0, ctx.gpu.stream>>>(
-            out, out_stride, in, in_stride, nfft, nwindows, convert_);
+            out_ptr, out_stride, in_ptr, in_stride, nfft, nwindows, convert_);
       }
       CUDA_CALL(cudaGetLastError());
     };

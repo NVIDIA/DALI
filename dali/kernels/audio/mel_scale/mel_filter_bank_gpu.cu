@@ -468,7 +468,8 @@ class MelFilterBankGpu<T>::Impl : public MelFilterImplBase<T> {
       const auto &tshape = in_shape.tensor_shape(ti);
       auto nwindows = volume(tshape.begin(), tshape.begin() + args_.axis);
 
-      int windows_per_block = std::min(max_windows_per_block, prev_pow2((1<<20) / args_.nfilter));
+      int64_t windows_per_block =
+          std::min(max_windows_per_block, prev_pow2((1 << 20) / args_.nfilter));
 
       int nblocks = div_ceil(nwindows, windows_per_block);
 
