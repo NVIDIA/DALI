@@ -18,6 +18,7 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/generic/resize/tensor_resize.h"
+#include "dali/operators/image/resize/resampling_attr.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
@@ -44,6 +45,7 @@ class TensorResizeCPUImpl : public TensorResizeImplBase<CPUBackend> {
   const OpSpec& spec_;
   TensorListShape<> sizes_;
 
+  ResamplingFilterAttr resampling_attr_;
   std::vector<kernels::ResamplingParamsND<spatial_ndim>> params_;
   kernels::KernelManager kmgr_;
 };
@@ -88,6 +90,8 @@ bool TensorResizeCPUImpl<Out, In, spatial_ndim>::SetupImpl(std::vector<OutputDes
       p[d].output_size = sz[d];
     }
   }
+  resampling_attr_.PrepareFilterParams(spec_, ws, nsamples);
+  resampling_attr_.ApplyFilterParams(make_span(params_));
 
   kernels::KernelContext ctx;
   kmgr_.Resize<Kernel>(nsamples);
@@ -165,7 +169,8 @@ By default, all dimensions are assumed.)code", std::vector<int>{})
     .NumInput(1)
     .NumOutput(1)
     .SupportVolumetric()
-    .AllowSequences();
+    .AllowSequences()
+    .AddParent("ResamplingFilterAttr");
 
 
 DALI_REGISTER_OPERATOR(experimental__TensorResize, tensor_resize::TensorResizeCPU, CPU);

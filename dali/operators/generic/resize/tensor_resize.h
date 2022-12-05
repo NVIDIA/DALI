@@ -19,11 +19,11 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/operator/arg_helper.h"
-#include "dali/core/static_switch.h"
 
 
 // #define TENSOR_RESIZE_SUPPORTED_NDIM (2, 3)
@@ -40,8 +40,7 @@ template <typename Backend>
 class TensorResizeImplBase {
  public:
   virtual ~TensorResizeImplBase() = default;
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc,
-                         const Workspace &ws,
+  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws,
                          const TensorListShape<> &sizes) = 0;
   virtual void RunImpl(Workspace &ws) = 0;
 };
