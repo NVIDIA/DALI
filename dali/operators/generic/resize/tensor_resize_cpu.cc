@@ -13,11 +13,12 @@
 // limitations under the License.
 
 #include <cassert>
+#include "dali/core/expand_dims.h"
 #include "dali/kernels/imgproc/resample_cpu.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/generic/resize/tensor_resize.h"
-#include "dali/pipeline/data/view_as_higher_ndim.h"
+#include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
@@ -59,7 +60,8 @@ bool TensorResizeCPUImpl<Out, In, spatial_ndim>::SetupImpl(std::vector<OutputDes
 
   TensorListView<StorageCPU, const In, ndim> in_view;
   if (orig_ndim == spatial_ndim) {
-    in_view = view_as_higher_ndim<const In, ndim>(input, false);
+    in_view = reshape(view<const In, spatial_ndim>(input),
+                      expand_dims<spatial_ndim + 1>(input.shape(), spatial_ndim));
   } else {
     if (orig_ndim != ndim)
       throw std::logic_error(
@@ -111,8 +113,10 @@ void TensorResizeCPUImpl<Out, In, spatial_ndim>::RunImpl(Workspace &ws) {
   TensorListView<StorageCPU, const In, ndim> in_view;
   TensorListView<StorageCPU, Out, ndim> out_view;
   if (input.sample_dim() == spatial_ndim) {
-    in_view = view_as_higher_ndim<const In, ndim>(input, false);
-    out_view = view_as_higher_ndim<Out, ndim>(output, false);
+    in_view = reshape(view<const In, ndim>(input),
+                      expand_dims<spatial_ndim + 1>(input.shape(), spatial_ndim));
+    out_view = reshape(view<Out, ndim>(output),
+                       expand_dims<spatial_ndim + 1>(output.shape(), spatial_ndim));
   } else {
     assert(input.sample_dim() == ndim);
     in_view = view<const In, ndim>(input);
