@@ -48,6 +48,26 @@ inline NppiInterpolationMode to_npp(DALIInterpType interp) {
   }
 }
 
+inline NppStreamContext CreateNppContext(int device_id) {
+  NppStreamContext npp_ctx;
+  npp_ctx.nCudaDeviceId = device_id;
+  CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx.nCudaDevAttrComputeCapabilityMajor,
+                                   cudaDevAttrComputeCapabilityMajor, npp_ctx.nCudaDeviceId));
+  CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx.nCudaDevAttrComputeCapabilityMinor,
+                                   cudaDevAttrComputeCapabilityMinor, npp_ctx.nCudaDeviceId));
+  cudaDeviceProp device_properties{};
+  CUDA_CALL(cudaGetDeviceProperties(&device_properties, npp_ctx.nCudaDeviceId));
+  npp_ctx.nMultiProcessorCount = device_properties.multiProcessorCount;
+  npp_ctx.nMaxThreadsPerMultiProcessor = device_properties.maxThreadsPerMultiProcessor;
+  npp_ctx.nMaxThreadsPerBlock = device_properties.maxThreadsPerBlock;
+  npp_ctx.nSharedMemPerBlock = device_properties.sharedMemPerBlock;
+  return npp_ctx;
+}
+
+inline void UpdateNppContextStream(NppStreamContext &npp_ctx, cudaStream_t stream) {
+  npp_ctx.hStream = stream;
+  CUDA_CALL(cudaStreamGetFlags(npp_ctx.hStream, &npp_ctx.nStreamFlags));
+}
 
 class NppError : public std::runtime_error {
  public:

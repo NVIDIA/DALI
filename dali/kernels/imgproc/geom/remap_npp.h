@@ -61,21 +61,7 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
   static_assert(contains_v<T, SupportedInputTypes>, "Unsupported input type.");
 
 
-  explicit NppRemapKernel(int device_id) {
-    npp_ctx_.nCudaDeviceId = device_id;
-    CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx_.nCudaDevAttrComputeCapabilityMajor,
-                                     cudaDevAttrComputeCapabilityMajor, npp_ctx_.nCudaDeviceId));
-    CUDA_CALL(cudaDeviceGetAttribute(&npp_ctx_.nCudaDevAttrComputeCapabilityMinor,
-                                     cudaDevAttrComputeCapabilityMinor, npp_ctx_.nCudaDeviceId));
-    CUDA_CALL(cudaStreamGetFlags(npp_ctx_.hStream, &npp_ctx_.nStreamFlags));
-
-    cudaDeviceProp device_properties{};
-    CUDA_CALL(cudaGetDeviceProperties(&device_properties, npp_ctx_.nCudaDeviceId));
-    npp_ctx_.nMultiProcessorCount = device_properties.multiProcessorCount;
-    npp_ctx_.nMaxThreadsPerMultiProcessor = device_properties.maxThreadsPerMultiProcessor;
-    npp_ctx_.nMaxThreadsPerBlock = device_properties.maxThreadsPerBlock;
-    npp_ctx_.nSharedMemPerBlock = device_properties.sharedMemPerBlock;
-  }
+  explicit NppRemapKernel(int device_id) : npp_ctx_{CreateNppContext(device_id)} {}
 
 
   virtual ~NppRemapKernel() = default;
@@ -125,7 +111,7 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
                                ShapeFromRoi(output_rois), " ; mapx: ", mapsx.shape, "."));
     }
 
-    npp_ctx_.hStream = context.gpu.stream;
+    UpdateNppContextStream(npp_ctx_, context.gpu.stream);
     for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
       const auto &inp = input[sample_id];
       const auto &out = output[sample_id];
@@ -167,7 +153,7 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
                                ShapeFromRoi(output_roi), " ; mapx: ", mapx.shape, "."));
     }
 
-    npp_ctx_.hStream = context.gpu.stream;
+    UpdateNppContextStream(npp_ctx_, context.gpu.stream);
     for (int sample_id = 0; sample_id < input.num_samples(); sample_id++) {
       const auto &inp = input[sample_id];
       const auto &out = output[sample_id];
@@ -227,7 +213,7 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
   }
 
 
-  NppStreamContext npp_ctx_{};
+  NppStreamContext npp_ctx_{cudaStream_t(-1), 0};
 };
 
 }  // namespace remap

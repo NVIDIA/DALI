@@ -24,6 +24,8 @@
       "nppiRemap_16u_C1R_Ctx": {},
       "nppiRemap_16u_C3R_Ctx": {},
       "nppiRemap_8u_C1R_Ctx": {},
-      "nppiRemap_8u_C3R_Ctx": {}
+      "nppiRemap_8u_C3R_Ctx": {},
+      "nppiCFAToRGB_8u_C1C3R_Ctx": {},
+      "nppiCFAToRGB_16u_C1C3R_Ctx": {}
    }
 }
