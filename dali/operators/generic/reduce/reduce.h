@@ -52,6 +52,11 @@ class AxesHelper {
       axes_.resize(sample_dim);
       std::iota(axes_.begin(), axes_.end(), 0);
     }
+
+    // checks range and duplicates
+    kernels::reduce_impl::CheckAxes(make_cspan(axes_), sample_dim);
+    // adjusts negative indices to positive range
+    kernels::reduce_impl::AdjustAxes(make_span(axes_), sample_dim);
   }
 
   bool has_axes_arg_;
