@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Generic utilities not strictly related to autograph that are moved here or just implemented
 as no-op placeholders if the actual functionality doesn't matter - for example the scope of API
 export and it's management is not important if we import the autograph as internal symbol.
@@ -19,23 +18,23 @@ export and it's management is not important if we import the autograph as intern
 
 import inspect
 
-def _remove_undocumented(module_name, allowed_exception_list=None,
-                         doc_string_modules=None):
-    pass
+
+def _remove_undocumented(module_name, allowed_exception_list=None, doc_string_modules=None):
+  pass
 
 
 def export_symbol(*args, **kwargs):
-    """No-op replacement for @tf_export. This is decorator factory that accepts arguments"""
-    def actual_decorator(function):
-        return function
-    return actual_decorator
+  """No-op replacement for @tf_export. This is decorator factory that accepts arguments"""
+
+  def actual_decorator(function):
+    return function
+
+  return actual_decorator
 
 
-def make_decorator(target,
-                   decorator_func,
-                   decorator_name=None,
-                   decorator_doc='',
-                   decorator_argspec=None):
+def make_decorator(
+    target, decorator_func, decorator_name=None, decorator_doc='', decorator_argspec=None
+):
   """Make a decorator from a wrapper and a target.
 
   Args:
