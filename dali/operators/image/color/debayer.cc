@@ -21,8 +21,35 @@ DALI_SCHEMA(experimental__Debayer)
 
 Converts single-channel image to RGB using specified color filter array.
 
-The input images must be 2D tensors (``HW``) or 3D tensors (``HWC``) where the number of channels is 1.
 The supported input types are ``uint8_t`` and ``uint16_t``.
+The input images must be 2D tensors (``HW``) or 3D tensors (``HWC``) where the number of channels is 1.
+The operator supports sequence of images/video-like inputs (layout ``FHW``).
+
+For example, the following snippet presents debayering of batch of image sequences::
+
+  def bayered_sequence(sample_info):
+    # some actual source of video inputs with corresponding pattern
+    # as opencv-style string
+    video, bayer_pattern = get_sequence(sample_info)
+    if bayer_pattern == "bggr":
+        blue_position = [0, 0]
+    elif bayer_pattern == "gbrg":
+        blue_position = [0, 1]
+    elif bayer_pattern == "grbg":
+        blue_position = [1, 0]
+    else:
+        assert bayer_pattern == "rggb"
+        blue_position = [1, 1]
+    return video, np.array(blue_position, dtype=np.int32)
+
+  @pipeline_def
+  def debayer_pipeline():
+    bayered_sequences, blue_positions = fn.external_source(
+      source=bayered_sequence, batch=False, num_outputs=2,
+      layout=["FHW", None])  # note the "FHW" layout, for plain images it would be "HW"
+    debayered_sequences = fn.experimental.debayer(
+      bayered_sequences.gpu(), blue_position=blue_positions)
+    return debayered_sequences
 
 )code")
     .NumInput(1)
@@ -76,7 +103,7 @@ Currently only ``bilinear_npp`` is supported.
   For green values a bilinear interpolation with chroma correlation is used as explained in
   `NPP documentation <https://docs.nvidia.com/cuda/npp/group__image__color__debayer.html>`_.)code",
         "bilinear_npp")
-    .InputLayout(0, {"HW", "HWC", "FHW"})
+    .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
     .AllowSequences();
 
 }  // namespace dali
