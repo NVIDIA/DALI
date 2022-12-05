@@ -497,23 +497,23 @@ TEST_F(FramesDecoderGpuTest, NioTest_0) {
 //   }
 // }
 
-TEST_F(FramesDecoderGpuTest, NioTest_5) {
-  auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/test_2.264");
+// TEST_F(FramesDecoderGpuTest, NioTest_5) {
+//   auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/test_2.264");
 
-  std::vector<uint8_t> frame_cpu_buffer_;
-  DeviceBuffer<uint8_t> frame_gpu_buffer_;
+//   std::vector<uint8_t> frame_cpu_buffer_;
+//   DeviceBuffer<uint8_t> frame_gpu_buffer_;
 
-  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, -1, false);
+//   FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, -1, false);
 
-  frame_cpu_buffer_.resize(decoder.Width() * decoder.Height() * 3);
-  frame_gpu_buffer_.resize(decoder.Width() * decoder.Height() * 3);
+//   frame_cpu_buffer_.resize(decoder.Width() * decoder.Height() * 3);
+//   frame_gpu_buffer_.resize(decoder.Width() * decoder.Height() * 3);
 
-  for (int i = 0; i < 60; ++i) {
-    auto ret = decoder.ReadNextFrame(frame_gpu_buffer_.data(), true);
-    MemCopy(frame_cpu_buffer_.data(), frame_gpu_buffer_.data(), decoder.Width()*decoder.Height()*3);
-    SaveFrame(frame_cpu_buffer_.data(), i, 4, 0, "/home/awolant/Projects/DALI/dev/nio/frames", decoder.Width(), decoder.Height());
-  }
-}
+//   for (int i = 0; i < 60; ++i) {
+//     auto ret = decoder.ReadNextFrame(frame_gpu_buffer_.data(), true);
+//     MemCopy(frame_cpu_buffer_.data(), frame_gpu_buffer_.data(), decoder.Width()*decoder.Height()*3);
+//     SaveFrame(frame_cpu_buffer_.data(), i, 4, 0, "/home/awolant/Projects/DALI/dev/nio/frames", decoder.Width(), decoder.Height());
+//   }
+// }
 
 // TEST_F(FramesDecoderGpuTest, NioTest_6) {
 //   auto memory_video = MemoryVideo("/home/awolant/Projects/DALI/dev/nio/test_2.264");

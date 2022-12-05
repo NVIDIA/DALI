@@ -11,48 +11,38 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
-
 #include <cuda.h>
 #include <unistd.h>
-
 #include <string>
 #include <memory>
 #include <iomanip>
 #include <unordered_map>
 #include <mutex>
-
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/reader/loader/video/nvdecode/color_space.h"
-
 namespace dali {
-
 namespace detail {
-
 class NVDECCache {
  public:
     static NVDECCache &GetCache() {
       static NVDECCache cache_inst;
       return cache_inst;
     }
-
     NVDECLease GetDecoder(CUVIDEOFORMAT *video_format) {
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
-      unsigned height =  video_format->coded_height;
-      unsigned width = video_format->coded_width;
+      unsigned height = video_format->display_area.bottom - video_format->display_area.top;
+      unsigned width = video_format->display_area.right - video_format->display_area.left;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
 
       if (num_decode_surfaces == 0)
         num_decode_surfaces = 20;
-
       auto range = dec_cache.equal_range(codec_type);
-
       std::unordered_map<cudaVideoCodec, DecInstance>::iterator best_match = range.second;
       for (auto it = range.first; it != range.second; ++it) {
         if (best_match == range.second && it->second.used == false) {
@@ -72,38 +62,30 @@ class NVDECCache {
         best_match->second.used = true;
         lock.unlock();
         CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
-
         reconfigParams.ulTargetWidth = reconfigParams.ulWidth = width;
         reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
         reconfigParams.ulNumDecodeSurfaces = num_decode_surfaces;
         best_match->second.height = height;
         best_match->second.width = width;
         best_match->second.num_decode_surfaces = num_decode_surfaces;
-
         CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
         return NVDECLease(best_match->second);
       }
 #endif
       lock.unlock();
-
       auto caps = CUVIDDECODECAPS{};
       caps.eCodecType = codec_type;
       caps.eChromaFormat = cudaVideoChromaFormat_420;
       caps.nBitDepthMinus8 = 0;
       CUDA_CALL(cuvidGetDecoderCaps(&caps));
-
       DALI_ENFORCE(width >= caps.nMinWidth  && height >= caps.nMinHeight,
                    "Video is too small in at least one dimension.");
-
       DALI_ENFORCE(width <= caps.nMaxWidth && height <= caps.nMaxHeight,
                    "Video is too large in at least one dimension.");
-
       DALI_ENFORCE(width * height / 256 <= caps.nMaxMBCount,
                    "Video is too large (too many macroblocks).");
-
       CUVIDDECODECREATEINFO decoder_info;
       memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
-
       decoder_info.bitDepthMinus8 = video_format->bit_depth_luma_minus8;;
       decoder_info.ChromaFormat = video_format->chroma_format;;
       decoder_info.CodecType = codec_type;
@@ -125,18 +107,16 @@ class NVDECCache {
 #endif
       decoder_info.ulMaxHeight = max_height;
       decoder_info.ulMaxWidth = max_width;
-      decoder_info.ulTargetHeight = video_format->display_area.bottom -
-                                    video_format->display_area.top;
-      decoder_info.ulTargetWidth = video_format->display_area.right -
-                                   video_format->display_area.left;
+      decoder_info.ulTargetHeight = height;
+      decoder_info.ulTargetWidth = width;
       decoder_info.ulNumDecodeSurfaces = num_decode_surfaces;
       decoder_info.ulNumOutputSurfaces = 2;
 
-      // auto& area = decoder_info.display_area;
-      // area.left   = video_format->display_area.left;
-      // area.right  = video_format->display_area.right;
-      // area.top    = video_format->display_area.top;
-      // area.bottom = video_format->display_area.bottom;
+      auto& area = decoder_info.display_area;
+      area.left   = video_format->display_area.left;
+      area.right  = video_format->display_area.right;
+      area.top    = video_format->display_area.top;
+      area.bottom = video_format->display_area.bottom;
       DecInstance decoder_inst = {};
 
       CUDA_CALL(cuvidCreateDecoder(&(decoder_inst.decoder), &decoder_info));
