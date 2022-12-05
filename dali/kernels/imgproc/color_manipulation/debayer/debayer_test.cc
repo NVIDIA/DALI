@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <array>
 #include <limits>
 #include <random>
 #include <vector>
@@ -84,12 +83,12 @@ class DebayerGpuTest : public ::testing::Test {
     // looks at the 2x2 tile starting at the second row and column of the sensors matrix.
     // We iterate over whole image, so the patterns are first transformed as if by looking
     // at the tile starting at first column and row.
-    std::array<std::array<std::array<int, 2>, 2>, 4> pattern2channel{{
-        {{{0, 1}, {1, 2}}},  // bggr -> rggb -> 0112
-        {{{1, 0}, {2, 1}}},  // gbrg -> grbg -> 1021
-        {{{1, 2}, {0, 1}}},  // grbg -> gbrg -> 1201
-        {{{2, 1}, {1, 0}}}   // rggb -> bggr -> 2110
-    }};
+    int pattern2channel[4][2][2] = {
+        {{0, 1}, {1, 2}},  // bggr -> rggb -> 0112
+        {{1, 0}, {2, 1}},  // gbrg -> grbg -> 1021
+        {{1, 2}, {0, 1}},  // grbg -> gbrg -> 1201
+        {{2, 1}, {1, 0}}   // rggb -> bggr -> 2110
+    };
     int batch_size = rgb_batch.num_samples();
     const auto &batch_shape = rgb_batch.shape;
     for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
