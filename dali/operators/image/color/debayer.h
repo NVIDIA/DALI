@@ -52,7 +52,9 @@ TensorListShape<3> infer_output_shape(const TensorListShape<ndim> &input_shapes)
           make_string("The debayer operator expects grayscale (i.e. single channel) images, "
                       "however the sample at idx ",
                       sample_idx, " has shape ", input_shapes[sample_idx],
-                      ", which, assuming HWC layout, implies ", num_channels, " channels."));
+                      ", which, assuming HWC layout, implies ", num_channels, " channels. ",
+                      "If you are trying to process video or sequences, please make sure to set "
+                      "input's layout to `FHW`. You can use `fn.reshape` to set proper layout."));
     }
   }
   TensorListShape<3> out_shapes(batch_size);

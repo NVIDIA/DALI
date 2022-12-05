@@ -76,7 +76,7 @@ Currently only ``bilinear_npp`` is supported.
   For green values a bilinear interpolation with chroma correlation is used as explained in
   `NPP documentation <https://docs.nvidia.com/cuda/npp/group__image__color__debayer.html>`_.)code",
         "bilinear_npp")
-    .InputLayout(0, {"HW", "HWC"})
+    .InputLayout(0, {"HW", "HWC", "FHW"})
     .AllowSequences();
 
 }  // namespace dali

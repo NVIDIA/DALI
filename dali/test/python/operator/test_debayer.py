@@ -340,6 +340,66 @@ class DebayerTest(unittest.TestCase):
                 assert np.all(img_debayered == baseline)
 
 
+class DebayerVideoTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        rng = np.random.default_rng(seed=3)
+        num_smaller, num_bigger = 4, 3
+        cls.num_samples = num_smaller + num_bigger
+        smaller = read_video(num_smaller, 60, 108, 192)
+        bigger = read_video(num_bigger, 32, 216, 384)
+        video = smaller + bigger
+        rng.shuffle(video)
+        patterns = [rng.choice(bayer_patterns, len(vid)) for vid in video]
+        cls.blue_poses = [
+            np.array([blue_position(pattern) for pattern in sample_patterns], dtype=np.int32)
+            for sample_patterns in patterns
+        ]
+        cls.bayered_vid = [
+            rgb2bayer_seq(vid, vid_patterns) for vid, vid_patterns in zip(video, patterns)
+        ]
+        cls.npp_baseline = [
+            debayer_bilinear_npp_pattern_seq(vid, vid_patterns)
+            for vid, vid_patterns in zip(cls.bayered_vid, patterns)
+        ]
+
+    def test_debayer_vid_per_frame_pattern(self):
+        num_iterations = 2
+        batch_size = (self.num_samples + 1) // 2
+
+        def source(sample_info):
+            idx = sample_info.idx_in_epoch % self.num_samples
+            vid = self.bayered_vid[idx]
+            return vid, self.blue_poses[idx], np.array(idx, dtype=np.int32)
+
+        @pipeline_def
+        def debayer_pipeline():
+            bayered_vid, blue_positions, idxs = fn.external_source(source=source, batch=False,
+                                                                   num_outputs=3,
+                                                                   layout=["FHW", None, None])
+            debayered_vid = fn.experimental.debayer(bayered_vid.gpu(),
+                                                    blue_position=fn.per_frame(blue_positions))
+            return debayered_vid, idxs
+
+        pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
+        pipe.build()
+
+        out_batches = []
+        for _ in range(num_iterations):
+            debayered_dev, idxs = pipe.run()
+            assert debayered_dev.layout() == "FHWC"
+            out_batches.append(
+                ([np.array(vid) for vid in debayered_dev.as_cpu()], [np.array(idx)
+                                                                     for idx in idxs]))
+
+        for debayered_videos, idxs in out_batches:
+            assert len(debayered_videos) == len(idxs)
+            for vid_debayered, idx in zip(debayered_videos, idxs):
+                baseline = self.npp_baseline[idx]
+                assert np.all(vid_debayered == baseline)
+
+
 def source_full_array(shape, dtype):
 
     def source(sample_info):
