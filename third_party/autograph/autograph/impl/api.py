@@ -449,9 +449,9 @@ def _fall_back_unconverted(f, args, kwargs, options, exc):
       'AutoGraph could not transform %s and will run it as-is.\n'
       '%s'
       'Cause: %s\n')
-    # TODO(klecki): Expose the do_not_convert in DALI
-    #   'To silence this warning, decorate the function with'
-    #   ' @tf.autograph.experimental.do_not_convert')
+  # TODO(klecki): Expose the do_not_convert in DALI
+  #   'To silence this warning, decorate the function with'
+  #   ' @tf.autograph.experimental.do_not_convert')
   if isinstance(exc, errors.InaccessibleSourceCodeError):
     if ag_ctx.INSPECT_SOURCE_SUPPORTED:
       logging.warning(warning_template, f, '', exc)
@@ -727,7 +727,8 @@ def to_graph(entity, recursive=True, experimental_optional_features=None):
   For a tutorial, see the
   [tf.function and AutoGraph guide](https://www.tensorflow.org/guide/function).
   For more detailed information, see the
-  [AutoGraph reference documentation](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md).
+  [AutoGraph reference documentation](https://github.com/tensorflow/tensorflow/blob/master/
+tensorflow/python/autograph/g3doc/reference/index.md).
 
   Args:
     entity: Python callable or class to convert.
@@ -927,7 +928,9 @@ def to_code(entity, recursive=True, experimental_optional_features=None):
 
 _TRANSPILER = None
 
-def initialize_autograph(operator_overload=hooks.OperatorBase(), converter_name="autograph",
+
+def initialize_autograph(operator_overload=hooks.OperatorBase(),
+                         converter_name="autograph",
                          filtered_library_modules=["autograph"]):
   """Initialize the AutoGraph with custom operator overloads.
 
@@ -951,7 +954,7 @@ def initialize_autograph(operator_overload=hooks.OperatorBase(), converter_name=
     raise RuntimeError("AutoGraph already initialized")
   _TRANSPILER = PyToLib(converter_name, operator_overload)
   # Add the name of the initialized library to know libraries to stop recursive conversion
-  do_not_convert_rules = tuple(config.DoNotConvert(name) for name in filtered_library_modules)
-  config.CONVERSION_RULES = ((config.DoNotConvert(converter_name),) + do_not_convert_rules
-                             + config.CONVERSION_RULES)
-
+  do_not_convert_rules = tuple(
+      config.DoNotConvert(name) for name in filtered_library_modules)
+  config.CONVERSION_RULES = ((config.DoNotConvert(converter_name),) +
+                             do_not_convert_rules + config.CONVERSION_RULES)

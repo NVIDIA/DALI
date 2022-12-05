@@ -79,18 +79,18 @@ class ErrorMetadataBaseTest(unittest.TestCase):
         ('/path/three.py', 171, 'test_fn_3', 'test code 3'),
     ]
     cause_message = 'Test message'
+    loc = origin_info.LineLocation(filename='/path/other_two.py', lineno=13)
+    origin_info_value = origin_info.OriginInfo(
+        loc=loc,
+        function_name='converted_fn',
+        source_code_line='converted test code',
+        comment=None)
     em = error_utils.ErrorMetadataBase(
         callsite_tb=callsite_tb,
         cause_metadata=None,
         cause_message=cause_message,
         source_map={
-            origin_info.LineLocation(filename='/path/two.py', lineno=171):
-                origin_info.OriginInfo(
-                    loc=origin_info.LineLocation(
-                        filename='/path/other_two.py', lineno=13),
-                    function_name='converted_fn',
-                    source_code_line='converted test code',
-                    comment=None)
+            origin_info.LineLocation(filename='/path/two.py', lineno=171): origin_info_value
         },
         converter_filename=None)
     result = em.get_message()

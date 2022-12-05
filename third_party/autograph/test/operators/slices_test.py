@@ -19,6 +19,7 @@ import unittest
 from autograph.operators import slices
 from autograph.utils.all_utils import custom_constant
 
+
 class SlicesTest(unittest.TestCase):
 
   def test_set_item_tensor_list(self):

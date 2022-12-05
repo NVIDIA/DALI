@@ -39,7 +39,7 @@ PY3_PREAMBLE = ''
 MAX_SIZE = 0
 
 if sys.version_info >= (3, 9):
-  astunparse = ast
+  astunparse = ast  # noqa: F811
 
 if sys.version_info >= (3,):
   STANDARD_PREAMBLE = PY3_PREAMBLE

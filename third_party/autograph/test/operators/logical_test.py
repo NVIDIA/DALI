@@ -18,6 +18,7 @@ import unittest
 
 from autograph.operators import logical
 
+
 class LogicalOperatorsTest(unittest.TestCase):
 
   def assertNotCalled(self):

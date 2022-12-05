@@ -62,11 +62,12 @@ class TestResource(object):
 
 def custom_constant(val):
   return np.array(val)
+
+
 class ApiTest(unittest.TestCase):
 
   def evaluate(self, x):
     return x
-
 
   def assertAllEqual(self, a, b):
     if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
@@ -141,7 +142,6 @@ class ApiTest(unittest.TestCase):
     x = api.converted_call(p, (), {}, options=DEFAULT_RECURSIVE)
     self.assertIsNotNone(self.evaluate(x), 3)
 
-
   def test_decorator_recursive(self):
 
     class TestClass(object):
@@ -163,7 +163,6 @@ class ApiTest(unittest.TestCase):
         custom_constant(-2))
     self.assertListEqual([0, 1], self.evaluate(x).tolist())
 
-
   def test_decorator_not_recursive(self):
 
     class TestClass(object):
@@ -182,7 +181,6 @@ class ApiTest(unittest.TestCase):
         custom_constant([2, 4]), custom_constant(1),
         custom_constant(-2))
     self.assertListEqual([0, 1], self.evaluate(x).tolist())
-
 
   def test_convert_then_do_not_convert(self):
 
@@ -203,7 +201,6 @@ class ApiTest(unittest.TestCase):
         custom_constant((2, 4)), custom_constant(1),
         custom_constant(-2))
     self.assertAllEqual((0, 1), self.evaluate(x))
-
 
   def test_decorator_calls_decorated(self):
 
@@ -269,7 +266,6 @@ class ApiTest(unittest.TestCase):
     tc = TestClass()
     self.assertEqual(1, api.do_not_convert(tc)())
 
-
   def test_convert_call_site_decorator(self):
 
     class TestClass(object):
@@ -287,9 +283,8 @@ class ApiTest(unittest.TestCase):
         return x
 
     tc = TestClass()
-    x = tc.test_method(custom_constant([2, 4]),
-        custom_constant(1),
-        custom_constant(-2))
+    x = tc.test_method(custom_constant([2, 4]), custom_constant(1),
+                       custom_constant(-2))
     self.assertListEqual([0, 1], self.evaluate(x).tolist())
 
   def test_converted_call_builtin(self):
@@ -530,7 +525,6 @@ class ApiTest(unittest.TestCase):
 
     tc = api.converted_call(TestSubclass, (), None, options=DEFAULT_RECURSIVE)
     api.converted_call(tc, (True,), None, options=DEFAULT_RECURSIVE)
-
 
   def test_converted_call_constructor(self):
 
@@ -896,7 +890,6 @@ class ApiTest(unittest.TestCase):
                        ag_ctx.Status.UNSPECIFIED)
 
     unspecified_fn()
-
 
   def test_to_graph_with_defaults(self):
 

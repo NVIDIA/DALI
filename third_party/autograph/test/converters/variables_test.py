@@ -47,7 +47,7 @@ class VariablesTest(converter_testing.TestCase):
 
     def f(l):
       del l
-      return l
+      return l   # noqa: F821
 
     tr = self.transform(f, variables)
 
@@ -97,7 +97,7 @@ class VariablesTest(converter_testing.TestCase):
 
     def f(a, b):
       del [a, b]
-      return a
+      return a  # noqa: F821
 
     tr = self.transform(f, variables)
 
@@ -110,7 +110,7 @@ class VariablesTest(converter_testing.TestCase):
 
     def f(a, b, c):
       del [a, (b, c)]
-      return c
+      return c  # noqa: F821
 
     tr = self.transform(f, variables)
 
@@ -122,7 +122,7 @@ class VariablesTest(converter_testing.TestCase):
     def f(a, b, c):
       del a, b, c[0]
       a = 1
-      return a, b, c
+      return a, b, c  # noqa: F821
 
     tr = self.transform(f, variables)
 
@@ -133,8 +133,8 @@ class VariablesTest(converter_testing.TestCase):
 
     def f(a, b, c):
       del a, b, c[0]
-      a = 1
-      b = 2
+      a = 1  # noqa: F841
+      b = 2  # noqa: F841
       return c
 
     tr = self.transform(f, variables)

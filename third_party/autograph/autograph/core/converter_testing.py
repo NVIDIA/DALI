@@ -28,6 +28,7 @@ from autograph.core import converter
 from autograph.impl import api
 from autograph.utils import hooks
 
+
 def allowlist(f):
   """Helper that marks a callable as allowlisted."""
   if 'allowlisted_module_for_testing' not in sys.modules:

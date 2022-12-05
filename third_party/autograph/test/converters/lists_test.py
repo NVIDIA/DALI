@@ -19,6 +19,7 @@ from autograph.converters import lists
 from autograph.core import converter_testing
 from autograph.utils import hooks
 
+
 class TestList(list):
   pass
 
@@ -98,7 +99,8 @@ class ListTest(converter_testing.TestCase):
       s = l.pop()
       return s, l
 
-    tr = self.transform(f, (directives_converter, lists), operator_overload=OperatorList())
+    tr = self.transform(f, (directives_converter, lists),
+                        operator_overload=OperatorList())
 
     ts, tl = tr()
 
@@ -133,4 +135,3 @@ class ListTest(converter_testing.TestCase):
   #   tr = self.transform(f, lists, operator_overload=OperatorList())
 
   #   self.assertAllEqual(self.evaluate(tr()), [1, 2, 3])
-

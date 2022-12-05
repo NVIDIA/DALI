@@ -16,6 +16,7 @@
 
 from autograph.utils import hooks
 
+
 def not_(a):
   """Functional form of "not"."""
   if hooks._DISPATCH.detect_overload_not_(a):

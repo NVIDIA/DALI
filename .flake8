@@ -5,3 +5,6 @@ doctests = False
 max-doc-length = 120
 max-line-length = 100
 statistics = True
+# TODO(klecki): Below line is currently a no-op, but this should be adjusted
+# when the AutoGraph is actually moved into DALI source code.
+exclude = *third_party/autograph

@@ -160,7 +160,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
   def test_import(self):
 
     def test_fn():
-      import a, b.x, y as c, z.u as d  # pylint:disable=g-multiple-import,g-import-not-at-top,unused-variable
+      import a, b.x, y as c, z.u as d  # pylint:disable=g-multiple-import,g-import-not-at-top,unused-variable # noqa: E401,F401,E501
 
     node, _ = self._parse_and_analyze(test_fn)
     scope = anno.getanno(node.body[0], anno.Static.SCOPE)
@@ -169,8 +169,8 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
   def test_import_from(self):
 
     def test_fn():
-      from x import a  # pylint:disable=g-import-not-at-top,unused-variable
-      from y import z as b  # pylint:disable=g-import-not-at-top,unused-variable
+      from x import a  # pylint:disable=g-import-not-at-top,unused-variable # noqa: F401
+      from y import z as b  # pylint:disable=g-import-not-at-top,unused-variable # noqa: F401
 
     node, _ = self._parse_and_analyze(test_fn)
     scope = anno.getanno(node.body[0], anno.Static.SCOPE)
@@ -206,7 +206,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
     def test_fn(a):
       b = 0
       c = 1
-      foo(a, b)  # pylint:disable=undefined-variable
+      foo(a, b)  # pylint:disable=undefined-variable # noqa: F821
       return c
 
     node, _ = self._parse_and_analyze(test_fn)
@@ -477,7 +477,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
   def test_return_vars_are_read(self):
 
-    def test_fn(a, b, c):  # pylint: disable=unused-argument
+    def test_fn(a, b, c):  # pylint: disable=unused-argument # noqa: F841
       return c
 
     node, _ = self._parse_and_analyze(test_fn)
@@ -488,7 +488,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
   def test_raise_names_are_read(self):
 
-    def test_fn(a, b, c):  # pylint: disable=unused-argument
+    def test_fn(a, b, c):  # pylint: disable=unused-argument # noqa: F841
       raise b
 
     node, _ = self._parse_and_analyze(test_fn)
@@ -502,8 +502,8 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
     def test_fn(a, b, c):  # pylint: disable=unused-argument
       try:
         pass
-      except:  # pylint: disable=bare-except
-        b = c
+      except:  # pylint: disable=bare-except # noqa: E722
+        b = c  # noqa: F841
 
     node, _ = self._parse_and_analyze(test_fn)
     fn_node = node
@@ -516,7 +516,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
       try:
         pass
       except a as e:
-        b = e
+        b = e  # noqa: F841
 
     node, _ = self._parse_and_analyze(test_fn)
     fn_node = node
@@ -576,7 +576,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
   def test_lambda_params_args(self):
 
-    def test_fn(a, b):  # pylint: disable=unused-argument
+    def test_fn(a, b):  # pylint: disable=unused-argument # noqa: F841
       return lambda a: a + b
 
     node, _ = self._parse_and_analyze(test_fn)
@@ -604,7 +604,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
   def test_lambda_params_arg_defaults(self):
 
-    def test_fn(a, b, c):  # pylint: disable=unused-argument
+    def test_fn(a, b, c):  # pylint: disable=unused-argument # noqa: F841
       return lambda b=c: a + b
 
     node, _ = self._parse_and_analyze(test_fn)
@@ -631,8 +631,8 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
   def test_lambda_complex(self):
 
-    def test_fn(a, b, c, d, e):  # pylint: disable=unused-argument
-      a = (lambda a, b, c=e: a + b + c)(d, 1, 2) + b
+    def test_fn(a, b, c, d, e):  # pylint: disable=unused-argument # noqa: F841
+      a = (lambda a, b, c=e: a + b + c)(d, 1, 2) + b  # noqa: F841
 
     node, _ = self._parse_and_analyze(test_fn)
 
@@ -658,8 +658,8 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
   def test_lambda_nested(self):
 
-    def test_fn(a, b, c, d, e, f):  # pylint: disable=unused-argument
-      a = lambda a, b: d(lambda b=f: a + b + c)  # pylint: disable=undefined-variable
+    def test_fn(a, b, c, d, e, f):  # pylint: disable=unused-argument # noqa: F841
+      a = lambda a, b: d(lambda b=f: a + b + c)  # pylint: disable=undefined-variable  # noqa: F841
 
     node, _ = self._parse_and_analyze(test_fn)
 
@@ -700,7 +700,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
   def test_comprehension_targets_are_isolated(self):
 
     def test_fn(a):
-      b = {c for c in a}  # pylint:disable=unused-variable
+      b = {c for c in a}  # pylint:disable=unused-variable  # noqa: F841
 
     node, _ = self._parse_and_analyze(test_fn)
     fn_node = node
@@ -710,7 +710,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
   def test_comprehension_targets_are_isolated_list_function_w_generator(self):
 
     def test_fn(a):
-      b = list(c for c in a)  # pylint:disable=unused-variable
+      b = list(c for c in a)  # pylint:disable=unused-variable  # noqa: F841
 
     node, _ = self._parse_and_analyze(test_fn)
     fn_node = node
@@ -720,7 +720,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
   def test_list_comprehension_targets_are_sometimes_isolated(self):
 
     def test_fn(a):
-      b = [c for c in a]  # pylint:disable=unused-variable
+      b = [c for c in a]  # pylint:disable=unused-variable  # noqa: F841
 
     node, _ = self._parse_and_analyze(test_fn)
     fn_node = node
@@ -740,7 +740,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
   def test_comprehension_generator_order(self):
 
     def test_fn(a, b, c):  # pylint:disable=unused-argument
-      e = {d: (a, b) for (a, b) in c for d in b}  # pylint:disable=unused-variable,g-complex-comprehension
+      e = {d: (a, b) for (a, b) in c for d in b}  # pylint:disable=unused-variable,g-complex-comprehension  # noqa: F841,E501
 
     node, _ = self._parse_and_analyze(test_fn)
     fn_node = node
@@ -804,7 +804,7 @@ class ActivityAnalyzerTest(ActivityAnalyzerTestBase):
 
     def test_fn():
       a: b
-      return a
+      return a  # noqa: F821
 
     node, _ = self._parse_and_analyze(test_fn)
     fn_node = node
