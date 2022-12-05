@@ -63,7 +63,7 @@ class TestingTranspiler(api.PyToLib):
   """Testing version that only applies given transformations."""
 
   def __init__(self, converters, ag_overrides, operator_overload=hooks.OperatorBase()):
-    super(TestingTranspiler, self).__init__(operator_overload=operator_overload)
+    super(TestingTranspiler, self).__init__(name="autograph", operator_overload=operator_overload)
     if isinstance(converters, (list, tuple)):
       self._converters = converters
     else:

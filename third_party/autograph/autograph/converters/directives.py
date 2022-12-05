@@ -34,7 +34,6 @@ import gast
 from autograph.core import converter
 from autograph.lang import directives
 from autograph.pyct import anno
-import inspect as tf_inspect
 
 
 STATIC_VALUE = 'static_value'
@@ -62,7 +61,7 @@ def _map_args(call_node, function):
   """
   args = call_node.args
   kwds = {kwd.arg: kwd.value for kwd in call_node.keywords}
-  call_args = tf_inspect.getcallargs(function, *args, **kwds)
+  call_args = inspect.getcallargs(function, *args, **kwds)
 
   # Keyword arguments not specified in kwds will be mapped to their defaults,
   # which are Python values. Since we don't currently have a way to transform

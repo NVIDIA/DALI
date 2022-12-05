@@ -31,7 +31,6 @@ import six
 
 from autograph.pyct import errors
 from autograph.pyct import inspect_utils
-import inspect as tf_inspect
 
 
 PY2_PREAMBLE = textwrap.dedent("""
@@ -210,7 +209,7 @@ def _arg_name(node):
 def _node_matches_argspec(node, func):
   """Returns True is node fits the argspec of func."""
   # TODO(mdan): Use just inspect once support for Python 2 is dropped.
-  arg_spec = tf_inspect.getfullargspec(func)
+  arg_spec = inspect.getfullargspec(func)
 
   node_args = tuple(_arg_name(arg) for arg in node.args.args)
   if node_args != tuple(arg_spec.args):

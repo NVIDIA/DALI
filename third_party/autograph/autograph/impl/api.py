@@ -57,7 +57,6 @@ from autograph.pyct.static_analysis import reaching_definitions
 from autograph.utils import hooks
 from autograph.utils import ag_logging as logging
 from autograph.utils import all_utils
-import inspect as tf_inspect
 # TODO(klecki): replace missing functionality
 # from autograph.utils import tf_stack
 from autograph.utils.all_utils import export_symbol
@@ -587,9 +586,9 @@ def _log_callargs(f, args, kwargs):
   logging.log(2, 'KW defaults of %s : %s', f, f.__kwdefaults__)
 
   if kwargs is not None:
-    callargs = tf_inspect.getcallargs(f, *args, **kwargs)
+    callargs = inspect.getcallargs(f, *args, **kwargs)
   else:
-    callargs = tf_inspect.getcallargs(f, *args)
+    callargs = inspect.getcallargs(f, *args)
 
   formatted_callargs = '\n'.join(
       '    {}: {}'.format(k, v) for k, v in callargs.items())
@@ -918,7 +917,7 @@ def to_code(entity, recursive=True, experimental_optional_features=None):
   Returns:
     The converted code as string.
   """
-  source = tf_inspect.getsource(
+  source = inspect.getsource(
       to_graph(
           entity,
           recursive=recursive,

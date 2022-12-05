@@ -26,7 +26,6 @@ import types
 
 import six
 
-import inspect as tf_inspect
 
 # This lock seems to help avoid linecache concurrency errors.
 _linecache_lock = threading.Lock()
@@ -50,7 +49,7 @@ SPECIAL_BUILTINS = {
 
 
 def islambda(f):
-  if not tf_inspect.isfunction(f):
+  if not inspect.isfunction(f):
     return False
   # TODO(mdan): Look into checking the only the code object.
   if not (hasattr(f, '__name__') and hasattr(f, '__code__')):
@@ -62,7 +61,7 @@ def islambda(f):
 
 def isnamedtuple(f):
   """Returns True if the argument is a namedtuple-like."""
-  if not (tf_inspect.isclass(f) and issubclass(f, tuple)):
+  if not (inspect.isclass(f) and issubclass(f, tuple)):
     return False
   if not hasattr(f, '_fields'):
     return False
@@ -205,7 +204,7 @@ def getqualifiedname(namespace, object_, max_depth=5, visited=None):
       return name
 
   # If an object is not found, try to search its parent modules.
-  parent = tf_inspect.getmodule(object_)
+  parent = inspect.getmodule(object_)
   if (parent is not None and parent is not object_ and parent is not namespace):
     # No limit to recursion depth because of the guard above.
     parent_name = getqualifiedname(
@@ -223,7 +222,7 @@ def getqualifiedname(namespace, object_, max_depth=5, visited=None):
     # iteration.
     for name in namespace.keys():
       value = namespace[name]
-      if tf_inspect.ismodule(value) and id(value) not in visited:
+      if inspect.ismodule(value) and id(value) not in visited:
         visited.add(id(value))
         name_in_module = getqualifiedname(value.__dict__, object_,
                                           max_depth - 1, visited)
@@ -299,7 +298,7 @@ def getmethodclass(m):
   # Class, static and unbound methods: search all defined classes in any
   # namespace. This is inefficient but more robust a method.
   owners = []
-  caller_frame = tf_inspect.currentframe().f_back
+  caller_frame = inspect.currentframe().f_back
   try:
     # TODO(mdan): This doesn't consider cell variables.
     # TODO(mdan): This won't work if the owner is hidden inside a container.
@@ -324,9 +323,9 @@ def getmethodclass(m):
       return owners[0]
 
     # If multiple owners are found, and are not subclasses, raise an error.
-    owner_types = tuple(o if tf_inspect.isclass(o) else type(o) for o in owners)
+    owner_types = tuple(o if inspect.isclass(o) else type(o) for o in owners)
     for o in owner_types:
-      if tf_inspect.isclass(o) and issubclass(o, tuple(owner_types)):
+      if inspect.isclass(o) and issubclass(o, tuple(owner_types)):
         return o
     raise ValueError('Found too many owners of %s: %s' % (m, owners))
 
@@ -342,7 +341,7 @@ def getfutureimports(entity):
   Returns:
     A tuple of future strings
   """
-  if not (tf_inspect.isfunction(entity) or tf_inspect.ismethod(entity)):
+  if not (inspect.isfunction(entity) or inspect.ismethod(entity)):
     return tuple()
   return tuple(
       sorted(name for name, value in entity.__globals__.items()

@@ -24,7 +24,6 @@ from autograph.pyct import inspect_utils
 from autograph.pyct import origin_info
 from autograph.pyct import parser
 from autograph.pyct.testing import basic_definitions
-import inspect as tf_inspect
 
 
 class OriginInfoTest(unittest.TestCase):
@@ -61,7 +60,7 @@ class OriginInfoTest(unittest.TestCase):
   def test_create_source_map_identity(self):
     test_fn = basic_definitions.simple_function
     source_map = self._create_source_map(test_fn)
-    module_path = tf_inspect.getsourcefile(test_fn)
+    module_path = inspect.getsourcefile(test_fn)
 
     # Origin line numbers below should match those in basic_definitions.py
     fn_start = inspect.getsourcelines(test_fn)[1]
@@ -76,7 +75,7 @@ class OriginInfoTest(unittest.TestCase):
   def test_create_source_map_multiline_call(self):
     test_fn = basic_definitions.function_with_multiline_call
     source_map = self._create_source_map(test_fn)
-    module_path = tf_inspect.getsourcefile(test_fn)
+    module_path = inspect.getsourcefile(test_fn)
 
     # Origin line numbers below should match those in basic_definitions.py
     fn_start = inspect.getsourcelines(test_fn)[1]
@@ -104,7 +103,7 @@ class OriginInfoTest(unittest.TestCase):
     node, _ = parser.parse_entity(test_fn,
                                   inspect_utils.getfutureimports(test_fn))
     # No origin information should result in an empty map.
-    test_fn_lines, _ = tf_inspect.getsourcelines(test_fn)
+    test_fn_lines, _ = inspect.getsourcelines(test_fn)
     source_map = origin_info.create_source_map(node, '\n'.join(test_fn_lines),
                                                test_fn)
 

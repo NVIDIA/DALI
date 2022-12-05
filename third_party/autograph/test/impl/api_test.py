@@ -20,6 +20,7 @@ import contextlib
 import functools
 import gc
 import imp
+import inspect
 import os
 import re
 import sys
@@ -33,7 +34,6 @@ import six
 
 from operator import add
 from functools import reduce
-import inspect as tf_inspect
 
 from autograph.core import ag_ctx
 from autograph.core import converter
@@ -241,8 +241,8 @@ class ApiTest(unittest.TestCase):
 
     tc = TestClass()
     self.assertListEqual(
-        list(tf_inspect.getfullargspec(tc.test_method)),
-        list(tf_inspect.getfullargspec(tc.test_method_converted)))
+        list(inspect.getfullargspec(tc.test_method)),
+        list(inspect.getfullargspec(tc.test_method_converted)))
 
   def test_do_not_convert_argspec(self):
 
@@ -255,7 +255,7 @@ class ApiTest(unittest.TestCase):
       test_method_allowlisted = api.do_not_convert(test_method)
 
     tc = TestClass()
-    self.assertTrue(tf_inspect.ismethod(tc.test_method_allowlisted))
+    self.assertTrue(inspect.ismethod(tc.test_method_allowlisted))
     # Because the wrapped function is not generated, we can't preserve its
     # arg spec.
 
@@ -984,10 +984,10 @@ class ApiTest(unittest.TestCase):
     self.assertNotEqual(converted_recursive.ag_module,
                         converted_non_recursive.ag_module)
     self.assertRegex(
-        tf_inspect.getsource(converted_recursive),
+        inspect.getsource(converted_recursive),
         'FunctionScope(.*recursive=True.*)')
     self.assertRegex(
-        tf_inspect.getsource(converted_non_recursive),
+        inspect.getsource(converted_non_recursive),
         'FunctionScope(.*recursive=False.*)')
 
   def test_to_graph_preserves_bindings(self):

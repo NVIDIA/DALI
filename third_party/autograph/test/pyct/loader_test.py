@@ -15,6 +15,7 @@
 # ==============================================================================
 """Tests for loader module."""
 
+import inspect
 import os
 import textwrap
 import unittest
@@ -25,7 +26,6 @@ from autograph.pyct import ast_util
 from autograph.pyct import loader
 from autograph.pyct import parser
 from autograph.pyct import pretty_printer
-import inspect as tf_inspect
 
 
 class LoaderTest(unittest.TestCase):
@@ -49,8 +49,8 @@ class LoaderTest(unittest.TestCase):
 
     node, _ = parser.parse_entity(test_fn, future_features=())
     module, _, _ = loader.load_ast(node)
-    source = tf_inspect.getsource(module.test_fn)
-    expected_node_src = textwrap.dedent(tf_inspect.getsource(test_fn))
+    source = inspect.getsource(module.test_fn)
+    expected_node_src = textwrap.dedent(inspect.getsource(test_fn))
 
     self.assertAstMatches(node, source)
     self.assertAstMatches(node, expected_node_src)
