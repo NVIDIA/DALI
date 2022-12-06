@@ -854,6 +854,12 @@ def test_variable_sample_size():
         assert size >= initial_shm_size, (
             f"Expected the size to be unchanged and equal {initial_shm_size}, got {size}.")
 
+    per_sample_sizes = pipe.external_source_shm_statistics()["per_sample_capacities"]
+    assert len(sizes) == len(per_sample_sizes)
+    for size in per_sample_sizes:
+        assert size == bytes_per_sample_hint, (
+            f"Expected initial per sample size to be {bytes_per_sample_hint}, got {size}.")
+
     # This demonstrates that providing a hint can improve memory usage, but if one day
     # DALI changes strategy of dynamic shm reallocation it can be simply removed
     no_hint_pipe_shm_size = min(no_hint_pipe.external_source_shm_statistics()["capacities"])

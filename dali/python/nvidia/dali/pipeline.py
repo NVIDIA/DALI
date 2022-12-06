@@ -435,17 +435,36 @@ Parameters
         return self._pipe.executor_statistics()
 
     def external_source_shm_statistics(self):
-        """Returns a list of sizes (in bytes) of shared memory slots allocated for data produced
-        by the parallel external source. To tune the initial size of the chunks, please refer
-        to external source's ``bytes_per_sample_hint`` parameter."""
+        """Returns parallel external source's statistics regarding shared memory consumption.
+        The returned dictionary contains following keys:
+
+            * ``capacities`` - a list of sizes (in bytes) of shared memory slots allocated to
+              accommodate data produced by the parallel external source.
+
+            * ``per_sample_capacities`` - a list of sizes (in bytes) of shared memory slots
+              divided by the mini-batch size, i.e. the maximal number of samples stored in such a slot.
+              This value corresponds to external source's ``bytes_per_sample_hint`` parameter,
+              i.e. if the hint is big enough and the external source does not need to reallocate the memory,
+              the values should be equal.
+        """
         if self._py_pool is None:
-            capacities = []
+            capacities, per_sample_capacities = [], []
         else:
             capacities = [
                 shm.capacity for context in self._py_pool.contexts
                 for shm in context.shm_manager.shm_pool
             ]
-        return {"capacities": capacities}
+            per_sample_capacities = []
+            for context in self._py_pool.contexts:
+                num_mini_batches = context.shm_manager.num_minibatches
+                batch_size = self.max_batch_size
+                mini_batch_size = (batch_size + num_mini_batches - 1) // num_mini_batches
+                for shm in context.shm_manager.shm_pool:
+                    per_sample_capacities.append(shm.capacity // mini_batch_size)
+        return {
+            "capacities": capacities,
+            "per_sample_capacities": per_sample_capacities,
+        }
 
     def reader_meta(self, name=None):
         """Returns provided reader metadata as a dictionary. If no name is provided if provides

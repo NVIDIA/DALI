@@ -520,17 +520,18 @@ Keyword Args
         Python process, but due to their state it is not possible to calculate more
         than one batch at a time.
 
-`prefetch_queue_depth` : int, option, default = 1
+`prefetch_queue_depth` : int, optional, default = 1
     When run in ``parallel=True`` mode, specifies the number of batches to be computed in
     advance and stored in the internal buffer, otherwise parameter is ignored.
 
-`bytes_per_sample_hint`: int, option, default = None
+`bytes_per_sample_hint`: int, optional, default = None
     If specified in ``parallel=True`` mode, the value serves as a hint when
     calculating initial capacity of shared memory slots used by the worker processes to pass
-    parallel external source outputs to the pipeline. Setting a value large enough to
-    accommodate the incoming data can prevent DALI from reallocation of shared memory
-    during the pipeline's run. Furthermore, providing the hint manually can prevent DALI from
-    overestimating the necessary shared memory capacity.
+    parallel external source outputs to the pipeline. The argument is ignored in non-parallel mode.
+
+    Setting a value large enough to accommodate the incoming data can prevent DALI from
+    reallocation of shared memory during the pipeline's run. Furthermore, providing the
+    hint manually can prevent DALI from overestimating the necessary shared memory capacity.
 
     The value must be a positive integer.
     Please note that the samples in shared memory are accompanied by some internal meta-data,
