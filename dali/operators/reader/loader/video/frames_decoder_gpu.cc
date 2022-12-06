@@ -210,7 +210,8 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   case AVCodecID::AV_CODEC_ID_H264:
     if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
          !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM")) {
+         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") || 
+         !strcmp(av_state_->ctx_->iformat->long_name, "raw H.264 video")) {
       filtername = "h264_mp4toannexb";
     }
     break;
@@ -513,9 +514,23 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
 
   int frame_to_return_index = -1;
 
+  // Handle the case, when packet has more frames that we have empty spots
+  // in the buffer.
+  // If so, we need to return frame from the buffer before sending last packet.
+  if (frame_index_if_no_pts_ != 0) {
+    if (NumEmptySpots() < (piped_pts_.size())) {
+      for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+        if (frame_buffer_[i].pts_ == NextFrameIdx()) {
+          frame_to_return_index = i;
+          break;
+        }
+      }
+    }
+  }
+
   // Initial fill of the buffer
   frame_returned_ = false;
-  while (HasEmptySlot() && more_frames_to_decode_ && !frame_returned_) {
+  while (HasEmptySlot() && more_frames_to_decode_ && !frame_returned_ && frame_to_return_index == -1) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
       if (!SendFrameToParser()) {
         continue;

@@ -31,8 +31,8 @@
 namespace dali {
 class FramesDecoderTestBase : public VideoTestBase {
  public:
-  virtual void RunSequentialTest(FramesDecoder &decoder, TestVideo &ground_truth,
-                                 double eps = 1.0) {
+  virtual void RunSequentialForwardTest(
+    FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
     // Iterate through the whole video in order
     for (int i = 0; i < decoder.NumFrames(); ++i) {
       ASSERT_EQ(decoder.NextFrameIdx(), i);
@@ -41,16 +41,16 @@ class FramesDecoderTestBase : public VideoTestBase {
     }
 
     ASSERT_EQ(decoder.NextFrameIdx(), -1);
+  }
+
+  virtual void RunSequentialTest(
+    FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
+    // Iterate through the whole video in order
+    RunSequentialForwardTest(decoder, ground_truth, eps);
 
     decoder.Reset();
 
-    for (int i = 0; i < decoder.NumFrames(); ++i) {
-      ASSERT_EQ(decoder.NextFrameIdx(), i);
-      decoder.ReadNextFrame(FrameData());
-      AssertFrame(FrameData(), i, ground_truth, eps);
-    }
-
-    ASSERT_EQ(decoder.NextFrameIdx(), -1);
+    RunSequentialForwardTest(decoder, ground_truth, eps);
   }
 
   virtual void RunTest(FramesDecoder &decoder, TestVideo &ground_truth, double eps = 1.0) {
@@ -398,6 +398,20 @@ TEST_F(FramesDecoderGpuTest, VfrFrameRateMpeg4MkvNoIndexNoFrameNum) {
 
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false);
   RunSequentialTest(decoder, vfr_videos_[1], 3.0);
+}
+
+TEST_F(FramesDecoderGpuTest, RawH264) {
+  auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[1]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, -1, false);
+  RunSequentialForwardTest(decoder, cfr_videos_[1], 3.0);
+}
+
+TEST_F(FramesDecoderGpuTest, RawH265) {
+  auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
+
+  FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, -1, false);
+  RunSequentialForwardTest(decoder, cfr_videos_[0], 3.0);
 }
 
 }  // namespace dali
