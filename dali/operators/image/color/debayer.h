@@ -32,8 +32,8 @@ namespace debayer {
 
 using namespace kernels::debayer;  // NOLINT
 
-constexpr static const char *algArgName = "algorithm";
-constexpr static const char *bluePosArgName = "blue_position";
+constexpr static const char *kAlgArgName = "algorithm";
+constexpr static const char *kBluePosArgName = "blue_position";
 
 template <int ndim>
 TensorListShape<3> infer_output_shape(const TensorListShape<ndim> &input_shapes) {
@@ -75,7 +75,7 @@ inline debayer::DALIBayerPattern blue_pos2pattern(span<const int> blue_position)
   DALI_ENFORCE(
       blue_position.size() == 2,
       make_string(
-          "The ", debayer::bluePosArgName,
+          "The ", debayer::kBluePosArgName,
           " must be specified with exactly two values to describe a position within 2D tile. Got ",
           blue_position.size(), " values."));
   int y = blue_position[0];
@@ -83,7 +83,7 @@ inline debayer::DALIBayerPattern blue_pos2pattern(span<const int> blue_position)
   int bayer_enum_val = 2 * y + x;
   DALI_ENFORCE(
       0 <= bayer_enum_val && bayer_enum_val <= 3,
-      make_string("The `", debayer::bluePosArgName,
+      make_string("The `", debayer::kBluePosArgName,
                   "` position must lie within 2x2 tile, got: ", TensorShape<2>{y, x}, "."));
   return static_cast<debayer::DALIBayerPattern>(bayer_enum_val);
 }
@@ -103,10 +103,10 @@ class Debayer : public SequenceOperator<Backend> {
  public:
   explicit Debayer(const OpSpec &spec)
       : SequenceOperator<Backend>(spec),
-        alg_{debayer::parse_algorithm_name(spec.GetArgument<std::string>(debayer::algArgName))} {
-    if (!spec_.HasTensorArgument(debayer::bluePosArgName)) {
+        alg_{debayer::parse_algorithm_name(spec.GetArgument<std::string>(debayer::kAlgArgName))} {
+    if (!spec_.HasTensorArgument(debayer::kBluePosArgName)) {
       std::vector<int> blue_pos;
-      GetSingleOrRepeatedArg(spec_, blue_pos, debayer::bluePosArgName, 2);
+      GetSingleOrRepeatedArg(spec_, blue_pos, debayer::kBluePosArgName, 2);
       static_pattern_ = debayer::blue_pos2pattern(make_span(blue_pos));
     }
   }
@@ -130,10 +130,10 @@ class Debayer : public SequenceOperator<Backend> {
   }
 
   void AcquirePatternArgument(const Workspace &ws, int batch_size) {
-    if (!spec_.HasTensorArgument(debayer::bluePosArgName)) {
+    if (!spec_.HasTensorArgument(debayer::kBluePosArgName)) {
       pattern_.resize(batch_size, static_pattern_);
     } else {
-      const auto &tv = ws.ArgumentInput(debayer::bluePosArgName);
+      const auto &tv = ws.ArgumentInput(debayer::kBluePosArgName);
       auto blue_positions_view = view<const int, 1>(tv);
       pattern_.clear();
       pattern_.reserve(batch_size);

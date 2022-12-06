@@ -54,7 +54,7 @@ For example, the following snippet presents debayering of batch of image sequenc
 )code")
     .NumInput(1)
     .NumOutput(1)
-    .AddArg(debayer::bluePosArgName, R"code(The layout of color filter array/bayer tile.
+    .AddArg(debayer::kBluePosArgName, R"code(The layout of color filter array/bayer tile.
 
 A position of the blue value in the 2x2 bayer tile.
 The supported values correspond to the following OpenCV bayer layouts:
@@ -95,7 +95,7 @@ For example, the ``(0, 0)``/``BG``/``BGGR`` corresponds to the following matrix 
 )code",
             DALI_INT_VEC, true, true)
     .AddOptionalArg(
-        debayer::algArgName,
+        debayer::kAlgArgName,
         R"code(The algorithm to be used when inferring missing colours for any given pixel.
 Currently only ``bilinear_npp`` is supported.
 
