@@ -192,7 +192,7 @@ FramesDecoder::FramesDecoder(const std::string &filename)
 FramesDecoder::FramesDecoder(const char *memory_file, int memory_file_size, bool build_index,
                              bool init_codecs, int num_frames)
   : av_state_(std::make_unique<AvState>()),
-    memory_video_file_(MemoryVideoFile(memory_file, memory_file_size))  {
+    memory_video_file_(MemoryVideoFile(memory_file, memory_file_size)) {
   DALI_ENFORCE(init_codecs || !build_index,
                "FramesDecoder doesn't support index without CPU codecs");
   av_log_set_level(AV_LOG_ERROR);

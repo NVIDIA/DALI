@@ -36,8 +36,8 @@ class NVDECCache {
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
-      unsigned height = video_format->display_area.bottom - video_format->display_area.top;
-      unsigned width = video_format->display_area.right - video_format->display_area.left;
+      unsigned height =  video_format->coded_height;
+      unsigned width = video_format->coded_width;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
 
       if (num_decode_surfaces == 0)
@@ -107,8 +107,10 @@ class NVDECCache {
 #endif
       decoder_info.ulMaxHeight = max_height;
       decoder_info.ulMaxWidth = max_width;
-      decoder_info.ulTargetHeight = height;
-      decoder_info.ulTargetWidth = width;
+      decoder_info.ulTargetHeight = video_format->display_area.bottom -
+                                    video_format->display_area.top;
+      decoder_info.ulTargetWidth = video_format->display_area.right -
+                                   video_format->display_area.left;
       decoder_info.ulNumDecodeSurfaces = num_decode_surfaces;
       decoder_info.ulNumOutputSurfaces = 2;
 
