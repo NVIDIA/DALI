@@ -135,9 +135,10 @@ def debayer_bilinear_npp_masks(img, masks):
     def green_with_chroma_correlation(color_signal):
         # For red and blue based positions, there are always four
         # green neighbours (y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1).
-        # NPP does not simply avarage 4 of them to get green intensity.
-        # Insted, it avarages only two in either y or x axis.
-        # The axis is chosen by looking at:
+        # NPP does not simply average 4 of them to get green intensity.
+        # Instead, it averages only two in either y or x axis as explained in
+        # https://docs.nvidia.com/cuda/npp/group__image__color__debayer.html
+        # I.e. the axis is chosen by looking at:
         # * abs(color(x, y), avg(color(y - 2, x), color(y + 2, x))) and
         # * abs(color(x, y), avg(color(y, x - 2), color(y, x - 2)))
         # and choosing the axis where the difference is smaller.
