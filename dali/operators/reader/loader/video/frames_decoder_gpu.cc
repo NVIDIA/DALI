@@ -210,7 +210,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   case AVCodecID::AV_CODEC_ID_H264:
     if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
          !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") || 
+         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") ||
          !strcmp(av_state_->ctx_->iformat->long_name, "raw H.264 video")) {
       filtername = "h264_mp4toannexb";
     }
@@ -218,7 +218,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   case AVCodecID::AV_CODEC_ID_HEVC:
     if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
          !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
-         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") || 
+         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") ||
          !strcmp(av_state_->ctx_->iformat->long_name, "raw HEVC video")) {
       filtername = "hevc_mp4toannexb";
     }
@@ -530,7 +530,11 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
 
   // Initial fill of the buffer
   frame_returned_ = false;
-  while (HasEmptySlot() && more_frames_to_decode_ && !frame_returned_ && frame_to_return_index == -1) {
+  while (
+    HasEmptySlot() &&
+    more_frames_to_decode_ &&
+    !frame_returned_ &&
+    frame_to_return_index == -1) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
       if (!SendFrameToParser()) {
         continue;

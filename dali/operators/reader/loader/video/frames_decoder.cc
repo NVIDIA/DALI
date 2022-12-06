@@ -261,8 +261,15 @@ void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_
     av_state->ctx_->pb = av_io_context;
 
     int ret = avformat_open_input(&av_state->ctx_, "", nullptr, nullptr);
-    DALI_ENFORCE(ret == 0, make_string("Failed to open video file ", Filename(), "due to ", detail::av_error_string(ret)));
-    av_state->stream_id_ = av_find_best_stream(av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    DALI_ENFORCE(
+      ret == 0,
+      make_string(
+        "Failed to open video file ",
+        Filename(),
+        "due to ",
+        detail::av_error_string(ret)));
+    av_state->stream_id_ = av_find_best_stream(
+      av_state->ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     av_state->codec_params_ = av_state->ctx_->streams[av_state->stream_id_]->codecpar;
 
     av_state->codec_ctx_ = avcodec_alloc_context3(av_state->codec_);
@@ -316,7 +323,9 @@ void FramesDecoder::ParseNumFrames() {
 }
 
 bool FramesDecoder::IsFormatSeekable() {
-  if (av_state_->ctx_->iformat->read_seek == nullptr && av_state_->ctx_->iformat->read_seek2 == nullptr) {
+  if (
+    av_state_->ctx_->iformat->read_seek == nullptr &&
+    av_state_->ctx_->iformat->read_seek2 == nullptr) {
     return false;
   }
 
