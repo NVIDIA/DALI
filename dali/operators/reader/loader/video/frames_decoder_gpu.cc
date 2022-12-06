@@ -638,7 +638,13 @@ bool FramesDecoderGpu::HasEmptySlot() const {
 }
 
 bool FramesDecoderGpu::IsBufferEmpty() const {
-  return NumEmptySpots() == 0;
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ != -1) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 int FramesDecoderGpu::NumEmptySpots() const {
