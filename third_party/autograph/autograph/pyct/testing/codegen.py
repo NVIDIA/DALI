@@ -20,7 +20,7 @@ import string
 import gast
 import numpy as np
 
-from tensorflow.python.autograph.pyct import templates
+from autograph.pyct import templates
 
 
 class NodeSampler(object):

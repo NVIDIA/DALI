@@ -14,11 +14,12 @@
 # ==============================================================================
 """Tests for cfg module."""
 
+import unittest
+
 import gast
 
-from tensorflow.python.autograph.pyct import cfg
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.platform import test
+from autograph.pyct import cfg
+from autograph.pyct import parser
 
 
 class CountingVisitor(cfg.GraphVisitor):
@@ -35,7 +36,7 @@ class CountingVisitor(cfg.GraphVisitor):
     return False  # visit only once
 
 
-class GraphVisitorTest(test.TestCase):
+class GraphVisitorTest(unittest.TestCase):
 
   def _build_cfg(self, fn):
     node, _ = parser.parse_entity(fn, future_features=())
@@ -86,7 +87,7 @@ class GraphVisitorTest(test.TestCase):
     self.assertEqual(visitor.counts[node.body[1]], 1)
 
 
-class AstToCfgTest(test.TestCase):
+class AstToCfgTest(unittest.TestCase):
 
   def _build_cfg(self, fn):
     node, _ = parser.parse_entity(fn, future_features=())
@@ -1596,7 +1597,3 @@ class AstToCfgTest(test.TestCase):
         ),
     )
     self.assertGraphEnds(graph, '', ('return b',))
-
-
-if __name__ == '__main__':
-  test.main()

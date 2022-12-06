@@ -18,8 +18,8 @@ import enum
 import inspect
 import threading
 
-from tensorflow.python.autograph.utils import ag_logging
-from tensorflow.python.util.tf_export import tf_export
+from autograph.utils import ag_logging
+from autograph.utils.all_utils import export_symbol
 
 
 stacks = threading.local()
@@ -31,7 +31,7 @@ def _control_ctx():
   return stacks.control_status
 
 
-@tf_export('__internal__.autograph.control_status_ctx', v1=[])
+@export_symbol('__internal__.autograph.control_status_ctx', v1=[])
 def control_status_ctx():
   """Returns the current control context for autograph.
 
@@ -100,6 +100,6 @@ except OSError:
   ag_logging.warning(
       'AutoGraph is not available in this environment: functions lack code'
       ' information. This is typical of some environments like the interactive'
-      ' Python shell. See'
-      ' https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/limitations.md#access-to-source-code'
-      ' for more information.')
+      ' Python shell, functions with native bindings or functions created'
+      ' dynamically using `exec` or `eval`. Use `inspect.findsource` to check'
+      ' if the source code is available for the function you are trying to convert.')

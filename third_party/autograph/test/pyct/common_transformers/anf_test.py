@@ -15,19 +15,19 @@
 """Tests for anf module."""
 
 import textwrap
+import unittest
 
 import gast
 
-from tensorflow.python.autograph.pyct import loader
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.autograph.pyct.common_transformers import anf
-from tensorflow.python.platform import test
+from autograph.pyct import loader
+from autograph.pyct import parser
+from autograph.pyct import transformer
+from autograph.pyct.common_transformers import anf
 
 
 # TODO(mdan): These two functions no longer need to be at the top level.
 # TODO(mdan): Don't use exec.
-def exec_test_function():
+def _exec_test_function():
   # The point is to test A-normal form conversion of exec
   # pylint: disable=exec-used
   exec('computed' + 5 + 'stuff', globals(), locals())
@@ -42,7 +42,7 @@ def exec_expected_result():
   exec(tmp_1002, tmp_1003, tmp_1004)
 
 
-class AnfTestBase(test.TestCase):
+class AnfTestBase(unittest.TestCase):
 
   def _simple_context(self):
     entity_info = transformer.EntityInfo(
@@ -358,7 +358,7 @@ class AnfTransformerTest(AnfTestBase):
     self.assert_body_anfs_as_expected(expected_result, test_function)
 
   def test_exec(self):
-    self.assert_body_anfs_as_expected(exec_expected_result, exec_test_function)
+    self.assert_body_anfs_as_expected(exec_expected_result, _exec_test_function)
 
   def test_simple_while_and_assert(self):
 
@@ -512,7 +512,3 @@ class AnfConfiguredTest(AnfTestBase):
       return f(tmp_1001, tmp_1002, tmp_1003)
 
     self.assert_body_anfs_as_expected(expected_result, test_function, config)
-
-
-if __name__ == '__main__':
-  test.main()

@@ -19,12 +19,10 @@ import inspect
 import sys
 import unittest
 
-from tensorflow.python.autograph.core import config
-from tensorflow.python.autograph.pyct import cache
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.autograph.utils import ag_logging as logging
-from tensorflow.python.eager import function
-from tensorflow.python.util import tf_inspect
+from autograph.core import config
+from autograph.pyct import cache
+from autograph.pyct import inspect_utils
+from autograph.utils import ag_logging as logging
 
 
 _ALLOWLIST_CACHE = cache.UnboundInstanceCache()
@@ -129,11 +127,11 @@ def is_allowlisted(
   """
   # TODO(b/120224672): Fix this.
   if isinstance(o, functools.partial):
-    # tf_inspect.getmodule(functools.partial(...)) otherwise returns None since
+    # inspect.getmodule(functools.partial(...)) otherwise returns None since
     # functools.partial objects do not have a __module__ attribute.
     m = functools
   else:
-    m = tf_inspect.getmodule(o)
+    m = inspect.getmodule(o)
 
   # Examples of callables that lack a __module__ property include builtins.
   if hasattr(m, '__name__'):
@@ -148,11 +146,11 @@ def is_allowlisted(
 
   # The check for __code__ below is because isgeneratorfunction crashes
   # without one.
-  if hasattr(o, '__code__') and tf_inspect.isgeneratorfunction(o):
+  if hasattr(o, '__code__') and inspect.isgeneratorfunction(o):
     logging.log(2, 'Allowlisted: %s: generator functions are not converted', o)
     return True
 
-  if (check_call_override and not tf_inspect.isclass(o) and
+  if (check_call_override and not inspect.isclass(o) and
       hasattr(o, '__call__')):
     # Callable objects: allowed if their __call__ method is.
     # The type check avoids infinite recursion around the __call__ method
@@ -162,7 +160,7 @@ def is_allowlisted(
       return True
 
   owner_class = None
-  if tf_inspect.ismethod(o):
+  if inspect.ismethod(o):
     # Methods of allowed classes are also allowed, even if they are
     # bound via user subclasses.
     #
@@ -179,8 +177,6 @@ def is_allowlisted(
     # longer be allowed.
 
     owner_class = inspect_utils.getmethodclass(o)
-    if owner_class is function.TfMethodTarget:
-      owner_class = o.__self__.target_class
     if owner_class is not None:
       if issubclass(owner_class, unittest.TestCase):
         logging.log(2, 'Allowlisted: %s: method of TestCase subclass', o)

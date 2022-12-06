@@ -14,10 +14,9 @@
 # ==============================================================================
 """Tests for break_statements module."""
 
-from tensorflow.python.autograph.converters import break_statements
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.platform import test
+from autograph.converters import break_statements
+from autograph.core import converter_testing
+from autograph.pyct import anno
 
 
 class BreakCanonicalizationTest(converter_testing.TestCase):
@@ -164,7 +163,3 @@ class BreakCanonicalizationTest(converter_testing.TestCase):
 
     self.assertTransformedEquivalent(f, True)
     self.assertTransformedEquivalent(f, False)
-
-
-if __name__ == '__main__':
-  test.main()

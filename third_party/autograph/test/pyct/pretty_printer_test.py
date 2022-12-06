@@ -16,12 +16,12 @@
 
 import ast
 import textwrap
+import unittest
 
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.platform import test
+from autograph.pyct import pretty_printer
 
 
-class PrettyPrinterTest(test.TestCase):
+class PrettyPrinterTest(unittest.TestCase):
 
   def test_unicode_bytes(self):
     source = textwrap.dedent('''
@@ -51,7 +51,3 @@ class PrettyPrinterTest(test.TestCase):
     # Just checking for functionality, the color control characters make it
     # difficult to inspect the result.
     self.assertIsNotNone(pretty_printer.fmt(node))
-
-
-if __name__ == '__main__':
-  test.main()

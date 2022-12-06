@@ -15,20 +15,20 @@
 # ==============================================================================
 """Tests for loader module."""
 
+import inspect
 import os
 import textwrap
+import unittest
 
 import gast
 
-from tensorflow.python.autograph.pyct import ast_util
-from tensorflow.python.autograph.pyct import loader
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.platform import test
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import ast_util
+from autograph.pyct import loader
+from autograph.pyct import parser
+from autograph.pyct import pretty_printer
 
 
-class LoaderTest(test.TestCase):
+class LoaderTest(unittest.TestCase):
 
   def assertAstMatches(self, actual_node, expected_node_src):
     expected_node = gast.parse(expected_node_src).body[0]
@@ -49,8 +49,8 @@ class LoaderTest(test.TestCase):
 
     node, _ = parser.parse_entity(test_fn, future_features=())
     module, _, _ = loader.load_ast(node)
-    source = tf_inspect.getsource(module.test_fn)
-    expected_node_src = textwrap.dedent(tf_inspect.getsource(test_fn))
+    source = inspect.getsource(module.test_fn)
+    expected_node_src = textwrap.dedent(inspect.getsource(test_fn))
 
     self.assertAstMatches(node, source)
     self.assertAstMatches(node, expected_node_src)
@@ -118,6 +118,3 @@ class LoaderTest(test.TestCase):
     # Clean up the file before loader.py tries to remove it, to check that the
     # latter can deal with that situation.
     os.unlink(filename)
-
-if __name__ == '__main__':
-  test.main()

@@ -18,9 +18,9 @@ import ast
 
 import gast
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import qual_names
+from autograph.pyct import anno
+from autograph.pyct import parser
+from autograph.pyct import qual_names
 
 
 class CleanCopier(object):

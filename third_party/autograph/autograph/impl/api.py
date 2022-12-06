@@ -22,45 +22,44 @@ import sys
 import textwrap
 import traceback
 
-from tensorflow.python.autograph import operators
-from tensorflow.python.autograph import utils
-from tensorflow.python.autograph.converters import asserts
-from tensorflow.python.autograph.converters import break_statements
-from tensorflow.python.autograph.converters import call_trees
-from tensorflow.python.autograph.converters import conditional_expressions
-from tensorflow.python.autograph.converters import continue_statements
-from tensorflow.python.autograph.converters import control_flow
-from tensorflow.python.autograph.converters import directives
-from tensorflow.python.autograph.converters import functions
-from tensorflow.python.autograph.converters import lists
-from tensorflow.python.autograph.converters import logical_expressions
-from tensorflow.python.autograph.converters import return_statements
-from tensorflow.python.autograph.converters import slices
-from tensorflow.python.autograph.converters import variables
-from tensorflow.python.autograph.core import ag_ctx
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.core import function_wrappers
-from tensorflow.python.autograph.core import unsupported_features_checker
-from tensorflow.python.autograph.impl import conversion
-from tensorflow.python.autograph.lang import special_functions
-from tensorflow.python.autograph.operators import py_builtins
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import cfg
-from tensorflow.python.autograph.pyct import error_utils
-from tensorflow.python.autograph.pyct import errors
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.autograph.pyct import origin_info
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct import transpiler
-from tensorflow.python.autograph.pyct.static_analysis import activity
-from tensorflow.python.autograph.pyct.static_analysis import reaching_definitions
-from tensorflow.python.autograph.utils import ag_logging as logging
-from tensorflow.python.eager import function
-from tensorflow.python.framework import errors_impl
-from tensorflow.python.util import tf_decorator
-from tensorflow.python.util import tf_inspect
-from tensorflow.python.util import tf_stack
-from tensorflow.python.util.tf_export import tf_export
+from autograph import operators
+from autograph import utils
+from autograph.converters import asserts
+from autograph.converters import break_statements
+from autograph.converters import call_trees
+from autograph.converters import conditional_expressions
+from autograph.converters import continue_statements
+from autograph.converters import control_flow
+from autograph.converters import directives
+from autograph.converters import functions
+from autograph.converters import lists
+from autograph.converters import logical_expressions
+from autograph.converters import return_statements
+from autograph.converters import slices
+from autograph.converters import variables
+from autograph.core import ag_ctx
+from autograph.core import converter
+from autograph.core import config
+from autograph.core import function_wrappers
+from autograph.core import unsupported_features_checker
+from autograph.impl import conversion
+from autograph.operators import py_builtins
+from autograph.pyct import anno
+from autograph.pyct import cfg
+from autograph.pyct import error_utils
+from autograph.pyct import errors
+from autograph.pyct import inspect_utils
+from autograph.pyct import origin_info
+from autograph.pyct import qual_names
+from autograph.pyct import transpiler
+from autograph.pyct.static_analysis import activity
+from autograph.pyct.static_analysis import reaching_definitions
+from autograph.utils import hooks
+from autograph.utils import ag_logging as logging
+from autograph.utils import all_utils
+# TODO(klecki): replace missing functionality
+# from autograph.utils import tf_stack
+from autograph.utils.all_utils import export_symbol
 
 
 def is_autograph_strict_conversion_mode():
@@ -93,21 +92,7 @@ class _ErrorMetadata(error_utils.ErrorMetadataBase):
 
   def create_exception(self, source_error):
     preferred_type = type(source_error)
-    if issubclass(preferred_type, errors_impl.OpError):
-      # Best-effort unpacking of OpError exceptions.
-      # TODO(mdan): Use a mechanism that is more future-proof.
-      init_argspec = tf_inspect.getfullargspec(preferred_type.__init__)
-      message = self.get_message()
-      init_args = tuple(init_argspec.args)
-      # At the time of this writing, TF errors either take 3 or 4 arguments,
-      # the argument '*args' may or may not be used.
-      if init_args == ('self', 'node_def', 'op', 'message'):
-        return preferred_type(source_error.node_def, source_error.op, message,
-                              source_error.experimental_payloads)
-
-    elif preferred_type in (errors.PyCTError, AutoGraphError, ConversionError,
-                            StagingError, errors_impl.InaccessibleTensorError,
-                            errors_impl.OperatorNotAllowedInGraphError):
+    if preferred_type in (errors.PyCTError, AutoGraphError, ConversionError, StagingError):
       return preferred_type(self.get_message())
 
     exc = super(_ErrorMetadata, self).create_exception(source_error)
@@ -142,40 +127,40 @@ def _attach_error_metadata(e, f):
                                        __file__)
 
 
-class StackTraceMapper(tf_stack.StackTraceMapper):
-  """Remaps generated code to code it originated from."""
+# class StackTraceMapper(tf_stack.StackTraceMapper):
+#   """Remaps generated code to code it originated from."""
 
-  def __init__(self, converted_fn):
-    super().__init__()
-    self._source_map = converted_fn.ag_source_map
-    # This may be called repeatedly: once on entry, by the superclass, then by
-    # each child context manager.
-    self._cached_map = None
+#   def __init__(self, converted_fn):
+#     super().__init__()
+#     self._source_map = converted_fn.ag_source_map
+#     # This may be called repeatedly: once on entry, by the superclass, then by
+#     # each child context manager.
+#     self._cached_map = None
 
-  def get_effective_source_map(self):
-    if self._cached_map is not None:
-      return self._cached_map
+#   def get_effective_source_map(self):
+#     if self._cached_map is not None:
+#       return self._cached_map
 
-    parent_map = self.parent.get_effective_source_map()
+#     parent_map = self.parent.get_effective_source_map()
 
-    effective_source_map = {}
-    for loc, origin in self._source_map.items():
-      effective_source_map[(loc.filename, loc.lineno)] = (origin.loc.filename,
-                                                          origin.loc.lineno,
-                                                          origin.function_name)
+#     effective_source_map = {}
+#     for loc, origin in self._source_map.items():
+#       effective_source_map[(loc.filename, loc.lineno)] = (origin.loc.filename,
+#                                                           origin.loc.lineno,
+#                                                           origin.function_name)
 
-    for key, value in parent_map.items():
-      filename, lineno, _ = value
-      value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
-      if value_loc in self._source_map:
-        origin = self._source_map[value_loc]
-        effective_source_map[key] = (origin.loc.filename, origin.loc.lineno,
-                                     origin.function_name)
-      else:
-        effective_source_map[key] = value
+#     for key, value in parent_map.items():
+#       filename, lineno, _ = value
+#       value_loc = origin_info.LineLocation(filename=filename, lineno=lineno)
+#       if value_loc in self._source_map:
+#         origin = self._source_map[value_loc]
+#         effective_source_map[key] = (origin.loc.filename, origin.loc.lineno,
+#                                      origin.function_name)
+#       else:
+#         effective_source_map[key] = value
 
-    self._cached_map = effective_source_map
-    return effective_source_map
+#     self._cached_map = effective_source_map
+#     return effective_source_map
 
 
 #
@@ -183,24 +168,26 @@ class StackTraceMapper(tf_stack.StackTraceMapper):
 #
 
 
-class PyToTF(transpiler.PyToPy):
+class PyToLib(transpiler.PyToPy):
   """The TensorFlow AutoGraph transformer."""
 
-  def __init__(self):
-    super(PyToTF, self).__init__()
+  def __init__(self, name, operator_overload):
+    super(PyToLib, self).__init__()
+    self._name = name
+    self._operator_overload = operator_overload
     self._extra_locals = None
 
   def get_transformed_name(self, node):
-    return 'tf__' + super(PyToTF, self).get_transformed_name(node)
+    return self._name + super(PyToLib, self).get_transformed_name(node)
 
   def get_extra_locals(self):
     if self._extra_locals is None:
       # TODO(mdan): Move into core or replace with an actual importable module.
       # Craft a module that exposes the external API as well as certain
       # internal modules.
-      module_spec = importlib.machinery.ModuleSpec('autograph', None)
+      module_spec = importlib.machinery.ModuleSpec(self._name, None)
       ag_internal = importlib.util.module_from_spec(module_spec)
-      ag_internal.__dict__.update(inspect.getmodule(PyToTF).__dict__)
+      ag_internal.__dict__.update(inspect.getmodule(PyToLib).__dict__)
       ag_internal.ConversionOptions = converter.ConversionOptions
       ag_internal.STD = converter.STANDARD_OPTIONS
       ag_internal.Feature = converter.Feature
@@ -210,8 +197,9 @@ class PyToTF(transpiler.PyToPy):
       # TODO(mdan): Add safeguards against name clashes.
       # We don't want to create a submodule because we want the operators to be
       # accessible as ag__.<operator>
-      ag_internal.__dict__.update(special_functions.__dict__)
       ag_internal.__dict__.update(operators.__dict__)
+      ag_internal.hooks = hooks
+      ag_internal.hooks._DISPATCH = self._operator_overload
 
       self._extra_locals = {'ag__': ag_internal}
     return self._extra_locals
@@ -263,8 +251,7 @@ def _convert_actual(entity, program_ctx):
   # TODO(mdan): Put these extra fields inside __autograph_info__.
   if not hasattr(entity, '__code__'):
     raise ValueError('Cannot apply autograph to a function that doesn\'t '
-                     'expose a __code__ object. If this is a @tf.function,'
-                     ' try passing f.python_function instead.')
+                     'expose a __code__ object.')
 
   transformed, module, source_map = _TRANSPILER.transform(entity, program_ctx)
 
@@ -390,8 +377,6 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
 
       f_self = getattr(f, '__self__', None)
       if f_self is not None:
-        if isinstance(f_self, function.TfMethodTarget):
-          f_self = f_self.target
         effective_args = (f_self,) + effective_args
 
     elif hasattr(f, '__class__') and hasattr(f.__class__, '__call__'):
@@ -433,15 +418,16 @@ def converted_call(f, args, kwargs, caller_fn_scope=None, options=None):
       raise
     return _fall_back_unconverted(f, args, kwargs, options, e)
 
-  with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
-    try:
-      if kwargs is not None:
-        result = converted_f(*effective_args, **kwargs)
-      else:
-        result = converted_f(*effective_args)
-    except Exception as e:
-      _attach_error_metadata(e, converted_f)
-      raise
+  # TODO(klecki): Revert the stack trace mapping functionality
+  # with StackTraceMapper(converted_f), tf_stack.CurrentModuleFilter():
+  try:
+    if kwargs is not None:
+      result = converted_f(*effective_args, **kwargs)
+    else:
+      result = converted_f(*effective_args)
+  except Exception as e:
+    _attach_error_metadata(e, converted_f)
+    raise
 
   return result
 
@@ -450,9 +436,6 @@ def _call_unconverted(f, args, kwargs, options, update_cache=True):
   """Calls the original function without converting with AutoGraph."""
   if update_cache:
     conversion.cache_allowlisted(f, options)
-
-  if inspect.ismethod(f) and isinstance(f.__self__, function.TfMethodTarget):
-    return f.__self__.call(args, kwargs)
 
   if kwargs is not None:
     return f(*args, **kwargs)
@@ -465,9 +448,10 @@ def _fall_back_unconverted(f, args, kwargs, options, exc):
   warning_template = (
       'AutoGraph could not transform %s and will run it as-is.\n'
       '%s'
-      'Cause: %s\n'
-      'To silence this warning, decorate the function with'
-      ' @tf.autograph.experimental.do_not_convert')
+      'Cause: %s\n')
+    # TODO(klecki): Expose the do_not_convert in DALI
+    #   'To silence this warning, decorate the function with'
+    #   ' @tf.autograph.experimental.do_not_convert')
   if isinstance(exc, errors.InaccessibleSourceCodeError):
     if ag_ctx.INSPECT_SOURCE_SUPPORTED:
       logging.warning(warning_template, f, '', exc)
@@ -475,11 +459,12 @@ def _fall_back_unconverted(f, args, kwargs, options, exc):
     if not conversion.is_in_allowlist_cache(f, options):
       logging.warning(warning_template, f, '', exc)
   else:
-    file_bug_message = (
-        'Please report this to the TensorFlow team. When filing the bug, set'
-        ' the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and'
-        ' attach the full output.\n')
-    logging.warning(warning_template, f, file_bug_message, exc)
+    # TODO(klecki): Do we want to report such errors?
+    # file_bug_message = (
+    #     'Please report this to the TensorFlow team. When filing the bug, set'
+    #     ' the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and'
+    #     ' attach the full output.\n')
+    logging.warning(warning_template, f, '', exc)
 
   return _call_unconverted(f, args, kwargs, options)
 
@@ -489,7 +474,7 @@ def _fall_back_unconverted(f, args, kwargs, options, exc):
 #
 
 
-@tf_export('__internal__.autograph.tf_convert', v1=[])
+@export_symbol('__internal__.autograph.tf_convert', v1=[])
 def tf_convert(f, ctx, convert_by_default=True, user_requested=False):
   """Decorator that applies AutoGraph to a function.
 
@@ -554,8 +539,6 @@ def tf_convert(f, ctx, convert_by_default=True, user_requested=False):
 
   if is_autograph_artifact(f):
     return f
-  f_wrapper = f
-  decorators, f = tf_decorator.unwrap(f)
 
   # TODO(mdan): Grab features from context.
   # Note: we pass the original context through to convert to properly handle the
@@ -581,9 +564,6 @@ def tf_convert(f, ctx, convert_by_default=True, user_requested=False):
     assert False, 'This switch contains all possible cases!'
   wrapper = wrapper_factory(f)
 
-  if decorators:
-    wrapper = tf_decorator.rewrap(f_wrapper, f, wrapper)
-
   return autograph_artifact(wrapper)
 
 
@@ -606,9 +586,9 @@ def _log_callargs(f, args, kwargs):
   logging.log(2, 'KW defaults of %s : %s', f, f.__kwdefaults__)
 
   if kwargs is not None:
-    callargs = tf_inspect.getcallargs(f, *args, **kwargs)
+    callargs = inspect.getcallargs(f, *args, **kwargs)
   else:
-    callargs = tf_inspect.getcallargs(f, *args)
+    callargs = inspect.getcallargs(f, *args)
 
   formatted_callargs = '\n'.join(
       '    {}: {}'.format(k, v) for k, v in callargs.items())
@@ -620,7 +600,7 @@ def _log_callargs(f, args, kwargs):
 #
 
 
-@tf_export('autograph.experimental.do_not_convert')
+@export_symbol('autograph.experimental.do_not_convert')
 def do_not_convert(func=None):
   """Decorator that suppresses the conversion of a function.
 
@@ -696,14 +676,14 @@ def convert(recursive=False,
     if inspect.isfunction(f) or inspect.ismethod(f):
       wrapper = functools.update_wrapper(wrapper, f)
 
-    decorated_wrapper = tf_decorator.make_decorator(f, wrapper)
+    decorated_wrapper = all_utils.make_decorator(f, wrapper)
     return autograph_artifact(decorated_wrapper)
 
   return decorator
 
 
 # pylint:disable=line-too-long
-@tf_export('autograph.to_graph', v1=[])
+@export_symbol('autograph.to_graph', v1=[])
 def to_graph(entity, recursive=True, experimental_optional_features=None):
   """Converts a Python entity into a TensorFlow graph.
 
@@ -775,7 +755,7 @@ def to_graph(entity, recursive=True, experimental_optional_features=None):
         entity, e.__class__.__name__, str(e)))
 
 
-@tf_export(v1=['autograph.to_graph'])
+@export_symbol(v1=['autograph.to_graph'])
 def to_graph_v1(entity,
                 recursive=True,
                 arg_values=None,
@@ -846,7 +826,7 @@ def to_graph_v1(entity,
       experimental_optional_features=experimental_optional_features)
 
 
-@tf_export(v1=['autograph.to_code'])
+@export_symbol(v1=['autograph.to_code'])
 def to_code_v1(entity,
                recursive=True,
                arg_values=None,
@@ -900,7 +880,7 @@ def to_code_v1(entity,
       experimental_optional_features=experimental_optional_features)
 
 
-@tf_export('autograph.to_code', v1=[])
+@export_symbol('autograph.to_code', v1=[])
 def to_code(entity, recursive=True, experimental_optional_features=None):
   """Returns the source code generated by AutoGraph, as a string.
 
@@ -937,7 +917,7 @@ def to_code(entity, recursive=True, experimental_optional_features=None):
   Returns:
     The converted code as string.
   """
-  source = tf_inspect.getsource(
+  source = inspect.getsource(
       to_graph(
           entity,
           recursive=recursive,
@@ -945,4 +925,33 @@ def to_code(entity, recursive=True, experimental_optional_features=None):
   return textwrap.dedent(source)
 
 
-_TRANSPILER = PyToTF()
+_TRANSPILER = None
+
+def initialize_autograph(operator_overload=hooks.OperatorBase(), converter_name="autograph",
+                         filtered_library_modules=["autograph"]):
+  """Initialize the AutoGraph with custom operator overloads.
+
+  Parameters
+  ----------
+  operator_overload : subclass of autograph.OperatorBase(), optional
+      Customization point for detection of user-defined objects that trigger
+      the user-defined overload to be called by AutoGraph instead of falling
+      back to regular Python semantics, by default autograph.OperatorBase().
+  converter_name : str, optional
+      Name that is used to generated converted function names and as a fake module under which
+      the AutoGraph is inserted into them, by default "autograph".
+  filtered_library_modules : list, optional
+      AutoGraph needs to filter the module that should not be converted. By default it will
+      only filter out its own functions, provide the list of module that should be ignored.
+      If the autograph is used under different name (for example included in the source as
+      some_library._ag), this parameter should be adjusted , by default ["autograph"]
+  """
+  global _TRANSPILER
+  if _TRANSPILER is not None:
+    raise RuntimeError("AutoGraph already initialized")
+  _TRANSPILER = PyToLib(converter_name, operator_overload)
+  # Add the name of the initialized library to know libraries to stop recursive conversion
+  do_not_convert_rules = tuple(config.DoNotConvert(name) for name in filtered_library_modules)
+  config.CONVERSION_RULES = ((config.DoNotConvert(converter_name),) + do_not_convert_rules
+                             + config.CONVERSION_RULES)
+

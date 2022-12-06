@@ -16,10 +16,9 @@
 
 import imp
 
-from tensorflow.python.autograph.converters import call_trees
-from tensorflow.python.autograph.converters import functions
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.platform import test
+from autograph.converters import call_trees
+from autograph.converters import functions
+from autograph.core import converter_testing
 
 
 class MockConvertedCall(object):
@@ -257,6 +256,3 @@ class CallTreesTest(converter_testing.TestCase):
     self.assertEqual(321, tr(tc, 1))
     self.assertListEqual(mock.calls, [((1,), None)])
 
-
-if __name__ == '__main__':
-  test.main()

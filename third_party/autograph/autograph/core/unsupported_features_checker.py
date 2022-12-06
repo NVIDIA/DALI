@@ -16,7 +16,7 @@
 
 import gast
 
-from tensorflow.python.autograph.pyct import errors
+from autograph.pyct import errors
 
 
 class UnsupportedFeaturesChecker(gast.NodeVisitor):

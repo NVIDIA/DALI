@@ -14,10 +14,8 @@
 # ==============================================================================
 """Tests for continue_statements module."""
 
-from tensorflow.python.autograph.converters import continue_statements
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.framework import ops
-from tensorflow.python.platform import test
+from autograph.converters import continue_statements
+from autograph.core import converter_testing
 
 
 class ContinueCanonicalizationTest(converter_testing.TestCase):
@@ -102,9 +100,8 @@ class ContinueCanonicalizationTest(converter_testing.TestCase):
       v = []
       while x > 0:
         x -= 1
-        with ops.name_scope(''):
-          if x % 2 == 0:
-            continue
+        if x % 2 == 0:
+          continue
         v.append(x)
       return v
 
@@ -119,11 +116,9 @@ class ContinueCanonicalizationTest(converter_testing.TestCase):
       v = []
       while x > 0:
         x -= 1
-        with ops.name_scope(''):
-          if x % 2 == 0:
-            continue
-        with ops.name_scope(''):
-          v.append(x)
+        if x % 2 == 0:
+          continue
+        v.append(x)
         v.append(x)
       return v
 
@@ -138,13 +133,11 @@ class ContinueCanonicalizationTest(converter_testing.TestCase):
       v = []
       while x > 0:
         x -= 1
-        with ops.name_scope(''):
-          if x % 2 == 0:
-            continue
-          v.append(x)
+        if x % 2 == 0:
+          continue
         v.append(x)
-        with ops.name_scope(''):
-          v.append(x)
+        v.append(x)
+        v.append(x)
         v.append(x)
       return v
 
@@ -159,14 +152,11 @@ class ContinueCanonicalizationTest(converter_testing.TestCase):
       v = []
       while x > 0:
         x -= 1
-        with ops.name_scope(''):
-          if x % 2 == 0:
-            continue
-          with ops.name_scope(''):
-            v.append(x)
+        if x % 2 == 0:
+          continue
         v.append(x)
-        with ops.name_scope(''):
-          v.append(x)
+        v.append(x)
+        v.append(x)
         v.append(x)
       return v
 
@@ -217,7 +207,3 @@ class ContinueCanonicalizationTest(converter_testing.TestCase):
 
     self.assertTransformedEquivalent(f, 3)
     self.assertTransformedEquivalent(f, 2)
-
-
-if __name__ == '__main__':
-  test.main()

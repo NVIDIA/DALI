@@ -14,9 +14,8 @@
 # ==============================================================================
 """Tests for conditional_expressions module."""
 
-from tensorflow.python.autograph.converters import conditional_expressions
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.platform import test
+from autograph.converters import conditional_expressions
+from autograph.core import converter_testing
 
 
 class ConditionalExpressionsTest(converter_testing.TestCase):
@@ -42,7 +41,3 @@ class ConditionalExpressionsTest(converter_testing.TestCase):
     self.assertTransformedEquivalent(f, -2)
     self.assertTransformedEquivalent(f, 0)
     self.assertTransformedEquivalent(f, 2)
-
-
-if __name__ == '__main__':
-  test.main()

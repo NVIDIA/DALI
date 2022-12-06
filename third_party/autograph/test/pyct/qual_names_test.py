@@ -15,16 +15,16 @@
 """Tests for qual_names module."""
 
 import textwrap
+import unittest
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct.qual_names import QN
-from tensorflow.python.autograph.pyct.qual_names import resolve
-from tensorflow.python.platform import test
+from autograph.pyct import anno
+from autograph.pyct import parser
+from autograph.pyct import qual_names
+from autograph.pyct.qual_names import QN
+from autograph.pyct.qual_names import resolve
 
 
-class QNTest(test.TestCase):
+class QNTest(unittest.TestCase):
 
   def test_from_str(self):
     a = QN('a')
@@ -185,7 +185,7 @@ class QNTest(test.TestCase):
     self.assertLess(QN(qual_names.Literal('a')), QN('z'))
 
 
-class QNResolverTest(test.TestCase):
+class QNResolverTest(unittest.TestCase):
 
   def assertQNStringIs(self, node, qn_str):
     self.assertEqual(str(anno.getanno(node, anno.Basic.QN)), qn_str)
@@ -255,7 +255,3 @@ class QNResolverTest(test.TestCase):
     self.assertQNStringIs(nodes[3], 'z[i]')
     self.assertQNStringIs(nodes[4].func, 'z[i]')
     self.assertQNStringIs(nodes[5].value.func, 'z')
-
-
-if __name__ == '__main__':
-  test.main()

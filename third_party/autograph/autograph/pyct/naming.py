@@ -14,7 +14,7 @@
 # ==============================================================================
 """Symbol naming utilities."""
 
-from tensorflow.python.autograph.pyct import qual_names
+from autograph.pyct import qual_names
 
 
 class Namer(object):

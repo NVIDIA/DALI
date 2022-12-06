@@ -15,15 +15,15 @@
 """Tests for anno module."""
 
 import ast
+import unittest
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.platform import test
+from autograph.pyct import anno
 
 
 # TODO(mdan): Consider strong types instead of primitives.
 
 
-class AnnoTest(test.TestCase):
+class AnnoTest(unittest.TestCase):
 
   def test_basic(self):
     node = ast.Name()
@@ -75,6 +75,3 @@ class AnnoTest(test.TestCase):
     self.assertTrue(anno.hasanno(node, 'eggs'))
     self.assertFalse(anno.hasanno(node.body[0], 'eggs'))
 
-
-if __name__ == '__main__':
-  test.main()

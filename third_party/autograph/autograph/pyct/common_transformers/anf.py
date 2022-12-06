@@ -27,9 +27,9 @@ import collections
 import gast
 import six
 
-from tensorflow.python.autograph.pyct import gast_util
-from tensorflow.python.autograph.pyct import templates
-from tensorflow.python.autograph.pyct import transformer
+from autograph.pyct import gast_util
+from autograph.pyct import templates
+from autograph.pyct import transformer
 
 
 # TODO(mdan): Replace with naming.Namer.

@@ -16,8 +16,7 @@
 
 import collections
 
-from tensorflow.python.autograph.pyct import origin_info
-from tensorflow.python.util import traceback_utils
+from autograph.pyct import origin_info
 
 
 class FrameInfo(
@@ -179,10 +178,6 @@ class ErrorMetadataBase(object):
     lines.append('')
 
     for frame_info in reversed(self.translated_stack):
-      if (traceback_utils.is_traceback_filtering_enabled() and
-          not traceback_utils.include_frame(frame_info.filename)):
-        continue
-
       # Same format with Python traceback.
       formatted_line = (f'    File "{frame_info.filename}", line '
                         f'{frame_info.lineno}, in {frame_info.function_name}')

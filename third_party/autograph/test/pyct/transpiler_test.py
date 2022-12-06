@@ -15,12 +15,12 @@
 """Tests for transpiler module."""
 
 import threading
+import unittest
 
 import gast
 
-from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.autograph.pyct import transpiler
-from tensorflow.python.platform import test
+from autograph.pyct import transformer
+from autograph.pyct import transpiler
 
 
 class FlipSignTransformer(transformer.Base):
@@ -48,7 +48,7 @@ global_var_for_test_global = 1
 global_var_for_test_namespace_collisions = object()
 
 
-class PyToPyTest(test.TestCase):
+class PyToPyTest(unittest.TestCase):
 
   def test_basic(self):
     def f(a):
@@ -234,7 +234,3 @@ class PyToPyTest(test.TestCase):
     f, _, _ = tr.transform(
         obj.global_var_for_test_namespace_collisions, None)
     self.assertIs(f(obj), global_var_for_test_namespace_collisions)
-
-
-if __name__ == '__main__':
-  test.main()

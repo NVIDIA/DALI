@@ -16,9 +16,9 @@
 
 import gast
 
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import templates
+from autograph.core import converter
+from autograph.pyct import parser
+from autograph.pyct import templates
 
 
 class ConditionalExpressionTransformer(converter.Base):

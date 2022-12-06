@@ -15,15 +15,14 @@
 """Tests for templates module."""
 
 import imp
+import unittest
 
-from absl.testing import parameterized
 import gast
 
-from tensorflow.python.autograph.pyct import loader
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import qual_names as qn
-from tensorflow.python.autograph.pyct import templates
-from tensorflow.python.platform import test
+from autograph.pyct import loader
+from autograph.pyct import parser
+from autograph.pyct import qual_names as qn
+from autograph.pyct import templates
 
 
 class _CtxClearer(gast.NodeTransformer):
@@ -57,7 +56,7 @@ class _CtxChecker(gast.NodeTransformer):
     return super(_CtxChecker, self).visit(node)
 
 
-class TemplatesTest(test.TestCase, parameterized.TestCase):
+class TemplatesTest(unittest.TestCase):
 
   def assertExpectedCtxSet(self, node, ctx):
     """Assert that node has ctx=ctx at top and ctx=gast.Load everywhere else."""
@@ -318,21 +317,17 @@ class TemplatesTest(test.TestCase, parameterized.TestCase):
     self.assertIsInstance(node.ctx, gast.Store)
     self.assertIsInstance(node.value.ctx, gast.Load)
 
-  @parameterized.named_parameters([
+  def test_replace_name_mixed_attr_subscript(self):
+    template = 'foo = bar'
+    for name, expression_source in [
       ('mixed_attr_subscript', 'a.b["c"]'),
       ('mixed_subscript_attr', 'a[b.c]'),
       ('nested_subscript', 'a[b[c]]'),
-      ('repeated_subscript', 'a[b][c]'),
-  ])
-  def test_replace_name_mixed_attr_subscript(self, expression_source):
-    template = 'foo = bar'
-    replacement = _parse_with_unset_ctx(expression_source)
+      ('repeated_subscript', 'a[b][c]')]:
+      replacement = _parse_with_unset_ctx(expression_source)
 
-    target_node = templates.replace(template, foo=replacement)[0].targets[0]
-    self.assertExpectedCtxSet(target_node, gast.Store)
+      target_node = templates.replace(template, foo=replacement)[0].targets[0]
+      self.assertExpectedCtxSet(target_node, gast.Store)
 
-    value_node = templates.replace(template, bar=replacement)[0].value
-    self.assertExpectedCtxSet(value_node, gast.Load)
-
-if __name__ == '__main__':
-  test.main()
+      value_node = templates.replace(template, bar=replacement)[0].value
+      self.assertExpectedCtxSet(value_node, gast.Load)

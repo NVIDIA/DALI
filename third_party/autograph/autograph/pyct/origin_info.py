@@ -15,17 +15,17 @@
 """Container for origin source code information before AutoGraph compilation."""
 import collections
 import difflib
+import inspect
 import os
 import tokenize
 
 import gast
 import six
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import ast_util
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import anno
+from autograph.pyct import ast_util
+from autograph.pyct import parser
+from autograph.pyct import pretty_printer
 
 
 class LineLocation(
@@ -273,8 +273,8 @@ def resolve(node, source, context_filepath, context_lineno, context_col_offset):
 
 def resolve_entity(node, source, entity):
   """Like resolve, but extracts the context information from an entity."""
-  lines, lineno = tf_inspect.getsourcelines(entity)
-  filepath = tf_inspect.getsourcefile(entity)
+  lines, lineno = inspect.getsourcelines(entity)
+  filepath = inspect.getsourcefile(entity)
 
   # Poor man's attempt at guessing the column offset: count the leading
   # whitespace. This might not work well with tabs.

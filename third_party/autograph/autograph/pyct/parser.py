@@ -29,9 +29,8 @@ import astunparse
 import gast
 import six
 
-from tensorflow.python.autograph.pyct import errors
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import errors
+from autograph.pyct import inspect_utils
 
 
 PY2_PREAMBLE = textwrap.dedent("""
@@ -152,8 +151,8 @@ def parse_entity(entity, future_features):
         ' defined in certain environments, like the interactive Python shell,'
         ' do not expose their source code. If that is the case, you should'
         ' define them in a .py source file. If you are certain the code is'
-        ' graph-compatible, wrap the call using'
-        f' @tf.autograph.experimental.do_not_convert. Original error: {e}')
+        ' graph-compatible, wrap the call in the do_not_convert decorator.'
+        f' Original error: {e}')
 
   source = dedent_block(original_source)
 
@@ -210,7 +209,7 @@ def _arg_name(node):
 def _node_matches_argspec(node, func):
   """Returns True is node fits the argspec of func."""
   # TODO(mdan): Use just inspect once support for Python 2 is dropped.
-  arg_spec = tf_inspect.getfullargspec(func)
+  arg_spec = inspect.getfullargspec(func)
 
   node_args = tuple(_arg_name(arg) for arg in node.args.args)
   if node_args != tuple(arg_spec.args):

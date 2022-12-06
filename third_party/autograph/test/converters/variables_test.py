@@ -14,14 +14,13 @@
 # ==============================================================================
 """Tests for variables module."""
 
-from tensorflow.python.autograph.converters import variables
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.platform import test
+from autograph.converters import variables
+from autograph.core import converter_testing
 
 
 class VariablesTest(converter_testing.TestCase):
 
-  def transform_with_test_ld(self, f):
+  def _transform_with_test_ld(self, f):
     """Generates code which adds 1 to all variable reads."""
     return self.transform(f, variables, ag_overrides={'ld': lambda x: x + 1})
 
@@ -30,7 +29,7 @@ class VariablesTest(converter_testing.TestCase):
     def f(l):
       return l
 
-    tr = self.transform_with_test_ld(f)
+    tr = self._transform_with_test_ld(f)
 
     self.assertEqual(tr(1), 2)
 
@@ -40,7 +39,7 @@ class VariablesTest(converter_testing.TestCase):
       l *= 10
       return l
 
-    tr = self.transform_with_test_ld(f)
+    tr = self._transform_with_test_ld(f)
 
     self.assertEqual(tr(1), (1 + 1) * 10 + 1)  # two reads
 
@@ -157,7 +156,7 @@ class VariablesTest(converter_testing.TestCase):
       return l.v
 
     tc = TestClass()
-    tr = self.transform_with_test_ld(f)
+    tr = self._transform_with_test_ld(f)
 
     self.assertEqual(tr(tc), 2)
 
@@ -179,7 +178,7 @@ class VariablesTest(converter_testing.TestCase):
       return l[0]
 
     tc = TestClass()
-    tr = self.transform_with_test_ld(f)
+    tr = self._transform_with_test_ld(f)
 
     self.assertEqual(tr(tc), 2)
 
@@ -201,10 +200,6 @@ class VariablesTest(converter_testing.TestCase):
       return l()
 
     tc = TestClass()
-    tr = self.transform_with_test_ld(f)
+    tr = self._transform_with_test_ld(f)
 
     self.assertEqual(tr(tc), 2)
-
-
-if __name__ == '__main__':
-  test.main()

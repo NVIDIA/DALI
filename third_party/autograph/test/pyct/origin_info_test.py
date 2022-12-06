@@ -17,17 +17,16 @@
 import inspect
 import sys
 import textwrap
+import unittest
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.autograph.pyct import origin_info
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct.testing import basic_definitions
-from tensorflow.python.platform import test
-from tensorflow.python.util import tf_inspect
+from autograph.pyct import anno
+from autograph.pyct import inspect_utils
+from autograph.pyct import origin_info
+from autograph.pyct import parser
+from autograph.pyct.testing import basic_definitions
 
 
-class OriginInfoTest(test.TestCase):
+class OriginInfoTest(unittest.TestCase):
 
   def test_create_source_map(self):
 
@@ -61,7 +60,7 @@ class OriginInfoTest(test.TestCase):
   def test_create_source_map_identity(self):
     test_fn = basic_definitions.simple_function
     source_map = self._create_source_map(test_fn)
-    module_path = tf_inspect.getsourcefile(test_fn)
+    module_path = inspect.getsourcefile(test_fn)
 
     # Origin line numbers below should match those in basic_definitions.py
     fn_start = inspect.getsourcelines(test_fn)[1]
@@ -76,7 +75,7 @@ class OriginInfoTest(test.TestCase):
   def test_create_source_map_multiline_call(self):
     test_fn = basic_definitions.function_with_multiline_call
     source_map = self._create_source_map(test_fn)
-    module_path = tf_inspect.getsourcefile(test_fn)
+    module_path = inspect.getsourcefile(test_fn)
 
     # Origin line numbers below should match those in basic_definitions.py
     fn_start = inspect.getsourcelines(test_fn)[1]
@@ -104,11 +103,11 @@ class OriginInfoTest(test.TestCase):
     node, _ = parser.parse_entity(test_fn,
                                   inspect_utils.getfutureimports(test_fn))
     # No origin information should result in an empty map.
-    test_fn_lines, _ = tf_inspect.getsourcelines(test_fn)
+    test_fn_lines, _ = inspect.getsourcelines(test_fn)
     source_map = origin_info.create_source_map(node, '\n'.join(test_fn_lines),
                                                test_fn)
 
-    self.assertEmpty(source_map)
+    self.assertEqual(source_map, {})
 
   def test_resolve(self):
 
@@ -262,7 +261,3 @@ class OriginInfoTest(test.TestCase):
     self.assertEqual(ret2_origin.loc.col_offset, 2)
     self.assertEqual(ret2_origin.source_code_line, '  return 2')
     self.assertIsNone(ret2_origin.comment)
-
-
-if __name__ == '__main__':
-  test.main()

@@ -14,23 +14,24 @@
 # ==============================================================================
 """Tests for liveness module."""
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import cfg
-from tensorflow.python.autograph.pyct import naming
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.autograph.pyct.static_analysis import activity
-from tensorflow.python.autograph.pyct.static_analysis import liveness
-from tensorflow.python.autograph.pyct.static_analysis import reaching_fndefs
-from tensorflow.python.platform import test
+import unittest
+
+from autograph.pyct import anno
+from autograph.pyct import cfg
+from autograph.pyct import naming
+from autograph.pyct import parser
+from autograph.pyct import qual_names
+from autograph.pyct import transformer
+from autograph.pyct.static_analysis import activity
+from autograph.pyct.static_analysis import liveness
+from autograph.pyct.static_analysis import reaching_fndefs
 
 
 global_a = 7
 global_b = 17
 
 
-class LivenessAnalyzerTestBase(test.TestCase):
+class LivenessAnalyzerTestBase(unittest.TestCase):
 
   def _parse_and_analyze(self, test_fn):
     # TODO(mdan): Use a custom FunctionTransformer here.
@@ -566,7 +567,3 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
     fn_body = node.body
     self.assertHasLiveOut(fn_body[2], ('nonlocal_b',))
     self.assertHasLiveIn(fn_body[2], ('nonlocal_a', 'c'))
-
-
-if __name__ == '__main__':
-  test.main()

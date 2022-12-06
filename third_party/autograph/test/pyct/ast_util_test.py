@@ -17,19 +17,19 @@
 import ast
 import collections
 import textwrap
+import unittest
 
 import gast
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import ast_util
-from tensorflow.python.autograph.pyct import loader
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import pretty_printer
-from tensorflow.python.autograph.pyct import qual_names
-from tensorflow.python.platform import test
+from autograph.pyct import anno
+from autograph.pyct import ast_util
+from autograph.pyct import loader
+from autograph.pyct import parser
+from autograph.pyct import pretty_printer
+from autograph.pyct import qual_names
 
 
-class AstUtilTest(test.TestCase):
+class AstUtilTest(unittest.TestCase):
 
   def assertAstMatches(self, actual_node, expected_node_src):
     expected_node = gast.parse('({})'.format(expected_node_src)).body[0]
@@ -240,7 +240,3 @@ class AstUtilTest(test.TestCase):
       self.assertIn(
           parser.unparse(node.body, include_encoding_marker=False).strip(),
           expected_bodies)
-
-
-if __name__ == '__main__':
-  test.main()

@@ -19,15 +19,13 @@ import collections
 import functools
 import imp
 import textwrap
+import unittest
 
 import six
 
-from tensorflow.python import lib
-from tensorflow.python.autograph.pyct import inspect_utils
-from tensorflow.python.autograph.pyct.testing import basic_definitions
-from tensorflow.python.autograph.pyct.testing import decorators
-from tensorflow.python.framework import constant_op
-from tensorflow.python.platform import test
+from autograph.pyct import inspect_utils
+from autograph.pyct.testing import basic_definitions
+from autograph.pyct.testing import decorators
 
 
 def decorator(f):
@@ -92,7 +90,7 @@ def free_factory():
   return local_function
 
 
-class InspectUtilsTest(test.TestCase):
+class InspectUtilsTest(unittest.TestCase):
 
   def test_islambda(self):
     def test_fn():
@@ -377,14 +375,6 @@ class InspectUtilsTest(test.TestCase):
     self.assertIsNotNone(
         inspect_utils.getqualifiedname(ns, foo, max_depth=10000000000))
 
-  def test_getqualifiedname_finds_via_parent_module(self):
-    # TODO(mdan): This test is vulnerable to change in the lib module.
-    # A better way to forge modules should be found.
-    self.assertEqual(
-        inspect_utils.getqualifiedname(
-            lib.__dict__, lib.io.file_io.FileIO, max_depth=1),
-        'io.file_io.FileIO')
-
   def test_getmethodclass(self):
 
     self.assertEqual(
@@ -491,12 +481,6 @@ class InspectUtilsTest(test.TestCase):
 
     c = TestCallable()
     self.assertEqual(inspect_utils.getmethodclass(c), TestCallable)
-
-  def test_getmethodclass_no_bool_conversion(self):
-
-    tensor = constant_op.constant([1])
-    self.assertEqual(
-        inspect_utils.getmethodclass(tensor.get_shape), type(tensor))
 
   def test_getdefiningclass(self):
     class Superclass(object):
@@ -607,7 +591,3 @@ class InspectUtilsTest(test.TestCase):
     self.assertNotIn('division', imps)
     self.assertNotIn('print_function', imps)
     self.assertNotIn('generators', imps)
-
-
-if __name__ == '__main__':
-  test.main()

@@ -14,7 +14,7 @@
 # ==============================================================================
 """Global configuration."""
 
-from tensorflow.python.autograph.core import config_lib
+from autograph.core import config_lib
 
 Action = config_lib.Action
 Convert = config_lib.Convert
@@ -23,9 +23,10 @@ DoNotConvert = config_lib.DoNotConvert
 
 # This list is evaluated in order and stops at the first rule that tests True
 # for a definitely_convert of definitely_bypass call.
+# The name under which autograph is used is registered in init_autograph.
 CONVERSION_RULES = (
     # Known packages
-    Convert('tensorflow.python.training.experimental'),
+    # <List of packages that we force-convert>
 
     # Builtin modules
     DoNotConvert('collections'),
@@ -47,15 +48,6 @@ CONVERSION_RULES = (
     DoNotConvert('matplotlib'),
     DoNotConvert('numpy'),
     DoNotConvert('pandas'),
-    DoNotConvert('tensorflow'),
     DoNotConvert('PIL'),
     DoNotConvert('absl.logging'),
-
-    # TODO(b/133417201): Remove.
-    DoNotConvert('tensorflow_probability'),
-
-    # TODO(b/133842282): Remove.
-    DoNotConvert('tensorflow_datasets.core'),
-
-    DoNotConvert('keras'),
 )

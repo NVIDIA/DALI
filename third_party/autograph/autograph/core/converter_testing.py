@@ -19,17 +19,17 @@ import imp
 import inspect
 import sys
 
+import unittest
+
 import six
 
-from tensorflow.python.autograph.core import config
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.impl import api
-from tensorflow.python.framework import ops
-from tensorflow.python.platform import test
-
+from autograph.core import config
+from autograph.core import converter
+from autograph.impl import api
+from autograph.utils import hooks
 
 def allowlist(f):
-  """Helper that marks a callable as whtelitisted."""
+  """Helper that marks a callable as allowlisted."""
   if 'allowlisted_module_for_testing' not in sys.modules:
     allowlisted_mod = imp.new_module('allowlisted_module_for_testing')
     sys.modules['allowlisted_module_for_testing'] = allowlisted_mod
@@ -59,11 +59,11 @@ def is_inside_generated_code():
     del frame
 
 
-class TestingTranspiler(api.PyToTF):
+class TestingTranspiler(api.PyToLib):
   """Testing version that only applies given transformations."""
 
-  def __init__(self, converters, ag_overrides):
-    super(TestingTranspiler, self).__init__()
+  def __init__(self, converters, ag_overrides, operator_overload=hooks.OperatorBase()):
+    super(TestingTranspiler, self).__init__(name="autograph", operator_overload=operator_overload)
     if isinstance(converters, (list, tuple)):
       self._converters = converters
     else:
@@ -91,16 +91,8 @@ class TestingTranspiler(api.PyToTF):
     return node
 
 
-class TestCase(test.TestCase):
+class TestCase(unittest.TestCase):
   """Base class for unit tests in this module. Contains relevant utilities."""
-
-  def setUp(self):
-    # AutoGraph tests must run in graph mode to properly test control flow.
-    self.graph = ops.Graph().as_default()
-    self.graph.__enter__()
-
-  def tearDown(self):
-    self.graph.__exit__(None, None, None)
 
   @contextlib.contextmanager
   def assertPrints(self, expected_result):
@@ -112,13 +104,13 @@ class TestCase(test.TestCase):
     finally:
       sys.stdout = sys.__stdout__
 
-  def transform(
-      self, f, converter_module, include_ast=False, ag_overrides=None):
+  def transform(self, f, converter_module, include_ast=False, ag_overrides=None,
+                operator_overload=hooks.OperatorBase()):
     program_ctx = converter.ProgramContext(
         options=converter.ConversionOptions(recursive=True),
         autograph_module=api)
 
-    tr = TestingTranspiler(converter_module, ag_overrides)
+    tr = TestingTranspiler(converter_module, ag_overrides, operator_overload=operator_overload)
     transformed, _, _ = tr.transform_function(f, program_ctx)
 
     if include_ast:

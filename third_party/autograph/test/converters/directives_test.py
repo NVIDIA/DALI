@@ -14,11 +14,10 @@
 # ==============================================================================
 """Tests for directives module."""
 
-from tensorflow.python.autograph.converters import directives as directives_converter
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.autograph.lang import directives
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.platform import test
+from autograph.converters import directives as directives_converter
+from autograph.core import converter_testing
+from autograph.lang import directives
+from autograph.pyct import anno
 
 
 class DirectivesTest(converter_testing.TestCase):
@@ -56,7 +55,7 @@ class DirectivesTest(converter_testing.TestCase):
     def f():
       a = True
       while True:
-        directives.set_loop_options(parallel_iterations=10, back_prop=a)  # pylint: disable=unexpected-keyword-arg
+        directives.set_loop_options(parallel_iterations=10)
         pass
 
     _, node, _ = self.transform(f, directives_converter, include_ast=True)
@@ -64,7 +63,6 @@ class DirectivesTest(converter_testing.TestCase):
     d = anno.getanno(node.body[1], anno.Basic.DIRECTIVES)
     d = d[directives.set_loop_options]
     self.assertEqual(d['parallel_iterations'].value, 10)
-    self.assertEqual(d['back_prop'].id, 'a')
     self.assertNotIn('swap_memory', d)
 
   def test_loop_target_no_loop(self):
@@ -128,6 +126,3 @@ class DirectivesTest(converter_testing.TestCase):
     self.assertIsNotNone(node)
     self.assertFalse(tc.getattr_called)
 
-
-if __name__ == '__main__':
-  test.main()

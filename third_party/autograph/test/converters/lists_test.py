@@ -14,16 +14,42 @@
 # ==============================================================================
 """Tests for lists module."""
 
-from tensorflow.python.autograph.converters import directives as directives_converter
-from tensorflow.python.autograph.converters import lists
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.autograph.lang import directives
-from tensorflow.python.autograph.lang import special_functions
-from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import ops
-from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import list_ops
-from tensorflow.python.platform import test
+from autograph.converters import directives as directives_converter
+from autograph.converters import lists
+from autograph.core import converter_testing
+from autograph.utils import hooks
+
+class TestList(list):
+  pass
+
+
+class OperatorList(hooks.OperatorBase):
+  def is_test_list(self, iterable):
+    return isinstance(iterable, TestList)
+
+  def detect_overload_list_new(self, iterable):
+    return True
+
+  def list_new(self, iterable):
+    return TestList(iterable)
+
+  def detect_overload_list_append(self, list_):
+    return self.is_test_list(list_)
+
+  def list_append(self, list_, x):
+    list_.append(x)
+    list_ = TestList(list_)
+    return TestList(list_)
+
+  def detect_overload_list_pop(self, list_):
+    return self.is_test_list(list_)
+
+  def list_pop(self, list_, i):
+    if i is None:
+      x = list_.pop()
+    else:
+      x = list_.pop(i)
+    return list_, x
 
 
 class ListTest(converter_testing.TestCase):
@@ -33,75 +59,78 @@ class ListTest(converter_testing.TestCase):
     def f():
       return []
 
-    tr = self.transform(f, lists)
+    tr = self.transform(f, lists, operator_overload=OperatorList())
 
     tl = tr()
     # Empty tensor lists cannot be evaluated or stacked.
-    self.assertIsInstance(tl, ops.Tensor)
-    self.assertEqual(tl.dtype, dtypes.variant)
+    self.assertIsInstance(tl, TestList)
 
   def test_initialized_list(self):
 
     def f():
       return [1, 2, 3]
 
-    tr = self.transform(f, lists)
+    tr = self.transform(f, lists, operator_overload=OperatorList())
+    tl = tr()
 
-    self.assertAllEqual(tr(), [1, 2, 3])
+    self.assertIsInstance(tl, TestList)
+    self.assertEqual(tl, [1, 2, 3])
 
   def test_list_append(self):
 
     def f():
-      l = special_functions.tensor_list([1])
+      l = TestList([1])
       l.append(2)
       l.append(3)
       return l
 
-    tr = self.transform(f, lists)
+    tr = self.transform(f, lists, operator_overload=OperatorList())
 
     tl = tr()
-    r = list_ops.tensor_list_stack(tl, dtypes.int32)
-    self.assertAllEqual(self.evaluate(r), [1, 2, 3])
+
+    self.assertIsInstance(tl, TestList)
+    self.assertEqual(tl, [1, 2, 3])
 
   def test_list_pop(self):
 
     def f():
-      l = special_functions.tensor_list([1, 2, 3])
-      directives.set_element_type(l, dtype=dtypes.int32, shape=())
+      l = TestList([1, 2, 3])
       s = l.pop()
       return s, l
 
-    tr = self.transform(f, (directives_converter, lists))
+    tr = self.transform(f, (directives_converter, lists), operator_overload=OperatorList())
 
     ts, tl = tr()
-    r = list_ops.tensor_list_stack(tl, dtypes.int32)
-    self.assertAllEqual(self.evaluate(r), [1, 2])
-    self.assertAllEqual(self.evaluate(ts), 3)
+
+    self.assertIsInstance(tl, TestList)
+    self.assertEqual(tl, [1, 2])
+    self.assertEqual(ts, 3)
 
   def test_double_list_pop(self):
 
     def f(l):
       s = l.pop().pop()
-      return s
+      return s, l
 
-    tr = self.transform(f, lists)
+    tr = self.transform(f, lists, operator_overload=OperatorList())
 
     test_input = [1, 2, [1, 2, 3]]
     # TODO(mdan): Pass a list of lists of tensor when we fully support that.
     # For now, we just pass a regular Python list of lists just to verify that
     # the two pop calls are sequenced properly.
-    self.assertAllEqual(tr(test_input), 3)
+    s, tl = tr(test_input)
 
-  def test_list_stack(self):
+    self.assertIsInstance(tl, list)
+    self.assertEqual(s, 3)
 
-    def f():
-      l = [1, 2, 3]
-      return array_ops.stack(l)
+  # TODO(klecki): Revert the stack test
+  # def test_list_stack(self):
 
-    tr = self.transform(f, lists)
+  #   def f():
+  #     l = [1, 2, 3]
+  #     return array_ops.stack(l)
 
-    self.assertAllEqual(self.evaluate(tr()), [1, 2, 3])
+  #   tr = self.transform(f, lists, operator_overload=OperatorList())
 
+  #   self.assertAllEqual(self.evaluate(tr()), [1, 2, 3])
 
-if __name__ == '__main__':
-  test.main()

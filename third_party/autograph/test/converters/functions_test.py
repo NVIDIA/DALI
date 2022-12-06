@@ -14,15 +14,14 @@
 # ==============================================================================
 """Tests for functions module."""
 
-from tensorflow.python.autograph.converters import functions
-from tensorflow.python.autograph.converters import return_statements
-from tensorflow.python.autograph.core import ag_ctx
-from tensorflow.python.autograph.core import converter
-from tensorflow.python.autograph.core import converter_testing
-from tensorflow.python.autograph.impl import api
-from tensorflow.python.framework import constant_op
-from tensorflow.python.platform import test
+from autograph.converters import functions
+from autograph.converters import return_statements
+from autograph.core import ag_ctx
+from autograph.core import converter
+from autograph.core import converter_testing
+from autograph.impl import api
 
+CONSTANT = 1
 
 class FunctionTransformer(converter_testing.TestCase):
 
@@ -36,8 +35,8 @@ class FunctionTransformer(converter_testing.TestCase):
 
     tr = self.transform(f, functions)
 
-    result_op = tr(constant_op.constant(1))
-    self.assertIn('f/', result_op.op.name)
+    result = tr(CONSTANT)
+    self.assertEqual(2, result)
     self.assertEqual('Docstring.', tr.__doc__)
 
   def test_multiline_docstring(self):
@@ -50,12 +49,12 @@ class FunctionTransformer(converter_testing.TestCase):
       Returns:
         Something.
       """
-      return constant_op.constant(1)
+      return CONSTANT
 
     tr = self.transform(f, functions)
 
-    result_op = tr()
-    self.assertIn('f/', result_op.op.name)
+    result = tr()
+    self.assertEqual(CONSTANT, result)
     self.assertIn('First sentence.', tr.__doc__)
     self.assertIn('Second sentence.', tr.__doc__)
 
@@ -71,10 +70,7 @@ class FunctionTransformer(converter_testing.TestCase):
 
     tr = self.transform(f, (functions, return_statements))
 
-    first, second = tr(constant_op.constant(1))
-    self.assertIn('f/', first.op.name)
-    self.assertNotIn('inner_fn', first.op.name)
-    self.assertIn('f/inner_fn/', second.op.inputs[0].name)
+    first, second = tr(CONSTANT)
 
   def test_conversion_context_preserves_in_inner_functions(self):
 
@@ -107,10 +103,7 @@ class FunctionTransformer(converter_testing.TestCase):
 
     tr = self.transform(TestClass.f, (functions, return_statements))
 
-    first, second = tr(TestClass(), constant_op.constant(1))
-    self.assertIn('f/', first.op.name)
-    self.assertNotIn('inner_fn', first.op.name)
-    self.assertIn('f/inner_fn/', second.op.inputs[0].name)
+    first, second = tr(TestClass(), CONSTANT)
 
   def test_lambda_in_return_value(self):
 
@@ -121,7 +114,3 @@ class FunctionTransformer(converter_testing.TestCase):
 
     result_l = tr()
     self.assertTrue(api.is_autograph_artifact(result_l))
-
-
-if __name__ == '__main__':
-  test.main()

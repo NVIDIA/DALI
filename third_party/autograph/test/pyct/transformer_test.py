@@ -16,15 +16,15 @@
 
 import re
 import gast
+import unittest
 
-from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import origin_info
-from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.platform import test
+from autograph.pyct import anno
+from autograph.pyct import origin_info
+from autograph.pyct import parser
+from autograph.pyct import transformer
 
 
-class TransformerTest(test.TestCase):
+class TransformerTest(unittest.TestCase):
 
   def _simple_context(self):
     entity_info = transformer.EntityInfo(
@@ -296,7 +296,7 @@ class TransformerTest(test.TestCase):
         anno.getanno(aug_assign_node, anno.Basic.ORIGIN).loc.lineno, 104)
 
 
-class CodeGeneratorTest(test.TestCase):
+class CodeGeneratorTest(unittest.TestCase):
 
   def _simple_context(self):
     entity_info = transformer.EntityInfo(
@@ -358,7 +358,3 @@ class CodeGeneratorTest(test.TestCase):
 
     self.assertRegex(tg.code_buffer, r)
     # TODO(mdan): Test the source map.
-
-
-if __name__ == '__main__':
-  test.main()
