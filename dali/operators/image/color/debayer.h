@@ -80,11 +80,11 @@ inline debayer::DALIBayerPattern blue_pos2pattern(span<const int> blue_position)
           blue_position.size(), " values."));
   int y = blue_position[0];
   int x = blue_position[1];
-  int bayer_enum_val = 2 * y + x;
   DALI_ENFORCE(
-      0 <= bayer_enum_val && bayer_enum_val <= 3,
+      0 <= y && y <= 1 && 0 <= x && x <= 1,
       make_string("The `", debayer::kBluePosArgName,
                   "` position must lie within 2x2 tile, got: ", TensorShape<2>{y, x}, "."));
+  int bayer_enum_val = 2 * y + x;
   return static_cast<debayer::DALIBayerPattern>(bayer_enum_val);
 }
 
@@ -134,7 +134,7 @@ class Debayer : public SequenceOperator<Backend> {
       pattern_.resize(batch_size, static_pattern_);
     } else {
       const auto &tv = ws.ArgumentInput(debayer::kBluePosArgName);
-      auto blue_positions_view = view<const int, 1>(tv);
+      auto blue_positions_view = view<const int>(tv);
       pattern_.clear();
       pattern_.reserve(batch_size);
       for (int sample_idx = 0; sample_idx < batch_size; sample_idx++) {
