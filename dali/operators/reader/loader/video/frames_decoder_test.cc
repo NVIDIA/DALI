@@ -404,14 +404,14 @@ TEST_F(FramesDecoderGpuTest, RawH264) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[1]);
 
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, -1, false);
-  RunSequentialForwardTest(decoder, cfr_videos_[1], 3.0);
+  RunSequentialForwardTest(decoder, cfr_videos_[1], 1.5);
 }
 
 TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
 
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size(), 0, false, -1, false);
-  RunSequentialForwardTest(decoder, cfr_videos_[0], 3.0);
+  RunSequentialForwardTest(decoder, cfr_videos_[0], 1.5);
 }
 
 }  // namespace dali
