@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <fitsio.h>
 #include <gtest/gtest.h>
 #include <stdlib.h>
 #include <string.h>
-#include "fitsio.h"
 
 
 namespace dali {
@@ -50,14 +50,18 @@ TEST_F(CfitsioTest, openNonexistantFile) {
 }
 
 TEST_F(CfitsioTest, createEmptyFile) {
-  strcpy(filename, "!testprog.fit");
+  const char force_recreate_filename[] = "!testprog.fit";
+  strncpy(filename, force_recreate_filename, sizeof(force_recreate_filename));
   ffinit(&fptr, filename, &status);
 
   EXPECT_EQ(status, 0);
 
   filename[0] = '\0';
+
   ffflnm(fptr, filename, &status);
+  EXPECT_EQ(status, 0);
   ffflmd(fptr, &filemode, &status);
+  EXPECT_EQ(status, 0);
 
   EXPECT_STREQ(filename, "testprog.fit");
   EXPECT_EQ(filemode, 1);
