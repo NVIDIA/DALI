@@ -363,7 +363,8 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.pUserData = this;
   parser_info.pfnSequenceCallback = frame_dec_gpu_impl::process_video_sequence;
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
-  parser_info.pfnDisplayPicture = zero_latency_ ? nullptr : frame_dec_gpu_impl::handle_picture_display;
+  parser_info.pfnDisplayPicture =
+      zero_latency_ ? nullptr : frame_dec_gpu_impl::handle_picture_display;
 
   auto extradata = av_state_->ctx_->streams[0]->codecpar->extradata;
   auto extradata_size = av_state_->ctx_->streams[0]->codecpar->extradata_size;
