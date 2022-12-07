@@ -13,58 +13,55 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include "fitsio.h"
 
 
 namespace dali {
 namespace testing {
 
-  class CfitsioTest : public ::testing::Test{
-    protected: 
-      int status, filemode; 
-      char filename[40]; 
-      fitsfile *fptr; 
-      
-      virtual void SetUp(){
-        status = 0; 
-        remove("testprog.fit"); 
-      }
+class CfitsioTest : public ::testing::Test {
+ protected:
+  int status, filemode;
+  char filename[40];
+  fitsfile *fptr;
 
-      virtual void TearDown(){
-        remove("testprog.fit"); 
-      }
+  virtual void SetUp() {
+    status = 0;
+    remove("testprog.fit");
+  }
 
-  }; 
-    
+  virtual void TearDown() {
+    remove("testprog.fit");
+  }
+};
 
 
 TEST_F(CfitsioTest, openNonexistantFile) {
   fits_open_file(&fptr, "testprog.fit", READWRITE, &status);
 
-  EXPECT_TRUE(fptr == nullptr); 
-  EXPECT_NE(status, 0); 
+  EXPECT_TRUE(fptr == nullptr);
+  EXPECT_NE(status, 0);
 
   ffclos(fptr, &status);
 
-  EXPECT_NE(status, 0); 
+  EXPECT_NE(status, 0);
 }
 
-
-TEST_F(CfitsioTest, createEmptyFile){
+TEST_F(CfitsioTest, createEmptyFile) {
   strcpy(filename, "!testprog.fit");
   ffinit(&fptr, filename, &status);
 
-  EXPECT_EQ(status, 0); 
+  EXPECT_EQ(status, 0);
 
   filename[0] = '\0';
   ffflnm(fptr, filename, &status);
   ffflmd(fptr, &filemode, &status);
 
-  EXPECT_STREQ(filename, "testprog.fit"); 
+  EXPECT_STREQ(filename, "testprog.fit");
   EXPECT_EQ(filemode, 1);
-   
+
   ffclos(fptr, &status);
 }
 
