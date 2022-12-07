@@ -91,6 +91,8 @@ class DecoderBase : public Operator<Backend> {
     output_descs.resize(1);
     auto &input = ws.template Input<CPUBackend>(0);
     int nsamples = input.num_samples();
+    srcs_.resize(nsamples);
+    src_ptrs_.resize(nsamples);
     rois_.resize(nsamples);
     SetupRoiGenerator(spec, ws);
     TensorListShape<> shapes;
@@ -99,8 +101,9 @@ class DecoderBase : public Operator<Backend> {
 
     for (int i = 0; i < shapes.size(); i++) {
       tp.AddWork([i, decoder, &input, &shapes, &ws, &spec, this] (int tid) {
-        auto src = SampleAsImageSource(input[i], input.GetMeta(i).GetSourceInfo());
-        auto info = decoder->GetInfo(&src);
+        srcs_[i] = SampleAsImageSource(input[i], input.GetMeta(i).GetSourceInfo());
+        src_ptrs_[i] = &srcs_[i];
+        auto info = decoder->GetInfo(src_ptrs_[i]);
         ROI roi = GetRoi(spec, ws, i, info.shape);
         rois_[i] = roi;
         OutputShape(shapes.tensor_shape_span(i), info, this->opts_, roi);
@@ -117,6 +120,8 @@ class DecoderBase : public Operator<Backend> {
   }
 
   std::map<std::string, any> decoder_params_;
+  std::vector<ImageSource> srcs_;
+  std::vector<ImageSource *> src_ptrs_;
   std::vector<ROI> rois_;
   DecodeParams opts_;
   std::unique_ptr<ImageDecoder> decoder_ptr_;

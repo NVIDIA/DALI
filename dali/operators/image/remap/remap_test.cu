@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,14 +33,14 @@ class RemapTest : public ::testing::Test {
     auto rng = [&]() { return dist(mt_); };
     ref_data_.resize(data_shape_.num_elements());
     generate(ref_data_.begin(), ref_data_.end(), rng);
-    cudaMallocManaged(&test_data_, data_shape_.num_elements() * sizeof(T));
+    CUDA_CALL(cudaMallocManaged(&test_data_, data_shape_.num_elements() * sizeof(T)));
     CUDA_CALL(cudaMemcpy(test_data_, ref_data_.data(), data_shape_.num_elements() * sizeof(T),
                          cudaMemcpyDefault));
   }
 
 
   void TearDown() final {
-    cudaFree(test_data_);
+    CUDA_CALL(cudaFree(test_data_));
   }
 
 

@@ -110,18 +110,18 @@ void CastGPU::RunImpl(Workspace &ws) {
   std::tie(params_dev, samples_dev) = scratchpad.ToContiguousGPU(ws.stream(),
                                                                  params_host, samples_);
 
-  DALIDataType itype = input.type();
   dim3 grid_dim = block_setup_.GridDim();
   dim3 block_dim = block_setup_.BlockDim();
-  TYPE_SWITCH(output_type_, type2id, OType, CAST_ALLOWED_TYPES, (
-    TYPE_SWITCH(itype, type2id, IType, CAST_ALLOWED_TYPES, (
+  TYPE_SWITCH(output.type(), type2id, OType, CAST_ALLOWED_TYPES, (
+    TYPE_SWITCH(input.type(), type2id, IType, CAST_ALLOWED_TYPES, (
       kernels::BinSearchCastKernel<OType, IType>
           <<<grid_dim, block_dim, 0, ws.stream()>>>(samples_dev, params_dev,
             num_samples, block_volume_scale);
-    ), DALI_FAIL(make_string("Invalid input type: ", itype)););  // NOLINT(whitespace/parens)
-  ), DALI_FAIL(make_string("Invalid output type: ", output_type_)););  // NOLINT(whitespace/parens)
+    ), DALI_FAIL(make_string("Invalid input type: ", input.type())););  // NOLINT(whitespace/parens)
+  ), DALI_FAIL(make_string("Invalid output type: ", output.type())););  // NOLINT(whitespace/parens)
 }
 
 DALI_REGISTER_OPERATOR(Cast, CastGPU, GPU);
+DALI_REGISTER_OPERATOR(CastLike, CastGPU, GPU);
 
 }  // namespace dali

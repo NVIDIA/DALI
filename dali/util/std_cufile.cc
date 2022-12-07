@@ -67,6 +67,7 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* pa
   memset(&descr, 0, sizeof(CUfileDescr_t));
   descr.handle.fd = fh.fdd;
   descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
+
   CUfileError_t status = cuFileHandleRegister(&(fh.cufh), &descr);
   if (status.err != CU_FILE_SUCCESS) {
     DALI_FAIL("CUFile import failed: " + path + ". " +
@@ -79,10 +80,14 @@ namespace dali {
 StdCUFileStream::StdCUFileStream(const std::string& path) : CUFileStream(path) {
   // open file
   cufile_open(f_, length_, path.c_str());
-
   // set the path to current path
   path_ = path;
 }
+
+StdCUFileStream::~StdCUFileStream() {
+  Close();
+}
+
 
 void StdCUFileStream::Close() {
   // do not deallocate here, since

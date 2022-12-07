@@ -49,3 +49,7 @@ void *CufileLoadSymbol(const char *name) {
   void *ret = cufileDrvLib ? dlsym(cufileDrvLib, name) : nullptr;
   return ret;
 }
+
+bool cuFileIsSymbolAvailable(const char *symbol) {
+  return CufileLoadSymbol(symbol) != nullptr;
+}

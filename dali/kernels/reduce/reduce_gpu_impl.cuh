@@ -377,7 +377,7 @@ class ReduceImplGPU {
   const TensorListShape<> &SimplifiedInputShape() const { return in_shape_; }
 
   /// Indices of reduced axes after simplification
-  span<const int> SimplifiedAxes() const { return make_span(axes_); }
+  span<const int> SimplifiedAxes() const { return make_span(simplified_axes_); }
 
   /// Reduction factor for given sample
   int64_t ReducedElements(int sample) const { return reduced_elements_[sample]; }
@@ -402,13 +402,17 @@ class ReduceImplGPU {
    */
   KernelRequirements Setup(KernelContext &ctx,
                            const TensorListShape<> &in_shape,
-                           span<const int> axes,
+                           span<const int> axes_arg,
                            bool keep_dims,
                            bool reduce_batch) {
     if (in_shape.sample_dim() > 64)
       throw std::range_error("Reduce supports up to 64 dimensions");
     reduce_batch_ = reduce_batch;
-    CheckAxes(axes, in_shape.sample_dim());
+    int ndim = in_shape.sample_dim();
+    CheckAxes(axes_arg, ndim);
+    axes_.copy_assign(axes_arg.begin(), axes_arg.end());
+    auto axes = make_span(axes_);
+    AdjustAxes(axes, ndim);
     if (reduce_batch)
       CheckBatchReduce(in_shape, axes);
     KernelRequirements req;
@@ -451,9 +455,9 @@ class ReduceImplGPU {
 
  private:
   void Simplify(const TensorListShape<> &in_shape, span<const int> axes) {
-    SimplifyReduction(axes_, dim_groups_, in_shape, axes);
+    SimplifyReduction(simplified_axes_, dim_groups_, in_shape, axes);
     collapse_dims(in_shape_, in_shape, dim_groups_);
-    CalculateReducedShape(out_shape_, in_shape_, make_span(axes_), true, reduce_batch_);
+    CalculateReducedShape(out_shape_, in_shape_, make_span(simplified_axes_), true, reduce_batch_);
   }
 
   bool HasPreprocessingParams() const {
@@ -797,7 +801,7 @@ class ReduceImplGPU {
       // There are two major special cases:
       // 1. No reduction (or only sample reduction)
       // 2. Total reduction (per- or cross-sample)
-      if (axes_.empty())
+      if (simplified_axes_.empty())
         InitPassThrough();
       else
         InitReduceAll();
@@ -813,7 +817,7 @@ class ReduceImplGPU {
 
     int prev_axis = -1;  // no previous axis
 
-    for (int axis : axes_) {
+    for (int axis : simplified_axes_) {
       // calculate the outer/inner extents for this axis
       for (int i = 0; i < nsamples; i++) {
         auto sample_shape = in_shape_.tensor_shape_span(i);
@@ -1461,8 +1465,10 @@ class ReduceImplGPU {
   TensorListShape<> in_shape_;
   /// Output shape with merged dims (reduced dims kept)
   TensorListShape<> out_shape_;
-  /// Merged axes (without degenerate ones)
+  /// Original axes adjusted to the positive range [0, ndim-1]
   SmallVector<int, kMaxStaticDims> axes_;
+  /// Merged axes (without degenerate ones)
+  SmallVector<int, kMaxStaticDims> simplified_axes_;
   /// Groups of dimensions merged by Simplify
   SmallVector<std::pair<int, int>, kMaxStaticDims> dim_groups_;
 

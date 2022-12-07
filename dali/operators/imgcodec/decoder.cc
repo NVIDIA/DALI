@@ -320,17 +320,7 @@ void ImgcodecHostDecoder::RunImpl(Workspace &ws) {
   DecodeContext ctx;
   ctx.tp = &ws.GetThreadPool();
 
-  BatchVector<ImageSource> srcs;
-  BatchVector<ImageSource *> src_ptrs;
-  srcs.resize(nsamples);
-  src_ptrs.resize(nsamples);
-
-  for (int i = 0; i < nsamples; i++) {
-    srcs[i] = SampleAsImageSource(input[i], input.GetMeta(i).GetSourceInfo());
-    src_ptrs[i] = &srcs[i];
-  }
-
-  auto results = decoder->Decode(ctx, output, make_span(src_ptrs), opts_, make_span(rois_));
+  auto results = decoder->Decode(ctx, output, make_span(src_ptrs_), opts_, make_span(rois_));
   for (const auto &result : results) {
     if (!result.success) {
       std::rethrow_exception(result.exception);
@@ -364,17 +354,7 @@ void ImgcodecMixedDecoder::Run(Workspace &ws) {
   ctx.tp = &thread_pool_;
   ctx.stream = ws.stream();
 
-  BatchVector<ImageSource> srcs;
-  BatchVector<ImageSource *> src_ptrs;
-  srcs.resize(nsamples);
-  src_ptrs.resize(nsamples);
-
-  for (int i = 0; i < nsamples; i++) {
-    srcs[i] = SampleAsImageSource(input[i], input.GetMeta(i).GetSourceInfo());
-    src_ptrs[i] = &srcs[i];
-  }
-
-  auto results = decoder->Decode(ctx, output, make_span(src_ptrs), opts_, make_span(rois_));
+  auto results = decoder->Decode(ctx, output, make_span(src_ptrs_), opts_, make_span(rois_));
   for (const auto &result : results) {
     if (!result.success) {
       std::rethrow_exception(result.exception);

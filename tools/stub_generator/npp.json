@@ -11,7 +11,7 @@
          "not_found_error":"0" },
       "nppSetStream": {},
       "nppGetLibVersion": {
-         "return_type":"NppLibraryVersion *",
+         "return_type":"const NppLibraryVersion *",
          "not_found_error":"nullptr" },
       "nppiColorTwist32f_8u_C3R": {},
       "nppiColorTwist32f_8u_C1R": {},
@@ -24,6 +24,8 @@
       "nppiRemap_16u_C1R_Ctx": {},
       "nppiRemap_16u_C3R_Ctx": {},
       "nppiRemap_8u_C1R_Ctx": {},
-      "nppiRemap_8u_C3R_Ctx": {}
+      "nppiRemap_8u_C3R_Ctx": {},
+      "nppiCFAToRGB_8u_C1C3R_Ctx": {},
+      "nppiCFAToRGB_16u_C1C3R_Ctx": {}
    }
 }

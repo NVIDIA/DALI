@@ -228,6 +228,15 @@ def test_cast_cpu():
     check_single_input(fn.cast, dtype=types.INT32)
 
 
+def test_cast_like_cpu():
+    pipe = Pipeline(batch_size=batch_size, num_threads=3, device_id=None)
+    out = fn.cast_like(np.array([1, 2, 3], dtype=np.int32), np.array([1.0], dtype=np.float32))
+    pipe.set_outputs(out)
+    pipe.build()
+    for _ in range(3):
+        pipe.run()
+
+
 def test_resize_cpu():
     check_single_input(fn.resize, resize_x=50, resize_y=50)
 
@@ -1200,6 +1209,7 @@ tested_methods = [
     "crop",
     "color_space_conversion",
     "cast",
+    "cast_like",
     "resize",
     "gaussian_blur",
     "laplacian",

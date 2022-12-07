@@ -25,7 +25,55 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/reader/loader/video/nvdecode/color_space.h"
 namespace dali {
-namespace detail {
+
+namespace frame_dec_gpu_impl {
+
+const char *chroma_to_string(cudaVideoChromaFormat in) {
+  switch (in) {
+    case cudaVideoChromaFormat_Monochrome:
+      return "Monochrome";
+    case cudaVideoChromaFormat_420:
+      return "YUV 4:2:0";
+    case cudaVideoChromaFormat_422:
+      return "YUV 4:2:2";
+    case cudaVideoChromaFormat_444:
+      return "YUV 4:4:4";
+    default:
+      return "Unknown chroma format";
+  }
+}
+
+const char *codec_to_string(cudaVideoCodec in) {
+  switch (in) {
+    case cudaVideoCodec_MPEG1:
+      return "MPEG-1";
+    case cudaVideoCodec_MPEG2:
+      return "MPEG-2";
+    case cudaVideoCodec_MPEG4:
+      return "MPEG-4";
+    case cudaVideoCodec_VC1:
+      return "VC1";
+    case cudaVideoCodec_H264:
+      return "H.264";
+    case cudaVideoCodec_JPEG:
+      return "JPEG";
+    case cudaVideoCodec_H264_SVC:
+      return "H.264-SVC";
+    case cudaVideoCodec_H264_MVC:
+      return "H.264-MVC";
+    case cudaVideoCodec_HEVC:
+      return "HEVC";
+    case cudaVideoCodec_VP8:
+      return "VP8";
+    case cudaVideoCodec_VP9:
+      return "VP9";
+    case cudaVideoCodec_AV1:
+      return "AV1";
+    default:
+      return "Unknown codec type";
+  }
+}
+
 class NVDECCache {
  public:
     static NVDECCache &GetCache() {
@@ -39,6 +87,8 @@ class NVDECCache {
       unsigned height =  video_format->coded_height;
       unsigned width = video_format->coded_width;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
+      auto chroma_format = video_format->chroma_format;
+      auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
 
       if (num_decode_surfaces == 0)
         num_decode_surfaces = 20;
@@ -49,7 +99,9 @@ class NVDECCache {
           best_match = it;
         }
         if (it->second.used == false && it->second.height == height &&
-            it->second.width == width && it->second.num_decode_surfaces == num_decode_surfaces) {
+            it->second.width == width && it->second.num_decode_surfaces == num_decode_surfaces &&
+            it->second.chroma_format == chroma_format &&
+            it->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
           it->second.used = true;
           return NVDECLease(it->second);
         }
@@ -58,7 +110,9 @@ class NVDECCache {
       // resolution. Hard to know them ahead of time and setting too much slow things down
 #ifdef ENABLE_NVDEC_RECONFIGURE
       if (best_match != range.second && cuvidIsSymbolAvailable("cuvidReconfigureDecoder") &&
-          best_match->second.max_width <= width && best_match->second.max_height <= height) {
+          best_match->second.max_width <= width && best_match->second.max_height <= height &&
+          best_match->second.chroma_format == chroma_format &&
+          best_match->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
         best_match->second.used = true;
         lock.unlock();
         CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
@@ -75,19 +129,34 @@ class NVDECCache {
       lock.unlock();
       auto caps = CUVIDDECODECAPS{};
       caps.eCodecType = codec_type;
-      caps.eChromaFormat = cudaVideoChromaFormat_420;
-      caps.nBitDepthMinus8 = 0;
+      caps.eChromaFormat = chroma_format;
+      caps.nBitDepthMinus8 = bit_depth_luma_minus8;
       CUDA_CALL(cuvidGetDecoderCaps(&caps));
+
+      DALI_ENFORCE(caps.bIsSupported,
+                   make_string("Codec configuration not supported on this GPU. ",
+                   "Codec: ", codec_to_string(codec_type),
+                   ", chroma format: ", chroma_to_string(chroma_format),
+                   ", bit depth: ", bit_depth_luma_minus8 + 8));
+
       DALI_ENFORCE(width >= caps.nMinWidth  && height >= caps.nMinHeight,
-                   "Video is too small in at least one dimension.");
+                   make_string("Video is too small in at least one dimension. Provided: ",
+                   width , "x", height, " vs supported:", caps.nMinWidth, "x", caps.nMinHeight));
+
       DALI_ENFORCE(width <= caps.nMaxWidth && height <= caps.nMaxHeight,
-                   "Video is too large in at least one dimension.");
+                   make_string("Video is too large in at least one dimension. Provided: ",
+                   width , "x", height, " vs supported:", caps.nMaxWidth, "x", caps.nMaxHeight));
+
       DALI_ENFORCE(width * height / 256 <= caps.nMaxMBCount,
-                   "Video is too large (too many macroblocks).");
+                   make_string("Video is too large (too many macroblocks). ",
+                   "Provided (width * height / 256): ",
+                   width * height / 256, " vs supported:", caps.nMaxMBCount));
+
       CUVIDDECODECREATEINFO decoder_info;
       memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
-      decoder_info.bitDepthMinus8 = video_format->bit_depth_luma_minus8;;
-      decoder_info.ChromaFormat = video_format->chroma_format;;
+
+      decoder_info.bitDepthMinus8 = bit_depth_luma_minus8;
+      decoder_info.ChromaFormat = chroma_format;
       decoder_info.CodecType = codec_type;
       decoder_info.ulHeight = height;
       decoder_info.ulWidth = width;
@@ -127,8 +196,10 @@ class NVDECCache {
       decoder_inst.max_height = decoder_info.ulMaxHeight;
       decoder_inst.max_width = decoder_info.ulMaxWidth;
       decoder_inst.num_decode_surfaces = num_decode_surfaces;
-      decoder_inst.used = true;
       decoder_inst.codec_type = codec_type;
+      decoder_inst.chroma_format = chroma_format;
+      decoder_inst.bit_depth_luma_minus8 = bit_depth_luma_minus8;
+      decoder_inst.used = true;
 
       lock.lock();
       dec_cache.insert({codec_type, decoder_inst});
@@ -177,7 +248,7 @@ class NVDECCache {
 
 NVDECLease::~NVDECLease() {
   if (decoder.used) {
-    detail::NVDECCache::GetCache().ReturnDecoder(decoder);
+    frame_dec_gpu_impl::NVDECCache::GetCache().ReturnDecoder(decoder);
   }
 }
 
@@ -200,7 +271,7 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
   return frames_decoder->HandlePictureDisplay(picture_display_info);
 }
 
-}  // namespace detail
+}  // namespace frame_dec_gpu_impl
 
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
@@ -268,7 +339,7 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType() {
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
     is_full_range_ = video_format->video_signal_description.video_full_range_flag;
-    nvdecode_state_->decoder = detail::NVDECCache::GetCache().GetDecoder(video_format);
+    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetCache().GetDecoder(video_format);
   }
 }
 
@@ -290,9 +361,9 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.ulMaxNumDecodeSurfaces = num_decode_surfaces_;
   parser_info.ulMaxDisplayDelay = 0;
   parser_info.pUserData = this;
-  parser_info.pfnSequenceCallback = detail::process_video_sequence;
-  parser_info.pfnDecodePicture = detail::process_picture_decode;
-  parser_info.pfnDisplayPicture = zero_latency_ ? nullptr : detail::handle_picture_display;
+  parser_info.pfnSequenceCallback = frame_dec_gpu_impl::process_video_sequence;
+  parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
+  parser_info.pfnDisplayPicture = zero_latency_ ? nullptr : frame_dec_gpu_impl::handle_picture_display;
 
   auto extradata = av_state_->ctx_->streams[0]->codecpar->extradata;
   auto extradata_size = av_state_->ctx_->streams[0]->codecpar->extradata_size;
@@ -306,7 +377,7 @@ void FramesDecoderGpu::InitGpuParser() {
     memcpy(parser_extinfo.raw_seqhdr_data, extradata, hdr_size);
   }
 
-  nvdecode_state_->parser = detail::CUvideoparserHandle(parser_info);
+  nvdecode_state_->parser = frame_dec_gpu_impl::CUvideoparserHandle(parser_info);
 
   // Init internal frame buffer
   // TODO(awolant): Check, if continuous buffer would be faster

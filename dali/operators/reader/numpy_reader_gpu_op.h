@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_READER_NUMPY_READER_GPU_OP_H_
 
 #include <utility>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/scatter_gather.h"
+#include "dali/util/cufile_helper.h"
 #include "dali/kernels/transpose/transpose_gpu.h"
 #include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include "dali/operators/reader/numpy_reader_op.h"
@@ -30,18 +32,22 @@
 
 namespace dali {
 
-class NumpyReaderGPU : public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
+namespace gds {
+class GDSLazyInit {
+ protected:
+  void InitDriverScope() {
+    driver_scope_ = std::make_unique<cufile::CUFileDriverScope>();
+  }
+  std::unique_ptr<cufile::CUFileDriverScope> driver_scope_;
+};
+}  // namespace gds
+
+// GDSLazyInit needs to be a base class, so that it destroyed last, after the loader
+class NumpyReaderGPU : gds::GDSLazyInit, public NumpyReader<GPUBackend, NumpyFileWrapperGPU> {
  public:
   explicit NumpyReaderGPU(const OpSpec& spec);
 
-  ~NumpyReaderGPU() override {
-    /*
-     * Stop the prefetch thread as it uses the thread pool from this class. So before we can
-     * destroy the thread pool make sure no one is using it anymore.
-     */
-
-    DataReader<GPUBackend, NumpyFileWrapperGPU>::StopPrefetchThread();
-  }
+  ~NumpyReaderGPU() override;
 
   // override prefetching here
   void Prefetch() override;

@@ -19,6 +19,7 @@ from nose.tools import nottest
 import numpy as np
 
 from test_utils import np_type_to_dali
+from nose_utils import assert_raises
 
 
 class Batch:
@@ -96,6 +97,11 @@ class Batch3DOverflow(Batch3D):
         for batch in self._data:
             for sample in batch:
                 sample *= 100000
+
+
+class Batch3DNegativeAxes(Batch3D):
+    def valid_axes(self):
+        return [-3, -2, -1, (-3, 1), (0, -1), (-2, 2), (-3, -2, -1)]
 
 
 def run_dali(reduce_fn, batch_fn, keep_dims, axes, output_type, add_mean_input=False, ddof=0):
@@ -225,6 +231,29 @@ def test_reduce():
             for batch_gen in batch_gens:
                 for type_id in types:
                     yield run_reduce, keep_dims, reduction_name, batch_gen, type_id
+
+
+def test_reduce_negative_axes():
+    reductions = ["sum", "max"]
+    type = np.uint8
+
+    for keep_dims in [False, True]:
+        for reduction_name in reductions:
+            yield run_reduce, keep_dims, reduction_name, Batch3DNegativeAxes, type
+
+
+def test_reduce_invalid_axes():
+    class Batch3DInvalidAxes(Batch3D):
+        def valid_axes(self):  # Invalid axes
+            return [-100, (100, 0)]
+
+    batch_fn = Batch3DInvalidAxes(np.uint8)
+    dali_reduce_fn, numpy_reduce_fn = reduce_fns["sum"]
+
+    for axes in batch_fn.valid_axes():
+        with assert_raises(RuntimeError, glob="Axis index out of range"):
+            dali_res_cpu, dali_res_gpu = run_dali(
+                dali_reduce_fn, batch_fn, keep_dims=False, axes=axes, output_type=np.uint8)
 
 
 def test_reduce_with_promotion():
