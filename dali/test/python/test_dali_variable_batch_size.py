@@ -1196,6 +1196,42 @@ def test_inflate():
     check_pipeline(batches, inflate_pipline, devices=['gpu'])
 
 
+def test_debayer():
+    from debayer_test_utils import rgb2bayer, bayer_patterns, blue_position
+
+    def debayer_pipline(max_batch_size, inputs, device):
+        batches = [list(zip(*batch)) for batch in inputs]
+        img_batches = [list(imgs) for imgs, _ in batches]
+        blue_positions = [list(positions) for _, positions in batches]
+
+        @pipeline_def
+        def piepline():
+            bayered = fn.external_source(source=img_batches)
+            positions = fn.external_source(source=blue_positions)
+            return fn.experimental.debayer(bayered.gpu(), blue_position=positions)
+
+        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
+
+    def sample_gen():
+        rng = np.random.default_rng(seed=101)
+        j = 0
+        while True:
+            pattern = bayer_patterns[j % len(bayer_patterns)]
+            h, w = 2 * np.int32(rng.uniform(2, 3, 2))
+            r, g, b = np.full((h, w), j), np.full((h, w), j + 1), np.full((h, w), j + 2)
+            rgb = np.uint8(np.stack([r, g, b], axis=2))
+            yield rgb2bayer(rgb, pattern), np.array(blue_position(pattern), dtype=np.int32)
+            j += 1
+
+    sample = sample_gen()
+    batches = [
+        [next(sample) for _ in range(5)],
+        [next(sample) for _ in range(13)],
+        [next(sample) for _ in range(2)]]
+
+    check_pipeline(batches, debayer_pipline, devices=['gpu'])
+
+
 def test_cast_like():
     def pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
@@ -1256,6 +1292,7 @@ tested_methods = [
     "erase",
     "erase",
     "expand_dims",
+    "experimental.debayer",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
