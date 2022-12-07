@@ -84,6 +84,8 @@ option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
 cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 
+option(BUILD_CVCUDA "Build with CV-CUDA" ON)  # Built from thirdparty sources
+
 set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
 set(KERNEL_SRCS_PATTERN_EXCLUDE "" CACHE STRING
@@ -201,18 +203,6 @@ message(STATUS "Build configuration: " ${CMAKE_BUILD_TYPE})
 # Cmake path
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 
-# Dependencies
-if(${ARCH} MATCHES "aarch64-linux")
-  message("Target set to aarch64-linux")
-  include(cmake/Dependencies.aarch64-linux.cmake)
-elseif(${ARCH} MATCHES "aarch64-qnx")
-  message("Target set to aarch64-qnx")
-  include(cmake/Dependencies.aarch64-qnx.cmake)
-  set(BUILD_SHM_WRAPPER OFF)
-else()
-  include(cmake/Dependencies.cmake)
-endif()
-
 propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)
 propagate_option(BUILD_SHM_WRAPPER)
@@ -223,6 +213,7 @@ propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_LIBTAR)
 propagate_option(BUILD_FFTS)
 propagate_option(BUILD_CFITSIO)
+propagate_option(BUILD_CVCUDA)
 propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)
@@ -385,6 +376,28 @@ CUDA_get_cmake_cuda_archs(CMAKE_CUDA_ARCHITECTURES ${CUDA_targeted_archs})
 message(STATUS "Generated CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --compiler-options \"-fvisibility=hidden -Wno-free-nonheap-object\" --Wno-deprecated-gpu-targets -Xfatbin -compress-all")
+
+
+# Dependencies
+if(${ARCH} MATCHES "aarch64-linux")
+  message("Target set to aarch64-linux")
+  include(cmake/Dependencies.aarch64-linux.cmake)
+elseif(${ARCH} MATCHES "aarch64-qnx")
+  message("Target set to aarch64-qnx")
+  include(cmake/Dependencies.aarch64-qnx.cmake)
+  set(BUILD_SHM_WRAPPER OFF)
+else()
+  include(cmake/Dependencies.cmake)
+endif()
+
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 
 # Include directories
 include_directories(

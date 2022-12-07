@@ -261,3 +261,14 @@ if(BUILD_CFITSIO)
   message(STATUS "Found cfitsio: ${cfitsio_LIBS}")
   list(APPEND DALI_LIBS ${cfitsio_LIBS})
 endif()
+
+##################################################################
+# CV-CUDA
+##################################################################
+if (BUILD_CVCUDA)
+  set(DALI_BUILD_PYTHON ${BUILD_PYTHON})
+  set(BUILD_PYTHON OFF)
+  check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cvcuda)
+  list(APPEND DALI_LIBS nvcv)
+  set(BUILD_PYTHON ${DALI_BUILD_PYTHON})
+endif()

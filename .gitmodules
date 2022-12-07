@@ -29,3 +29,6 @@
 [submodule "third_party/libcudacxx"]
 	path = third_party/libcudacxx
 	url = https://github.com/mzient/libcudacxx.git
+[submodule "third_party/cvcuda"]
+	path = third_party/cvcuda
+	url = ssh://git@gitlab-master.nvidia.com:12051/cv/cvcuda.git
