@@ -23,6 +23,7 @@
 #include "dali/core/boundary.h"
 #include "dali/core/convert.h"
 #include "dali/core/cuda_rt_utils.h"
+#include "dali/core/geom/geom_utils.h"
 #include "dali/core/geom/vec.h"
 #include "dali/core/span.h"
 #include "dali/core/static_switch.h"
@@ -36,30 +37,6 @@ namespace kernels {
 namespace filter {
 
 using boundary::BoundaryType;
-
-template <int N, typename T>
-vec<N, T> rev(const vec<N, T>& v) {
-  vec<N, T> out;
-  for (int d = 0; d < N; d++) {
-    out[N - d - 1] = v[d];
-  }
-  return out;
-}
-
-template <int N, typename T, typename U>
-void strides(vec<N, U>& out, U& total_stride, const vec<N, T>& v) {
-  total_stride = 1;
-  for (int d = 0; d < N; d++) {
-    out[d] = total_stride;
-    total_stride *= v[d];
-  }
-}
-
-template <int N, typename T, typename U>
-void strides(vec<N, U>& out, const vec<N, T>& v) {
-  U total_strides;
-  strides(out, total_strides, v);
-}
 
 template <int axes_>
 struct ShapeDesc {
@@ -947,15 +924,15 @@ struct FilterGpu {
     }
     int64_t frame_stride;
     i64vec<axes> in_strides;
-    filter::strides(in_strides, frame_stride, in_extents * channels);
+    strides(in_strides, frame_stride, in_extents * channels);
     ivec<axes> workspace_strides;
-    filter::strides(workspace_strides, in_workspace_extents);
+    strides(workspace_strides, in_workspace_extents);
     auto out_extents = ShapeAsVec<int>(out_shape);
     int64_t out_frame_stride;
     i64vec<axes> out_strides;
-    filter::strides(out_strides, out_frame_stride, out_extents * channels);
+    strides(out_strides, out_frame_stride, out_extents * channels);
     ivec<axes> filter_strides;
-    filter::strides(filter_strides, filter_extents);
+    strides(filter_strides, filter_extents);
     return {frame_stride,
             out_frame_stride,
             in_strides,
