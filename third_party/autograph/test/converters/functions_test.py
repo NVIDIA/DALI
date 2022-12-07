@@ -23,6 +23,7 @@ from autograph.impl import api
 
 CONSTANT = 1
 
+
 class FunctionTransformer(converter_testing.TestCase):
 
   def test_basic(self):

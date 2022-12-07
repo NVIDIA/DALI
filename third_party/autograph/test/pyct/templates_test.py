@@ -319,11 +319,10 @@ class TemplatesTest(unittest.TestCase):
 
   def test_replace_name_mixed_attr_subscript(self):
     template = 'foo = bar'
-    for name, expression_source in [
-      ('mixed_attr_subscript', 'a.b["c"]'),
-      ('mixed_subscript_attr', 'a[b.c]'),
-      ('nested_subscript', 'a[b[c]]'),
-      ('repeated_subscript', 'a[b][c]')]:
+    for name, expression_source in [('mixed_attr_subscript', 'a.b["c"]'),
+                                    ('mixed_subscript_attr', 'a[b.c]'),
+                                    ('nested_subscript', 'a[b[c]]'),
+                                    ('repeated_subscript', 'a[b][c]')]:
       replacement = _parse_with_unset_ctx(expression_source)
 
       target_node = templates.replace(template, foo=replacement)[0].targets[0]

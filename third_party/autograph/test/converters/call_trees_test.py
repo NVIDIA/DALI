@@ -255,4 +255,3 @@ class CallTreesTest(converter_testing.TestCase):
 
     self.assertEqual(321, tr(tc, 1))
     self.assertListEqual(mock.calls, [((1,), None)])
-

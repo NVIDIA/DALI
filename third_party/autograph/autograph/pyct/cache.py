@@ -89,5 +89,3 @@ class UnboundInstanceCache(_TransformedFnCache):
     if inspect.ismethod(entity):
       return entity.__func__
     return entity
-
-

@@ -26,6 +26,7 @@ from autograph.core import converter
 from autograph.impl import api
 from autograph.impl import conversion
 
+
 class ConversionTest(unittest.TestCase):
 
   def _simple_program_ctx(self):
@@ -74,4 +75,3 @@ class ConversionTest(unittest.TestCase):
     self.assertTrue(conversion.is_allowlisted(tc.allowlisted_method))
     self.assertFalse(conversion.is_allowlisted(Subclass))
     self.assertFalse(conversion.is_allowlisted(tc.converted_method))
-

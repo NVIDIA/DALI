@@ -32,7 +32,6 @@ class PyBuiltinsTest(unittest.TestCase):
   def test_abs(self):
     self.assertEqual(py_builtins.abs_(-1), 1)
 
-
   def test_float(self):
     self.assertEqual(py_builtins.float_(10), 10.0)
     self.assertEqual(py_builtins.float_('10.0'), 10.0)
@@ -108,7 +107,7 @@ class PyBuiltinsTest(unittest.TestCase):
   def test_eval_in_original_context(self):
 
     def test_fn():
-      l = 1  # pylint:disable=unused-variable
+      l = 1  # pylint:disable=unused-variable # noqa: F841
       with self._basic_function_scope() as test_scope:
         return py_builtins.eval_in_original_context(eval, ('l',), test_scope)
 
@@ -117,13 +116,13 @@ class PyBuiltinsTest(unittest.TestCase):
   def test_eval_in_original_context_inner_function(self):
 
     def test_fn():
-      l = 1  # pylint:disable=unused-variable
+      l = 1  # pylint:disable=unused-variable # noqa: F841
       with self._basic_function_scope() as test_scope:
 
         def inner_fn():
           # Note: a user function without a top-level function scope should
           # never be found in user code; it's only possible in generated code.
-          l = 2  # pylint:disable=unused-variable
+          l = 2  # pylint:disable=unused-variable # noqa: F841
           return py_builtins.eval_in_original_context(eval, ('l',), test_scope)
 
         return inner_fn()
@@ -133,7 +132,7 @@ class PyBuiltinsTest(unittest.TestCase):
   def test_locals_in_original_context(self):
 
     def test_fn():
-      l = 1  # pylint:disable=unused-variable
+      l = 1  # pylint:disable=unused-variable # noqa: F841
       with self._basic_function_scope() as test_scope:
         return py_builtins.locals_in_original_context(test_scope)
 
@@ -144,13 +143,13 @@ class PyBuiltinsTest(unittest.TestCase):
   def test_locals_in_original_context_inner_function(self):
 
     def test_fn():
-      l = 1  # pylint:disable=unused-variable
+      l = 1  # pylint:disable=unused-variable # noqa: F841
       with self._basic_function_scope() as test_scope:
 
         def inner_fn():
           # Note: a user function without a top-level function scope should
           # never be found in user code; it's only possible in generated code.
-          l = 2  # pylint:disable=unused-variable
+          l = 2  # pylint:disable=unused-variable # noqa: F841
           return py_builtins.locals_in_original_context(test_scope)
 
         return inner_fn()
@@ -326,4 +325,3 @@ class PyBuiltinsTest(unittest.TestCase):
     self.assertEqual(
         py_builtins.sorted_([[4, 3], [2, 1]], key=lambda x: sum(x)),
         [[2, 1], [4, 3]])
-

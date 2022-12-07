@@ -537,7 +537,7 @@ class TypeInferenceAnalyzerTest(unittest.TestCase):
     def test_fn(x: float):  # pylint:disable=unused-argument
 
       def foo():
-        x = x + 1  # pylint:disable=used-before-assignment
+        x = x + 1  # pylint:disable=used-before-assignment # noqa: F823,F841
 
       foo()
 

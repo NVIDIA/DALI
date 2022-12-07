@@ -155,7 +155,7 @@ def is_allowlisted(
     # Callable objects: allowed if their __call__ method is.
     # The type check avoids infinite recursion around the __call__ method
     # of function objects.
-    if (type(o) != type(o.__call__)) and is_allowlisted(o.__call__):  # pylint: disable=unidiomatic-typecheck
+    if (type(o) != type(o.__call__)) and is_allowlisted(o.__call__):  # pylint: disable=unidiomatic-typecheck # noqa: E721,E501
       logging.log(2, 'Allowlisted: %s: object __call__ allowed', o)
       return True
 

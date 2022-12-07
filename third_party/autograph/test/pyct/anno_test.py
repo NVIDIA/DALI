@@ -74,4 +74,3 @@ class AnnoTest(unittest.TestCase):
     self.assertTrue(anno.hasanno(node, 'ham'))
     self.assertTrue(anno.hasanno(node, 'eggs'))
     self.assertFalse(anno.hasanno(node.body[0], 'eggs'))
-

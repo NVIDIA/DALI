@@ -168,7 +168,6 @@ class WhileStatementTest(ControlFlowTestBase):
 
     self.assertTransformedResult(f, custom_constant(5), (10, 0))
 
-
   def test_local_composite_attr(self):
 
     class TestClass(object):
@@ -240,7 +239,6 @@ class IfStatementTest(ControlFlowTestBase):
 
     self.assertTransformedResult(f, custom_constant(1), (-1, 0))
     self.assertTransformedResult(f, custom_constant(-1), (0, -2))
-
 
   def test_complex_outputs(self):
 
@@ -343,7 +341,7 @@ class IfStatementTest(ControlFlowTestBase):
 
     def f(n):
       if n > 0:
-        b = 4  # pylint:disable=unused-variable
+        b = 4  # pylint:disable=unused-variable # noqa: F841
       return n
 
     self.assertTransformedResult(f, custom_constant(1), 1)
@@ -527,7 +525,7 @@ class ForStatementTest(ControlFlowTestBase):
   def test_tuple_unpacking(self):
 
     def f(x_list):
-      z = custom_constant(0)  # pylint:disable=undefined-variable
+      z = custom_constant(0)  # pylint:disable=undefined-variable # noqa: F821
       for i, x in enumerate(x_list):
         z = z + x + i
       return z

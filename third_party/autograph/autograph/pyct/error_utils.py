@@ -143,6 +143,7 @@ class MultilineMessageKeyError(KeyError):
   def __str__(self):
     return self.__message
 
+
 MultilineMessageKeyError.__name__ = KeyError.__name__
 
 
