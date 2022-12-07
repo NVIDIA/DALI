@@ -10,4 +10,4 @@ statistics = True
 extend-ignore =
   E741, # ambiguous variable name 'l'
   E731, # do not assign a lambda expression, use a def
-  F401, # 'autograph.operators....' imported but unused - used to bring types into another module
+  F401  # 'autograph.operators....' imported but unused - used to bring types into another module
