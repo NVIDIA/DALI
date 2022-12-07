@@ -442,10 +442,10 @@ Parameters
               accommodate data produced by the parallel external source.
 
             * ``per_sample_capacities`` - a list of sizes (in bytes) of shared memory slots
-              divided by the mini-batch size, i.e. the maximal number of samples stored in such a slot.
-              This value corresponds to external source's ``bytes_per_sample_hint`` parameter,
-              i.e. if the hint is big enough and the external source does not need to reallocate the memory,
-              the values should be equal.
+              divided by the mini-batch size, i.e. the maximal number of samples stored in
+              such a slot. This value corresponds to external source's ``bytes_per_sample_hint``
+              parameter, i.e., if the hint is big enough and the external source does not need
+              to reallocate the memory, the values should be equal.
         """
         if self._py_pool is None:
             capacities, per_sample_capacities = [], []
