@@ -37,6 +37,7 @@ build:
    - BUILD_LIBSND
    - BUILD_LIBTAR
    - BUILD_FFTS
+   - BUILD_CFITSIO
    - BUILD_NVOF
    - BUILD_NVDEC
    - BUILD_NVML
@@ -84,6 +85,7 @@ requirements:
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
     - openjpeg
+    - cfitsio
   run:
     - python
     - future
@@ -99,3 +101,4 @@ requirements:
     # we link it statically so it doesn't carry the dependency, so we need to add it manually
     - libwebp-base
     - openjpeg
+    - cfitsio

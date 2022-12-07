@@ -168,6 +168,7 @@ if [ "$BUILD_INHOST" == "YES" ]; then
                                         BUILD_LIBTAR=${BUILD_LIBTAR}              \
                                         BUILD_NVML=${BUILD_NVML}                  \
                                         BUILD_FFTS=${BUILD_FFTS}                  \
+                                        BUILD_CFITSIO=${BUILD_CFITSIO}            \
                                         BUILD_CUFILE=${BUILD_CUFILE}              \
                                         BUILD_NVCOMP=${BUILD_NVCOMP}              \
                                         LINK_DRIVER=${LINK_DRIVER}                \
@@ -210,6 +211,7 @@ else
                                    --build-arg "BUILD_LIBSND=${BUILD_LIBSND}"              \
                                    --build-arg "BUILD_NVML=${BUILD_NVML}"                  \
                                    --build-arg "BUILD_FFTS=${BUILD_FFTS}"                  \
+                                   --build-arg "BUILD_CFITSIO=${BUILD_CFITSIO}"            \
                                    --build-arg "BUILD_CUFILE=${BUILD_CUFILE}"              \
                                    --build-arg "BUILD_NVCOMP=${BUILD_NVCOMP}"              \
                                    --build-arg "LINK_DRIVER=${LINK_DRIVER}"                \
