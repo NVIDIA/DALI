@@ -22,10 +22,10 @@ import textwrap
 
 import gast
 
-from autograph.pyct import anno
-from autograph.pyct import ast_util
-from autograph.pyct import parser
-from autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import ast_util
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import qual_names
 
 
 class ContextAdjuster(gast.NodeTransformer):

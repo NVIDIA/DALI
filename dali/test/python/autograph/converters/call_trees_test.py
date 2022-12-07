@@ -16,9 +16,9 @@
 
 import imp
 
-from autograph.converters import call_trees
-from autograph.converters import functions
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import call_trees
+from nvidia.dali._autograph.converters import functions
+from nvidia.dali._autograph.core import converter_testing
 
 
 class MockConvertedCall(object):

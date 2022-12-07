@@ -24,8 +24,8 @@ import os
 import sys
 import tempfile
 
-from autograph.pyct import origin_info
-from autograph.pyct import parser
+from nvidia.dali._autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import parser
 
 
 def _remove_file(file_name):

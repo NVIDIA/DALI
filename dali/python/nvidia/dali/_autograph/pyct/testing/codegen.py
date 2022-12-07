@@ -20,7 +20,7 @@ import string
 import gast
 import numpy as np
 
-from autograph.pyct import templates
+from nvidia.dali._autograph.pyct import templates
 
 
 class NodeSampler(object):

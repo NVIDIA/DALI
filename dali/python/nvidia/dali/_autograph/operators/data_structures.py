@@ -16,7 +16,7 @@
 
 import collections
 
-from autograph.utils import hooks
+from nvidia.dali._autograph.utils import hooks
 
 
 # TODO(mdan): Once control flow supports objects, repackage as a class.

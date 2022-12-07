@@ -22,44 +22,44 @@ import sys
 import textwrap
 import traceback
 
-from autograph import operators
-from autograph import utils
-from autograph.converters import asserts
-from autograph.converters import break_statements
-from autograph.converters import call_trees
-from autograph.converters import conditional_expressions
-from autograph.converters import continue_statements
-from autograph.converters import control_flow
-from autograph.converters import directives
-from autograph.converters import functions
-from autograph.converters import lists
-from autograph.converters import logical_expressions
-from autograph.converters import return_statements
-from autograph.converters import slices
-from autograph.converters import variables
-from autograph.core import ag_ctx
-from autograph.core import converter
-from autograph.core import config
-from autograph.core import function_wrappers
-from autograph.core import unsupported_features_checker
-from autograph.impl import conversion
-from autograph.operators import py_builtins
-from autograph.pyct import anno
-from autograph.pyct import cfg
-from autograph.pyct import error_utils
-from autograph.pyct import errors
-from autograph.pyct import inspect_utils
-from autograph.pyct import origin_info
-from autograph.pyct import qual_names
-from autograph.pyct import transpiler
-from autograph.pyct.static_analysis import activity
-from autograph.pyct.static_analysis import reaching_definitions
-from autograph.utils import hooks
-from autograph.utils import ag_logging as logging
-from autograph.utils import all_utils
+from nvidia.dali._autograph import operators
+from nvidia.dali._autograph import utils
+from nvidia.dali._autograph.converters import asserts
+from nvidia.dali._autograph.converters import break_statements
+from nvidia.dali._autograph.converters import call_trees
+from nvidia.dali._autograph.converters import conditional_expressions
+from nvidia.dali._autograph.converters import continue_statements
+from nvidia.dali._autograph.converters import control_flow
+from nvidia.dali._autograph.converters import directives
+from nvidia.dali._autograph.converters import functions
+from nvidia.dali._autograph.converters import lists
+from nvidia.dali._autograph.converters import logical_expressions
+from nvidia.dali._autograph.converters import return_statements
+from nvidia.dali._autograph.converters import slices
+from nvidia.dali._autograph.converters import variables
+from nvidia.dali._autograph.core import ag_ctx
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.core import config
+from nvidia.dali._autograph.core import function_wrappers
+from nvidia.dali._autograph.core import unsupported_features_checker
+from nvidia.dali._autograph.impl import conversion
+from nvidia.dali._autograph.operators import py_builtins
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import cfg
+from nvidia.dali._autograph.pyct import error_utils
+from nvidia.dali._autograph.pyct import errors
+from nvidia.dali._autograph.pyct import inspect_utils
+from nvidia.dali._autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import transpiler
+from nvidia.dali._autograph.pyct.static_analysis import activity
+from nvidia.dali._autograph.pyct.static_analysis import reaching_definitions
+from nvidia.dali._autograph.utils import hooks
+from nvidia.dali._autograph.utils import ag_logging as logging
+from nvidia.dali._autograph.utils import all_utils
 # TODO(klecki): replace missing functionality
-# from autograph.utils import tf_stack
-from autograph.utils.all_utils import export_symbol
+# from nvidia.dali._autograph.utils import tf_stack
+from nvidia.dali._autograph.utils.all_utils import export_symbol
 
 
 def is_autograph_strict_conversion_mode():

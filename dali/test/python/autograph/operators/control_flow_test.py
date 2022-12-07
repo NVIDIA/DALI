@@ -19,7 +19,7 @@
 
 import unittest
 
-from autograph.operators import control_flow
+from nvidia.dali._autograph.operators import control_flow
 
 
 class ForLoopTest(unittest.TestCase):

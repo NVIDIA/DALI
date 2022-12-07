@@ -17,11 +17,11 @@
 import textwrap
 import unittest
 
-from autograph.pyct import anno
-from autograph.pyct import parser
-from autograph.pyct import qual_names
-from autograph.pyct.qual_names import QN
-from autograph.pyct.qual_names import resolve
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct.qual_names import QN
+from nvidia.dali._autograph.pyct.qual_names import resolve
 
 
 class QNTest(unittest.TestCase):

@@ -17,7 +17,7 @@
 import ast
 import unittest
 
-from autograph.pyct import anno
+from nvidia.dali._autograph.pyct import anno
 
 
 # TODO(mdan): Consider strong types instead of primitives.

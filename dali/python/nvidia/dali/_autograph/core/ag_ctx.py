@@ -18,8 +18,8 @@ import enum
 import inspect
 import threading
 
-from autograph.utils import ag_logging
-from autograph.utils.all_utils import export_symbol
+from nvidia.dali._autograph.utils import ag_logging
+from nvidia.dali._autograph.utils.all_utils import export_symbol
 
 
 stacks = threading.local()

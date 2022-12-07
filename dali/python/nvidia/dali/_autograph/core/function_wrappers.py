@@ -14,9 +14,9 @@
 # ==============================================================================
 """Support for wrapping converted functions bodies with auxiliary logic."""
 
-from autograph.core import ag_ctx
-from autograph.core import converter
-from autograph.operators import variables
+from nvidia.dali._autograph.core import ag_ctx
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.operators import variables
 
 
 # TODO(mdan): Move this into operators - it represents a function definition.

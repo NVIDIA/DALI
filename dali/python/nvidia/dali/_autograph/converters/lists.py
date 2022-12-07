@@ -28,14 +28,14 @@ This includes converting Python lists to TensorArray/TensorList.
 
 import gast
 
-from autograph.core import converter
-from autograph.lang import directives
-from autograph.pyct import anno
-from autograph.pyct import parser
-from autograph.pyct import qual_names
-from autograph.pyct import templates
-from autograph.pyct.static_analysis import activity
-from autograph.pyct.static_analysis.annos import NodeAnno
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.lang import directives
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import templates
+from nvidia.dali._autograph.pyct.static_analysis import activity
+from nvidia.dali._autograph.pyct.static_analysis.annos import NodeAnno
 
 
 class _Statement(object):

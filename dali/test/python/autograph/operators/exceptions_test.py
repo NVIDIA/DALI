@@ -16,7 +16,7 @@
 
 import unittest
 
-from autograph.operators import exceptions
+from nvidia.dali._autograph.operators import exceptions
 
 
 class ExceptionsTest(unittest.TestCase):

@@ -20,11 +20,11 @@ import unittest
 
 import six
 
-from autograph import utils
-from autograph.core import config
-from autograph.core import converter
-from autograph.impl import api
-from autograph.impl import conversion
+from nvidia.dali._autograph import utils
+from nvidia.dali._autograph.core import config
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.impl import api
+from nvidia.dali._autograph.impl import conversion
 
 
 class ConversionTest(unittest.TestCase):

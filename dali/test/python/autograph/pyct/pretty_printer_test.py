@@ -18,7 +18,7 @@ import ast
 import textwrap
 import unittest
 
-from autograph.pyct import pretty_printer
+from nvidia.dali._autograph.pyct import pretty_printer
 
 
 class PrettyPrinterTest(unittest.TestCase):

@@ -16,7 +16,7 @@
 
 import unittest
 
-from autograph.operators import variables
+from nvidia.dali._autograph.operators import variables
 
 
 class SpecialValuesTest(unittest.TestCase):

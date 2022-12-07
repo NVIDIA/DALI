@@ -14,8 +14,8 @@
 # ==============================================================================
 """Tests for conditional_expressions module."""
 
-from autograph.converters import conditional_expressions
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import conditional_expressions
+from nvidia.dali._autograph.core import converter_testing
 
 
 class ConditionalExpressionsTest(converter_testing.TestCase):

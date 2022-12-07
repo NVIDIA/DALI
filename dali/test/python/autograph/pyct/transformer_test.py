@@ -18,10 +18,10 @@ import re
 import gast
 import unittest
 
-from autograph.pyct import anno
-from autograph.pyct import origin_info
-from autograph.pyct import parser
-from autograph.pyct import transformer
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import transformer
 
 
 class TransformerTest(unittest.TestCase):

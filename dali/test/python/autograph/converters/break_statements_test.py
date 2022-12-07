@@ -14,9 +14,9 @@
 # ==============================================================================
 """Tests for break_statements module."""
 
-from autograph.converters import break_statements
-from autograph.core import converter_testing
-from autograph.pyct import anno
+from nvidia.dali._autograph.converters import break_statements
+from nvidia.dali._autograph.core import converter_testing
+from nvidia.dali._autograph.pyct import anno
 
 
 class BreakCanonicalizationTest(converter_testing.TestCase):

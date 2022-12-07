@@ -14,7 +14,7 @@
 # ==============================================================================
 """Conditional expressions (e.g. the ternary if statement)."""
 
-from autograph.utils import hooks
+from nvidia.dali._autograph.utils import hooks
 
 
 def if_exp(cond, if_true, if_false, expr_repr):

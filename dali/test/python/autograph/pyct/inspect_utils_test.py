@@ -23,9 +23,9 @@ import unittest
 
 import six
 
-from autograph.pyct import inspect_utils
-from autograph.pyct.testing import basic_definitions
-from autograph.pyct.testing import decorators
+from nvidia.dali._autograph.pyct import inspect_utils
+from nvidia.dali._autograph.pyct.testing import basic_definitions
+from nvidia.dali._autograph.pyct.testing import decorators
 
 
 def decorator(f):

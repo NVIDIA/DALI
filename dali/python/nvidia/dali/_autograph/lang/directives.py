@@ -21,7 +21,7 @@ These serve as annotations in the compiled code, allowing the user some control
 over the compilation process. They have no functional role at runtime.
 """
 
-from autograph.utils.all_utils import export_symbol
+from nvidia.dali._autograph.utils.all_utils import export_symbol
 
 UNSPECIFIED = object()
 

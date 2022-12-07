@@ -14,9 +14,9 @@
 # ==============================================================================
 """Tests for return_statements module."""
 
-from autograph.converters import functions
-from autograph.converters import return_statements
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import functions
+from nvidia.dali._autograph.converters import return_statements
+from nvidia.dali._autograph.core import converter_testing
 
 
 class SingleReturnTest(converter_testing.TestCase):

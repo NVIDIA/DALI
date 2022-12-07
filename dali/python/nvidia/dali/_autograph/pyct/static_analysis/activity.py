@@ -22,10 +22,10 @@ import weakref
 
 import gast
 
-from autograph.pyct import anno
-from autograph.pyct import qual_names
-from autograph.pyct import transformer
-from autograph.pyct.static_analysis.annos import NodeAnno
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import transformer
+from nvidia.dali._autograph.pyct.static_analysis.annos import NodeAnno
 
 
 class Scope(object):

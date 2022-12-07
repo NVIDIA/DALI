@@ -14,10 +14,10 @@
 # ==============================================================================
 """Tests for directives module."""
 
-from autograph.converters import directives as directives_converter
-from autograph.core import converter_testing
-from autograph.lang import directives
-from autograph.pyct import anno
+from nvidia.dali._autograph.converters import directives as directives_converter
+from nvidia.dali._autograph.core import converter_testing
+from nvidia.dali._autograph.lang import directives
+from nvidia.dali._autograph.pyct import anno
 
 
 class DirectivesTest(converter_testing.TestCase):

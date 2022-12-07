@@ -19,10 +19,10 @@ import unittest
 
 import gast
 
-from autograph.pyct import loader
-from autograph.pyct import parser
-from autograph.pyct import qual_names as qn
-from autograph.pyct import templates
+from nvidia.dali._autograph.pyct import loader
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import qual_names as qn
+from nvidia.dali._autograph.pyct import templates
 
 
 class _CtxClearer(gast.NodeTransformer):

@@ -16,7 +16,7 @@
 
 import unittest
 
-from autograph.pyct import cache
+from nvidia.dali._autograph.pyct import cache
 
 
 class CacheTest(unittest.TestCase):

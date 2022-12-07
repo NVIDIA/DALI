@@ -14,12 +14,12 @@
 # ==============================================================================
 """Tests for functions module."""
 
-from autograph.converters import functions
-from autograph.converters import return_statements
-from autograph.core import ag_ctx
-from autograph.core import converter
-from autograph.core import converter_testing
-from autograph.impl import api
+from nvidia.dali._autograph.converters import functions
+from nvidia.dali._autograph.converters import return_statements
+from nvidia.dali._autograph.core import ag_ctx
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.core import converter_testing
+from nvidia.dali._autograph.impl import api
 
 CONSTANT = 1
 

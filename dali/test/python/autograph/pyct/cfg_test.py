@@ -18,8 +18,8 @@ import unittest
 
 import gast
 
-from autograph.pyct import cfg
-from autograph.pyct import parser
+from nvidia.dali._autograph.pyct import cfg
+from nvidia.dali._autograph.pyct import parser
 
 
 class CountingVisitor(cfg.GraphVisitor):

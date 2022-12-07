@@ -14,8 +14,8 @@
 # ==============================================================================
 """Tests for list_comprehensions module."""
 
-from autograph.converters import list_comprehensions
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import list_comprehensions
+from nvidia.dali._autograph.core import converter_testing
 
 
 class ListCompTest(converter_testing.TestCase):

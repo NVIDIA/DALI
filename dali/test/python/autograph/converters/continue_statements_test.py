@@ -14,8 +14,8 @@
 # ==============================================================================
 """Tests for continue_statements module."""
 
-from autograph.converters import continue_statements
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import continue_statements
+from nvidia.dali._autograph.core import converter_testing
 
 
 class ContinueCanonicalizationTest(converter_testing.TestCase):

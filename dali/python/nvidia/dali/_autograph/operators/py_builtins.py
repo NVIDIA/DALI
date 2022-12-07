@@ -19,7 +19,7 @@ List of built-in functions: https://docs.python.org/3/library/functions.html
 
 import inspect
 
-from autograph.utils import hooks
+from nvidia.dali._autograph.utils import hooks
 
 
 UNSPECIFIED = object()

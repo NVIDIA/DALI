@@ -16,8 +16,8 @@
 
 import unittest
 
-from autograph.operators import slices
-from autograph.utils.all_utils import custom_constant
+from nvidia.dali._autograph.operators import slices
+from nvidia.dali._autograph.utils.all_utils import custom_constant
 
 
 class SlicesTest(unittest.TestCase):

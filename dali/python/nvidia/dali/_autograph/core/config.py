@@ -14,7 +14,7 @@
 # ==============================================================================
 """Global configuration."""
 
-from autograph.core import config_lib
+from nvidia.dali._autograph.core import config_lib
 
 Action = config_lib.Action
 Convert = config_lib.Convert

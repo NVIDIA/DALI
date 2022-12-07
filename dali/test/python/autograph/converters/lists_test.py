@@ -14,10 +14,10 @@
 # ==============================================================================
 """Tests for lists module."""
 
-from autograph.converters import directives as directives_converter
-from autograph.converters import lists
-from autograph.core import converter_testing
-from autograph.utils import hooks
+from nvidia.dali._autograph.converters import directives as directives_converter
+from nvidia.dali._autograph.converters import lists
+from nvidia.dali._autograph.core import converter_testing
+from nvidia.dali._autograph.utils import hooks
 
 
 class TestList(list):

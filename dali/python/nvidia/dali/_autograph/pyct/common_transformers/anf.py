@@ -27,9 +27,9 @@ import collections
 import gast
 import six
 
-from autograph.pyct import gast_util
-from autograph.pyct import templates
-from autograph.pyct import transformer
+from nvidia.dali._autograph.pyct import gast_util
+from nvidia.dali._autograph.pyct import templates
+from nvidia.dali._autograph.pyct import transformer
 
 
 # TODO(mdan): Replace with naming.Namer.

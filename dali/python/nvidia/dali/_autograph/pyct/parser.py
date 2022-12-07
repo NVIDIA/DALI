@@ -29,8 +29,8 @@ import astunparse
 import gast
 import six
 
-from autograph.pyct import errors
-from autograph.pyct import inspect_utils
+from nvidia.dali._autograph.pyct import errors
+from nvidia.dali._autograph.pyct import inspect_utils
 
 
 PY2_PREAMBLE = textwrap.dedent("""

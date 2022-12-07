@@ -14,8 +14,8 @@
 # ==============================================================================
 """Tests for logical_expressions module."""
 
-from autograph.converters import logical_expressions
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import logical_expressions
+from nvidia.dali._autograph.core import converter_testing
 
 
 class LogicalExpressionTest(converter_testing.TestCase):

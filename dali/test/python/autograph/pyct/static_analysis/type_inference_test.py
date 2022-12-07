@@ -18,14 +18,14 @@ import unittest
 
 from typing import Any, Callable, List
 
-from autograph.pyct import anno
-from autograph.pyct import cfg
-from autograph.pyct import qual_names
-from autograph.pyct import transpiler
-from autograph.pyct.static_analysis import activity
-from autograph.pyct.static_analysis import reaching_definitions
-from autograph.pyct.static_analysis import reaching_fndefs
-from autograph.pyct.static_analysis import type_inference
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import cfg
+from nvidia.dali._autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import transpiler
+from nvidia.dali._autograph.pyct.static_analysis import activity
+from nvidia.dali._autograph.pyct.static_analysis import reaching_definitions
+from nvidia.dali._autograph.pyct.static_analysis import reaching_fndefs
+from nvidia.dali._autograph.pyct.static_analysis import type_inference
 
 
 class BasicTestResolver(type_inference.Resolver):

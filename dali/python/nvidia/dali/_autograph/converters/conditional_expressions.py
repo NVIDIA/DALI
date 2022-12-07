@@ -16,9 +16,9 @@
 
 import gast
 
-from autograph.core import converter
-from autograph.pyct import parser
-from autograph.pyct import templates
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import templates
 
 
 class ConditionalExpressionTransformer(converter.Base):

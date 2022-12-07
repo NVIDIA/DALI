@@ -55,7 +55,7 @@ self.x = self_x    # the result is not properly captured
 ```
 """
 
-from autograph.utils import hooks
+from nvidia.dali._autograph.utils import hooks
 
 # TODO(mdan): Use the custom operator pattern instead of type dispatch.
 # An example of this pattern is found in the implementation of distributed

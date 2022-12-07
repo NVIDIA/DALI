@@ -35,16 +35,16 @@ import six
 from operator import add
 from functools import reduce
 
-from autograph.core import ag_ctx
-from autograph.core import converter
-from autograph.core import converter_testing
-from autograph.impl import api
-from autograph.impl import conversion
-from autograph.pyct import errors
-from autograph.pyct import inspect_utils
-from autograph.pyct import parser
-from autograph.utils import ag_logging
-# from autograph.utils.all_utils import custom_constant
+from nvidia.dali._autograph.core import ag_ctx
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.core import converter_testing
+from nvidia.dali._autograph.impl import api
+from nvidia.dali._autograph.impl import conversion
+from nvidia.dali._autograph.pyct import errors
+from nvidia.dali._autograph.pyct import inspect_utils
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.utils import ag_logging
+# from nvidia.dali._autograph.utils.all_utils import custom_constant
 
 
 api.initialize_autograph()

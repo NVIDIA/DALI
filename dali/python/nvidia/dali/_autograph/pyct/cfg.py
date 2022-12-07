@@ -45,7 +45,7 @@ from typing import Dict, Set, Tuple
 import astunparse
 import gast
 
-from autograph.pyct import anno
+from nvidia.dali._autograph.pyct import anno
 
 
 class Node(object):

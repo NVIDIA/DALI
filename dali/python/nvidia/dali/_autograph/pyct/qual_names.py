@@ -25,8 +25,8 @@ import collections
 
 import gast
 
-from autograph.pyct import anno
-from autograph.pyct import parser
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import parser
 
 
 class CallerMustSetThis(object):

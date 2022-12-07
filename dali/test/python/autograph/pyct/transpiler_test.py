@@ -19,8 +19,8 @@ import unittest
 
 import gast
 
-from autograph.pyct import transformer
-from autograph.pyct import transpiler
+from nvidia.dali._autograph.pyct import transformer
+from nvidia.dali._autograph.pyct import transpiler
 
 
 class FlipSignTransformer(transformer.Base):

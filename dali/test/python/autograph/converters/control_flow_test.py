@@ -16,11 +16,11 @@
 
 import collections
 
-from autograph.converters import break_statements
-from autograph.converters import continue_statements
-from autograph.converters import control_flow
-from autograph.core import converter_testing
-from autograph.utils.all_utils import custom_constant
+from nvidia.dali._autograph.converters import break_statements
+from nvidia.dali._autograph.converters import continue_statements
+from nvidia.dali._autograph.converters import control_flow
+from nvidia.dali._autograph.core import converter_testing
+from nvidia.dali._autograph.utils.all_utils import custom_constant
 
 for_unaffected_global = None
 for_mixed_globals_nonglobals = None

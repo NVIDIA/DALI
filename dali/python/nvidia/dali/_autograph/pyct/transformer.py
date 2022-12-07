@@ -19,10 +19,10 @@ import enum
 
 import gast
 
-from autograph.pyct import anno
-from autograph.pyct import parser
-from autograph.pyct import pretty_printer
-from autograph.pyct import templates
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import pretty_printer
+from nvidia.dali._autograph.pyct import templates
 
 
 class AnalysisLevel(enum.IntEnum):

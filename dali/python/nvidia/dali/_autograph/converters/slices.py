@@ -16,9 +16,9 @@
 
 import gast
 
-from autograph.core import converter
-from autograph.lang import directives
-from autograph.pyct import templates
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.lang import directives
+from nvidia.dali._autograph.pyct import templates
 
 
 class SliceTransformer(converter.Base):

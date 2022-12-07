@@ -14,7 +14,7 @@
 # ==============================================================================
 """Symbol naming utilities."""
 
-from autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import qual_names
 
 
 class Namer(object):

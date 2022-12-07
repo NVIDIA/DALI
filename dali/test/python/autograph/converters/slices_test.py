@@ -14,9 +14,9 @@
 # ==============================================================================
 """Tests for slices module."""
 
-from autograph.converters import directives as directives_converter
-from autograph.converters import slices
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import directives as directives_converter
+from nvidia.dali._autograph.converters import slices
+from nvidia.dali._autograph.core import converter_testing
 
 
 class SliceTest(converter_testing.TestCase):

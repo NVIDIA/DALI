@@ -23,10 +23,10 @@ import unittest
 
 import six
 
-from autograph.core import config
-from autograph.core import converter
-from autograph.impl import api
-from autograph.utils import hooks
+from nvidia.dali._autograph.core import config
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.impl import api
+from nvidia.dali._autograph.utils import hooks
 
 
 def allowlist(f):

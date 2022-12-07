@@ -16,19 +16,19 @@
 
 import gast
 
-from autograph.core import converter
-from autograph.lang import directives
-from autograph.pyct import anno
-from autograph.pyct import cfg
-from autograph.pyct import origin_info
-from autograph.pyct import parser
-from autograph.pyct import qual_names
-from autograph.pyct import templates
-from autograph.pyct.static_analysis import activity
-from autograph.pyct.static_analysis import annos
-from autograph.pyct.static_analysis import liveness
-from autograph.pyct.static_analysis import reaching_definitions
-from autograph.pyct.static_analysis import reaching_fndefs
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.lang import directives
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import cfg
+from nvidia.dali._autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import templates
+from nvidia.dali._autograph.pyct.static_analysis import activity
+from nvidia.dali._autograph.pyct.static_analysis import annos
+from nvidia.dali._autograph.pyct.static_analysis import liveness
+from nvidia.dali._autograph.pyct.static_analysis import reaching_definitions
+from nvidia.dali._autograph.pyct.static_analysis import reaching_fndefs
 
 
 class _Function(object):

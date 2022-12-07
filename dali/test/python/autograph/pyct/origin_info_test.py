@@ -19,11 +19,11 @@ import sys
 import textwrap
 import unittest
 
-from autograph.pyct import anno
-from autograph.pyct import inspect_utils
-from autograph.pyct import origin_info
-from autograph.pyct import parser
-from autograph.pyct.testing import basic_definitions
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import inspect_utils
+from nvidia.dali._autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct.testing import basic_definitions
 
 
 class OriginInfoTest(unittest.TestCase):

@@ -16,9 +16,9 @@
 
 import unittest
 
-from autograph.core import converter
-from autograph.core import function_wrappers
-from autograph.operators import py_builtins
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.core import function_wrappers
+from nvidia.dali._autograph.operators import py_builtins
 
 
 class TestBase(object):

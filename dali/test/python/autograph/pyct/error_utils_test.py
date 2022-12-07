@@ -17,8 +17,8 @@
 import re
 import unittest
 
-from autograph.pyct import error_utils
-from autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import error_utils
+from nvidia.dali._autograph.pyct import origin_info
 
 
 class ErrorMetadataBaseTest(unittest.TestCase):

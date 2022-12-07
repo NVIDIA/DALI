@@ -16,7 +16,7 @@
 
 import gast
 
-from autograph.pyct import errors
+from nvidia.dali._autograph.pyct import errors
 
 
 class UnsupportedFeaturesChecker(gast.NodeVisitor):

@@ -16,7 +16,7 @@
 
 import unittest
 
-from autograph.operators import conditional_expressions
+from nvidia.dali._autograph.operators import conditional_expressions
 
 
 def _basic_expr(cond):

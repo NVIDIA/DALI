@@ -14,8 +14,8 @@
 # ==============================================================================
 """Tests for variables module."""
 
-from autograph.converters import variables
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import variables
+from nvidia.dali._autograph.core import converter_testing
 
 
 class VariablesTest(converter_testing.TestCase):

@@ -28,9 +28,9 @@ import weakref
 
 import gast
 
-from autograph.pyct import anno
-from autograph.pyct import cfg
-from autograph.pyct import transformer
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import cfg
+from nvidia.dali._autograph.pyct import transformer
 
 
 class Definition(object):

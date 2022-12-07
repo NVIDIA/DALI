@@ -19,10 +19,10 @@ import unittest
 
 import gast
 
-from autograph.pyct import loader
-from autograph.pyct import parser
-from autograph.pyct import transformer
-from autograph.pyct.common_transformers import anf
+from nvidia.dali._autograph.pyct import loader
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import transformer
+from nvidia.dali._autograph.pyct.common_transformers import anf
 
 
 # TODO(mdan): These two functions no longer need to be at the top level.

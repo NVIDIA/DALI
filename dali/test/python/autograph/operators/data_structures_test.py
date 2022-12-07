@@ -16,7 +16,7 @@
 
 import unittest
 
-from autograph.operators import data_structures
+from nvidia.dali._autograph.operators import data_structures
 
 
 class ListTest(unittest.TestCase):

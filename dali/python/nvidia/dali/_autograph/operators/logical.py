@@ -14,7 +14,7 @@
 # ==============================================================================
 """Logical boolean operators: not, and, or."""
 
-from autograph.utils import hooks
+from nvidia.dali._autograph.utils import hooks
 
 
 def not_(a):

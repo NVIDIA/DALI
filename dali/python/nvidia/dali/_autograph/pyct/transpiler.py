@@ -20,15 +20,15 @@ import types
 
 import gast
 
-from autograph.pyct import cache
-from autograph.pyct import inspect_utils
-from autograph.pyct import loader
-from autograph.pyct import naming
-from autograph.pyct import origin_info
-from autograph.pyct import parser
-from autograph.pyct import templates
-from autograph.pyct import transformer
-from autograph.utils import ag_logging as logging
+from nvidia.dali._autograph.pyct import cache
+from nvidia.dali._autograph.pyct import inspect_utils
+from nvidia.dali._autograph.pyct import loader
+from nvidia.dali._autograph.pyct import naming
+from nvidia.dali._autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import templates
+from nvidia.dali._autograph.pyct import transformer
+from nvidia.dali._autograph.utils import ag_logging as logging
 
 
 def _wrap_into_factory(nodes, entity_name, inner_factory_name,

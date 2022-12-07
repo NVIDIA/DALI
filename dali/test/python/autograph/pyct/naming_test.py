@@ -16,7 +16,7 @@
 
 import unittest
 
-from autograph.pyct import naming
+from nvidia.dali._autograph.pyct import naming
 
 
 class NamerTest(unittest.TestCase):

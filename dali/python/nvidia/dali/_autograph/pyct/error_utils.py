@@ -16,7 +16,7 @@
 
 import collections
 
-from autograph.pyct import origin_info
+from nvidia.dali._autograph.pyct import origin_info
 
 
 class FrameInfo(

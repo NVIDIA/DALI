@@ -14,10 +14,10 @@
 # ==============================================================================
 """Tests for asserts module."""
 
-from autograph.converters import asserts
-from autograph.converters import functions
-from autograph.converters import return_statements
-from autograph.core import converter_testing
+from nvidia.dali._autograph.converters import asserts
+from nvidia.dali._autograph.converters import functions
+from nvidia.dali._autograph.converters import return_statements
+from nvidia.dali._autograph.core import converter_testing
 
 
 class AssertsTest(converter_testing.TestCase):

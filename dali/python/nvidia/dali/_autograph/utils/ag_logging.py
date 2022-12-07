@@ -20,7 +20,7 @@ import traceback
 import logging
 
 # TODO(mdan): Use a custom logger class.
-from autograph.utils.all_utils import export_symbol
+from nvidia.dali._autograph.utils.all_utils import export_symbol
 
 VERBOSITY_VAR_NAME = 'AUTOGRAPH_VERBOSITY'
 DEFAULT_VERBOSITY = 0

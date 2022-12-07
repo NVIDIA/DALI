@@ -16,14 +16,14 @@
 
 import unittest
 
-from autograph.pyct import anno
-from autograph.pyct import cfg
-from autograph.pyct import naming
-from autograph.pyct import parser
-from autograph.pyct import qual_names
-from autograph.pyct import transformer
-from autograph.pyct.static_analysis import activity
-from autograph.pyct.static_analysis import reaching_definitions
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import cfg
+from nvidia.dali._autograph.pyct import naming
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import qual_names
+from nvidia.dali._autograph.pyct import transformer
+from nvidia.dali._autograph.pyct.static_analysis import activity
+from nvidia.dali._autograph.pyct.static_analysis import reaching_definitions
 
 
 global_a = 7

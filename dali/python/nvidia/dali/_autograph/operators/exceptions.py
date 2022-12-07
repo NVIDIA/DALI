@@ -16,7 +16,7 @@
 
 import inspect
 
-from autograph.utils import hooks
+from nvidia.dali._autograph.utils import hooks
 
 
 def assert_stmt(expression1, expression2):

@@ -32,23 +32,23 @@ and the [tf.function guide](https://www.tensorflow.org/guide/function#autograph_
 """
 
 # TODO(mdan): Bring only the relevant symbols to the top level.
-from autograph import operators
-from autograph import utils
-from autograph.core.converter import ConversionOptions
-from autograph.core.converter import Feature
-from autograph.impl.api import initialize_autograph
-from autograph.impl.api import AutoGraphError
-from autograph.impl.api import convert
-from autograph.impl.api import converted_call
-from autograph.impl.api import do_not_convert
-# from autograph.impl.api import StackTraceMapper
-from autograph.impl.api import to_code
-from autograph.impl.api import to_graph
-from autograph.lang.directives import set_element_type
-from autograph.lang.directives import set_loop_options
-from autograph.utils import ag_logging
-from autograph.utils.all_utils import _remove_undocumented
-from autograph.utils.hooks import OperatorBase
+from nvidia.dali._autograph import operators
+from nvidia.dali._autograph import utils
+from nvidia.dali._autograph.core.converter import ConversionOptions
+from nvidia.dali._autograph.core.converter import Feature
+from nvidia.dali._autograph.impl.api import initialize_autograph
+from nvidia.dali._autograph.impl.api import AutoGraphError
+from nvidia.dali._autograph.impl.api import convert
+from nvidia.dali._autograph.impl.api import converted_call
+from nvidia.dali._autograph.impl.api import do_not_convert
+# from nvidia.dali._autograph.impl.api import StackTraceMapper
+from nvidia.dali._autograph.impl.api import to_code
+from nvidia.dali._autograph.impl.api import to_graph
+from nvidia.dali._autograph.lang.directives import set_element_type
+from nvidia.dali._autograph.lang.directives import set_loop_options
+from nvidia.dali._autograph.utils import ag_logging
+from nvidia.dali._autograph.utils.all_utils import _remove_undocumented
+from nvidia.dali._autograph.utils.hooks import OperatorBase
 
 # TODO(mdan): Revisit this list once we finalize the generated code mechanism.
 _allowed_symbols = [

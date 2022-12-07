@@ -16,12 +16,12 @@
 
 import imp
 
-from autograph.core import converter
-from autograph.core import converter_testing
-from autograph.pyct import anno
-from autograph.pyct import loader
-from autograph.pyct import parser
-from autograph.pyct import templates
+from nvidia.dali._autograph.core import converter
+from nvidia.dali._autograph.core import converter_testing
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import loader
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import templates
 
 
 class TestConverter(converter.Base):

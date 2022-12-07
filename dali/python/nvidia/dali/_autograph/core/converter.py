@@ -61,12 +61,12 @@ dependency on AutoGraph.
 
 import enum
 
-from autograph.pyct import anno
-from autograph.pyct import ast_util
-from autograph.pyct import parser
-from autograph.pyct import templates
-from autograph.pyct import transformer
-from autograph.utils.all_utils import export_symbol
+from nvidia.dali._autograph.pyct import anno
+from nvidia.dali._autograph.pyct import ast_util
+from nvidia.dali._autograph.pyct import parser
+from nvidia.dali._autograph.pyct import templates
+from nvidia.dali._autograph.pyct import transformer
+from nvidia.dali._autograph.utils.all_utils import export_symbol
 
 # TODO(mdan): These contexts can be refactored into first class objects.
 # For example, we could define Program and Entity abstractions that hold on
