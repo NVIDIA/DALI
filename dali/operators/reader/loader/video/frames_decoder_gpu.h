@@ -214,7 +214,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   bool SendFrameToParser();
 
-  int NumEmptySpots() const;
+  unsigned int NumEmptySpots() const;
 };
 
 }  // namespace dali

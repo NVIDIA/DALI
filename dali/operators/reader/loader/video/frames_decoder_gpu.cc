@@ -740,8 +740,8 @@ bool FramesDecoderGpu::IsBufferEmpty() const {
   return true;
 }
 
-int FramesDecoderGpu::NumEmptySpots() const {
-  int num_empty = 0;
+unsigned int FramesDecoderGpu::NumEmptySpots() const {
+  unsigned int num_empty = 0;
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ == -1) {
       num_empty++;
