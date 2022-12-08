@@ -53,7 +53,7 @@ class DirectivesTest(converter_testing.TestCase):
   def test_loop_target(self):
 
     def f():
-      a = True
+      a = True  # noqa: F841
       while True:
         directives.set_loop_options(parallel_iterations=10)
         pass
@@ -80,7 +80,7 @@ class DirectivesTest(converter_testing.TestCase):
       a = 1
       while True:
         a = 2
-        directives.set_loop_options(parallel_iterations=10, back_prop=a)  # pylint: disable=unexpected-keyword-arg
+        directives.set_loop_options(parallel_iterations=10, back_prop=a)  # pylint: disable=unexpected-keyword-arg # noqa: E501
 
     with self.assertRaisesRegex(ValueError, 'must be the first statement'):
       self.transform(f, directives_converter, include_ast=True)
@@ -125,4 +125,3 @@ class DirectivesTest(converter_testing.TestCase):
 
     self.assertIsNotNone(node)
     self.assertFalse(tc.getattr_called)
-

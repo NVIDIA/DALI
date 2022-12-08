@@ -107,7 +107,7 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
       if b:
         try:
           pass
-        except:  # pylint:disable=bare-except
+        except:  # pylint:disable=bare-except # noqa: E722
           pass
       return a
 
@@ -125,7 +125,7 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
         try:
           if b:
             a = []
-        except TestException:  # pylint:disable=undefined-variable,unused-variable
+        except TestException:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841
           pass
       return a
 
@@ -144,7 +144,7 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
       if b:
         try:
           pass
-        except TestException as e:  # pylint:disable=undefined-variable,unused-variable
+        except TestException as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
           if b:
             a = []
       return a
@@ -365,12 +365,12 @@ class ReachingDefinitionsAnalyzerTest(ReachingDefinitionsAnalyzerTestBase):
 
     def test_fn(a):
       _ = [x for x in a]
-      return x  # pylint:disable=undefined-loop-variable
+      return x  # pylint:disable=undefined-loop-variable # noqa: F821
 
     node = self._parse_and_analyze(test_fn)
     fn_body = node.body
 
-    listcomp_target = fn_body[0].value.generators[0].target
+    listcomp_target = fn_body[0].value.generators[0].target  # noqa: F841
     retval = fn_body[1].value
 
     # Python2 leaks list comprehension symbols. Python3 doesn't.

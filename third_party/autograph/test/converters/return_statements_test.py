@@ -233,7 +233,7 @@ class SingleReturnTest(converter_testing.TestCase):
           return v
         try:
           raise ValueError('intentional')
-        except ValueError:  # pylint:disable=bare-except
+        except ValueError:  # pylint:disable=bare-except # noqa: E722
           return v
         v.append(x)
       return v

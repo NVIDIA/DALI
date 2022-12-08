@@ -1189,7 +1189,7 @@ class AstToCfgTest(unittest.TestCase):
       try:
         a = 1
         a = 2
-      except:  # pylint:disable=bare-except
+      except:  # pylint:disable=bare-except # noqa: E722
         a = 3
       return a
 
@@ -1218,7 +1218,7 @@ class AstToCfgTest(unittest.TestCase):
       try:
         a = 1
         a = 2
-      except Exception1:  # pylint:disable=undefined-variable
+      except Exception1:  # pylint:disable=undefined-variable # noqa: F821
         a = 3
       return a
 
@@ -1246,7 +1246,7 @@ class AstToCfgTest(unittest.TestCase):
     def test_fn(a):
       try:
         a = 1
-      except Exception1 as e:  # pylint:disable=undefined-variable,unused-variable
+      except Exception1 as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841
         a = 2
       return a
 
@@ -1273,7 +1273,7 @@ class AstToCfgTest(unittest.TestCase):
     def test_fn(a):
       try:
         a = 1
-      except (Exception1, Exception2) as e:  # pylint:disable=undefined-variable,unused-variable
+      except (Exception1, Exception2) as e:  # pylint:disable=undefined-variable,unused-variable # noqa: F821,F841,E501
         a = 2
       return a
 
@@ -1300,9 +1300,9 @@ class AstToCfgTest(unittest.TestCase):
     def test_fn(a):
       try:
         a = 1
-      except Exception1:  # pylint:disable=undefined-variable
+      except Exception1:  # pylint:disable=undefined-variable # noqa: F821
         a = 2
-      except Exception2:  # pylint:disable=undefined-variable
+      except Exception2:  # pylint:disable=undefined-variable # noqa: F821
         a = 3
       return a
 
@@ -1330,9 +1330,9 @@ class AstToCfgTest(unittest.TestCase):
     def test_fn(a):
       try:
         a = 1
-      except Exception1:  # pylint:disable=undefined-variable
+      except Exception1:  # pylint:disable=undefined-variable # noqa: F821
         a = 2
-      except Exception2:  # pylint:disable=undefined-variable
+      except Exception2:  # pylint:disable=undefined-variable # noqa: F821
         a = 3
       finally:
         a = 4
@@ -1366,7 +1366,7 @@ class AstToCfgTest(unittest.TestCase):
           a = 1
         else:
           a = 2
-      except Exception1:  # pylint:disable=undefined-variable
+      except Exception1:  # pylint:disable=undefined-variable # noqa: F821
         a = 3
       a = 4
 

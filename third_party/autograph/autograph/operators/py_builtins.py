@@ -140,6 +140,7 @@ def abs_(x):
     return hooks._DISPATCH.abs_(x)
   return _py_abs(x)
 
+
 def _py_abs(x):
   return abs(x)
 
@@ -211,7 +212,6 @@ def max_(*args, **kwargs):
 
 def _py_max(*args, **kwargs):
   return max(*args, **kwargs)
-
 
 
 def range_(start_or_stop, stop=UNSPECIFIED, step=UNSPECIFIED):

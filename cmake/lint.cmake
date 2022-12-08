@@ -29,6 +29,8 @@ set(PYTHON_LINT_PATHS
 add_custom_target(lint-python
         COMMAND
           flake8 --config=${PROJECT_SOURCE_DIR}/.flake8 ${PYTHON_LINT_PATHS}
+        COMMAND
+          flake8 --config=${PROJECT_SOURCE_DIR}/.flake8.ag ${PROJECT_SOURCE_DIR}/third_party/autograph
         COMMENT
           "Performing Python linter check"
 )

@@ -78,7 +78,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
       if a > 0:
         try:
           pass
-        except:  # pylint:disable=bare-except
+        except:  # pylint:disable=bare-except # noqa: E722
           pass
       return x
 
@@ -94,7 +94,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
       if a > 0:
         try:
           pass
-        except:  # pylint:disable=bare-except
+        except:  # pylint:disable=bare-except # noqa: E722
           if b > 0:
             x = b
       return x
@@ -248,7 +248,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
         return a
 
       if b:
-        a = []  # pylint:disable=unused-variable
+        a = []  # pylint:disable=unused-variable # noqa: F841
 
       return foo
 
@@ -261,10 +261,10 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
 
     def test_fn(b):
       if b:
-        a = 0  # pylint:disable=unused-variable
+        a = 0  # pylint:disable=unused-variable # noqa: F841
 
       def child():
-        max(a)  # pylint:disable=used-before-assignment
+        max(a)  # pylint:disable=used-before-assignment # noqa: F823
         a = 1
         return a
 
@@ -282,7 +282,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
         if x:
           del y
         else:
-          y = 0
+          y = 0  # noqa: F841
 
     node = self._parse_and_analyze(test_fn)
     fn_body = node.body
@@ -355,7 +355,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
       if a > 0:
         try:
           pass
-        except:  # pylint:disable=bare-except
+        except:  # pylint:disable=bare-except # noqa: E722
           pass
       return x
 
@@ -372,7 +372,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
       if a > 0:
         try:
           pass
-        except:  # pylint:disable=bare-except
+        except:  # pylint:disable=bare-except # noqa: E722
           pass
         else:
           x = b
@@ -391,7 +391,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
       if a > 0:
         try:
           pass
-        except:  # pylint:disable=bare-except
+        except:  # pylint:disable=bare-except # noqa: E722
           if b > 0:
             x = b
       return x
@@ -472,7 +472,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
         if x:
           del y
         else:
-          y = 0
+          y = 0  # noqa: F841
 
     node = self._parse_and_analyze(test_fn)
     fn_body = node.body
@@ -504,7 +504,7 @@ class LivenessAnalyzerTest(LivenessAnalyzerTestBase):
   def test_live_in_list_comprehension_expression(self):
 
     def test_fn(y, s):
-      s += foo([x for x in y])  # pylint:disable=undefined-variable
+      s += foo([x for x in y])  # pylint:disable=undefined-variable # noqa: F821
 
     node = self._parse_and_analyze(test_fn)
     fn_body = node.body

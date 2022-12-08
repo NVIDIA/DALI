@@ -72,4 +72,3 @@ class LogicalExpressionTest(converter_testing.TestCase):
     tr = self.transform(f, logical_expressions)
 
     self.assertEqual(tr(1), (-2, -1, 1))
-

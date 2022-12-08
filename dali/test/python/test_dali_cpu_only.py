@@ -1313,8 +1313,9 @@ excluded_methods = [
     "optical_flow",  # not supported for CPU
     "paste",  # not supported for CPU
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
-    "experimental.remap",  # operator is GPU-only
+    "experimental.debayer",  # not supported for CPU
     "experimental.inflate",  # not supported for CPU
+    "experimental.remap",  # operator is GPU-only
 ]
 
 

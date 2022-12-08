@@ -26,7 +26,6 @@ class ListTest(unittest.TestCase):
     self.assertEqual(data_structures.list_append(l, 1), [1])
     self.assertEqual(data_structures.list_append(l, 2), [1, 2])
 
-
   def test_pop_python(self):
     l = [1, 2, 3]
     opts = data_structures.ListPopOpts(element_dtype=None, element_shape=())

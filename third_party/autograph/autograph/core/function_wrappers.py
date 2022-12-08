@@ -45,7 +45,6 @@ class FunctionScope(object):
                                                    options)
     self.callopts = options.call_options()
 
-
   def _sanitize(self, name):
     """See https://www.tensorflow.org/api_docs/python/tf/Graph#name_scope."""
     # TensorFlow doesn't like leading underscores at the top level.

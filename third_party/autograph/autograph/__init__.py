@@ -26,7 +26,8 @@ unchanged, but keep in mind that AutoGraph only executes such code at trace
 time, and generally will not be consistent with eager execution.
 
 For more information, see the
-[AutoGraph reference documentation](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/autograph/g3doc/reference/index.md),
+[AutoGraph reference documentation](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/
+python/autograph/g3doc/reference/index.md),
 and the [tf.function guide](https://www.tensorflow.org/guide/function#autograph_transformations).
 """
 

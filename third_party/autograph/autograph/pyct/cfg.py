@@ -40,6 +40,8 @@ import collections
 import enum
 import weakref
 
+from typing import Dict, Set, Tuple
+
 import astunparse
 import gast
 
@@ -300,7 +302,7 @@ class GraphBuilder(object):
     self.finally_sections = {}
     # Dict values represent (entry, exits)
     self.finally_section_subgraphs = {
-    }  # type: Dict[ast.AST, Tuple[Node, Set[Node]]]
+    }  # type: Dict[ast.AST, Tuple[Node, Set[Node]]] # noqa: F821
     # Whether the guard section can be reached from the statement that precedes
     # it.
     self.finally_section_has_direct_flow = {}

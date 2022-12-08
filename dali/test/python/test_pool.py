@@ -56,15 +56,17 @@ class IteratorCb:
 
 class MockGroup:
 
-    def __init__(self, source_desc, batch, prefetch_queue_depth):
+    def __init__(self, source_desc, batch, prefetch_queue_depth, bytes_per_sample_hint):
         self.source_desc = source_desc
         self.batch = batch
         self.prefetch_queue_depth = prefetch_queue_depth
+        self.bytes_per_sample_hint = bytes_per_sample_hint
 
     @classmethod
-    def from_callback(cls, callback, batch=False, prefetch_queue_depth=1):
+    def from_callback(cls, callback, batch=False, prefetch_queue_depth=1,
+                      bytes_per_sample_hint=None):
         _, source_desc = get_callback_from_source(callback, cycle=None)
-        return cls(source_desc, batch, prefetch_queue_depth)
+        return cls(source_desc, batch, prefetch_queue_depth, bytes_per_sample_hint)
 
 
 def create_pool(groups, keep_alive_queue_size=1, num_workers=1, start_method="fork"):

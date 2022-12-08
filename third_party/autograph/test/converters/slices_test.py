@@ -40,4 +40,3 @@ class SliceTest(converter_testing.TestCase):
       return l[1]
 
     self.transform(f, (directives_converter, slices))
-

@@ -51,6 +51,7 @@ class ForLoopTest(unittest.TestCase):
         yield i
 
     gen = new_generator()
+
     def run_loop():
       s = 0
       c = 0
@@ -82,6 +83,7 @@ class ForLoopTest(unittest.TestCase):
         yield i
 
     gen = new_generator()
+
     def run_loop():
       s = 0
 
@@ -145,6 +147,7 @@ class WhileLoopTest(unittest.TestCase):
 
     self.assertEqual(i, 5)
     self.assertEqual(s, 1234)
+
 
 class IfStmtTest(unittest.TestCase):
 
