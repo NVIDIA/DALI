@@ -26,11 +26,17 @@ set(PYTHON_LINT_PATHS
         ${PROJECT_SOURCE_DIR}/qa
 )
 
+set(AUTOGRAPH_LINT_PATHS
+        ${PROJECT_SOURCE_DIR}/dali/python/nvidia/dali/_autograph
+        ${PROJECT_SOURCE_DIR}/dali/test/python/autograph/
+)
+
+
 add_custom_target(lint-python
         COMMAND
           flake8 --config=${PROJECT_SOURCE_DIR}/.flake8 ${PYTHON_LINT_PATHS}
         COMMAND
-          flake8 --config=${PROJECT_SOURCE_DIR}/.flake8.ag ${PROJECT_SOURCE_DIR}/third_party/autograph
+          flake8 --config=${PROJECT_SOURCE_DIR}/.flake8.ag ${AUTOGRAPH_LINT_PATHS}
         COMMENT
           "Performing Python linter check"
 )
