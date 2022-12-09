@@ -16,6 +16,7 @@
 
 import sys
 from ._utils.hacks import not_iterable
+from nvidia.dali import _conditionals
 
 
 def _arithm_op(*args, **kwargs):
@@ -23,7 +24,8 @@ def _arithm_op(*args, **kwargs):
     # Fully circular imports don't work. We need to import _arithm_op late and
     # replace this trampoline function.
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
-    return nvidia.dali.ops._arithm_op(*args, **kwargs)
+    captured = nvidia.dali.ops._arithm_op(*args, **kwargs)
+    return captured
 
 
 class _NewAxis:
@@ -66,6 +68,9 @@ class DataNode(object):
         return f'DataNode(name="{self.name}", device="{self.device}")'
 
     __repr__ = __str__
+
+    def __hash__(self) -> int:
+        return hash(str(self) + str(self.source))
 
     # Note: Regardless of whether we want the cpu or gpu version
     # of a tensor, we keep the source argument the same so that

@@ -178,7 +178,7 @@ class PyToLib(transpiler.PyToPy):
     self._extra_locals = None
 
   def get_transformed_name(self, node):
-    return self._name + super(PyToLib, self).get_transformed_name(node)
+    return self._name + "__" + super(PyToLib, self).get_transformed_name(node)
 
   def get_extra_locals(self):
     if self._extra_locals is None:
@@ -931,7 +931,7 @@ _TRANSPILER = None
 
 def initialize_autograph(operator_overload=hooks.OperatorBase(),
                          converter_name="autograph",
-                         filtered_library_modules=["nvidia.dali._autograph"]):
+                         do_not_convert_modules=["nvidia.dali._autograph"]):
   """Initialize the AutoGraph with custom operator overloads.
 
   Parameters
@@ -943,7 +943,7 @@ def initialize_autograph(operator_overload=hooks.OperatorBase(),
   converter_name : str, optional
       Name that is used to generated converted function names and as a fake module under which
       the AutoGraph is inserted into them, by default "autograph".
-  filtered_library_modules : list, optional
+  do_not_convert_modules : list, optional
       AutoGraph needs to filter the module that should not be converted. By default it will
       only filter out its own functions, provide the list of module that should be ignored.
       If the autograph is used under different name (for example included in the source as
@@ -954,7 +954,6 @@ def initialize_autograph(operator_overload=hooks.OperatorBase(),
     raise RuntimeError("AutoGraph already initialized")
   _TRANSPILER = PyToLib(converter_name, operator_overload)
   # Add the name of the initialized library to know libraries to stop recursive conversion
-  do_not_convert_rules = tuple(
-      config.DoNotConvert(name) for name in filtered_library_modules)
-  config.CONVERSION_RULES = ((config.DoNotConvert(converter_name),) +
-                             do_not_convert_rules + config.CONVERSION_RULES)
+  do_not_convert_rules = tuple(config.DoNotConvert(name) for name in do_not_convert_modules)
+  config.CONVERSION_RULES = ((config.DoNotConvert(converter_name),) + do_not_convert_rules +
+                             config.CONVERSION_RULES)
