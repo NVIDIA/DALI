@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_INPUT_CACHING_LIST_H_
-#define DALI_PIPELINE_INPUT_CACHING_LIST_H_
+#ifndef DALI_OPERATORS_INPUT_CACHING_LIST_H_
+#define DALI_OPERATORS_INPUT_CACHING_LIST_H_
 
 #include <list>
 #include <memory>
@@ -143,4 +143,4 @@ class CachingList {
 
 }  // namespace dali
 
-#endif  // DALI_PIPELINE_INPUT_CACHING_LIST_H_
+#endif  // DALI_OPERATORS_INPUT_CACHING_LIST_H_
