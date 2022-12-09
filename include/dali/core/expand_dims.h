@@ -15,12 +15,14 @@
 #ifndef DALI_CORE_EXPAND_DIMS_H_
 #define DALI_CORE_EXPAND_DIMS_H_
 
+#include <stdexcept>
+#include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 
 namespace dali {
 
 /**
- * @brief  Inserts new dimensions with extent one to the new shape as needed to match a given number
+ * @brief  Inserts new dimensions with extent 1 to the new shape as needed to match a given number
  of dimensions
 
  *
@@ -30,8 +32,10 @@ namespace dali {
  DynamicDimensions)
  */
 template <int static_out_ndim = DynamicDimensions, int static_in_ndim = DynamicDimensions>
-TensorListShape<static_out_ndim> expand_dims(const TensorListShape<static_in_ndim> &sh,
-                                             int new_dims_position = 0, int dynamic_out_dim = -1) {
+void expand_dims(TensorListShape<static_out_ndim> &out_sh,
+                 const TensorListShape<static_in_ndim> &sh,
+                 int new_dims_position = 0,
+                 int dynamic_out_dim = -1) {
   int out_ndim = static_out_ndim >= 0 ? static_out_ndim : dynamic_out_dim;
   if (out_ndim < 0)
     throw std::invalid_argument(make_string("Invalid new number of dimensions: ", out_ndim));
@@ -42,8 +46,7 @@ TensorListShape<static_out_ndim> expand_dims(const TensorListShape<static_in_ndi
         make_string("Input has more dimensions than requested: ", ndim, " > ", out_ndim));
 
   int nsamples = sh.num_samples();
-  TensorListShape<static_out_ndim> new_sh;
-  new_sh.resize(nsamples, out_ndim);
+  out_sh.resize(nsamples, out_ndim);
   int insert_ndim = out_ndim - ndim;
 
   if (new_dims_position < 0 || new_dims_position > ndim) {
@@ -53,7 +56,7 @@ TensorListShape<static_out_ndim> expand_dims(const TensorListShape<static_in_ndi
 
   for (int s = 0; s < nsamples; s++) {
     auto sample_sh = sh.tensor_shape_span(s);
-    auto new_sample_sh = new_sh.tensor_shape_span(s);
+    auto new_sample_sh = out_sh.tensor_shape_span(s);
 
     int out_d = 0;
     for (int d = 0; d < ndim; d++) {
@@ -65,13 +68,19 @@ TensorListShape<static_out_ndim> expand_dims(const TensorListShape<static_in_ndi
       new_sample_sh[out_d] = 1;
     }
   }
-  return new_sh;
 }
 
+template <int static_out_ndim = DynamicDimensions, int static_in_ndim = DynamicDimensions>
+TensorListShape<static_out_ndim> expand_dims(const TensorListShape<static_in_ndim> &sh,
+                                             int new_dims_position = 0, int dynamic_out_dim = -1) {
+  TensorListShape<static_out_ndim> out_sh;
+  expand_dims(out_sh, sh, new_dims_position, dynamic_out_dim);
+  return out_sh;
+}
 
 template <int static_out_ndim = DynamicDimensions, int static_in_ndim = DynamicDimensions>
-TensorShape<static_out_ndim> expand_dims(const TensorShape<static_in_ndim> &sh,
-                                         int new_dims_position = 0, int dynamic_out_dim = -1) {
+void expand_dims(TensorShape<static_out_ndim> &out_sh, const TensorShape<static_in_ndim> &sh,
+                 int new_dims_position = 0, int dynamic_out_dim = -1) {
   int out_ndim = static_out_ndim >= 0 ? static_out_ndim : dynamic_out_dim;
   if (out_ndim < 0)
     throw std::invalid_argument(make_string("Invalid new number of dimensions: ", out_ndim));
@@ -81,8 +90,7 @@ TensorShape<static_out_ndim> expand_dims(const TensorShape<static_in_ndim> &sh,
     throw std::logic_error(
         make_string("Input has more dimensions than requested: ", ndim, " > ", out_ndim));
 
-  TensorShape<static_out_ndim> new_sh;
-  new_sh.resize(out_ndim);
+  out_sh.resize(out_ndim);
   int insert_ndim = out_ndim - ndim;
 
   if (new_dims_position < 0 || new_dims_position > ndim) {
@@ -94,14 +102,20 @@ TensorShape<static_out_ndim> expand_dims(const TensorShape<static_in_ndim> &sh,
   for (int d = 0; d < ndim; d++) {
     if (d == new_dims_position)
       out_d += insert_ndim;
-    new_sh[out_d++] = sh[d];
+    out_sh[out_d++] = sh[d];
   }
   for (int out_d = new_dims_position; out_d < new_dims_position + insert_ndim; out_d++) {
-    new_sh[out_d] = 1;
+    out_sh[out_d] = 1;
   }
-  return new_sh;
 }
 
+template <int static_out_ndim = DynamicDimensions, int static_in_ndim = DynamicDimensions>
+TensorShape<static_out_ndim> expand_dims(const TensorShape<static_in_ndim> &sh,
+                                         int new_dims_position = 0, int dynamic_out_dim = -1) {
+  TensorShape<static_out_ndim> out_sh;
+  expand_dims(out_sh, sh, new_dims_position, dynamic_out_dim);
+  return out_sh;
+}
 
 }  // namespace dali
 
