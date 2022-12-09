@@ -47,9 +47,8 @@ if not initialized:
                             "may not work.")
 
     if int(str(__cuda_version__)[:2]) < 11:
-        deprecation_warning(
-            "DALI plans to drop the support for CUDA 10.2 in the upcoming releases. "
-            "Please update your CUDA toolkit.")
+        deprecation_warning("DALI 1.21 is the last official release that supports CUDA 10.2. "
+                            "Please update your environment to CUDA version 11 or newer.")
 
     for lib in default_plugins:
         LoadLibrary(os.path.join(os.path.dirname(__file__), lib))
