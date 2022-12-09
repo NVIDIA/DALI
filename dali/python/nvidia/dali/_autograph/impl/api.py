@@ -931,7 +931,7 @@ _TRANSPILER = None
 
 def initialize_autograph(operator_overload=hooks.OperatorBase(),
                          converter_name="autograph",
-                         filtered_library_modules=["autograph"]):
+                         filtered_library_modules=["nvidia.dali._autograph"]):
   """Initialize the AutoGraph with custom operator overloads.
 
   Parameters
