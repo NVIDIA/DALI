@@ -319,6 +319,10 @@ void FramesDecoder::ParseNumFrames() {
 
     num_frames_ = curr_num_frames;
     memory_video_file_->Seek(current_position, SEEK_SET);
+
+    if (tmp_av_state->packet_->pts == AV_NOPTS_VALUE) {
+      // zero_latency_ = false;
+    }
   }
 }
 

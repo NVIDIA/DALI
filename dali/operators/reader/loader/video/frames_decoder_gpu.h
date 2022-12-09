@@ -137,7 +137,6 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
  * @param memory_file_size Size of memory_file in bytes.
  * @param build_index If set to false index will not be build and some features are unavailable.
  * @param num_frames If set, number of frames in the video.
- * @param zero_latency If false, will call separate callbacks for processing and displaying the frame. Some videos do not support zero latency mode.
  *
  * @note This constructor assumes that the `memory_file` and
  * `memory_file_size` arguments cover the entire video file, including the header.
@@ -147,8 +146,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
     int memory_file_size,
     cudaStream_t stream = 0,
     bool build_index = true,
-    int num_frames = -1,
-    bool zero_latency = true);
+    int num_frames = -1);
 
   bool ReadNextFrame(uint8_t *data, bool copy_to_output = true) override;
 
@@ -177,7 +175,6 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool frame_returned_ = false;
   bool flush_ = false;
   bool more_frames_to_decode_ = true;
-  bool zero_latency_ = true;
 
   // This is used to order the frames, if there is no pts
   int frame_index_if_no_pts_ = 0;

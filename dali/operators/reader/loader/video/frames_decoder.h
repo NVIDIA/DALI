@@ -212,6 +212,8 @@ class DLL_PUBLIC FramesDecoder {
 
   bool is_full_range_ = false;
 
+  std::optional<bool> zero_latency_ = {};
+
  private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns

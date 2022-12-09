@@ -363,8 +363,7 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.pUserData = this;
   parser_info.pfnSequenceCallback = frame_dec_gpu_impl::process_video_sequence;
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
-  parser_info.pfnDisplayPicture =
-      zero_latency_ ? nullptr : frame_dec_gpu_impl::handle_picture_display;
+  parser_info.pfnDisplayPicture = nullptr;
 
   auto extradata = av_state_->ctx_->streams[0]->codecpar->extradata;
   auto extradata_size = av_state_->ctx_->streams[0]->codecpar->extradata_size;
@@ -400,10 +399,8 @@ FramesDecoderGpu::FramesDecoderGpu(
   int memory_file_size,
   cudaStream_t stream,
   bool build_index,
-  int num_frames,
-  bool zero_latency) :
+  int num_frames) :
   FramesDecoder(memory_file, memory_file_size, build_index, build_index, num_frames),
-  zero_latency_(zero_latency),
   frame_buffer_(num_decode_surfaces_),
   stream_(stream) {
   InitGpuParser();
@@ -417,15 +414,12 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   }
 
   CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
-
-  if (zero_latency_) {
-    CUVIDPARSERDISPINFO picture_display_info;
-    memset(&picture_display_info, 0, sizeof(picture_display_info));
-    picture_display_info.picture_index = picture_params->CurrPicIdx;
-    picture_display_info.progressive_frame = !picture_params->field_pic_flag;
-    picture_display_info.top_field_first = picture_params->bottom_field_flag ^ 1;
-    HandlePictureDisplay(&picture_display_info);
-  }
+  CUVIDPARSERDISPINFO picture_display_info;
+  memset(&picture_display_info, 0, sizeof(picture_display_info));
+  picture_display_info.picture_index = picture_params->CurrPicIdx;
+  picture_display_info.progressive_frame = !picture_params->field_pic_flag;
+  picture_display_info.top_field_first = picture_params->bottom_field_flag ^ 1;
+  HandlePictureDisplay(&picture_display_info);
 
   return 1;
 }
