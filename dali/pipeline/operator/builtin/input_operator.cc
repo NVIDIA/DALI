@@ -16,6 +16,36 @@
 
 namespace dali {
 
+
+DALI_SCHEMA(InputOperatorBase)
+                .DocStr(R"doc(
+A base for any operator that forwards in-memory data to DALI pipeline.)doc")
+                .NumInput(0)
+                .NumOutput(0)
+                .AddOptionalArg("blocking", R"code(
+If ``True``, this operator will block until the data is available (e.g. by calling ``feed_input``).
+If ``False``, the operator will raise an error, if the data is not available.
+)code", true)
+                .AddOptionalArg("no_copy", R"code(
+Determines whether DALI should copy the buffer when ``feed_input`` is called.
+
+If set to True, DALI passes the user's memory directly to the pipeline, instead of copying it.
+It is the user's responsibility to keep the buffer alive and unmodified until it is
+consumed by the pipeline.
+
+The buffer can be modified or freed again after the outputs of the relevant iterations
+have been consumed. Effectively, it happens after ``prefetch_queue_depth`` or
+``cpu_queue_depth * gpu_queue_depth`` (when they are not equal) iterations following
+the ``feed_input`` call.
+
+The memory location must match the specified ``device`` parameter of the operator.
+For the CPU, the provided memory can be one contiguous buffer or a list of contiguous Tensors.
+For the GPU, to avoid extra copy, the provided buffer must be contiguous. If you provide a list
+of separate Tensors, there will be an additional copy made internally, consuming both memory
+and bandwidth.
+)code", false);
+
+
 template<>
 void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
                                                    ThreadPool &thread_pool) {

@@ -409,6 +409,14 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    * Does not support cyclic dependency. There can be multiple parents
    * and the lookup is transitive.
    * Only arguments are inherited, inputs and outputs are not.
+   *
+   * IMPORTANT: This has to be THE LAST call in the DALI_SCHEMA chain, e.g.:
+   *
+   * DALI_SCHEMA(MyOp)
+   *    .NumOutput(...)
+   *    .AddArg(...)
+   *    .AddOptionalArg(...)
+   *    .AddParent("MyParent");  <-- THE LAST call in the chain.
    */
   DLL_PUBLIC OpSchema &AddParent(const std::string &parentName);
 
