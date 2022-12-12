@@ -123,7 +123,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * Template method is used, since the data availability (i.e. block or fail)
    * shall be handled in the same way in every InputOperator.
    */
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) final {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     HandleDataAvailability();
     return SetupImplDerived(output_desc, ws);
   }
@@ -193,18 +193,12 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * @param target Where the data shall be injected.
    * @param tp TheadPool used to copy the data.
    */
-  void ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
+  void DLL_PUBLIC ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
 
-  void ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
+  void DLL_PUBLIC ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
   ///@}
 
 
-  int device_id_;
-  bool blocking_ = true;
-  bool no_copy_ = false;
-
-
- private:
   /**
    * Checks if the data is available.
    * If it's not, either blocks or throws an error, depending on ``blocking``
@@ -222,6 +216,12 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   }
 
 
+  int device_id_;
+  bool blocking_ = true;
+  bool no_copy_ = false;
+
+
+ private:
   // pass cuda_event by pointer to allow default, nullptr value, with the
   // reference it is not that easy
   template<typename DataType>
@@ -436,6 +436,13 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   CUDAStreamLease internal_copy_stream_ = {};
   AccessOrder internal_copy_order_ = AccessOrder::host();
 };
+
+
+inline bool IsInputOperator(const OpSchema &schema) {
+  auto parents = schema.GetParents();
+  return std::any_of(parents.begin(), parents.end(),
+                     [](const std::string &p) { return p == "InputOperatorBase"; });
+}
 
 }  // namespace dali
 

@@ -134,13 +134,13 @@ class DLL_PUBLIC Pipeline {
   template<typename T, typename OperatorBackend>
   void
   SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr, AccessOrder order = {},
-                      InputOperatorSettingMode ext_src_setting_mode = {}) {
+                      InputOperatorSettingMode in_op_setting_mode = {}) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
-    auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
+    auto *source = dynamic_cast<InputOperator<OperatorBackend> *>(op_ptr);
     DALI_ENFORCE(source != nullptr,
-                 "Input name '" + name + "' is not marked as an external input.");
-    source->SetDataSource(tl, order, ext_src_setting_mode);
+                 "Input name '" + name + "' is not marked as an InputOperator.");
+    source->SetDataSource(tl, order, in_op_setting_mode);
   }
 
   /**
