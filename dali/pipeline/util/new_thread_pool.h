@@ -64,8 +64,10 @@ class Job {
         } catch (...) {
           task->error = std::current_exception();
         }
-        if (--num_pending_tasks_ == 0)
+        if (--num_pending_tasks_ == 0) {
+          std::lock_guard<std::mutex> g(mtx_);
           cv_.notify_one();
+        }
       };
     } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
       tasks_.erase(it);
@@ -113,7 +115,7 @@ class Job {
   }
 
  private:
-  std::mutex mtx_;  // this is a dummy mutex - we could just use atomic_wait on num_pending_tasks_
+  std::mutex mtx_;  // could just probably use atomic_wait on num_pending_tasks_
   std::condition_variable cv_;
   std::atomic_int num_pending_tasks_{0};
   bool started_ = false;
@@ -126,7 +128,7 @@ class Job {
 
   // This needs to be a container which never invalidates references when inserting new items.
   std::multimap<priority_t, Task, std::greater<priority_t>,
-                mm::detail::object_pool_allocator<std::pair<priority_t, Task>>> tasks_;
+                mm::detail::object_pool_allocator<std::pair<const priority_t, Task>>> tasks_;
 };
 
 class ThreadPoolBase {
@@ -191,7 +193,10 @@ class ThreadPoolBase {
     assert(this_thread_pool() == this);
     std::unique_lock lock(mtx_);
     do {
-      cv_.wait(lock, [&]() { return stop_requested_ || !tasks_.empty(); });
+      for (;;) {
+        bool ret;
+        while (!(ret = condition) && !stop_requested_ && tasks_.empty())
+          cv_.wait(lock);
     }
 
   }
@@ -216,7 +221,7 @@ inline void ThreadPoolBase::AddTask(TaskFunc f) {
   {
     std::lock_guard<std::mutex> g(mtx_);
     if (stop_requested_)
-    throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
+      throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
     tasks_.push(std::move(f));
   }
   cv_.notify_one();
@@ -224,7 +229,7 @@ inline void ThreadPoolBase::AddTask(TaskFunc f) {
 
 inline void ThreadPoolBase::Run(int index) noexcept {
   ThreadPoolBase *this_thread_pool_ = this;
-  this_thread_idx_ = index;
+  this_thread_index_ = index;
   OnThreadStart(index);
   detail::CallAtExit([&]() { OnThreadStop(index); });
   std::unique_lock lock(mtx_);
