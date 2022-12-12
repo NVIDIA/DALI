@@ -15,27 +15,10 @@
 #ifndef DALI_PIPELINE_OPERATOR_BUILTIN_EXTERNAL_SOURCE_H_
 #define DALI_PIPELINE_OPERATOR_BUILTIN_EXTERNAL_SOURCE_H_
 
-#include <atomic>
-#include <condition_variable>
-#include <list>
-#include <memory>
-#include <mutex>
-#include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
-
-#include "dali/core/access_order.h"
 #include "dali/core/common.h"
-#include "dali/core/cuda_event.h"
-#include "dali/core/cuda_stream_pool.h"
-#include "dali/core/nvtx.h"
-#include "dali/operators/input/caching_list.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
-#include "dali/pipeline/data/type_traits.h"
-#include "dali/pipeline/operator/batch_size_provider.h"
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/worker_thread.h"
 
 namespace dali {
 
