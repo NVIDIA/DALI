@@ -210,7 +210,16 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * If it's not, either blocks or throws an error, depending on ``blocking``
    * operator argument.
    */
-  void HandleDataAvailability();
+  void HandleDataAvailability() {
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
+    } else {
+      if (state_.empty()) {
+        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+      }
+    }
+  }
 
 
   // pass cuda_event by pointer to allow default, nullptr value, with the

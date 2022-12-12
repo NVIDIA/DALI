@@ -45,19 +45,6 @@ and bandwidth.
 )code", false);
 
 
-template<typename Backend>
-void InputOperator<Backend>::HandleDataAvailability() {
-  std::unique_lock<std::mutex> busy_lock(busy_m_);
-  if (blocking_) {
-    cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
-  } else {
-    if (state_.empty()) {
-      DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
-    }
-  }
-}
-
-
 template<>
 void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
                                                    ThreadPool &thread_pool) {
