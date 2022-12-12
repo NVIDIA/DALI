@@ -59,9 +59,6 @@ struct AvState {
     }
     avcodec_free_context(&codec_ctx_);
     if (ctx_ != nullptr) {
-      if (ctx_->pb != nullptr) {
-        avio_context_free(&ctx_->pb);
-      }
       avformat_close_input(&ctx_);
       avformat_free_context(ctx_);
     }
