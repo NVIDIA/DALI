@@ -166,13 +166,13 @@ For older versions of DALI (0.22 and lower), use the package `nvidia-dali`. The 
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 --upgrade nvidia-dali
    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/cuda/11.0 --upgrade nvidia-dali-tf-plugin
 
-CUDA 9 build is provided up to DALI 0.22.0.
-
-CUDA 10 build is provided up to DALI 1.3.0.
+CUDA 11 build is provided starting from DALI 0.22.0.
 
 CUDA 10.2 build is provided starting from DALI 1.4.0 up to DALI 1.20.
 
-CUDA 11 build is provided starting from DALI 0.22.0.
+CUDA 10 build is provided up to DALI 1.3.0.
+
+CUDA 9 build is provided up to DALI 0.22.0.
 
 Open Cognitive Environment (Open-CE)
 ------------------------------------
