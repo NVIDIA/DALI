@@ -224,7 +224,7 @@ class DLL_PUBLIC FramesDecoder {
    * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
    * @param copy_to_output Whether copy the frame to provided output.
    *
-   * @returns True, if the read was succesful, or false, when all regular farmes were consumed.
+   * @returns True, if the read was succesful, or false, when all regular frames were consumed.
    *
    */
   bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);

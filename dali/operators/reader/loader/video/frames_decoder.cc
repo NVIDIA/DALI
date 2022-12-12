@@ -285,9 +285,8 @@ void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_
 }
 
 void FramesDecoder::ParseNumFrames() {
-  int curr_num_frames = 0;
-
   if (IsFormatSeekable()) {
+    int curr_num_frames = 0;
     while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
       // We want to make sure that we call av_packet_unref in every iteration
       auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
@@ -307,6 +306,7 @@ void FramesDecoder::ParseNumFrames() {
     std::unique_ptr<AvState> tmp_av_state = std::make_unique<AvState>();
     CreateAvState(tmp_av_state, false);
 
+    int curr_num_frames = 0;
     while (av_read_frame(tmp_av_state->ctx_, tmp_av_state->packet_) >= 0) {
       // We want to make sure that we call av_packet_unref in every iteration
       auto packet = AVPacketScope(tmp_av_state->packet_, av_packet_unref);
