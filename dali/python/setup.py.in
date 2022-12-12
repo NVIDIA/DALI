@@ -45,7 +45,9 @@ setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
               ],
           },
       install_requires=[
-          # gast is required for AutoGraph. Currently supported range of versions.
+          # gast and astunparse are required for AutoGraph.
+          # Currently supported range of versions.
+          'astunparse >= 1.6.0',
           'gast >= 0.2.1, <= 0.4.0',
           ],
      )

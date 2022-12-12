@@ -16,7 +16,6 @@
 
 import gast
 import six
-import termcolor
 
 
 class PrettyPrinter(gast.NodeVisitor):
@@ -29,8 +28,10 @@ class PrettyPrinter(gast.NodeVisitor):
     self.noanno = noanno
 
   def _color(self, string, color, attrs=None):
-    if self.color:
-      return termcolor.colored(string, color, attrs=attrs)
+    # TODO(klecki): Add support for color if needed. Currently its disabled to not inflate
+    # the list of DALI dependencies.
+    # if self.color:
+    #   return termcolor.colored(string, color, attrs=attrs)
     return string
 
   def _type(self, node):
