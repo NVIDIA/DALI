@@ -34,7 +34,7 @@ class ExternalSource : public InputOperator<Backend> {
   using Operator<Backend>::spec_;
 
  public:
-  inline explicit ExternalSource(const OpSpec &spec)
+  explicit ExternalSource(const OpSpec &spec)
       : InputOperator<Backend>(spec),
         previous_dtype_(DALIDataType::DALI_NO_TYPE),
         ndim_(-1),

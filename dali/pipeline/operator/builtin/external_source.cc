@@ -37,38 +37,4 @@ void ExternalSource<GPUBackend>::RunImpl(Workspace &ws) {
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<GPUBackend>, GPU);
 
-
-// This schema is partially internal. We want it to be listed int the supported_ops,
-// but it is explicitly not loaded by the Op Factory. Instead the Python wrapper classes
-// access it directly.
-// C++ operators should access this operator directly as well.
-DALI_SCHEMA(ExternalSource)
-  .DocStr(R"code(Allows externally provided data to be passed as an input to the pipeline.
-
-  This is a backend for `ExternalSource` operator. For Python functionality, refer to
-  nvidia.dali.fn.external_source operator documentation.
-
-  This operator can be used with C and C++ APIs by either directly specyfing it with OpSpec
-  or by the Pipeline::AddExternalInput method.)code")
-  .NumInput(0)
-  .NumOutput(1)
-  .AddParent("InputOperatorBase")
-  .AddOptionalTypeArg("dtype", R"code(Input data type.
-
-The operator will validate that the fetched data is of the provided type.
-If the argument is omitted or ``DALIDataType.NO_TYPE`` is passed, the operator will infer
-the type based on the provided data.
-
-This argument will be required starting from DALI 2.0.)code")
-  .AddOptionalArg<int>("ndim", R"code(Number of dimensions in the input.
-
-The dimensionality of the data provided to the operator will be verified against this value.
-Number of dimensions can be also inferred from the ``layout`` argument if provided.
-
-If the ``layout`` argument is provided, the ``ndim`` must match the number
-of dimensions in the layout.
-
-Specifying the input dimensionality will be required starting from DALI 2.0)code", nullptr)
-  .AddOptionalArg<TensorLayout>("layout",
-    "If provided, sets the layout of the data.", nullptr);
 }  // namespace dali
