@@ -127,5 +127,4 @@ InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target, cu
   }
 }
 
-
-}
+}  // namespace dali

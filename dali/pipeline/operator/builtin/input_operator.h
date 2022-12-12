@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_PIPELINE_OPasdfasdfN_EXTERNAL_SOURCE_H_
-#define DALI_PIPELINE_OPasdfasdfN_EXTERNAL_SOURCE_H_
+#ifndef DALI_PIPELINE_OPERATOR_BUILTIN_INPUT_OPERATOR_H_
+#define DALI_PIPELINE_OPERATOR_BUILTIN_INPUT_OPERATOR_H_
 
 #include <list>
 #include <memory>
+#include <vector>
 #include "dali/core/common.h"
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
@@ -127,6 +128,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     return SetupImplDerived(output_desc, ws);
   }
 
+
   /**
    * @brief Sets the data that should be passed out of the op on the next iteration.
    */
@@ -158,7 +160,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
  protected:
-  virtual bool SetupImplDerived(std::vector<OutputDesc> &output_desc, const Workspace &ws)=0;
+  virtual bool SetupImplDerived(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
 
 
   /**
@@ -209,6 +211,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * operator argument.
    */
   void HandleDataAvailability();
+
 
   // pass cuda_event by pointer to allow default, nullptr value, with the
   // reference it is not that easy
@@ -318,9 +321,10 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
       tl_elm.front()->Reset();
       tl_elm.front()->set_pinned(batch.is_pinned());
     }
-    AccessOrder copy_order = std::is_same<SrcBackend, CPUBackend>::value
-                             ? AccessOrder::host()  // do not use a device order for a host to host copy
-                             : order;
+    AccessOrder copy_order =
+            std::is_same<SrcBackend, CPUBackend>::value
+            ? AccessOrder::host()  // do not use a device order for a host to host copy
+            : order;
     tl_elm.front()->Copy(batch, copy_order);
     {
       std::lock_guard<std::mutex> busy_lock(busy_m_);
@@ -426,4 +430,4 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 }  // namespace dali
 
-#endif
+#endif  // DALI_PIPELINE_OPERATOR_BUILTIN_INPUT_OPERATOR_H_
