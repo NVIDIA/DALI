@@ -12,22 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-#include <memory>
-
-#include "dali/operators/decoder/video/video_decoder_base.h"
-#include "dali/operators/reader/loader/video/frames_decoder.h"
-
 #ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_CPU_H_
 #define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_CPU_H_
 
+#include <vector>
+#include <memory>
+#include "dali/operators/decoder/video/video_decoder_base.h"
+#include "dali/operators/reader/loader/video/frames_decoder.h"
+#include "dali/pipeline/operator/operator.h"
+
 namespace dali {
 
-class VideoDecoderCpu: public VideoDecoderBase<CPUBackend, FramesDecoder> {
+class VideoDecoderCpu
+        : public Operator<CPUBackend>, public VideoDecoderBase<CPUBackend, FramesDecoder> {
   using VideoDecoderBase::DecodeSample;
 
  public:
-  explicit VideoDecoderCpu(const OpSpec &spec): VideoDecoderBase(spec) {}
+  explicit VideoDecoderCpu(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 

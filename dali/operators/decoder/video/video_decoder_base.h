@@ -12,37 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-#include <memory>
-
-#include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
-
 #ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
 #define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_BASE_H_
+
+#include <vector>
+#include <memory>
+#include "dali/pipeline/operator/common.h"
 
 namespace dali {
 
 template <typename Backend, typename FramesDecoder>
-class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
+class DLL_PUBLIC VideoDecoderBase {
  public:
   using InBackend = CPUBackend;
   using OutBackend = std::conditional_t<std::is_same_v<Backend, CPUBackend>,
                                         CPUBackend,
                                         GPUBackend>;
 
-  explicit VideoDecoderBase(const OpSpec &spec)
-      : Operator<Backend>(spec) {}
-
-  ~VideoDecoderBase() override = default;
+  VideoDecoderBase() = default;
 
   DISABLE_COPY_MOVE_ASSIGN(VideoDecoderBase);
-
-  USE_OPERATOR_MEMBERS();
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
  protected:
   void ValidateInput(const Workspace &ws) {
