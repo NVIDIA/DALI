@@ -30,6 +30,12 @@ class VideoDecoderCpu
  public:
   explicit VideoDecoderCpu(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
+
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void RunImpl(Workspace &ws) override;

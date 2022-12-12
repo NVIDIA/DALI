@@ -37,6 +37,12 @@ class VideoDecoderMixed
                  spec.GetArgument<bool>("affine"),
                  "mixed video decoder") {}
 
+
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
+
   void Run(Workspace &ws) override;
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
