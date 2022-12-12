@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,16 +73,17 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
 
 DALI_SCHEMA(Dummy4)
   .NumInput(1).NumOutput(1)
-  .AddOptionalArg("bar", "var", 17.f)
-  .AddOptionalArg<bool>("no_default2", "argument without default", nullptr)
   .AddParent("Dummy3");
+  .AddOptionalArg("bar", "var", 17.f)
+  .AddOptionalArg("foo", "foo", 2)  // shadow an argument from a parent
+  .AddOptionalArg<bool>("no_default2", "argument without default", nullptr)
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   auto spec = OpSpec("Dummy4");
   auto &schema = SchemaRegistry::GetSchema("Dummy4");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
-  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("foo"), 1.5f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<int>("foo"), 2);
   ASSERT_EQ(schema.GetDefaultValueForArgument<float>("bar"), 17);
 
   ASSERT_TRUE(schema.HasOptionalArgument("no_default"));
