@@ -100,7 +100,7 @@ if (BUILD_DALI_PIPELINE AND BUILD_TEST)
   adjust_source_file_language_property("${DALI_TEST_SRCS}")
   add_executable(dali_test "${DALI_TEST_SRCS}")
 
-  target_link_libraries(dali_test PUBLIC dali dali_core dali_kernels dali_operators ${DALI_LIBS} gtest)
+  target_link_libraries(dali_test PUBLIC dali dali_core dali_kernels ${DALI_LIBS} gtest)
   target_link_libraries(dali_test PRIVATE dynlink_cuda ${CUDART_LIB})
   if (BUILD_NVML)
     target_link_libraries(dali_test PRIVATE dynlink_nvml)
