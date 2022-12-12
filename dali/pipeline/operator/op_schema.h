@@ -791,10 +791,11 @@ inline T OpSchema::GetDefaultValueForArgument(const std::string &s) const {
                make_string("The argument \"", s, "\" doesn't have a default value in schema \"",
                            name(), "\"."));
 
-  const ValueInst<T> *vT = dynamic_cast<const ValueInst<T> *>(v);
-  DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s +
+  using S = argument_storage_t<T>;
+  const ValueInst<S> *vS = dynamic_cast<const ValueInst<S> *>(v);
+  DALI_ENFORCE(vS != nullptr, "Unexpected type of the default value for argument \"" + s +
                                   "\" of schema \"" + this->name() + "\"");
-  return vT->Get();
+  return static_cast<T>(vS->Get());
 }
 
 #define DALI_SCHEMA_REG(OpName)                         \

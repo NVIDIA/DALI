@@ -73,10 +73,10 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
 
 DALI_SCHEMA(Dummy4)
   .NumInput(1).NumOutput(1)
-  .AddParent("Dummy3");
+  .AddParent("Dummy3")
   .AddOptionalArg("bar", "var", 17.f)
   .AddOptionalArg("foo", "foo", 2)  // shadow an argument from a parent
-  .AddOptionalArg<bool>("no_default2", "argument without default", nullptr)
+  .AddOptionalArg<bool>("no_default2", "argument without default", nullptr);
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   auto spec = OpSpec("Dummy4");
@@ -101,10 +101,11 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
 
 DALI_SCHEMA(Dummy5)
   .DocStr("Foo")
+  .AddParent("Dummy4")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("baz", "baz", 2.f)
-  .AddParent("Dummy4");
+  .AddOptionalArg("foo", "foo", 1.50f)  // shadow an argument from a parent
+  .AddOptionalArg("baz", "baz", 2.f);
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   auto spec = OpSpec("Dummy5");
