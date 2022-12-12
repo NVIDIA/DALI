@@ -246,3 +246,18 @@ list(APPEND DALI_EXCLUDES libcocoapi.a)
 # libcu++
 ##################################################################
 include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/libcudacxx/include)
+
+##################################################################
+# cfitsio
+##################################################################
+if(BUILD_CFITSIO)
+  find_library(cfitsio_LIBS
+          NAMES libcfitsio.so libcfitsio
+          PATHS ${CFITSIO_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+          PATH_SUFFIXES lib lib64)
+  if(${cfitsio_LIBS} STREQUAL cfitsio_LIBS-NOTFOUND)
+    message(FATAL_ERROR "cfitsio could not be found. Try to specify it's location with `-DCFITSIO_ROOT_DIR`.")
+  endif()
+  message(STATUS "Found cfitsio: ${cfitsio_LIBS}")
+  list(APPEND DALI_LIBS ${cfitsio_LIBS})
+endif()

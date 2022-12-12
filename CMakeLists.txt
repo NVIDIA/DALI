@@ -75,6 +75,8 @@ cmake_dependent_option(BUILD_LIBSND "Build with support for libsnd library" ON
 cmake_dependent_option(BUILD_LIBTAR "Build with support for libtar library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 option(BUILD_FFTS "Build with ffts support" ON)  # Built from thirdparty sources
+cmake_dependent_option(BUILD_CFITSIO "Build with cfitsio support"  ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 
 set(KERNEL_SRCS_PATTERN "" CACHE STRING
     "Glob expression to build a subset of files for the kernel lib")
@@ -214,6 +216,7 @@ propagate_option(BUILD_LIBTIFF)
 propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_LIBTAR)
 propagate_option(BUILD_FFTS)
+propagate_option(BUILD_CFITSIO)
 propagate_option(BUILD_NVJPEG)
 propagate_option(BUILD_NVJPEG2K)
 propagate_option(BUILD_NVOF)

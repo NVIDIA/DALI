@@ -18,5 +18,9 @@ if (BUILD_TEST)
 
   # get all the test srcs
   file(GLOB tmp *.cc *.cu *.h)
+  if (NOT BUILD_CFITSIO)
+    list(REMOVE_ITEM tmp ${DALI_SRC_DIR}/dali/test/cfitsio_test.cc)
+  endif()
+
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
 endif()
