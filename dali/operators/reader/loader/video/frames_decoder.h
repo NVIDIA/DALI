@@ -260,6 +260,8 @@ class DLL_PUBLIC FramesDecoder {
 
   bool IsFormatSeekable();
 
+  void CountFrames(AvState *av_state);
+
   std::string Filename() {
     return filename_.has_value() ? filename_.value() : "memory file";
   }

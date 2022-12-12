@@ -286,18 +286,7 @@ void FramesDecoder::CreateAvState(std::unique_ptr<AvState> &av_state, bool init_
 
 void FramesDecoder::ParseNumFrames() {
   if (IsFormatSeekable()) {
-    int curr_num_frames = 0;
-    while (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
-      // We want to make sure that we call av_packet_unref in every iteration
-      auto packet = AVPacketScope(av_state_->packet_, av_packet_unref);
-
-      if (packet->stream_index != av_state_->stream_id_) {
-        continue;
-      }
-      curr_num_frames++;
-    }
-
-    num_frames_ = curr_num_frames;
+    CountFrames(av_state_.get());
     Reset();
   } else {
     // Failover for unseekable video
@@ -305,24 +294,21 @@ void FramesDecoder::ParseNumFrames() {
     memory_video_file_->Seek(0, SEEK_SET);
     std::unique_ptr<AvState> tmp_av_state = std::make_unique<AvState>();
     CreateAvState(tmp_av_state, false);
-
-    int curr_num_frames = 0;
-    while (av_read_frame(tmp_av_state->ctx_, tmp_av_state->packet_) >= 0) {
-      // We want to make sure that we call av_packet_unref in every iteration
-      auto packet = AVPacketScope(tmp_av_state->packet_, av_packet_unref);
-
-      if (packet->stream_index != tmp_av_state->stream_id_) {
-        continue;
-      }
-      curr_num_frames++;
-    }
-
-    num_frames_ = curr_num_frames;
+    CountFrames(tmp_av_state.get());
     memory_video_file_->Seek(current_position, SEEK_SET);
+  }
+}
 
-    if (tmp_av_state->packet_->pts == AV_NOPTS_VALUE) {
-      // zero_latency_ = false;
+void FramesDecoder::CountFrames(AvState *av_state) {
+  num_frames_ = 0;
+  while (av_read_frame(av_state->ctx_, av_state->packet_) >= 0) {
+    // We want to make sure that we call av_packet_unref in every iteration
+    auto packet = AVPacketScope(av_state->packet_, av_packet_unref);
+
+    if (packet->stream_index != av_state->stream_id_) {
+      continue;
     }
+    ++num_frames_.value();
   }
 }
 
