@@ -734,14 +734,15 @@ def test_permute_dataset():
                       cb, 4, 1, reader_queue_depth
 
 
-def per_iter_shape_cb(shapes):
+class PerIterShapeSource:
 
-    def cb(sample_info):
+    def __init__(self, shapes):
+        self.shapes = shapes
+
+    def __call__(self, sample_info):
         batch_idx = sample_info.iteration
-        shape = shapes[batch_idx % len(shapes)]
+        shape = self.shapes[batch_idx % len(self.shapes)]
         return np.full(shape, sample_info.idx_in_epoch, dtype=np.uint8)
-
-    return cb
 
 
 def per_iter_shape_pipeline(shapes, py_num_workers=4, batch_size=4, parallel=True,
@@ -749,7 +750,7 @@ def per_iter_shape_pipeline(shapes, py_num_workers=4, batch_size=4, parallel=Tru
     @dali.pipeline_def
     def pipeline():
         return dali.fn.external_source(
-            per_iter_shape_cb(shapes),
+            PerIterShapeSource(shapes),
             batch=False, parallel=parallel,
             bytes_per_sample_hint=bytes_per_sample_hint)
     pipe = pipeline(
