@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/operator/builtin/external_source.h"
 #include <functional>
+#include <list>
 
 namespace dali {
 
