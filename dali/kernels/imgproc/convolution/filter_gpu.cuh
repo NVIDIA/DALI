@@ -183,14 +183,14 @@ struct InLoaderPad {
 };
 
 template <typename InLoader>
-struct InLoaderFactory {
+struct InLoaderProvider {
   DALI_DEVICE DALI_FORCEINLINE InLoader operator()(int sample_idx) {
     return {};
   }
 };
 
 template <typename In, int axes>
-struct InLoaderFactory<InLoaderPad<In, axes>> {
+struct InLoaderProvider<InLoaderPad<In, axes>> {
   DALI_DEVICE DALI_FORCEINLINE InLoaderPad<In, axes> operator()(int sample_idx) {
     if (fill_values == nullptr) {
       return {0};
@@ -588,16 +588,17 @@ the W and C extents to utilize this property. Additionally, the implementation t
 memory loads the inputs in blocks with extents corresponding to (D, )H, W * C extents to account
 for the fact that spatailly close products will reuse some of the inputs.
 */
-template <typename SampleDescT, typename BlockSetupFactory, typename InLoaderFactory,
+template <typename SampleDescT, typename BlockSetupProvider, typename InLoaderProvider,
           typename GridSetupT>
-__global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory block_setup_factory,
-                       InLoaderFactory in_loader_factory, GridSetupT grid_setup) {
+__global__ void filter(const SampleDescT* __restrict__ descs,
+                       BlockSetupProvider block_setup_provider, InLoaderProvider in_loader_provider,
+                       GridSetupT grid_setup) {
   extern __shared__ char shm[];
   int sample_idx = grid_setup.sample_idx();
   for (int sample_idx = grid_setup.sample_idx(); sample_idx < grid_setup.num_samples();
        sample_idx += grid_setup.sample_dim()) {
     auto sample_desc = descs[sample_idx];
-    const auto& block_setup = block_setup_factory(sample_idx);
+    const auto& block_setup = block_setup_provider(sample_idx);
     const auto& logical_block_extents = sample_desc.logical_block_extents;
     auto block_start = grid_setup.block_idx() * logical_block_extents;
     auto process_sample = [&](const auto& out_extents, const auto& out_strides,
@@ -606,7 +607,7 @@ __global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory 
         return;  // early exit to avoid all the setup only to do nothing in the stride loop
       }
       auto grid_size = grid_setup.grid_dim() * logical_block_extents;
-      const auto& in_loader = in_loader_factory(sample_idx);
+      const auto& in_loader = in_loader_provider(sample_idx);
       if (sample_desc.in_shape.in_workspace_extents.x) {
         using In = typename SampleDescT::In;
         int* idx_workspace = reinterpret_cast<int*>(shm);
@@ -624,13 +625,8 @@ __global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory 
     };
     // If extents are equal then strides are too, make it explicit as it faster and the usual case
     // (roi is, for now, only used for ``valid`` mode)
-    if (sample_desc.out_shape.extents == sample_desc.in_shape.in_extents) {
-      process_sample(sample_desc.in_shape.in_extents, sample_desc.in_shape.in_strides,
-                     sample_desc.in_shape.frame_stride);
-    } else {
-      process_sample(sample_desc.out_shape.extents, sample_desc.out_shape.strides,
-                     sample_desc.out_shape.frame_stride);
-    }
+    process_sample(sample_desc.in_shape.in_extents, sample_desc.in_shape.in_strides,
+                   sample_desc.in_shape.frame_stride);
   }
 }
 
@@ -816,8 +812,8 @@ struct FilterGpu {
   static constexpr int channels_dim = has_channel_dim ? ndim - 1 : -1;
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
   using StaticConfigT = filter::StaticConfig<axes>;
-  using BlockSetupFactoryT = filter::AdaptiveBlock<StaticConfigT>;
-  using BlockSetupT = typename BlockSetupFactoryT::BlockSetup;
+  using BlockSetupProviderT = filter::AdaptiveBlock<StaticConfigT>;
+  using BlockSetupT = typename BlockSetupProviderT::BlockSetup;
   using StaticBlockFactoryT = filter::StaticBlock<StaticConfigT>;
   using StaticBlockT = typename StaticBlockFactoryT::BlockSetup;
   using GridSetupT = filter::GridSetup<StaticConfigT>;
@@ -839,7 +835,7 @@ struct FilterGpu {
     SampleDescT* samples_desc_dev;
     SetupSampleDescs(max_total_workspace, out, in, filters, anchors);
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
-    auto grid_setup = PrepareGridSetup(out, in);
+    auto grid_setup = PrepareGridSetup(make_cspan(samples_desc_));
     RunKernel(ctx, border_type, fill_values, [&](auto&& block_setup) {
       return [&](auto&& loader) {
         filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
@@ -900,14 +896,14 @@ struct FilterGpu {
     const int shared_mem_limit = GetSharedMemPerBlock();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       InShapeDescT shape_desc;
-      OutShapeDescT out_shape_desc;
       BlockSetupT block_setup;
       ivec<axes> logical_block_extents;
       int lanes_axis;
       int required_workspace;
-      SetupSampleDesc(shape_desc, out_shape_desc, block_setup, logical_block_extents, lanes_axis,
-                      required_workspace, sample_idx, out_shapes[sample_idx], in_shapes[sample_idx],
+      SetupSampleDesc(shape_desc, block_setup, logical_block_extents, lanes_axis,
+                      required_workspace, sample_idx, in_shapes[sample_idx],
                       filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
+      auto out_shape_desc = SetupOutputShapeDesc(out_shapes[sample_idx], in_shapes[sample_idx]);
       max_total_workspace = std::max(max_total_workspace, required_workspace);
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
@@ -917,10 +913,9 @@ struct FilterGpu {
   }
 
   template <typename InOutShape, typename FilterShape>
-  void SetupSampleDesc(InShapeDescT& shape_desc, OutShapeDescT& out_shape_desc,
-                       BlockSetupT& block_setup, ivec<axes>& logical_block_extents, int& lanes_axis,
-                       int& required_workspace, int sample_idx, const InOutShape& out_shape,
-                       const InOutShape& in_shape, const FilterShape& filter_shape,
+  void SetupSampleDesc(InShapeDescT& shape_desc, BlockSetupT& block_setup,
+                       ivec<axes>& logical_block_extents, int& lanes_axis, int& required_workspace,
+                       int sample_idx, const InOutShape& in_shape, const FilterShape& filter_shape,
                        ivec<axes> anchor, int shared_mem_limit) {
     int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
     int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
@@ -946,13 +941,8 @@ struct FilterGpu {
     strides(in_strides, frame_stride, in_extents * channels);
     ivec<axes> workspace_strides;
     strides(workspace_strides, in_workspace_extents);
-    auto out_extents = ShapeAsVec<int>(out_shape);
-    int64_t out_frame_stride;
-    i64vec<axes> out_strides;
-    strides(out_strides, out_frame_stride, out_extents * channels);
     ivec<axes> filter_strides;
     strides(filter_strides, filter_extents);
-    out_shape_desc = {out_frame_stride, out_strides, out_extents * channels};
     shape_desc = {frame_stride,
                   in_strides,
                   num_frames,
@@ -965,6 +955,17 @@ struct FilterGpu {
                   in_workspace_extents,
                   workspace_strides,
                   in_workspace_offset};
+  }
+
+  template <typename InOutShape>
+  OutShapeDescT SetupOutputShapeDesc(const InOutShape& out_shape, const InOutShape& in_shape) {
+    int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
+    auto out_extents = ShapeAsVec<int>(out_shape);
+    out_extents[0] *= num_channels;
+    int64_t out_frame_stride;
+    i64vec<axes> out_strides;
+    strides(out_strides, out_frame_stride, out_extents);
+    return {out_frame_stride, out_strides, out_extents};
   }
 
   BlockSetupT PrepareBlockSetup(const ivec2& in_extents) {
@@ -986,22 +987,16 @@ struct FilterGpu {
     return {block, {0, block.x, block.x + block.y}};
   }
 
-  GridSetupT PrepareGridSetup(const TensorListView<StorageGPU, Out, ndim>& out,
-                              const TensorListView<StorageGPU, const In, ndim>& in) {
+  GridSetupT PrepareGridSetup(span<const SampleDescT> sample_descs) {
     ivec<axes> num_blocks = 0;
-    const auto& in_shapes = in.shape;
-    const auto& out_shapes = out.shape;
-    for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
-      const auto& out_shape = out_shapes[sample_idx];
-      int64_t num_channels = has_channel_dim ? in_shapes[sample_idx][channels_dim] : 1;
-      const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
-      auto out_extents = ShapeAsVec<int>(out_shape) * channels;
+    for (const auto& sample_desc : sample_descs) {
       auto sample_num_blocks =
-          div_ceil(out_extents, samples_desc_[sample_idx].logical_block_extents);
+          div_ceil(sample_desc.out_shape.extents, sample_desc.logical_block_extents);
       num_blocks = max(num_blocks, sample_num_blocks);
     }
     num_blocks = min(num_blocks, StaticConfigT::max_grid_extents());
-    return {num_blocks, in_shapes.num_samples()};
+    int num_samples = sample_descs.size();
+    return {num_blocks, num_samples};
   }
 
   int GetLanesAxis(const ivec2 filter_extents) {
@@ -1024,7 +1019,7 @@ struct FilterGpu {
     } else {
       BlockSetupT* block_setups_dev;
       std::tie(block_setups_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, block_setups_);
-      BlockSetupFactoryT block_setup{block_setups_dev};
+      BlockSetupProviderT block_setup{block_setups_dev};
       RunKernelWithBorderMode(ctx, border_type, fill_values, launch_kernel(std::move(block_setup)));
     }
   }
@@ -1051,7 +1046,7 @@ struct FilterGpu {
   template <boundary::BoundaryType border, typename KernelLauncher>
   void RunKernelBorderRemap(KernelContext& ctx, KernelLauncher&& launch_kernel) {
     using Loader = filter::InLoaderBorderRemap<In, axes, border>;
-    filter::InLoaderFactory<Loader> loader_factory{};
+    filter::InLoaderProvider<Loader> loader_factory{};
     launch_kernel(std::move(loader_factory));
   }
 
@@ -1061,7 +1056,7 @@ struct FilterGpu {
                                KernelLauncher&& launch_kernel) {
     int num_samples = samples_desc_.size();
     if (fill_values.num_samples() != num_samples) {
-      filter::InLoaderFactory<filter::InLoaderPad<In, axes>> loader_factory{nullptr};
+      filter::InLoaderProvider<filter::InLoaderPad<In, axes>> loader_factory{nullptr};
       launch_kernel(std::move(loader_factory));
     } else {
       fill_values_.resize(num_samples);
@@ -1070,7 +1065,7 @@ struct FilterGpu {
       }
       const In** fill_values_dev;
       std::tie(fill_values_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, fill_values_);
-      filter::InLoaderFactory<filter::InLoaderPad<In, axes>> loader_factory{fill_values_dev};
+      filter::InLoaderProvider<filter::InLoaderPad<In, axes>> loader_factory{fill_values_dev};
       launch_kernel(std::move(loader_factory));
     }
   }
