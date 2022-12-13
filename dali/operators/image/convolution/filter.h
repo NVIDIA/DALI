@@ -40,13 +40,13 @@ namespace dali {
 namespace filter {
 using namespace boundary;  // NOLINT(build/namespaces)
 
-struct InputLayoutDesc {
+struct InputDesc {
   int num_seq_dims, axes;
   bool has_channels;
+  bool is_valid_mode;
 };
 
-inline InputLayoutDesc parse_input_layout(const TensorLayout& layout) {
-  InputLayoutDesc input_desc;
+inline void parse_input_layout(InputDesc& input_desc, const TensorLayout& layout) {
   const auto is_seq_like = [](char extent) { return extent == 'C' || extent == 'F'; };
   int pos = 0;
   while (pos < layout.size() && is_seq_like(layout[pos])) {
@@ -58,10 +58,9 @@ inline InputLayoutDesc parse_input_layout(const TensorLayout& layout) {
   }
   input_desc.axes = pos - input_desc.num_seq_dims;
   input_desc.has_channels = layout.size() && layout[layout.size() - 1] == 'C';
-  return input_desc;
 }
 
-inline InputLayoutDesc parse_validate_input_layout(const TensorLayout& layout, int ndim) {
+inline InputDesc setup_input_desc(const TensorLayout& layout, int ndim, bool is_valid_mode) {
   if (!layout.size()) {
     DALI_ENFORCE(
         ndim == 2 || ndim == 3,
@@ -69,13 +68,15 @@ inline InputLayoutDesc parse_validate_input_layout(const TensorLayout& layout, i
                     " dimensions. However, only 2D and 3D convolutions are supported. If the input "
                     "has non-spatial dimensions, such as channels or frames (for video sequences), "
                     "please make sure the input batch has a proper layout set."));
-    return {0, ndim, false};
+    return {0, ndim, false, is_valid_mode};
   }
-  auto layout_desc = parse_input_layout(layout);
+  InputDesc input_desc;
+  input_desc.is_valid_mode = is_valid_mode;
+  parse_input_layout(input_desc, layout);
   DALI_ENFORCE(
-      layout_desc.num_seq_dims + layout_desc.axes + layout_desc.has_channels == ndim,
+      input_desc.num_seq_dims + input_desc.axes + input_desc.has_channels == ndim,
       make_string("Filter operator encountered input with unsupported layout: `", layout, "`."));
-  return layout_desc;
+  return input_desc;
 }
 
 inline BoundaryType parse_filter_border_type(const std::string& border_type_str) {
@@ -111,8 +112,8 @@ inline bool parse_is_valid_mode(std::string mode) {
 
 template <typename InputShapes, typename FilterShapes>
 InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShapes& filter_shapes,
-                               int spatial_dim_start, bool is_valid_only_mode) {
-  if (!is_valid_only_mode) {
+                               const InputDesc& input_desc) {
+  if (!input_desc.is_valid_mode) {
     return input_shapes;
   }
   auto num_samples = input_shapes.num_samples();
@@ -127,9 +128,9 @@ InputShapes infer_output_shape(const InputShapes& input_shapes, const FilterShap
           make_string(
               "Filter of volume zero is not supported, got zero-volume filter for sample of idx ",
               sample_idx, "."));
-      shape[spatial_dim_start + dim_idx] -= filter_shape[dim_idx] - 1;
+      shape[input_desc.num_seq_dims + dim_idx] -= filter_shape[dim_idx] - 1;
       DALI_ENFORCE(
-          shape[spatial_dim_start + dim_idx] > 0,
+          shape[input_desc.num_seq_dims + dim_idx] > 0,
           make_string(
               "Filter for sample of idx ", sample_idx,
               " is bigger than the sample. This is not allowed if ``mode`` is set to ``valid``."));
@@ -170,7 +171,9 @@ TensorListView<detail::storage_tag_map_t<Backend>, const In, 0> get_fill_values_
 template <typename Backend>
 class Filter : public SequenceOperator<Backend> {
  public:
-  inline explicit Filter(const OpSpec& spec) : SequenceOperator<Backend>(spec) {
+  inline explicit Filter(const OpSpec& spec)
+      : SequenceOperator<Backend>(spec),
+        is_valid_mode_{filter::parse_is_valid_mode(spec.GetArgument<std::string>("mode"))} {
     spec.TryGetArgument(dtype_, "dtype");
   }
 
@@ -185,7 +188,7 @@ class Filter : public SequenceOperator<Backend> {
 
   template <typename Out, typename In, typename W>
   std::unique_ptr<OpImplBase<Backend>> GetFilterImpl(const OpSpec& spec_,
-                                                     const filter::InputLayoutDesc& input_desc);
+                                                     const filter::InputDesc& input_desc);
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     if (!impl_) {
@@ -197,20 +200,20 @@ class Filter : public SequenceOperator<Backend> {
                    "input type)");
       const auto& input_layout = GetInputLayout(ws, 0);
       auto input_sample_dim = ws.GetInputShape(0).sample_dim();
-      auto input_layout_desc = filter::parse_validate_input_layout(input_layout, input_sample_dim);
+      auto input_desc = filter::setup_input_desc(input_layout, input_sample_dim, is_valid_mode_);
       const auto& filter_shape = ws.GetInputShape(1);
       auto filter_ndim = filter_shape.sample_dim();
-      DALI_ENFORCE(filter_ndim == input_layout_desc.axes,
+      DALI_ENFORCE(filter_ndim == input_desc.axes,
                    make_string("Filter dimensionality must match the number of spatial dimensions "
                                "in the input samples. Got ",
-                               input_layout_desc.axes, " spatial dimensions but the filter is ",
+                               input_desc.axes, " spatial dimensions but the filter is ",
                                filter_ndim, " dimensional."));
       TYPE_SWITCH(input_type, type2id, In, FILTER_INPUT_SUPPORTED_TYPES, (
         TYPE_SWITCH(filter_type, type2id, W, FILTER_KERNEL_SUPPORTED_TYPES, (
           if (dtype == input_type) {
-            impl_ = GetFilterImpl<In, In, W>(spec_, input_layout_desc);
+            impl_ = GetFilterImpl<In, In, W>(spec_, input_desc);
           } else {
-            impl_ = GetFilterImpl<W, In, W>(spec_, input_layout_desc);
+            impl_ = GetFilterImpl<W, In, W>(spec_, input_desc);
           }
         ), DALI_FAIL(make_string("Unsupported filter type: ", filter_type)));  // NOLINT
       ), DALI_FAIL(make_string("Unsupported input type: ", input_type)));  // NOLINT
@@ -241,9 +244,10 @@ class Filter : public SequenceOperator<Backend> {
   }
 
  private:
+  bool is_valid_mode_;
   DALIDataType dtype_ = DALI_NO_TYPE;
+  std::unique_ptr<OpImplBase<Backend>> impl_ = nullptr;
   USE_OPERATOR_MEMBERS();
-  std::unique_ptr<OpImplBase<Backend>> impl_;
 };
 
 }  // namespace dali

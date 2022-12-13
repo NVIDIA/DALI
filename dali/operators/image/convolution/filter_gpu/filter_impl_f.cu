@@ -20,11 +20,11 @@ namespace dali {
 namespace filter {
 
 template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float16, float16, float>(
-    const OpSpec&, const InputLayoutDesc&);
+    const OpSpec&, const InputDesc&);
 template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, float16, float>(
-    const OpSpec&, const InputLayoutDesc&);
+    const OpSpec&, const InputDesc&);
 template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, float, float>(
-    const OpSpec&, const InputLayoutDesc&);
+    const OpSpec&, const InputDesc&);
 
 }  // namespace filter
 }  // namespace dali

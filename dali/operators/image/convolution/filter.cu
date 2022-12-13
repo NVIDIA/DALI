@@ -22,42 +22,42 @@ namespace dali {
 namespace filter {
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<uint8_t, uint8_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<uint8_t, uint8_t, float>(const OpSpec&, const InputDesc&);
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, uint8_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float, uint8_t, float>(const OpSpec&, const InputDesc&);
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<int8_t, int8_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<int8_t, int8_t, float>(const OpSpec&, const InputDesc&);
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, int8_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float, int8_t, float>(const OpSpec&, const InputDesc&);
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<uint16_t, uint16_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<uint16_t, uint16_t, float>(const OpSpec&, const InputDesc&);
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, uint16_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float, uint16_t, float>(const OpSpec&, const InputDesc&);
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<int16_t, int16_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<int16_t, int16_t, float>(const OpSpec&, const InputDesc&);
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, int16_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float, int16_t, float>(const OpSpec&, const InputDesc&);
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<uint32_t, uint32_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<uint32_t, uint32_t, float>(const OpSpec&, const InputDesc&);
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, uint32_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float, uint32_t, float>(const OpSpec&, const InputDesc&);
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<int32_t, int32_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<int32_t, int32_t, float>(const OpSpec&, const InputDesc&);
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, int32_t, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float, int32_t, float>(const OpSpec&, const InputDesc&);
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float16, float16, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float16, float16, float>(const OpSpec&, const InputDesc&);
 extern template std::unique_ptr<OpImplBase<GPUBackend>>
-get_filter_gpu_op_impl<float, float16, float>(const OpSpec&, const InputLayoutDesc&);
+get_filter_gpu_op_impl<float, float16, float>(const OpSpec&, const InputDesc&);
 
 extern template std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl<float, float, float>(
-    const OpSpec&, const InputLayoutDesc&);
+    const OpSpec&, const InputDesc&);
 
 }  // namespace filter
 
@@ -72,7 +72,7 @@ bool Filter<GPUBackend>::ShouldExpand(const Workspace& ws) {
 template <>
 template <typename Out, typename In, typename W>
 std::unique_ptr<OpImplBase<GPUBackend>> Filter<GPUBackend>::GetFilterImpl<Out, In, W>(
-    const OpSpec& spec, const filter::InputLayoutDesc& input_desc) {
+    const OpSpec& spec, const filter::InputDesc& input_desc) {
   return filter::get_filter_gpu_op_impl<Out, In, W>(spec, input_desc);
 }
 

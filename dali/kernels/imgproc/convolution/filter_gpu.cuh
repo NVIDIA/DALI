@@ -203,6 +203,29 @@ struct InLoaderProvider<InLoaderPad<In, axes>> {
 /** @} */  // end of InputLoader
 
 
+/** @defgroup OutputShapeProvider OutputShapeProvider is introduced to reduce registers pressure
+ * when it is known that input and output shapes are equal.
+ * @{
+ */
+
+template <typename SampleDescT>
+struct OutShapeProviderSame {
+  DALI_DEVICE DALI_FORCEINLINE OutShapeDesc<SampleDescT::axes> operator()(SampleDescT sample_desc) {
+    auto in_shape = sample_desc.in_shape;
+    return {in_shape.frame_stride, in_shape.in_strides, in_shape.in_extents};
+  }
+};
+
+template <typename SampleDescT>
+struct OutShapeProviderROI {
+  DALI_DEVICE DALI_FORCEINLINE OutShapeDesc<SampleDescT::axes> operator()(SampleDescT sample_desc) {
+    return sample_desc.out_shape;
+  }
+};
+
+/** @} */  // end of OutputShapeProvider
+
+
 /** @defgroup InputConv The specializations provide ``compute`` method that computes convolution
  * for the patch of logical block size (logical_block_extents) and stores it in the provided
  * ``acc``.
@@ -346,9 +369,9 @@ struct ShmInputConv {
 };
 
 /**
- * @brief Computes the convolution of logical block size size (logical_block_extents) accessing the
- * input directly in global memory. Used as a fallback when the filter size or number of channels in
- * the input make it impossible to use ``ShmInputConv``.
+ * @brief Computes the convolution of logical block size size (logical_block_extents) accessing
+ * the input directly in global memory. Used as a fallback when the filter size or number of
+ * channels in the input make it impossible to use ``ShmInputConv``.
  */
 template <int lanes_axis_, typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct DirectInputConv {
@@ -589,10 +612,10 @@ memory loads the inputs in blocks with extents corresponding to (D, )H, W * C ex
 for the fact that spatailly close products will reuse some of the inputs.
 */
 template <typename SampleDescT, typename BlockSetupProvider, typename InLoaderProvider,
-          typename GridSetupT>
+          typename GridSetupT, typename OutShapeProviderT>
 __global__ void filter(const SampleDescT* __restrict__ descs,
                        BlockSetupProvider block_setup_provider, InLoaderProvider in_loader_provider,
-                       GridSetupT grid_setup) {
+                       GridSetupT grid_setup, OutShapeProviderT out_shape_provider) {
   extern __shared__ char shm[];
   int sample_idx = grid_setup.sample_idx();
   for (int sample_idx = grid_setup.sample_idx(); sample_idx < grid_setup.num_samples();
@@ -601,32 +624,30 @@ __global__ void filter(const SampleDescT* __restrict__ descs,
     const auto& block_setup = block_setup_provider(sample_idx);
     const auto& logical_block_extents = sample_desc.logical_block_extents;
     auto block_start = grid_setup.block_idx() * logical_block_extents;
-    auto process_sample = [&](const auto& out_extents, const auto& out_strides,
-                              const auto& out_frame_stride) {
-      if (any_coord(block_start >= out_extents)) {
-        return;  // early exit to avoid all the setup only to do nothing in the stride loop
-      }
-      auto grid_size = grid_setup.grid_dim() * logical_block_extents;
-      const auto& in_loader = in_loader_provider(sample_idx);
-      if (sample_desc.in_shape.in_workspace_extents.x) {
-        using In = typename SampleDescT::In;
-        int* idx_workspace = reinterpret_cast<int*>(shm);
-        In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.in_shape.in_workspace_offset);
-        with_shm_conv(
-            sample_desc, in_loader, block_setup, idx_workspace, in_workspace, [&](auto&& conv) {
-              stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
-            });
-
-      } else {
-        with_direct_conv(sample_desc, in_loader, block_setup, [&](auto&& conv) {
-          stride_grid(block_start, grid_size, out_extents, out_strides, out_frame_stride, conv);
-        });
-      }
-    };
+    auto out_shape = out_shape_provider(sample_desc);
     // If extents are equal then strides are too, make it explicit as it faster and the usual case
     // (roi is, for now, only used for ``valid`` mode)
-    process_sample(sample_desc.in_shape.in_extents, sample_desc.in_shape.in_strides,
-                   sample_desc.in_shape.frame_stride);
+    if (any_coord(block_start >= out_shape.extents)) {
+      return;  // early exit to avoid all the setup only to do nothing in the stride loop
+    }
+    auto grid_size = grid_setup.grid_dim() * logical_block_extents;
+    const auto& in_loader = in_loader_provider(sample_idx);
+    if (sample_desc.in_shape.in_workspace_extents.x) {
+      using In = typename SampleDescT::In;
+      int* idx_workspace = reinterpret_cast<int*>(shm);
+      In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.in_shape.in_workspace_offset);
+      with_shm_conv(sample_desc, in_loader, block_setup, idx_workspace, in_workspace,
+                    [&](auto&& conv) {
+                      stride_grid(block_start, grid_size, out_shape.extents, out_shape.strides,
+                                  out_shape.frame_stride, conv);
+                    });
+
+    } else {
+      with_direct_conv(sample_desc, in_loader, block_setup, [&](auto&& conv) {
+        stride_grid(block_start, grid_size, out_shape.extents, out_shape.strides,
+                    out_shape.frame_stride, conv);
+      });
+    }
   }
 }
 
@@ -800,12 +821,13 @@ struct GridSetup {
 }  // namespace filter
 
 template <typename Out, typename In, typename W, bool has_channel_dim, bool has_sequence_dim,
-          int axes_>
+          int axes_, bool enable_roi_>
 struct FilterGpu {
   /* It computes a correlation of the input and the filter.
   Flip filter in both dimensions for a convolution. */
 
   static constexpr int axes = axes_;
+  static constexpr bool enable_roi = enable_roi_;
   static constexpr int ndim =
       static_cast<int>(has_sequence_dim) + axes + static_cast<int>(has_channel_dim);
   static constexpr int sequence_dim = has_sequence_dim ? 0 : -1;
@@ -836,13 +858,16 @@ struct FilterGpu {
     SetupSampleDescs(max_total_workspace, out, in, filters, anchors);
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
     auto grid_setup = PrepareGridSetup(make_cspan(samples_desc_));
-    RunKernel(ctx, border_type, fill_values, [&](auto&& block_setup) {
-      return [&](auto&& loader) {
-        filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
-                         max_total_workspace, ctx.gpu.stream>>>(samples_desc_dev, block_setup,
-                                                                loader, grid_setup);
-        CUDA_CALL(cudaGetLastError());
-      };
+    WithBlockSetupProvider(ctx, [&](auto&& block_setup_provider) {
+      WithInLoaderProvider(ctx, border_type, fill_values, [&](auto&& in_loader_provider) {
+        WithOutShapeProvider([&](auto&& out_shape_provider) {
+          filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
+                           max_total_workspace, ctx.gpu.stream>>>(
+              samples_desc_dev, block_setup_provider, in_loader_provider, grid_setup,
+              out_shape_provider);
+          CUDA_CALL(cudaGetLastError());
+        });
+      });
     });
   }
 
@@ -1009,25 +1034,23 @@ struct FilterGpu {
   }
 
   template <typename KernelLauncher>
-  void RunKernel(KernelContext& ctx, boundary::BoundaryType border_type,
-                 const TensorListView<StorageGPU, const In, 0>& fill_values,
-                 KernelLauncher&& launch_kernel) {
+  void WithBlockSetupProvider(KernelContext& ctx, KernelLauncher&& launch_kernel) {
     if (std::all_of(block_setups_.begin(), block_setups_.end(), [](const auto& block_setup) {
           return block_setup.block_dim() == StaticBlockT{}.block_dim();
         })) {
-      RunKernelWithBorderMode(ctx, border_type, fill_values, launch_kernel(StaticBlockFactoryT{}));
+      launch_kernel(StaticBlockFactoryT{});
     } else {
       BlockSetupT* block_setups_dev;
       std::tie(block_setups_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, block_setups_);
       BlockSetupProviderT block_setup{block_setups_dev};
-      RunKernelWithBorderMode(ctx, border_type, fill_values, launch_kernel(std::move(block_setup)));
+      launch_kernel(std::move(block_setup));
     }
   }
 
   template <typename KernelLauncher>
-  void RunKernelWithBorderMode(KernelContext& ctx, boundary::BoundaryType border_type,
-                               const TensorListView<StorageGPU, const In, 0>& fill_values,
-                               KernelLauncher&& launch_kernel) {
+  void WithInLoaderProvider(KernelContext& ctx, boundary::BoundaryType border_type,
+                            const TensorListView<StorageGPU, const In, 0>& fill_values,
+                            KernelLauncher&& launch_kernel) {
     using namespace boundary;  // NOLINT(build/namespaces)
     VALUE_SWITCH(border_type, BT, (
       BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001,
@@ -1067,6 +1090,18 @@ struct FilterGpu {
       std::tie(fill_values_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, fill_values_);
       filter::InLoaderProvider<filter::InLoaderPad<In, axes>> loader_factory{fill_values_dev};
       launch_kernel(std::move(loader_factory));
+    }
+  }
+
+  template <typename KernelLauncher>
+  void WithOutShapeProvider(KernelLauncher&& launch_kernel) {
+    if (enable_roi) {
+      launch_kernel(filter::OutShapeProviderROI<SampleDescT>{});
+    } else {
+      assert(std::all_of(samples_desc_.begin(), samples_desc_.end(), [](const auto& sample_desc) {
+        return sample_desc.out_shape.extents == sample_desc.in_shape.in_extents;
+      }));
+      launch_kernel(filter::OutShapeProviderSame<SampleDescT>{});
     }
   }
 

@@ -34,22 +34,22 @@ namespace dali {
 
 namespace filter {
 
-template <typename Out, typename In, typename W, int axes, bool is_sequence, bool has_channels>
+template <typename Out, typename In, typename W, int axes, bool is_sequence, bool has_channels,
+          bool enable_roi>
 class FilterOpGpu : public OpImplBase<GPUBackend> {
  public:
-  using Kernel = kernels::FilterGpu<Out, In, W, has_channels, is_sequence, axes>;
+  using Kernel = kernels::FilterGpu<Out, In, W, has_channels, is_sequence, axes, enable_roi>;
   static constexpr int ndim = Kernel::ndim;
 
   /**
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit FilterOpGpu(const OpSpec* spec, InputLayoutDesc layout_desc)
+  explicit FilterOpGpu(const OpSpec* spec, InputDesc input_desc)
       : spec_{*spec},
-        layout_desc_{layout_desc},
+        input_desc_{input_desc},
         anchor_arg_{"anchor", spec_},
-        border_type_{parse_filter_border_type(spec_.GetArgument<std::string>("border"))},
-        is_valid_only_{parse_is_valid_mode(spec_.GetArgument<std::string>("mode"))} {
+        border_type_{parse_filter_border_type(spec_.GetArgument<std::string>("border"))} {
     kmgr_.Resize<Kernel>(1);
     filter_dev_.set_type(type2id<W>::value);
   }
@@ -61,8 +61,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     anchor_arg_.Acquire(spec_, ws, num_samples, TensorShape<1>{axes});
     output_desc.resize(1);
     output_desc[0].type = type2id<Out>::value;
-    output_desc[0].shape = infer_output_shape(input.shape(), ws.GetInputShape(1),
-                                              layout_desc_.num_seq_dims, is_valid_only_);
+    output_desc[0].shape = infer_output_shape(input.shape(), ws.GetInputShape(1), input_desc_);
     return true;
   }
 
@@ -74,8 +73,8 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
     auto in_shape = input.shape();
     auto out_shape = output.shape();
     if (is_sequence) {
-      in_shape = collapse_dims(in_shape, {{0, layout_desc_.num_seq_dims}});
-      out_shape = collapse_dims(out_shape, {{0, layout_desc_.num_seq_dims}});
+      in_shape = collapse_dims(in_shape, {{0, input_desc_.num_seq_dims}});
+      out_shape = collapse_dims(out_shape, {{0, input_desc_.num_seq_dims}});
     }
     auto in_views_dyn = view<const In>(input);
     auto out_views_dyn = view<Out>(output);
@@ -102,7 +101,7 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
 
   span<const ivec<axes>> GetAnchors(const TensorListShape<axes>& filter_shapes, int num_samples) {
     using kernels::shape2vec;
-    if (is_valid_only_) {
+    if (input_desc_.is_valid_mode) {
       // in valid mode there is exactly one way to position filter so that
       // for each output point it lies fully within the input
       anchors_.clear();
@@ -150,10 +149,9 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   }
 
   const OpSpec& spec_;
-  InputLayoutDesc layout_desc_;
+  InputDesc input_desc_;
   ArgValue<int, 1> anchor_arg_;
   BoundaryType border_type_;
-  bool is_valid_only_;
 
   kernels::KernelManager kmgr_;
   kernels::KernelContext ctx_;
@@ -164,13 +162,15 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
 
 template <typename Out, typename In, typename W>
 std::unique_ptr<OpImplBase<GPUBackend>> get_filter_gpu_op_impl(const OpSpec& spec_,
-                                                               const InputLayoutDesc& input_desc) {
+                                                               const InputDesc& input_desc) {
   VALUE_SWITCH(input_desc.axes, Axes, FILTER_INPUT_SUPPORTED_SPATIAL_NDIM, (
     BOOL_SWITCH(
       input_desc.num_seq_dims > 0, IsSequence, (
         BOOL_SWITCH(input_desc.has_channels, HasChannels, (
-          using OpImpl = FilterOpGpu<Out, In, W, Axes, IsSequence, HasChannels>;
-          return std::make_unique<OpImpl>(&spec_, input_desc);
+          BOOL_SWITCH(input_desc.is_valid_mode, EnableROI, (
+            using OpImpl = FilterOpGpu<Out, In, W, Axes, IsSequence, HasChannels, EnableROI>;
+            return std::make_unique<OpImpl>(&spec_, input_desc);
+          ));  // NOLINT
         ));  // NOLINT
        ));   // NOLINT
   ), (   // NOLINT
