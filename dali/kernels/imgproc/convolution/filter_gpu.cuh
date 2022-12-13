@@ -59,12 +59,6 @@ struct ShapeDesc {
   ivec<axes> in_workspace_strides;
   // the sum of all but first in_workspace_extents
   int in_workspace_offset;
-  // the size of a logical block: threablock and lanes
-  ivec<axes> log_block_extents;
-  // axis to iterate over with lanes
-  // if axes == 2 then must be 1 (i.e. height),
-  // for volumetric input it may be depth or height
-  int lanes_axis;
 };
 
 template <typename Out_, typename In_, typename W_, typename Acc_, int axes_>
@@ -79,6 +73,12 @@ struct SampleDesc {
   const In* __restrict__ in;
   const W* __restrict__ filter;
   ShapeDesc<axes> shape;
+  // the size of a logical block: threablock and lanes
+  ivec<axes> logical_block_extents;
+  // axis to iterate over with lanes
+  // if axes == 2 then must be 1 (i.e. height),
+  // for volumetric input it may be depth or height
+  int lanes_axis;
 };
 
 /** @defgroup InputLoader InputLoader is meant to specialize loading of the sample from global
@@ -197,13 +197,14 @@ struct InLoaderFactory<InLoaderPad<In, axes>> {
 
 
 /** @defgroup InputConv The specializations provide ``compute`` method that computes convolution
- * for the patch of logical block size (log_block_extents) and stores it in the provided ``acc``.
+ * for the patch of logical block size (logical_block_extents) and stores it in the provided
+ * ``acc``.
  * @{
  */
 
 /**
  * @brief First loads the input patch necessary to compute the output of logical block size
- * (log_block_extents) into shared memory (including filter's halo/apron), then computes the
+ * (logical_block_extents) into shared memory (including filter's halo/apron), then computes the
  * convolution.
  */
 template <int lanes_axis_, typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
@@ -334,7 +335,7 @@ struct ShmInputConv {
 };
 
 /**
- * @brief Computes the convolution of logical block size size (log_block_extents) accessing the
+ * @brief Computes the convolution of logical block size size (logical_block_extents) accessing the
  * input directly in global memory. Used as a fallback when the filter size or number of channels in
  * the input make it impossible to use ``ShmInputConv``.
  */
@@ -532,10 +533,10 @@ DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with
     const SampleDescT& sample_desc, const InLoaderT& in_loader, const BlockSetupT& block_setup,
     int* __restrict__ idx_workspace, typename SampleDescT::In* __restrict__ input_workspace,
     Cb&& cb) {
-  if (sample_desc.shape.lanes_axis == 2) {
+  if (sample_desc.lanes_axis == 2) {
     cb(create_shm_conv<2>(sample_desc, in_loader, block_setup, input_workspace, idx_workspace));
   } else {
-    assert(sample_desc.shape.lanes_axis == 1);
+    assert(sample_desc.lanes_axis == 1);
     cb(create_shm_conv<1>(sample_desc, in_loader, block_setup, input_workspace, idx_workspace));
   }
 }
@@ -558,10 +559,10 @@ template <typename SampleDescT, typename InLoaderT, typename BlockSetupT, typena
 DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with_direct_conv(
     const SampleDescT& sample_desc, const InLoaderT& in_loader, const BlockSetupT& block_setup,
     Cb&& cb) {
-  if (sample_desc.shape.lanes_axis == 2) {
+  if (sample_desc.lanes_axis == 2) {
     cb(create_direct_conv<2>(sample_desc, in_loader, block_setup));
   } else {
-    assert(sample_desc.shape.lanes_axis == 1);
+    assert(sample_desc.lanes_axis == 1);
     cb(create_direct_conv<1>(sample_desc, in_loader, block_setup));
   }
 }
@@ -586,14 +587,14 @@ __global__ void filter(const SampleDescT* __restrict__ descs, BlockSetupFactory 
        sample_idx += grid_setup.sample_dim()) {
     auto sample_desc = descs[sample_idx];
     const auto& block_setup = block_setup_factory(sample_idx);
-    const auto& log_block_extents = sample_desc.shape.log_block_extents;
-    auto block_start = grid_setup.block_idx() * log_block_extents;
+    const auto& logical_block_extents = sample_desc.logical_block_extents;
+    auto block_start = grid_setup.block_idx() * logical_block_extents;
     auto process_sample = [&](const auto& out_extents, const auto& out_strides,
                               const auto& out_frame_stride) {
       if (any_coord(block_start >= out_extents)) {
         return;  // early exit to avoid all the setup only to do nothing in the stride loop
       }
-      auto grid_size = grid_setup.grid_dim() * log_block_extents;
+      auto grid_size = grid_setup.grid_dim() * logical_block_extents;
       const auto& in_loader = in_loader_factory(sample_idx);
       if (sample_desc.shape.in_workspace_extents.x) {
         using In = typename SampleDescT::In;
@@ -809,6 +810,7 @@ struct FilterGpu {
   using StaticBlockFactoryT = filter::StaticBlock<StaticConfigT>;
   using StaticBlockT = typename StaticBlockFactoryT::BlockSetup;
   using GridSetupT = filter::GridSetup<StaticConfigT>;
+  using ShapeDescT = filter::ShapeDesc<axes>;
   using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
@@ -885,24 +887,29 @@ struct FilterGpu {
     max_total_workspace = 0;
     const int shared_mem_limit = GetSharedMemPerBlock();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      int required_workspace;
+      ShapeDescT shape_desc;
       BlockSetupT block_setup;
-      auto shape_desc = SetupSampleShapeDesc(
-          required_workspace, block_setup, sample_idx, out_shapes[sample_idx],
-          in_shapes[sample_idx], filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
+      ivec<axes> logical_block_extents;
+      int lanes_axis;
+      int required_workspace;
+      SetupSampleShapeDesc(shape_desc, block_setup, logical_block_extents, lanes_axis,
+                           required_workspace, sample_idx, out_shapes[sample_idx],
+                           in_shapes[sample_idx], filter_shapes[sample_idx], anchors[sample_idx],
+                           shared_mem_limit);
       max_total_workspace = std::max(max_total_workspace, required_workspace);
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
-                               filters.tensor_data(sample_idx), shape_desc});
+                               filters.tensor_data(sample_idx), shape_desc, logical_block_extents,
+                               lanes_axis});
     }
   }
 
   template <typename InOutShape, typename FilterShape>
-  filter::ShapeDesc<axes> SetupSampleShapeDesc(int& required_workspace, BlockSetupT& block_setup,
-                                               int sample_idx, const InOutShape& out_shape,
-                                               const InOutShape& in_shape,
-                                               const FilterShape& filter_shape, ivec<axes> anchor,
-                                               int shared_mem_limit) {
+  void SetupSampleShapeDesc(ShapeDescT& shape_desc, BlockSetupT& block_setup,
+                            ivec<axes>& logical_block_extents, int& lanes_axis,
+                            int& required_workspace, int sample_idx, const InOutShape& out_shape,
+                            const InOutShape& in_shape, const FilterShape& filter_shape,
+                            ivec<axes> anchor, int shared_mem_limit) {
     int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
     int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
     const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
@@ -910,16 +917,16 @@ struct FilterGpu {
     int width = in_extents.x;
     auto filter_extents = shape2vec(filter_shape);
     block_setup = PrepareBlockSetup(in_extents * channels);
-    int lanes_axis = GetLanesAxis(filter_extents);
-    auto log_block_extents = block_setup.block_dim();
-    log_block_extents[lanes_axis] *= StaticConfigT::lanes;
-    auto in_workspace_extents = (filter_extents - 1) * channels + log_block_extents;
+    lanes_axis = GetLanesAxis(filter_extents);
+    logical_block_extents = block_setup.block_dim();
+    logical_block_extents[lanes_axis] *= StaticConfigT::lanes;
+    auto in_workspace_extents = (filter_extents - 1) * channels + logical_block_extents;
     auto in_workspace_num_elements = volume(static_cast<i64vec<axes>>(in_workspace_extents));
     auto idx_workspace_size =
         std::accumulate(in_workspace_extents.begin() + 1, in_workspace_extents.end(), 0);
     int in_workspace_offset = align_up(idx_workspace_size * sizeof(int), sizeof(In));
     required_workspace = in_workspace_offset + in_workspace_num_elements * sizeof(In);
-    if (num_channels > log_block_extents.x || required_workspace > shared_mem_limit) {
+    if (num_channels > logical_block_extents.x || required_workspace > shared_mem_limit) {
       in_workspace_extents = required_workspace = 0;
     }
     int64_t frame_stride;
@@ -933,23 +940,21 @@ struct FilterGpu {
     strides(out_strides, out_frame_stride, out_extents * channels);
     ivec<axes> filter_strides;
     strides(filter_strides, filter_extents);
-    return {frame_stride,
-            out_frame_stride,
-            in_strides,
-            out_strides,
-            num_frames,
-            width,
-            num_channels,
-            in_extents * channels,
-            out_extents * channels,
-            required_workspace == 0 ? filter_extents : filter_extents * channels,
-            filter_strides,
-            anchor * channels,
-            in_workspace_extents,
-            workspace_strides,
-            in_workspace_offset,
-            log_block_extents,
-            lanes_axis};
+    shape_desc = {frame_stride,
+                  out_frame_stride,
+                  in_strides,
+                  out_strides,
+                  num_frames,
+                  width,
+                  num_channels,
+                  in_extents * channels,
+                  out_extents * channels,
+                  required_workspace == 0 ? filter_extents : filter_extents * channels,
+                  filter_strides,
+                  anchor * channels,
+                  in_workspace_extents,
+                  workspace_strides,
+                  in_workspace_offset};
   }
 
   BlockSetupT PrepareBlockSetup(const ivec2& in_extents) {
@@ -982,7 +987,7 @@ struct FilterGpu {
       const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
       auto out_extents = ShapeAsVec<int>(out_shape) * channels;
       auto sample_num_blocks =
-          div_ceil(out_extents, samples_desc_[sample_idx].shape.log_block_extents);
+          div_ceil(out_extents, samples_desc_[sample_idx].logical_block_extents);
       num_blocks = max(num_blocks, sample_num_blocks);
     }
     num_blocks = min(num_blocks, StaticConfigT::max_grid_extents());
