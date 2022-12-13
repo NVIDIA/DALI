@@ -53,9 +53,17 @@ The scalars must be of the same type as the input samples.
     .NumOutput(1)
     .AllowSequences()
     .AddOptionalArg("anchor",
-                    R"code(A point lying within the filter specifying the placement of the
-filter over an image. The ordering of extents corresponds to the ordering of filter's extents.
-If -1 (the default) is specified for an extent, the middle of the extent is used.)code",
+                    R"code(Specifies how, for each output pixel,
+the filter is positioned over corresponding input pixel, i.e. which point
+of the filter lies directly over the corresponding input pixel.
+If -1 (the default) is specified for an extent, the middle of the extent is used, which,
+for filters with odd sizes, results in a filter centered over the image.
+The anchor must be, depending on the input dimensionality, a 2D or 3D point whose each extent lies
+within filter boundaries (``[0, ..., filter_extent - 1]``). The ordering of anchor's extents
+corresponds to the order of filter's extents.
+
+The parameter is ignored in ``"valid"`` mode.
+.)code",
                     std::vector<int>{-1}, true, true)
     .AddOptionalArg("border",
                     R"code(Controls how to compute convolution around the edges of the image, i.e.
@@ -79,8 +87,8 @@ Supported values are: "full" and "valid".
 
 - ``"full"`` (default): The input and output sizes are the same and ``border`` is used
   to handle positions of filter that look outside of the image.
-- ``"valid"``: the output sample size is decreased so that all filter positions
-  lie fully within the input sample.
+- ``"valid"``: the output sample is cropped (by ``filter_extent - 1``) so that all
+  filter positions lie fully within the input sample.
 )code",
                     "full")
     .AddOptionalTypeArg("dtype", R"code(Output data type.

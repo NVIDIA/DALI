@@ -19,10 +19,12 @@
 #include <string>
 #include <vector>
 
+#include "dali/core/geom/geom_utils.h"
 #include "dali/core/geom/vec.h"
 #include "dali/core/span.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/imgproc/convolution/filter_gpu.cuh"
+#include "dali/kernels/imgproc/roi.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/convolution/filter.h"
 #include "dali/pipeline/operator/arg_helper.h"
@@ -99,30 +101,34 @@ class FilterOpGpu : public OpImplBase<GPUBackend> {
   }
 
   span<const ivec<axes>> GetAnchors(const TensorListShape<axes>& filter_shapes, int num_samples) {
+    using kernels::shape2vec;
+    if (is_valid_only_) {
+      // in valid mode there is exactly one way to position filter so that
+      // for each output point it lies fully within the input
+      anchors_.clear();
+      anchors_.resize(num_samples, 0);
+      return make_cspan(anchors_);
+    }
     anchors_.clear();
     anchors_.reserve(num_samples);
     auto anchor_views = anchor_arg_.get();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       const auto& anchor_view = anchor_views[sample_idx];
-      const auto& filter_shape = filter_shapes[sample_idx];
       assert(anchor_view.num_elements() == axes);  // relying on arg.Acquire validation here
-      const auto* anchor_data = anchor_view.data;
-      ivec<axes> anchor;
+      TensorShape<axes> anchor_shape;
       for (int dim = 0; dim < axes; dim++) {
-        anchor[dim] = anchor_data[dim];
+        anchor_shape[dim] = anchor_view.data[dim];
+      }
+      ivec<axes> filter_extents = shape2vec(filter_shapes[sample_idx]);
+      ivec<axes> anchor = shape2vec(anchor_shape);
+      for (int dim = 0; dim < axes; dim++) {
+        DALI_ENFORCE(all_coords(-1 <= anchor) && all_coords(anchor < filter_extents),
+                     make_string("Anchor must lie within the filter. Got anchor ", anchor_shape,
+                                 " with a filter of shape ", filter_shapes[sample_idx],
+                                 " for sample of idx ", sample_idx, "."));
       }
       for (int dim = 0; dim < axes; dim++) {
-        DALI_ENFORCE(-1 <= anchor[dim] && anchor[dim] < filter_shape[dim],
-                     make_string("Anchor must lie within the filter. Got anchor ", anchor,
-                                 " with a filter of shape ", filter_shape, " for sample of idx ",
-                                 sample_idx, "."));
-      }
-      if (is_valid_only_) {
-        anchor = 0;
-      } else {
-        for (int dim = 0; dim < axes; dim++) {
-          anchor[axes - 1 - dim] = anchor[dim] == -1 ? filter_shape[dim] / 2 : anchor[dim];
-        }
+        anchor[dim] = anchor[dim] == -1 ? filter_extents[dim] / 2 : anchor[dim];
       }
       anchors_.push_back(anchor);
     }
