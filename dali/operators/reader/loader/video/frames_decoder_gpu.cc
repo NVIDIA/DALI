@@ -11,24 +11,19 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
-
 #include <cuda.h>
 #include <unistd.h>
-
 #include <string>
 #include <memory>
 #include <iomanip>
 #include <unordered_map>
 #include <mutex>
-
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/reader/loader/video/nvdecode/color_space.h"
-
 namespace dali {
 
 namespace frame_dec_gpu_impl {
@@ -85,22 +80,19 @@ class NVDECCache {
       static NVDECCache cache_inst;
       return cache_inst;
     }
-
     NVDECLease GetDecoder(CUVIDEOFORMAT *video_format) {
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
-      unsigned height = video_format->display_area.bottom - video_format->display_area.top;
-      unsigned width = video_format->display_area.right - video_format->display_area.left;
+      unsigned height =  video_format->coded_height;
+      unsigned width = video_format->coded_width;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
       auto chroma_format = video_format->chroma_format;
       auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
 
       if (num_decode_surfaces == 0)
         num_decode_surfaces = 20;
-
       auto range = dec_cache.equal_range(codec_type);
-
       std::unordered_map<cudaVideoCodec, DecInstance>::iterator best_match = range.second;
       for (auto it = range.first; it != range.second; ++it) {
         if (best_match == range.second && it->second.used == false) {
@@ -124,20 +116,17 @@ class NVDECCache {
         best_match->second.used = true;
         lock.unlock();
         CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
-
         reconfigParams.ulTargetWidth = reconfigParams.ulWidth = width;
         reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
         reconfigParams.ulNumDecodeSurfaces = num_decode_surfaces;
         best_match->second.height = height;
         best_match->second.width = width;
         best_match->second.num_decode_surfaces = num_decode_surfaces;
-
         CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
         return NVDECLease(best_match->second);
       }
 #endif
       lock.unlock();
-
       auto caps = CUVIDDECODECAPS{};
       caps.eCodecType = codec_type;
       caps.eChromaFormat = chroma_format;
@@ -187,8 +176,10 @@ class NVDECCache {
 #endif
       decoder_info.ulMaxHeight = max_height;
       decoder_info.ulMaxWidth = max_width;
-      decoder_info.ulTargetHeight = height;
-      decoder_info.ulTargetWidth = width;
+      decoder_info.ulTargetHeight = video_format->display_area.bottom -
+                                    video_format->display_area.top;
+      decoder_info.ulTargetWidth = video_format->display_area.right -
+                                   video_format->display_area.left;
       decoder_info.ulNumDecodeSurfaces = num_decode_surfaces;
       decoder_info.ulNumOutputSurfaces = 2;
 
@@ -271,7 +262,13 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
 
-  return frames_decoder->ProcessPictureDecode(user_data, picture_params);
+  return frames_decoder->ProcessPictureDecode(picture_params);
+}
+
+int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display_info) {
+  FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+
+  return frames_decoder->HandlePictureDisplay(picture_display_info);
 }
 
 }  // namespace frame_dec_gpu_impl
@@ -282,10 +279,20 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   const char* filtername = nullptr;
   switch (av_state_->codec_params_->codec_id) {
   case AVCodecID::AV_CODEC_ID_H264:
-    filtername = "h264_mp4toannexb";
+    if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "raw H.264 video")) {
+      filtername = "h264_mp4toannexb";
+    }
     break;
   case AVCodecID::AV_CODEC_ID_HEVC:
-    filtername = "hevc_mp4toannexb";
+    if  (!strcmp(av_state_->ctx_->iformat->long_name, "QuickTime / MOV") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "FLV (Flash Video)") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "Matroska / WebM") ||
+         !strcmp(av_state_->ctx_->iformat->long_name, "raw HEVC video")) {
+      filtername = "hevc_mp4toannexb";
+    }
     break;
   case AVCodecID::AV_CODEC_ID_MPEG4:
     if  (!strcmp(av_state_->ctx_->iformat->name, "avi")) {
@@ -399,7 +406,7 @@ FramesDecoderGpu::FramesDecoderGpu(
   InitGpuParser();
 }
 
-int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params) {
+int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
   if (flush_) {
@@ -407,12 +414,21 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
   }
 
   CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
+  CUVIDPARSERDISPINFO picture_display_info;
+  memset(&picture_display_info, 0, sizeof(picture_display_info));
+  picture_display_info.picture_index = picture_params->CurrPicIdx;
+  picture_display_info.progressive_frame = !picture_params->field_pic_flag;
+  picture_display_info.top_field_first = picture_params->bottom_field_flag ^ 1;
+  HandlePictureDisplay(&picture_display_info);
 
-  // Process decoded frame for output
+  return 1;
+}
+
+int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_info) {
   CUVIDPROCPARAMS videoProcessingParameters = {};
-  videoProcessingParameters.progressive_frame = !picture_params->field_pic_flag;
+  videoProcessingParameters.progressive_frame = !picture_display_info->progressive_frame;
   videoProcessingParameters.second_field = 1;
-  videoProcessingParameters.top_field_first = picture_params->bottom_field_flag ^ 1;
+  videoProcessingParameters.top_field_first = picture_display_info->top_field_first;
   videoProcessingParameters.unpaired_field = 0;
   videoProcessingParameters.output_stream = stream_;
 
@@ -454,7 +470,7 @@ int FramesDecoderGpu::ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *pict
 
   CUDA_CALL(cuvidMapVideoFrame(
     nvdecode_state_->decoder,
-    picture_params->CurrPicIdx,
+    picture_display_info->picture_index,
     &frame,
     &pitch,
     &videoProcessingParameters));
@@ -529,7 +545,12 @@ bool FramesDecoderGpu::SendFrameToParser() {
 
   // Store pts from current packet to indicate,
   // that this frame is in the decoder
-  piped_pts_.push(av_state_->packet_->pts);
+  if (av_state_->packet_->pts != AV_NOPTS_VALUE) {
+    piped_pts_.push(av_state_->packet_->pts);
+  } else {
+    piped_pts_.push(frame_index_if_no_pts_);
+    frame_index_if_no_pts_++;
+  }
 
   // Add header needed for NVDECODE to the packet
   if (filtered_packet_->data) {
@@ -557,35 +578,76 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_out
   current_copy_to_output_ = copy_to_output;
   current_frame_output_ = data;
 
+  int frame_to_return_index = -1;
+
+  // Handle the case, when packet has more frames that we have empty spots
+  // in the buffer.
+  // If so, we need to return frame from the buffer before sending last packet.
+  if (frame_index_if_no_pts_ != 0) {
+    if (NumEmptySpots() < (piped_pts_.size())) {
+      for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+        if (frame_buffer_[i].pts_ == NextFrameIdx()) {
+          frame_to_return_index = i;
+          break;
+        }
+      }
+    }
+  }
+
   // Initial fill of the buffer
   frame_returned_ = false;
-  while (HasEmptySlot() && more_frames_to_decode_ && !frame_returned_) {
+  while (
+    HasEmptySlot() &&
+    more_frames_to_decode_ &&
+    !frame_returned_ &&
+    frame_to_return_index == -1) {
     if (av_read_frame(av_state_->ctx_, av_state_->packet_) >= 0) {
       if (!SendFrameToParser()) {
         continue;
       }
     } else {
-      SendLastPacket();
-      more_frames_to_decode_ = false;
-    }
-  }
+      // Handle the case, when last packet has more frames that we have empty spots
+      // in the buffer.
+      // If so, we need to return frame from the buffer before sending last packet.
+      if (frame_index_if_no_pts_ != 0) {
+        if (NumEmptySpots() < (piped_pts_.size())) {
+          for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+            if (frame_buffer_[i].pts_ == NextFrameIdx()) {
+              frame_to_return_index = i;
+              break;
+            }
+          }
+        }
+      }
 
-  int frame_to_return_index = -1;
-  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    if (frame_buffer_[i].pts_ != -1) {
-      frame_to_return_index = i;
-      break;
-    }
-  }
-
-  for (size_t i = 1; i < frame_buffer_.size(); ++i) {
-    if (frame_buffer_[i].pts_ != -1) {
-      if (frame_buffer_[frame_to_return_index].pts_ > frame_buffer_[i].pts_) {
-        frame_to_return_index = i;
+      if (frame_to_return_index == -1) {
+        SendLastPacket();
+        more_frames_to_decode_ = false;
+      } else {
+        break;
       }
     }
   }
 
+  if (frame_to_return_index == -1) {
+    for (size_t i = 0; i < frame_buffer_.size(); ++i) {
+      if (frame_buffer_[i].pts_ != -1) {
+        frame_to_return_index = i;
+        break;
+      }
+    }
+
+    for (size_t i = 1; i < frame_buffer_.size(); ++i) {
+      if (frame_buffer_[i].pts_ != -1) {
+        if (frame_buffer_[frame_to_return_index].pts_ > frame_buffer_[i].pts_) {
+          frame_to_return_index = i;
+        }
+      }
+    }
+  }
+
+  // This has to be separate if statement, because condition
+  // might have changed in the previous one.
   if (frame_to_return_index == -1) {
     return true;
   }
@@ -672,9 +734,21 @@ bool FramesDecoderGpu::IsBufferEmpty() const {
   return true;
 }
 
+unsigned int FramesDecoderGpu::NumEmptySpots() const {
+  unsigned int num_empty = 0;
+  for (auto &frame : frame_buffer_) {
+    if (frame.pts_ == -1) {
+      num_empty++;
+    }
+  }
+
+  return num_empty;
+}
+
 void FramesDecoderGpu::Reset() {
   SendLastPacket(true);
   more_frames_to_decode_ = true;
+  frame_index_if_no_pts_ = 0;
   FramesDecoder::Reset();
 }
 

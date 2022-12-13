@@ -58,8 +58,10 @@ struct AvState {
       av_frame_free(&frame_);
     }
     avcodec_free_context(&codec_ctx_);
-    avformat_close_input(&ctx_);
-    avformat_free_context(ctx_);
+    if (ctx_ != nullptr) {
+      avformat_close_input(&ctx_);
+      avformat_free_context(ctx_);
+    }
 
     ctx_ = nullptr;
     codec_ = nullptr;
@@ -207,6 +209,8 @@ class DLL_PUBLIC FramesDecoder {
 
   bool is_full_range_ = false;
 
+  std::optional<bool> zero_latency_ = {};
+
  private:
    /**
    * @brief Gets the packet from the decoder and reads a frame from it to provided buffer. Returns
@@ -217,7 +221,7 @@ class DLL_PUBLIC FramesDecoder {
    * @param data Output buffer to copy data to. If `copy_to_output` is false, this value is ignored.
    * @param copy_to_output Whether copy the frame to provided output.
    *
-   * @returns True, if the read was succesful, or false, when all regular farmes were consumed.
+   * @returns True, if the read was succesful, or false, when all regular frames were consumed.
    *
    */
   bool ReadRegularFrame(uint8_t *data, bool copy_to_output = true);
@@ -248,6 +252,12 @@ class DLL_PUBLIC FramesDecoder {
   void DetectVfr();
 
   void ParseNumFrames();
+
+  void CreateAvState(std::unique_ptr<AvState> &av_state, bool init_codecs);
+
+  bool IsFormatSeekable();
+
+  void CountFrames(AvState *av_state);
 
   std::string Filename() {
     return filename_.has_value() ? filename_.value() : "memory file";

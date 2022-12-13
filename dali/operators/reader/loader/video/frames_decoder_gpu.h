@@ -156,7 +156,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
 
   int NextFramePts() { return Index(NextFrameIdx()).pts; }
 
-  int ProcessPictureDecode(void *user_data, CUVIDPICPARAMS *picture_params);
+  int ProcessPictureDecode(CUVIDPICPARAMS *picture_params);
+
+  int HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_info);
 
   FramesDecoderGpu(FramesDecoderGpu&&) = default;
 
@@ -173,6 +175,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool frame_returned_ = false;
   bool flush_ = false;
   bool more_frames_to_decode_ = true;
+
+  // This is used to order the frames, if there is no pts
+  int frame_index_if_no_pts_ = 0;
 
   AVBSFContext *bsfc_ = nullptr;
   AVPacket *filtered_packet_ = nullptr;
@@ -205,6 +210,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoder {
   bool ReadNextFrameWithoutIndex(uint8_t *data, bool copy_to_output);
 
   bool SendFrameToParser();
+
+  unsigned int NumEmptySpots() const;
 };
 
 }  // namespace dali

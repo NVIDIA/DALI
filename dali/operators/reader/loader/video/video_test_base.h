@@ -127,6 +127,9 @@ class VideoTestBase : public ::testing::Test {
   static std::vector<TestVideo> vfr_videos_;
   static std::vector<TestVideo> vfr_hevc_videos_;
 
+  static std::vector<std::string> cfr_raw_h264_videos_paths_;
+  static std::vector<std::string> cfr_raw_h265_videos_paths_;
+
   static void SetUpTestSuite();
 
   void RunFailureTest(std::function<void()> body, std::string expected_error);
