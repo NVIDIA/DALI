@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/operator/arg_helper.h"
+#include <optional>
 #include <nvcv/ImageBatch.hpp>
 #include <operators/OpMedianBlur.hpp>
+#include "dali/core/static_switch.h"
+#include "dali/kernels/common/utils.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/arg_helper.h"
+
+#define MEDIAN_BLUR_TYPES uint8_t, uint16_t, int, float
 
 namespace dali {
 
@@ -26,13 +31,14 @@ DALI_SCHEMA(MedianBlur)
   .NumInput(1)
   .NumOutput(1)
   .InputLayout({"HWC", "FHWC", "CHW", "FCHW"})
-  .AddOptionalArg("window_size",
-    "The size of the window over which the smoothing is performed", 3, true);
+  .AddOptionalArg<std::vector<int>>("window_size",
+    "The size of the window over which the smoothing is performed", {3, 3}, true);
 
 
 class MedianBlur : public Operator<GPUBackend> {
  public:
-  MedianBlur(const OpSpec &spec) : Operator<GPUBackend>(spec) {
+  MedianBlur(const OpSpec &spec)
+  : Operator<GPUBackend>(spec) {
     if (ksize_.HasExplicitConstant()) {
       int ksize = *ksize_[0].data;
       DALI_ENFORCE(ksize > 1 && (ksize&1),
@@ -41,17 +47,77 @@ class MedianBlur : public Operator<GPUBackend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    auto &in = ws.Input<GPUBackend>(0);
+    output_desc.resize(1);
+    output_desc[0].type = in.type();
+    output_desc[0].shape = in.shape();
     return true;
+  }
+
+  void GetImages(int d, int outer_dims, int64_t offset,
+                 const int64_t *byte_strides,
+                 const void *data,
+                 const TensorShape<> &shape,
+                 nvcv::ImageFormat format) {
+    if (d == outer_dims) {
+      nvcv::ImageDataPitchDevice::Buffer buf;
+      buf.numPlanes = 1;
+      buf.planes[0].buffer = (static_cast<const char*>(data) + offset;
+      buf.planes[0].pitchBytes = byte_strides[d];
+      buf.planes[0].height = shape[d];
+      buf.planes[0].width  = shape[d + 1];
+    } else {
+      int extent = shape[d];
+      for (int i = 0; i < extent; i++) {
+        GetImages(d + 1, outer_dims, offset + byte_strides[d] * i, data, shape, format);
+      }
+    }
+  }
+
+  void GetImages(int d, SmallVector<int, 6> pos,
+                 ConstSampleView<GPUBackend> &sample,
+                 bool channels_last) {
+    const auto &shape = sample.shape();
+    int channels = channels_last ? shape[shape.sample_dim() - 1] : 0;
+
+    size_t type_size = TypeTable::GetTypeInfo(sample.type()).size();
+    SmallVector<int64_t, 6> byte_strides;
+    kernels::CalcStrides(byte_strides, shape);
+    for (auto &s : byte_strides)
+      s *= type_size;
+
+
+
+    GetImages(0, ndim - image_dims, byte_strides.data(), sample.raw_data(), format);
+  }
+
+
+  int GetImages(const TensorList<GPUBackend> &tl, const TensorLayout &layout) {
+    auto &shape = tl.shape();
+    int nsamples = tl.num_samples();
+    int ndim = tl.sample_ndim();
+    int cdim = layout.find('C');
+    images_.clear();
+    if (cdim == ndim - 1) {
+      for (int i = 0; i < num_samples; i++) {
+        GetImages(ndim -3, tls[i], true);
+      }
+    } else {
+    }
+    return images_.size();
   }
 
   void RunImpl(Workspace &ws) {
     auto &input = ws.Input<CPUBackend>(0);
-    int effective_batch_size = CalculateEffectiveBatchSize(input);
+    int effective_batch_size = GetImages(input.shape(), input.GetLayout());
     if (effective_batch_size > effective_batch_size_) {
       effective_batch_size_ = std::max(2*effective_batch_size_, effective_batch_size);
       impl_.reset();
-      impl_ = std::make_unique<nvcvop::MedianBlur>(effective_batch_size_);
-      batch_ = nvcv::IImageBatchVarShape
+      batch_.reset();
+      impl_ = nvcvop::MedianBlur(effective_batch_size_);
+      batch_ = nvcv::ImageBatchVarShape(effective_batch_size_);
+    } else {
+      batch_->clear();
     }
   }
 
@@ -59,10 +125,15 @@ class MedianBlur : public Operator<GPUBackend> {
     return true;
   }
 
+private:
+  ArgValue<int> ksize_{"window_size", spec_};
+
   int effective_batch_size_ = 0;
-  std::unique_ptr<nvcvop::MedianBlur> impl_;
-  ArgValue<int> ksize_;
-  nvcv::ImageBatchVarShape batch_;
+  std::optional<nvcvop::MedianBlur> impl_;
+  std::optional<nvcv::ImageBatchVarShape> batch_;
+  std::vector<std::unique_ptr<nvcv::ImageWrapData>> images_;
 };
+
+DALI_REGISTER_OPERATOR(experimental__MedianBlur, MedianBlur, GPU);
 
 }  // namespace dali
