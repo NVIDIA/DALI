@@ -699,7 +699,7 @@ void OpSchema::CheckArgs(const OpSpec &spec) const {
 }
 
 
-bool OpSchema::HasRequiredArgument(const std::string &name, const bool local_only) const {
+bool OpSchema::HasRequiredArgument(const std::string &name, bool local_only) const {
   bool ret = arguments_.find(name) != arguments_.end();
   if (ret || local_only) {
     return ret;
@@ -712,7 +712,7 @@ bool OpSchema::HasRequiredArgument(const std::string &name, const bool local_onl
 }
 
 
-bool OpSchema::HasOptionalArgument(const std::string &name, const bool local_only) const {
+bool OpSchema::HasOptionalArgument(const std::string &name, bool local_only) const {
   bool ret = optional_arguments_.find(name) != optional_arguments_.end();
   if (ret || local_only) {
     return ret;
@@ -725,7 +725,7 @@ bool OpSchema::HasOptionalArgument(const std::string &name, const bool local_onl
 }
 
 
-bool OpSchema::HasInternalArgument(const std::string &name, const bool local_only) const {
+bool OpSchema::HasInternalArgument(const std::string &name, bool local_only) const {
   bool ret = internal_arguments_.find(name) != internal_arguments_.end();
   if (ret || local_only) {
     return ret;
@@ -848,7 +848,7 @@ const TensorArgDesc *OpSchema::FindTensorArgument(const std::string &name) const
 
 
 void OpSchema::CheckArgument(const std::string &s) {
-  DALI_ENFORCE(!HasArgument(s), "Argument \"" + s + "\" already added to the schema");
+  DALI_ENFORCE(!HasArgument(s, false, true), "Argument \"" + s + "\" already added to the schema");
   DALI_ENFORCE(internal_arguments_.find(s) == internal_arguments_.end(),
                "Argument name \"" + s + "\" is reserved for internal use");
 }
@@ -936,8 +936,10 @@ std::pair<const OpSchema *, const Value *> OpSchema::FindDefaultValue(const std:
 }
 
 
-bool OpSchema::HasArgument(const std::string &name, bool include_internal) const {
-  return HasRequiredArgument(name) || HasOptionalArgument(name) ||
+bool OpSchema::HasArgument(const std::string &name,
+                           bool include_internal,
+                           bool local_only) const {
+  return HasRequiredArgument(name, local_only) || HasOptionalArgument(name, local_only) ||
          (include_internal && HasInternalArgument(name, true));
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,6 +49,20 @@ TEST(OpSchemaTest, OutputFNTest) {
   ASSERT_EQ(schema.CalculateOutputs(spec), 2);
 }
 
+DALI_SCHEMA(DummForwardRefParent)
+  .AddParent("Dummy3")  // not yet defined
+  .AddOptionalArg("foo", "foo", 2);
+
+TEST(OpSchemaTest, InitalizationOrder) {
+  auto spec = OpSpec("DummForwardRefParent");
+  auto &schema = SchemaRegistry::GetSchema("DummForwardRefParent");
+  EXPECT_EQ(&spec.GetSchema(), &schema);
+  EXPECT_EQ(schema.GetDefaultValueForArgument<int>("foo"), 2);
+  EXPECT_NO_THROW(
+    EXPECT_EQ(spec.GetArgument<int>("foo"), 2);
+  );  // NOLINT
+}
+
 DALI_SCHEMA(Dummy3)
   .NumInput(1).NumOutput(1)
   .AddOptionalArg("foo", "foo", 1.5f)
@@ -73,16 +87,17 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
 
 DALI_SCHEMA(Dummy4)
   .NumInput(1).NumOutput(1)
+  .AddParent("Dummy3")
   .AddOptionalArg("bar", "var", 17.f)
-  .AddOptionalArg<bool>("no_default2", "argument without default", nullptr)
-  .AddParent("Dummy3");
+  .AddOptionalArg("foo", "foo", 2)  // shadow an argument from a parent
+  .AddOptionalArg<bool>("no_default2", "argument without default", nullptr);
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   auto spec = OpSpec("Dummy4");
   auto &schema = SchemaRegistry::GetSchema("Dummy4");
 
   ASSERT_TRUE(schema.HasOptionalArgument("foo"));
-  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("foo"), 1.5f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<int>("foo"), 2);
   ASSERT_EQ(schema.GetDefaultValueForArgument<float>("bar"), 17);
 
   ASSERT_TRUE(schema.HasOptionalArgument("no_default"));
@@ -100,10 +115,11 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
 
 DALI_SCHEMA(Dummy5)
   .DocStr("Foo")
+  .AddParent("Dummy4")
   .NumInput(1)
   .NumOutput(1)
-  .AddOptionalArg("baz", "baz", 2.f)
-  .AddParent("Dummy4");
+  .AddOptionalArg("foo", "foo", 1.50f)  // shadow an argument from a parent
+  .AddOptionalArg("baz", "baz", 2.f);
 
 TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   auto spec = OpSpec("Dummy5");

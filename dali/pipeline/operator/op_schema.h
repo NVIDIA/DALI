@@ -636,11 +636,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   template <typename T>
   DLL_PUBLIC inline T GetDefaultValueForArgument(const std::string &s) const;
 
-  DLL_PUBLIC bool HasRequiredArgument(const std::string &name, const bool local_only = false) const;
+  DLL_PUBLIC bool HasRequiredArgument(const std::string &name, bool local_only = false) const;
 
-  DLL_PUBLIC bool HasOptionalArgument(const std::string &name, const bool local_only = false) const;
+  DLL_PUBLIC bool HasOptionalArgument(const std::string &name, bool local_only = false) const;
 
-  DLL_PUBLIC bool HasInternalArgument(const std::string &name, const bool local_only = false) const;
+  DLL_PUBLIC bool HasInternalArgument(const std::string &name, bool local_only = false) const;
 
   /**
    * @brief Finds default value for a given argument
@@ -649,7 +649,14 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   DLL_PUBLIC std::pair<const OpSchema *, const Value *> FindDefaultValue(
       const std::string &arg_name, bool local_only = false, bool include_internal = true) const;
 
-  DLL_PUBLIC bool HasArgument(const std::string &name, bool include_internal = false) const;
+  /**
+   * @brief Checks whether the schema defines an argument with the given name
+   * @param include_internal - returns `true` also for internal/implicit arugments
+   * @param local_only       - doesn't look in parent schemas
+   */
+  DLL_PUBLIC bool HasArgument(const std::string &name,
+                              bool include_internal = false,
+                              bool local_only = false) const;
 
   /**
    * @brief Get docstring for operator argument of given name (Python Operator Kwargs).
@@ -784,10 +791,11 @@ inline T OpSchema::GetDefaultValueForArgument(const std::string &s) const {
                make_string("The argument \"", s, "\" doesn't have a default value in schema \"",
                            name(), "\"."));
 
-  const ValueInst<T> *vT = dynamic_cast<const ValueInst<T> *>(v);
-  DALI_ENFORCE(vT != nullptr, "Unexpected type of the default value for argument \"" + s +
+  using S = argument_storage_t<T>;
+  const ValueInst<S> *vS = dynamic_cast<const ValueInst<S> *>(v);
+  DALI_ENFORCE(vS != nullptr, "Unexpected type of the default value for argument \"" + s +
                                   "\" of schema \"" + this->name() + "\"");
-  return vT->Get();
+  return static_cast<T>(vS->Get());
 }
 
 #define DALI_SCHEMA_REG(OpName)                         \
