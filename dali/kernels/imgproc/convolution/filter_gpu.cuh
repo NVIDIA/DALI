@@ -50,21 +50,27 @@ struct InShapeDesc {
   ivec<axes> filter_extents;  // use workspace? rc, s(, p) : r, s(, p)
   ivec<axes> filter_strides;  // 1, r(, rs)
   ivec<axes> anchor_shift;    // anchor_r * c, anchor_s(, anchor_p)
-  // threadblock * lanes + filter_extents - 1
-  ivec<axes> in_workspace_extents;
-  // the strides for in_workspace_extents
-  ivec<axes> in_workspace_strides;
-  // the sum of all but first in_workspace_extents
-  int in_workspace_offset;
 };
 
-template <int axes_>
+template <int axes>
 struct OutShapeDesc {
-  static constexpr int axes = axes_;
-
   int64_t frame_stride;  // (d)hwc
   i64vec<axes> strides;  // 1, wc(, hwc)
   ivec<axes> extents;    // wc, h(, d)
+};
+
+template <int axes>
+struct WorkspaceDesc {
+  // threadblock * lanes + filter_extents - 1
+  ivec<axes> in_extents;
+  // the strides for the in_extents
+  ivec<axes> in_strides;
+  // The offset in shared memory that should be left
+  // for precomuted indices. At that offset, the
+  // input data will be loaded.
+  // The offset is a sum of all but first in_extents
+  // rounded up to the proper aligment for input data type
+  int in_offset;
 };
 
 template <typename Out_, typename In_, typename W_, typename Acc_, int axes_>
@@ -80,6 +86,7 @@ struct SampleDesc {
   const W* __restrict__ filter;
   InShapeDesc<axes> in_shape;
   OutShapeDesc<axes> out_shape;
+  WorkspaceDesc<axes> workspace_desc;
   // the size of a logical block: threablock and lanes
   ivec<axes> logical_block_extents;
   // axis to iterate over with lanes
@@ -259,7 +266,7 @@ struct ShmInputConv {
     stride_filter(sample_desc.in_shape.filter_extents, [&](auto filter_coef,
                                                            const auto& filter_offset, int lane) {
       auto in_val =
-          in_workspace[dot(thread_idx + filter_offset, sample_desc.in_shape.in_workspace_strides)];
+          in_workspace[dot(thread_idx + filter_offset, sample_desc.workspace_desc.in_strides)];
       acc[lane] += in_val * filter_coef;
     });
   }
@@ -304,7 +311,7 @@ struct ShmInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void precompute_indices(const In* __restrict__ in,
                                                        const ivec2& anchored_start) const {
-    for (int y = block_setup.flat_idx(); y < sample_desc.in_shape.in_workspace_extents.y;
+    for (int y = block_setup.flat_idx(); y < sample_desc.workspace_desc.in_extents.y;
          y += block_setup.flat_size()) {
       precomputed_idx[y] = in_loader.border_remap(anchored_start.y + y, sample_desc.in_shape, 1);
     }
@@ -313,12 +320,12 @@ struct ShmInputConv {
   DALI_DEVICE DALI_FORCEINLINE void precompute_indices(const In* __restrict__ in,
                                                        const ivec3& anchored_start) const {
     int* ys = precomputed_idx;
-    for (int y = block_setup.flat_idx(); y < sample_desc.in_shape.in_workspace_extents.y;
+    for (int y = block_setup.flat_idx(); y < sample_desc.workspace_desc.in_extents.y;
          y += block_setup.flat_size()) {
       ys[y] = in_loader.border_remap(anchored_start.y + y, sample_desc.in_shape, 1);
     }
-    int* zs = precomputed_idx + sample_desc.in_shape.in_workspace_extents.y;
-    for (int z = block_setup.flat_idx(); z < sample_desc.in_shape.in_workspace_extents.z;
+    int* zs = precomputed_idx + sample_desc.workspace_desc.in_extents.y;
+    for (int z = block_setup.flat_idx(); z < sample_desc.workspace_desc.in_extents.z;
          z += block_setup.flat_size()) {
       zs[z] = in_loader.border_remap(anchored_start.z + z, sample_desc.in_shape, 2);
     }
@@ -328,12 +335,11 @@ struct ShmInputConv {
                                                       const ivec2& anchored_start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
-    for (int x = thread_idx.x; x < sample_desc.in_shape.in_workspace_extents.x; x += block_dim.x) {
+    for (int x = thread_idx.x; x < sample_desc.workspace_desc.in_extents.x; x += block_dim.x) {
       int global_x = in_loader.border_remap_innermost(anchored_start.x + x, sample_desc.in_shape);
-      for (int y = thread_idx.y; y < sample_desc.in_shape.in_workspace_extents.y;
-           y += block_dim.y) {
+      for (int y = thread_idx.y; y < sample_desc.workspace_desc.in_extents.y; y += block_dim.y) {
         int global_y = precomputed_idx[y];
-        in_workspace[dot(ivec2{x, y}, sample_desc.in_shape.in_workspace_strides)] =
+        in_workspace[dot(ivec2{x, y}, sample_desc.workspace_desc.in_strides)] =
             in_loader.load(in, ivec2{global_x, global_y}, sample_desc.in_shape);
       }
     }
@@ -342,19 +348,16 @@ struct ShmInputConv {
   DALI_DEVICE DALI_FORCEINLINE void load_input_to_shm(const In* __restrict__ in,
                                                       const ivec3& anchored_start) const {
     const int* const __restrict__ ys = precomputed_idx;
-    const int* const __restrict__ zs =
-        precomputed_idx + sample_desc.in_shape.in_workspace_extents.y;
+    const int* const __restrict__ zs = precomputed_idx + sample_desc.workspace_desc.in_extents.y;
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
-    for (int x = thread_idx.x; x < sample_desc.in_shape.in_workspace_extents.x; x += block_dim.x) {
+    for (int x = thread_idx.x; x < sample_desc.workspace_desc.in_extents.x; x += block_dim.x) {
       int global_x = in_loader.border_remap_innermost(anchored_start.x + x, sample_desc.in_shape);
-      for (int y = thread_idx.y; y < sample_desc.in_shape.in_workspace_extents.y;
-           y += block_dim.y) {
+      for (int y = thread_idx.y; y < sample_desc.workspace_desc.in_extents.y; y += block_dim.y) {
         int global_y = ys[y];
-        for (int z = thread_idx.z; z < sample_desc.in_shape.in_workspace_extents.z;
-             z += block_dim.z) {
+        for (int z = thread_idx.z; z < sample_desc.workspace_desc.in_extents.z; z += block_dim.z) {
           int global_z = zs[z];
-          in_workspace[dot(ivec3{x, y, z}, sample_desc.in_shape.in_workspace_strides)] =
+          in_workspace[dot(ivec3{x, y, z}, sample_desc.workspace_desc.in_strides)] =
               in_loader.load(in, ivec3{global_x, global_y, global_z}, sample_desc.in_shape);
         }
       }
@@ -628,14 +631,14 @@ __global__ void filter(const SampleDescT* __restrict__ descs,
     // If extents are equal then strides are too, make it explicit as it faster and the usual case
     // (roi is, for now, only used for ``valid`` mode)
     if (any_coord(block_start >= out_shape.extents)) {
-      return;  // early exit to avoid all the setup only to do nothing in the stride loop
+      continue;  // early exit to avoid all the setup only to do nothing in the stride loop
     }
     auto grid_size = grid_setup.grid_dim() * logical_block_extents;
     const auto& in_loader = in_loader_provider(sample_idx);
-    if (sample_desc.in_shape.in_workspace_extents.x) {
+    if (sample_desc.workspace_desc.in_extents.x) {
       using In = typename SampleDescT::In;
       int* idx_workspace = reinterpret_cast<int*>(shm);
-      In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.in_shape.in_workspace_offset);
+      In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.workspace_desc.in_offset);
       with_shm_conv(sample_desc, in_loader, block_setup, idx_workspace, in_workspace,
                     [&](auto&& conv) {
                       stride_grid(block_start, grid_size, out_shape.extents, out_shape.strides,
@@ -841,6 +844,7 @@ struct FilterGpu {
   using GridSetupT = filter::GridSetup<StaticConfigT>;
   using InShapeDescT = filter::InShapeDesc<axes>;
   using OutShapeDescT = filter::OutShapeDesc<axes>;
+  using WorkspaceDescT = filter::WorkspaceDesc<axes>;
   using SampleDescT = filter::SampleDesc<Out, In, W, Intermediate, axes>;
 
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
@@ -921,11 +925,12 @@ struct FilterGpu {
     const int shared_mem_limit = GetSharedMemPerBlock();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
       InShapeDescT shape_desc;
+      WorkspaceDescT workspace_desc;
       BlockSetupT block_setup;
       ivec<axes> logical_block_extents;
       int lanes_axis;
       int required_workspace;
-      SetupSampleDesc(shape_desc, block_setup, logical_block_extents, lanes_axis,
+      SetupSampleDesc(shape_desc, workspace_desc, block_setup, logical_block_extents, lanes_axis,
                       required_workspace, sample_idx, in_shapes[sample_idx],
                       filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
       auto out_shape_desc = SetupOutputShapeDesc(out_shapes[sample_idx], in_shapes[sample_idx]);
@@ -933,15 +938,15 @@ struct FilterGpu {
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
                                filters.tensor_data(sample_idx), shape_desc, out_shape_desc,
-                               logical_block_extents, lanes_axis});
+                               workspace_desc, logical_block_extents, lanes_axis});
     }
   }
 
   template <typename InOutShape, typename FilterShape>
-  void SetupSampleDesc(InShapeDescT& shape_desc, BlockSetupT& block_setup,
-                       ivec<axes>& logical_block_extents, int& lanes_axis, int& required_workspace,
-                       int sample_idx, const InOutShape& in_shape, const FilterShape& filter_shape,
-                       ivec<axes> anchor, int shared_mem_limit) {
+  void SetupSampleDesc(InShapeDescT& shape_desc, WorkspaceDescT& workspace_desc,
+                       BlockSetupT& block_setup, ivec<axes>& logical_block_extents, int& lanes_axis,
+                       int& required_workspace, int sample_idx, const InOutShape& in_shape,
+                       const FilterShape& filter_shape, ivec<axes> anchor, int shared_mem_limit) {
     int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
     int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
     const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
@@ -952,20 +957,26 @@ struct FilterGpu {
     lanes_axis = GetLanesAxis(filter_extents);
     logical_block_extents = block_setup.block_dim();
     logical_block_extents[lanes_axis] *= StaticConfigT::lanes;
-    auto in_workspace_extents = (filter_extents - 1) * channels + logical_block_extents;
-    auto in_workspace_num_elements = volume(static_cast<i64vec<axes>>(in_workspace_extents));
-    auto idx_workspace_size =
+
+    i64vec<axes> in_workspace_extents = static_cast<i64vec<axes>>(filter_extents) - 1;
+    in_workspace_extents[0] *= num_channels;
+    in_workspace_extents += logical_block_extents;
+    int64_t in_workspace_num_elements = volume(in_workspace_extents);
+    int64_t idx_workspace_size =
         std::accumulate(in_workspace_extents.begin() + 1, in_workspace_extents.end(), 0);
-    int in_workspace_offset = align_up(idx_workspace_size * sizeof(int), sizeof(In));
-    required_workspace = in_workspace_offset + in_workspace_num_elements * sizeof(In);
-    if (num_channels > logical_block_extents.x || required_workspace > shared_mem_limit) {
-      in_workspace_extents = required_workspace = 0;
+    int64_t in_workspace_offset = align_up(idx_workspace_size * sizeof(int), sizeof(In));
+    int64_t workspace_size = in_workspace_offset + in_workspace_num_elements * sizeof(In);
+    if (num_channels > logical_block_extents.x || workspace_size > shared_mem_limit) {
+      in_workspace_extents = workspace_size = in_workspace_offset = 0;
     }
+    required_workspace = workspace_size;
+    workspace_desc.in_offset = in_workspace_offset;
+    workspace_desc.in_extents = in_workspace_extents;
+    strides(workspace_desc.in_strides, workspace_desc.in_extents);
+
     int64_t frame_stride;
     i64vec<axes> in_strides;
     strides(in_strides, frame_stride, in_extents * channels);
-    ivec<axes> workspace_strides;
-    strides(workspace_strides, in_workspace_extents);
     ivec<axes> filter_strides;
     strides(filter_strides, filter_extents);
     shape_desc = {frame_stride,
@@ -976,10 +987,7 @@ struct FilterGpu {
                   in_extents * channels,
                   required_workspace == 0 ? filter_extents : filter_extents * channels,
                   filter_strides,
-                  anchor * channels,
-                  in_workspace_extents,
-                  workspace_strides,
-                  in_workspace_offset};
+                  anchor * channels};
   }
 
   template <typename InOutShape>
