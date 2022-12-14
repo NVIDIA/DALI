@@ -38,25 +38,25 @@ DALI in action::
   import nvidia.dali.fn as fn
   from nvidia.dali.plugin.pytorch import DALIGenericIterator
   import os
-
+  
   # To run with different data, see documentation of nvidia.dali.fn.readers.file
   # points to https://github.com/NVIDIA/DALI_extra
   data_root_dir = os.environ['DALI_EXTRA_PATH']
   images_dir = os.path.join(data_root_dir, 'db', 'single', 'jpeg')
-
-
+  
+  
   def loss_func(pred, y):
       pass
-
-
+  
+  
   def model(x):
       pass
-
-
+  
+  
   def backward(loss, model):
       pass
-
-
+  
+  
   @pipeline_def(num_threads=4, device_id=0)
   def get_dali_pipeline():
       images, labels = fn.readers.file(
@@ -74,15 +74,15 @@ DALI in action::
           std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
           mirror=fn.random.coin_flip())
       return images, labels
-
-
+  
+  
   train_data = DALIGenericIterator(
       [get_dali_pipeline(batch_size=16)],
       ['data', 'label'],
       reader_name='Reader'
   )
-
-
+  
+  
   for i, data in enumerate(train_data):
       x, y = data[0]['data'], data[0]['label']
       pred = model(x)
@@ -134,9 +134,9 @@ GitHub issue.
 Installing DALI
 ---------------
 
-To install the latest DALI release for the latest CUDA version (12.x)::
+To install the latest DALI release for the latest CUDA version (11.x)::
 
-    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda120
+    pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
 
 DALI comes preinstalled in the TensorFlow, PyTorch, and MXNet containers on `NVIDIA GPU Cloud <https://ngc.nvidia.com>`_
 (versions 18.07 and later).
