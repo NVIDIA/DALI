@@ -130,9 +130,11 @@ class DLL_PUBLIC Pipeline {
     return AddOperator(spec, name);
   }
 
-  template <typename T, typename OperatorBackend>
-  void SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr,
-                           AccessOrder order = {}, ExtSrcSettingMode ext_src_setting_mode = {}) {
+
+  template<typename T, typename OperatorBackend>
+  void
+  SetDataSourceHelper(const string &name, const T &tl, OperatorBase *op_ptr, AccessOrder order = {},
+                      InputOperatorSettingMode ext_src_setting_mode = {}) {
     // Note: we have 2 different Backends here - OperatorBackend and T's Backend (StorageBackend).
     // The StorageBackend is hidden under `T` type.
     auto *source = dynamic_cast<ExternalSource<OperatorBackend> *>(op_ptr);
@@ -151,9 +153,9 @@ class DLL_PUBLIC Pipeline {
    * @param ext_src_setting_mode Options passed to the External Source describing the behaviour
    *                        of setting the data.
    */
-  template <typename TL>
-  inline void SetExternalInputHelper(const string &name, const TL &tl, AccessOrder order = {},
-                                     ExtSrcSettingMode ext_src_setting_mode = {}) {
+  template<typename TL>
+  void SetExternalInputHelper(const string &name, const TL &tl, AccessOrder order = {},
+                              InputOperatorSettingMode ext_src_setting_mode = {}) {
     bool is_cpu_node = true;
     OpNodeId node_id;
 
@@ -192,10 +194,11 @@ class DLL_PUBLIC Pipeline {
    * @param no_copy_mode Select whether to use the parameter defined in the External Source or
    *                     override the mode of operation forcing the copy or no-copy
    */
-  template <typename Backend>
-  DLL_PUBLIC inline void SetExternalInput(
-      const string &name, const TensorList<Backend> &tl, AccessOrder order = {}, bool sync = false,
-      bool use_copy_kernel = false, ExtSrcNoCopyMode no_copy_mode = ExtSrcNoCopyMode::DEFAULT) {
+  template<typename Backend>
+  DLL_PUBLIC void
+  SetExternalInput(const string &name, const TensorList<Backend> &tl, AccessOrder order = {},
+                   bool sync = false, bool use_copy_kernel = false,
+                   InputOperatorNoCopyMode no_copy_mode = InputOperatorNoCopyMode::DEFAULT) {
     SetExternalInputHelper(name, tl, order, {sync, use_copy_kernel, no_copy_mode});
   }
 

@@ -397,10 +397,11 @@ def test_ndim_changing():
 
 @raises(RuntimeError, glob="Expected data with layout: \"H\" and got: \"W\"")
 def test_layout_data_mismatch():
-    src_pipe = Pipeline(1, 1, 0)
+    src_pipe = Pipeline(1, 1, 0, prefetch_queue_depth=1)
     src_pipe.set_outputs(fn.external_source(name="input", layout="H"))
     src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))], layout="W")
+    src_pipe.run()
 
 
 @raises(RuntimeError, glob="Layout of the data fed to the external source has changed from "
@@ -412,6 +413,8 @@ def test_layout_changing():
     src_pipe.build()
     src_pipe.feed_input("input", [np.zeros((1))], layout="W")
     src_pipe.feed_input("input", [np.zeros((1))], layout="H")
+    src_pipe.run()
+    src_pipe.run()
 
 
 def _test_partially_utilized_external_source_warning(usage_mask, source_type):
