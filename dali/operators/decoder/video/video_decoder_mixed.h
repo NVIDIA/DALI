@@ -12,29 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-#include <memory>
-
-#include "dali/operators/decoder/video/video_decoder_base.h"
-#include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
-#include "dali/pipeline/util/thread_pool.h"
-
 #ifndef DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_MIXED_H_
 #define DALI_OPERATORS_DECODER_VIDEO_VIDEO_DECODER_MIXED_H_
 
+#include <vector>
+#include <memory>
+#include "dali/operators/decoder/video/video_decoder_base.h"
+#include "dali/operators/reader/loader/video/frames_decoder_gpu.h"
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/thread_pool.h"
+
 namespace dali {
 
-class VideoDecoderMixed: public VideoDecoderBase<MixedBackend, FramesDecoderGpu> {
+class VideoDecoderMixed
+        : public Operator<MixedBackend>, public VideoDecoderBase<MixedBackend, FramesDecoderGpu> {
+  using Operator<MixedBackend>::num_threads_;
   using VideoDecoderBase::DecodeSample;
-  using VideoDecoderBase::num_threads_;
 
  public:
   explicit VideoDecoderMixed(const OpSpec &spec):
-    VideoDecoderBase(spec),
+    Operator<MixedBackend>(spec),
     thread_pool_(num_threads_,
                  spec.GetArgument<int>("device_id"),
                  spec.GetArgument<bool>("affine"),
                  "mixed video decoder") {}
+
+
+  bool CanInferOutputs() const override {
+    return true;
+  }
+
 
   void Run(Workspace &ws) override;
 
