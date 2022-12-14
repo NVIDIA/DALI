@@ -17,9 +17,10 @@ if (BUILD_TEST)
   add_subdirectory(plugins)
 
   # get all the test srcs
+
   file(GLOB tmp *.cc *.cu *.h)
   if (NOT BUILD_CFITSIO)
-    list(REMOVE_ITEM tmp ${DALI_SRC_DIR}/dali/test/cfitsio_test.cc)
+    list(REMOVE_ITEM tmp "${CMAKE_CURRENT_SOURCE_DIR}/cfitsio_test.cc")
   endif()
 
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
