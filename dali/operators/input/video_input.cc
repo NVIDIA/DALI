@@ -14,7 +14,7 @@
 
 #include "dali/operators/input/video_input.h"
 #include <memory>
-#incldue <vector>
+#include <vector>
 
 namespace dali {
 
