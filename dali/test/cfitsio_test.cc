@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ TEST_F(CfitsioTest, openNonexistantFile) {
 
 TEST_F(CfitsioTest, createEmptyFile) {
   const char force_recreate_filename[] = "!testprog.fit";
-  strncpy(filename, force_recreate_filename, sizeof(force_recreate_filename));
+  strncpy(filename, force_recreate_filename, sizeof(filename));
   ffinit(&fptr, filename, &status);
 
   EXPECT_EQ(status, 0);
