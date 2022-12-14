@@ -31,8 +31,10 @@ DALI_SCHEMA(MedianBlur)
   .NumInput(1)
   .NumOutput(1)
   .InputLayout({"HWC", "FHWC", "CHW", "FCHW"})
-  .AddOptionalArg<std::vector<int>>("window_size",
-    "The size of the window over which the smoothing is performed", {3, 3}, true);
+  .AddOptionalArg("window_size",
+    "The size of the window over which the smoothing is performed",
+    std::vector<int>({3, 3}),
+    true);
 
 
 class MedianBlur : public Operator<GPUBackend> {
@@ -54,28 +56,31 @@ class MedianBlur : public Operator<GPUBackend> {
     return true;
   }
 
-  void GetImages(int d, int outer_dims, int64_t offset,
+  void GetImages(int outer_dims, int64_t offset,
                  const int64_t *byte_strides,
-                 const void *data,
+                 void *data,
                  const TensorShape<> &shape,
                  nvcv::ImageFormat format) {
-    if (d == outer_dims) {
+    if (outer_dims == 0) {
       nvcv::ImageDataPitchDevice::Buffer buf;
       buf.numPlanes = 1;
-      buf.planes[0].buffer = (static_cast<const char*>(data) + offset;
-      buf.planes[0].pitchBytes = byte_strides[d];
+      buf.planes[0].buffer = static_cast<char*>(data) + offset;
+      buf.planes[0].pitchBytes = byte_strides[0];
       buf.planes[0].height = shape[d];
       buf.planes[0].width  = shape[d + 1];
     } else {
       int extent = shape[d];
       for (int i = 0; i < extent; i++) {
-        GetImages(d + 1, outer_dims, offset + byte_strides[d] * i, data, shape, format);
+        GetImages(outer_dims - 1,
+                  byte_strides + 1,
+                  offset + byte_strides[0] * i,
+                  data, shape, format);
       }
     }
   }
 
   void GetImages(int d, SmallVector<int, 6> pos,
-                 ConstSampleView<GPUBackend> &sample,
+                 const ConstSampleView<GPUBackend> &sample,
                  bool channels_last) {
     const auto &shape = sample.shape();
     int channels = channels_last ? shape[shape.sample_dim() - 1] : 0;
@@ -86,9 +91,11 @@ class MedianBlur : public Operator<GPUBackend> {
     for (auto &s : byte_strides)
       s *= type_size;
 
+    int image_dims = channels_last ? 3 : 2;
+    int ndim = sample.shape().sample_dim();
 
-
-    GetImages(0, ndim - image_dims, byte_strides.data(), sample.raw_data(), format);
+    void *data = const_cast<void*>(sample.raw_data());
+    GetImages(ndim - image_dims, byte_strides.data(), data, ToNVCVFormat(pos, ));
   }
 
 
@@ -100,7 +107,7 @@ class MedianBlur : public Operator<GPUBackend> {
     images_.clear();
     if (cdim == ndim - 1) {
       for (int i = 0; i < num_samples; i++) {
-        GetImages(ndim -3, tls[i], true);
+        GetImages(ndim -3, tl[i], true);
       }
     } else {
     }
@@ -114,8 +121,9 @@ class MedianBlur : public Operator<GPUBackend> {
       effective_batch_size_ = std::max(2*effective_batch_size_, effective_batch_size);
       impl_.reset();
       batch_.reset();
+
       impl_ = nvcvop::MedianBlur(effective_batch_size_);
-      batch_ = nvcv::ImageBatchVarShape(effective_batch_size_);
+      batch_.emplace(effective_batch_size_);
     } else {
       batch_->clear();
     }
