@@ -49,6 +49,20 @@ TEST(OpSchemaTest, OutputFNTest) {
   ASSERT_EQ(schema.CalculateOutputs(spec), 2);
 }
 
+DALI_SCHEMA(DummForwardRefParent)
+  .AddParent("Dummy3")  // not yet defined
+  .AddOptionalArg("foo", "foo", 2);
+
+TEST(OpSchemaTest, InitalizationOrder) {
+  auto spec = OpSpec("DummForwardRefParent");
+  auto &schema = SchemaRegistry::GetSchema("DummForwardRefParent");
+  EXPECT_EQ(&spec.GetSchema(), &schema);
+  EXPECT_EQ(schema.GetDefaultValueForArgument<int>("foo"), 2);
+  EXPECT_NO_THROW(
+    EXPECT_EQ(spec.GetArgument<int>("foo"), 2);
+  );  // NOLINT
+}
+
 DALI_SCHEMA(Dummy3)
   .NumInput(1).NumOutput(1)
   .AddOptionalArg("foo", "foo", 1.5f)
