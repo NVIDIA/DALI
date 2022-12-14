@@ -19,180 +19,143 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "dali/core/static_switch.h"
-#include "dali/pipeline/data/views.h"
-#include "dali/pipeline/operator/arg_helper.h"
+#include "dali/operators/image/resize/resize_base.h"
+#include "dali/operators/image/resize/tensor_resize_attr.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
-
-
-// #define TENSOR_RESIZE_SUPPORTED_NDIM (2, 3)
-// #define TENSOR_RESIZE_SUPPORTED_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, \
-//                                        uint64_t, int64_t, float)
-
-#define TENSOR_RESIZE_SUPPORTED_NDIM (2, 3)
-#define TENSOR_RESIZE_SUPPORTED_TYPES (uint8_t, float)
 
 namespace dali {
 namespace tensor_resize {
 
+
 template <typename Backend>
-class TensorResizeImplBase {
+class TensorResize : public Operator<Backend>
+                   , protected ResizeBase<Backend> {
  public:
-  virtual ~TensorResizeImplBase() = default;
-  virtual bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws,
-                         const TensorListShape<> &sizes) = 0;
-  virtual void RunImpl(Workspace &ws) = 0;
-};
-
-template <typename Backend, template <typename Out, typename In, int static_ndim> class Impl>
-class TensorResize : public Operator<Backend> {
- public:
-  explicit TensorResize(const OpSpec &spec) : Operator<Backend>(spec) {
-    if (spec.HasArgument("dtype")) {
-      dtype_arg_ = spec.GetArgument<DALIDataType>("dtype");
-    }
-
-    if (spec.HasArgument("axes")) {
-      axes_ = spec.GetRepeatedArgument<int>("axes");
-      default_axes_ = false;
-    }
-
-    auto rounding = spec.GetArgument<std::string>("scales_rounding");
-    if (rounding == "round") {
-      scale_round_fn_ = [](double x) {
-        return static_cast<int64_t>(std::round(x));
-      };
-    } else if (rounding == "truncate") {
-      scale_round_fn_ = [](double x) {
-        return static_cast<int64_t>(x);
-      };
-    } else {
-      DALI_FAIL(make_string("``rounding`` value ", rounding,
-                            " is not supported. Supported values are \"round\", or \"truncate\"."));
-    }
-  }
+  explicit TensorResize(const OpSpec &spec);
 
  protected:
+  int NumSpatialDims() const { return resize_attr_.spatial_ndim_; }
+  int FirstSpatialDim() const { return resize_attr_.first_spatial_dim_; }
+
   bool CanInferOutputs() const override { return true; }
 
-  void SetupOutSizes(const Workspace &ws) {
-    const auto &input = ws.Input<CPUBackend>(0);
-    auto in_shape = input.shape();
-    int ndim = in_shape.sample_dim();
-    int nsamples = in_shape.num_samples();
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
-    out_sizes_ = in_shape;
+  void RunImpl(Workspace &ws) override;
 
-    if (default_axes_ && ndim != static_cast<int>(axes_.size())) {
-      axes_.resize(ndim);
-      std::iota(axes_.begin(), axes_.end(), 0);
-    }
-    int naxes = axes_.size();
+  void PrepareParams(const ArgumentWorkspace &ws, const TensorListShape<> &input_shape) {
+    int nsamples = input_shape.num_samples();
+    resize_attr_.PrepareResizeParams(spec_, ws, input_shape);
 
-    if (sizes_.HasExplicitValue()) {
-      sizes_.Acquire(spec_, ws, nsamples, TensorShape<1>{naxes});
-      for (int s = 0; s < nsamples; s++) {
-        auto sample_sizes = out_sizes_.tensor_shape_span(s);
-        const auto *sample_sizes_arg = sizes_[s].data;
-        for (int i = 0; i < naxes; i++) {
-          int d = axes_[i];
-          sample_sizes[d] = sample_sizes_arg[i];
+    auto unchanged_dim = [&](int d) {
+      for (int i = 0; i < nsamples; i++) {
+        int64_t extent = input_shape.tensor_shape_span(i)[d];
+        if (static_cast<int64_t>(resize_attr_.params_[i].dst_size[d]) != extent ||
+            static_cast<int64_t>(resize_attr_.params_[i].src_lo[d]) != 0 ||
+            static_cast<int64_t>(resize_attr_.params_[i].src_hi[d]) != extent) {
+          return false;
         }
       }
-    }
-
-    if (scales_.HasExplicitValue()) {
-      scales_.Acquire(spec_, ws, nsamples, TensorShape<1>{naxes});
-      for (int s = 0; s < nsamples; s++) {
-        auto sample_sizes = out_sizes_.tensor_shape_span(s);
-        const auto *sample_scales_arg = scales_[s].data;
-        for (int i = 0; i < naxes; i++) {
-          int d = axes_[i];
-          sample_sizes[d] =
-              scale_round_fn_(static_cast<double>(sample_scales_arg[i]) * sample_sizes[d]);
-        }
-      }
-    }
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    const auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<CPUBackend>(0);
-    auto in_shape = input.shape();
-    int ndim = input.sample_dim();
-    int nsamples = in_shape.num_samples();
-
-    SetupOutSizes(ws);
-    int spatial_ndim = NeedExtraChDim(ws) ? ndim : ndim - 1;
-    if (impl_ == nullptr || spatial_ndim_ != spatial_ndim ||
-        input.type() != in_dtype_ || output.type() != out_dtype_) {
-      TYPE_SWITCH(input.type(), type2id, T, TENSOR_RESIZE_SUPPORTED_TYPES, (
-        if (dtype_arg_ == DALI_NO_TYPE) {
-          VALUE_SWITCH(spatial_ndim, SpatialDims, TENSOR_RESIZE_SUPPORTED_NDIM, (
-            impl_ = std::make_unique<Impl<T, T, SpatialDims>>(&spec_);
-          ), DALI_FAIL(make_string("Unsupported number of dimensions ", spatial_ndim)));  // NOLINT
-        } else {
-          TYPE_SWITCH(dtype_arg_, type2id, Out, TENSOR_RESIZE_SUPPORTED_TYPES, (
-            VALUE_SWITCH(spatial_ndim, SpatialDims, TENSOR_RESIZE_SUPPORTED_NDIM, (
-              impl_ = std::make_unique<Impl<Out, T, SpatialDims>>(&spec_);
-            ), DALI_FAIL(make_string("Unsupported number of dimensions ", spatial_ndim)));  // NOLINT
-          ), DALI_FAIL(make_string("Unsupported data type: ", dtype_arg_)));  // NOLINT
-        }
-      ), DALI_FAIL(make_string("Unsupported data type: ", input.type())));  // NOLINT
-      spatial_ndim_ = spatial_ndim;
-      in_dtype_ = input.type();
-      out_dtype_ = output.type();
-    }
-
-    assert(impl_ != nullptr);
-    return impl_->SetupImpl(output_desc, ws, out_sizes_);
-  }
-
-  void RunImpl(Workspace &ws) override {
-    assert(impl_ != nullptr);
-    impl_->RunImpl(ws);
-  }
-
-  bool NeedExtraChDim(const Workspace &ws) {
-    const auto &input = ws.Input<CPUBackend>(0);
-
-    auto get_uniform_last_extent = [](TensorListShape<> sh) -> int64_t {
-      int nsamples = sh.num_samples();
-      int last_dim = sh.sample_dim() - 1;
-      if (nsamples < 1)
-        return 0;
-      int64_t last_extent = sh.tensor_shape_span(0)[last_dim];
-      for (int s = 1; s < nsamples; s++) {
-        if (last_extent != sh.tensor_shape_span(s)[last_dim])
-          return -1;
-      }
-      return last_extent;
+      return true;
     };
 
-    int last_extent = get_uniform_last_extent(input.shape());
-    int last_size = get_uniform_last_extent(out_sizes_);
-    return last_extent != last_size || last_extent == -1;
+    for (int d = 0; d < resize_attr_.ndim_; d++) {
+      if (!unchanged_dim(d))
+        break;
+      resize_attr_.first_spatial_dim_++;
+      resize_attr_.spatial_ndim_--;
+    }
+    for (int d = resize_attr_.ndim_ - 1; d >= 0; d--) {
+      if (!unchanged_dim(d))
+        break;
+      resize_attr_.spatial_ndim_--;
+    }
+
+    int spatial_ndim = resize_attr_.spatial_ndim_;
+    for (int s = 0; s < nsamples; s++) {
+      for (int d = 0; d < spatial_ndim ; d++) {
+        int orig_d = resize_attr_.first_spatial_dim_ + d;
+        resize_attr_.params_[s].dst_size[d] = resize_attr_.params_[s].dst_size[orig_d];
+        resize_attr_.params_[s].src_hi[d] = resize_attr_.params_[s].src_hi[orig_d];
+        resize_attr_.params_[s].src_lo[d] = resize_attr_.params_[s].src_lo[orig_d];
+      }
+      resize_attr_.params_[s].dst_size.resize(spatial_ndim);
+      resize_attr_.params_[s].src_hi.resize(spatial_ndim);
+      resize_attr_.params_[s].src_lo.resize(spatial_ndim);
+    }
+
+    if (NumSpatialDims() < 1) {
+      throw std::invalid_argument(
+          "TensorResize expects at least one spatial dimension to be resized");
+    }
+
+    if (NumSpatialDims() > 3) {
+      throw std::invalid_argument(make_string(
+          "TensorResize can not resize more than 3 consecutive spatial dimensions. "
+          "The input may contain extra leading and trailing dimensions which are not resized.\n\n"
+          "Example 1: Input shape (2, 2, 4, 3, 2), Output shape (2, 2, 5, 5, 2). Only the 3rd and "
+          "4th dimensions are resized (2 spatial dimensions)\n\n"
+          "Example 2: Input shape (2, 2, 4, 3, 2), Output shape (2, 3, 4, 5, 2). Only the 2nd and "
+          "4th dimensions are resized, but we can only consider a block of consecutive dimensions "
+          "so we include the 3rd dimension as well (3 spatial dimensions).\n\nGot: ",
+          resize_attr_.spatial_ndim_, " spatial dimensions starting at dim ",
+          resize_attr_.first_spatial_dim_));
+    }
+
+    assert(NumSpatialDims() >= 1 && NumSpatialDims() <= 3);
+    assert(FirstSpatialDim() >= 0);
+    resample_params_.resize(nsamples * NumSpatialDims());
+    resampling_attr_.PrepareFilterParams(spec_, ws, nsamples);
+    resampling_attr_.GetResamplingParams(make_span(resample_params_),
+                                         make_cspan(resize_attr_.params_));
   }
 
+  void InitializeBackend();
+
   USE_OPERATOR_MEMBERS();
+  std::vector<kernels::ResamplingParams> resample_params_;
   using Operator<Backend>::RunImpl;
 
-  std::unique_ptr<TensorResizeImplBase<Backend>> impl_;
-
-  int spatial_ndim_ = -1;
-  DALIDataType in_dtype_ = DALI_NO_TYPE;
-  DALIDataType out_dtype_ = DALI_NO_TYPE;
-  DALIDataType dtype_arg_ = DALI_NO_TYPE;
-  std::function<int64_t(double)> scale_round_fn_;
-
-  ArgValue<int, 1> sizes_{"sizes", spec_};
-  ArgValue<float, 1> scales_{"scales", spec_};
-
-  TensorListShape<> out_sizes_;
-  std::vector<int> axes_;
-  bool default_axes_ = true;
+  TensorResizeAttr resize_attr_;
+  ResamplingFilterAttr resampling_attr_;
 };
+
+template <typename Backend>
+TensorResize<Backend>::TensorResize(const OpSpec &spec)
+    : Operator<Backend>(spec), ResizeBase<Backend>(spec), resize_attr_(spec) {
+  resample_params_.resize(num_threads_);
+  InitializeBackend();
+}
+
+template <typename Backend>
+bool TensorResize<Backend>::SetupImpl(std::vector<OutputDesc> &output_desc,
+                                      const Workspace &ws) {
+  output_desc.resize(1);
+  auto &input = ws.Input<Backend>(0);
+
+  const auto &in_shape = input.shape();
+  auto in_type = input.type();
+  int N = in_shape.num_samples();
+
+  PrepareParams(ws, in_shape);
+
+  auto out_type = resampling_attr_.GetOutputType(in_type);
+
+  output_desc[0].type = out_type;
+  this->SetupResize(output_desc[0].shape, out_type, in_shape, in_type,
+                    make_cspan(this->resample_params_), NumSpatialDims(), FirstSpatialDim());
+  return true;
+}
+
+
+template <typename Backend>
+void TensorResize<Backend>::RunImpl(Workspace &ws) {
+  const auto &input = ws.Input<Backend>(0);
+  auto &output = ws.Output<Backend>(0);
+  this->RunResize(ws, output, input);
+  output.SetLayout(input.GetLayout());
+}
 
 }  // namespace tensor_resize
 }  // namespace dali

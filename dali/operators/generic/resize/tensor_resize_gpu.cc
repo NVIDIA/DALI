@@ -29,30 +29,19 @@ namespace dali {
 namespace tensor_resize {
 
 template <>
-void TensorResize<CPUBackend>::InitializeBackend() {
-  this->InitializeCPU(num_threads_);
+void TensorResize<GPUBackend>::InitializeBackend() {
+  this->InitializeGPU(spec_.GetArgument<int>("minibatch_size"),
+                      spec_.GetArgument<int64_t>("temp_buffer_hint"));
 }
 
-class TensorResizeCPU : public TensorResize<CPUBackend> {
+class TensorResizeGPU : public TensorResize<GPUBackend> {
  public:
-  explicit TensorResizeCPU(const OpSpec &spec)
-      : TensorResize<CPUBackend>(spec) {}
+  explicit TensorResizeGPU(const OpSpec &spec)
+      : TensorResize<GPUBackend>(spec) {}
 };
 
 }  // namespace tensor_resize
 
-
-DALI_SCHEMA(experimental__TensorResize)
-    .DocStr(R"code(Resize tensors.)code")
-    .NumInput(1)
-    .NumOutput(1)
-    .SupportVolumetric()
-    .AllowSequences()
-    .AddParent("ResamplingFilterAttr")
-    .AddParent("TensorResizeAttr");
-
-
-DALI_REGISTER_OPERATOR(experimental__TensorResize, tensor_resize::TensorResizeCPU, CPU);
-
+DALI_REGISTER_OPERATOR(experimental__TensorResize, tensor_resize::TensorResizeGPU, GPU);
 
 }  // namespace dali
