@@ -25,9 +25,9 @@ void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
     return;
   }
   // InputOperators have relaxed checks, since they actually create a batch.
-//  if (IsInputOperator(spec_.GetSchema())) {
-//    return;
-//  }
+  if (IsInputOperator(spec_.GetSchema())) {
+    return;
+  }
   auto curr_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumInput(); i++) {
     DALI_ENFORCE(curr_batch_size == ws.GetInputBatchSize(i),
@@ -49,9 +49,9 @@ void OperatorBase::EnforceUniformOutputBatchSize(const Workspace &ws) const {
     return;
   }
   // InputOperators have relaxed checks, since they actually create a batch.
-//  if (IsInputOperator(spec_.GetSchema())) {
-//    return;
-//  }
+  if (IsInputOperator(spec_.GetSchema())) {
+    return;
+  }
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
   for (int i = 0; i < ws.NumOutput(); i++) {
     auto output_batch_size = ws.Output<Backend>(i).shape().num_samples();

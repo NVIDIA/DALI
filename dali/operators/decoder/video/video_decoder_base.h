@@ -82,7 +82,7 @@ class DLL_PUBLIC VideoDecoderBase {
                              frame_size, "; Actual: ", pad_value->shape().num_elements()));
 
     uint8_t *output_data = output.template mutable_data<uint8_t>();
-    //TODO seek frame
+    // TODO(mszolucha) seek frame
 
     int64_t f = 0;
     // Work until:
@@ -94,8 +94,9 @@ class DLL_PUBLIC VideoDecoderBase {
     bool full_sequence_decoded = f >= num_frames;
     // If there's an insufficient number of frames, pad if requested.
     for (; f < num_frames && pad_value.has_value(); f++) {
-      kernels::copy<OutBackend, OutBackend>(
-              output_data + f * frame_size, pad_value->raw_data(), frame_size, stream);
+      CUDA_CALL(cudaMemcpy(output_data + f * frame_size, pad_value->raw_data(), frame_size,
+                           cudaMemcpyDefault));
+//      memcpy(output_data + f * frame_size, pad_value->raw_data(), frame_size);
     }
     return full_sequence_decoded;
   }
