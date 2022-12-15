@@ -17,6 +17,7 @@
 
 #include <array>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -975,28 +976,31 @@ struct FilterGpu {
     for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
       const auto& in_shape = in_shapes[sample_idx];
       int64_t num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
-      DALI_ENFORCE(num_frames <= std::numeric_limits<int>::max(),
-                   make_string("The number of frames for sample of idx ", sample_idx,
-                               " exceeds the limit of ", std::numeric_limits<int>::max(), ". Got ",
-                               num_frames, " frames."));
+      if (num_frames > std::numeric_limits<int>::max()) {
+        throw std::range_error(make_string(
+            "The number of frames for sample of idx ", sample_idx, " exceeds the limit of ",
+            std::numeric_limits<int>::max(), ". Got ", num_frames, " frames."));
+      }
       int64_t num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
       i64vec<axes> in_extents = ShapeAsVec<int64_t>(in_shape);
       in_extents[0] *= num_channels;
       for (int dim = 0; dim < axes; dim++) {
         const std::array<std::string, 3> extent_names = {
             "combined width and the number of channels", "height", "depth"};
-        DALI_ENFORCE(
-            in_extents[dim] <= max_sample_extents[dim],
-            make_string("The ", extent_names[dim], " of sample at index ", sample_idx, " is ",
-                        in_extents[dim], ", which exceeds the supported limit of ",
-                        max_sample_extents[dim], ". The sample's shape is: ", in_shape, "."));
+        if (in_extents[dim] > max_sample_extents[dim]) {
+          throw std::range_error(
+              make_string("The ", extent_names[dim], " of sample at index ", sample_idx, " is ",
+                          in_extents[dim], ", which exceeds the supported limit of ",
+                          max_sample_extents[dim], ". The sample's shape is: ", in_shape, "."));
+        }
       }
       const auto& filter_shape = filter_shapes[sample_idx];
-      DALI_ENFORCE(volume(filter_shape) <= std::numeric_limits<int>::max(),
-                   make_string("Volume of filter for sample of idx ", sample_idx, " is ",
-                               volume(filter_shape), ", which exceeds the limit of ",
-                               std::numeric_limits<int>::max(), ". The filter's shape is ",
-                               filter_shape, "."));
+      if (volume(filter_shape) > std::numeric_limits<int>::max()) {
+        throw std::range_error(make_string(
+            "Volume of filter for sample of idx ", sample_idx, " is ", volume(filter_shape),
+            ", which exceeds the limit of ", std::numeric_limits<int>::max(),
+            ". The filter's shape is ", filter_shape, "."));
+      }
     }
   }
 
