@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 #include <cassert>
-#include "dali/core/expand_dims.h"
-#include "dali/kernels/imgproc/resample_cpu.h"
-#include "dali/kernels/kernel.h"
-#include "dali/kernels/kernel_manager.h"
 #include "dali/operators/generic/resize/tensor_resize.h"
-#include "dali/operators/image/resize/resampling_attr.h"
-#include "dali/pipeline/data/views.h"
-#include "dali/pipeline/operator/arg_helper.h"
+#include "dali/operators/image/resize/resize_base.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 

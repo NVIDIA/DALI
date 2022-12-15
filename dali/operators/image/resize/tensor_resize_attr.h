@@ -17,11 +17,9 @@
 
 #include <string>
 #include <vector>
-#include "dali/core/format.h"
-#include "dali/core/small_vector.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/operators/image/resize/resize_attr.h"
+#include "dali/operators/image/resize/resize_attr_base.h"
 #include "dali/pipeline/operator/op_spec.h"
 
 namespace dali {
