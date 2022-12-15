@@ -29,7 +29,11 @@ typedef void* NPPIGDRIVER;
 static const char __NppcLibName[] = "libnppc.so";
 static const char __NppiccLibName[] = "libnppicc.so";
 static const char __NppigLibName[] = "libnppig.so";
-#if CUDA_VERSION >= 11000
+#if CUDA_VERSION >= 12000
+static const char __NppcLibNameCuVer[] = "libnppc.so.12";
+static const char __NppiccLibNameCuVer[] = "libnppicc.so.12";
+static const char __NppigLibNameCuVer[] = "libnppig.so.12";
+#elif CUDA_VERSION >= 11000 && CUDA_VERSION < 12000
 static const char __NppcLibNameCuVer[] = "libnppc.so.11";
 static const char __NppiccLibNameCuVer[] = "libnppicc.so.11";
 static const char __NppigLibNameCuVer[] = "libnppig.so.11";

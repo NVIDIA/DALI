@@ -27,9 +27,14 @@ fi
 
 # If driver version is less than 450 and CUDA version is 11,
 # add /usr/local/cuda/compat to LD_LIBRARY_PATH
-version_eq "$CUDA_VERSION_MAJOR" "11" && \
+version_eq "$DALI_CUDA_MAJOR_VERSION" "11" && \
 version_lt "$NVIDIA_SMI_DRIVER_VERSION" "450.0" && \
 export LD_LIBRARY_PATH="/usr/local/cuda/compat:$LD_LIBRARY_PATH"
+
+version_eq "$DALI_CUDA_MAJOR_VERSION" "12" && \
+version_lt "$NVIDIA_SMI_DRIVER_VERSION" "525.0" && \
+export LD_LIBRARY_PATH="/usr/local/cuda-12.0/compat:$LD_LIBRARY_PATH"
+
 echo "LD_LIBRARY_PATH is $LD_LIBRARY_PATH"
 
 enable_conda() {
