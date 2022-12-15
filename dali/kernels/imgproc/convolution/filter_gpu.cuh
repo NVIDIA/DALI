@@ -307,9 +307,9 @@ class ShmInputConv {
    * positions in the input. For each filter position, `lanes` offsets are computed
    * to amortize the overhead of the for loops.
    */
-  template <typename ProcessPosition>
-  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(ivec2 filter_extents, int in_filter_width,
-                                                       ProcessPosition&& process_position) const {
+  template <typename ProcessInputPosition>
+  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(
+      ivec2 filter_extents, int in_filter_width, ProcessInputPosition&& process_position) const {
     ivec2 block_dim = block_setup_.block_dim();
     const auto* filter = sample_desc_.filter;
     for (int r = 0; r < filter_extents.y; r++) {
@@ -330,9 +330,9 @@ class ShmInputConv {
    * positions in the input. For each filter position, `lanes` offsets are computed
    * to amortize the overhead of the for loops.
    */
-  template <typename ProcessPosition>
-  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(ivec3 filter_extents, int in_filter_width,
-                                                       ProcessPosition&& process_position) const {
+  template <typename ProcessInputPosition>
+  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(
+      ivec3 filter_extents, int in_filter_width, ProcessInputPosition&& process_position) const {
     ivec3 block_dim = block_setup_.block_dim();
     const auto* filter = sample_desc_.filter;
     for (int p = 0; p < filter_extents.z; p++) {
@@ -642,10 +642,14 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(ivec<axes> initial_block_start,
 
 /**
  * Given a HWC image and RS filter, all the necessary products for computing the convolution
- * explicitly can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS
+ * can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS
  * (img2col). The kernel does not construct the matrix explicitly, but computes the convolution
  * in a similar manner - each threadblock computes a contigious parts of the output vector
  * by accumulating products of the filter and consecutive columns of the sub-array.
+ * The output vector parts that are computed by a single threadblock have the size equal
+ * to the logical threablock width, and there are ``logical threablock height`` of them
+ * (or height and depth for 3D). In a usual case, it means that the output part has size equal
+ * to the number of cuda threads and there are ``lanes`` parts).
  * Assuming a standard contiguious memory layout of the HWC image, if you look at any given column
  * of the HWC x RS matrix, the consecutive rows map to consecutive memory addresses
  * (with the exception of positions when we cross H, W extents and border remapping takes place).
@@ -777,12 +781,32 @@ struct StaticBlock {
  */
 template <typename StaticConfigT_>
 struct AdaptiveBlock {
-  struct BlockSetup {
+  class BlockSetup {
+   public:
     using StaticConfigT = StaticConfigT_;
     static constexpr int axes = StaticConfigT::axes;
 
-    ivec<axes> extents_log2;
-    ivec<axes> strides_log2;
+    template <int axes_ = axes, std::enable_if_t<axes_ == 2, bool> = true>
+    BlockSetup(ivec2 in_extents, int num_channels) {
+      in_extents.x *= num_channels;
+      int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
+      int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
+      extents_log2_.x = std::min(total_block_log2, sample_x_log2);
+      extents_log2_.y = total_block_log2 - extents_log2_.x;
+      strides_log2_ = {0, extents_log2_.x};
+    }
+
+    template <int axes_ = axes, std::enable_if_t<axes_ == 3, bool> = true>
+    BlockSetup(ivec3 in_extents, int num_channels) {
+      in_extents.x *= num_channels;
+      int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
+      int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
+      int sample_y_log2 = in_extents.y == 0 ? 0 : dali::ilog2(in_extents.y - 1) + 1;
+      extents_log2_.x = std::min(sample_x_log2, total_block_log2);
+      extents_log2_.y = std::min(sample_y_log2, total_block_log2 - extents_log2_.x);
+      extents_log2_.z = total_block_log2 - extents_log2_.x - extents_log2_.y;
+      strides_log2_ = {0, extents_log2_.x, extents_log2_.x + extents_log2_.y};
+    }
 
     DALI_DEVICE DALI_FORCEINLINE int flat_size() const {
       assert(blockDim.y == 1);
@@ -791,7 +815,7 @@ struct AdaptiveBlock {
     }
 
     DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
-      return 1 << extents_log2;
+      return 1 << extents_log2_;
     }
 
     DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
@@ -801,8 +825,12 @@ struct AdaptiveBlock {
     DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
       assert(threadIdx.y == 0);
       assert(threadIdx.z == 0);
-      return (static_cast<int>(threadIdx.x) >> strides_log2) & (block_dim() - 1);
+      return (static_cast<int>(threadIdx.x) >> strides_log2_) & (block_dim() - 1);
     }
+
+   private:
+    ivec<axes> extents_log2_;
+    ivec<axes> strides_log2_;
   };
 
   DALI_DEVICE DALI_FORCEINLINE const BlockSetup& operator()(int sample_idx) {
@@ -994,7 +1022,7 @@ struct FilterGpu {
       int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
       ivec<axes> in_extents = ShapeAsVec<int>(in_shape);
       auto filter_extents = shape2vec(filter_shapes[sample_idx]);
-      BlockSetupT block_setup = PrepareBlockSetup(in_extents, num_channels);
+      BlockSetupT block_setup{in_extents, num_channels};
       int lane_axis = GetLanesAxis(filter_extents);
       ivec<axes> logical_block_extents = block_setup.block_dim();
       logical_block_extents[lane_axis] *= StaticConfigT::lanes;
@@ -1066,27 +1094,6 @@ struct FilterGpu {
     i64vec<axes> out_strides;
     strides(out_strides, out_frame_stride, out_extents);
     return {out_frame_stride, out_strides, out_extents};
-  }
-
-  BlockSetupT PrepareBlockSetup(ivec2 in_extents, int num_channels) {
-    in_extents.x *= num_channels;
-    int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
-    int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
-    int block_x_log2 = std::min(total_block_log2, sample_x_log2);
-    ivec2 block{block_x_log2, total_block_log2 - block_x_log2};
-    return {block, {0, block.x}};
-  }
-
-  BlockSetupT PrepareBlockSetup(ivec3 in_extents, int num_channels) {
-    in_extents.x *= num_channels;
-    int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
-    int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
-    int sample_y_log2 = in_extents.y == 0 ? 0 : dali::ilog2(in_extents.y - 1) + 1;
-    int block_x_log2 = std::min(sample_x_log2, total_block_log2);
-    int block_y_log2 = std::min(sample_y_log2, total_block_log2 - block_x_log2);
-    int block_z_log2 = total_block_log2 - block_x_log2 - block_y_log2;
-    ivec3 block{block_x_log2, block_y_log2, block_z_log2};
-    return {block, {0, block.x, block.x + block.y}};
   }
 
   GridSetupT PrepareGridSetup(span<const SampleDescT> sample_descs) {
