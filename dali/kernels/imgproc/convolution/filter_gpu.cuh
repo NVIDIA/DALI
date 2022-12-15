@@ -453,6 +453,49 @@ struct DirectInputConv {
 };
 
 
+struct ShmConvFactory {
+  template <int lanes_axis, typename SampleDescT, typename Inloader, typename BlockSetupT>
+  DALI_DEVICE DALI_FORCEINLINE ShmInputConv<lanes_axis, SampleDescT, Inloader, BlockSetupT> create(
+      const SampleDescT& sample_desc, const Inloader& in_loader, const BlockSetupT& block_setup,
+      char* shm) const {
+    using In = typename SampleDescT::In;
+    int* idx_workspace = reinterpret_cast<int*>(shm);
+    In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.workspace_desc.in_offset);
+    return {sample_desc, in_loader, block_setup, in_workspace, idx_workspace};
+  }
+};
+
+struct DirectConvFactory {
+  template <int lanes_axis, typename SampleDescT, typename Inloader, typename BlockSetupT>
+  DALI_DEVICE DALI_FORCEINLINE DirectInputConv<lanes_axis, SampleDescT, Inloader, BlockSetupT>
+  create(const SampleDescT& sample_desc, const Inloader& in_loader, const BlockSetupT& block_setup,
+         char* shm) const {
+    (void)shm;
+    return {sample_desc, in_loader, block_setup};
+  }
+};
+
+template <typename ConvFactoryT, typename SampleDescT, typename InLoaderT, typename BlockSetupT,
+          typename Cb>
+DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 2, void> with_conv(
+    const ConvFactoryT& conv_factory, const SampleDescT& sample_desc, const InLoaderT& in_loader,
+    const BlockSetupT& block_setup, char* shm, Cb&& cb) {
+  cb(conv_factory.create<1>(sample_desc, in_loader, block_setup, shm));
+}
+
+template <typename ConvFactoryT, typename SampleDescT, typename InLoaderT, typename BlockSetupT,
+          typename Cb>
+DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with_conv(
+    const ConvFactoryT& conv_factory, const SampleDescT& sample_desc, const InLoaderT& in_loader,
+    const BlockSetupT& block_setup, char* shm, Cb&& cb) {
+  if (sample_desc.lanes_axis == 2) {
+    cb(conv_factory.create<2>(sample_desc, in_loader, block_setup, shm));
+  } else {
+    assert(sample_desc.lanes_axis == 1);
+    cb(conv_factory.create<1>(sample_desc, in_loader, block_setup, shm));
+  }
+}
+
 /** @} */  // end of InputConv
 
 template <typename Conv, typename Cb>
@@ -552,61 +595,6 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(const ivec<axes>& initial_block_st
   }
 }
 
-template <int lanes_axis, typename SampleDescT, typename Inloader, typename BlockSetupT,
-          typename In>
-DALI_DEVICE DALI_FORCEINLINE ShmInputConv<lanes_axis, SampleDescT, Inloader, BlockSetupT>
-create_shm_conv(const SampleDescT& sample_desc, const Inloader& in_loader,
-                const BlockSetupT& block_setup, In* in_workspace, int* precomputed_idx) {
-  return {sample_desc, in_loader, block_setup, in_workspace, precomputed_idx};
-}
-
-template <typename SampleDescT, typename InLoaderT, typename BlockSetupT, typename Cb>
-DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 2, void> with_shm_conv(
-    const SampleDescT& sample_desc, const InLoaderT& in_loader, const BlockSetupT& block_setup,
-    int* __restrict__ idx_workspace, typename SampleDescT::In* __restrict__ input_workspace,
-    Cb&& cb) {
-  cb(create_shm_conv<1>(sample_desc, in_loader, block_setup, input_workspace, idx_workspace));
-}
-
-template <typename SampleDescT, typename InLoaderT, typename BlockSetupT, typename Cb>
-DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with_shm_conv(
-    const SampleDescT& sample_desc, const InLoaderT& in_loader, const BlockSetupT& block_setup,
-    int* __restrict__ idx_workspace, typename SampleDescT::In* __restrict__ input_workspace,
-    Cb&& cb) {
-  if (sample_desc.lanes_axis == 2) {
-    cb(create_shm_conv<2>(sample_desc, in_loader, block_setup, input_workspace, idx_workspace));
-  } else {
-    assert(sample_desc.lanes_axis == 1);
-    cb(create_shm_conv<1>(sample_desc, in_loader, block_setup, input_workspace, idx_workspace));
-  }
-}
-
-template <int lanes_axis, typename SampleDescT, typename Inloader, typename BlockSetupT>
-DALI_DEVICE DALI_FORCEINLINE DirectInputConv<lanes_axis, SampleDescT, Inloader, BlockSetupT>
-create_direct_conv(const SampleDescT& sample_desc, const Inloader& in_loader,
-                   const BlockSetupT& block_setup) {
-  return {sample_desc, in_loader, block_setup};
-}
-
-template <typename SampleDescT, typename InLoaderT, typename BlockSetupT, typename Cb>
-DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 2, void> with_direct_conv(
-    const SampleDescT& sample_desc, const InLoaderT& in_loader, const BlockSetupT& block_setup,
-    Cb&& cb) {
-  cb(create_direct_conv<1>(sample_desc, in_loader, block_setup));
-}
-
-template <typename SampleDescT, typename InLoaderT, typename BlockSetupT, typename Cb>
-DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with_direct_conv(
-    const SampleDescT& sample_desc, const InLoaderT& in_loader, const BlockSetupT& block_setup,
-    Cb&& cb) {
-  if (sample_desc.lanes_axis == 2) {
-    cb(create_direct_conv<2>(sample_desc, in_loader, block_setup));
-  } else {
-    assert(sample_desc.lanes_axis == 1);
-    cb(create_direct_conv<1>(sample_desc, in_loader, block_setup));
-  }
-}
-
 /*
 Given a HWC image and RS filter, all the necessary products for computing the convolution
 explicitly can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS. Now,
@@ -618,10 +606,11 @@ memory loads the inputs in blocks with extents corresponding to (D, )H, W * C ex
 for the fact that spatailly close products will reuse some of the inputs.
 */
 template <typename SampleDescT, typename BlockSetupProvider, typename InLoaderProvider,
-          typename GridSetupT, typename OutShapeProviderT>
+          typename GridSetupT, typename OutShapeProviderT, typename ConvFactoryT>
 __global__ void filter(const SampleDescT* __restrict__ descs,
                        BlockSetupProvider block_setup_provider, InLoaderProvider in_loader_provider,
-                       GridSetupT grid_setup, OutShapeProviderT out_shape_provider) {
+                       GridSetupT grid_setup, OutShapeProviderT out_shape_provider,
+                       ConvFactoryT conv_factory) {
   extern __shared__ char shm[];
   int sample_idx = grid_setup.sample_idx();
   for (int sample_idx = grid_setup.sample_idx(); sample_idx < grid_setup.num_samples();
@@ -638,22 +627,10 @@ __global__ void filter(const SampleDescT* __restrict__ descs,
     }
     auto grid_size = grid_setup.grid_dim() * logical_block_extents;
     const auto& in_loader = in_loader_provider(sample_idx);
-    if (sample_desc.workspace_desc.in_extents.x) {
-      using In = typename SampleDescT::In;
-      int* idx_workspace = reinterpret_cast<int*>(shm);
-      In* in_workspace = reinterpret_cast<In*>(shm + sample_desc.workspace_desc.in_offset);
-      with_shm_conv(sample_desc, in_loader, block_setup, idx_workspace, in_workspace,
-                    [&](auto&& conv) {
-                      stride_grid(block_start, grid_size, out_shape.extents, out_shape.strides,
-                                  out_shape.frame_stride, conv);
-                    });
-
-    } else {
-      with_direct_conv(sample_desc, in_loader, block_setup, [&](auto&& conv) {
-        stride_grid(block_start, grid_size, out_shape.extents, out_shape.strides,
-                    out_shape.frame_stride, conv);
-      });
-    }
+    with_conv(conv_factory, sample_desc, in_loader, block_setup, shm, [&](auto&& conv) {
+      stride_grid(block_start, grid_size, out_shape.extents, out_shape.strides,
+                  out_shape.frame_stride, conv);
+    });
   }
 }
 
@@ -868,11 +845,13 @@ struct FilterGpu {
     WithBlockSetupProvider(ctx, [&](auto&& block_setup_provider) {
       WithInLoaderProvider(ctx, border_type, fill_values, [&](auto&& in_loader_provider) {
         WithOutShapeProvider([&](auto&& out_shape_provider) {
-          filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
-                           max_total_workspace, ctx.gpu.stream>>>(
-              samples_desc_dev, block_setup_provider, in_loader_provider, grid_setup,
-              out_shape_provider);
-          CUDA_CALL(cudaGetLastError());
+          WithConvFactory([&](auto&& conv_factory) {
+            filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
+                             max_total_workspace, ctx.gpu.stream>>>(
+                samples_desc_dev, block_setup_provider, in_loader_provider, grid_setup,
+                out_shape_provider, conv_factory);
+            CUDA_CALL(cudaGetLastError());
+          });
         });
       });
     });
@@ -933,6 +912,7 @@ struct FilterGpu {
     samples_desc_.reserve(num_samples);
     block_setups_.clear();
     block_setups_.reserve(num_samples);
+    all_fit_in_shm_workspace_ = true;
     max_total_workspace = 0;
     const int shared_mem_limit = GetSharedMemPerBlock();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
@@ -947,6 +927,7 @@ struct FilterGpu {
                       filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
       auto out_shape_desc = SetupOutputShapeDesc(out_shapes[sample_idx], in_shapes[sample_idx]);
       max_total_workspace = std::max(max_total_workspace, required_workspace);
+      all_fit_in_shm_workspace_ &= required_workspace > 0;
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
                                filters.tensor_data(sample_idx), shape_desc, out_shape_desc,
@@ -1140,9 +1121,23 @@ struct FilterGpu {
     }
   }
 
+  /**
+   * @brief Runs the kernel with convolution that utilizes cuda shm if all samples
+   * can fit there, otherwise chooses slower but more generic direct conv.
+   */
+  template <typename KernelLauncher>
+  void WithConvFactory(KernelLauncher&& launch_kernel) {
+    if (all_fit_in_shm_workspace_) {
+      launch_kernel(filter::ShmConvFactory{});
+    } else {
+      launch_kernel(filter::DirectConvFactory{});
+    }
+  }
+
   std::vector<SampleDescT> samples_desc_;
   std::vector<const In*> fill_values_;
   std::vector<BlockSetupT> block_setups_;
+  bool all_fit_in_shm_workspace_;
 };
 
 }  // namespace kernels
