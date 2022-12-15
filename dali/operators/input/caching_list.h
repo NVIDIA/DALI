@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_INPUT_CACHING_LIST_H_
 #define DALI_OPERATORS_INPUT_CACHING_LIST_H_
 
+#include <stdexcept>
 #include <list>
 #include <memory>
 
