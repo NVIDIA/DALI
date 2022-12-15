@@ -96,7 +96,9 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
 
-  bool SetupImplDerived(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {}
+  bool SetupImplDerived(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    return true;
+  }
 
 
   void RunImpl(Workspace &ws) override;
