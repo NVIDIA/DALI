@@ -837,9 +837,8 @@ struct FilterGpu {
            anchors.size() == num_samples);
     assert(fill_values.num_samples() == num_samples || fill_values.num_samples() == 0);
 
-    int max_total_workspace;
+    SetupSampleDescs(out, in, filters, anchors);
     SampleDescT* samples_desc_dev;
-    SetupSampleDescs(max_total_workspace, out, in, filters, anchors);
     std::tie(samples_desc_dev) = ctx.scratchpad->ToContiguousGPU(ctx.gpu.stream, samples_desc_);
     auto grid_setup = PrepareGridSetup(make_cspan(samples_desc_));
     WithBlockSetupProvider(ctx, [&](auto&& block_setup_provider) {
@@ -847,7 +846,7 @@ struct FilterGpu {
         WithOutShapeProvider([&](auto&& out_shape_provider) {
           WithConvFactory([&](auto&& conv_factory) {
             filter::filter<<<grid_setup.kernel_setup(), StaticConfigT::threadblock_size,
-                             max_total_workspace, ctx.gpu.stream>>>(
+                             required_shm_size_, ctx.gpu.stream>>>(
                 samples_desc_dev, block_setup_provider, in_loader_provider, grid_setup,
                 out_shape_provider, conv_factory);
             CUDA_CALL(cudaGetLastError());
@@ -899,7 +898,7 @@ struct FilterGpu {
     }
   }
 
-  void SetupSampleDescs(int& max_total_workspace, const TensorListView<StorageGPU, Out, ndim>& out,
+  void SetupSampleDescs(const TensorListView<StorageGPU, Out, ndim>& out,
                         const TensorListView<StorageGPU, const In, ndim>& in,
                         const TensorListView<StorageGPU, const W, axes>& filters,
                         const span<const ivec<axes>> anchors) {
@@ -913,20 +912,27 @@ struct FilterGpu {
     block_setups_.clear();
     block_setups_.reserve(num_samples);
     all_fit_in_shm_workspace_ = true;
-    max_total_workspace = 0;
+    required_shm_size_ = 0;
     const int shared_mem_limit = GetSharedMemPerBlock();
     for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-      InShapeDescT shape_desc;
+      const auto& in_shape = in_shapes[sample_idx];
+      int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
+      int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
+      ivec<axes> in_extents = ShapeAsVec<int>(in_shape);
+      auto filter_extents = shape2vec(filter_shapes[sample_idx]);
+      BlockSetupT block_setup = PrepareBlockSetup(in_extents, num_channels);
+      int lanes_axis = GetLanesAxis(filter_extents);
+      ivec<axes> logical_block_extents = block_setup.block_dim();
+      logical_block_extents[lanes_axis] *= StaticConfigT::lanes;
       WorkspaceDescT workspace_desc;
-      BlockSetupT block_setup;
-      ivec<axes> logical_block_extents;
-      int lanes_axis;
       int required_workspace;
-      SetupSampleDesc(shape_desc, workspace_desc, block_setup, logical_block_extents, lanes_axis,
-                      required_workspace, sample_idx, in_shapes[sample_idx],
-                      filter_shapes[sample_idx], anchors[sample_idx], shared_mem_limit);
-      auto out_shape_desc = SetupOutputShapeDesc(out_shapes[sample_idx], in_shapes[sample_idx]);
-      max_total_workspace = std::max(max_total_workspace, required_workspace);
+      SetupWorkspaceDesc(workspace_desc, required_workspace, filter_extents, logical_block_extents,
+                         num_channels, shared_mem_limit);
+      InShapeDescT shape_desc = PrepareSampleShapeDesc(
+          in_extents, filter_extents, anchors[sample_idx], num_frames, num_channels);
+      ivec<axes> out_extents = ShapeAsVec<int>(out_shapes[sample_idx]);
+      OutShapeDescT out_shape_desc = PrepareOutputShapeDesc(out_extents, num_channels);
+      required_shm_size_ = std::max(required_shm_size_, required_workspace);
       all_fit_in_shm_workspace_ &= required_workspace > 0;
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
@@ -935,24 +941,27 @@ struct FilterGpu {
     }
   }
 
-  template <typename InOutShape, typename FilterShape>
-  void SetupSampleDesc(InShapeDescT& shape_desc, WorkspaceDescT& workspace_desc,
-                       BlockSetupT& block_setup, ivec<axes>& logical_block_extents, int& lanes_axis,
-                       int& required_workspace, int sample_idx, const InOutShape& in_shape,
-                       const FilterShape& filter_shape, ivec<axes> anchor, int shared_mem_limit) {
-    int num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
-    int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
-    const auto channels = cat(ivec<1>{num_channels}, ivec<axes - 1>{1});
-    auto in_extents = ShapeAsVec<int>(in_shape);
+  InShapeDescT PrepareSampleShapeDesc(ivec<axes> in_extents, ivec<axes> filter_extents,
+                                      ivec<axes> anchor_shift, int num_frames, int num_channels) {
     int width = in_extents.x;
-    auto filter_extents = shape2vec(filter_shape);
-    block_setup = PrepareBlockSetup(in_extents * channels);
-    lanes_axis = GetLanesAxis(filter_extents);
-    logical_block_extents = block_setup.block_dim();
-    logical_block_extents[lanes_axis] *= StaticConfigT::lanes;
+    in_extents.x *= num_channels;
+    int64_t frame_stride;
+    i64vec<axes> in_strides;
+    strides(in_strides, frame_stride, in_extents);
+    ivec<axes> filter_strides;
+    strides(filter_strides, filter_extents);
+    anchor_shift.x *= num_channels;
+    return {frame_stride, in_strides,     num_frames,
+            width,        num_channels,   filter_extents.x * num_channels,
+            in_extents,   filter_extents, filter_strides,
+            anchor_shift};
+  }
 
+  void SetupWorkspaceDesc(WorkspaceDescT& workspace_desc, int& required_workspace,
+                          ivec<axes> filter_extents, ivec<axes> logical_block_extents,
+                          int num_channels, int shared_mem_limit) {
     i64vec<axes> in_workspace_extents = static_cast<i64vec<axes>>(filter_extents) - 1;
-    in_workspace_extents[0] *= num_channels;
+    in_workspace_extents.x *= num_channels;
     in_workspace_extents += logical_block_extents;
     int64_t in_workspace_num_elements = volume(in_workspace_extents);
     int64_t idx_workspace_size =
@@ -966,36 +975,18 @@ struct FilterGpu {
     workspace_desc.in_offset = in_workspace_offset;
     workspace_desc.in_extents = in_workspace_extents;
     strides(workspace_desc.in_strides, workspace_desc.in_extents);
-
-    int64_t frame_stride;
-    i64vec<axes> in_strides;
-    strides(in_strides, frame_stride, in_extents * channels);
-    ivec<axes> filter_strides;
-    strides(filter_strides, filter_extents);
-    shape_desc = {frame_stride,
-                  in_strides,
-                  num_frames,
-                  width,
-                  num_channels,
-                  filter_extents.x * num_channels,
-                  in_extents * channels,
-                  filter_extents,
-                  filter_strides,
-                  anchor * channels};
   }
 
-  template <typename InOutShape>
-  OutShapeDescT SetupOutputShapeDesc(const InOutShape& out_shape, const InOutShape& in_shape) {
-    int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
-    auto out_extents = ShapeAsVec<int>(out_shape);
-    out_extents[0] *= num_channels;
+  OutShapeDescT PrepareOutputShapeDesc(ivec<axes> out_extents, int num_channels) {
+    out_extents.x *= num_channels;
     int64_t out_frame_stride;
     i64vec<axes> out_strides;
     strides(out_strides, out_frame_stride, out_extents);
     return {out_frame_stride, out_strides, out_extents};
   }
 
-  BlockSetupT PrepareBlockSetup(const ivec2& in_extents) {
+  BlockSetupT PrepareBlockSetup(ivec2 in_extents, int num_channels) {
+    in_extents.x *= num_channels;
     int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
     int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
     int block_x_log2 = std::min(total_block_log2, sample_x_log2);
@@ -1003,7 +994,8 @@ struct FilterGpu {
     return {block, {0, block.x}};
   }
 
-  BlockSetupT PrepareBlockSetup(const ivec3& in_extents) {
+  BlockSetupT PrepareBlockSetup(ivec3 in_extents, int num_channels) {
+    in_extents.x *= num_channels;
     int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
     int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
     int sample_y_log2 = in_extents.y == 0 ? 0 : dali::ilog2(in_extents.y - 1) + 1;
@@ -1138,6 +1130,7 @@ struct FilterGpu {
   std::vector<const In*> fill_values_;
   std::vector<BlockSetupT> block_setups_;
   bool all_fit_in_shm_workspace_;
+  int required_shm_size_;
 };
 
 }  // namespace kernels
