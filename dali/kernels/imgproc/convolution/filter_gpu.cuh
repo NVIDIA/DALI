@@ -47,8 +47,9 @@ struct InShapeDesc {
   i64vec<axes> in_strides;    // 1, wc(, hwc)
   int num_frames, width;      // f, w
   int num_channels;           // c
+  int in_filter_width;        // sc, i.e. innermost filter extent * num_channels
   ivec<axes> in_extents;      // wc, h(, d)
-  ivec<axes> filter_extents;  // use workspace? sc, r(, p) : s, r(, p)
+  ivec<axes> filter_extents;  // s, r(, p)
   ivec<axes> filter_strides;  // 1, r(, rs)
   ivec<axes> anchor_shift;    // anchor_s * c, anchor_r(, anchor_p)
 };
@@ -62,7 +63,7 @@ struct OutShapeDesc {
 
 template <int axes>
 struct WorkspaceDesc {
-  // threadblock * lanes + filter_extents - 1
+  // threadblock * lanes + {in_filter_width, r(, p)} - 1
   ivec<axes> in_extents;
   // the strides for the in_extents
   ivec<axes> in_strides;
@@ -264,21 +265,22 @@ struct ShmInputConv {
     load_input_to_shm(in, anchored_start);
     __syncthreads();
     const auto& thread_idx = block_setup.thread_idx();
-    stride_filter(sample_desc.in_shape.filter_extents, [&](auto filter_coef,
-                                                           const auto& filter_offset, int lane) {
-      auto in_val =
-          in_workspace[dot(thread_idx + filter_offset, sample_desc.workspace_desc.in_strides)];
-      acc[lane] += in_val * filter_coef;
-    });
+    stride_filter(
+        sample_desc.in_shape.filter_extents, sample_desc.in_shape.in_filter_width,
+        [&](auto filter_coef, const auto& filter_offset, int lane) {
+          auto in_val =
+              in_workspace[dot(thread_idx + filter_offset, sample_desc.workspace_desc.in_strides)];
+          acc[lane] += in_val * filter_coef;
+        });
   }
 
   template <typename MulAddCoef>
-  DALI_DEVICE DALI_FORCEINLINE void stride_filter(const ivec2& filter_extents,
+  DALI_DEVICE DALI_FORCEINLINE void stride_filter(const ivec2& filter_extents, int in_filter_width,
                                                   MulAddCoef&& mul_add_coef) const {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int r = 0; r < filter_extents.y; r++) {
-      for (int s = 0; s < filter_extents.x; s += sample_desc.in_shape.num_channels) {
+      for (int s = 0; s < in_filter_width; s += sample_desc.in_shape.num_channels) {
         auto filter_coef = __ldg(filter++);
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < StaticConfigT::lanes;
@@ -291,13 +293,13 @@ struct ShmInputConv {
   }
 
   template <typename MulAddCoef>
-  DALI_DEVICE DALI_FORCEINLINE void stride_filter(const ivec3& filter_extents,
+  DALI_DEVICE DALI_FORCEINLINE void stride_filter(const ivec3& filter_extents, int in_filter_width,
                                                   MulAddCoef&& mul_add_coef) const {
     const auto& block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int p = 0; p < filter_extents.z; p++) {
       for (int r = 0; r < filter_extents.y; r++) {
-        for (int s = 0; s < filter_extents.x; s += sample_desc.in_shape.num_channels) {
+        for (int s = 0; s < in_filter_width; s += sample_desc.in_shape.num_channels) {
           auto filter_coef = __ldg(filter++);
           ivec3 filter_position{s, r, p};
 #pragma unroll
@@ -994,8 +996,9 @@ struct FilterGpu {
                   num_frames,
                   width,
                   num_channels,
+                  filter_extents.x * num_channels,
                   in_extents * channels,
-                  required_workspace == 0 ? filter_extents : filter_extents * channels,
+                  filter_extents,
                   filter_strides,
                   anchor * channels};
   }
