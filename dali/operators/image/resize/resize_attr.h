@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,25 +16,12 @@
 #define DALI_OPERATORS_IMAGE_RESIZE_RESIZE_ATTR_H_
 
 #include <vector>
-#include "dali/core/small_vector.h"
-#include "dali/core/format.h"
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/operators/image/resize/resize_attr_base.h"
 #include "dali/pipeline/operator/op_spec.h"
-#include "dali/operators/image/resize/resize_mode.h"
 
 namespace dali {
-
-struct ResizeParams {
-  void resize(int ndim) {
-    dst_size.resize(ndim);
-    src_lo.resize(ndim);
-    src_hi.resize(ndim);
-  }
-  int size() const { return dst_size.size(); }
-  SmallVector<int, 6> dst_size;
-  SmallVector<float, 6> src_lo, src_hi;
-};
 
 class DLL_PUBLIC ResizeAttr {
  public:
@@ -105,21 +92,6 @@ class DLL_PUBLIC ResizeAttr {
   vector<float> roi_start_, roi_end_;
 
   void SetFlagsAndMode(const OpSpec &spec);
-
-  void AdjustOutputSize(float *out_size, const float *in_size);
-
-  void CalculateInputRoI(SmallVector<float, 3> &in_lo,
-                         SmallVector<float, 3> &in_hi,
-                         const TensorListShape<> &input_shape,
-                         int sample_idx) const;
-
-  // pass sizes by value - the function will modify them internally
-  void CalculateSampleParams(ResizeParams &params,
-                             SmallVector<float, 3> requested_size,
-                             SmallVector<float, 3> in_lo,
-                             SmallVector<float, 3> in_hi,
-                             bool adjust_roi,
-                             bool empty_input);
 };
 
 }  // namespace dali
