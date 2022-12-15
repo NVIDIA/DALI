@@ -256,7 +256,7 @@ struct ShmInputConv {
   using Acc = typename SampleDescT::Acc;
   static constexpr int lanes_axis = lanes_axis_;
 
-  DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
+  DALI_DEVICE DALI_FORCEINLINE void compute(Acc* acc, const In* __restrict__ in,
                                             const ivec<SampleDescT::axes>& start) const {
     auto anchored_start = start - sample_desc.in_shape.anchor_shift;
     __syncthreads();
@@ -389,7 +389,7 @@ struct DirectInputConv {
   using In = typename SampleDescT::In;
   static constexpr int lanes_axis = lanes_axis_;
 
-  DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
+  DALI_DEVICE DALI_FORCEINLINE void compute(Acc* acc, const In* __restrict__ in,
                                             const ivec2& start) const {
     const auto& block_dim = block_setup.block_dim();
     const auto& thread_idx = block_setup.thread_idx();
@@ -413,7 +413,7 @@ struct DirectInputConv {
     }
   }
 
-  DALI_DEVICE DALI_FORCEINLINE void compute(Acc* __restrict__ acc, const In* __restrict__ in,
+  DALI_DEVICE DALI_FORCEINLINE void compute(Acc* acc, const In* __restrict__ in,
                                             const ivec3& start) const {
     constexpr int non_lanes_axis = lanes_axis == 1 ? 2 : 1;
     const auto& block_dim = block_setup.block_dim();
