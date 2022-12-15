@@ -15,6 +15,7 @@
 #ifndef DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_CUH_
 #define DALI_KERNELS_IMGPROC_CONVOLUTION_FILTER_GPU_CUH_
 
+#include <array>
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -883,28 +884,37 @@ struct FilterGpu {
 
   template <typename Inshapes, typename FilterShapes>
   void ValidateNumericLimits(const Inshapes& in_shapes, const FilterShapes& filter_shapes) {
-    const auto max_grid_logical_extents = StaticConfigT::max_grid_extents() * StaticConfigT::lanes;
+    const i64vec<axes> max_grid_logical_extents =
+        static_cast<i64vec<axes>>(StaticConfigT::max_grid_extents() * StaticConfigT::lanes);
     // so that we can safely use grid extents as a stride in a for loop
-    const auto max_sample_extents = std::numeric_limits<int>::max() - max_grid_logical_extents + 1;
+    const i64vec<axes> max_sample_extents =
+        std::numeric_limits<int>::max() - max_grid_logical_extents + 1;
     for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
       const auto& in_shape = in_shapes[sample_idx];
-      const auto& filter_shape = filter_shapes[sample_idx];
       int64_t num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
+      DALI_ENFORCE(num_frames <= std::numeric_limits<int>::max(),
+                   make_string("The number of frames for sample of idx ", sample_idx,
+                               " exceeds the limit of ", std::numeric_limits<int>::max(), ". Got ",
+                               num_frames, " frames."));
       int64_t num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
-      const auto channels = cat(i64vec<1>{num_channels}, i64vec<axes - 1>{1});
-      auto in_extents = ShapeAsVec<int64_t>(in_shape) * channels;
-      auto filter_extents = shape2vec<axes, int64_t>(filter_shape);
-      DALI_ENFORCE(
-          num_frames <= std::numeric_limits<int>::max(),
-          make_string("Number of frames for sample of idx ", sample_idx, " exceeds the limit of ",
-                      std::numeric_limits<int>::max(), ". Got: ", num_frames, "."));
-      DALI_ENFORCE(
-          volume(filter_extents) <= std::numeric_limits<int>::max(),
-          make_string("Volume of filter for sample of idx ", sample_idx, " exceeds the limit of ",
-                      std::numeric_limits<int>::max(), ". Got: ", volume(filter_extents), "."));
-      DALI_ENFORCE(all_coords(in_extents <= static_cast<i64vec<axes>>(max_sample_extents)),
-                   make_string("The size of the sample of idx ", sample_idx, " is ", in_extents,
-                               ", which exceeds the limit of ", max_sample_extents, "."));
+      i64vec<axes> in_extents = ShapeAsVec<int64_t>(in_shape);
+      in_extents[0] *= num_channels;
+      for (int dim = 0; dim < axes; dim++) {
+        static_assert(axes <= 3);
+        const std::array<std::string, 3> extent_names = {
+            "combined width and the number of channels", "height", "depth"};
+        DALI_ENFORCE(
+            in_extents[dim] <= max_sample_extents[dim],
+            make_string("The ", extent_names[dim], " of sample at index ", sample_idx, " is ",
+                        in_extents[dim], ", which exceeds the supported limit of ",
+                        max_sample_extents[dim], ". The sample's shape is: ", in_shape, "."));
+      }
+      const auto& filter_shape = filter_shapes[sample_idx];
+      DALI_ENFORCE(volume(filter_shape) <= std::numeric_limits<int>::max(),
+                   make_string("Volume of filter for sample of idx ", sample_idx, " is ",
+                               volume(filter_shape), ", which exceeds the limit of ",
+                               std::numeric_limits<int>::max(), ". The filter's shape is ",
+                               filter_shape, "."));
     }
   }
 
@@ -1041,6 +1051,12 @@ struct FilterGpu {
     return filter_extents.y > filter_extents.z ? 1 : 2;
   }
 
+  /**
+   * @brief Selects block setup provider for kernel launch. Picks static block provider if possible
+   * (which has less arithmetic overhead) or adaptive, per-sample provider if needed (i.e. when
+   * samples have degenerated extents such as width = 1, which would result in very slow run with
+   * static block).
+   */
   template <typename KernelLauncher>
   void WithBlockSetupProvider(KernelContext& ctx, KernelLauncher&& launch_kernel) {
     if (std::all_of(block_setups_.begin(), block_setups_.end(), [](const auto& block_setup) {
@@ -1055,6 +1071,10 @@ struct FilterGpu {
     }
   }
 
+  /**
+   * @brief Selected input loader provider for kernel launch that handles OOB accesess according to
+   * selected border mode.
+   */
   template <typename KernelLauncher>
   void WithInLoaderProvider(KernelContext& ctx, boundary::BoundaryType border_type,
                             const TensorListView<StorageGPU, const In, 0>& fill_values,
@@ -1101,6 +1121,10 @@ struct FilterGpu {
     }
   }
 
+  /**
+   * @brief If the ``enable_roi`` is set to false, the input and outpus are expected do have equal
+   * shapes. Knowing that helps to spare a few registers when running the kernel.
+   */
   template <typename KernelLauncher>
   void WithOutShapeProvider(KernelLauncher&& launch_kernel) {
     if (enable_roi) {
