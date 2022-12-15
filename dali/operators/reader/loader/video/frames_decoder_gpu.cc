@@ -81,6 +81,8 @@ class NVDECCache {
       return cache_inst;
     }
     NVDECLease GetDecoder(CUVIDEOFORMAT *video_format) {
+      int device_id = 0;
+      CUDA_CALL(cudaGetDevice(&device_id));
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
@@ -92,8 +94,9 @@ class NVDECCache {
 
       if (num_decode_surfaces == 0)
         num_decode_surfaces = 20;
-      auto range = dec_cache.equal_range(codec_type);
-      std::unordered_map<cudaVideoCodec, DecInstance>::iterator best_match = range.second;
+      auto &dec_cache_elm = dec_cache[device_id];
+      auto range = dec_cache_elm.equal_range(codec_type);
+      codec_map::iterator best_match = range.second;
       for (auto it = range.first; it != range.second; ++it) {
         if (best_match == range.second && it->second.used == false) {
           best_match = it;
@@ -202,12 +205,12 @@ class NVDECCache {
       decoder_inst.used = true;
 
       lock.lock();
-      dec_cache.insert({codec_type, decoder_inst});
-      if (dec_cache.size() > CACHE_SIZE_LIMIT) {
-        for (auto it = dec_cache.begin(); it != dec_cache.end(); ++it) {
+      dec_cache_elm.insert({codec_type, decoder_inst});
+      if (dec_cache_elm.size() > CACHE_SIZE_LIMIT) {
+        for (auto it = dec_cache_elm.begin(); it != dec_cache_elm.end(); ++it) {
           if (it->second.used == false) {
             auto decoder = it->second.decoder;
-            dec_cache.erase(it);
+            dec_cache_elm.erase(it);
             lock.unlock();
             cuvidDestroyDecoder(decoder);
             break;
@@ -218,8 +221,10 @@ class NVDECCache {
     }
 
     void ReturnDecoder(DecInstance &decoder) {
+      int device_id = 0;
+      CUDA_CALL(cudaGetDevice(&device_id));
       std::unique_lock lock(access_lock);
-      auto range = dec_cache.equal_range(decoder.codec_type);
+      auto range = dec_cache[device_id].equal_range(decoder.codec_type);
       for (auto it = range.first; it != range.second; ++it) {
         if (it->second.decoder == decoder.decoder) {
           it->second.used = false;
@@ -230,16 +235,22 @@ class NVDECCache {
     }
 
  private:
-    NVDECCache() {}
+    NVDECCache() {
+      int num_devices = 0;
+      CUDA_CALL(cudaGetDeviceCount(&num_devices));
+      dec_cache.resize(num_devices);
+    }
 
     ~NVDECCache() {
       std::scoped_lock lock(access_lock);
-      for (auto &it : dec_cache) {
-        cuvidDestroyDecoder(it.second.decoder);
+      for (auto &dec_cache_elm : dec_cache) {
+        for (auto &it : dec_cache_elm) {
+          cuvidDestroyDecoder(it.second.decoder);
+        }
       }
     }
-
-    std::unordered_multimap<cudaVideoCodec, DecInstance> dec_cache;
+    using codec_map = std::unordered_multimap<cudaVideoCodec, DecInstance>;
+    std::vector<codec_map> dec_cache;
 
     std::mutex access_lock;
 

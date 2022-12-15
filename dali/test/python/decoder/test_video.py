@@ -144,3 +144,24 @@ def test_full_range_video_in_memory(device):
     right = out
     absdiff = np.abs(left.astype(int) - right.astype(int))
     assert np.mean(absdiff) < 2
+
+@params('cpu', 'gpu')
+def test_multi_gpu_video(device):
+    @pipeline_def
+    def test_pipeline():
+        videos = fn.experimental.readers.video(
+            device=device,
+            filenames=[get_dali_extra_path() + '/db/video/full_dynamic_range/video.mp4'],
+            sequence_length=1)
+        return videos
+
+    video_pipeline_0 = test_pipeline(batch_size=1, num_threads=1, device_id=0)
+    video_pipeline_1 = test_pipeline(batch_size=1, num_threads=1, device_id=1)
+
+    video_pipeline_0.build()
+    video_pipeline_1.build()
+
+    iters = 5
+    for _ in range(iters):
+        video_pipeline_0.run()
+        video_pipeline_1.run()

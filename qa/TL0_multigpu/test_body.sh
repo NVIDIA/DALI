@@ -6,8 +6,7 @@ test_py_with_framework() {
 }
 
 test_py() {
-  # placeholder function
-  :
+  ${python_new_invoke_test} -s decoder test_video.test_multi_gpu_video
 }
 
 test_gtest() {
