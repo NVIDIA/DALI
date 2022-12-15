@@ -94,7 +94,7 @@ struct SampleDesc {
   // axis to iterate over with lanes
   // if axes == 2 then must be 1 (i.e. height),
   // for volumetric input it may be depth or height
-  int lanes_axis;
+  int lane_axis;
 };
 
 /** @defgroup InputLoader InputLoader is meant to specialize loading of the sample from global
@@ -246,7 +246,7 @@ struct OutShapeProviderROI {
  * (logical_block_extents) into shared memory (including filter's halo/apron), then computes the
  * convolution.
  */
-template <int lanes_axis_, typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
+template <int lane_axis_, typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct ShmInputConv {
   using SampleDescT = SampleDescT_;
   using Inloader = Inloader_;
@@ -254,7 +254,7 @@ struct ShmInputConv {
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
   using In = typename SampleDescT::In;
   using Acc = typename SampleDescT::Acc;
-  static constexpr int lanes_axis = lanes_axis_;
+  static constexpr int lane_axis = lane_axis_;
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* acc, const In* __restrict__ in,
                                             ivec<SampleDescT::axes> start) const {
@@ -305,7 +305,7 @@ struct ShmInputConv {
 #pragma unroll
           for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
             mul_add_coef(filter_coef, filter_position, lane);
-            filter_position[lanes_axis] += block_dim[lanes_axis];
+            filter_position[lane_axis] += block_dim[lane_axis];
           }
         }
       }
@@ -379,7 +379,7 @@ struct ShmInputConv {
  * the input directly in global memory. Used as a fallback when the filter size or number of
  * channels in the input make it impossible to use ``ShmInputConv``.
  */
-template <int lanes_axis_, typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
+template <int lane_axis_, typename SampleDescT_, typename Inloader_, typename BlockSetupT_>
 struct DirectInputConv {
   using SampleDescT = SampleDescT_;
   using Inloader = Inloader_;
@@ -387,7 +387,7 @@ struct DirectInputConv {
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
   using Acc = typename SampleDescT::Acc;
   using In = typename SampleDescT::In;
-  static constexpr int lanes_axis = lanes_axis_;
+  static constexpr int lane_axis = lane_axis_;
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* acc, const In* __restrict__ in,
                                             ivec2 start) const {
@@ -415,7 +415,7 @@ struct DirectInputConv {
 
   DALI_DEVICE DALI_FORCEINLINE void compute(Acc* acc, const In* __restrict__ in,
                                             ivec3 start) const {
-    constexpr int non_lanes_axis = lanes_axis == 1 ? 2 : 1;
+    constexpr int non_lane_axis = lane_axis == 1 ? 2 : 1;
     ivec3 block_dim = block_setup.block_dim();
     ivec3 thread_idx = block_setup.thread_idx();
     ivec3 filter_extents = sample_desc.in_shape.filter_extents;
@@ -424,21 +424,21 @@ struct DirectInputConv {
     for (int s = 0; s < filter_extents.x; s++) {
       int global_x = in_loader.border_remap_innermost(
           in_coords.x + s * sample_desc.in_shape.num_channels, sample_desc.in_shape);
-      for (int i = 0; i < filter_extents[non_lanes_axis]; i++) {
-        int global_non_lanes_axis = in_loader.border_remap(in_coords[non_lanes_axis] + i,
-                                                           sample_desc.in_shape, non_lanes_axis);
-        for (int j = 0; j < filter_extents[lanes_axis]; j++) {
-          ivec3 filter_pos{s, lanes_axis == 1 ? j : i, lanes_axis == 1 ? i : j};
+      for (int i = 0; i < filter_extents[non_lane_axis]; i++) {
+        int global_non_lane_axis = in_loader.border_remap(in_coords[non_lane_axis] + i,
+                                                           sample_desc.in_shape, non_lane_axis);
+        for (int j = 0; j < filter_extents[lane_axis]; j++) {
+          ivec3 filter_pos{s, lane_axis == 1 ? j : i, lane_axis == 1 ? i : j};
           auto filter_coef = __ldg(filter + dot(filter_pos, sample_desc.in_shape.filter_strides));
-          int lanes_axis_pos = in_coords[lanes_axis] + j;
+          int lane_axis_pos = in_coords[lane_axis] + j;
           // Even without shm, using `lanes` speeds up the kernel by reducing
           // the cost of nested loops arithmetic per single output value
 #pragma unroll
           for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
-            int global_lanes_axis = in_loader.border_remap(
-                lanes_axis_pos + lane * block_dim[lanes_axis], sample_desc.in_shape, lanes_axis);
-            ivec3 coords{global_x, lanes_axis == 1 ? global_lanes_axis : global_non_lanes_axis,
-                         lanes_axis == 1 ? global_non_lanes_axis : global_lanes_axis};
+            int global_lane_axis = in_loader.border_remap(
+                lane_axis_pos + lane * block_dim[lane_axis], sample_desc.in_shape, lane_axis);
+            ivec3 coords{global_x, lane_axis == 1 ? global_lane_axis : global_non_lane_axis,
+                         lane_axis == 1 ? global_non_lane_axis : global_lane_axis};
             auto in_val = in_loader.load(in, coords, sample_desc.in_shape);
             acc[lane] += in_val * filter_coef;
           }
@@ -454,8 +454,8 @@ struct DirectInputConv {
 
 
 struct ShmConvFactory {
-  template <int lanes_axis, typename SampleDescT, typename Inloader, typename BlockSetupT>
-  DALI_DEVICE DALI_FORCEINLINE ShmInputConv<lanes_axis, SampleDescT, Inloader, BlockSetupT> create(
+  template <int lane_axis, typename SampleDescT, typename Inloader, typename BlockSetupT>
+  DALI_DEVICE DALI_FORCEINLINE ShmInputConv<lane_axis, SampleDescT, Inloader, BlockSetupT> create(
       SampleDescT sample_desc, Inloader in_loader, BlockSetupT block_setup, char* shm) const {
     using In = typename SampleDescT::In;
     int* idx_workspace = reinterpret_cast<int*>(shm);
@@ -465,8 +465,8 @@ struct ShmConvFactory {
 };
 
 struct DirectConvFactory {
-  template <int lanes_axis, typename SampleDescT, typename Inloader, typename BlockSetupT>
-  DALI_DEVICE DALI_FORCEINLINE DirectInputConv<lanes_axis, SampleDescT, Inloader, BlockSetupT>
+  template <int lane_axis, typename SampleDescT, typename Inloader, typename BlockSetupT>
+  DALI_DEVICE DALI_FORCEINLINE DirectInputConv<lane_axis, SampleDescT, Inloader, BlockSetupT>
   create(SampleDescT sample_desc, Inloader in_loader, BlockSetupT block_setup, char* shm) const {
     (void)shm;
     return {sample_desc, in_loader, block_setup};
@@ -486,10 +486,10 @@ template <typename ConvFactoryT, typename SampleDescT, typename InLoaderT, typen
 DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with_conv(
     ConvFactoryT conv_factory, SampleDescT sample_desc, InLoaderT in_loader,
     BlockSetupT block_setup, char* shm, Cb&& cb) {
-  if (sample_desc.lanes_axis == 2) {
+  if (sample_desc.lane_axis == 2) {
     cb(conv_factory.create<2>(sample_desc, in_loader, block_setup, shm));
   } else {
-    assert(sample_desc.lanes_axis == 1);
+    assert(sample_desc.lane_axis == 1);
     cb(conv_factory.create<1>(sample_desc, in_loader, block_setup, shm));
   }
 }
@@ -503,7 +503,7 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(ivec2 block
                                                                      const Cb&& cb) {
   using BlockSetupT = typename Conv::BlockSetupT;
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
-  static_assert(Conv::lanes_axis == 1);
+  static_assert(Conv::lane_axis == 1);
   ivec2 block_dim = conv.block_setup.block_dim();
   ivec2 coords = block_start + conv.block_setup.thread_idx();
   if (coords.x < out_extents.x) {
@@ -524,17 +524,17 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(ivec3 block
                                                                      const Cb&& cb) {
   using BlockSetupT = typename Conv::BlockSetupT;
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
-  constexpr int lanes_axis = Conv::lanes_axis;
-  static_assert(lanes_axis == 1 || lanes_axis == 2);
-  constexpr int non_lanes_axis = Conv::lanes_axis == 2 ? 1 : 2;
+  constexpr int lane_axis = Conv::lane_axis;
+  static_assert(lane_axis == 1 || lane_axis == 2);
+  constexpr int non_lane_axis = Conv::lane_axis == 2 ? 1 : 2;
   ivec3 block_dim = conv.block_setup.block_dim();
   ivec3 coords = block_start + conv.block_setup.thread_idx();
-  if (coords.x < out_extents.x && coords[non_lanes_axis] < out_extents[non_lanes_axis]) {
+  if (coords.x < out_extents.x && coords[non_lane_axis] < out_extents[non_lane_axis]) {
 #pragma unroll
     for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
-      if (coords[lanes_axis] < out_extents[lanes_axis]) {
+      if (coords[lane_axis] < out_extents[lane_axis]) {
         cb(coords, lane);
-        coords[lanes_axis] += block_dim[lanes_axis];
+        coords[lane_axis] += block_dim[lane_axis];
       }
     }
   }
@@ -915,9 +915,9 @@ struct FilterGpu {
       ivec<axes> in_extents = ShapeAsVec<int>(in_shape);
       auto filter_extents = shape2vec(filter_shapes[sample_idx]);
       BlockSetupT block_setup = PrepareBlockSetup(in_extents, num_channels);
-      int lanes_axis = GetLanesAxis(filter_extents);
+      int lane_axis = GetLanesAxis(filter_extents);
       ivec<axes> logical_block_extents = block_setup.block_dim();
-      logical_block_extents[lanes_axis] *= StaticConfigT::lanes;
+      logical_block_extents[lane_axis] *= StaticConfigT::lanes;
       WorkspaceDescT workspace_desc;
       int required_workspace;
       SetupWorkspaceDesc(workspace_desc, required_workspace, filter_extents, logical_block_extents,
@@ -931,7 +931,7 @@ struct FilterGpu {
       block_setups_.push_back(block_setup);
       samples_desc_.push_back({out.tensor_data(sample_idx), in.tensor_data(sample_idx),
                                filters.tensor_data(sample_idx), shape_desc, out_shape_desc,
-                               workspace_desc, logical_block_extents, lanes_axis});
+                               workspace_desc, logical_block_extents, lane_axis});
     }
   }
 
