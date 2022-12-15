@@ -68,11 +68,16 @@ class DLL_PUBLIC VideoDecoderBase {
    * This function allows optional padding of the output data, when
    * there's not enough frames inside FramesDecoder to fill the `num_frames` specified.
    *
+   * The `pad_value` argument determines, with what the VideoDecoder shall pad
+   * the partial sequence. The tensor passed to the `pad_value` shall be an entire
+   * frame. This frame will be repeated at the end of partial sequence.
+   * If the `pad_value` is not provided, the padding will not happen and the DecodeFrames
+   * will return a partial sequence.
+   *
    * @param output The SampleView in which the decoded sequence will be put.
    * @param sample_idx Index of the encoded video that shall be decoded.
    * @param num_frames How many frames shall be decoded.
-   * @param pad_value What to (optionally) pad the partial sequence with. If no value has been
-   *                  provided, padding will not happen.
+   * @param pad_value What to (optionally) pad the partial sequence with.
    * @return False, if less than `num_frames` have been decoded.
    */
   bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx, int64_t num_frames,
