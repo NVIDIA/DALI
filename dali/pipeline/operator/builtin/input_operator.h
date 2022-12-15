@@ -446,7 +446,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
  * Checks, if the Operator defined by provided Schema is an InputOperator
  */
 inline bool IsInputOperator(const OpSchema &schema) {
-  auto parents = schema.GetParents();
+  const auto &parents = schema.GetParents();
   return std::any_of(parents.begin(), parents.end(),
                      [](const std::string &p) { return p == "InputOperatorBase"; });
 }

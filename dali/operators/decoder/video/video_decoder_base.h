@@ -83,7 +83,7 @@ class DLL_PUBLIC VideoDecoderBase {
    */
   bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx, int64_t num_frames,
                     std::optional<SampleView<OutBackend>> pad_value = std::nullopt,
-                    cudaStream_t stream = 0) {
+                    std::optional<cudaStream_t> stream = std::nullopt) {
     auto &frames_decoder = *frames_decoders_[sample_idx];
     int64_t frame_size = frames_decoder.FrameSize();
 
@@ -104,8 +104,9 @@ class DLL_PUBLIC VideoDecoderBase {
     bool full_sequence_decoded = f == num_frames;
     // If there's an insufficient number of frames, pad if requested.
     for (; f < num_frames && pad_value.has_value(); f++) {
-      kernels::copy<OutBackend, OutBackend>(output_data + f * frame_size, pad_value->raw_data(),
-                                            frame_size, stream);
+      kernels::copy<OutBackend, OutBackend>(
+              output_data + f * frame_size, pad_value->raw_data(), frame_size,
+              std::is_same_v<OutBackend, GPUBackend> ? *stream : 0);
     }
     return full_sequence_decoded;
   }

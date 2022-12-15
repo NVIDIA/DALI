@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATOR_BUILTIN_CACHING_LIST_H_
 #define DALI_PIPELINE_OPERATOR_BUILTIN_CACHING_LIST_H_
 
+#include <stdexcept>
 #include <list>
 #include <memory>
 
