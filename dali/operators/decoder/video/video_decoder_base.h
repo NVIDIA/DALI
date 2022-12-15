@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <memory>
+#include "dali/kernels/common/copy.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
@@ -103,8 +104,8 @@ class DLL_PUBLIC VideoDecoderBase {
     bool full_sequence_decoded = f == num_frames;
     // If there's an insufficient number of frames, pad if requested.
     for (; f < num_frames && pad_value.has_value(); f++) {
-      CUDA_CALL(cudaMemcpy(output_data + f * frame_size, pad_value->raw_data(), frame_size,
-                           cudaMemcpyDefault));
+      kernels::copy<OutBackend, OutBackend>(output_data + f * frame_size, pad_value->raw_data(),
+                                            frame_size, stream);
     }
     return full_sequence_decoded;
   }
