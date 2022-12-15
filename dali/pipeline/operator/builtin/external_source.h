@@ -89,7 +89,8 @@ class ExternalSource : public InputOperator<Backend> {
   }
 
 
-  bool SetupImplDerived(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    InputOperator<Backend>::HandleDataAvailability();
     ValidateInputData(InputOperator<Backend>::PeekCurrentData());
     TensorListShape<> shape;
     output_desc.resize(1);

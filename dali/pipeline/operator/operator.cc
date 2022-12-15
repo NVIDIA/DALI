@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/pipeline/operator/builtin/input_operator.h"
 #include "dali/pipeline/operator/builtin/split_merge.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -21,6 +22,10 @@ template <typename Backend>
 void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
   if (IsSplitOrMerge(spec_.GetSchema())) {
+    return;
+  }
+  // InputOperators have relaxed checks, since they actually create a batch.
+  if (IsInputOperator(spec_.GetSchema())) {
     return;
   }
   auto curr_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
@@ -41,6 +46,10 @@ template <typename Backend>
 void OperatorBase::EnforceUniformOutputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
   if (IsSplitOrMerge(spec_.GetSchema())) {
+    return;
+  }
+  // InputOperators have relaxed checks, since they actually create a batch.
+  if (IsInputOperator(spec_.GetSchema())) {
     return;
   }
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
