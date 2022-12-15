@@ -150,6 +150,8 @@ def test_tensor_cpu_squeeze():
         t_shape = tuple(t.shape())
         assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
         assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
+        assert t.get_property("layout") == expected_out_layout, \
+               f'{t.get_property("layout")} != {expected_out_layout}'
         assert np.allclose(arr_squeeze, np.array(t))
         assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
 

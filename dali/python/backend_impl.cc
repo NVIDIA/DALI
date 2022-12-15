@@ -370,6 +370,26 @@ void CopyToExternalImplGPU(SourceObject &src,
   wait_order.wait(copy_order);
 }
 
+template <typename Backend>
+py::object GetTensorProperty(const Tensor<Backend> &tensor, std::string name) {
+  if (name == "layout") {
+    TensorLayout layout = tensor.GetLayout();
+    if (layout.empty())
+      return py::none();
+    else
+      return py::str(layout.c_str());
+  } else if (name == "source_info") {
+    auto &&srcinfo = tensor.GetSourceInfo();
+    if (srcinfo.empty())
+      return py::none();
+    else
+      return py::str(srcinfo);
+  } else {
+    // TODO(michalz): Make TensorMeta more flexible and have some dictionary
+    return py::none();
+  }
+}
+
 /**
  * Pipeline output descriptor.
  */
@@ -509,6 +529,10 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<CPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("source_info", &Tensor<CPUBackend>::GetSourceInfo,
+        R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
+        from which the data was loaded.)")
+    .def("get_property", GetTensorProperty<CPUBackend>)
     .def("_as_gpu", [](Tensor<CPUBackend> &t) -> Tensor<GPUBackend>* {
           auto ret = std::make_unique<Tensor<GPUBackend>>();
           int dev = -1;
@@ -611,6 +635,10 @@ void ExposeTensor(py::module &m) {
     .def("layout", [](Tensor<GPUBackend> &t) {
       return t.GetLayout().str();
     })
+    .def("source_info", &Tensor<GPUBackend>::GetSourceInfo,
+        R"(Gets a string descrbing the source of the data in the tensor, e.g. a name of the file
+        from which the data was loaded.)")
+    .def("get_property", GetTensorProperty<GPUBackend>)
     .def("as_cpu", [](Tensor<GPUBackend> &t) -> Tensor<CPUBackend>* {
           auto ret = std::make_unique<Tensor<CPUBackend>>();
           ret->set_pinned(false);

@@ -204,6 +204,7 @@ class MultiPasteOp : public Operator<Backend> {
                 This().template RunTyped<OutputType, InputType>(ws);
         ), UnsupportedOutpuType(output_type_))  // NOLINT
     ), UnsupportedInputType(input_type_id))  // NOLINT
+    SetSourceInfo(ws);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -267,6 +268,25 @@ class MultiPasteOp : public Operator<Backend> {
       }
     }
     return sh;
+  }
+
+  void SetSourceInfo(Workspace &ws) {
+    auto &in = ws.Input<Backend>(0);
+    auto &out = ws.Output<Backend>(0);
+    for (int  i = 0; i < out.num_samples(); i++) {
+      auto in_idx = in_idx_[i];
+      std::string out_source_info;
+      for (int j = 0; j < in_idx.shape[0]; j++) {
+        int source_sample = in_idx.data[j];
+        auto &&in_source_info = in.GetMeta(source_sample).GetSourceInfo();
+        if (!in_source_info.empty()) {
+          if (!out_source_info.empty())
+            out_source_info += ";";
+          out_source_info += in_source_info;
+        }
+      }
+      out.SetSourceInfo(i, out_source_info);
+    }
   }
 
   inline Coords GetOutAnchors(int sample_num, int paste_num) const {

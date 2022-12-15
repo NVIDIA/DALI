@@ -26,6 +26,7 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
+#include "dali/pipeline/executor/source_info_propagation.h"
 
 namespace dali {
 
@@ -406,6 +407,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
     DomainTimeRange tr("[DALI][Executor] Run");
     op.Run(ws);
   }
+
+  PropagateSourceInfo(ws);
 
   /* TODO(michalz): Find a way to make this valid in presence of passthrough between stages
   // Set the output order to the stage's stream

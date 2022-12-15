@@ -57,8 +57,8 @@ def decoder_pipe(data_path, device, use_fast_idct=False):
 test_data_root = get_dali_extra_path()
 good_path = 'db/single'
 misnamed_path = 'db/single/missnamed'
-test_good_path = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k', 'webp'}
-test_misnamed_path = {'jpeg', 'png', 'tiff', 'pnm', 'bmp'}
+test_good_path = {'jpeg', 'mixed', 'png', 'pnm', 'bmp', 'jpeg2k', 'webp'}
+test_misnamed_path = {'jpeg', 'png', 'pnm', 'bmp'}
 
 
 def run_decode(data_path, batch, device, threads):
@@ -150,9 +150,10 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
     for _ in range(iters):
         out_1, out_2 = pipe.run()
         for img_1, img_2 in zip(out_1, out_2):
-            img_1 = to_array(img_1)
-            img_2 = to_array(img_2)
-            assert validation_fun(img_1, img_2)
+            arr_1 = to_array(img_1)
+            arr_2 = to_array(img_2)
+            assert validation_fun(arr_1, arr_2), \
+                   f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
 
 
 def test_image_decoder_fused():

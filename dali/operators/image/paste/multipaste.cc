@@ -85,10 +85,19 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
     auto paste_count = in_idx_[i].shape[0];
     memset(out_view[i].data, 0, out_view[i].num_elements() * sizeof(OutputType));
 
+    std::string out_source_info;
+    const char *path_delim = ";";
+
     if (no_intersections_[i]) {
       for (int iter = 0; iter < paste_count; iter++) {
         int from_sample = in_idx_[i].data[iter];
         int to_sample = i;
+
+        const auto &in_source_info = images.GetMeta(from_sample).GetSourceInfo();
+        if (!in_source_info.empty()) {
+          if (out_source_info.empty())
+            out_source_info.append(path_delim);
+        }
 
         tp.AddWork(
           [&, i, iter, from_sample, to_sample, in_view, out_view](int thread_id) {

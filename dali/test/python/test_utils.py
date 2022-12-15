@@ -204,7 +204,12 @@ def check_batch(batch1, batch2, batch_size=None,
                     error_msg = (f"Mean error: [{err}], Min error: [{min_err}], "
                                  f"Max error: [{max_err}]\n"
                                  f"Total error count: [{total_errors}], "
-                                 f"Tensor size: [{absdiff.size}]")
+                                 f"Tensor size: [{absdiff.size}]\n"
+                                 f"Index in batch: {i}\n")
+                if hasattr(batch1[i], "source_info"):
+                    error_msg += f"\nLHS data source: {batch1[i].source_info()}"
+                if hasattr(batch2[i], "source_info"):
+                    error_msg += f"\nRHS data source: {batch2[i].source_info()}"
                 try:
                     save_image(left, "err_1.png")
                     save_image(right, "err_2.png")
