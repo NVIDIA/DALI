@@ -347,13 +347,11 @@ struct FilterGPUTest : public ::testing::Test {
 
     baseline_out_ = baseline_output_.cpu();
     out_view_ = output_.gpu();
+    kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
+                   T::border_type);
     if (!T::valid_only_mode) {
-      kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
-                     T::border_type);
       FillBaseline(BorderHelper<T::border_type>{});
     } else {
-      kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
-                     T::border_type);
       FillBaseline(BorderHelperAssertValid{});
     }
     auto out_cpu = output_.cpu();

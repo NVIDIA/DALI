@@ -98,7 +98,7 @@ struct SampleDesc {
 };
 
 /** @defgroup InputLoader InputLoader is meant to specialize loading of the sample from global
- * memory. This is how different border modes (apart from BORDER_VALID) are handled.
+ * memory by providing different means of handling OOB accesses.
  * @{
  */
 template <typename In, int axes, BoundaryType border>
@@ -106,6 +106,46 @@ struct InLoaderBorderRemap {
   template <BoundaryType border_>
   using BorderTag = std::integral_constant<BoundaryType, border_>;
 
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, InShapeDesc<axes> sample_shape,
+                                                  int axis) const {
+    return border_remap(idx, sample_shape.in_extents[axis], BorderTag<border>{});
+  }
+
+  /**
+   * @brief The innermost extent consists of the width and channel extents flattened.
+   * Thus, handling border condition for innermost extent requires extra step of computing back
+   * the scurrent channel and spatial position.
+   */
+  DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(int idx,
+                                                            InShapeDesc<axes> sample_shape) const {
+    int num_channels = sample_shape.num_channels;
+    if (idx < 0) {
+      // First, shift by 1 towards 0 (idx + 1), so that indices belonging to the same pixel
+      // translate to the same number pixel index when dividing by the channels stride
+      // (-6, -5, -4, -3, -2, -1) + 1 -> (-5, -4, -3, -2, -1, 0)
+      // (-5, -4, -3, -2, -1, 0) / 3 -> (-1, -1, -1, 0, 0, 0)
+      // Then shift back away from 0 (-1, -1, -1, 0, 0, 0) - 1 -> (-2, -2, -2, -1, -1, -1)
+      // Finally, with (num_channels - 1) we get the positive channel indices
+      // (-2, -1, 0, -2, -1, 0) + 3 - 1 -> (0, 1, 2, 0, 1, 2)
+      int reflect_dim_idx = (idx + 1) / num_channels - 1;
+      int inner_dim_idx = (idx + 1) % num_channels + num_channels - 1;
+      return border_remap(reflect_dim_idx, sample_shape.width, BorderTag<border>{}) * num_channels +
+             inner_dim_idx;
+    }
+    if (idx >= sample_shape.in_extents.x) {
+      return border_remap(idx / num_channels, sample_shape.width, BorderTag<border>{}) *
+                 num_channels +
+             idx % num_channels;
+    }
+    return idx;
+  }
+
+  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, ivec<axes> coords,
+                                         InShapeDesc<axes> sample_shape) const {
+    return in[dot(coords, sample_shape.in_strides)];
+  }
+
+ private:
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, int len,
                                                   BorderTag<BoundaryType::REFLECT_101>) const {
     assert(len > 0);
@@ -128,40 +168,6 @@ struct InLoaderBorderRemap {
                                                   BorderTag<BoundaryType::WRAP>) const {
     assert(len > 0);
     return boundary::idx_wrap(idx, len);
-  }
-
-  DALI_HOST_DEV DALI_FORCEINLINE int border_remap(int idx, InShapeDesc<axes> sample_shape,
-                                                  int axis) const {
-    return border_remap(idx, sample_shape.in_extents[axis], BorderTag<border>{});
-  }
-
-  DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(int idx,
-                                                            InShapeDesc<axes> sample_shape) const {
-    int num_channels = sample_shape.num_channels;
-    if (idx < 0) {
-      // First, shift by 1 towards 0 (idx + 1), so that indices belonging to the same pixel
-      // translate to the same number pixel index when dividing by the channels stride
-      // (-6, -5, -4, -3, -2, -1) + 1 -> (-5, -4, -3, -2, -1, 0)
-      // (-5, -4, -3, -2, -1, 0) / 3 -> (-1, -1, -1, 0, 0, 0)
-      // Then shift back away from 0 (-1, -1, -1, 0, 0, 0) - 1 -> (-2, -2, -2, -1, -1, -1)
-      // Finally, with (num_channels - 1) we get the positive channels indecies
-      // (-2, -1, 0, -2, -1, 0) + 3 - 1 -> (0, 1, 2, 0, 1, 2)
-      int reflect_dim_idx = (idx + 1) / num_channels - 1;
-      int inner_dim_idx = (idx + 1) % num_channels + num_channels - 1;
-      return border_remap(reflect_dim_idx, sample_shape.width, BorderTag<border>{}) * num_channels +
-             inner_dim_idx;
-    }
-    if (idx >= sample_shape.in_extents.x) {
-      return border_remap(idx / num_channels, sample_shape.width, BorderTag<border>{}) *
-                 num_channels +
-             idx % num_channels;
-    }
-    return idx;
-  }
-
-  DALI_HOST_DEV DALI_FORCEINLINE In load(const In* __restrict__ in, ivec<axes> coords,
-                                         InShapeDesc<axes> sample_shape) const {
-    return in[dot(coords, sample_shape.in_strides)];
   }
 };
 
@@ -265,18 +271,23 @@ struct ShmInputConv {
     load_input_to_shm(in, anchored_start);
     __syncthreads();
     auto thread_idx = block_setup.thread_idx();
-    stride_filter(
+    compute_conv_lanes(
         sample_desc.in_shape.filter_extents, sample_desc.in_shape.in_filter_width,
-        [&](auto filter_coef, auto filter_offset, int lane) {
+        [&](auto filter_coef, auto offset, int lane) {
           auto in_val =
-              in_workspace[dot(thread_idx + filter_offset, sample_desc.workspace_desc.in_strides)];
+              in_workspace[dot(thread_idx + offset, sample_desc.workspace_desc.in_strides)];
           acc[lane] += in_val * filter_coef;
         });
   }
 
-  template <typename MulAddCoef>
-  DALI_DEVICE DALI_FORCEINLINE void stride_filter(ivec2 filter_extents, int in_filter_width,
-                                                  MulAddCoef&& mul_add_coef) const {
+  /**
+   * @brief Iterates over all filter positions and produces offsets of the corresponding
+   * positions in the input. For each filter position, `lanes` offsets are computed
+   * to amortize the overhead of the for loops.
+   */
+  template <typename ProcessPosition>
+  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(ivec2 filter_extents, int in_filter_width,
+                                                       ProcessPosition&& process_position) const {
     ivec2 block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int r = 0; r < filter_extents.y; r++) {
@@ -285,16 +296,21 @@ struct ShmInputConv {
 #pragma unroll
         for (int lane = 0, lanes_offset = 0; lane < StaticConfigT::lanes;
              lane++, lanes_offset += block_dim.y) {
-          ivec2 filter_offset{s, r + lanes_offset};
-          mul_add_coef(filter_coef, filter_offset, lane);
+          ivec2 offset{s, r + lanes_offset};
+          process_position(filter_coef, offset, lane);
         }
       }
     }
   }
 
-  template <typename MulAddCoef>
-  DALI_DEVICE DALI_FORCEINLINE void stride_filter(ivec3 filter_extents, int in_filter_width,
-                                                  MulAddCoef&& mul_add_coef) const {
+  /**
+   * @brief Iterates over all filter positions and produces offsets of the corresponding
+   * positions in the input. For each filter position, `lanes` offsets are computed
+   * to amortize the overhead of the for loops.
+   */
+  template <typename ProcessPosition>
+  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(ivec3 filter_extents, int in_filter_width,
+                                                       ProcessPosition&& process_position) const {
     ivec3 block_dim = block_setup.block_dim();
     const auto* filter = sample_desc.filter;
     for (int p = 0; p < filter_extents.z; p++) {
@@ -304,7 +320,7 @@ struct ShmInputConv {
           ivec3 filter_position{s, r, p};
 #pragma unroll
           for (int lane = 0; lane < StaticConfigT::lanes; lane++) {
-            mul_add_coef(filter_coef, filter_position, lane);
+            process_position(filter_coef, filter_position, lane);
             filter_position[lane_axis] += block_dim[lane_axis];
           }
         }
@@ -426,7 +442,7 @@ struct DirectInputConv {
           in_coords.x + s * sample_desc.in_shape.num_channels, sample_desc.in_shape);
       for (int i = 0; i < filter_extents[non_lane_axis]; i++) {
         int global_non_lane_axis = in_loader.border_remap(in_coords[non_lane_axis] + i,
-                                                           sample_desc.in_shape, non_lane_axis);
+                                                          sample_desc.in_shape, non_lane_axis);
         for (int j = 0; j < filter_extents[lane_axis]; j++) {
           ivec3 filter_pos{s, lane_axis == 1 ? j : i, lane_axis == 1 ? i : j};
           auto filter_coef = __ldg(filter + dot(filter_pos, sample_desc.in_shape.filter_strides));
@@ -499,8 +515,7 @@ DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with
 template <typename Conv, typename Cb>
 DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(ivec2 block_start,
                                                                      ivec2 out_extents,
-                                                                     const Conv& conv,
-                                                                     const Cb&& cb) {
+                                                                     const Conv& conv, Cb&& cb) {
   using BlockSetupT = typename Conv::BlockSetupT;
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
   static_assert(Conv::lane_axis == 1);
@@ -520,8 +535,7 @@ DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(ivec2 block
 template <typename Conv, typename Cb>
 DALI_DEVICE DALI_FORCEINLINE void for_each_output_point_in_log_block(ivec3 block_start,
                                                                      ivec3 out_extents,
-                                                                     const Conv& conv,
-                                                                     const Cb&& cb) {
+                                                                     const Conv& conv, Cb&& cb) {
   using BlockSetupT = typename Conv::BlockSetupT;
   using StaticConfigT = typename BlockSetupT::StaticConfigT;
   constexpr int lane_axis = Conv::lane_axis;
@@ -592,12 +606,13 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(ivec<axes> initial_block_start,
 
 /*
 Given a HWC image and RS filter, all the necessary products for computing the convolution
-explicitly can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS. Now,
-assuming a standard contiguious memory layout of the HWC image, if you look at any given column of
-the HWC x RS matrix, consecutive rows map to consecutive memory addresses (with the exception of
-positions when we cross H, W extents and border remapping takes place). This implementation melds
-the W and C extents to utilize this property. Additionally, the implementation that uses shared
-memory loads the inputs in blocks with extents corresponding to (D, )H, W * C extents to account
+explicitly can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS
+(img2col). Now, assuming a standard contiguious memory layout of the HWC image,
+if you look at any given column of the HWC x RS matrix, the consecutive rows map to
+consecutive memory addresses (with the exception of positions when we cross H, W extents
+and border remapping takes place). This implementation melds the W and C extents to utilize
+this property. Additionally, the implementation that uses shared memory loads the inputs
+in blocks with extents corresponding to (D, )H, W * C extents to account
 for the fact that spatailly close products will reuse some of the inputs.
 */
 template <typename SampleDescT, typename BlockSetupProvider, typename InLoaderProvider,
@@ -610,7 +625,7 @@ __global__ void filter(const SampleDescT* __restrict__ descs,
   constexpr int axes = SampleDescT::axes;
   int sample_idx = grid_setup.sample_idx();
   for (int sample_idx = grid_setup.sample_idx(); sample_idx < grid_setup.num_samples();
-       sample_idx += grid_setup.sample_dim()) {
+       sample_idx += grid_setup.max_num_samples()) {
     auto sample_desc = descs[sample_idx];
     auto block_setup = block_setup_provider(sample_idx);
     ivec<axes> logical_block_extents = sample_desc.logical_block_extents;
@@ -629,9 +644,9 @@ __global__ void filter(const SampleDescT* __restrict__ descs,
 }
 
 /*
-* The ``lanes`` paramter impacts perf in number of ways:
+* The ``lanes`` parameter impacts perf in number of ways:
 * 1. It reduces overhead of the for loops arithmetic when iterating over the filter extents:
-*    We do not know the filter extents in compile time so those loops cannot be unrolled.
+*    We do not know the filter extents at compile time so those loops cannot be unrolled.
      However, using ``lanes`` we can handle multiple (i.e. exactly ``lanes``) outputs
      in a single pass of the filter loops, which amortises the total overhead.
   2. It increases the logical block size and workspace size in the shm variant,
@@ -764,7 +779,7 @@ struct GridSetup {
   template <int axes_ = axes>
   std::enable_if_t<axes_ == 2, dim3> kernel_setup() const {
     auto grid_dim = this->grid_dim();
-    auto grid_sample_extent = std::min(num_samples(), sample_dim());
+    auto grid_sample_extent = std::min(num_samples(), max_num_samples());
     return {static_cast<unsigned int>(grid_dim.x), static_cast<unsigned int>(grid_dim.y),
             static_cast<unsigned int>(grid_sample_extent)};
   }
@@ -773,7 +788,7 @@ struct GridSetup {
   std::enable_if_t<axes_ == 3, dim3> kernel_setup() const {
     auto grid_dim = this->grid_dim();
     auto max_extents = StaticConfigT::max_grid_extents();
-    auto grid_sample_extent = std::min(num_samples(), sample_dim());
+    auto grid_sample_extent = std::min(num_samples(), max_num_samples());
     return {static_cast<unsigned int>(grid_dim.x),
             static_cast<unsigned int>(grid_dim.z * max_extents.y + grid_dim.y),
             static_cast<unsigned int>(grid_sample_extent)};
@@ -787,7 +802,7 @@ struct GridSetup {
     return num_samples_;
   }
 
-  DALI_HOST_DEV int sample_dim() const {
+  DALI_HOST_DEV int max_num_samples() const {
     return StaticConfigT::max_num_samples;
   }
 
@@ -852,7 +867,7 @@ struct FilterGpu {
 
  protected:
   template <typename T>
-  vec<axes, T> ShapeAsVec(const TensorShape<ndim>& shape) {
+  static vec<axes, T> ShapeAsVec(const TensorShape<ndim>& shape) {
     return shape2vec<axes, T>(skip_dim<sequence_dim>(skip_dim<channels_dim>(shape)));
   }
 
