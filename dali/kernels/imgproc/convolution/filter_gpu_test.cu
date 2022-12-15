@@ -205,7 +205,7 @@ struct InputShapes {
 
 
 /// @brief Usually it is desireble to include cases when the filter window size exceeds
-/// the input sample shape. However in volid only mode it is forbidden and would result
+/// the input sample shape. However in valid only mode it is forbidden and would result
 /// in validation error.
 template <>
 struct InputShapes<true> {
@@ -231,7 +231,8 @@ struct FilterGPUTest : public ::testing::Test {
   using InType = typename T::InType;
   using WinType = typename T::WinType;
   using OutType = typename T::OutType;
-  using Kernel = FilterGpu<OutType, InType, WinType, T::has_channels, T::is_sequence, T::axes>;
+  using Kernel = FilterGpu<OutType, InType, WinType, T::has_channels, T::is_sequence, T::axes,
+                           T::valid_only_mode>;
 
   TensorListShape<T::ndim> GetInputShape() {
     if (T::has_channels) {
@@ -346,13 +347,11 @@ struct FilterGPUTest : public ::testing::Test {
 
     baseline_out_ = baseline_output_.cpu();
     out_view_ = output_.gpu();
+    kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
+                   T::border_type);
     if (!T::valid_only_mode) {
-      kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
-                     T::border_type);
       FillBaseline(BorderHelper<T::border_type>{});
     } else {
-      kernel_gpu.Run(ctx_gpu, out_view_, in_view_, filters_view_, make_cspan(anchors_),
-                     T::border_type);
       FillBaseline(BorderHelperAssertValid{});
     }
     auto out_cpu = output_.cpu();
