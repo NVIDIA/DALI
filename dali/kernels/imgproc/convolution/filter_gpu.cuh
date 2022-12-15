@@ -682,7 +682,7 @@ template <>
 struct StaticConfig<2> {
   static constexpr int axes = 2;
   static constexpr int threadblock_size = 128;
-  static constexpr int lanes = 8;
+  static constexpr int lanes = 16;
   static constexpr int max_grid_extent = 32;
   static constexpr int max_num_samples = 32;
 
@@ -695,7 +695,7 @@ template <>
 struct StaticConfig<3> {
   static constexpr int axes = 3;
   static constexpr int threadblock_size = 128;
-  static constexpr int lanes = 8;
+  static constexpr int lanes = 16;
   static constexpr int max_grid_extent = 16;
   static constexpr int max_num_samples = 32;
 
