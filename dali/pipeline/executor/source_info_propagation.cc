@@ -54,6 +54,23 @@ inline int GetOutputBatchSize(Workspace &ws, int output_idx) {
   }
 }
 
+template <typename Backend>
+void ClearSourceInfo(TensorList<Backend> &tl) {
+  for (int s = 0; s < tl.num_samples(); s++)
+    tl.SetSourceInfo(s, "");
+}
+
+void ClearOutputSourceInfo(Workspace &ws) {
+  for (int o = 0; o < ws.NumOutput(); o++) {
+    if (ws.OutputIsType<CPUBackend>(o)) {
+      ClearSourceInfo(ws.Output<CPUBackend>(o));
+    } else {
+      assert(ws.OutputIsType<GPUBackend>(o));
+      ClearSourceInfo(ws.Output<GPUBackend>(o));
+    }
+  }
+}
+
 bool PropagateSourceInfo(Workspace &ws) {
   int num_inputs = ws.NumInput();
   int num_outputs = ws.NumOutput();

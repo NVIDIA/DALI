@@ -21,6 +21,8 @@ namespace dali {
 
 class Workspace;
 
+void DLL_PUBLIC ClearOutputSourceInfo(Workspace &ws);
+
 /**
  * @brief Propagates the SourceInfo from input(s) to the outputs
  *

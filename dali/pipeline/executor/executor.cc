@@ -403,6 +403,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
                     "always return false.");
     }
   }
+
+  ClearOutputSourceInfo(ws);
+
   {
     DomainTimeRange tr("[DALI][Executor] Run");
     op.Run(ws);

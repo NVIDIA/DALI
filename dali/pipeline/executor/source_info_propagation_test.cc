@@ -101,6 +101,15 @@ void BuildWorkspace(Workspace &ws,
 constexpr auto CPU = StorageDevice::CPU;
 constexpr auto GPU = StorageDevice::GPU;
 
+TEST(SourceInfoPropagationTest, Clear) {
+  Workspace ws;
+  BuildWorkspace(ws, { { GPU, 2 } }, { { GPU, 2 } });
+  SetOutputSourceInfo(ws, 0, { "asdf", "b.jpg" });
+  CheckOutputSourceInfo(ws, 0, { "asdf", "b.jpg" });
+  ClearOutputSourceInfo(ws);
+  CheckOutputSourceInfo(ws, 0, { "", "" });
+}
+
 TEST(SourceInfoPropagationTest, Simple) {
   Workspace ws;
   BuildWorkspace(ws, { { GPU, 2 } }, { { GPU, 2 } });
