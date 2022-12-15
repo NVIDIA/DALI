@@ -307,9 +307,9 @@ class ShmInputConv {
    * positions in the input. For each filter position, `lanes` offsets are computed
    * to amortize the overhead of the for loops.
    */
-  template <typename ProcessPosition>
-  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(ivec2 filter_extents, int in_filter_width,
-                                                       ProcessPosition&& process_position) const {
+  template <typename ProcessInputPosition>
+  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(
+      ivec2 filter_extents, int in_filter_width, ProcessInputPosition&& process_position) const {
     ivec2 block_dim = block_setup_.block_dim();
     const auto* filter = sample_desc_.filter;
     for (int r = 0; r < filter_extents.y; r++) {
@@ -330,9 +330,9 @@ class ShmInputConv {
    * positions in the input. For each filter position, `lanes` offsets are computed
    * to amortize the overhead of the for loops.
    */
-  template <typename ProcessPosition>
-  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(ivec3 filter_extents, int in_filter_width,
-                                                       ProcessPosition&& process_position) const {
+  template <typename ProcessInputPosition>
+  DALI_DEVICE DALI_FORCEINLINE void compute_conv_lanes(
+      ivec3 filter_extents, int in_filter_width, ProcessInputPosition&& process_position) const {
     ivec3 block_dim = block_setup_.block_dim();
     const auto* filter = sample_desc_.filter;
     for (int p = 0; p < filter_extents.z; p++) {
@@ -642,10 +642,14 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(ivec<axes> initial_block_start,
 
 /**
  * Given a HWC image and RS filter, all the necessary products for computing the convolution
- * explicitly can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS
+ * can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS
  * (img2col). The kernel does not construct the matrix explicitly, but computes the convolution
- * in a similar manner - each threadblock computes a contigious part of the output vector
- * by accumulating products of the filter and consecutive columns of the sub-array to the left.
+ * in a similar manner - each threadblock computes a contigious parts of the output vector
+ * by accumulating products of the filter and consecutive columns of the sub-array.
+ * The output vector parts that are computed by a single threadblock have the size equal
+ * to the logical threablock width, and there are ``logical threablock height`` of them
+ * (or height and depth for 3D). In a usual case, it means that the output part has size equal
+ * to the number of cuda threads and there are ``lanes`` parts).
  * Assuming a standard contiguious memory layout of the HWC image, if you look at any given column
  * of the HWC x RS matrix, the consecutive rows map to consecutive memory addresses
  * (with the exception of positions when we cross H, W extents and border remapping takes place).
@@ -728,6 +732,14 @@ struct StaticConfig<3> {
   }
 };
 
+/**
+ * @brief Wrapper around threadIdx and blockDim. The StaticBlock Setup
+ * organizes threads in just a flat row of threads - it seems to be the fastest
+ * layout due to less arithmetic and contigious accesses to memory.
+ * However, for samples whose width << threadblock_size, it may lead to poor performance.
+ * For those cases there is AdaptiveBlock that reorganizes the threads accordingly
+ * on per sample basis.
+ */
 template <typename StaticConfigT_>
 struct StaticBlock {
   struct BlockSetup {
@@ -769,12 +781,32 @@ struct StaticBlock {
  */
 template <typename StaticConfigT_>
 struct AdaptiveBlock {
-  struct BlockSetup {
+  class BlockSetup {
+   public:
     using StaticConfigT = StaticConfigT_;
     static constexpr int axes = StaticConfigT::axes;
 
-    ivec<axes> extents_log2;
-    ivec<axes> strides_log2;
+    template <int axes_ = axes, std::enable_if_t<axes_ == 2, bool> = true>
+    BlockSetup(ivec2 in_extents, int num_channels) {
+      in_extents.x *= num_channels;
+      int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
+      int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
+      extents_log2_.x = std::min(total_block_log2, sample_x_log2);
+      extents_log2_.y = total_block_log2 - extents_log2_.x;
+      strides_log2_ = {0, extents_log2_.x};
+    }
+
+    template <int axes_ = axes, std::enable_if_t<axes_ == 3, bool> = true>
+    BlockSetup(ivec3 in_extents, int num_channels) {
+      in_extents.x *= num_channels;
+      int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
+      int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
+      int sample_y_log2 = in_extents.y == 0 ? 0 : dali::ilog2(in_extents.y - 1) + 1;
+      extents_log2_.x = std::min(sample_x_log2, total_block_log2);
+      extents_log2_.y = std::min(sample_y_log2, total_block_log2 - extents_log2_.x);
+      extents_log2_.z = total_block_log2 - extents_log2_.x - extents_log2_.y;
+      strides_log2_ = {0, extents_log2_.x, extents_log2_.x + extents_log2_.y};
+    }
 
     DALI_DEVICE DALI_FORCEINLINE int flat_size() const {
       assert(blockDim.y == 1);
@@ -783,7 +815,7 @@ struct AdaptiveBlock {
     }
 
     DALI_HOST_DEV DALI_FORCEINLINE ivec<axes> block_dim() const {
-      return 1 << extents_log2;
+      return 1 << extents_log2_;
     }
 
     DALI_DEVICE DALI_FORCEINLINE int flat_idx() const {
@@ -793,8 +825,12 @@ struct AdaptiveBlock {
     DALI_DEVICE DALI_FORCEINLINE ivec<axes> thread_idx() const {
       assert(threadIdx.y == 0);
       assert(threadIdx.z == 0);
-      return (static_cast<int>(threadIdx.x) >> strides_log2) & (block_dim() - 1);
+      return (static_cast<int>(threadIdx.x) >> strides_log2_) & (block_dim() - 1);
     }
+
+   private:
+    ivec<axes> extents_log2_;
+    ivec<axes> strides_log2_;
   };
 
   DALI_DEVICE DALI_FORCEINLINE const BlockSetup& operator()(int sample_idx) {
@@ -939,28 +975,31 @@ struct FilterGpu {
     for (int sample_idx = 0; sample_idx < in_shapes.num_samples(); sample_idx++) {
       const auto& in_shape = in_shapes[sample_idx];
       int64_t num_frames = has_sequence_dim ? in_shape[sequence_dim] : 1;
-      DALI_ENFORCE(num_frames <= std::numeric_limits<int>::max(),
-                   make_string("The number of frames for sample of idx ", sample_idx,
-                               " exceeds the limit of ", std::numeric_limits<int>::max(), ". Got ",
-                               num_frames, " frames."));
+      if (num_frames > std::numeric_limits<int>::max()) {
+        throw std::range_error(make_string(
+            "The number of frames for sample of idx ", sample_idx, " exceeds the limit of ",
+            std::numeric_limits<int>::max(), ". Got ", num_frames, " frames."));
+      }
       int64_t num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
       i64vec<axes> in_extents = ShapeAsVec<int64_t>(in_shape);
       in_extents[0] *= num_channels;
       for (int dim = 0; dim < axes; dim++) {
         const std::array<std::string, 3> extent_names = {
             "combined width and the number of channels", "height", "depth"};
-        DALI_ENFORCE(
-            in_extents[dim] <= max_sample_extents[dim],
-            make_string("The ", extent_names[dim], " of sample at index ", sample_idx, " is ",
-                        in_extents[dim], ", which exceeds the supported limit of ",
-                        max_sample_extents[dim], ". The sample's shape is: ", in_shape, "."));
+        if (in_extents[dim] > max_sample_extents[dim]) {
+          throw std::range_error(
+              make_string("The ", extent_names[dim], " of sample at index ", sample_idx, " is ",
+                          in_extents[dim], ", which exceeds the supported limit of ",
+                          max_sample_extents[dim], ". The sample's shape is: ", in_shape, "."));
+        }
       }
       const auto& filter_shape = filter_shapes[sample_idx];
-      DALI_ENFORCE(volume(filter_shape) <= std::numeric_limits<int>::max(),
-                   make_string("Volume of filter for sample of idx ", sample_idx, " is ",
-                               volume(filter_shape), ", which exceeds the limit of ",
-                               std::numeric_limits<int>::max(), ". The filter's shape is ",
-                               filter_shape, "."));
+      if (volume(filter_shape) > std::numeric_limits<int>::max()) {
+        throw std::range_error(make_string(
+            "Volume of filter for sample of idx ", sample_idx, " is ", volume(filter_shape),
+            ", which exceeds the limit of ", std::numeric_limits<int>::max(),
+            ". The filter's shape is ", filter_shape, "."));
+      }
     }
   }
 
@@ -986,7 +1025,7 @@ struct FilterGpu {
       int num_channels = has_channel_dim ? in_shape[channels_dim] : 1;
       ivec<axes> in_extents = ShapeAsVec<int>(in_shape);
       auto filter_extents = shape2vec(filter_shapes[sample_idx]);
-      BlockSetupT block_setup = PrepareBlockSetup(in_extents, num_channels);
+      BlockSetupT block_setup{in_extents, num_channels};
       int lane_axis = GetLanesAxis(filter_extents);
       ivec<axes> logical_block_extents = block_setup.block_dim();
       logical_block_extents[lane_axis] *= StaticConfigT::lanes;
@@ -1010,6 +1049,9 @@ struct FilterGpu {
   InShapeDescT PrepareSampleShapeDesc(ivec<axes> in_extents, ivec<axes> filter_extents,
                                       ivec<axes> anchor_shift, int num_frames, int num_channels) {
     int width = in_extents.x;
+    // meld the innermost dimension and channels to have non-strided innermost extent
+    // kernel does not need to know the excat channel position most of the time
+    // (only for OOB handling)
     in_extents.x *= num_channels;
     int64_t frame_stride;
     i64vec<axes> in_strides;
@@ -1055,27 +1097,6 @@ struct FilterGpu {
     i64vec<axes> out_strides;
     strides(out_strides, out_frame_stride, out_extents);
     return {out_frame_stride, out_strides, out_extents};
-  }
-
-  BlockSetupT PrepareBlockSetup(ivec2 in_extents, int num_channels) {
-    in_extents.x *= num_channels;
-    int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
-    int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
-    int block_x_log2 = std::min(total_block_log2, sample_x_log2);
-    ivec2 block{block_x_log2, total_block_log2 - block_x_log2};
-    return {block, {0, block.x}};
-  }
-
-  BlockSetupT PrepareBlockSetup(ivec3 in_extents, int num_channels) {
-    in_extents.x *= num_channels;
-    int total_block_log2 = dali::ilog2(StaticConfigT::threadblock_size);
-    int sample_x_log2 = in_extents.x == 0 ? 0 : dali::ilog2(in_extents.x - 1) + 1;
-    int sample_y_log2 = in_extents.y == 0 ? 0 : dali::ilog2(in_extents.y - 1) + 1;
-    int block_x_log2 = std::min(sample_x_log2, total_block_log2);
-    int block_y_log2 = std::min(sample_y_log2, total_block_log2 - block_x_log2);
-    int block_z_log2 = total_block_log2 - block_x_log2 - block_y_log2;
-    ivec3 block{block_x_log2, block_y_log2, block_z_log2};
-    return {block, {0, block.x, block.x + block.y}};
   }
 
   GridSetupT PrepareGridSetup(span<const SampleDescT> sample_descs) {
