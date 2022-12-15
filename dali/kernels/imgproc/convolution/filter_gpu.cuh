@@ -720,6 +720,15 @@ struct StaticBlock {
   }
 };
 
+/**
+ * @brief Remaps a flat threablockIdx.x to x, y(, z) extents on per sample basis.
+ * The extents are powers of two such that xyz = threadblock.x
+ *
+ * Those computations have some overhead, so the StaticBlock variant is preffered,
+ * but for samples of degenerated shape (like very high samples with
+ * width << threadblock size), the performance would be very poor
+ * with the default static block.
+ */
 template <typename StaticConfigT_>
 struct AdaptiveBlock {
   struct BlockSetup {
