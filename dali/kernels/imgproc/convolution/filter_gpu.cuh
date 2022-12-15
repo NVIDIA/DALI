@@ -17,6 +17,7 @@
 
 #include <array>
 #include <limits>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -833,6 +834,7 @@ struct FilterGpu {
       static_cast<int>(has_sequence_dim) + axes + static_cast<int>(has_channel_dim);
   static constexpr int sequence_dim = has_sequence_dim ? 0 : -1;
   static constexpr int channels_dim = has_channel_dim ? ndim - 1 : -1;
+  static_assert(axes == 2 || axes == 3);
   using Intermediate = decltype(std::declval<W>() * std::declval<In>());
   using StaticConfigT = filter::StaticConfig<axes>;
   using BlockSetupProviderT = filter::AdaptiveBlock<StaticConfigT>;
@@ -898,7 +900,6 @@ struct FilterGpu {
       i64vec<axes> in_extents = ShapeAsVec<int64_t>(in_shape);
       in_extents[0] *= num_channels;
       for (int dim = 0; dim < axes; dim++) {
-        static_assert(axes <= 3);
         const std::array<std::string, 3> extent_names = {
             "combined width and the number of channels", "height", "depth"};
         DALI_ENFORCE(
