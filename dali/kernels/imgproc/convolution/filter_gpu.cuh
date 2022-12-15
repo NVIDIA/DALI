@@ -48,9 +48,9 @@ struct InShapeDesc {
   int num_frames, width;      // f, w
   int num_channels;           // c
   ivec<axes> in_extents;      // wc, h(, d)
-  ivec<axes> filter_extents;  // use workspace? rc, s(, p) : r, s(, p)
+  ivec<axes> filter_extents;  // use workspace? sc, r(, p) : s, r(, p)
   ivec<axes> filter_strides;  // 1, r(, rs)
-  ivec<axes> anchor_shift;    // anchor_r * c, anchor_s(, anchor_p)
+  ivec<axes> anchor_shift;    // anchor_s * c, anchor_r(, anchor_p)
 };
 
 template <int axes>
