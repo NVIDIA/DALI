@@ -644,8 +644,8 @@ DALI_DEVICE DALI_FORCEINLINE void stride_grid(ivec<axes> initial_block_start,
  * Given a HWC image and RS filter, all the necessary products for computing the convolution
  * explicitly can be seen as multiplying a matrix of shape HWC x RS with a vector of size RS
  * (img2col). The kernel does not construct the matrix explicitly, but computes the convolution
- * in a similar manner - each threadblock computes a contigious part of the output vector
- * by accumulating products of the filter and consecutive columns of the sub-array to the left.
+ * in a similar manner - each threadblock computes a contigious parts of the output vector
+ * by accumulating products of the filter and consecutive columns of the sub-array.
  * Assuming a standard contiguious memory layout of the HWC image, if you look at any given column
  * of the HWC x RS matrix, the consecutive rows map to consecutive memory addresses
  * (with the exception of positions when we cross H, W extents and border remapping takes place).
@@ -728,6 +728,14 @@ struct StaticConfig<3> {
   }
 };
 
+/**
+ * @brief Wrapper around threadIdx and blockDim. The StaticBlock Setup
+ * organizes threads in just a flat row of threads - it seems to be the fastest
+ * layout due to less arithmetic and contigious accesses to memory.
+ * However, for samples whose width << threadblock_size, it may lead to poor performance.
+ * For those cases there is AdaptiveBlock that reorganizes the threads accordingly
+ * on per sample basis.
+ */
 template <typename StaticConfigT_>
 struct StaticBlock {
   struct BlockSetup {
@@ -1010,6 +1018,9 @@ struct FilterGpu {
   InShapeDescT PrepareSampleShapeDesc(ivec<axes> in_extents, ivec<axes> filter_extents,
                                       ivec<axes> anchor_shift, int num_frames, int num_channels) {
     int width = in_extents.x;
+    // meld the innermost dimension and channels to have non-strided innermost extent
+    // kernel does not need to know the excat channel position most of the time
+    // (only for OOB handling)
     in_extents.x *= num_channels;
     int64_t frame_stride;
     i64vec<axes> in_strides;
