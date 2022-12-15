@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 #ifndef DALI_CORE_GEOM_GEOM_UTILS_H_
 #define DALI_CORE_GEOM_GEOM_UTILS_H_
 
-#include "dali/core/geom/vec.h"
 #include "dali/core/geom/mat.h"
+#include "dali/core/geom/vec.h"
 #include "dali/core/tensor_view.h"
 
 namespace dali {
@@ -44,6 +44,21 @@ mat<N, M, T> as_mat(TensorView<StorageCPU, const T, 2> view) {
 template <int N, int M, typename T = float>
 mat<N, M, T> as_mat(TensorView<StorageCPU, const T, DynamicDimensions> view) {
   return as_mat<N, M, T>(view.template to_static<2>());
+}
+
+template <int N, typename T, typename U>
+void strides(vec<N, U>& out, U& total_stride, const vec<N, T>& v) {
+  total_stride = 1;
+  for (int d = 0; d < N; d++) {
+    out[d] = total_stride;
+    total_stride *= v[d];
+  }
+}
+
+template <int N, typename T, typename U>
+void strides(vec<N, U>& out, const vec<N, T>& v) {
+  U total_strides;
+  strides(out, total_strides, v);
 }
 
 }  // namespace dali
