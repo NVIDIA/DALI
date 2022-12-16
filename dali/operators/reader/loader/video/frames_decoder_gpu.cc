@@ -223,7 +223,7 @@ class NVDECCache {
     void ReturnDecoder(DecInstance &decoder) {
       int device_id = 0;
       CUDA_CALL(cudaGetDevice(&device_id));
-        std::unique_lock lock(access_lock[device_id]);
+      std::unique_lock lock(access_lock[device_id]);
       auto range = dec_cache[device_id].equal_range(decoder.codec_type);
       for (auto it = range.first; it != range.second; ++it) {
         if (it->second.decoder == decoder.decoder) {
@@ -245,7 +245,7 @@ class NVDECCache {
     ~NVDECCache() {
       for (size_t i = 0; i < dec_cache.size(); ++i) {
         auto &dec_cache_elm = dec_cache[i];
-        std::scoped_lock lock(access_lock[i]);
+        std::lock_guard lock(access_lock[i]);
         for (auto &it : dec_cache_elm) {
           cuvidDestroyDecoder(it.second.decoder);
         }
