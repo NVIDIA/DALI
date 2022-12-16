@@ -122,11 +122,13 @@ void ResizeAttr::ParseLayout(
 }
 
 void CalculateInputRoI(SmallVector<float, 3> &in_lo, SmallVector<float, 3> &in_hi, bool has_roi,
-                       bool roi_relative, const float *roi_start, const float *roi_end,
+                       bool roi_relative, span<const float> roi_start, span<const float> roi_end,
                        const TensorListShape<> &input_shape, int sample_idx, int spatial_ndim,
                        int first_spatial_dim) {
   in_lo.resize(spatial_ndim);
   in_hi.resize(spatial_ndim);
+  assert(roi_start.size() == roi_end.size());
+  assert(roi_start.size() >= spatial_ndim * (sample_idx + 1));
   static constexpr float min_size = 1e-3f;  // minimum size, in pixels
   auto *in_size = &input_shape.tensor_shape_span(sample_idx)[first_spatial_dim];
   for (int d = 0; d < spatial_ndim; d++) {
@@ -216,8 +218,8 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
       }
 
       bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
-      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, roi_start_.data(), roi_end_.data(),
-                        input_shape, i, spatial_ndim_, first_spatial_dim_);
+      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
+                        make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
                             spatial_ndim_, mode_, max_size);
     }
@@ -231,8 +233,8 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
       }
 
       bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
-      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, roi_start_.data(), roi_end_.data(),
-                        input_shape, i, spatial_ndim_, first_spatial_dim_);
+      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
+                        make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
                             spatial_ndim_, mode_, max_size);
     }
@@ -244,8 +246,8 @@ void ResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace
       }
 
       bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
-      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, roi_start_.data(), roi_end_.data(),
-                        input_shape, i, spatial_ndim_, first_spatial_dim_);
+      CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
+                        make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
       CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
                             spatial_ndim_, mode_, max_size);
     }
