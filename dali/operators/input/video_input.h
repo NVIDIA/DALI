@@ -26,6 +26,7 @@
 namespace dali {
 
 namespace detail {
+
 /**
  * TODO
  * @param num_frames How much frames the video has.
@@ -52,6 +53,7 @@ auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_si
   assert(num_full_batches >= 0 && num_full_sequences >= 0 && frames_in_last_sequence >= 0);
   return std::make_tuple(num_full_batches, num_full_sequences, frames_in_last_sequence);
 }
+
 }  // namespace detail
 
 template<typename Backend>
@@ -64,7 +66,6 @@ using frames_decoder_t =
 
 template<typename Backend, typename FramesDecoder = frames_decoder_t<Backend>>
 class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public InputOperator<Backend> {
-//  using VideoDecoderBase<Backend, FramesDecoder>::frames_decoders_;
  public:
   explicit VideoInput(const OpSpec &spec) :
           InputOperator<Backend>(spec),
@@ -96,11 +97,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
 
-  bool SetupImplDerived(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    return true;
-  }
-
-
   void RunImpl(Workspace &ws) override;
 
  private:
@@ -113,8 +109,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   void DetermineOutputDescs(int num_frames) {
     auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
             detail::DetermineBatchOutline(num_frames, frames_per_sequence_, batch_size_);
-// cout<<"DetermineOuputDescs :"<<num_frames<<" "<<num_full_batches<<" "
-// <<num_full_sequences<<" "<<frames_in_last_sequence<<endl;
     // Initially, the Operator will return full batches of full sequences.
     for (int i = 0; i < num_full_batches; i++) {
       OutputDesc od;
@@ -133,7 +127,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
     od.shape = uniform_list_shape(
             num_full_sequences + (frames_in_last_sequence == 0 ? 0 : 1),
             GetSequenceShape(frames_per_sequence_, 0));
-//    cout<<"TEMP: "<<num_full_sequences<<" "<<frames_in_last_sequence<<" "<<od.shape<<endl;
 
     if (frames_in_last_sequence != 0) {
       // And at the end of the last batch, the last sequence will be either partial or padded,
@@ -142,10 +135,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
               last_sequence_policy_ == "pad" ? frames_per_sequence_ : frames_in_last_sequence, 0));
     }
     output_descs_.push_back(od);
-//    cout<<"DETERMINE OUTPUT DESCS\n";
-//    for (auto i : output_descs_) {
-//      cout<<i.shape<<" "<<i.type<<endl;
-//    }
   }
 
 
@@ -180,10 +169,8 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
 
 
   const int frames_per_sequence_ = {};
-//  int one_over_frames_per_sequence_={};
   const int device_id_ = {};
   const int batch_size_ = {};
-//  int one_over_batch_size_={};
   const std::string last_sequence_policy_;
 
   int curr_frame_ = 0;
