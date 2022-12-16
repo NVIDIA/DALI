@@ -1135,7 +1135,7 @@ def test_tensor_list_cpu():
 
 
 def test_video_input():
-    @pipeline_def(batch_size=3, num_threads=1, device_id=0)
+    @pipeline_def(batch_size=3, num_threads=1, device_id=None)
     def video_input_pipeline(input_name):
         vid = fn.experimental.inputs.video(name=input_name, frames_per_sequence=7, blocking=False)
         return vid
