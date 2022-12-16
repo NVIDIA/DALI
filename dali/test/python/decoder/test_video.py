@@ -18,10 +18,12 @@ import numpy as np
 import cv2
 import nvidia.dali.types as types
 import glob
-from test_utils import get_dali_extra_path
+from itertools import cycle
+from test_utils import get_dali_extra_path, is_mulit_gpu
 from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
-
+from nose import SkipTest
+from nose.plugins.attrib import attr
 
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
 # filter out HEVC because some GPUs do not support it
@@ -144,3 +146,40 @@ def test_full_range_video_in_memory(device):
     right = out
     absdiff = np.abs(left.astype(int) - right.astype(int))
     assert np.mean(absdiff) < 2
+
+
+@attr('multi_gpu')
+@params('cpu', 'mixed')
+def test_multi_gpu_video(device):
+    if not is_mulit_gpu():
+        raise SkipTest()
+
+    batch_size = 1
+
+    def input_gen(batch_size):
+        filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
+        filenames = filter(lambda filename: 'mpeg4' not in filename, filenames)
+        filenames = filter(lambda filename: 'hevc' not in filename, filenames)
+        filenames = cycle(filenames)
+        while True:
+            batch = []
+            for _ in range(batch_size):
+                batch.append(np.fromfile(next(filenames), dtype=np.uint8))
+            yield batch
+
+    @pipeline_def
+    def test_pipeline():
+        vid = fn.external_source(device='cpu', source=input_gen(batch_size))
+        seq = fn.experimental.decoders.video(vid, device=device)
+        return seq
+
+    video_pipeline_0 = test_pipeline(batch_size=1, num_threads=1, device_id=0)
+    video_pipeline_1 = test_pipeline(batch_size=1, num_threads=1, device_id=1)
+
+    video_pipeline_0.build()
+    video_pipeline_1.build()
+
+    iters = 5
+    for _ in range(iters):
+        video_pipeline_0.run()
+        video_pipeline_1.run()

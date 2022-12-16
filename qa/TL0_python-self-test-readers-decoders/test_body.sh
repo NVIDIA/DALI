@@ -3,7 +3,7 @@
 test_py_with_framework() {
     # numpy seems to be extremly slow with sanitizers to dissable it
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
-          FILTER_PATTERN="test_external_source_parallel.py\|test_external_source_parallel_custom_serialization\|test_external_source_parallel_garbage_collection_order"
+        FILTER_PATTERN="test_external_source_parallel.py\|test_external_source_parallel_custom_serialization\|test_external_source_parallel_garbage_collection_order"
     else
         FILTER_PATTERN="#"
     fi
@@ -37,7 +37,7 @@ test_py_with_framework() {
       ${python_new_invoke_test} -s reader
     fi
 
-    
+
     ${python_new_invoke_test} -s decoder
 }
 

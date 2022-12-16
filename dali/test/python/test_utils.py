@@ -39,6 +39,17 @@ def get_arch(device_id=0):
     return compute_cap
 
 
+def is_mulit_gpu():
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        is_mulit_gpu_var = pynvml.nvmlDeviceGetCount() != 1
+    except ModuleNotFoundError:
+        print("Python bindings for NVML not found")
+
+    return is_mulit_gpu_var
+
+
 def get_dali_extra_path():
     try:
         dali_extra_path = os.environ['DALI_EXTRA_PATH']
