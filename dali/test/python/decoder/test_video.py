@@ -18,9 +18,11 @@ import numpy as np
 import cv2
 import nvidia.dali.types as types
 import glob
-from test_utils import get_dali_extra_path
+from test_utils import get_dali_extra_path, is_mulit_gpu
 from nvidia.dali.backend import TensorListGPU
 from nose2.tools import params
+from nose import SkipTest
+from nose.plugins.attrib import attr
 
 
 filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
@@ -145,8 +147,13 @@ def test_full_range_video_in_memory(device):
     absdiff = np.abs(left.astype(int) - right.astype(int))
     assert np.mean(absdiff) < 2
 
+
+@attr('multi_gpu')
 @params('cpu', 'gpu')
 def test_multi_gpu_video(device):
+    if not is_mulit_gpu():
+        raise SkipTest()
+
     @pipeline_def
     def test_pipeline():
         videos = fn.experimental.readers.video(

@@ -83,7 +83,7 @@ class NVDECCache {
     NVDECLease GetDecoder(CUVIDEOFORMAT *video_format) {
       int device_id = 0;
       CUDA_CALL(cudaGetDevice(&device_id));
-      std::unique_lock lock(access_lock);
+      std::unique_lock lock(access_lock[device_id]);
 
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
@@ -223,7 +223,7 @@ class NVDECCache {
     void ReturnDecoder(DecInstance &decoder) {
       int device_id = 0;
       CUDA_CALL(cudaGetDevice(&device_id));
-      std::unique_lock lock(access_lock);
+        std::unique_lock lock(access_lock[device_id]);
       auto range = dec_cache[device_id].equal_range(decoder.codec_type);
       for (auto it = range.first; it != range.second; ++it) {
         if (it->second.decoder == decoder.decoder) {
@@ -239,11 +239,13 @@ class NVDECCache {
       int num_devices = 0;
       CUDA_CALL(cudaGetDeviceCount(&num_devices));
       dec_cache.resize(num_devices);
+      access_lock.resize(num_devices);
     }
 
     ~NVDECCache() {
-      std::scoped_lock lock(access_lock);
-      for (auto &dec_cache_elm : dec_cache) {
+      for (size_t i = 0; i < dec_cache.size(); ++i) {
+        auto &dec_cache_elm = dec_cache[i];
+        std::scoped_lock lock(access_lock[i]);
         for (auto &it : dec_cache_elm) {
           cuvidDestroyDecoder(it.second.decoder);
         }
@@ -252,7 +254,12 @@ class NVDECCache {
     using codec_map = std::unordered_multimap<cudaVideoCodec, DecInstance>;
     std::vector<codec_map> dec_cache;
 
-    std::mutex access_lock;
+    struct mutex_wrapper : std::mutex {
+      mutex_wrapper() = default;
+      mutex_wrapper(mutex_wrapper const&) noexcept : std::mutex() {}
+      bool operator==(mutex_wrapper const&other) noexcept { return this == &other; }
+    };
+    std::vector<mutex_wrapper> access_lock;
 
     static constexpr int CACHE_SIZE_LIMIT = 100;
 };

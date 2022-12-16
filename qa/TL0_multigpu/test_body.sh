@@ -6,7 +6,7 @@ test_py_with_framework() {
 }
 
 test_py() {
-  ${python_new_invoke_test} -s decoder test_video.test_multi_gpu_video
+  ${python_new_invoke_test} -s decoder -A 'multi_gpu'
 }
 
 test_gtest() {
