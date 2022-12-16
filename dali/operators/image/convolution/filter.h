@@ -100,14 +100,14 @@ inline BoundaryType parse_filter_border_type(const std::string& border_type_str)
 
 inline bool parse_is_valid_mode(std::string mode) {
   std::transform(mode.begin(), mode.end(), mode.begin(), [](auto c) { return std::tolower(c); });
-  if (mode == "full") {
+  if (mode == "same") {
     return false;
   }
   if (mode == "valid") {
     return true;
   }
   DALI_FAIL(make_string("Unknown ``mode`` was provided: ``", mode,
-                        "``. Supported modes are ``full`` and ``valid``."));
+                        "``. Supported modes are ``same`` and ``valid``."));
 }
 
 template <typename InputShapes, typename FilterShapes>

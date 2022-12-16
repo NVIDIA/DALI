@@ -25,49 +25,51 @@
 namespace dali {
 
 DALI_SCHEMA(experimental__Filter)
-    .DocStr(R"code(Convolves the image with a provided filter.
+    .DocStr(R"code(Convolves the image with the provided filter.
 
 The operator requires two positional arguments: the batch of samples and the batch of filters.
 
-Sample can be a 2D image, video or volumetric (3D) sample.
-Samples can contain channels: channels-first and channels-last layouts are supported.
+Sample can be a 2D image, video or volumetric (3D) data.
+Samples can contain channels: channel-first and channel-last layouts are supported.
+In case of sequences, the frame extent must preced the channels extent, i.e. for example,
+video with ``"FCHW"`` layout is supported, but ``CFHW`` samples are not.
 
-For images and video, a filter must be a 2D array of filter coefficients or a sequence
-of 2D arrays to be applied frame-wise to a video input. The filters' coefficients must be floats.
+For inputs with two spatial dimensions (images or video), the filters must be 2D arrays
+(or a sequence of 2D arrays to be applied per-frame to a video input).
+For volumetric inputs, the filter must be a 3D array.
+The filter' coefficients must be floats.
 
-For volumetric inputs, the filter must be a 3D array of float coefficients.
-
-The optional third argument should be a batch of scalars (or a sequence of scalars for
-video input). If ``border`` is set to ``"constant"``, the input samples will be padded with
-the corresponding scalars when convolved with the filter, so that the convolution preserves
-original shape of the image. Otherwise the argument is ignored.
+If the optional third positional argument is specified, it must be a batch of scalars.
+If ``"border"`` is set to ``"constant"``, the input samples will be padded with
+the corresponding scalars when convolved with the filter.
 The scalars must be of the same type as the input samples.
+For video/sequence input, an array of scalars can be specified to be applied per-frame.
 
 .. note::
   In fact, the operator computes a correlation, not a convolution,
   i.e. the order of filter elements is not mirrored when computing product of
-  filter and a part of an image .
+  the filter and a part of the image .
 
 )code")
     .NumInput(2, 3)
     .NumOutput(1)
     .AllowSequences()
     .AddOptionalArg("anchor",
-                    R"code(Specifies how, for each output pixel,
-the filter is positioned over corresponding input pixel, i.e. which point
-of the filter lies directly over the corresponding input pixel.
-If -1 (the default) is specified for an extent, the middle of the extent is used, which,
-for filters with odd sizes, results in a filter centered over the image.
+                    R"code(Specifies position of the filter over the input.
+If the -1 (the default) is specifed for all extents, the middle (rounded down to integer)
+of the extent is used, which, for odd sized filters, results in the filter centered over the input.
 The anchor must be, depending on the input dimensionality, a 2D or 3D point whose each extent lies
 within filter boundaries (``[0, ..., filter_extent - 1]``). The ordering of anchor's extents
 corresponds to the order of filter's extents.
+If the filter size is ``(r, s)`` and the anchor is ``(a, b)``, the output
+at position ``(x, y)`` is a product of the filter and the input rectangle spanned between the
+corners: top-left ``(x - a, y - b)`` and bottom-right ``(x - a + r - 1, x - b + s - 1)``.
 
 The parameter is ignored in ``"valid"`` mode.
 .)code",
                     std::vector<int>{-1}, true, true)
     .AddOptionalArg("border",
-                    R"code(Controls how to compute convolution around the edges of the image, i.e.
-when part of the filter lies outside of the image.
+                    R"code(Controls how to handle out-of-bound filter positions over the sample.
 
 Supported values are: "reflect_101", "reflect_1001", "wrap", "clamp", "constant", "isolated".
 
@@ -83,15 +85,16 @@ Supported values are: "reflect_101", "reflect_1001", "wrap", "clamp", "constant"
     .AddOptionalArg("mode",
                     R"code(.
 
-Supported values are: "full" and "valid".
+Supported values are: "same" and "valid".
 
-- ``"full"`` (default): The input and output sizes are the same and ``border`` is used
-  to handle positions of filter that look outside of the image.
+- ``"same"`` (default): The input and output sizes are the same and ``border`` is used
+  to handle out-of-bound filter positions.
 - ``"valid"``: the output sample is cropped (by ``filter_extent - 1``) so that all
   filter positions lie fully within the input sample.
 )code",
-                    "full")
+                    "same")
     .AddOptionalTypeArg("dtype", R"code(Output data type.
-Supported type: `FLOAT`. If not set, the input type is used.)code");
+The output type can either be float or must be same as input type.
+If not set, the input type is used.)code");
 
 }  // namespace dali
