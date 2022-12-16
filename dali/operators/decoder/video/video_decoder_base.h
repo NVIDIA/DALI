@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <memory>
+#include <optional>
 #include "dali/kernels/common/copy.h"
 #include "dali/pipeline/operator/common.h"
 
