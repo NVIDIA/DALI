@@ -52,7 +52,7 @@ struct InShapeDesc {
   int in_filter_width;        // sc, i.e. innermost filter extent * num_channels
   ivec<axes> in_extents;      // wc, h(, d)
   ivec<axes> filter_extents;  // s, r(, p)
-  ivec<axes> filter_strides;  // 1, r(, rs)
+  ivec<axes> filter_strides;  // 1, s(, sr)
   ivec<axes> anchor_shift;    // anchor_s * c, anchor_r(, anchor_p)
 };
 
@@ -70,7 +70,7 @@ struct WorkspaceDesc {
   // the strides for the in_extents
   ivec<axes> in_strides;
   // The offset in shared memory that should be left
-  // for precomuted indices. At that offset, the
+  // for precomputed indices. At that offset, the
   // input data will be loaded.
   // The offset is a sum of all but first in_extents
   // rounded up to the proper aligment for input data type
@@ -117,7 +117,7 @@ class InLoaderBorderRemap {
   /**
    * @brief The innermost extent consists of the width and channel extents flattened.
    * Thus, handling border condition for innermost extent requires extra step of computing back
-   * the scurrent channel and spatial position.
+   * the current channel and spatial position.
    */
   DALI_HOST_DEV DALI_FORCEINLINE int border_remap_innermost(int idx,
                                                             InShapeDesc<axes> sample_shape) const {
@@ -280,7 +280,7 @@ class ShmInputConv {
                                             ivec<SampleDescT::axes> start) const {
     auto anchored_start = start - sample_desc_.in_shape.anchor_shift;
     __syncthreads();
-    precompute_indices(in, anchored_start);
+    precompute_indices(anchored_start);
     __syncthreads();
     load_input_to_shm(in, anchored_start);
     __syncthreads();
@@ -351,16 +351,14 @@ class ShmInputConv {
     }
   }
 
-  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(const In* __restrict__ in,
-                                                       ivec2 anchored_start) const {
+  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(ivec2 anchored_start) const {
     for (int y = block_setup_.flat_idx(); y < sample_desc_.workspace_desc.in_extents.y;
          y += block_setup_.flat_size()) {
       precomputed_idx_[y] = in_loader_.border_remap(anchored_start.y + y, sample_desc_.in_shape, 1);
     }
   }
 
-  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(const In* __restrict__ in,
-                                                       ivec3 anchored_start) const {
+  DALI_DEVICE DALI_FORCEINLINE void precompute_indices(ivec3 anchored_start) const {
     int* ys = precomputed_idx_;
     for (int y = block_setup_.flat_idx(); y < sample_desc_.workspace_desc.in_extents.y;
          y += block_setup_.flat_size()) {
@@ -900,7 +898,7 @@ struct GridSetup {
  * @brief Computes the 2D or 3D (``axes_``) convolution of the input (``In``) and the
  * filter (``W``). The input must have the same number of spatial dims as the filter, but
  * can have extra sequence dim at the beginning (``has_sequence_dim``) and channels
- * dim at the end (``has_channel_dim``). If the ``enable_roi_`` is true, the outputs and inputs
+ * dim at the end (``has_channel_dim``). If the ``enable_roi_`` is false, the outputs and inputs
  * must have the same size, otherwise they can differ and by passing arbitrary
  * ``anchors`` to ``Run``, the ROI can be specified.
  *
