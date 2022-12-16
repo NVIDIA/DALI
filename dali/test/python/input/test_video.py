@@ -1,0 +1,198 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import glob
+import numpy as np
+import nvidia.dali.fn as fn
+import nvidia.dali.types as types
+from nose2.tools import params
+from nvidia.dali import pipeline_def
+from test_utils import get_dali_extra_path
+
+filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
+# filter out HEVC because some GPUs do not support it
+filenames = filter(lambda filename: 'hevc' not in filename, filenames)
+# mpeg4 is not yet supported in the CPU operator
+filenames = filter(lambda filename: 'mpeg4' not in filename, filenames)
+files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
+
+batch_size_values = [1, 3, 100]
+frames_per_sequence_values = [1, 7, 100]
+device_values = ['cpu']
+
+
+def params_generator():
+    """
+    Generates parameters for test.
+    To be used in the @params decorator:
+    @params(*list(params_generator())
+    TODO jak sie generuja parametr
+    """
+    test_params = (
+        (dev, fps, bs)
+        for dev in device_values
+        for fps in frames_per_sequence_values
+        for bs in batch_size_values
+    )
+    num_test_files = len(files)
+    file_idx = 0
+    for tp in test_params:
+        yield tp + (files[file_idx],)
+        file_idx = (file_idx + 1) % num_test_files
+
+
+@pipeline_def
+def video_decoder_pipeline(input_name, device='cpu'):
+    data = fn.external_source(name=input_name, dtype=types.UINT8, ndim=1)
+    vid = fn.experimental.decoders.video(data, device=device)
+    return vid
+
+
+@pipeline_def
+def video_input_pipeline(input_name, frames_per_sequence, last_sequence_policy='partial',
+                         device='cpu'):
+    vid = fn.experimental.inputs.video(name=input_name, device=device, blocking=False,
+                                       frames_per_sequence=frames_per_sequence,
+                                       last_sequence_policy=last_sequence_policy)
+    return vid
+
+
+# TODO deoc
+common_pipeline_params = {
+    'num_threads': 1,
+    'device_id': 0,
+    'exec_pipelined': False,
+    'exec_async': False,
+    'prefetch_queue_depth': 1,
+}
+
+
+def get_num_frames(encoded_video):
+    decoder_pipe = video_decoder_pipeline(
+        input_name="VIDEO_INPUT", batch_size=1, device="cpu", **common_pipeline_params)
+    decoder_pipe.build()
+    decoder_pipe.feed_input("VIDEO_INPUT", [encoded_video])
+    decoder_out = decoder_pipe.run()
+    return decoder_out[0].as_array()[0].shape[0]
+
+
+def portion_out_reference_sequence(decoder_pipe_out, frames_per_sequence, batch_size):
+    """
+    TODO doc
+    :param decoder_pipe_out:
+    :param frames_per_sequence:
+    :param batch_size:
+    :return:
+    """
+    ref_sequence = decoder_pipe_out[0].as_array()[0]
+    num_frames = ref_sequence.shape[0]
+    n_batches = num_frames // (batch_size * frames_per_sequence)
+    ref_sequence = ref_sequence[:n_batches * frames_per_sequence * batch_size]
+    sh = ref_sequence.shape
+    ref_sequence = ref_sequence.reshape(
+        n_batches, batch_size, frames_per_sequence, sh[1], sh[2], sh[3])
+    for rs in ref_sequence:
+        yield rs
+
+
+@params(*list(params_generator()))
+def test_video_input_compare_with_video_decoder(device, frames_per_sequence, batch_size, test_file):
+    """
+    TODO doc
+    :param device:
+    :param frames_per_sequence:
+    :param batch_size:
+    :param test_file:
+    :return:
+    """
+    input_name = "VIDEO_INPUT"
+
+    decoder_pipe = video_decoder_pipeline(input_name=input_name, batch_size=1, device=device,
+                                          **common_pipeline_params)
+    input_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
+                                      frames_per_sequence=frames_per_sequence, device=device,
+                                      **common_pipeline_params)
+
+    decoder_pipe.build()
+    decoder_pipe.feed_input(input_name, [test_file])
+    decoder_out = decoder_pipe.run()
+
+    input_pipe.build()
+    input_pipe.feed_input(input_name, np.array([[test_file]]))
+
+    for ref_seq in portion_out_reference_sequence(decoder_out, frames_per_sequence, batch_size):
+        input_out = input_pipe.run()
+        test_seq = input_out[0].as_array()
+        assert np.all(ref_seq == test_seq)
+
+
+@params(*list(params_generator()))
+def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, test_video):
+    """
+    TODO doc
+    :param device:
+    :param frames_per_sequence:
+    :param batch_size:
+    :param test_video:
+    :return:
+    """
+    input_name = "VIDEO_INPUT"
+    partial_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
+                                        frames_per_sequence=frames_per_sequence, device=device,
+                                        last_sequence_policy='partial', **common_pipeline_params)
+    pad_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
+                                    frames_per_sequence=frames_per_sequence, device=device,
+                                    last_sequence_policy='pad', **common_pipeline_params)
+
+    num_frames = get_num_frames(test_video)
+
+    partial_pipe.build()
+    partial_pipe.feed_input(input_name, np.array([[test_video]]))
+    pad_pipe.build()
+    pad_pipe.feed_input(input_name, np.array([[test_video]]))
+
+    # First, check all the full batches with full sequences
+    num_iterations = num_frames // (frames_per_sequence * batch_size)
+    for _ in range(num_iterations):
+        out1 = partial_pipe.run()
+        out2 = pad_pipe.run()
+        assert np.all(out1[0].as_array() == out2[0].as_array())
+
+    remaining_frames = num_frames - num_iterations * frames_per_sequence * batch_size
+    if remaining_frames == 0:
+        # Frames have been split equally across batches.
+        return
+
+    # Now check the full sequences in the last batch
+    num_full_sequences = remaining_frames // frames_per_sequence
+    partial_out = partial_pipe.run()
+    pad_out = pad_pipe.run()
+    for i in range(num_full_sequences):
+        assert np.all(np.array(partial_out[0][i]) == np.array(pad_out[0][i]))
+
+    # And lastly, the actual check PARTIAL vs PAD -
+    # the last sequence in the last batch, which might be partial (or padded).
+    num_frames_in_partial_sequence = remaining_frames - num_full_sequences * frames_per_sequence
+    if num_frames_in_partial_sequence == 0:
+        return
+    last_partial_sequence = np.array(partial_out[0][num_full_sequences])
+    last_pad_sequence = np.array(pad_out[0][num_full_sequences])
+    for i in range(num_frames_in_partial_sequence):
+        # The frames that are in both - partial and padded sequences.
+        np.all(last_partial_sequence[i] == last_pad_sequence[i])
+    frame_shape = last_pad_sequence[0].shape
+    empty_frame = np.zeros(frame_shape, dtype=np.uint8)
+    for i in range(num_frames_in_partial_sequence, frames_per_sequence):
+        # The frames that are only in padded sequence.
+        np.all(last_pad_sequence[i] == empty_frame)

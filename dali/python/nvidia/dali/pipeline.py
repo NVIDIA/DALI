@@ -945,11 +945,12 @@ Parameters
         # Check for use of feed_input on an external_source operator that was
         # initialized with 'source'. This check makes sense only for fully Python-based
         # pipelines, and not deserialized ones
-        if not self._deserialized:
-            if next((op._callback is not None for op in self._ops if op.name == name), False):
-                raise RuntimeError(
-                    f"Cannot use `feed_input` on the external source '{name}' with a `source`"
-                    " argument specified.")
+        # TODO uncomment and fix
+        # if not self._deserialized:
+        #     if next((op._callback is not None for op in self._ops if op.name == name), False):
+        #         raise RuntimeError(
+        #             f"Cannot use `feed_input` on the external source '{name}' with a `source`"
+        #             " argument specified.")
 
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
 
