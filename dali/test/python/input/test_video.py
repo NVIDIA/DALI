@@ -37,7 +37,10 @@ def params_generator():
     Generates parameters for test.
     To be used in the @params decorator:
     @params(*list(params_generator())
-    TODO jak sie generuja parametr
+
+    The pattern of generating the parameters:
+    1. Generating a set of all permutations of `batch_size`, `frames_per_sequence` and `device`.
+    2. Assigning the test file in a round-robin fashion to every permutation of parameters.
     """
     test_params = (
         (dev, fps, bs)
@@ -60,15 +63,15 @@ def video_decoder_pipeline(input_name, device='cpu'):
 
 
 @pipeline_def
-def video_input_pipeline(input_name, frames_per_sequence, last_sequence_policy='partial',
-                         device='cpu'):
+def video_input_pipeline(input_name, frames_per_sequence,
+                         last_sequence_policy='partial', device='cpu'):
     vid = fn.experimental.inputs.video(name=input_name, device=device, blocking=False,
                                        frames_per_sequence=frames_per_sequence,
                                        last_sequence_policy=last_sequence_policy)
     return vid
 
 
-# TODO deoc
+# Parameters common for the DALI pipelines used throughout this test.
 common_pipeline_params = {
     'num_threads': 1,
     'device_id': 0,
@@ -79,21 +82,20 @@ common_pipeline_params = {
 
 
 def get_num_frames(encoded_video):
+    input_name = "VIDEO_INPUT"
     decoder_pipe = video_decoder_pipeline(
-        input_name="VIDEO_INPUT", batch_size=1, device="cpu", **common_pipeline_params)
+        input_name=input_name, batch_size=1, device="cpu", **common_pipeline_params)
     decoder_pipe.build()
-    decoder_pipe.feed_input("VIDEO_INPUT", [encoded_video])
+    decoder_pipe.feed_input(input_name, [encoded_video])
     decoder_out = decoder_pipe.run()
     return decoder_out[0].as_array()[0].shape[0]
 
 
 def portion_out_reference_sequence(decoder_pipe_out, frames_per_sequence, batch_size):
     """
-    TODO doc
-    :param decoder_pipe_out:
-    :param frames_per_sequence:
-    :param batch_size:
-    :return:
+    A generator, that takes the output from VideoDecoder DALI pipeline. Then, based of the
+    provided parameters, it serves sequences one-by-one, which are supposed to be returned
+    by VideoInput operator.
     """
     ref_sequence = decoder_pipe_out[0].as_array()[0]
     num_frames = ref_sequence.shape[0]
@@ -109,12 +111,7 @@ def portion_out_reference_sequence(decoder_pipe_out, frames_per_sequence, batch_
 @params(*list(params_generator()))
 def test_video_input_compare_with_video_decoder(device, frames_per_sequence, batch_size, test_file):
     """
-    TODO doc
-    :param device:
-    :param frames_per_sequence:
-    :param batch_size:
-    :param test_file:
-    :return:
+    Compares the VideoInput with the VideoDecoder.
     """
     input_name = "VIDEO_INPUT"
 
@@ -139,14 +136,6 @@ def test_video_input_compare_with_video_decoder(device, frames_per_sequence, bat
 
 @params(*list(params_generator()))
 def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, test_video):
-    """
-    TODO doc
-    :param device:
-    :param frames_per_sequence:
-    :param batch_size:
-    :param test_video:
-    :return:
-    """
     input_name = "VIDEO_INPUT"
     partial_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
                                         frames_per_sequence=frames_per_sequence, device=device,

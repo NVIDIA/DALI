@@ -41,6 +41,7 @@ bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
     assert(output_descs_.empty());
     DetermineOutputDescs(static_cast<int>(frames_decoders_[0]->NumFrames()));
 
+    // This has to be done for every video file, since we need to know the shape of the frames.
     if (last_sequence_policy_ == "pad") {
       InitializePadValue(0);
     }
@@ -66,7 +67,6 @@ void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
     if (!full_sequence) {
       break;
     }
-    curr_frame_ += frames_per_sequence_;
   }
   if (!full_sequence || frames_decoders_[0]->NextFrameIdx() == -1) {
     Invalidate();

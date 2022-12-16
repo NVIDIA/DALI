@@ -28,7 +28,18 @@ namespace dali {
 namespace detail {
 
 /**
- * TODO
+ * Determines, how is the video file split into batches.
+ *
+ * For a given video file and frames_per_sequence and batch_size parameters, we can determine
+ * beforehand, how do the return sequences look like in terms of their length:
+ *
+ * For instance, for num_frames=67, frames_per_sequence=5 and batch_size=3:
+ * --------------- --------------- --------------- --------------- -------
+ * [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][]
+ * --------------- --------------- --------------- --------------- -------
+ * 4 full batches of full sequences, and 1 (last) partial batch with 2 full sequences
+ * and 2-frame partial sequence at the end.
+ *
  * @param num_frames How much frames the video has.
  * @param frames_per_sequence How much frames per sequence user requested.
  * @param batch_size How much sequences comprise a single batch.
@@ -102,10 +113,13 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
  private:
   void Invalidate() {
     valid_ = false;
-    curr_frame_ = 0;
   }
 
 
+  /**
+   * Determine the Output Descriptors for a given video file.
+   * Fills the output_descs_ queue.
+   */
   void DetermineOutputDescs(int num_frames) {
     auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
             detail::DetermineBatchOutline(num_frames, frames_per_sequence_, batch_size_);
@@ -173,16 +187,15 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   const int batch_size_ = {};
   const std::string last_sequence_policy_;
 
-  int curr_frame_ = 0;
-
   /// Valid VideoInput is the one that has the encoded video loaded and will return decoded sequence
   bool valid_ = false;
 
+  /// A queue with the Output Descriptors for a given video file.
   std::deque<OutputDesc> output_descs_;
-  OutputDesc output_desc_ = {};
 
   /// Buffer with the data used for padding incomplete sequences.
   std::vector<uint8_t> pad_value_data_ = {};
+  /// Shape of pad frame.
   TensorShape<3> pad_frame_shape_ = {};
 };
 
