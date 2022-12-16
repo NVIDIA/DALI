@@ -194,9 +194,9 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    * @param target Where the data shall be injected.
    * @param tp TheadPool used to copy the data.
    */
-  void ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
+  void DLL_PUBLIC ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
 
-  void ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
+  void DLL_PUBLIC ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
   ///@}
 
 
