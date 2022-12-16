@@ -92,13 +92,6 @@ void MultiPasteCPU::RunTyped(Workspace &ws) {
       for (int iter = 0; iter < paste_count; iter++) {
         int from_sample = in_idx_[i].data[iter];
         int to_sample = i;
-
-        const auto &in_source_info = images.GetMeta(from_sample).GetSourceInfo();
-        if (!in_source_info.empty()) {
-          if (out_source_info.empty())
-            out_source_info.append(path_delim);
-        }
-
         tp.AddWork(
           [&, i, iter, from_sample, to_sample, in_view, out_view](int thread_id) {
             kernels::KernelContext ctx;
