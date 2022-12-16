@@ -1164,6 +1164,7 @@ tested_methods = [
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
+    "experimental.inputs.video",
     "decoders.audio",
     "external_source",
     "stack",
