@@ -68,41 +68,45 @@ struct DecInstance {
   int device_id = 0;
 };
 
+class NVDECCache;
+
 class NVDECLease {
  public:
     constexpr NVDECLease() = default;
 
-    explicit NVDECLease(DecInstance inst) {
-      decoder = std::move(inst);
+    explicit NVDECLease(NVDECCache *owner, DecInstance *dec) : owner(owner), decoder(dec) {
     }
 
-    ~NVDECLease();
+    ~NVDECLease() {
+      Return();
+    }
+
+    void Return();
 
     NVDECLease(NVDECLease &&other) {
       *this = std::move(other);
-      other.decoder.used = false;
     }
 
     NVDECLease &operator=(NVDECLease &&other) {
-      if (decoder.decoder != other.decoder.decoder) {  // NOLINT
-        decoder = std::move(other.decoder);
-        other.decoder.used = false;
-      }
+      std::swap(owner, other.owner);
+      std::swap(decoder, other.decoder);
+      other.Return();
       return *this;
     }
 
     operator CUvideodecoder() const & noexcept {
-      return decoder.decoder;
+      return decoder->decoder;
     }
 
     operator CUvideodecoder() && = delete;
 
     explicit operator bool() const noexcept {
-      return decoder.used;
+      return decoder != nullptr;
     }
 
  private:
-    DecInstance decoder;
+    NVDECCache *owner = nullptr;
+    DecInstance *decoder = nullptr;
 };
 
 }  // namespace frame_dec_gpu_impl
