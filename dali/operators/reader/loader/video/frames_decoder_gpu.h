@@ -65,6 +65,7 @@ struct DecInstance {
   unsigned max_width = 0;
   unsigned int bit_depth_luma_minus8 = 0;
   bool used = false;
+  int device_id = 0;
 };
 
 class NVDECLease {

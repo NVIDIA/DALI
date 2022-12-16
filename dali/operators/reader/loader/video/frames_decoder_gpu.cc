@@ -76,14 +76,45 @@ const char *codec_to_string(cudaVideoCodec in) {
 
 class NVDECCache {
  public:
-    static NVDECCache &GetCache() {
-      static NVDECCache cache_inst;
-      return cache_inst;
+    static NVDECCache &GetCache(int device_id = -1) {
+      static NVDECCache cache_inst[32];
+      if (device_id == -1) {
+        CUDA_CALL(cudaGetDevice(&device_id));
+      }
+      return cache_inst[device_id];
     }
-    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format) {
-      int device_id = 0;
-      CUDA_CALL(cudaGetDevice(&device_id));
-      std::unique_lock lock(access_lock[device_id]);
+
+    static NVDECLease GetDecoderFromCache(CUVIDEOFORMAT *video_format, int device_id = -1) {
+      if (device_id == -1) {
+        CUDA_CALL(cudaGetDevice(&device_id));
+      }
+      return GetCache(device_id).GetDecoder(video_format, device_id);
+    }
+
+    void ReturnDecoder(DecInstance &decoder) {
+      std::unique_lock lock(access_lock);
+      auto range = dec_cache.equal_range(decoder.codec_type);
+      for (auto it = range.first; it != range.second; ++it) {
+        if (it->second.decoder == decoder.decoder) {
+          it->second.used = false;
+          return;
+        }
+      }
+      DALI_FAIL("Cannot return decoder that is not from the cache");
+    }
+
+ private:
+    NVDECCache() {}
+
+    ~NVDECCache() {
+      std::lock_guard lock(access_lock);
+      for (auto &it : dec_cache) {
+        cuvidDestroyDecoder(it.second.decoder);
+      }
+    }
+
+    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
+      std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
@@ -94,8 +125,7 @@ class NVDECCache {
 
       if (num_decode_surfaces == 0)
         num_decode_surfaces = 20;
-      auto &dec_cache_elm = dec_cache[device_id];
-      auto range = dec_cache_elm.equal_range(codec_type);
+      auto range = dec_cache.equal_range(codec_type);
       codec_map::iterator best_match = range.second;
       for (auto it = range.first; it != range.second; ++it) {
         if (best_match == range.second && it->second.used == false) {
@@ -106,6 +136,7 @@ class NVDECCache {
             it->second.chroma_format == chroma_format &&
             it->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
           it->second.used = true;
+          assert(it->second.device_id == device_id);
           return NVDECLease(it->second);
         }
       }
@@ -203,14 +234,15 @@ class NVDECCache {
       decoder_inst.chroma_format = chroma_format;
       decoder_inst.bit_depth_luma_minus8 = bit_depth_luma_minus8;
       decoder_inst.used = true;
+      decoder_inst.device_id = device_id;
 
       lock.lock();
-      dec_cache_elm.insert({codec_type, decoder_inst});
-      if (dec_cache_elm.size() > CACHE_SIZE_LIMIT) {
-        for (auto it = dec_cache_elm.begin(); it != dec_cache_elm.end(); ++it) {
+      dec_cache.insert({codec_type, decoder_inst});
+      if (dec_cache.size() > CACHE_SIZE_LIMIT) {
+        for (auto it = dec_cache.begin(); it != dec_cache.end(); ++it) {
           if (it->second.used == false) {
             auto decoder = it->second.decoder;
-            dec_cache_elm.erase(it);
+            dec_cache.erase(it);
             lock.unlock();
             cuvidDestroyDecoder(decoder);
             break;
@@ -220,53 +252,16 @@ class NVDECCache {
       return NVDECLease(decoder_inst);
     }
 
-    void ReturnDecoder(DecInstance &decoder) {
-      int device_id = 0;
-      CUDA_CALL(cudaGetDevice(&device_id));
-      std::unique_lock lock(access_lock[device_id]);
-      auto range = dec_cache[device_id].equal_range(decoder.codec_type);
-      for (auto it = range.first; it != range.second; ++it) {
-        if (it->second.decoder == decoder.decoder) {
-          it->second.used = false;
-          return;
-        }
-      }
-      DALI_FAIL("Cannot return decoder that is not from the cache");
-    }
-
- private:
-    NVDECCache() {
-      int num_devices = 0;
-      CUDA_CALL(cudaGetDeviceCount(&num_devices));
-      dec_cache.resize(num_devices);
-      access_lock.resize(num_devices);
-    }
-
-    ~NVDECCache() {
-      for (size_t i = 0; i < dec_cache.size(); ++i) {
-        auto &dec_cache_elm = dec_cache[i];
-        std::lock_guard lock(access_lock[i]);
-        for (auto &it : dec_cache_elm) {
-          cuvidDestroyDecoder(it.second.decoder);
-        }
-      }
-    }
     using codec_map = std::unordered_multimap<cudaVideoCodec, DecInstance>;
-    std::vector<codec_map> dec_cache;
-
-    struct mutex_wrapper : std::mutex {
-      mutex_wrapper() = default;
-      mutex_wrapper(mutex_wrapper const&) noexcept : std::mutex() {}
-      bool operator==(mutex_wrapper const&other) noexcept { return this == &other; }
-    };
-    std::vector<mutex_wrapper> access_lock;
+    codec_map dec_cache;
+    std::mutex access_lock;
 
     static constexpr int CACHE_SIZE_LIMIT = 100;
 };
 
 NVDECLease::~NVDECLease() {
   if (decoder.used) {
-    frame_dec_gpu_impl::NVDECCache::GetCache().ReturnDecoder(decoder);
+    frame_dec_gpu_impl::NVDECCache::GetCache(decoder.device_id).ReturnDecoder(decoder);
   }
 }
 
@@ -357,7 +352,7 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType() {
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
     is_full_range_ = video_format->video_signal_description.video_full_range_flag;
-    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetCache().GetDecoder(video_format);
+    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(video_format);
   }
 }
 

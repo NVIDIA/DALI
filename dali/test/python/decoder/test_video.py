@@ -155,6 +155,7 @@ def test_multi_gpu_video(device):
         raise SkipTest()
 
     batch_size = 1
+
     def input_gen(batch_size):
         filenames = glob.glob(f'{get_dali_extra_path()}/db/video/[cv]fr/*.mp4')
         filenames = filter(lambda filename: 'mpeg4' not in filename, filenames)
