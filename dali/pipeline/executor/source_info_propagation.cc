@@ -92,7 +92,7 @@ bool PropagateSourceInfo(Workspace &ws) {
       else if (input.num_samples() != batch_size)
         return false;  // mismatched input batch size - this is a special operator, bailing out
 
-      get_src_info[i] = [&input, i](int sample)->const std::string & {
+      get_src_info[i] = [&input](int sample)->const std::string & {
         return input.GetMeta(sample).GetSourceInfo();
       };
       return true;
