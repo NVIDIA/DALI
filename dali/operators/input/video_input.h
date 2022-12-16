@@ -40,9 +40,9 @@ namespace detail {
  * 4 full batches of full sequences, and 1 (last) partial batch with 2 full sequences
  * and 2-frame partial sequence at the end.
  *
- * @param num_frames How much frames the video has.
- * @param frames_per_sequence How much frames per sequence user requested.
- * @param batch_size How much sequences comprise a single batch.
+ * @param num_frames How many frames the video has.
+ * @param frames_per_sequence How many frames per sequence user requested.
+ * @param batch_size How many sequences make up a single batch.
  * @return
  */
 auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_size) {

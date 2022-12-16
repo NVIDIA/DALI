@@ -76,11 +76,71 @@ void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
 
 DALI_SCHEMA(experimental__inputs__Video)
                 .DocStr(
-                        R"code(...)code")
+                        R"code(
+Decodes a video from a memory buffer. Returns a batch of sequences of frames, where
+each frame has ``(F, H, W, C)`` layout (where ``F`` is the number of frames in a sequence).
+
+When using ``fn.inputs.video`` operator inside the DALI Pipeline, user needs to provide the data
+using :meth:`Pipeline.feed_input`. When the Operator is fed with data, the Pipeline can be ran
+multiple times and the ``fn.inputs.video`` operator will return consecutive sequences, as long as
+there is enough data remaining. When the source of the frames (the video file) depletes, user needs
+to call another ``feed_input`` to provide the next video file to the operator. This Operator has an
+inner-queue for the data, so the ``feed_input`` may be called multiple times and when given video
+file ends, the Operator will fetch the next one automatically from the top of the queue.
+Running the pipeline while there is no data for the ``fn.inputs.video`` to run results in an error.
+
+This operator takes only one video as and input (i.e. ``input_batch_size=1``) and will return
+batches of sequences, where every output batch will have the size, which has been set during
+the Pipeline object instantiation (``max_batch_size``). When the number of frames in the video
+file does not allow to split the frames uniformly across batches, the last batch returned by
+this operator for a given video will be partial and the last sequence in this batch will be
+determined using ``last_sequence_policy`` parameter. For example::
+
+
+    This is a video that consists of 67 frames (every '-' is a frame):
+    -------------------------------------------------------------------
+
+    User decided that there shall be 5 frames per sequence and the last_sequence_policy='partial':
+    -------------------------------------------------------------------
+    [   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][]
+    -------------------------------------------------------------------
+                      Since there are not enough frames, the last sequence comprises 2 frames.
+
+    The Pipeline has max_batch_size=3, therefore the operator will return batches of 3 sequences:
+    --------------- --------------- --------------- --------------- -------
+    [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][]
+    --------------- --------------- --------------- --------------- -------
+                      The last batch is partial and comprises 2 sequences.
+
+
+The difference between ``fn.inputs.video`` and ``fn.readers.video`` is that the former
+reads an encoded video from memory and the latter reads the encoded video from disk.
+
+The difference between ``fn.inputs.video`` and ``fn.decoders.video`` is that the former
+does not decode the whole video file in one go. This behaviour is needed for longer videos. E.g.
+5-min, 4k, 30fps decoded video takes about 1.7 TB of memory.
+
+This operator accepts most of the video containers and file formats. FFmpeg is used to parse
+the video container. In the situations, that the container does not contain required metadata
+(e.g. frames sizes, number of frames, etc...), the operator needs to find it out itself,
+which may result in a slowdown.
+)code")
                 .NumInput(0)
                 .NumOutput(1)
-                .AddArg("frames_per_sequence", R"code(...)code", DALI_INT32)
-                .AddOptionalArg("last_sequence_policy", R"code(...)code", "partial")
+                .AddArg("frames_per_sequence", R"code(
+How many frames shall make up a single sequence returned by the operator.
+)code", DALI_INT32)
+                .AddOptionalArg("last_sequence_policy", R"code(
+Specifies, how to handle the last sequence in the video file.
+
+For a given number of frames in the video file and ``frames_per_sequence`` parameter,
+it might happen that the video can't be split uniformly across sequences. If the
+``last_sequence_policy='partial'``, the last sequence will have less frames than
+``frames_per_sequence`` value specified. If the ``last_sequence_policy='partial'``,
+the last sequence will have ``frames_per_sequence`` frames and will be padded with empty frames.
+
+Allowed values are ``'partial'`` and ``'pad'``.
+)code", "partial")
                 .AddParent("InputOperatorBase");
 
 
