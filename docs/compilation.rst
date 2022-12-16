@@ -387,8 +387,8 @@ To run with sanitizers enabled issue:
   LD_LIBRARY_PATH=. ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0 ASAN_SYMBOLIZER_PATH=$(shell which llvm-symbolizer)
   LD_PRELOAD=PATH_TO_LIB_ASAN/libasan.so.X PATH_TO_LIB_STDC/libstdc++.so.STDC_VERSION*PATH_TO_BINARY*
 
-  Where X depends on used compiler version, for example GCC 7.x uses 4. Tested with GCC 7.4, CUDA 10.0
-  and libasan.4. Any earlier version may not work.
+  Where X depends on used compiler version, for example GCC 10.x uses 6. Tested with GCC 10.2.1, CUDA 12.0
+  and libasan.6. Any earlier version may not work.
 
   STDC_VERSION used by the system. Usually 6.
 
