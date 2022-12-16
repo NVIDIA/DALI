@@ -112,7 +112,8 @@ def train(file_root, annotations, batch_size, epochs, steps_per_epoch, **kwargs)
 
     multigpu = kwargs.get("multigpu")
     strategy = tf.distribute.MirroredStrategy() if multigpu else tf.distribute.get_strategy()
-    atexit.register(strategy._extended._collective_ops._pool.close) # type: ignore
+    if hasattr(strategy._extended._collective_ops, "_pool"):
+        atexit.register(strategy._extended._collective_ops._pool.close) # type: ignore
 
     with strategy.scope():
         model = YOLOv4Model()
