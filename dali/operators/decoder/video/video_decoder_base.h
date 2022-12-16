@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <memory>
+#include "dali/kernels/common/copy.h"
 #include "dali/pipeline/operator/common.h"
 
 namespace dali {
@@ -47,6 +48,7 @@ class DLL_PUBLIC VideoDecoderBase {
     }
   }
 
+
   TensorListShape<4> ReadOutputShape() {
     TensorListShape<4> shape(frames_decoders_.size());
     for (size_t s = 0; s < frames_decoders_.size(); ++s) {
@@ -60,18 +62,64 @@ class DLL_PUBLIC VideoDecoderBase {
     return shape;
   }
 
+
+  /**
+   * Decode given number of frames from a FramesDecoder.
+   *
+   * This function allows optional padding of the output data, when
+   * there's not enough frames inside FramesDecoder to fill the `num_frames` specified.
+   *
+   * The `pad_value` argument determines, with what the VideoDecoder shall pad
+   * the partial sequence. The tensor passed to the `pad_value` shall be an entire
+   * frame. This frame will be repeated at the end of partial sequence.
+   * If the `pad_value` is not provided, the padding will not happen and the DecodeFrames
+   * will return a partial sequence.
+   *
+   * @param output The SampleView in which the decoded sequence will be put.
+   * @param sample_idx Index of the encoded video that shall be decoded.
+   * @param num_frames How many frames shall be decoded.
+   * @param pad_value What to (optionally) pad the partial sequence with.
+   * @return False, if less than `num_frames` have been decoded.
+   */
+  bool DecodeFrames(SampleView<OutBackend> output, int64_t sample_idx, int64_t num_frames,
+                    std::optional<SampleView<OutBackend>> pad_value = std::nullopt,
+                    std::optional<cudaStream_t> stream = std::nullopt) {
+    auto &frames_decoder = *frames_decoders_[sample_idx];
+    int64_t frame_size = frames_decoder.FrameSize();
+
+    DALI_ENFORCE(!pad_value.has_value() || pad_value->shape().num_elements() == frame_size,
+                 make_string("Provided pad_value has improper number of elements. Expected: ",
+                             frame_size, "; Actual: ", pad_value->shape().num_elements()));
+
+    uint8_t *output_data = output.template mutable_data<uint8_t>();
+
+    int64_t f = 0;
+    // Work until:
+    //    (a) There are no more frames, or
+    //    (b) Sufficient number of frames has been decoded.
+    for (; f < num_frames && frames_decoder.NextFrameIdx() != -1; f++) {
+      frames_decoder.ReadNextFrame(output_data + f * frame_size);
+    }
+    assert(f <= num_frames);
+    bool full_sequence_decoded = f == num_frames;
+    // If there's an insufficient number of frames, pad if requested.
+    for (; f < num_frames && pad_value.has_value(); f++) {
+      kernels::copy<OutBackend, OutBackend>(
+              output_data + f * frame_size, pad_value->raw_data(), frame_size,
+              std::is_same_v<OutBackend, GPUBackend> ? *stream : 0);
+    }
+    return full_sequence_decoded;
+  }
+
+
   /**
    * @brief Decode sample with index `idx` to `output` tensor.
    */
   void DecodeSample(SampleView<OutBackend> output, int64_t idx) {
-    auto &frames_decoder = *frames_decoders_[idx];
     int64_t num_frames = output.shape()[0];
-    int64_t frame_size = frames_decoder.FrameSize();
-    uint8_t *output_data = output.template mutable_data<uint8_t>();
-    for (int f = 0; f < num_frames; ++f) {
-      frames_decoder.ReadNextFrame(output_data + f * frame_size);
-    }
+    DecodeFrames(output, idx, num_frames);
   }
+
 
   std::vector<std::unique_ptr<FramesDecoder>> frames_decoders_;
 };

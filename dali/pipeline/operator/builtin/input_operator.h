@@ -17,12 +17,13 @@
 
 #include <list>
 #include <memory>
+#include <string>
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
-#include "dali/operators/input/caching_list.h"
 #include "dali/pipeline/operator/batch_size_provider.h"
+#include "dali/pipeline/operator/builtin/caching_list.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
 
@@ -91,6 +92,20 @@ struct InputOperatorSettingMode {
 };
 
 
+/**
+ * InputOperator is an Operator that serves a purpose of in-memory input to a DALI Pipeline.
+ * It has no regular inputs, but provides any number of output. The special feature of an
+ * InputOperator is the CachingList - queue of input data.
+ *
+ * InputOperator API consists of three main parts:
+ * 1. SetDataSource          - this is a set of functions, that enqueues the data in the Operator.
+ *                             User shall call one of those functions prior to Operator::Run().
+ * 2. ForwardCurrentData     - This function is used to retrieve the data that exists on the
+ *                             top of the Operators queue.
+ * 3. HandleDataAvailability - This function handles `blocking_` Operator parameter. Any subclass
+ *                             of InputOperator shall call this function at the beginning of
+ *                             its SetupImpl.
+ */
 template<typename Backend>
 class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider {
   using uptr_tl_type = std::unique_ptr<TensorList<Backend>>;
@@ -117,16 +132,6 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   }
 
   DISABLE_COPY_MOVE_ASSIGN(InputOperator);
-
-
-  /**
-   * Template method is used, since the data availability (i.e. block or fail)
-   * shall be handled in the same way in every InputOperator.
-   */
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) final {
-    HandleDataAvailability();
-    return SetupImplDerived(output_desc, ws);
-  }
 
 
   /**
@@ -160,7 +165,39 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
  protected:
-  virtual bool SetupImplDerived(std::vector<OutputDesc> &output_desc, const Workspace &ws) = 0;
+  /**
+   * Checks if the data is available. If it's not, either blocks or throws an error,
+   * depending on ``blocking`` operator argument.
+   *
+   * Any Operator that inherits from InputOperator and uses ``blocking`` feature
+   * shall call this function at the beginning of its SetupImpl.
+   */
+  void HandleDataAvailability() {
+    std::unique_lock<std::mutex> busy_lock(busy_m_);
+    if (blocking_) {
+      cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
+    } else {
+      if (state_.empty()) {
+        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+      }
+    }
+  }
+
+  ///@{
+  /**
+   * Injects current data portion into the provided TensorList and recycles
+   * the inner container for the data.
+   *
+   * This function will take a best effort not to copy the data,
+   * however it might not always be possible.
+   *
+   * @param target Where the data shall be injected.
+   * @param tp TheadPool used to copy the data.
+   */
+  void ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
+
+  void ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
+  ///@}
 
 
   /**
@@ -182,22 +219,6 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
     tl_data_.AdvanceProphet();
   }
 
-  ///@{
-  /**
-   * Injects current data portion into the provided TensorList and recycles
-   * the inner container for the data.
-   *
-   * This function will take a best effort not to copy the data,
-   * however it might not always be possible.
-   *
-   * @param target Where the data shall be injected.
-   * @param tp TheadPool used to copy the data.
-   */
-  void ForwardCurrentData(TensorList<CPUBackend> &target, ThreadPool &tp);
-
-  void ForwardCurrentData(TensorList<GPUBackend> &target, cudaStream_t stream = nullptr);
-  ///@}
-
 
   int device_id_;
   bool blocking_ = true;
@@ -205,23 +226,6 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
 
 
  private:
-  /**
-   * Checks if the data is available.
-   * If it's not, either blocks or throws an error, depending on ``blocking``
-   * operator argument.
-   */
-  void HandleDataAvailability() {
-    std::unique_lock<std::mutex> busy_lock(busy_m_);
-    if (blocking_) {
-      cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
-    } else {
-      if (state_.empty()) {
-        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
-      }
-    }
-  }
-
-
   // pass cuda_event by pointer to allow default, nullptr value, with the
   // reference it is not that easy
   template<typename DataType>
@@ -436,6 +440,17 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
   CUDAStreamLease internal_copy_stream_ = {};
   AccessOrder internal_copy_order_ = AccessOrder::host();
 };
+
+
+/**
+ * Checks, if the Operator defined by provided Schema is an InputOperator
+ */
+inline bool IsInputOperator(const OpSchema &schema) {
+  const auto &parents = schema.GetParents();
+  return std::any_of(parents.begin(), parents.end(),
+                     [](const std::string &p) { return p == "InputOperatorBase"; });
+}
+
 
 }  // namespace dali
 

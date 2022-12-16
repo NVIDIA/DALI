@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/operators/input/caching_list.h"
+#include "dali/pipeline/operator/builtin/caching_list.h"
 #include <gtest/gtest.h>
 
 namespace dali::test {
