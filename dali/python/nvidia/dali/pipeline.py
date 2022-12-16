@@ -878,7 +878,6 @@ Parameters
         else:
             self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
-
     def feed_input(self, data_node, data, layout=None, cuda_stream=None, use_copy_kernel=False):
         """Pass a multidimensional array or DLPack (or a list thereof) to an output of
            InputOperator.
@@ -945,16 +944,18 @@ Parameters
 
         # Check for use of feed_input on an external_source operator that was
         # initialized with 'source'. This check makes sense only for fully Python-based
-        # pipelines, and not deserialized ones
-        # TODO uncomment and fix
+        # pipelines, and not deserialized ones.
+        from .external_source import _is_external_source
         if not self._deserialized:
-            if next((op._callback is not None for op in self._ops if op.name == name), False):
+            if next(
+                    (_is_external_source(op) and op._callback is not None
+                     for op in self._ops if op.name == name),
+                    False):
                 raise RuntimeError(
                     f"Cannot use `feed_input` on the external source '{name}' with a `source`"
                     " argument specified.")
 
         self._feed_input(name, data, layout, cuda_stream, use_copy_kernel)
-
 
     def _run_cpu(self):
         """Run CPU portion of the pipeline."""

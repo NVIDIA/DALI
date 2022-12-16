@@ -199,6 +199,14 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   TensorShape<3> pad_frame_shape_ = {};
 };
 
+
+/**
+ * Checks, if the operator described by a given Schema is a VideoInput operator.
+ */
+inline bool IsVideoInput(const OpSchema& schema) {
+  return schema.name() == "experimental__inputs__Video";
+}
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_INPUT_VIDEO_INPUT_H_

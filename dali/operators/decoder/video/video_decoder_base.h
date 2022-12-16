@@ -105,9 +105,9 @@ class DLL_PUBLIC VideoDecoderBase {
     bool full_sequence_decoded = f == num_frames;
     // If there's an insufficient number of frames, pad if requested.
     for (; f < num_frames && pad_value.has_value(); f++) {
-      kernels::copy<OutBackend, OutBackend>(
+      kernels::copy<storage_backend_for_copy_kernel, storage_backend_for_copy_kernel>(
               output_data + f * frame_size, pad_value->raw_data(), frame_size,
-              std::is_same_v<OutBackend, GPUBackend> ? *stream : 0);
+              std::is_same_v<storage_backend_for_copy_kernel, StorageGPU> ? *stream : 0);
     }
     return full_sequence_decoded;
   }
@@ -123,6 +123,13 @@ class DLL_PUBLIC VideoDecoderBase {
 
 
   std::vector<std::unique_ptr<FramesDecoder>> frames_decoders_;
+
+ private:
+  using storage_backend_for_copy_kernel = std::conditional_t<
+          std::is_same_v<OutBackend, CPUBackend>,
+          StorageCPU,
+          StorageGPU
+  >;
 };
 
 }  // namespace dali

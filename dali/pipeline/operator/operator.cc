@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dali/pipeline/operator/builtin/input_operator.h"
+#include "dali/operators/input/video_input.h"
 #include "dali/pipeline/operator/builtin/split_merge.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -22,6 +22,11 @@ template <typename Backend>
 void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
   if (IsSplitOrMerge(spec_.GetSchema())) {
+    return;
+  }
+  // VideoInput operator has relaxed check, since it actually creates a batch, therefore
+  // the batch size might change. It is a perfectly fine behaviour.
+  if (IsVideoInput(spec_.GetSchema())) {
     return;
   }
   auto curr_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
@@ -42,6 +47,11 @@ template <typename Backend>
 void OperatorBase::EnforceUniformOutputBatchSize(const Workspace &ws) const {
   // Builtin operators have relaxed checks for the purpose of conditional execution
   if (IsSplitOrMerge(spec_.GetSchema())) {
+    return;
+  }
+  // VideoInput operator has relaxed check, since it actually creates a batch, therefore
+  // the batch size might change. It is a perfectly fine behaviour.
+  if (IsVideoInput(spec_.GetSchema())) {
     return;
   }
   auto ref_batch_size = ws.NumInput() > 0 ? ws.GetInputBatchSize(0) : ws.GetRequestedBatchSize(0);
