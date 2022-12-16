@@ -531,7 +531,7 @@ template <typename ConvFactoryT, typename SampleDescT, typename InLoaderT, typen
 DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 2, void> with_conv(
     ConvFactoryT conv_factory, SampleDescT sample_desc, InLoaderT in_loader,
     BlockSetupT block_setup, char* shm, Cb&& cb) {
-  cb(conv_factory.create<1>(sample_desc, in_loader, block_setup, shm));
+  cb(conv_factory.template create<1>(sample_desc, in_loader, block_setup, shm));
 }
 
 template <typename ConvFactoryT, typename SampleDescT, typename InLoaderT, typename BlockSetupT,
@@ -540,10 +540,10 @@ DALI_DEVICE DALI_FORCEINLINE std::enable_if_t<SampleDescT::axes == 3, void> with
     ConvFactoryT conv_factory, SampleDescT sample_desc, InLoaderT in_loader,
     BlockSetupT block_setup, char* shm, Cb&& cb) {
   if (sample_desc.lane_axis == 2) {
-    cb(conv_factory.create<2>(sample_desc, in_loader, block_setup, shm));
+    cb(conv_factory.template create<2>(sample_desc, in_loader, block_setup, shm));
   } else {
     assert(sample_desc.lane_axis == 1);
-    cb(conv_factory.create<1>(sample_desc, in_loader, block_setup, shm));
+    cb(conv_factory.template create<1>(sample_desc, in_loader, block_setup, shm));
   }
 }
 
