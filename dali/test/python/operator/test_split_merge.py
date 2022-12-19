@@ -118,7 +118,7 @@ def conditional_split_merge_reinterpret_pipe(dtype, layout, shape):
     input = fn.external_source(
         source=[[np.full((10, 10, 3), 42, dtype=np.int32) for _ in range(batch_size)]], cycle=True)
     pred = fn.external_source(
-        source=[[np.array(i % 2 == 0, dtype=np.bool) for i in range(batch_size)]], cycle=True)
+        source=[[np.array(i % 2 == 0, dtype=np.bool_) for i in range(batch_size)]], cycle=True)
     true_branch, false_branch = fn._conditional.split(input, predicate=pred)
     false_changed = fn.reinterpret(false_branch, dtype=dtype, layout=layout, shape=shape)
     return fn._conditional.merge(true_branch, false_changed, predicate=pred)

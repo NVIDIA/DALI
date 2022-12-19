@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ ref = [
     np.array([0.25, 1.25, 2.25, 3.25, 4.25], dtype=np.float16),
     np.full([100, 100], 5.5, dtype=np.float32),
     np.full([10, 20], -4, dtype=np.int32),
-    np.array([False, True, False], dtype=np.bool)
+    np.array([False, True, False], dtype=np.bool_)
 ]
 
 

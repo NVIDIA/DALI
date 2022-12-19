@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -197,7 +197,7 @@ def channels_mean(image):
 
 
 def bias(image):
-    return numpy.array(image > 127, dtype=numpy.bool)
+    return numpy.array(image > 127, dtype=numpy.bool_)
 
 
 def flip(image):
