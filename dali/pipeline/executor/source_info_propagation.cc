@@ -62,6 +62,8 @@ void ClearSourceInfo(TensorList<Backend> &tl) {
     tl.SetSourceInfo(s, "");
 }
 
+}  // namespace
+
 void ClearOutputSourceInfo(Workspace &ws) {
   for (int o = 0; o < ws.NumOutput(); o++) {
     if (ws.OutputIsType<CPUBackend>(o)) {
@@ -72,8 +74,6 @@ void ClearOutputSourceInfo(Workspace &ws) {
     }
   }
 }
-
-}  // namespace
 
 bool PropagateSourceInfo(Workspace &ws) {
   int num_inputs = ws.NumInput();
