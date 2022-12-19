@@ -28,8 +28,9 @@ void DLL_PUBLIC ClearOutputSourceInfo(Workspace &ws);
  *
  * This function propagates the SourceInfo metadata from the source tensors to the destination
  * tensors under the following conditions:
+ * - there's at least one input and at least one output
  * - none of the outputs has a SourceInfo already set
- * - all input and output the batch sizes are equal
+ * - all the input and output batch sizes are equal
  * - the source info for all inputs must be equal or empty (see below)
  *
  * Consistent source info
@@ -42,6 +43,7 @@ void DLL_PUBLIC ClearOutputSourceInfo(Workspace &ws);
  *      'a.jpg', 'a_mask.png'
  *      'b.jpg', 'b_mask.png'
  *
+ * @return true,  if the propagation was successfully performed, false otherwise
  */
 bool DLL_PUBLIC PropagateSourceInfo(Workspace &ws);
 
