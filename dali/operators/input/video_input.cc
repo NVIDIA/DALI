@@ -28,6 +28,7 @@ bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
   if (!valid_) {
     InputOperator<CPUBackend>::HandleDataAvailability();
     TensorList<CPUBackend> encoded_videos;
+    encoded_videos.set_pinned(device_id_ != CPU_ONLY_DEVICE_ID);
     frames_decoders_.resize(input_batch_size);
     auto &thread_pool = ws.GetThreadPool();
     this->ForwardCurrentData(encoded_videos, thread_pool);
