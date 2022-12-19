@@ -879,8 +879,10 @@ Parameters
             self._pipe.SetExternalTLInput(name, data, ctypes.c_void_p(cuda_stream), use_copy_kernel)
 
     def feed_input(self, data_node, data, layout=None, cuda_stream=None, use_copy_kernel=False):
-        """Pass a multidimensional array or DLPack (or a list thereof) to an output of
-           InputOperator.
+        """Pass a multidimensional array or DLPack (or a list thereof) to the eligible Operator.
+
+        The operators that may be provided with data using this function are the InputOperators
+        (i.e. everything in ``fn.inputs`` module) and the :meth:`fn.external_source`.
 
         In the case of the GPU input, the data must be modified on the same stream as the one
         used by ``feed_input``. See ``cuda_stream`` parameter for details.
@@ -888,8 +890,8 @@ Parameters
         Parameters
         ----------
         data_node : :class:`DataNode` or a string
-            The name of an ``fn.inputs`` operator node or a :class:`DataNode`
-            object returned by a call to that InputOperator.
+            The name of an eligible Operator node or a :class:`DataNode`
+            object returned by a call to that Operator.
 
         data : ndarray or DLPack or a list thereof
             The array(s) may be one of:
@@ -901,7 +903,7 @@ Parameters
               * objects implementing ``__cuda_array_interface__``
               * DALI ``TensorList`` or list of DALI ``Tensor`` objects
 
-            The data to be used as the output of the InputOperator referred to by ``data_node``.
+            The data to be used as the output of the Operator referred to by ``data_node``.
 
         layout : string or ``None``
             The description of the data layout (or empty string, if not specified).

@@ -77,28 +77,36 @@ void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
 DALI_SCHEMA(experimental__inputs__Video)
                 .DocStr(
                         R"code(
-Decodes a video from a memory buffer. Returns a batch of sequences of frames, where
-each frame has ``(F, H, W, C)`` layout (where ``F`` is the number of frames in a sequence).
+Streams and decodes a video from a memory buffer. To be used with long and high resolution videos.
 
-When using ``fn.inputs.video`` operator inside the DALI Pipeline, user needs to provide the data
+Returns a batch of sequences of frames, with the layout: ``(N, F, H, W, C)``, where:
+
+* ``N`` - number of sequences in a batch. Currently ``N=max_batch_size``,
+* ``F`` - number of frames in a sequence,
+* ``H`` - height of the frame,
+* ``W`` - width of the frame,
+* ``C`` - number of channels in the frame.
+
+When using ``fn.inputs.video`` operator inside the DALI Pipeline, the user needs to provide the data
 using :meth:`Pipeline.feed_input`. When the Operator is fed with data, the Pipeline can be ran
 multiple times and the ``fn.inputs.video`` operator will return consecutive sequences, as long as
 there is enough data remaining. When the source of the frames (the video file) depletes, user needs
-to call another ``feed_input`` to provide the next video file to the operator. This Operator has an
-inner-queue for the data, so the ``feed_input`` may be called multiple times and when given video
-file ends, the Operator will fetch the next one automatically from the top of the queue.
+to call another ``feed_input`` again to provide the next video file to the operator. This Operator
+has an inner-queue for the data, so the ``feed_input`` may be called multiple times and when given
+video file ends, the Operator will fetch the next one automatically from the top of the queue.
 Running the pipeline while there is no data for the ``fn.inputs.video`` to run results in an error.
 
 This operator takes only one video as and input (i.e. ``input_batch_size=1``) and will return
-batches of sequences, where every output batch will have the size, which has been set during
-the Pipeline object instantiation (``max_batch_size``). When the number of frames in the video
-file does not allow to split the frames uniformly across batches, the last batch returned by
-this operator for a given video will be partial and the last sequence in this batch will be
-determined using ``last_sequence_policy`` parameter. For example::
+batches of sequences. Every output batch will have the ``max_batch_size``, set during the Pipeline
+creation. When the number of frames in the video file does not allow to split the frames uniformly
+across batches, the last batch returned by this operator for a given video will be partial and the
+last sequence in this batch will be determined using ``last_sequence_policy`` parameter.
+For example::
 
 
     This is a video that consists of 67 frames (every '-' is a frame):
     -------------------------------------------------------------------
+
 
     User decided that there shall be 5 frames per sequence and the last_sequence_policy='partial':
     -------------------------------------------------------------------
@@ -106,12 +114,18 @@ determined using ``last_sequence_policy`` parameter. For example::
     -------------------------------------------------------------------
                       Since there are not enough frames, the last sequence comprises 2 frames.
 
-    The Pipeline has max_batch_size=3, therefore the operator will return batches of 3 sequences:
-    --------------- --------------- --------------- --------------- -------
-    [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][]
-    --------------- --------------- --------------- --------------- -------
-                      The last batch is partial and comprises 2 sequences.
 
+    The Pipeline has max_batch_size=3, therefore the operator will return 5 batches of sequences.
+    First 4 batches comprise 3 sequences and the last batch is partial and comprises 2 sequences.
+    ---------------   ---------------   ---------------   ---------------   -------
+    [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][]
+    ---------------   ---------------   ---------------   ---------------   -------
+
+
+    With the last_sequence_policy='pad', the last sequence of the last batch will be padded with 0:
+    ---------------   ---------------   ---------------   ---------------   -------000
+    [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ]
+    ---------------   ---------------   ---------------   ---------------   -------000
 
 The difference between ``fn.inputs.video`` and ``fn.readers.video`` is that the former
 reads an encoded video from memory and the latter reads the encoded video from disk.
@@ -128,16 +142,17 @@ which may result in a slowdown.
                 .NumInput(0)
                 .NumOutput(1)
                 .AddArg("frames_per_sequence", R"code(
-How many frames shall make up a single sequence returned by the operator.
+Number of frames in each sequence.
 )code", DALI_INT32)
                 .AddOptionalArg("last_sequence_policy", R"code(
 Specifies, how to handle the last sequence in the video file.
 
 For a given number of frames in the video file and ``frames_per_sequence`` parameter,
 it might happen that the video can't be split uniformly across sequences. If the
-``last_sequence_policy='partial'``, the last sequence will have less frames than
+``last_sequence_policy='partial'``, the last sequence might have fewer frames than
 ``frames_per_sequence`` value specified. If the ``last_sequence_policy='partial'``,
-the last sequence will have ``frames_per_sequence`` frames and will be padded with empty frames.
+the last sequence will always have ``frames_per_sequence`` frames and will
+be padded with empty frames.
 
 Allowed values are ``'partial'`` and ``'pad'``.
 )code", "partial")

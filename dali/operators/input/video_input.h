@@ -49,7 +49,7 @@ auto DetermineBatchOutline(int num_frames, int frames_per_sequence, int batch_si
   assert(frames_per_sequence > 0);
   assert(batch_size > 0);
   // Initially, the Operator will return full batches of full sequences.
-  const int num_full_batches = num_frames / frames_per_sequence / batch_size;
+  const int num_full_batches = num_frames / (frames_per_sequence * batch_size);
   const int remaining_frames = num_frames - num_full_batches * frames_per_sequence * batch_size;
   assert(remaining_frames < frames_per_sequence * batch_size);
 
@@ -87,7 +87,6 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
     DALI_ENFORCE(last_sequence_policy_ == "partial" || last_sequence_policy_ == "pad",
                  make_string("Provided `last_sequence_policy` is not supported: ",
                              last_sequence_policy_));
-    Invalidate();
   }
 
 

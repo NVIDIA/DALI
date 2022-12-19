@@ -156,7 +156,7 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     for _ in range(num_iterations):
         out1 = partial_pipe.run()
         out2 = pad_pipe.run()
-        assert np.all(out1[0].as_array() == out2[0].as_array())
+        np.testing.assert_array_equal(out1[0].as_array(), out2[0].as_array())
 
     remaining_frames = num_frames - num_iterations * frames_per_sequence * batch_size
     if remaining_frames == 0:
@@ -168,7 +168,7 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     partial_out = partial_pipe.run()
     pad_out = pad_pipe.run()
     for i in range(num_full_sequences):
-        assert np.all(np.array(partial_out[0][i]) == np.array(pad_out[0][i]))
+        np.testing.assert_array_equal(np.array(partial_out[0][i]), np.array(pad_out[0][i]))
 
     # And lastly, the actual check PARTIAL vs PAD -
     # the last sequence in the last batch, which might be partial (or padded).
@@ -179,9 +179,9 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     last_pad_sequence = np.array(pad_out[0][num_full_sequences])
     for i in range(num_frames_in_partial_sequence):
         # The frames that are in both - partial and padded sequences.
-        np.all(last_partial_sequence[i] == last_pad_sequence[i])
+        np.testing.assert_array_equal(last_partial_sequence[i], last_pad_sequence[i])
     frame_shape = last_pad_sequence[0].shape
     empty_frame = np.zeros(frame_shape, dtype=np.uint8)
     for i in range(num_frames_in_partial_sequence, frames_per_sequence):
         # The frames that are only in padded sequence.
-        np.all(last_pad_sequence[i] == empty_frame)
+        np.testing.assert_array_equal(last_pad_sequence[i], empty_frame)
