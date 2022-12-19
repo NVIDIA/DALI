@@ -157,7 +157,7 @@ class NVDECCache {
         best_match->second.width = width;
         best_match->second.num_decode_surfaces = num_decode_surfaces;
         CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
-        return NVDECLease(best_match->second);
+        return NVDECLease(this, &best_match->second);
       }
 #endif
       lock.unlock();
