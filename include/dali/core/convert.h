@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -118,7 +118,11 @@ DALI_HOST_DEV constexpr std::enable_if_t<
     needs_clamp<U, T>::value && std::is_unsigned<U>::value,
     T>
 clamp(U value, ret_type<T>) {
-  return value >= max_value<T>() ? max_value<T>() : static_cast<T>(value);
+  // Note: make the right hand side of the comparison unsigned, silencing warnings
+  // Add U(0) - adding simply 0u is not enough if T is larger than `unsigned`.
+  // U is guaranteed to be at least as large as T or the clamping wouldn't be necessary
+  // and this function would have been disabled by `needs_clamp`.
+  return value >= max_value<T>() + U(0) ? max_value<T>() : static_cast<T>(value);
 }
 
 template <typename T, typename U>
