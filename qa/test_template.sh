@@ -70,7 +70,7 @@ enable_sanitizer() {
     # in the stack trace, to prevent this provide dlclose that does nothing
     echo "int dlclose(void* a) { return 0; }" > /tmp/fake_dlclose.c && gcc -shared -o /tmp/libfakeclose.so /tmp/fake_dlclose.c
     export OLD_LD_PRELOAD=${LD_PRELOAD}
-    export LD_PRELOAD="${LD_PRELOAD} /tmp/libfakeclose.so"
+    export LD_PRELOAD="${LD_PRELOAD} /usr/lib/x86_64-linux-gnu/libasan.so /usr/lib/x86_64-linux-gnu/libstdc++.so /tmp/libfakeclose.so"
 }
 
 # turn off sanitizer to avoid breaking any non-related system built-ins
