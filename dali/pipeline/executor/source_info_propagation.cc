@@ -23,6 +23,8 @@
 
 namespace dali {
 
+namespace {
+
 template <typename Backend>
 bool SourceInfoDefined(const TensorList<Backend> &tl) {
   for (int s = 0; s < tl.num_samples(); s++)
@@ -70,6 +72,8 @@ void ClearOutputSourceInfo(Workspace &ws) {
     }
   }
 }
+
+}  // namespace
 
 bool PropagateSourceInfo(Workspace &ws) {
   int num_inputs = ws.NumInput();
