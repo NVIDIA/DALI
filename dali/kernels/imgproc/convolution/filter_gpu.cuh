@@ -76,7 +76,8 @@ struct FilterGpu {
   void Run(KernelContext& ctx, const TensorListView<StorageGPU, Out, ndim>& out,
            const TensorListView<StorageGPU, const In, ndim>& in,
            const TensorListView<StorageGPU, const W, axes>& filters,
-           const span<const ivec<axes>> anchors, boundary::BoundaryType border_type,
+           const span<const ivec<axes>> anchors,
+           boundary::BoundaryType border_type,
            const TensorListView<StorageGPU, const In, 0>& fill_values = {}) {
     auto num_samples = in.shape.num_samples();
     assert(out.num_samples() == num_samples && filters.num_samples() == num_samples &&
