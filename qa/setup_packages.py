@@ -210,8 +210,9 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
-        pkg_cmd = "{name}=={version}".format(name=self.get_name(cuda_version, idx),
-                                             version=self.get_version(idx, cuda_version))
+        version = version=self.get_version(idx, cuda_version)
+        op = "" if version[0] in ("<", ">", "=") else "=="
+        pkg_cmd = f"{self.get_name(cuda_version, idx)}{op}{version}";
         deps_cmd = self.get_dependencies(cuda_version, idx)
         if deps_cmd is not None:
             pkg_cmd = " ".join([pkg_cmd] + deps_cmd)
@@ -437,7 +438,8 @@ class CudaHttpPackage(CudaPackage):
         return ""
 
 
-all_packages = [PlainPackage("opencv-python", ["4.5.1.48"], dependencies=["numpy<1.24"]),
+all_packages = [PlainPackage("numpy", ["<1.24"]),
+                PlainPackage("opencv-python", ["4.5.1.48"]),
                 CudaPackage("cupy",
                             {"100": ["8.6.0"],
                              "110": ["8.6.0"],
