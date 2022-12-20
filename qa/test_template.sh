@@ -58,7 +58,6 @@ epilog=${epilog-:}
 # get the number of elements in `prolog` array
 numer_of_prolog_elms=${#prolog[@]}
 
-# turn on sanitizers
 enable_sanitizer() {
     # supress leaks that are false positive or not related to DALI
     export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
@@ -75,7 +74,8 @@ enable_sanitizer() {
     gcc -shared -fPIC $topdir/qa/test_wrapper_pre.c -o /tmp/pre.so
     gcc -shared -fPIC $topdir/qa/test_wrapper_post.c -o /tmp/post.so
     export OLD_LD_PRELOAD=${LD_PRELOAD}
-    export LD_PRELOAD="${LD_PRELOAD} /tmp/pre.so /usr/lib/x86_64-linux-gnu/libasan.so /tmp/post.so /usr/lib/x86_64-linux-gnu/libstdc++.so /tmp/libfakeclose.so"
+    # export LD_PRELOAD="/tmp/pre.so /usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/post.so /usr/lib/x86_64-linux-gnu/libstdc++.so /tmp/libfakeclose.so"
+    export LD_PRELOAD="/tmp/pre.so /usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/post.so /usr/lib/x86_64-linux-gnu/libstdc++.so"
 }
 
 # turn off sanitizer to avoid breaking any non-related system built-ins

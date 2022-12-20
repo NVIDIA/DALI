@@ -70,6 +70,8 @@ void free(void *p) {
     trace_init();
   }
 
+  // asume that allocation and free are done at the same level of _Unwind_Backtrace nesting
+  // so we don't end up allocating from the nested call and releasing from unnested
   if (use_direct_malloc()) {
     direct_free(p);
   } else {
