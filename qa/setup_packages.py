@@ -437,7 +437,7 @@ class CudaHttpPackage(CudaPackage):
         return ""
 
 
-all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
+all_packages = [PlainPackage("opencv-python", ["4.5.1.48"], dependencies=["numpy<1.24"]),
                 CudaPackage("cupy",
                             {"100": ["8.6.0"],
                              "110": ["8.6.0"],
