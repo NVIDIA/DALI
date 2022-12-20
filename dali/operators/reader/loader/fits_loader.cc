@@ -31,7 +31,6 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   int status = 0, hdupos;
   int hdutype, bitpix, bytepix, naxis = 0, nkeys, datatype = 0, anynul;
   long first, totpix = 0, npix;
-
   long naxes[9] = {1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 
@@ -94,88 +93,19 @@ void FitsLoader::ReadSample(FitsFileWrapper& target) {
   }
 
   bytepix = abs(bitpix) / 8;
-
-  npix = totpix;
-  iteration = 0;
-
-  // here data copying happens
-  // we want to copy data to tensor instead of another fits file so yeah;
-
-  /* try to allocate memory for the entire image */
-  /* use double type to force memory alignment */
-  array = (double*)calloc(npix, bytepix);
-
-  /* if allocation failed, divide size by 2 and try again */
-  while (!array && iteration < 10) {
-    iteration++;
-    npix = npix / 2;
-    array = (double*)calloc(npix, bytepix);
-  }
-
-  if (!array) {
-    printf("Memory allocation error\n");
-    return (0);
-  }
-
-  /* turn off any scaling so that we copy the raw pixel values */
-  fits_set_bscale(infptr, bscale, bzero, &status);
-  fits_set_bscale(outfptr, bscale, bzero, &status);
-
-  first = 1;
-  while (totpix > 0 && !status) {
-    /* read all or part of image then write it back to the output file */
-    fits_read_img(infptr, datatype, first, npix, &nulval, array, &anynul, &status);
-
-    fits_write_img(outfptr, datatype, first, npix, array, &status);
-    totpix = totpix - npix;
-    first = first + npix;
-  }
-  free(array);
-
-
-  // hey ho
-
-
-  // read the header
-  // get it to work!
-  fits::HeaderData header;
-  try {
-    fits::ParseHeader(header, current_file.get());
-  } catch (const std::runtime_error& e) {
-    DALI_FAIL(e.what() + ". File: " + filename);
-  }
-
-
-  Index nbytes = header.nbytes();
-
-
-  if (copy_read_data_) {
-    if (target.data.shares_data()) {
-      target.data.Reset();
-    }
-    target.data.Resize(header.shape, header.type());
-    // copy the image
-    Index ret = current_file->Read(static_cast<uint8_t*>(target.data.raw_mutable_data()), nbytes);
-    DALI_ENFORCE(ret == nbytes, make_string("Failed to read file: ", filename));
-  } else {
-    auto p = current_file->Get(nbytes);
-    DALI_ENFORCE(p != nullptr, make_string("Failed to read file: ", filename));
-    // Wrap the raw data in the Tensor object.
-    target.data.ShareData(p, nbytes, false, {nbytes}, header.type(), CPU_ONLY_DEVICE_ID);
-    target.data.Resize(header.shape, header.type());
-  }
+  // should do sth like  that before
+  // target.data.Resize(header.shape, header.type());
+  fits_read_img(infptr, datatype, first, totpix, &nulval, target.data.raw_mutable_data(), &anynul,
+                &status);
 
   // close the file handle
-  current_file->Close();
+  infptr->Close();
 
   // set metadata
   target.data.SetMeta(meta);
 
   // set file path
   target.filename = std::move(path);
-
-  // set meta
-  target.fortran_order = header.fortran_order;
 }
 
 }  // namespace dali
