@@ -128,7 +128,7 @@ void CalculateInputRoI(SmallVector<float, 3> &in_lo, SmallVector<float, 3> &in_h
   in_lo.resize(spatial_ndim);
   in_hi.resize(spatial_ndim);
   assert(roi_start.size() == roi_end.size());
-  assert(roi_start.size() >= spatial_ndim * (sample_idx + 1));
+  assert(!has_roi || roi_start.size() >= spatial_ndim * (sample_idx + 1));
   static constexpr float min_size = 1e-3f;  // minimum size, in pixels
   auto *in_size = &input_shape.tensor_shape_span(sample_idx)[first_spatial_dim];
   for (int d = 0; d < spatial_ndim; d++) {
