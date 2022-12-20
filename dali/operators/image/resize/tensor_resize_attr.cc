@@ -23,27 +23,41 @@
 namespace dali {
 
 DALI_SCHEMA(TensorResizeAttr)
-  .AddOptionalArg<vector<float>>("sizes", R"code(Output sizes.
+    .AddOptionalArg<vector<float>>("sizes", R"code(Output sizes.
 
 When ``axes`` is provided, the size values refer to the axes specified.
-Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code", {}, true)
-  .AddOptionalArg<vector<float>>("scales", R"code(Scale factors.
+Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code",
+                                   {}, true)
+    .AddOptionalArg<vector<float>>("scales", R"code(Scale factors.
 
-Output size is calculated as ``out_size = size_rounding(scale_factor * original_size)``.
+The resulting output size is calculated as
+``out_size = size_rounding(scale_factor * original_size)``.
 See ``size_rounding`` for a list of supported rounding policies.
 
 When ``axes`` is provided, the scale factor values refer to the axes specified.
-Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code", {}, true)
-  .AddOptionalArg("axes", R"code(Indices of dimensions that `sizes`, `scales`, `max_size`, `roi_start`, `roi_end` refer to.
+Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code",
+                                   {}, true)
+    .AddOptionalArg<int>("alignment", R"code(Determines the position of the ROI (provided or calculated).
 
-By default, all dimensions are assumed.)code", std::vector<int>{})
-  .AddOptionalArg<std::string>("size_rounding", R"code(Determines the rounding policy when using scales.
+Accepted values are -1 (align with top-left corner), 0 (centered), 1 (align with bottom-right corner).
+By default, 0 (centered) is assumed. Contains as many elements as dimensions provided for sizes/scales.
+If only one value is provided, it is apply to all dimensions.)code",
+                                   std::vector<int>{0}, true)
+    .AddOptionalArg(
+        "axes",
+        R"code(Indices of dimensions that `sizes`, `scales`, `max_size`, `roi_start`, `roi_end` refer to.
+
+By default, all dimensions are assumed.)code",
+        std::vector<int>{})
+    .AddOptionalArg<std::string>("size_rounding",
+                                 R"code(Determines the rounding policy when using scales.
 
 Possible values are:
 * | ``"round"`` - Rounds the resulting size to the nearest integer value, with halfway cases rounded away from zero.
 * | ``"truncate"`` - Discards the fractional part of the resulting size.
-* | ``"ceil"`` - Rounds up the resulting size to the next integer value.)code", "truncate")
-  .AddParent("ResizeAttrBase");
+* | ``"ceil"`` - Rounds up the resulting size to the next integer value.)code",
+                                 "truncate")
+    .AddParent("ResizeAttrBase");
 
 
 void TensorResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
@@ -52,6 +66,7 @@ void TensorResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
   has_max_size_ = spec.ArgumentDefined("max_size");
   has_mode_ = spec.ArgumentDefined("mode");
   has_axes_ = spec.ArgumentDefined("axes");
+  has_alignment_ = spec.ArgumentDefined("alignment");
   subpixel_scale_ = spec.GetArgument<bool>("subpixel_scale");
 
   DALI_ENFORCE(has_scales_ + has_sizes_ == 1, "Need one of ``scales`` or ``sizes``, but not both");
@@ -76,6 +91,24 @@ void TensorResizeAttr::SetFlagsAndMode(const OpSpec &spec) {
                "Providing ``scales`` is incompatible with not-smaller or not-larger modes");
 }
 
+template <typename T>
+void GetShapeLikeWithAxes(std::vector<T> &full, std::vector<T> &arg,
+                          const OpSpec& spec, const ArgumentWorkspace &ws,
+                          const std::string &arg_name, span<const int> axes,
+                          int nsamples, int ndim, int nargs) {
+  GetShapeLikeArgument<T>(arg, spec, arg_name, ws, nsamples, nargs);
+  full.resize(nsamples * ndim);
+  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    auto orig_arg = make_span(arg.data() + sample_idx * nargs, nargs);
+    auto full_arg = make_span(full.data() + sample_idx * ndim, ndim);
+    for (int i = 0; i < nargs; i++) {
+      int d = axes[i];
+      assert(d < ndim);
+      full_arg[d] = orig_arg[i];
+    }
+  }
+}
+
 void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWorkspace &ws,
                                            const TensorListShape<> &input_shape) {
   SetFlagsAndMode(spec);
@@ -92,32 +125,28 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
   int nsamples = input_shape.num_samples();
   params_.resize(nsamples);
 
-  auto get_shape_like_with_axes = [&](std::vector<float> &full, std::vector<float> &arg,
-                                      const std::string &arg_name) {
-    GetShapeLikeArgument<float>(arg, spec, arg_name, ws, nsamples, nargs);
-    full.resize(nsamples * ndim_);
-    for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-      auto orig_arg = make_span(arg.data() + sample_idx * nargs, nargs);
-      auto full_arg = make_span(full.data() + sample_idx * ndim_, ndim_);
-      for (int i = 0; i < nargs; i++) {
-        int d = axes_[i];
-        assert(d < ndim_);
-        full_arg[d] = orig_arg[i];
-      }
-    }
-  };
+  auto axes = make_cspan(axes_);
+
+  if (has_alignment_) {
+    GetShapeLikeWithAxes<int>(alignment_, alignment_arg_, spec, ws, "alignment", axes, nsamples,
+                              ndim_, nargs);
+  }
 
   if (has_sizes_) {
-    get_shape_like_with_axes(sizes_, sizes_arg_, "sizes");
+    GetShapeLikeWithAxes<float>(sizes_, sizes_arg_, spec, ws, "sizes", axes, nsamples, ndim_,
+                                nargs);
   } else if (has_scales_) {
-    get_shape_like_with_axes(scales_, scales_arg_, "scales");
+    GetShapeLikeWithAxes<float>(scales_, scales_arg_, spec, ws, "scales", axes, nsamples, ndim_,
+                                nargs);
   } else {
     assert(false);  // should not happen
   }
 
   if (has_roi_) {
-    get_shape_like_with_axes(roi_start_, roi_start_arg_, "roi_start");
-    get_shape_like_with_axes(roi_end_, roi_end_arg_, "roi_end");
+    GetShapeLikeWithAxes<float>(roi_start_, roi_start_arg_, spec, ws, "roi_start", axes, nsamples,
+                                ndim_, nargs);
+    GetShapeLikeWithAxes<float>(roi_end_, roi_end_arg_, spec, ws, "roi_end", axes, nsamples, ndim_,
+                                nargs);
   }
 
   spatial_ndim_ = ndim_;
@@ -149,16 +178,20 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
     } else {
       assert(has_scales_);
       for (int d = 0; d < ndim_; d++) {
-        requested_size[d] =
-            scale_round_fn_(static_cast<double>(scales_[i * ndim_ + d]) * in_sample_shape[d]);
+        requested_size[d] = scales_[i * ndim_ + d] * in_sample_shape[d];
       }
     }
 
     bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
     CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, roi_start_.data(), roi_end_.data(),
                       input_shape, i, ndim_, 0);
+
+    span<const int> alignment;
+    if (has_alignment_)
+      alignment = {alignment_.data() + i * ndim_, ndim_};
+    assert(subpixel_scale_ || !has_alignment_);
     CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
-                          ndim_, mode_, max_size);
+                          ndim_, mode_, max_size, alignment, scale_round_fn_);
   }
 }
 

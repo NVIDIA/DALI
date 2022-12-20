@@ -34,15 +34,15 @@ class DLL_PUBLIC TensorResizeAttr {
 
     auto rounding = spec.GetArgument<std::string>("size_rounding");
     if (rounding == "round") {
-      scale_round_fn_ = [](double x) {
-        return static_cast<int>(std::round(x));
+      scale_round_fn_ = [](float x) {
+        return round_int(x);
       };
     } else if (rounding == "truncate") {
-      scale_round_fn_ = [](double x) {
+      scale_round_fn_ = [](float x) {
         return static_cast<int>(x);
       };
     } else if (rounding == "ceil") {
-      scale_round_fn_ = [](double x) {
+      scale_round_fn_ = [](float x) {
         return static_cast<int>(std::ceil(x));
       };
     } else {
@@ -87,6 +87,7 @@ class DLL_PUBLIC TensorResizeAttr {
   bool has_mode_ = false;
   bool has_roi_ = false;
   bool has_axes_ = false;
+  bool has_alignment_ = false;
   bool roi_relative_ = false;
 
   int ndim_ = -1;
@@ -100,7 +101,8 @@ class DLL_PUBLIC TensorResizeAttr {
   vector<float> sizes_, sizes_arg_;
   vector<float> scales_, scales_arg_;
   vector<float> roi_start_, roi_start_arg_, roi_end_, roi_end_arg_;
-  std::function<int64_t(double)> scale_round_fn_;
+  vector<int> alignment_, alignment_arg_;
+  std::function<int(float)> scale_round_fn_;
 
   void SetFlagsAndMode(const OpSpec &spec);
 };
