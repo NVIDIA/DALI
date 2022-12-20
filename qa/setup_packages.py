@@ -211,7 +211,7 @@ class BasePackage():
                 Cuda version used for this query
         """
         version = version=self.get_version(idx, cuda_version)
-        op = "" if version[0] in ("<", ">", "=") else "=="
+        op = "" if str(version)[0] in ("<", ">", "=") else "=="
         pkg_cmd = f"{self.get_name(cuda_version, idx)}{op}{version}";
         deps_cmd = self.get_dependencies(cuda_version, idx)
         if deps_cmd is not None:
@@ -514,7 +514,8 @@ def print_configs(cuda_version):
         for v in pckg.get_all_versions(cuda_version):
             alias = BasePackage.get_alias(v)
             if alias is not None:
-                v = "{}=={}".format(alias, v)
+                op = "" if str(v)[0] in ("<", ">", "=") else "=="
+                v = f"{alias}{op}{v}"
             print("\t{}".format(v))
 
 
