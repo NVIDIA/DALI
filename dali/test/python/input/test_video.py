@@ -65,10 +65,9 @@ def video_decoder_pipeline(input_name, device='cpu'):
 
 
 @pipeline_def
-def video_input_pipeline(input_name, frames_per_sequence,
-                         last_sequence_policy='partial', device='cpu'):
+def video_input_pipeline(input_name, sequence_length, last_sequence_policy='partial', device='cpu'):
     vid = fn.experimental.inputs.video(name=input_name, device=device, blocking=False,
-                                       frames_per_sequence=frames_per_sequence,
+                                       sequence_length=sequence_length,
                                        last_sequence_policy=last_sequence_policy)
     return vid
 
@@ -128,7 +127,7 @@ def test_video_input_compare_with_video_decoder(device, frames_per_sequence, bat
     decoder_pipe = video_decoder_pipeline(input_name=input_name, batch_size=1, device=device,
                                           **common_pipeline_params)
     input_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
-                                      frames_per_sequence=frames_per_sequence, device=device,
+                                      sequence_length=frames_per_sequence, device=device,
                                       **common_pipeline_params)
 
     decoder_pipe.build()
@@ -148,10 +147,10 @@ def test_video_input_compare_with_video_decoder(device, frames_per_sequence, bat
 def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, test_video):
     input_name = "VIDEO_INPUT"
     partial_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
-                                        frames_per_sequence=frames_per_sequence, device=device,
+                                        sequence_length=frames_per_sequence, device=device,
                                         last_sequence_policy='partial', **common_pipeline_params)
     pad_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
-                                    frames_per_sequence=frames_per_sequence, device=device,
+                                    sequence_length=frames_per_sequence, device=device,
                                     last_sequence_policy='pad', **common_pipeline_params)
 
     num_frames = get_num_frames(test_video)
@@ -206,7 +205,7 @@ def test_video_input_input_queue(device, n_test_files):
     frames_per_sequence = 4
 
     input_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
-                                      frames_per_sequence=frames_per_sequence, device=device,
+                                      sequence_length=frames_per_sequence, device=device,
                                       **common_pipeline_params)
 
     input_pipe.build()

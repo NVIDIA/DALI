@@ -65,7 +65,7 @@ void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
     auto pad_value =
             last_sequence_policy_ == "pad" ? std::optional<SampleView<CPUBackend>>(GetPadFrame())
                                            : std::nullopt;
-    full_sequence = DecodeFrames(output[s], 0, frames_per_sequence_, pad_value);
+    full_sequence = DecodeFrames(output[s], 0, sequence_length_, pad_value);
     if (!full_sequence) {
       break;
     }
@@ -143,7 +143,7 @@ which may result in a slowdown.
 )code")
                 .NumInput(0)
                 .NumOutput(1)
-                .AddArg("frames_per_sequence", R"code(
+                .AddArg("sequence_length", R"code(
 Number of frames in each sequence.
 )code", DALI_INT32)
                 .AddOptionalArg("last_sequence_policy", R"code(

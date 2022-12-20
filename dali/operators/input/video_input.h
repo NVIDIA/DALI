@@ -80,7 +80,7 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
  public:
   explicit VideoInput(const OpSpec &spec) :
           InputOperator<Backend>(spec),
-          frames_per_sequence_(spec.GetArgument<int>("frames_per_sequence")),
+          sequence_length_(spec.GetArgument<int>("sequence_length")),
           device_id_(spec.GetArgument<int>("device_id")),
           batch_size_(spec.GetArgument<int>("max_batch_size")),
           last_sequence_policy_(spec.GetArgument<std::string>("last_sequence_policy")) {
@@ -121,11 +121,11 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
    */
   void DetermineOutputDescs(int num_frames) {
     auto [num_full_batches, num_full_sequences, frames_in_last_sequence] =
-            detail::DetermineBatchOutline(num_frames, frames_per_sequence_, batch_size_);
+            detail::DetermineBatchOutline(num_frames, sequence_length_, batch_size_);
     // Initially, the Operator will return full batches of full sequences.
     for (int i = 0; i < num_full_batches; i++) {
       OutputDesc od;
-      od.shape = uniform_list_shape(batch_size_, GetSequenceShape(frames_per_sequence_, 0));
+      od.shape = uniform_list_shape(batch_size_, GetSequenceShape(sequence_length_, 0));
       od.type = DALI_UINT8;
       output_descs_.push_back(od);
     }
@@ -139,7 +139,7 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
     // Then, in the last batch, first few sequences will be full.
     od.shape = uniform_list_shape(
             num_full_sequences + (frames_in_last_sequence == 0 ? 0 : 1),
-            GetSequenceShape(frames_per_sequence_, 0));
+            GetSequenceShape(sequence_length_, 0));
 
     // And at the end of the last batch, the last sequence will be either partial or padded,
     // depending on user setting.
@@ -181,7 +181,7 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
   }
 
 
-  const int frames_per_sequence_ = {};
+  const int sequence_length_ = {};
   const int device_id_ = {};
   const int batch_size_ = {};
   const std::string last_sequence_policy_;
