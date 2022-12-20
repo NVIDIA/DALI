@@ -59,6 +59,7 @@ bool VideoInput<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 template<>
 void VideoInput<CPUBackend>::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
+  output.SetLayout("FHWC");
   bool full_sequence;
   for (int64_t s = 0; s < output.num_samples(); s++) {
     auto pad_value =
@@ -80,18 +81,17 @@ DALI_SCHEMA(experimental__inputs__Video)
                         R"code(
 Streams and decodes a video from a memory buffer. To be used with long and high resolution videos.
 
-Returns a batch of sequences of frames, with the layout: ``(N, F, H, W, C)``, where:
+Returns a batch of sequences of frames, with the layout: ``(F, H, W, C)``, where:
 
-* ``N`` - number of sequences in a batch. Currently ``N=max_batch_size``,
 * ``F`` - number of frames in a sequence,
 * ``H`` - height of the frame,
 * ``W`` - width of the frame,
 * ``C`` - number of channels in the frame.
 
 When using ``fn.inputs.video`` operator inside the DALI Pipeline, the user needs to provide the data
-using :meth:`Pipeline.feed_input`. When the Operator is fed with data, the Pipeline can be ran
+using :meth:`Pipeline.feed_input`. When the Operator is fed with data, the Pipeline can be run
 multiple times and the ``fn.inputs.video`` operator will return consecutive sequences, as long as
-there is enough data remaining. When the source of the frames (the video file) depletes, user needs
+there is enough data to decode. When the source of the frames (the video file) depletes, user needs
 to call another ``feed_input`` again to provide the next video file to the operator. This Operator
 has an inner-queue for the data, so the ``feed_input`` may be called multiple times and when given
 video file ends, the Operator will fetch the next one automatically from the top of the queue.

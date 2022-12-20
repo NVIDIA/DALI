@@ -37,7 +37,7 @@ namespace detail {
  * --------------- --------------- --------------- --------------- -------
  * [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][   ][   ] [   ][]
  * --------------- --------------- --------------- --------------- -------
- * 4 full batches of full sequences, and 1 (last) partial batch with 2 full sequences
+ * 4 full batches of full sequences, and 1 (last) partial batch with 1 full sequence
  * and 2-frame partial sequence at the end.
  *
  * @param num_frames How many frames the video has.
@@ -141,11 +141,11 @@ class VideoInput : public VideoDecoderBase<Backend, FramesDecoder>, public Input
             num_full_sequences + (frames_in_last_sequence == 0 ? 0 : 1),
             GetSequenceShape(frames_per_sequence_, 0));
 
-    if (frames_in_last_sequence != 0) {
-      // And at the end of the last batch, the last sequence will be either partial or padded,
-      // depending on user setting.
-      od.shape.set_tensor_shape(od.shape.num_samples() - 1, GetSequenceShape(
-              last_sequence_policy_ == "pad" ? frames_per_sequence_ : frames_in_last_sequence, 0));
+    // And at the end of the last batch, the last sequence will be either partial or padded,
+    // depending on user setting.
+    if (frames_in_last_sequence != 0 && last_sequence_policy_ != "pad") {
+      od.shape.set_tensor_shape(od.shape.num_samples() - 1,
+                                GetSequenceShape(frames_in_last_sequence, 0));
     }
     output_descs_.push_back(od);
   }
