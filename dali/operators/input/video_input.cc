@@ -98,11 +98,11 @@ video file ends, the Operator will fetch the next one automatically from the top
 Running the pipeline while there is no data for the ``fn.inputs.video`` to run results in an error.
 
 This operator takes only one video as and input (i.e. ``input_batch_size=1``) and will return
-batches of sequences. Every output batch will have the ``max_batch_size``, set during the Pipeline
-creation. When the number of frames in the video file does not allow to split the frames uniformly
-across batches, the last batch returned by this operator for a given video will be partial and the
-last sequence in this batch will be determined using ``last_sequence_policy`` parameter.
-For example::
+batches of sequences. Every output batch will have the ``max_batch_size`` samples, set during
+the Pipeline creation. When the number of frames in the video file does not allow to split
+the frames uniformly across batches, the last batch returned by this operator for a given video
+will be partial and the last sequence in this batch will be determined using
+``last_sequence_policy`` parameter. For example::
 
 
     This is a video that consists of 67 frames (every '-' is a frame):
@@ -127,6 +127,7 @@ For example::
     ---------------   ---------------   ---------------   ---------------   -------000
     [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ][   ]   [   ][   ]
     ---------------   ---------------   ---------------   ---------------   -------000
+
 
 The difference between ``fn.inputs.video`` and ``fn.readers.video`` is that the former
 reads an encoded video from memory and the latter reads the encoded video from disk.

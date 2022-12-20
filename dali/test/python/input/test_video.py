@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import glob
+import itertools
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from nose2.tools import params
+from nose_utils import assert_raises
 from nvidia.dali import pipeline_def
 from test_utils import get_dali_extra_path
 
@@ -91,6 +93,14 @@ def get_num_frames(encoded_video):
     return decoder_out[0].as_array()[0].shape[0]
 
 
+def get_batch_outline(num_frames, frames_per_sequence, batch_size):
+    num_iterations = num_frames // (frames_per_sequence * batch_size)
+    remaining_frames = num_frames - num_iterations * frames_per_sequence * batch_size
+    num_full_sequences = remaining_frames // frames_per_sequence
+    num_frames_in_partial_sequence = remaining_frames - num_full_sequences * frames_per_sequence
+    return num_iterations, num_full_sequences, num_frames_in_partial_sequence
+
+
 def portion_out_reference_sequence(decoder_pipe_out, frames_per_sequence, batch_size):
     """
     A generator, that takes the output from VideoDecoder DALI pipeline. Then, based of the
@@ -151,20 +161,20 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     pad_pipe.build()
     pad_pipe.feed_input(input_name, np.array([[test_video]]))
 
+    num_iterations, num_full_sequences, num_frames_in_partial_sequence = get_batch_outline(
+        num_frames, frames_per_sequence, batch_size)
+
     # First, check all the full batches with full sequences
-    num_iterations = num_frames // (frames_per_sequence * batch_size)
     for _ in range(num_iterations):
         out1 = partial_pipe.run()
         out2 = pad_pipe.run()
         np.testing.assert_array_equal(out1[0].as_array(), out2[0].as_array())
 
-    remaining_frames = num_frames - num_iterations * frames_per_sequence * batch_size
-    if remaining_frames == 0:
+    if num_frames - num_iterations * frames_per_sequence * batch_size == 0:
         # Frames have been split equally across batches.
         return
 
     # Now check the full sequences in the last batch
-    num_full_sequences = remaining_frames // frames_per_sequence
     partial_out = partial_pipe.run()
     pad_out = pad_pipe.run()
     for i in range(num_full_sequences):
@@ -172,7 +182,6 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
 
     # And lastly, the actual check PARTIAL vs PAD -
     # the last sequence in the last batch, which might be partial (or padded).
-    num_frames_in_partial_sequence = remaining_frames - num_full_sequences * frames_per_sequence
     if num_frames_in_partial_sequence == 0:
         return
     last_partial_sequence = np.array(partial_out[0][num_full_sequences])
@@ -185,3 +194,36 @@ def test_video_input_partial_vs_pad(device, frames_per_sequence, batch_size, tes
     for i in range(num_frames_in_partial_sequence, frames_per_sequence):
         # The frames that are only in padded sequence.
         np.testing.assert_array_equal(last_pad_sequence[i], empty_frame)
+
+
+@params(*itertools.product(device_values, (1, 4)))
+def test_video_input_input_queue(device, n_test_files):
+    """
+    Checks the input queue on `fn.inputs.video` operator.
+    """
+    input_name = "VIDEO_INPUT"
+    batch_size = 3
+    frames_per_sequence = 4
+
+    input_pipe = video_input_pipeline(input_name=input_name, batch_size=batch_size,
+                                      frames_per_sequence=frames_per_sequence, device=device,
+                                      **common_pipeline_params)
+
+    input_pipe.build()
+    for i in range(n_test_files):
+        input_pipe.feed_input(input_name, np.array([[files[i]]]))
+
+    n_runs = 0
+    for i in range(n_test_files):
+        num_frames = get_num_frames(files[i])
+        ni, nfs, nfips = get_batch_outline(num_frames, frames_per_sequence, batch_size)
+        n_runs += ni + (1 if nfs + nfips > 0 else 0)
+
+    for _ in range(n_runs):
+        input_pipe.run()
+    # If exception has not been thrown, the test pass.
+
+    with assert_raises(
+            RuntimeError,
+            glob="No data was provided to the InputOperator. Make sure to feed it properly."):
+        input_pipe.run()

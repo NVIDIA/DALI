@@ -178,7 +178,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
       cv_.wait(busy_lock, [&data = state_] { return !data.empty(); });
     } else {
       if (state_.empty()) {
-        DALI_FAIL("No data was provided to the ExternalSource. Make sure to feed it properly.");
+        DALI_FAIL("No data was provided to the InputOperator. Make sure to feed it properly.");
       }
     }
   }
