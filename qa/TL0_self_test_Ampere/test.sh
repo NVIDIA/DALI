@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 
-pip_packages='${python_test_runner_package} numpy>=1.17'
+pip_packages='${python_test_runner_package} numpy'
 
 target_dir=./dali/test/python
 
