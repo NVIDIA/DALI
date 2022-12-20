@@ -210,8 +210,9 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
-        pkg_cmd = "{name}=={version}".format(name=self.get_name(cuda_version, idx),
-                                             version=self.get_version(idx, cuda_version))
+        version = version=self.get_version(idx, cuda_version)
+        op = "" if str(version)[0] in ("<", ">", "=") else "=="
+        pkg_cmd = f"{self.get_name(cuda_version, idx)}{op}{version}";
         deps_cmd = self.get_dependencies(cuda_version, idx)
         if deps_cmd is not None:
             pkg_cmd = " ".join([pkg_cmd] + deps_cmd)
@@ -437,7 +438,8 @@ class CudaHttpPackage(CudaPackage):
         return ""
 
 
-all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
+all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
+                PlainPackage("opencv-python",[PckgVer("4.5.1.48", dependencies=["numpy<1.24"])]),
                 CudaPackage("cupy",
                             {"100": ["8.6.0"],
                              "110": ["8.6.0"],
@@ -451,36 +453,36 @@ all_packages = [PlainPackage("opencv-python", ["4.5.1.48"]),
                 CudaPackage("tensorflow-gpu",
                             {"100": [
                                 PckgVer("1.15.5", python_max_ver="3.7",
-                                        dependencies=["protobuf<4"]),
+                                        dependencies=["protobuf<4", "numpy<1.24"]),
                                 PckgVer("2.3.4", python_max_ver="3.8",
-                                        dependencies=["protobuf<4"])],
+                                        dependencies=["protobuf<4", "numpy<1.24"])],
                              "110": [
                                 PckgVer("2.10.1", python_min_ver="3.7",
-                                        dependencies=["protobuf<4"]),
+                                        dependencies=["protobuf<4", "numpy<1.24"]),
                                 PckgVer("2.11.0", python_min_ver="3.7",
-                                        dependencies=["protobuf<4"]),
+                                        dependencies=["protobuf<4", "numpy<1.24"]),
                                 PckgVer("1.15.5+nv22.11", python_min_ver="3.8",
                                         python_max_ver="3.8", alias="nvidia-tensorflow",
-                                        dependencies=["protobuf<4"])]}),
+                                        dependencies=["protobuf<4", "numpy<1.24"])]}),
                 CudaPackageExtraIndex("torch",
-                                      {"101": ["1.8.0"],
-                                       "111": ["1.8.0"]},
+                                      {"101": [PckgVer("1.8.0", dependencies=["numpy<1.24"])],
+                                       "111": [PckgVer("1.8.0", dependencies=["numpy<1.24"])]},
                                       extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackageExtraIndex("torchvision",
-                                      {"101": ["0.9.0"],
-                                       "111": ["0.9.0"]},
+                                      {"101": [PckgVer("0.9.0", dependencies=["numpy<1.24"])],
+                                       "111": [PckgVer("0.9.0", dependencies=["numpy<1.24"])]},
                                       extra_index="https://download.pytorch.org/whl/cu{cuda_v}/"),
                 CudaPackage("paddlepaddle-gpu",
                             {"100": [
-                                PckgVer("2.2.0", dependencies=["protobuf<4"])],
+                                PckgVer("2.2.0", dependencies=["protobuf<4", "numpy<1.24"])],
                              "110": [
-                                PckgVer("2.2.0", dependencies=["protobuf<4"])]}),
+                                PckgVer("2.2.0", dependencies=["protobuf<4", "numpy<1.24"])]}),
                 CudaPackage("numba",
                             {"100": [
-                                PckgVer("0.55.2", python_min_ver="3.7"),
+                                PckgVer("0.55.2", python_min_ver="3.7", dependencies=["numpy<1.24"]),
                                 PckgVer("0.53.1", python_max_ver="3.6")],
                              "110": [
-                                PckgVer("0.56.0", python_min_ver="3.7"),
+                                PckgVer("0.56.0", python_min_ver="3.7", dependencies=["numpy<1.24"]),
                                 PckgVer("0.53.1", python_max_ver="3.6")]})
                 ]
 
@@ -512,7 +514,8 @@ def print_configs(cuda_version):
         for v in pckg.get_all_versions(cuda_version):
             alias = BasePackage.get_alias(v)
             if alias is not None:
-                v = "{}=={}".format(alias, v)
+                op = "" if str(v)[0] in ("<", ">", "=") else "=="
+                v = f"{alias}{op}{v}"
             print("\t{}".format(v))
 
 
