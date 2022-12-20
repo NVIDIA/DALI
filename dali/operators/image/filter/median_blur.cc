@@ -79,8 +79,7 @@ class MedianBlur : public Operator<GPUBackend> {
     }
   }
 
-  void GetImages(int d, SmallVector<int, 6> pos,
-                 const ConstSampleView<GPUBackend> &sample,
+  void GetImages(const ConstSampleView<GPUBackend> &sample,
                  bool channels_last) {
     const auto &shape = sample.shape();
     int channels = channels_last ? shape[shape.sample_dim() - 1] : 0;
@@ -104,12 +103,11 @@ class MedianBlur : public Operator<GPUBackend> {
     int nsamples = tl.num_samples();
     int ndim = tl.sample_ndim();
     int cdim = layout.find('C');
+    bool channels_last = cdim == ndim - 1;
+    
     images_.clear();
-    if (cdim == ndim - 1) {
-      for (int i = 0; i < num_samples; i++) {
-        GetImages(ndim -3, tl[i], true);
-      }
-    } else {
+    for (int i = 0; i < num_samples; i++) {
+      GetImages(tl[i], channels_last);
     }
     return images_.size();
   }
