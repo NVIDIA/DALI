@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,12 @@
 #ifndef DALI_CORE_BOUNDARY_H_
 #define DALI_CORE_BOUNDARY_H_
 
-#include "dali/core/host_dev.h"
+#include <string>
+
 #include "dali/core/force_inline.h"
+#include "dali/core/format.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/host_dev.h"
 
 namespace dali {
 
@@ -58,6 +61,46 @@ struct Boundary {
   BoundaryType type = BoundaryType::REFLECT_101;
   T value = {};
 };
+
+inline std::string to_string(const BoundaryType& type) {
+  switch (type) {
+    case BoundaryType::CONSTANT:
+      return "constant";
+    case BoundaryType::CLAMP:
+      return "clamp";
+    case BoundaryType::REFLECT_1001:
+      return "reflect_1001";
+    case BoundaryType::REFLECT_101:
+      return "reflect_101";
+    case BoundaryType::WRAP:
+      return "wrap";
+    case BoundaryType::TRANSPARENT:
+      return "transparent";
+    case BoundaryType::ISOLATED:
+      return "isolated";
+    default:
+      return "<unknown>";
+  }
+}
+
+inline BoundaryType parse(std::string type) {
+  std::transform(type.begin(), type.end(), type.begin(), [](auto c) { return std::tolower(c); });
+  if (type == "constant" || type == "const" || type == "fill")
+    return BoundaryType::CONSTANT;
+  if (type == "clamp")
+    return BoundaryType::CLAMP;
+  if (type == "reflect_1001" || type == "reflect1001" || type == "1001")
+    return BoundaryType::REFLECT_1001;
+  if (type == "reflect_101" || type == "reflect101" || type == "101")
+    return BoundaryType::REFLECT_101;
+  if (type == "wrap")
+    return BoundaryType::WRAP;
+  if (type == "transparent")
+    return BoundaryType::TRANSPARENT;
+  if (type == "isolated")
+    return BoundaryType::ISOLATED;
+  throw std::invalid_argument(make_string("Unknown boundary type was specified: ``", type, "``."));
+}
 
 /**
  * @brief Reflects out-of-range indices until fits in range.
