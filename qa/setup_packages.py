@@ -210,7 +210,7 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
-        version = version = self.get_version(idx, cuda_version)
+        version = self.get_version(idx, cuda_version)
         op = "" if str(version)[0] in ("<", ">", "=") else "=="
         pkg_cmd = f"{self.get_name(cuda_version, idx)}{op}{version}"
         deps_cmd = self.get_dependencies(cuda_version, idx)
@@ -446,9 +446,9 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                              "111": ["8.6.0"]},
                             "cupy-cuda{cuda_v}"),
                 CudaPackage("mxnet",
-                            {"100": ["1.9.0"],
-                             "110": ["1.9.1"],
-                             "111": ["1.9.1"]},
+                            {"100": [PckgVer("1.9.0", dependencies=["numpy<1.24"])],
+                             "110": [PckgVer("1.9.1", dependencies=["numpy<1.24"])],
+                             "111": [PckgVer("1.9.1", dependencies=["numpy<1.24"])]},
                             "mxnet-cu{cuda_v}"),
                 CudaPackage("tensorflow-gpu",
                             {"100": [
