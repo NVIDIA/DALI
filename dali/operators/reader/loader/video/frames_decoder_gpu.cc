@@ -17,7 +17,7 @@
 #include <string>
 #include <memory>
 #include <iomanip>
-#include <unordered_map>
+#include <map>
 #include <mutex>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
@@ -91,11 +91,11 @@ class NVDECCache {
       return GetCache(device_id).GetDecoder(video_format, device_id);
     }
 
-    void ReturnDecoder(DecInstance &decoder) {
+    void ReturnDecoder(DecInstance *decoder) {
       std::unique_lock lock(access_lock);
-      auto range = dec_cache.equal_range(decoder.codec_type);
+      auto range = dec_cache.equal_range(decoder->codec_type);
       for (auto it = range.first; it != range.second; ++it) {
-        if (it->second.decoder == decoder.decoder) {
+        if (&it->second == decoder) {
           it->second.used = false;
           return;
         }
@@ -137,7 +137,7 @@ class NVDECCache {
             it->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
           it->second.used = true;
           assert(it->second.device_id == device_id);
-          return NVDECLease(it->second);
+          return NVDECLease(this, &it->second);
         }
       }
       // reconfigure needs ulTargetHeight and ulTargetWidth set to the upper bound of the video
@@ -157,7 +157,7 @@ class NVDECCache {
         best_match->second.width = width;
         best_match->second.num_decode_surfaces = num_decode_surfaces;
         CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
-        return NVDECLease(best_match->second);
+        return NVDECLease(this, &best_match->second);
       }
 #endif
       lock.unlock();
@@ -237,7 +237,7 @@ class NVDECCache {
       decoder_inst.device_id = device_id;
 
       lock.lock();
-      dec_cache.insert({codec_type, decoder_inst});
+      auto inserted = dec_cache.insert({codec_type, decoder_inst});
       if (dec_cache.size() > CACHE_SIZE_LIMIT) {
         for (auto it = dec_cache.begin(); it != dec_cache.end(); ++it) {
           if (it->second.used == false) {
@@ -249,19 +249,21 @@ class NVDECCache {
           }
         }
       }
-      return NVDECLease(decoder_inst);
+      return NVDECLease(this, &inserted->second);
     }
 
-    using codec_map = std::unordered_multimap<cudaVideoCodec, DecInstance>;
+    using codec_map = std::multimap<cudaVideoCodec, DecInstance>;
     codec_map dec_cache;
     std::mutex access_lock;
 
     static constexpr int CACHE_SIZE_LIMIT = 100;
 };
 
-NVDECLease::~NVDECLease() {
-  if (decoder.used) {
-    frame_dec_gpu_impl::NVDECCache::GetCache(decoder.device_id).ReturnDecoder(decoder);
+void NVDECLease::Return() {
+  if (decoder) {
+    owner->ReturnDecoder(decoder);
+    owner = nullptr;
+    decoder = nullptr;
   }
 }
 
