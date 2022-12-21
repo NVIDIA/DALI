@@ -104,7 +104,7 @@ void CalculateSampleParams(ResizeParams &params, SmallVector<float, 3> requested
       adjustment = clamp(adjustment, -10.0, 10.0);
 
       double center;
-      if(alignment.empty() || alignment[d] == 0) {
+      if (alignment.empty() || alignment[d] == 0) {
         // keep center of the ROI - adjust the edges
         center = (params.src_lo[d] + params.src_hi[d]) * 0.5;
       } else if (alignment[d] == -1) {
@@ -114,7 +114,8 @@ void CalculateSampleParams(ResizeParams &params, SmallVector<float, 3> requested
         // keep end of the ROI
         center = params.src_hi[d];
       } else {
-        DALI_FAIL(make_string("Unsupported alignment value ", alignment[d], ". Supported values are 0, -1, 1"));
+        DALI_FAIL(make_string("Unsupported alignment value ", alignment[d],
+                              ". Supported values are 0, -1, 1"));
       }
 
       // clamp to more-or-less sane interval to avoid arithmetic problems downstream
