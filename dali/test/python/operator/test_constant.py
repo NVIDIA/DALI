@@ -130,7 +130,7 @@ ref = [
     np.array([0.25, 1.25, 2.25, 3.25, 4.25], dtype=np.float16),
     np.full([100, 100], 5.5, dtype=np.float32),
     np.full([10, 20], -4, dtype=np.int32),
-    np.array([False, True, False], dtype=np.bool_)
+    np.array([False, True, False], dtype=bool)
 ]
 
 

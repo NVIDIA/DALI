@@ -197,7 +197,7 @@ def channels_mean(image):
 
 
 def bias(image):
-    return numpy.array(image > 127, dtype=numpy.bool_)
+    return numpy.array(image > 127, dtype=bool)
 
 
 def flip(image):
