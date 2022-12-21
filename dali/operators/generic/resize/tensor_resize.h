@@ -48,43 +48,6 @@ class TensorResize : public Operator<Backend>
     int nsamples = input_shape.num_samples();
     resize_attr_.PrepareResizeParams(spec_, ws, input_shape);
 
-    auto unchanged_dim = [&](int d) {
-      for (int i = 0; i < nsamples; i++) {
-        int64_t extent = input_shape.tensor_shape_span(i)[d];
-        if (static_cast<int64_t>(resize_attr_.params_[i].dst_size[d]) != extent ||
-            static_cast<int64_t>(resize_attr_.params_[i].src_lo[d]) != 0 ||
-            static_cast<int64_t>(resize_attr_.params_[i].src_hi[d]) != extent) {
-          return false;
-        }
-      }
-      return true;
-    };
-
-    for (int d = 0; d < resize_attr_.ndim_; d++) {
-      if (!unchanged_dim(d))
-        break;
-      resize_attr_.first_spatial_dim_++;
-      resize_attr_.spatial_ndim_--;
-    }
-    for (int d = resize_attr_.ndim_ - 1; d >= 0; d--) {
-      if (!unchanged_dim(d))
-        break;
-      resize_attr_.spatial_ndim_--;
-    }
-
-    int spatial_ndim = resize_attr_.spatial_ndim_;
-    for (int s = 0; s < nsamples; s++) {
-      for (int d = 0; d < spatial_ndim ; d++) {
-        int orig_d = resize_attr_.first_spatial_dim_ + d;
-        resize_attr_.params_[s].dst_size[d] = resize_attr_.params_[s].dst_size[orig_d];
-        resize_attr_.params_[s].src_hi[d] = resize_attr_.params_[s].src_hi[orig_d];
-        resize_attr_.params_[s].src_lo[d] = resize_attr_.params_[s].src_lo[orig_d];
-      }
-      resize_attr_.params_[s].dst_size.resize(spatial_ndim);
-      resize_attr_.params_[s].src_hi.resize(spatial_ndim);
-      resize_attr_.params_[s].src_lo.resize(spatial_ndim);
-    }
-
     if (NumSpatialDims() < 1) {
       throw std::invalid_argument(
           "TensorResize expects at least one spatial dimension to be resized");

@@ -96,15 +96,17 @@ template <typename T>
 void GetShapeLikeWithAxes(std::vector<T> &full, std::vector<T> &arg,
                           const OpSpec& spec, const ArgumentWorkspace &ws,
                           const std::string &arg_name, span<const int> axes,
-                          int nsamples, int ndim, int nargs) {
+                          int nsamples, int spatial_ndim, int nargs,
+                          int first_spatial_dim) {
   GetShapeLikeArgument<T>(arg, spec, arg_name, ws, nsamples, nargs);
-  full.resize(nsamples * ndim);
+  full.resize(nsamples * spatial_ndim);
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto orig_arg = make_span(arg.data() + sample_idx * nargs, nargs);
-    auto full_arg = make_span(full.data() + sample_idx * ndim, ndim);
+    auto full_arg = make_span(full.data() + sample_idx * spatial_ndim, spatial_ndim);
     for (int i = 0; i < nargs; i++) {
-      int d = axes[i];
-      assert(d < ndim);
+      int d = axes[i] - first_spatial_dim;
+      assert(d >= 0);
+      assert(d < spatial_ndim);
       full_arg[d] = orig_arg[i];
     }
   }
@@ -122,6 +124,16 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
     std::iota(axes_.begin(), axes_.end(), 0);
   }
   int nargs = axes_.size();
+  int first_axis = ndim_;
+  int last_axis = -1;
+  for (int axis : axes_) {
+    if (axis < first_axis)
+      first_axis = axis;
+    if (axis > last_axis)
+      last_axis = axis;
+  }
+  spatial_ndim_ = last_axis - first_axis + 1;
+  first_spatial_dim_ = first_axis;
 
   int nsamples = input_shape.num_samples();
   params_.resize(nsamples);
@@ -130,70 +142,110 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
 
   if (has_alignment_) {
     GetShapeLikeWithAxes<int>(alignment_, alignment_arg_, spec, ws, "alignment", axes, nsamples,
-                              ndim_, nargs);
+                              spatial_ndim_, nargs, first_spatial_dim_);
   }
 
   if (has_sizes_) {
-    GetShapeLikeWithAxes<float>(sizes_, sizes_arg_, spec, ws, "sizes", axes, nsamples, ndim_,
-                                nargs);
+    GetShapeLikeWithAxes<float>(sizes_, sizes_arg_, spec, ws, "sizes", axes, nsamples,
+                                spatial_ndim_, nargs, first_spatial_dim_);
   } else if (has_scales_) {
-    GetShapeLikeWithAxes<float>(scales_, scales_arg_, spec, ws, "scales", axes, nsamples, ndim_,
-                                nargs);
+    GetShapeLikeWithAxes<float>(scales_, scales_arg_, spec, ws, "scales", axes, nsamples,
+                                spatial_ndim_, nargs, first_spatial_dim_);
   } else {
     assert(false);  // should not happen
   }
 
   if (has_roi_) {
     GetShapeLikeWithAxes<float>(roi_start_, roi_start_arg_, spec, ws, "roi_start", axes, nsamples,
-                                ndim_, nargs);
-    GetShapeLikeWithAxes<float>(roi_end_, roi_end_arg_, spec, ws, "roi_end", axes, nsamples, ndim_,
-                                nargs);
+                                spatial_ndim_, nargs, first_spatial_dim_);
+    GetShapeLikeWithAxes<float>(roi_end_, roi_end_arg_, spec, ws, "roi_end", axes, nsamples,
+                                spatial_ndim_, nargs, first_spatial_dim_);
   }
 
-  spatial_ndim_ = ndim_;
-  first_spatial_dim_ = 0;
-
-  max_size_.resize(ndim_,
+  max_size_.resize(spatial_ndim_,
                    std::nextafter(static_cast<float>(std::numeric_limits<int>::max()), 0.0f));
   if (has_max_size_) {
     GetSingleOrRepeatedArg(spec, max_size_arg_, "max_size", nargs);
     for (int i = 0; i < nargs; i++) {
-      int d = axes_[i];
+      int d = axes_[i] - first_spatial_dim_;
+      assert(d >= 0);
+      assert(d < spatial_ndim_);
       max_size_[d] = max_size_arg_[i];
     }
   }
 
   SmallVector<float, 3> requested_size, in_lo, in_hi;
-  requested_size.resize(ndim_);
-  in_lo.resize(ndim_);
-  in_hi.resize(ndim_);
+  requested_size.resize(spatial_ndim_);
+  in_lo.resize(spatial_ndim_);
+  in_hi.resize(spatial_ndim_);
 
   assert(has_sizes_ + has_scales_ == 1);
   const float *max_size = has_max_size_ ? max_size_.data() : nullptr;
   for (int i = 0; i < nsamples; i++) {
     auto in_sample_shape = input_shape.tensor_shape_span(i);
     if (has_sizes_) {
-      for (int d = 0; d < ndim_; d++) {
-        requested_size[d] = sizes_[i * ndim_ + d];
+      for (int d = 0; d < spatial_ndim_; d++) {
+        requested_size[d] = sizes_[i * ndim_ + first_spatial_dim_ + d];
       }
     } else {
       assert(has_scales_);
       for (int d = 0; d < ndim_; d++) {
-        requested_size[d] = scales_[i * ndim_ + d] * in_sample_shape[d];
+        requested_size[d] = scales_[i * ndim_ + first_spatial_dim_ + d] * in_sample_shape[d];
       }
     }
 
     bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
     CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
-                      make_cspan(roi_end_), input_shape, i, ndim_, 0);
+                      make_cspan(roi_end_), input_shape, i, spatial_ndim_, first_spatial_dim_);
 
     span<const int> alignment;
     if (has_alignment_)
-      alignment = {alignment_.data() + i * ndim_, ndim_};
+      alignment = {alignment_.data() + i * spatial_ndim_, spatial_ndim_};
     assert(subpixel_scale_ || !has_alignment_);
     CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
-                          ndim_, mode_, max_size, alignment, scale_round_fn_);
+                          spatial_ndim_, mode_, max_size, alignment, scale_round_fn_);
   }
+
+  auto unchanged_dim = [&](int d) {
+    for (int i = 0; i < nsamples; i++) {
+      int64_t extent = input_shape.tensor_shape_span(i)[d];
+      if (static_cast<int64_t>(params_[i].dst_size[d]) != extent ||
+          static_cast<int64_t>(params_[i].src_lo[d]) != 0 ||
+          static_cast<int64_t>(params_[i].src_hi[d]) != extent) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  int trim_start_ndim = 0;
+  int trim_end_ndim = 0;
+  for (int d = 0; d < spatial_ndim_; d++) {
+    if (!unchanged_dim(d))
+      break;
+    trim_start_ndim++;
+  }
+  for (int d = spatial_ndim_ - 1; d >= 0; d--) {
+    if (!unchanged_dim(d))
+      break;
+    trim_end_ndim++;
+  }
+
+  int new_spatial_ndim = spatial_ndim_ - (trim_start_ndim + trim_end_ndim);
+  for (int s = 0; s < nsamples; s++) {
+    auto &p = params_[s];
+    for (int d = 0; d < new_spatial_ndim ; d++) {
+      int orig_d = trim_start_ndim + d;
+      p.dst_size[d] = p.dst_size[orig_d];
+      p.src_hi[d] = p.src_hi[orig_d];
+      p.src_lo[d] = p.src_lo[orig_d];
+    }
+    p.dst_size.resize(new_spatial_ndim);
+    p.src_hi.resize(new_spatial_ndim);
+    p.src_lo.resize(new_spatial_ndim);
+  }
+  first_spatial_dim_ += trim_start_ndim;
+  spatial_ndim_ = new_spatial_ndim;
 }
 
 }  // namespace dali
