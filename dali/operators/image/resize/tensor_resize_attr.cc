@@ -183,8 +183,8 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
     }
 
     bool empty_input = volume(input_shape.tensor_shape_span(i)) == 0;
-    CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, roi_start_.data(), roi_end_.data(),
-                      input_shape, i, ndim_, 0);
+    CalculateInputRoI(in_lo, in_hi, has_roi_, roi_relative_, make_cspan(roi_start_),
+                      make_cspan(roi_end_), input_shape, i, ndim_, 0);
 
     span<const int> alignment;
     if (has_alignment_)

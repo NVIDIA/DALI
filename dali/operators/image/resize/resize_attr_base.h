@@ -52,7 +52,7 @@ void CalculateSampleParams(ResizeParams &params, SmallVector<float, 3> requested
                            SmallVector<float, 3> in_lo, SmallVector<float, 3> in_hi,
                            bool adjust_roi, bool empty_input, int ndim,
                            ResizeMode mode = ResizeMode::Stretch, const float *max_size = nullptr,
-                           RoundFn size_round_fn = round_int) {
+                           span<const int> alignment = {}, RoundFn size_round_fn = round_int) {
   assert(static_cast<int>(requested_size.size()) == ndim);
   assert(static_cast<int>(in_lo.size()) == ndim);
   assert(static_cast<int>(in_hi.size()) == ndim);
@@ -103,8 +103,19 @@ void CalculateSampleParams(ResizeParams &params, SmallVector<float, 3> requested
       // and real output size instead.
       adjustment = clamp(adjustment, -10.0, 10.0);
 
-      // keep center of the ROI - adjust the edges
-      double center = (params.src_lo[d] + params.src_hi[d]) * 0.5;
+      double center;
+      if(alignment.empty() || alignment[d] == 0) {
+        // keep center of the ROI - adjust the edges
+        center = (params.src_lo[d] + params.src_hi[d]) * 0.5;
+      } else if (alignment[d] == -1) {
+        // keep start of the ROI
+        center = params.src_lo[d];
+      } else if (alignment[d] == 1) {
+        // keep end of the ROI
+        center = params.src_hi[d];
+      } else {
+        DALI_FAIL(make_string("Unsupported alignment value ", alignment[d], ". Supported values are 0, -1, 1"));
+      }
 
       // clamp to more-or-less sane interval to avoid arithmetic problems downstream
       params.src_lo[d] = clamp(center + (params.src_lo[d] - center) * adjustment, -1e+9, 1e+9);
