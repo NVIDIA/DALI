@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include "dali/operators/generic/slice/out_of_bounds_policy.h"
-#include "dali/operators/generic/slice/slice_attr.h"
 #include "dali/operators/reader/loader/fits_loader.h"
 #include "dali/operators/reader/reader_op.h"
 #include "dali/pipeline/operator/arg_helper.h"
@@ -31,8 +29,7 @@ namespace dali {
 template <typename Backend, typename Target>
 class FitsReader : public DataReader<Backend, Target> {
  public:
-  explicit FitsReader(const OpSpec& spec)
-      : DataReader<Backend, Target>(spec), slice_attr_(spec, nullptr) {}
+  explicit FitsReader(const OpSpec& spec) : DataReader<Backend, Target>(spec) {}
 
   bool CanInferOutputs() const override {
     return true;
@@ -46,13 +43,6 @@ class FitsReader : public DataReader<Backend, Target> {
     DataReader<Backend, Target>::SetupImpl(output_desc, ws);
     return true;
   }
-
-  NamedSliceAttr slice_attr_;
-  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
-  float fill_value_ = 0;
-
-  std::vector<bool> need_transpose_;
-  std::vector<bool> need_slice_;
 };
 
 class FitsReaderCPU : public FitsReader<CPUBackend, FitsFileWrapper> {
