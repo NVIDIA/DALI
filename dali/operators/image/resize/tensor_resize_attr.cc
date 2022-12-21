@@ -37,7 +37,8 @@ See ``size_rounding`` for a list of supported rounding policies.
 When ``axes`` is provided, the scale factor values refer to the axes specified.
 Note: Arguments ``sizes`` and ``scales`` are mutually exclusive.)code",
                                    {}, true)
-    .AddOptionalArg<int>("alignment", R"code(Determines the position of the ROI (provided or calculated).
+    .AddOptionalArg<int>("alignment", R"code(Determines the position of the ROI 
+when using scales (provided or calculated).
 
 Accepted values are -1 (align with top-left corner), 0 (centered), 1 (align with bottom-right corner).
 By default, 0 (centered) is assumed. Contains as many elements as dimensions provided for sizes/scales.
