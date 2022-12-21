@@ -1134,6 +1134,22 @@ def test_tensor_list_cpu():
     del d_tl
 
 
+def test_video_input():
+    @pipeline_def(batch_size=3, num_threads=1, device_id=None)
+    def video_input_pipeline(input_name):
+        vid = fn.experimental.inputs.video(name=input_name, sequence_length=7, blocking=False)
+        return vid
+
+    input_name = "VIDEO_INPUT"
+    n_iterations = 3
+    test_data = np.fromfile(video_files[0], dtype=np.uint8)
+    p = video_input_pipeline(input_name)
+    p.build()
+    p.feed_input(input_name, [test_data])
+    for _ in range(n_iterations):
+        p.run()
+
+
 tested_methods = [
     "audio_decoder",
     "image_decoder",
@@ -1148,6 +1164,7 @@ tested_methods = [
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
+    "experimental.inputs.video",
     "decoders.audio",
     "external_source",
     "stack",

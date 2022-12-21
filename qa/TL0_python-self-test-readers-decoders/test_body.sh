@@ -39,6 +39,9 @@ test_py_with_framework() {
 
 
     ${python_new_invoke_test} -s decoder
+
+
+    ${python_new_invoke_test} -s input
 }
 
 test_no_fw() {
