@@ -210,9 +210,9 @@ class BasePackage():
             `cuda_version`: str, optional, default = None
                 Cuda version used for this query
         """
-        version = version=self.get_version(idx, cuda_version)
+        version = version = self.get_version(idx, cuda_version)
         op = "" if str(version)[0] in ("<", ">", "=") else "=="
-        pkg_cmd = f"{self.get_name(cuda_version, idx)}{op}{version}";
+        pkg_cmd = f"{self.get_name(cuda_version, idx)}{op}{version}"
         deps_cmd = self.get_dependencies(cuda_version, idx)
         if deps_cmd is not None:
             pkg_cmd = " ".join([pkg_cmd] + deps_cmd)
@@ -439,7 +439,7 @@ class CudaHttpPackage(CudaPackage):
 
 
 all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
-                PlainPackage("opencv-python",[PckgVer("4.5.1.48", dependencies=["numpy<1.24"])]),
+                PlainPackage("opencv-python", [PckgVer("4.5.1.48", dependencies=["numpy<1.24"])]),
                 CudaPackage("cupy",
                             {"100": ["8.6.0"],
                              "110": ["8.6.0"],
@@ -479,10 +479,12 @@ all_packages = [PlainPackage("numpy", [">=1.17,<1.24"]),
                                 PckgVer("2.2.0", dependencies=["protobuf<4", "numpy<1.24"])]}),
                 CudaPackage("numba",
                             {"100": [
-                                PckgVer("0.55.2", python_min_ver="3.7", dependencies=["numpy<1.24"]),
+                                PckgVer("0.55.2", python_min_ver="3.7",
+                                        dependencies=["numpy<1.24"]),
                                 PckgVer("0.53.1", python_max_ver="3.6")],
                              "110": [
-                                PckgVer("0.56.0", python_min_ver="3.7", dependencies=["numpy<1.24"]),
+                                PckgVer("0.56.0", python_min_ver="3.7",
+                                        dependencies=["numpy<1.24"]),
                                 PckgVer("0.53.1", python_max_ver="3.6")]})
                 ]
 
