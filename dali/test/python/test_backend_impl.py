@@ -131,6 +131,14 @@ def test_array_interface_types():
         yield check_array_types, t
 
 
+def layout_compatible(a, b):
+    if a is None:
+        a = ""
+    if b is None:
+        b = ""
+    return a == b
+
+
 # TODO(spanev): figure out which return_value_policy to choose
 # def test_tensorlist_getitem_slice():
 #    arr = np.random.rand(3, 5, 6)
@@ -138,7 +146,6 @@ def test_array_interface_types():
 #    two_first_tensors = tensorlist[0:2]
 #    assert type(two_first_tensors) == tuple
 #    assert type(two_first_tensors[0]) == TensorCPU
-
 
 def test_tensor_cpu_squeeze():
     def check_squeeze(shape, dim, in_layout, expected_out_layout):
@@ -150,6 +157,8 @@ def test_tensor_cpu_squeeze():
         t_shape = tuple(t.shape())
         assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
         assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
+        assert layout_compatible(t.get_property("layout"), expected_out_layout), \
+               f'{t.get_property("layout")} doesn\'t match {expected_out_layout}'
         assert np.allclose(arr_squeeze, np.array(t))
         assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
 

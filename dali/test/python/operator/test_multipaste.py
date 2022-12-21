@@ -220,6 +220,9 @@ def verify_out_of_bounds(batch_size, in_idx_l, in_anchors_l, shapes_l, out_ancho
 def manual_verify(batch_size, inp, output, in_idx_l, in_anchors_l, shapes_l, out_anchors_l,
                   out_size_l, dtype):
     for i in range(batch_size):
+        ref_source_info = ";".join([inp[idx].source_info() for idx in in_idx_l[i]])
+        assert output[i].source_info() == ref_source_info, \
+               f"{output[i].source_info()} == {ref_source_info}"
         out = output.at(i)
         out_size = out_size_l[i]
         assert out.shape == out_size

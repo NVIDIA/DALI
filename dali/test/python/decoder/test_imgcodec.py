@@ -150,9 +150,10 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
     for _ in range(iters):
         out_1, out_2 = pipe.run()
         for img_1, img_2 in zip(out_1, out_2):
-            img_1 = to_array(img_1)
-            img_2 = to_array(img_2)
-            assert validation_fun(img_1, img_2)
+            arr_1 = to_array(img_1)
+            arr_2 = to_array(img_2)
+            assert validation_fun(arr_1, arr_2), \
+                   f"{validation_fun.__name__}\nimage: {img_1.source_info()}"
 
 
 def test_image_decoder_fused():
