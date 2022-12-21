@@ -111,7 +111,7 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libavfilter.so.8"
     "${DEPS_PATH}/lib/libavutil.so.57"
     "${DEPS_PATH}/lib/libswscale.so.6"
-    "${DEPS_PATH}/lib/libtiff.so.5"
+    "${DEPS_PATH}/lib/libtiff.so.6"
     "${DEPS_PATH}/lib/libsndfile.so.1"
     "${DEPS_PATH}/lib/libFLAC.so.12"
     "${DEPS_PATH}/lib/libogg.so.0"
