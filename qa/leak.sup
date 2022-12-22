@@ -19,6 +19,15 @@ leak:_pywrap
 leak:PyInit__op_def_registry
 leak:PyInit__tf_stack
 leak:PyInit__dtypes
+leak:GetStacktrace
+leak:_Unwind_ForcedUnwind
+leak:cuFileDriverOpen
+leak:cudaGetDeviceCount
+leak:cuvidGetDecoderCaps
+leak:cuInitChecked
+leak:dali::AllocBuffer
+leak:dali::mm::AsyncDeleter
+leak:ReleaseDevice
 # no idea how to suppress them other than as below but they are not caused by DALI
 # still there is some danger that any of the  below functions appear in a valid leak
 leak:std::string::_Rep::_S_create
